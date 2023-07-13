@@ -1,0 +1,91 @@
+{
+  "name": "Beaver-notes",
+  "private": false,
+  "version": "0.0.4",
+  "license": "MIT",
+  "engines": {
+    "node": ">=v14.16",
+    "npm": ">=7.7"
+  },
+  "homepage": "https://beavernotes.com",
+  "repository": {
+  "type": "git",
+  "url": "https://github.com/Daniele-rolli/Beaver-Notes"
+},
+  "main": "packages/main/dist/index.cjs",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "precompile": "cross-env MODE=production npm run build",
+    "compile": "electron-builder build --config electron-builder.config.js --dir --config.asar=false",
+    "pretest": "cross-env MODE=test npm run build",
+    "test": "node tests/app.spec.js",
+    "watch": "node scripts/watch.js",
+    "lint": "eslint . --ext js,ts,vue",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "browserslist": [
+    "Chrome 91"
+  ],
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue}": "eslint --cache --fix"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^1.4.0",
+    "autoprefixer": "^10.3.1",
+    "babel-eslint": "^10.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^13.3.0",
+    "electron-builder": "^22.11.7",
+    "electron-devtools-installer": "^3.2.0",
+    "eslint": "^7.32.0",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier-vue": "^3.1.0",
+    "eslint-plugin-vue": "^7.16.0",
+    "lint-staged": "^11.1.2",
+    "postcss": "^8.3.6",
+    "postcss-nested": "^5.0.6",
+    "simple-git-hooks": "^2.5.1",
+    "spectron": "^15.0.0",
+    "tailwindcss": "^2.2.7",
+    "vite": "^2.4.4"
+  },
+  "dependencies": {
+    "@benrbray/prosemirror-math": "^0.2.2",
+    "@tailwindcss/typography": "^0.4.1",
+    "@tiptap/extension-code": "^2.0.0-beta.16",
+    "@tiptap/extension-code-block-lowlight": "^2.0.0-beta.34",
+    "@tiptap/extension-highlight": "^2.0.0-beta.15",
+    "@tiptap/extension-image": "^2.0.0-beta.15",
+    "@tiptap/extension-link": "^2.0.0-beta.19",
+    "@tiptap/extension-mention": "^2.0.0-beta.68",
+    "@tiptap/extension-placeholder": "^2.0.0-beta.27",
+    "@tiptap/extension-task-item": "^2.0.0-beta.17",
+    "@tiptap/extension-task-list": "^2.0.0-beta.17",
+    "@tiptap/extension-typography": "^2.0.0-beta.14",
+    "@tiptap/extension-underline": "^2.0.0-beta.16",
+    "@tiptap/starter-kit": "^2.0.0-beta.97",
+    "@tiptap/vue-3": "^2.0.0-beta.52",
+    "crypto-es": "^1.2.7",
+    "dayjs": "^1.10.6",
+    "dmg-builder": "^24.5.0",
+    "electron-better-ipc": "^2.0.1",
+    "electron-fetch": "^1.9.1",
+    "electron-store": "^8.0.0",
+    "electron-updater": "^6.1.1",
+    "fs-extra": "^10.0.0",
+    "katex": "^0.13.13",
+    "lowlight": "1.20.0",
+    "mousetrap": "^1.6.5",
+    "nanoid": "^3.1.25",
+    "node-fetch": "^3.3.1",
+    "pinia": "^2.0.0-rc.4",
+    "tiny-emitter": "^2.1.0",
+    "tippy.js": "^6.3.1",
+    "v-remixicon": "^0.0.9",
+    "vue": "^3.2.2",
+    "vue-router": "^4.0.11"
+  }
+}

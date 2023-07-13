@@ -1,0 +1,58 @@
+body {
+  font-family: 'Arimo', sans-serif;
+  @apply bg-[#FFFFFF] dark:bg-[#232222] dark:text-white;
+}
+.dark * {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+button,
+input,
+textarea,
+select {
+  &:focus {
+    outline: none;
+  }
+}
+
+option {
+  @apply dark:bg-gray-700 dark:text-white;
+}
+
+.v-remixicon {
+  display: inline-block;
+}
+
+.tippy-box[data-theme~='tooltip-theme'] {
+  background-color: #191919;
+  color: white;
+  @apply px-2 py-1 text-sm text-gray-200 rounded-md;
+}
+
+.scroll {
+  &::-webkit-scrollbar {
+    width: 7px;
+    height: 9px;
+  }
+  &::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-700;
+    border-radius: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+.text-overflow {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.line-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
