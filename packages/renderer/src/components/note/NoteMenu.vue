@@ -35,7 +35,7 @@
         title="Font size"
       /> -->
       <button
-        v-tooltip.group="'Paragraph (Ctrl+alt+0)'"
+        v-tooltip.group="'Paragraph'"
         :class="{ 'is-active': editor.isActive('paragraph') }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().setParagraph().run()"
@@ -45,7 +45,7 @@
       <button
         v-for="heading in [1, 2]"
         :key="heading"
-        v-tooltip.group="`Heading ${heading} (Ctrl+alt+${heading})`"
+        v-tooltip.group="`Heading ${heading}`"
         :class="{ 'is-active': editor.isActive('heading', { level: heading }) }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().toggleHeading({ level: heading }).run()"
@@ -102,7 +102,7 @@
         />
       </ui-popover>
       <button
-        v-tooltip.group="'Link (Ctrl+K)'"
+        v-tooltip.group="'Link'"
         :class="{ 'is-active': editor.isActive('link') }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().toggleLink({ href: '' }).run()"
@@ -111,7 +111,7 @@
       </button>
       <hr class="border-r mx-2 h-6" />
       <button
-        v-tooltip.group="'Focus mode (Ctrl+Shift+F)'"
+        v-tooltip.group="'Focus mode'"
         :class="{ 'is-active': store.inFocusMode }"
         class="hoverable h-8 px-1 rounded-lg h-full"
         @click="toggleFocusMode"
@@ -119,7 +119,7 @@
         <v-remixicon name="riFocus3Line" />
       </button>
       <button
-        v-tooltip.group="'Headings tree (Ctrl+Alt+H)'"
+        v-tooltip.group="'Headings tree'"
         :class="{ 'is-active': tree }"
         class="hoverable h-8 px-1 rounded-lg h-full"
         @click="showHeadingsTree = !showHeadingsTree"
@@ -180,28 +180,28 @@ export default {
     const lists = [
       {
         name: 'ordered-list',
-        title: 'Bold (Ctrl+Shift+7)',
+        title: 'Bold',
         icon: 'riListOrdered',
         activeState: 'orderedList',
         handler: () => props.editor.chain().focus().toggleOrderedList().run(),
       },
       {
         name: 'bullet-list',
-        title: 'Bullet list (Ctrl+Shift+8)',
+        title: 'Bullet list',
         icon: 'riListUnordered',
         activeState: 'bulletList',
         handler: () => props.editor.chain().focus().toggleBulletList().run(),
       },
       {
         name: 'blockquote',
-        title: 'Blockquote (Ctrl+Shift+B)',
+        title: 'Blockquote',
         icon: 'riDoubleQuotesR',
         activeState: 'blockquote',
         handler: () => props.editor.chain().focus().toggleBlockquote().run(),
       },
       {
         name: 'code-block',
-        title: 'Code Block (Ctrl+Alt+C)',
+        title: 'Code Block',
         icon: 'riCodeBoxLine',
         activeState: 'codeBlock',
         handler: () => props.editor.chain().focus().toggleCodeBlock().run(),
@@ -210,42 +210,42 @@ export default {
     const textFormatting = [
       {
         name: 'bold',
-        title: 'Bold (Ctrl+B)',
+        title: 'Bold',
         icon: 'riBold',
         activeState: 'bold',
         handler: () => props.editor.chain().focus().toggleBold().run(),
       },
       {
         name: 'italic',
-        title: 'Italic (Ctrl+I)',
+        title: 'Italic',
         icon: 'riItalic',
         activeState: 'italic',
         handler: () => props.editor.chain().focus().toggleItalic().run(),
       },
       {
         name: 'underline',
-        title: 'Underline (Ctrl+U)',
+        title: 'Underline',
         icon: 'riUnderline',
         activeState: 'underline',
         handler: () => props.editor.chain().focus().toggleUnderline().run(),
       },
       {
         name: 'strikethrough',
-        title: 'Strikethrough (Ctrl+Shift+X)',
+        title: 'Strikethrough',
         icon: 'riStrikethrough2',
         activeState: 'strike',
         handler: () => props.editor.chain().focus().toggleStrike().run(),
       },
       {
         name: 'inline-code',
-        title: 'Inline Block (Ctrl+E)',
+        title: 'Inline Block',
         icon: 'riCodeLine',
         activeState: 'code',
         handler: () => props.editor.chain().focus().toggleCode().run(),
       },
       {
         name: 'highlight',
-        title: 'Highlight (Ctrl+Shift+H)',
+        title: 'Highlight',
         icon: 'riMarkPenLine',
         activeState: 'highlight',
         handler: () => props.editor.chain().focus().toggleHighlight().run(),
