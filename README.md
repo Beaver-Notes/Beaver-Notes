@@ -10,7 +10,7 @@ Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS an
 - Tags and Categories: Stay organized by using tags and categories to group related notes. Quickly find what you need, when you need it.
 - Efficient Search: Our powerful search functionality helps you locate notes instantly, saving you time and effort.
 - Export and Import: Seamlessly move your notes or create backups whenever you desire. Flexibility at your fingertips.
-- 
+  
 ## Installation 🚀
 
 Getting started with Beaver Notes is quick and easy! Visit our official website and download the installer for your operating system. 
