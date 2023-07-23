@@ -1,0 +1,52 @@
+{
+    "app-id": "com.danielerolli.beaver-notes",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "21.08",
+  
+    "sdk": "org.freedesktop.Sdk",
+    "command": "electron .", 
+  
+    "finish-args": [
+      "--share=network",
+      "--socket=x11",
+      "--socket=wayland",
+      "--socket=pulseaudio",
+      "--socket=session-bus",
+      "--socket=system-bus",
+      "--socket=system-dbus"
+    ],
+  
+    "modules": [
+      {
+        "name": "beaver-notes",
+        "buildsystem": "simple",
+        "sources": [
+          {
+            "type": "git",
+            "url": "https://github.com/Daniele-rolli/Beaver-Notes.git",
+            "commit": "9b9ed45966b470abd7a37fe4e0b9e4279a2bffbe"
+          }
+        ],
+        "build-commands": [
+          "yarn install",
+          "yarn compile" 
+        ]
+      }
+    ],
+  
+    "finish-app": "electron .",
+  
+    "cleanup": [
+      "/include",
+      "/lib/pkgconfig",
+      "/share/doc",
+      "/share/gtk-doc",
+      "/share/man",
+      "/share/aclocal",
+      "/share/locale",
+      "/share/bash-completion",
+      "/share/vala",
+      "/share/pkgconfig"
+    ]
+  }
+  

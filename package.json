@@ -3,6 +3,8 @@
   "private": false,
   "version": "0.0.5",
   "license": "MIT",
+  "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
+  "author": "Daniele Rolli",
   "engines": {
     "node": ">=v14.16",
     "npm": ">=7.7"
