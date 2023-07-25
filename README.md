@@ -2,8 +2,6 @@
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS and Windows. With Beaver Notes, your notes are securely hosted on your device, ensuring complete privacy and control over your data.
 
-![alt text](https://www.beavernotes.com/resources/Silver.png)
-
 ## Features 🌟
 
 - Privacy First: Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
