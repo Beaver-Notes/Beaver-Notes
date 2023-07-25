@@ -33,7 +33,6 @@ Create your first note effortlessly with the help of our user-friendly interface
 
 1. Utilize tags and categories to organize your notes effectively.
 2. Navigate to the "Tags" or "Categories" section to access your well-structured notes.
-3. 
 ###  Searching for Notes 🔍
 
 1. Use the search bar to find specific notes.
