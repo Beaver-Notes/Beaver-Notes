@@ -28,7 +28,7 @@ Create your first note effortlessly with the help of our user-friendly interface
 2. Click on the "+" button.
 3. Start typing your note using the built-in editor. Markdown formatting is supported for added versatility.
 4. Save your note, and it's instantly available for your future reference.
-5. 
+   
 ### Organizing Notes 🗂️
 
 1. Utilize tags and categories to organize your notes effectively.
