@@ -1,5 +1,6 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riPrinterLine,
   riSettingsLine,
   riSearchLine,
   riArchiveDrawerLine,
@@ -58,6 +59,7 @@ import {
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
+  riPrinterLine,
   riSettingsLine,
   riSearchLine,
   riArchiveDrawerLine,

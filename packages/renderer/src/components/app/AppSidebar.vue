@@ -15,6 +15,7 @@
       top-0
       z-40
       py-4
+      no-print
     "
   >
     <!-- Sidebar top icons-->
@@ -147,3 +148,10 @@ export default {
   },
 };
 </script>
+<style>
+@media print {
+  .no-print {
+    visibility: hidden;
+  }
+}
+</style>

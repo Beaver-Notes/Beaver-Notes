@@ -15,6 +15,7 @@
       py-1
       sticky
       top-0
+      no-print
     "
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
   >
@@ -110,6 +111,14 @@
         <v-remixicon name="riLink" />
       </button>
       <hr class="border-r mx-2 h-6" />
+           <button
+        v-tooltip.group="'Print'"
+        class="transition hoverable h-8 px-1 rounded-lg"
+        @click="printContent"
+      >
+        <v-remixicon name="riPrinterLine" />
+      </button>
+            <hr class="border-r mx-2 h-6" />
       <button
         v-tooltip.group="'Focus mode'"
         :class="{ 'is-active': store.inFocusMode }"
@@ -146,6 +155,7 @@
     </div>
   </div>
 </template>
+
 <script>
 import { shallowRef, onUnmounted } from 'vue';
 import { useGroupTooltip } from '@/composable/groupTooltip';
@@ -301,6 +311,10 @@ export default {
       Mousetrap.unbind(Object.keys(shortcuts));
     });
 
+    function printContent() {
+      window.print();
+    }
+
     return {
       store,
       lists,
@@ -313,11 +327,18 @@ export default {
       getHeadingsTree,
       toggleFocusMode,
       showHeadingsTree,
+      printContent,
     };
   },
 };
 </script>
+
 <style scoped>
+@media print {
+  .no-print {
+    visibility: hidden;
+  }
+}
 button {
   @apply hover:text-gray-800 dark:hover:text-white;
 }
