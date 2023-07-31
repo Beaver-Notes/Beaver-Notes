@@ -23,7 +23,7 @@ const electronBuilderConfig = {
   },
    linux: {
     icon: 'buildResources/icon.png',
-    target: ['AppImage'],
+    target: ['AppImage', 'snap'],
     publish: ['github'],
     maintainer: 'Daniele Rolli <danielerolli@proton.me>',
   },

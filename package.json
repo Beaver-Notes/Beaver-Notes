@@ -2,6 +2,8 @@
   "name": "Beaver-notes",
   "private": false,
   "version": "0.0.6",
+  "author": "Daniele Rolli",
+  "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
   "license": "MIT",
   "engines": {
     "node": ">=v14.16",
