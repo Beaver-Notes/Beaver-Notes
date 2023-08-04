@@ -51,11 +51,11 @@ Create your first note effortlessly with the help of our user-friendly interface
 
 ## Need Help? 🤔
 
-We're here to assist you! For any questions or support, reach out to our friendly team at danielerolli@proton.me.
+We're here to assist you! For any questions or support, reach out at danielerolli@proton.me.
 
 ## Join Our Community 🦫
 
-We believe in collaboration! If you wish to contribute and enhance Beaver Notes, we invite you to join our vibrant community of developers and enthusiasts on [Mastodon](https://mastodon.social/@Beavernotes), [Reddit](https://www.reddit.com/r/BeaverNotes/), and our [official website](https://www.beavernotes.com). Let's shape the future of note-taking together! 🚀📝
+We believe in collaboration! If you wish to contribute and enhance Beaver Notes, we invite you to join our community on [Mastodon](https://mastodon.social/@Beavernotes), [Reddit](https://www.reddit.com/r/BeaverNotes/), and our [official website](https://www.beavernotes.com). Let's shape the future of note-taking together! 🚀📝
 
 ## License 📜
 Beaver Notes is proudly open-source and distributed under the [MIT License](https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE).
