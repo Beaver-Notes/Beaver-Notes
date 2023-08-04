@@ -3,6 +3,11 @@
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and Linux. With Beaver Notes, your notes are securely hosted on your device, ensuring complete privacy and control over your data.
 
 [![beaver-notes](https://snapcraft.io/beaver-notes/badge.svg)](https://snapcraft.io/beaver-notes)
+[![Get it now for - Linux](https://img.shields.io/badge/Get_it_now_for-Linux-yellow?logo=linux&logoColor=white)](http://beavernotes.com/download.html)
+[![Get it now for - macOs](https://img.shields.io/static/v1?label=Get+it+now+for&message=macOs&color=orange&logo=apple&logoColor=white)](http://beavernotes.com/download.html)
+[![Get it now for - Windows](https://img.shields.io/badge/Get_it_now_for-Windows-blue?logo=windows&logoColor=white)](http://beavernotes.com/download.html)
+[![Buy me a coffee](https://img.shields.io/static/v1?label=&message=Buy+me+a+coffee&color=yellow&logo=Buy+me+a+coffee&logoColor=white)](https://www.buymeacoffee.com/beavernotes)
+
 
 ![systems](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/f9c6e510-3bad-4563-b6b4-5dfc7dff7caa)
 
