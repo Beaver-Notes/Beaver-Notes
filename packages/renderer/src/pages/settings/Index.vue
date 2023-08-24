@@ -17,16 +17,21 @@
         </button>
       </div>
     </section>
-    <!-- <section>
-      <p class="mb-2">Storage path</p>
-      <ui-input
-        :model-value="state.dataDir"
-        readonly
-        placeholder="Path"
-        class="w-full"
-        @click="changeDataDir"
-      />
-    </section> -->
+    <section>
+      <p class="mb-2">Sync path</p>
+      <div class="flex items-center space-x-2">
+        <ui-input
+          v-model="state.dataDir"
+          readonly
+          placeholder="Path"
+          class="w-full"
+          @click="chooseDefaultPath"
+        />
+        <ui-button class="w-full" @click="chooseDefaultPath">
+          Select Path
+        </ui-button>
+      </div>
+    </section>
     <section>
       <p class="mb-2">Editor font size</p>
       <ui-select
@@ -71,7 +76,7 @@
               @keyup.enter="exportData"
             />
           </expand-transition>
-          <ui-button class="w-full mt-4" @click="exportData"
+          <ui-button class="w-full mt-4" @click="exportData(defaultPath)"
             >Export data</ui-button
           >
         </div>
@@ -91,7 +96,7 @@
             </span>
           </div>
           <div class="flex-grow"></div>
-          <ui-button class="w-full mt-6" @click="importData">
+          <ui-button class="w-full mt-6" @click="importData(defaultPath)">
             Import Data
           </ui-button>
         </div>
@@ -99,6 +104,7 @@
     </section>
   </div>
 </template>
+
 <script>
 import { shallowReactive, onMounted } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
@@ -110,6 +116,13 @@ import dayjs from '@/lib/dayjs';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
+import Mousetrap from '@/lib/mousetrap';
+
+export const state = shallowReactive({
+  dataDir: '',
+  // other state properties...
+});
+export const dataDir = state.dataDir;
 
 export default {
   setup() {
@@ -122,6 +135,7 @@ export default {
     ];
 
     const theme = useTheme();
+    // eslint-disable-next-line no-unused-vars
     const dialog = useDialog();
     const storage = useStorage();
 
@@ -130,7 +144,10 @@ export default {
       password: '',
       fontSize: '16',
       withPassword: false,
+      lastUpdated: null,
     });
+
+    let defaultPath = '';
 
     async function changeDataDir() {
       try {
@@ -144,7 +161,7 @@ export default {
 
         if (canceled) return;
 
-        showAlert('App need to relaunch for this change to take effect', {
+        showAlert('App needs to relaunch for this change to take effect', {
           type: 'info',
           buttons: ['Relaunch app'],
         });
@@ -155,10 +172,12 @@ export default {
         console.error(error);
       }
     }
+
     function updateFontSize(size) {
       state.fontSize = size;
       localStorage.setItem('font-size', size);
     }
+
     function showAlert(message, options = {}) {
       ipcRenderer.callMain('dialog:message', {
         type: 'error',
@@ -167,6 +186,7 @@ export default {
         ...options,
       });
     }
+
     async function exportData() {
       try {
         const { canceled, filePaths } = await ipcRenderer.callMain(
@@ -281,7 +301,7 @@ export default {
         const dataDir = await storage.get('dataDir', '', 'settings');
 
         await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dirPath, 'assets'),
+          path: path.join(folderPath, 'assets'),
           dest: path.join(dataDir, 'notes-assets'),
         });
       } catch (error) {
@@ -289,8 +309,44 @@ export default {
       }
     }
 
+    async function chooseDefaultPath() {
+      try {
+        const {
+          canceled,
+          filePaths: [dir],
+        } = await ipcRenderer.callMain('dialog:open', {
+          title: 'Select directory',
+          properties: ['openDirectory'],
+        });
+
+        if (canceled) return;
+
+        showAlert('App needs to relaunch for this change to take effect', {
+          type: 'info',
+          buttons: ['Relaunch app'],
+        });
+        defaultPath = dir;
+        localStorage.setItem('default-path', defaultPath);
+        state.dataDir = defaultPath;
+        await ipcRenderer.callMain('helper:relaunch');
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
     onMounted(() => {
       state.fontSize = localStorage.getItem('font-size') || '16';
+      defaultPath = localStorage.getItem('default-path') || ''; // Set defaultPath here
+      state.dataDir = defaultPath;
+    });
+
+    const shortcuts = {
+      'mod+shift+e': importData,
+      'mod+shift+i': exportData,
+    };
+
+    Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
+      shortcuts[combo]();
     });
 
     return {
@@ -303,6 +359,8 @@ export default {
       importData,
       changeDataDir,
       updateFontSize,
+      chooseDefaultPath,
+      defaultPath,
     };
   },
 };

@@ -1,6 +1,20 @@
 <template>
   <app-command-prompt />
   <app-sidebar v-if="!store.inFocusMode" />
+  <div
+    v-if="store.inFocusMode"
+    class="
+      fixed
+      top-0
+      left-0
+      w-full
+      h-full
+      border-4 border-amber-400
+      dark:border-amber-500
+      pointer-events-none
+      z-50
+    "
+  ></div>
   <main v-if="retrieved" :class="{ 'pl-16': !store.inFocusMode }">
     <router-view />
   </main>

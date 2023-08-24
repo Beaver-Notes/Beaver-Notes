@@ -22,23 +22,32 @@ const electronBuilderConfig = {
     publish: ['github'],
   },
    linux: {
-    icon: 'buildResources/icon.png',
-    target: ['AppImage', 'snap'],
+    icon: 'buildResources/icon-linux.icns',
+    target: ['AppImage', 'rpm', 'deb'],
     publish: ['github'],
     maintainer: 'Daniele Rolli <danielerolli@proton.me>',
+    category: 'Productivity',
   },
   win: {
     icon: 'buildResources/icon.ico',
     target: ['nsis'],
     publish: ['github'],
   },
+  nsis: {
+    oneClick: true,
+    installerIcon: 'buildResources/icon.ico',
+    uninstallerIcon: 'buildResources/icon.ico',
+    uninstallDisplayName: 'Beaver-Notes',
+    license: 'LICENSE',
+    allowToChangeInstallationDirectory: false,
+  },
 };
 
 module.exports = (args, arch) => {
   const config = { ...electronBuilderConfig };
-  
+
   // Set the target architecture using environment variables
   process.env.BUILD_TARGET_ARCH = arch;
-  
+
   return config;
 };

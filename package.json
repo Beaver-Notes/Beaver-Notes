@@ -1,19 +1,19 @@
 {
   "name": "Beaver-notes",
   "private": false,
-  "version": "0.0.6",
+  "version": "0.0.7",
   "author": "Daniele Rolli",
   "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
   "license": "MIT",
   "engines": {
-    "node": ">=v14.16",
+    "node": ">=v16.20.1",
     "npm": ">=7.7"
   },
   "homepage": "https://beavernotes.com",
   "repository": {
-  "type": "git",
-  "url": "https://github.com/Daniele-rolli/Beaver-Notes"
-},
+    "type": "git",
+    "url": "https://github.com/Daniele-rolli/Beaver-Notes"
+  },
   "main": "packages/main/dist/index.cjs",
   "scripts": {
     "build": "node scripts/build.js",
@@ -39,7 +39,7 @@
     "autoprefixer": "^10.3.1",
     "babel-eslint": "^10.1.0",
     "cross-env": "^7.0.3",
-    "electron": "^13.3.0",
+    "electron": "13.6.9",
     "electron-builder": "^22.11.7",
     "electron-devtools-installer": "^3.2.0",
     "eslint": "^7.32.0",

@@ -1,26 +1,19 @@
 # Beaver Notes - Your Private Note-Taking Buddy 📝
 
-Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and Linux. With Beaver Notes, your notes are securely hosted on your device, ensuring complete privacy and control over your data.
-
-[![Get it now for - Linux](https://img.shields.io/badge/Get_it_now_for-Linux-yellow?logo=linux&logoColor=white)](http://beavernotes.com/download.html)
-[![Get it now for - macOs](https://img.shields.io/static/v1?label=Get+it+now+for&message=macOs&color=orange&logo=apple&logoColor=white)](http://beavernotes.com/download.html)
-[![Get it now for - Windows](https://img.shields.io/badge/Get_it_now_for-Windows-blue?logo=windows&logoColor=white)](http://beavernotes.com/download.html)
-[![Buy me a coffee](https://img.shields.io/static/v1?label=&message=Buy+me+a+coffee&color=yellow&logo=Buy+me+a+coffee&logoColor=white)](https://www.buymeacoffee.com/beavernotes)
-
+Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS and Windows. With Beaver Notes, your notes are securely hosted on your device, ensuring complete privacy and control over your data.
 
 ![systems](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/f9c6e510-3bad-4563-b6b4-5dfc7dff7caa)
 
 
 ## Features 🌟
 
-- Privacy First: Your notes are always stored on your devices, providing you with peace of mind and ensuring your personal information remains private.
+- Privacy First: Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
 - User-Friendly Interface: Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
 - Markdown Support: Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
 - Tags and Categories: Stay organized by using tags and categories to group related notes. Quickly find what you need, when you need it.
-- Efficient Search: The powerful search functionality helps you locate notes instantly, saving you time and effort.
-- Sync between Devices: You can now sync your notes by simply selecting a path and clicking a button whenever you need them to be synced.
-- Export and Import: Move your notes or create backups whenever you desire. Flexibility is at your fingertips.
-
+- Efficient Search: Our powerful search functionality helps you locate notes instantly, saving you time and effort.
+- Export and Import: Seamlessly move your notes or create backups whenever you desire. Flexibility at your fingertips.
+  
 ## Installation 🚀
 
 Getting started with Beaver Notes is quick and easy! Visit our official website and download the installer for your operating system. 
@@ -30,7 +23,6 @@ Follow a few simple steps, and you're all set to take notes with confidence.
 
 Open Beaver Notes, and you'll discover a smooth and hassle-free note-taking experience. 
 Create your first note effortlessly with the help of our user-friendly interface.
-
 ## How to Use 📖
 
 ### Creating a New Note 📝
@@ -52,13 +44,13 @@ Create your first note effortlessly with the help of our user-friendly interface
 
 ## Need Help? 🤔
 
-We're here to assist you! For any questions or support, reach out at danielerolli@proton.me.
+We're here to assist you! For any questions or support, reach out to our friendly team at danielerolli@proton.me.
 
 ## Join Our Community 🦫
 
-We believe in collaboration! If you wish to contribute and enhance Beaver Notes, we invite you to join our community on [Mastodon](https://mastodon.social/@Beavernotes), [Reddit](https://www.reddit.com/r/BeaverNotes/), and our [official website](https://www.beavernotes.com). Let's shape the future of note-taking together! 🚀📝
+We believe in collaboration! If you wish to contribute and enhance Beaver Notes, join our community of developers and enthusiasts. Check out [CONTRIBUTING.md](https://github.com/Daniele-rolli/Beaver-Notes/wiki) for more details.
 
 ## License 📜
-Beaver Notes is open-source and distributed under the [MIT License](https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE).
+Beaver Notes is proudly open-source and distributed under the [MIT License](https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE).
 
 Take control of your notes with Beaver Notes today! 🚀

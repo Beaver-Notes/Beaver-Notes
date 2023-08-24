@@ -37,7 +37,9 @@
     <router-link
       v-for="nav in navs"
       :key="nav.name"
-      v-tooltip:right="`${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`"
+      v-tooltip:right="
+        `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
+      "
       :to="nav.path"
       :class="{
         'text-primary dark:text-secondary': $route.fullPath === nav.path,
@@ -48,6 +50,20 @@
     </router-link>
     <!-- Navbar bottom icons -->
     <div class="flex-grow"></div>
+    <button
+      v-tooltip:right="'Toggle export (' + keyBinding + '+Shift+E)'"
+      class="transition p-2 mb-4"
+      @click="exportData"
+    >
+      <v-remixicon name="riUpload2Line" />
+    </button>
+    <button
+      v-tooltip:right="'Toggle import (' + keyBinding + '+Shift+I)'"
+      class="transition p-2 mb-4"
+      @click="importData"
+    >
+      <v-remixicon name="riDownload2Line" />
+    </button>
     <button
       v-tooltip:right="'Toggle dark theme (' + keyBinding + '+Shift+L)'"
       :class="[
@@ -72,21 +88,36 @@
 </template>
 
 <script>
-import { onUnmounted } from 'vue';
+import { shallowReactive, onUnmounted } from 'vue';
 import { useTheme } from '@/composable/theme';
 import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
+import { useStorage } from '@/composable/storage';
+import { AES } from 'crypto-es/lib/aes';
+import { Utf8 } from 'crypto-es/lib/core';
+import dayjs from '@/lib/dayjs';
 
 export default {
   setup() {
+    const { ipcRenderer, path } = window.electron;
     const theme = useTheme();
     const router = useRouter();
     const noteStore = useNoteStore();
+    const storage = useStorage();
+    const defaultPath = localStorage.getItem('default-path');
 
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
+
+    const state = shallowReactive({
+      dataDir: '',
+      password: '',
+      fontSize: '16',
+      withPassword: false,
+      lastUpdated: null,
+    });
 
     const navs = [
       {
@@ -132,9 +163,109 @@ export default {
       });
     }
 
+    async function exportData() {
+      try {
+        let data = await storage.store();
+
+        if (state.withPassword) {
+          data = AES.encrypt(JSON.stringify(data), state.password).toString();
+        }
+
+        const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
+        const dataDir = await storage.get('dataDir', '', 'settings');
+
+        const exportPath = defaultPath; // Use the selected default path
+        const folderPath = path.join(exportPath, folderName);
+
+        await ipcRenderer.callMain('fs:ensureDir', folderPath);
+        await ipcRenderer.callMain('fs:output-json', {
+          path: path.join(folderPath, 'data.json'),
+          data: { data },
+        });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dataDir, 'notes-assets'),
+          dest: path.join(folderPath, 'assets'),
+        });
+
+        state.withPassword = false;
+        state.password = '';
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    async function mergeImportedData(data) {
+      try {
+        const keys = [
+          { key: 'notes', dfData: {} },
+          { key: 'labels', dfData: [] },
+        ];
+
+        for (const { key, dfData } of keys) {
+          const currentData = await storage.get(key, dfData);
+          const importedData = data[key] ?? dfData;
+          let mergedData;
+
+          if (key === 'labels') {
+            const mergedArr = [...currentData, ...importedData];
+
+            mergedData = [...new Set(mergedArr)];
+          } else {
+            mergedData = { ...currentData, ...importedData };
+          }
+
+          await storage.set(key, mergedData);
+        }
+
+        window.location.reload();
+      } catch (error) {
+        console.error(error);
+      }
+    }
+
+    async function importData() {
+      try {
+        const today = dayjs();
+        const folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+        const dirPath = path.join(defaultPath, folderName);
+
+        let { data } = await ipcRenderer.callMain(
+          'fs:read-json',
+          path.join(dirPath, 'data.json')
+        );
+
+        if (typeof data === 'string') {
+          const password = 'userInputPassword'; // Replace with your logic to get the password
+
+          const bytes = AES.decrypt(data, password);
+          const result = bytes.toString(Utf8);
+          const resultObj = JSON.parse(result);
+
+          mergeImportedData(resultObj);
+        } else {
+          mergeImportedData(data);
+        }
+
+        const dataDir = await storage.get('dataDir', '', 'settings');
+        const importPathToAssets = path.join(dirPath, 'assets');
+
+        await ipcRenderer.callMain('fs:copy', {
+          path: importPathToAssets,
+          dest: path.join(dataDir, 'notes-assets'),
+        });
+
+        console.log('Assets copied successfully.');
+      } catch (error) {
+        console.error('Error while importing data:', error);
+      }
+    }
+
+    console.log('Default path from local storage:', defaultPath);
+
     onUnmounted(() => {
       emitter.off('new-note', addNote);
       emitter.off('open-settings', openSettings);
+      state.dataDir = defaultPath;
     });
 
     return {
@@ -144,6 +275,8 @@ export default {
       noteStore,
       openLastEdited,
       keyBinding,
+      exportData,
+      importData,
     };
   },
 };

@@ -46,8 +46,7 @@
       </template>
     </div>
     <div v-else class="text-center">
-      <img src="../assets/svg/Notes_Outline.svg" class="mx-auto" />
-      <h1 class="text-xl">It looks like you don't have a note</h1>
+      <img src="../assets/images/Beaver.png" class="mx-auto" />
       <p class="max-w-md mx-auto dark:text-gray-300 text-gray-600 mt-2">
         To create a new note, you can press <kbd>Ctrl</kbd> + <kbd>N</kbd> or
         click the <kbd>+</kbd> button on top left

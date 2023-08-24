@@ -20,6 +20,8 @@ const shortcuts = [
       { name: 'Create new note', keys: getFormattedKeys(['Ctrl', 'N']) },
       { name: 'Toggle command prompt', keys: getFormattedKeys(['Ctrl', 'P']) },
       { name: 'Toggle dark theme', keys: getFormattedKeys(['Ctrl', 'Shift', 'L']) },
+      { name: 'Toggle export', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
+      { name: 'Toggle import', keys: getFormattedKeys(['Ctrl', 'Shift', 'I']) },
     ],
   },
   {

@@ -3,17 +3,21 @@ import { useTheme } from '../composable/theme';
 
 const theme = useTheme();
 
+function getModifierKey() {
+  return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
+}
+
 const commands = [
   {
     id: 'new-note',
     title: 'Create new note',
-    shortcut: ['Ctrl', 'N'],
+    shortcut: [getModifierKey(), 'N'], 
     handler: () => emitter.emit('new-note'),
   },
   {
     id: 'settings',
     title: 'Settings',
-    shortcut: ['Ctrl', ','],
+    shortcut: [getModifierKey(), ','],
     handler: () => emitter.emit('open-settings'),
   },
   {

@@ -1,5 +1,7 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riDownload2Line,
+  riUpload2Line,
   riPrinterLine,
   riSettingsLine,
   riSearchLine,
@@ -10,7 +12,7 @@ import {
   riBold,
   riItalic,
   riUnderline,
-  riStrikethrough2,
+  riStrikethrough,
   riCodeLine,
   riCodeBoxLine,
   riMarkPenLine,
@@ -59,6 +61,8 @@ import {
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
+  riDownload2Line,
+  riUpload2Line,
   riPrinterLine,
   riSettingsLine,
   riSearchLine,
@@ -69,7 +73,7 @@ VRemixIcon.add({
   riBold,
   riItalic,
   riUnderline,
-  riStrikethrough2,
+  riStrikethrough,
   riCodeLine,
   riCodeBoxLine,
   riMarkPenLine,

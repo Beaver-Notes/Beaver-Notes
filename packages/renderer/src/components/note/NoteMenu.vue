@@ -111,14 +111,14 @@
         <v-remixicon name="riLink" />
       </button>
       <hr class="border-r mx-2 h-6" />
-           <button
+      <button
         v-tooltip.group="'Print'"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="printContent"
       >
         <v-remixicon name="riPrinterLine" />
       </button>
-            <hr class="border-r mx-2 h-6" />
+      <hr class="border-r mx-2 h-6" />
       <button
         v-tooltip.group="'Focus mode'"
         :class="{ 'is-active': store.inFocusMode }"
@@ -190,7 +190,7 @@ export default {
     const lists = [
       {
         name: 'ordered-list',
-        title: 'Bold',
+        title: 'Numbered list',
         icon: 'riListOrdered',
         activeState: 'orderedList',
         handler: () => props.editor.chain().focus().toggleOrderedList().run(),
@@ -242,7 +242,7 @@ export default {
       {
         name: 'strikethrough',
         title: 'Strikethrough',
-        icon: 'riStrikethrough2',
+        icon: 'riStrikethrough',
         activeState: 'strike',
         handler: () => props.editor.chain().focus().toggleStrike().run(),
       },
@@ -339,6 +339,7 @@ export default {
     visibility: hidden;
   }
 }
+
 button {
   @apply hover:text-gray-800 dark:hover:text-white;
 }
