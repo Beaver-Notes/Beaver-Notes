@@ -203,6 +203,13 @@ export default {
         handler: () => props.editor.chain().focus().toggleBulletList().run(),
       },
       {
+        name: 'check-list',
+        title: 'Check list',
+        icon: 'riListCheck2',
+        activeState: 'taskList',
+        handler: () => props.editor.chain().focus().toggleTaskList().run(),
+      },
+      {
         name: 'blockquote',
         title: 'Blockquote',
         icon: 'riDoubleQuotesR',

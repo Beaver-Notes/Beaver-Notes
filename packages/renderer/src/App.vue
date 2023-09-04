@@ -3,17 +3,7 @@
   <app-sidebar v-if="!store.inFocusMode" />
   <div
     v-if="store.inFocusMode"
-    class="
-      fixed
-      top-0
-      left-0
-      w-full
-      h-full
-      border-4 border-amber-400
-      dark:border-amber-500
-      pointer-events-none
-      z-50
-    "
+    class="fixed top-0 left-0 w-full h-full border-8 pointer-events-none z-50"
   ></div>
   <main v-if="retrieved" :class="{ 'pl-16': !store.inFocusMode }">
     <router-view />
@@ -41,6 +31,9 @@ export default {
     const labelStore = useLabelStore();
 
     const retrieved = ref(false);
+
+    const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
+    document.documentElement.style.setProperty('--selected-font', selectedFont);
 
     const isFirstTime = localStorage.getItem('first-time');
 
@@ -73,9 +66,7 @@ export default {
         router.push(`/note/${lastNoteEdit}`);
       }
     }
-
     theme.loadTheme();
-
     return {
       store,
       retrieved,

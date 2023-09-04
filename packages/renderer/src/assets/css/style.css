@@ -1,5 +1,9 @@
+:root {
+  --selected-font: 'Arimo', sans-serif;
+}
+
 body {
-  font-family: 'Arimo', sans-serif;
+  font-family: var(--selected-font);
   @apply bg-[#FFFFFF] dark:bg-[#232222] dark:text-white;
 }
 .dark * {

@@ -8,7 +8,7 @@
     </div>
     <h1 class="font-semibold capitalize">{{ state.name }}</h1>
     <p>
-      Beavernotes was developed with love ❤️ in a sunny cottage in Northern Italy.
+      Beaver Notes was developed with love ❤️ in a rainy cottage in Northern Italy.
     </p>
     <div class="mt-4">
       <div class="flex">

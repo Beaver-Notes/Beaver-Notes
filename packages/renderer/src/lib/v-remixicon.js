@@ -1,5 +1,7 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riListCheck2,
+  riUserSmileLine,
   riDownload2Line,
   riUpload2Line,
   riPrinterLine,
@@ -61,6 +63,8 @@ import {
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
+  riListCheck2,
+  riUserSmileLine,
   riDownload2Line,
   riUpload2Line,
   riPrinterLine,

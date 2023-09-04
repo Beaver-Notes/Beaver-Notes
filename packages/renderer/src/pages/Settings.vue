@@ -40,6 +40,12 @@ const settings = {
     path: '/settings',
     description: '',
   },
+  'Accessibility': {
+    name: 'Accessibility',
+    icon: 'riUserSmileLine',
+    path: '/settings/accessibility',
+    description: '',
+  },
   'Settings-Shortcuts': {
     name: 'Shortcuts',
     icon: 'riKeyboardLine',
