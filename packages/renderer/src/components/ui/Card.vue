@@ -9,6 +9,7 @@
       rounded-lg
       transition-transform
       ui-card
+      overflow-hidden
     "
     :class="[padding, { 'hover:shadow-xl hover:-translate-y-1': hover }]"
   >

@@ -46,6 +46,11 @@ export default {
         url: 'https://github.com/Daniele-rolli/Beaver-Notes',
         icon: 'riGithubFill',
       },
+      {
+        name: 'Donate',
+        url: 'https://www.buymeacoffee.com/app/dashboard',
+        icon: 'riCupLine',
+      },
     ];
     const state = shallowReactive({
       name: '-',

@@ -33,19 +33,6 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">Editor font size</p>
-      <ui-select
-        :model-value="state.fontSize"
-        readonly
-        class="w-full"
-        @change="updateFontSize"
-      >
-        <option v-for="size in fontSize" :key="size" :value="size">
-          {{ size }}
-        </option>
-      </ui-select>
-    </section>
-    <section>
       <p class="mb-2">Import/Export data</p>
       <div class="flex space-x-4">
         <div class="bg-input transition w-6/12 rounded-lg p-4">
@@ -127,7 +114,6 @@ export const dataDir = state.dataDir;
 export default {
   setup() {
     const { ipcRenderer, path } = window.electron;
-    const fontSize = [8, 10, 12, 14, 16, 18, 20, 22, 24, 26];
     const themes = [
       { name: 'light', img: lightImg },
       { name: 'dark', img: darkImg },
@@ -142,7 +128,6 @@ export default {
     const state = shallowReactive({
       dataDir: '',
       password: '',
-      fontSize: '16',
       withPassword: false,
       lastUpdated: null,
     });
@@ -171,11 +156,6 @@ export default {
       } catch (error) {
         console.error(error);
       }
-    }
-
-    function updateFontSize(size) {
-      state.fontSize = size;
-      localStorage.setItem('font-size', size);
     }
 
     function showAlert(message, options = {}) {
@@ -335,7 +315,6 @@ export default {
     }
 
     onMounted(() => {
-      state.fontSize = localStorage.getItem('font-size') || '16';
       defaultPath = localStorage.getItem('default-path') || ''; // Set defaultPath here
       state.dataDir = defaultPath;
     });
@@ -354,11 +333,9 @@ export default {
       theme,
       themes,
       storage,
-      fontSize,
       exportData,
       importData,
       changeDataDir,
-      updateFontSize,
       chooseDefaultPath,
       defaultPath,
     };

@@ -8,7 +8,6 @@ import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
 
-
 const app = createApp(App);
 
 app.config.unwrapInjectedRef = true;

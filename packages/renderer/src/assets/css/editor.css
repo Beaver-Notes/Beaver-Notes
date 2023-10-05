@@ -1,10 +1,11 @@
 .ProseMirror pre,
 .ProseMirror .inline-code {
-  @apply bg-black bg-opacity-5 rounded-lg dark:bg-opacity-30 text-gray-700 dark:text-gray-200 !important;
+  @apply bg-black bg-opacity-5 rounded-lg dark:bg-gray-600 dark:bg-opacity-30 text-gray-700 dark:text-gray-200 pt-6 !important;
   font-family: 'Helvetica', 'Arial', sans-serif;
   tab-size: 2;
   font-variant-ligatures: normal;
 }
+
 .ProseMirror a {
   @apply text-primary dark:text-amber-400 !important;
 }
@@ -97,7 +98,7 @@ img.ProseMirror-selectednode {
     @apply bg-yellow-400;
   }
   .inline-code {
-    @apply p-0.5 px-1 rounded;
+    @apply p-0.5 px-1 !important;
   }
   p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);

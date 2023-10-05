@@ -1,6 +1,6 @@
 <template>
   <div class="w-full max-w-xl">
-    <p class="mb-2">Select Font</p>
+    <p class="mb-2">{{ currentTranslations.selectFont }}</p>
     <ui-select
       id="fontSelect"
       v-model="selectedFont"
@@ -14,11 +14,18 @@
 </template>
 
 <script>
+import currentTranslations from './Index.vue'; // Import your translations module
+
 export default {
   data() {
     return {
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
     };
+  },
+  computed: {
+    currentTranslations() {
+      return currentTranslations;
+    },
   },
   mounted() {
     document.documentElement.style.setProperty(
