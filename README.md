@@ -48,7 +48,7 @@ We're here to assist you! For any questions or support, reach out to our friendl
 
 ## Join Our Community 🦫
 
-We believe in collaboration! If you wish to contribute and enhance Beaver Notes, join our community of developers and enthusiasts. Check out [CONTRIBUTING.md](https://github.com/Daniele-rolli/Beaver-Notes/wiki) for more details.
+We believe in collaboration! If you wish to contribute and enhance Beaver Notes, join our community of developers and enthusiasts. Check out [CONTRIBUTING](https://danieles-organization.gitbook.io/beaver-notes/dev-guides/how-to-contribute) for more details.
 
 ## License 📜
 Beaver Notes is proudly open-source and distributed under the [MIT License](https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE).
