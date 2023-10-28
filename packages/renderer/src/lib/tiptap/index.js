@@ -44,7 +44,7 @@ export const extensions = [
   Image,
   Search,
   Placeholder.configure({
-    placeholder: 'write-something',
+    placeholder: translations.tiptap.placeholder,
   }),
   Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
   Link.extend({
