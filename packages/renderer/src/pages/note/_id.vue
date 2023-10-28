@@ -17,7 +17,9 @@
           rotate-90
         "
       />
-      <span>Previous note</span>
+      <span>
+        {{ translations._idvue.Previousnote || '-' }}
+      </span>
     </button>
     <template v-if="editor">
       <note-menu v-bind="{ editor }" class="mb-6" />
@@ -30,7 +32,7 @@
     <input
       :value="note.title"
       class="text-4xl block font-bold bg-transparent w-full mb-6"
-      placeholder="Untitled note"
+      :placeholder="translations._idvue.unititlednote || '-'"
       @input="updateNote({ title: $event.target.value })"
     />
     <note-editor
@@ -44,7 +46,7 @@
   </div>
 </template>
 <script>
-import { shallowRef, computed, watch, onMounted } from 'vue';
+import { shallowRef, computed, watch, onMounted, shallowReactive } from 'vue';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -134,8 +136,38 @@ export default {
       Mousetrap.unbind('mod+f');
     });
 
+    // Translations
+    const translations = shallowReactive({
+      _idvue: {
+        Previousnote: '_idvue.Previousnote',
+        unititlednote: '_idvue.unititlednote',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       note,
+      translations,
       store,
       editor,
       showSearch,

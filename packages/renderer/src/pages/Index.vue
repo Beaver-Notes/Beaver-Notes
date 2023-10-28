@@ -1,6 +1,9 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="container py-5">
-    <h1 class="text-3xl mb-8 font-bold">Notes</h1>
+    <h1 class="text-3xl mb-8 font-bold">
+      {{ translations.sidebar.Notes || '-' }}
+    </h1>
     <home-note-filter
       v-model:query="state.query"
       v-model:label="state.activeLabel"
@@ -32,7 +35,7 @@
           class="col-span-full text-gray-600 dark:text-gray-200 capitalize"
           :class="{ 'mt-2': name === 'all' }"
         >
-          {{ name }}
+          {{ translations.index[name] }}
         </p>
         <home-note-card
           v-for="note in notes[name]"
@@ -48,8 +51,7 @@
     <div v-else class="text-center">
       <img src="../assets/images/Beaver.png" class="mx-auto" />
       <p class="max-w-md mx-auto dark:text-gray-300 text-gray-600 mt-2">
-        To create a new note, you can press <kbd>Ctrl</kbd> + <kbd>N</kbd> or
-        click the <kbd>+</kbd> button on top left
+        {{ translations.index.newnote || '-' }}
       </p>
     </div>
   </div>
@@ -62,6 +64,7 @@ import {
   shallowRef,
   onMounted,
   onUnmounted,
+  shallowReactive,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
@@ -205,11 +208,45 @@ export default {
       keyboardNavigation.value.destroy();
     });
 
+    //Translations
+
+    const translations = shallowReactive({
+      sidebar: {
+        Notes: 'sidebar.Notes',
+      },
+      index: {
+        newnote: 'index.newnote',
+        all: 'index.all',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       notes,
       state,
       noteStore,
       labelStore,
+      translations,
       deleteLabel,
     };
   },

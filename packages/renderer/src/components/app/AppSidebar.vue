@@ -20,14 +20,18 @@
   >
     <!-- Sidebar top icons-->
     <button
-      v-tooltip:right="'Add note (' + keyBinding + '+N)'"
+      v-tooltip:right="
+        translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+      "
       class="transition p-2 mb-4 text-primary bg-input rounded-lg"
       @click="addNote"
     >
       <v-remixicon name="riAddFill" />
     </button>
     <button
-      v-tooltip:right="'Edited note (' + keyBinding + '+Shift+W)'"
+      v-tooltip:right="
+        translations.sidebar.Editednote + ' (' + keyBinding + '+Shift+W)'
+      "
       class="transition dark:hover:text-white hover:text-gray-800 p-2 mb-4"
       :class="{ 'text-primary': $route.name === 'Note' }"
       @click="openLastEdited"
@@ -51,21 +55,27 @@
     <!-- Navbar bottom icons -->
     <div class="flex-grow"></div>
     <button
-      v-tooltip:right="'Toggle export (' + keyBinding + '+Shift+E)'"
+      v-tooltip:right="
+        translations.sidebar.toggleexport + ' (' + keyBinding + '+Shift+E)'
+      "
       class="transition p-2 mb-4"
       @click="exportData"
     >
       <v-remixicon name="riUpload2Line" />
     </button>
     <button
-      v-tooltip:right="'Toggle import (' + keyBinding + '+Shift+I)'"
+      v-tooltip:right="
+        translations.sidebar.toggleimport + ' (' + keyBinding + '+Shift+I)'
+      "
       class="transition p-2 mb-4"
       @click="importData"
     >
       <v-remixicon name="riDownload2Line" />
     </button>
     <button
-      v-tooltip:right="'Toggle dark theme (' + keyBinding + '+Shift+L)'"
+      v-tooltip:right="
+        translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
+      "
       :class="[
         theme.isDark()
           ? 'text-primary dark:text-secondary'
@@ -77,7 +87,7 @@
       <v-remixicon name="riMoonClearLine" />
     </button>
     <router-link
-      v-tooltip:right="'Settings (' + keyBinding + '+,)'"
+      v-tooltip:right="translations.settings.title + ' (' + keyBinding + '+,)'"
       to="/settings"
       class="transition dark:hover:text-white hover:text-gray-800 p-2"
       active-class="text-primary dark:text-secondary"
@@ -88,7 +98,7 @@
 </template>
 
 <script>
-import { shallowReactive, onUnmounted } from 'vue';
+import { shallowReactive, onUnmounted, onMounted, computed } from 'vue';
 import { useTheme } from '@/composable/theme';
 import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
@@ -119,20 +129,21 @@ export default {
       lastUpdated: null,
     });
 
-    const navs = [
+    const navs = computed(() => [
       {
-        name: 'Notes',
+        name: translations.sidebar.Notes,
         path: '/',
         icon: 'riBookletLine',
         shortcut: 'mod+shift+n',
       },
       {
-        name: 'Archive',
+        name: translations.sidebar.Archive,
         path: '/?archived=true',
         icon: 'riArchiveDrawerLine',
         shortcut: 'mod+shift+a',
       },
-    ];
+    ]);
+
     const shortcuts = {
       'mod+n': addNote,
       'mod+,': openSettings,
@@ -268,8 +279,45 @@ export default {
       state.dataDir = defaultPath;
     });
 
+    const translations = shallowReactive({
+      sidebar: {
+        addNotes: 'sidebar.addNotes',
+        Editednote: 'sidebar.Editednote',
+        toggleexport: 'sidebar.toggleexport',
+        toggleimport: 'sidebar.toggleimport',
+        toggledarktheme: 'sidebar.toggledarktheme',
+        Notes: 'sidebar.Notes',
+        Archive: 'sidebar.Archive',
+      },
+      settings: {
+        title: 'settings.title',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       navs,
+      translations,
       theme,
       addNote,
       noteStore,

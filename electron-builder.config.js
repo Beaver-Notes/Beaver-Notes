@@ -15,7 +15,7 @@ const electronBuilderConfig = {
   extraMetadata: {
     version: packageJSON.version,
   },
-  appId: "com.danielerolli.beaver-notes",
+  appId: 'com.danielerolli.beaver-notes',
   mac: {
     icon: 'buildResources/icon.icns',
     target: ['dmg'],

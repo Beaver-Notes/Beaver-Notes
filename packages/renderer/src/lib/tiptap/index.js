@@ -15,6 +15,19 @@ import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import Search from './exts/search';
 import Image from './exts/image';
+import enTranslations from '../../pages/settings/locales/en.json';
+import itTranslations from '../../pages/settings/locales/it.json';
+
+const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en'; // Get the selected language from localStorage
+
+let translations = enTranslations; // Default to English translations
+
+// Import and apply translations based on the selected language
+if (selectedLanguage === 'it') {
+  // eslint-disable-next-line no-unused-vars
+  translations = itTranslations;
+  // Import and assign other languages as needed
+}
 
 export const extensions = [
   StarterKit,
@@ -30,7 +43,9 @@ export const extensions = [
   MathBlock,
   Image,
   Search,
-  Placeholder,
+  Placeholder.configure({
+    placeholder: 'write-something',
+  }),
   Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
   Link.extend({
     addKeyboardShortcuts() {

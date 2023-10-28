@@ -7,7 +7,7 @@ module.exports = {
   theme: {
     extend: {
       fontFamily:{
-        'primary': ['Arimo']
+        'primary': ['Arimo'],
       },
       colors: {
         primary: colors.amber['400'],

@@ -13,7 +13,7 @@
         v-model="state.query"
         v-autofocus
         class="w-full bg-transparent command-input"
-        placeholder="Search file or type '>' to search commands"
+        :placeholder="translations.commandprompt.placeholder || '-'"
         @keyup.enter="selectItem"
         @keyup.esc="clear"
         @keydown="keydownHandler"
@@ -28,7 +28,9 @@
         class="cursor-pointer"
         @click="selectItem(item, true)"
       >
-        <p class="text-overflow flex-1">{{ item.title || 'Untitled note' }}</p>
+        <p class="text-overflow flex-1">
+          {{ item.title || translations.commandprompt.untitlenote }}
+        </p>
         <template v-if="item.shortcut">
           <kbd v-for="key in item.shortcut" :key="key">
             {{ key }}
@@ -39,7 +41,7 @@
   </ui-card>
 </template>
 <script>
-import { shallowReactive, computed, watch } from 'vue';
+import { shallowReactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
@@ -129,8 +131,36 @@ export default {
       }, 100)
     );
 
+    const translations = shallowReactive({
+      commandprompt: {
+        placeholder: 'commandprompt.placeholder',
+        untitlednote: 'commandprompt.untitlednote',
+      },
+    });
+
+    onMounted(async () => {
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       items,
+      translations,
       state,
       clear,
       selectItem,

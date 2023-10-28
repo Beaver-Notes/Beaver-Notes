@@ -1,18 +1,16 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general w-full max-w-xl">
     <div class="overflow-hidden p-2 inline-block mb-4">
-      <img
-        src="../../assets/images/logo-transparent.png"
-        class="w-24"
-      />
+      <img src="../../assets/images/logo-transparent.png" class="w-24" />
     </div>
-    <h1 class="font-semibold capitalize">{{ state.name }}</h1>
-    <p>
-      Beaver Notes was developed with love ❤️ in a rainy cottage in Northern Italy.
-    </p>
+    <h1 class="font-semibold capitalize">
+      {{ translations.about.title || '-' }}
+    </h1>
+    <p>{{ translations.about.description || '-' }}</p>
     <div class="mt-4">
       <div class="flex">
-        <p class="w-32">Version</p>
+        <p class="w-32">{{ translations.about.versionLabel || '-' }}</p>
         <p>{{ state.version }}</p>
       </div>
     </div>
@@ -25,11 +23,14 @@
         class="dark:hover:text-white hover:text-gray-900 transition"
       >
         <v-remixicon :name="link.icon" />
-        <span class="align-middle ml-1">{{ link.name }}</span>
+        <span class="align-middle ml-1">{{
+          translations.about[link.name] || '-'
+        }}</span>
       </a>
     </div>
   </div>
 </template>
+
 <script>
 import { onMounted, shallowReactive } from 'vue';
 
@@ -37,37 +38,68 @@ export default {
   setup() {
     const links = [
       {
-        name: 'Website',
+        name: 'website',
         url: 'https://www.beavernotes.com',
         icon: 'riGlobalLine',
       },
       {
-        name: 'GitHub',
+        name: 'github',
         url: 'https://github.com/Daniele-rolli/Beaver-Notes',
         icon: 'riGithubFill',
       },
       {
-        name: 'Donate',
+        name: 'donate',
         url: 'https://www.buymeacoffee.com/app/dashboard',
         icon: 'riCupLine',
       },
     ];
+
     const state = shallowReactive({
       name: '-',
       version: '0.0.0',
+    });
+
+    const translations = shallowReactive({
+      about: {
+        title: 'About.Title',
+        description: 'About.Description',
+        versionLabel: 'About.VersionLabel',
+        website: 'Links.Website',
+        github: 'Links.GitHub',
+        donate: 'links.Donate',
+      },
     });
 
     onMounted(async () => {
       window.electron.ipcRenderer.callMain('app:info').then((data) => {
         Object.assign(state, data);
       });
+
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
     });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `./locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
 
     return {
       state,
       links,
+      translations,
     };
   },
 };
 </script>
-

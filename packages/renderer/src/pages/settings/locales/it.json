@@ -1,0 +1,171 @@
+{
+  "index": {
+    "newnote": "Per creare una nuova nota, premi Ctrl + N, Cmd + N o clicca sul + in alto a sinistra",
+    "archived": "Archiviate",
+    "bookmarked": "Contrassegnate",
+    "all": "Tutte",
+    "write-something": "Scrivi qualcosa ..."
+  },
+  "search": {
+    "find": "Trova",
+    "replace": "Sostituisci",
+    "replaceall": "Sostituisci tutto",
+    "clear": "Elimina",
+    "useRegex": "Usa espressioni regolari (Alt+R)",
+    "searchplaceholder": "Cerca...",
+    "replaceplaceholder": "Sostituisci..."
+  },
+  "tiptap": {
+    "placeholder": "Scrivi qualcosa..."
+  },
+  "link": {
+    "unititlednote": "Nota senza titolo",
+    "placeholder": "URL o digita @ per collegare un'altra nota",
+    "shortcut": "Premi Ctrl + Clic per aprire il collegamento"
+  },
+  "image": {
+    "imgurl": "Percorso dell'immagine"
+  },
+  "commands": {
+    "Createnewnote": "Crea una nuova nota",
+    "Settings": "Impostazioni",
+    "ApplydarkTheme": "Applica il tema scuro",
+    "ApplylightTheme": "Applica il tema chiaro"
+  },
+  "filter": {
+    "Selectlabel": "Seleziona etichetta",
+    "search": "+ F per avviare la ricerca",
+    "searchplaceholder": "Cerca...",
+    "Alphabetical": "Alfabetico",
+    "Createddate": "Data di creazione",
+    "Lastupdated": "Ultimo aggiornamento",
+    "deletelabel": "Elimina etichetta corrente",
+    "ascending": "Crescente",
+    "descending": "Decrescente"
+  },
+  "menu": {
+    "paragraph": "Paragrafo",
+    "heading": "Intestazione",
+    "image": "Immagine",
+    "imgurl": "URL dell'immagine",
+    "Link": "Collegamento",
+    "Print": "Stampa",
+    "Focusmode": "Modalità di focus",
+    "headingsTree": "Ricerca intestazioni",
+    "orderedlist": "Elenco numerico",
+    "bulletlist": "Elenco puntato",
+    "checklist": "Checklist",
+    "blockquote": "Citazione",
+    "codeblock": "Blocco di codice",
+    "bold": "Grassetto",
+    "italic": "Corsivo",
+    "underline": "Sottolinea",
+    "strikethrough": "Barra",
+    "highlight": "Evidenzia",
+    "inlinecode": "Codice in linea"
+  },
+  "card": {
+    "unarchived": "Non archiviato",
+    "unarchive": "Non archiviare",
+    "archive": "Archivia",
+    "removebookmark": "Rimuovi dai preferiti",
+    "bookmark": "Preferito",
+    "delete": "Elimina",
+    "content": "Nessun contenuto",
+    "lock": "Blocca",
+    "Unlock": "Sblocca",
+    "islocked": "Questa nota è bloccata",
+    "unlocktoedit": "Sblocca per modificare",
+    "setupkey": "Imposta una nuova chiave condivisa",
+    "setkey": "Imposta chiave",
+    "Cancel": "Annulla",
+    "NewKey": "Nuova chiave",
+    "keyfail": "Impostazione chiave annullata. Impossibile bloccare la nota.",
+    "nokey": "Nessuna chiave condivisa impostata per questa nota.",
+    "enterpasswd": "Inserisci la password",
+    "Password": "Password",
+    "wrongpasswd": "Password errata. Impossibile sbloccare la nota.",
+    "Passwdcorrect": "La password è incorretta."
+},
+  "about": {
+    "title": "Beaver Notes",
+    "description": "Beaver Notes è stato sviluppato con amore ❤️ in una baita piovosa del Nord Italia.",
+    "versionLabel": "Versione",
+    "website": "Sito Web",
+    "github": "GitHub",
+    "donate": "Dona"
+  },
+  "shortcuts": {
+    "General": "Scorciatoie generali",
+    "Navigates": "Scorciatoie di navigazione",
+    "Editor": "Scorciatoie dell'editor",
+    "Createnewnote": "Crea una nuova nota",
+    "Togglecommandprompt": "Attiva/disattiva prompt dei comandi",
+    "Toggledarktheme": "Attiva/disattiva tema scuro",
+    "Toggleexport": "Esporta",
+    "Toggleimport": "Importa",
+    "Toeditednote": "Vai all'ultima nota modificata",
+    "Tonotes": "Vai alle note",
+    "Toarchivednotes": "Vai alle note archiviate",
+    "Tosettings": "Vai alle impostazioni",
+    "Bold": "Grassetto",
+    "Italic": "Corsivo",
+    "Underline": "Sottolineato",
+    "Link": "Collegamento",
+    "Strikethrough": "Barrato",
+    "Highlight": "Evidenziato",
+    "Inlinecode": "Codice in linea",
+    "Headings": "Intestazioni (1-6)",
+    "Orderedlist": "Elenco numerico",
+    "Bulletlist": "Elenco puntato",
+    "Blockquote": "Citazione",
+    "Blockcode": "Blocco di codice",
+    "Previousnote": "Nota precedente"
+  },
+  "settings": {
+    "title": "Impostazioni",
+    "apptheme": "Tema dell'app",
+    "light": "Chiaro",
+    "dark": "Scuro",
+    "system": "Sistema",
+    "selectlanguage": "Seleziona lingua",
+    "selectfont": "Seleziona carattere",
+    "syncpath": "Percorso di sincronizzazione",
+    "selectpath": "Seleziona percorso",
+    "iedata": "Importa/Esporta dati",
+    "encryptwpasswd": "Critta con password",
+    "exportdata": "Esporta dati",
+    "importdata": "Importa dati",
+    "pathplaceholder": "Percorso",
+    "password": "Password",
+    "General": "Generale",
+    "Shortcuts": "Scorciatoie",
+    "About": "Informazioni",
+    "Inputpassword": "Inserisci la password",
+    "body": "Questi dati sono crittografati, inserisci la password per accedere",
+    "Import": "Importa",
+    "Cancel": "Annulla",
+    "Password": "Password",
+    "Invalidpassword": "Password non valida",
+    "relaunch": "L'app deve essere riavviata affinché questa modifica abbia effetto",
+    "relaunchbutton": "Riavvia l'app",
+    "exportmessage": "Le note sono state esportate nella cartella",
+    "invaliddata": "Dati non validi"
+  },
+  "_idvue": {
+    "Previousnote": "Note precedenti",
+    "unititlednote": "Nota senza titolo"
+  },
+  "sidebar": {
+    "Notes": "Note",
+    "addNotes": "Aggiungi note",
+    "Editednote": "Nota modificata",
+    "toggleexport": "Esporta",
+    "toggleimport": "Importa",
+    "toggledarktheme": "Attiva/disattiva tema scuro",
+    "Archive": "Archivio"
+  },
+  "commandprompt": {
+    "placeholder": "Cerca un file o digita '>' per vedere i comandi"
+  }
+}

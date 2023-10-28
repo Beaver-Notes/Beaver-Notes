@@ -36,7 +36,7 @@
         title="Font size"
       /> -->
       <button
-        v-tooltip.group="'Paragraph'"
+        v-tooltip.group="translations.menu.paragraph"
         :class="{ 'is-active': editor.isActive('paragraph') }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().setParagraph().run()"
@@ -46,7 +46,7 @@
       <button
         v-for="heading in [1, 2]"
         :key="heading"
-        v-tooltip.group="`Heading ${heading}`"
+        v-tooltip.group="`${translations.menu.heading} ${heading}`"
         :class="{ 'is-active': editor.isActive('heading', { level: heading }) }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().toggleHeading({ level: heading }).run()"
@@ -79,7 +79,7 @@
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
           <button
-            v-tooltip.group="'Image'"
+            v-tooltip.group="translations.menu.image"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
             <v-remixicon name="riImageLine" />
@@ -88,7 +88,7 @@
         <input
           v-model="imgUrl"
           class="bg-transparent mr-2"
-          placeholder="Image url"
+          :placeholder="translations.menu.imgurl || '-'"
           @keyup.enter="insertImage"
         />
         <v-remixicon
@@ -103,7 +103,7 @@
         />
       </ui-popover>
       <button
-        v-tooltip.group="'Link'"
+        v-tooltip.group="translations.menu.Link"
         :class="{ 'is-active': editor.isActive('link') }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().toggleLink({ href: '' }).run()"
@@ -112,7 +112,7 @@
       </button>
       <hr class="border-r mx-2 h-6" />
       <button
-        v-tooltip.group="'Print'"
+        v-tooltip.group="translations.menu.Print"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="printContent"
       >
@@ -120,7 +120,7 @@
       </button>
       <hr class="border-r mx-2 h-6" />
       <button
-        v-tooltip.group="'Focus mode'"
+        v-tooltip.group="translations.menu.Focusmode"
         :class="{ 'is-active': store.inFocusMode }"
         class="hoverable h-8 px-1 rounded-lg h-full"
         @click="toggleFocusMode"
@@ -128,7 +128,7 @@
         <v-remixicon name="riFocus3Line" />
       </button>
       <button
-        v-tooltip.group="'Headings tree'"
+        v-tooltip.group="translations.menu.headingsTree"
         :class="{ 'is-active': tree }"
         class="hoverable h-8 px-1 rounded-lg h-full"
         @click="showHeadingsTree = !showHeadingsTree"
@@ -157,7 +157,13 @@
 </template>
 
 <script>
-import { shallowRef, onUnmounted } from 'vue';
+import {
+  shallowRef,
+  onUnmounted,
+  onMounted,
+  computed,
+  shallowReactive,
+} from 'vue';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
 import { useEditorImage } from '@/composable/editorImage';
@@ -187,87 +193,92 @@ export default {
       { name: 'Header 5', id: 5 },
       { name: 'Header 6', id: 6 },
     ];
-    const lists = [
-      {
-        name: 'ordered-list',
-        title: 'Numbered list',
-        icon: 'riListOrdered',
-        activeState: 'orderedList',
-        handler: () => props.editor.chain().focus().toggleOrderedList().run(),
-      },
-      {
-        name: 'bullet-list',
-        title: 'Bullet list',
-        icon: 'riListUnordered',
-        activeState: 'bulletList',
-        handler: () => props.editor.chain().focus().toggleBulletList().run(),
-      },
-      {
-        name: 'check-list',
-        title: 'Check list',
-        icon: 'riListCheck2',
-        activeState: 'taskList',
-        handler: () => props.editor.chain().focus().toggleTaskList().run(),
-      },
-      {
-        name: 'blockquote',
-        title: 'Blockquote',
-        icon: 'riDoubleQuotesR',
-        activeState: 'blockquote',
-        handler: () => props.editor.chain().focus().toggleBlockquote().run(),
-      },
-      {
-        name: 'code-block',
-        title: 'Code Block',
-        icon: 'riCodeBoxLine',
-        activeState: 'codeBlock',
-        handler: () => props.editor.chain().focus().toggleCodeBlock().run(),
-      },
-    ];
-    const textFormatting = [
-      {
-        name: 'bold',
-        title: 'Bold',
-        icon: 'riBold',
-        activeState: 'bold',
-        handler: () => props.editor.chain().focus().toggleBold().run(),
-      },
-      {
-        name: 'italic',
-        title: 'Italic',
-        icon: 'riItalic',
-        activeState: 'italic',
-        handler: () => props.editor.chain().focus().toggleItalic().run(),
-      },
-      {
-        name: 'underline',
-        title: 'Underline',
-        icon: 'riUnderline',
-        activeState: 'underline',
-        handler: () => props.editor.chain().focus().toggleUnderline().run(),
-      },
-      {
-        name: 'strikethrough',
-        title: 'Strikethrough',
-        icon: 'riStrikethrough',
-        activeState: 'strike',
-        handler: () => props.editor.chain().focus().toggleStrike().run(),
-      },
-      {
-        name: 'inline-code',
-        title: 'Inline Block',
-        icon: 'riCodeLine',
-        activeState: 'code',
-        handler: () => props.editor.chain().focus().toggleCode().run(),
-      },
-      {
-        name: 'highlight',
-        title: 'Highlight',
-        icon: 'riMarkPenLine',
-        activeState: 'highlight',
-        handler: () => props.editor.chain().focus().toggleHighlight().run(),
-      },
-    ];
+
+    const lists = computed(() => {
+      return [
+        {
+          name: 'ordered-list',
+          title: translations.menu.orderedlist,
+          icon: 'riListOrdered',
+          activeState: 'orderedList',
+          handler: () => props.editor.chain().focus().toggleOrderedList().run(),
+        },
+        {
+          name: 'bullet-list',
+          title: translations.menu.bulletlist,
+          icon: 'riListUnordered',
+          activeState: 'bulletList',
+          handler: () => props.editor.chain().focus().toggleBulletList().run(),
+        },
+        {
+          name: 'check-list',
+          title: translations.menu.checklist,
+          icon: 'riListCheck2',
+          activeState: 'taskList',
+          handler: () => props.editor.chain().focus().toggleTaskList().run(),
+        },
+        {
+          name: 'blockquote',
+          title: translations.menu.blockquote,
+          icon: 'riDoubleQuotesR',
+          activeState: 'blockquote',
+          handler: () => props.editor.chain().focus().toggleBlockquote().run(),
+        },
+        {
+          name: 'code-block',
+          title: translations.menu.codeblock,
+          icon: 'riCodeBoxLine',
+          activeState: 'codeBlock',
+          handler: () => props.editor.chain().focus().toggleCodeBlock().run(),
+        },
+      ];
+    });
+    const textFormatting = computed(() => {
+      return [
+        {
+          name: 'bold',
+          title: translations.menu.bold,
+          icon: 'riBold',
+          activeState: 'bold',
+          handler: () => props.editor.chain().focus().toggleBold().run(),
+        },
+        {
+          name: 'italic',
+          title: translations.menu.italic,
+          icon: 'riItalic',
+          activeState: 'italic',
+          handler: () => props.editor.chain().focus().toggleItalic().run(),
+        },
+        {
+          name: 'underline',
+          title: translations.menu.underline,
+          icon: 'riUnderline',
+          activeState: 'underline',
+          handler: () => props.editor.chain().focus().toggleUnderline().run(),
+        },
+        {
+          name: 'strikethrough',
+          title: translations.menu.strikethrough,
+          icon: 'riStrikethrough',
+          activeState: 'strike',
+          handler: () => props.editor.chain().focus().toggleStrike().run(),
+        },
+        {
+          name: 'inline-code',
+          title: translations.menu.inlinecode,
+          icon: 'riCodeLine',
+          activeState: 'code',
+          handler: () => props.editor.chain().focus().toggleCode().run(),
+        },
+        {
+          name: 'highlight',
+          title: translations.menu.highlight,
+          icon: 'riMarkPenLine',
+          activeState: 'highlight',
+          handler: () => props.editor.chain().focus().toggleHighlight().run(),
+        },
+      ];
+    });
 
     const store = useStore();
     const editorImage = useEditorImage(props.editor);
@@ -322,10 +333,55 @@ export default {
       window.print();
     }
 
+    const translations = shallowReactive({
+      menu: {
+        paragraph: 'menu.paragraph',
+        heading: 'menu.heading',
+        image: 'menu.image',
+        imgurl: 'menu.imgurl',
+        Link: 'menu.Link',
+        Print: 'menu.Print',
+        Focusmode: 'menu.Focusmode',
+        headingsTree: 'menu.headingsTree',
+        orderedlist: 'menu.orderedlist',
+        bulletlist: 'menu.bulletlist',
+        checklist: 'menu.checklist',
+        blockquote: 'menu.blockquote',
+        codeblock: 'menu.codeblock',
+        bold: 'menu.bold',
+        italic: 'menu.italic',
+        underline: 'menu.underline',
+        strikethrough: 'menu.strikethrough',
+        inlinecode: 'menu.inlinecode',
+        highlight: 'menu.highlight',
+      },
+    });
+
+    onMounted(async () => {
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       store,
       lists,
       imgUrl,
+      translations,
       headings,
       insertImage,
       editorImage,
@@ -350,6 +406,7 @@ export default {
 button {
   @apply hover:text-gray-800 dark:hover:text-white;
 }
+
 button.is-active {
   @apply text-primary dark:text-secondary hover:text-primary dark:hover:text-secondary;
 }

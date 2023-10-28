@@ -6,7 +6,7 @@
         v-model="currentImage"
         type="text"
         class="flex-1 bg-transparent w-52 mr-4"
-        placeholder="Image url"
+        :placeholder="translations.image.imgurl"
         @keydown.esc="editor.commands.focus()"
         @keyup.enter="editorImage.set(currentImage)"
       />
@@ -22,13 +22,10 @@
         @click="editorImage.set(currentImage)"
       />
     </div>
-    <span class="text-xs text-gray-600 dark:text-gray-300 leading-none"
-      >Press Ctrl+L to focus the input</span
-    >
   </div>
 </template>
 <script>
-import { watch, ref } from 'vue';
+import { watch, ref, onMounted, shallowReactive } from 'vue';
 import { useEditorImage } from '@/composable/editorImage';
 
 export default {
@@ -51,7 +48,35 @@ export default {
       { immediate: true }
     );
 
+    const translations = shallowReactive({
+      image: {
+        imgurl: 'image.imgurl',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
+      translations,
       editorImage,
       currentImage,
     };

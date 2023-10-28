@@ -16,7 +16,7 @@
     "
   >
     <ui-button
-      v-tooltip="'Use regex (Alt+R)'"
+      v-tooltip="translations.search.useRegex"
       class="mr-2"
       icon
       @click="state.useRegex = !state.useRegex"
@@ -27,7 +27,7 @@
       />
     </ui-button>
     <ui-button
-      v-tooltip="'Clear'"
+      v-tooltip="translations.search.clear"
       class="mr-2"
       icon
       @click="editor.commands.clearSearch()"
@@ -38,31 +38,33 @@
       v-model="state.query"
       autofocus
       prepend-icon="riSearchLine"
-      placeholder="Search..."
+      :placeholder="translations.search.searchplaceholder"
       class="flex-1 mr-2 editor-search"
       @keyup.enter="search"
     />
     <ui-input
       v-model="state.replaceWith"
-      placeholder="Replace..."
+      :placeholder="translations.search.replaceplaceholder"
       class="flex-1 mr-4"
       @keyup.enter="search"
     />
-    <ui-button class="mr-2" @click="search"> Find </ui-button>
+    <ui-button class="mr-2" @click="search">
+      {{ translations.search.find || '-' }}
+    </ui-button>
     <ui-button
       v-tooltip="'Alt+Enter'"
       :disabled="!state.replaceWith"
       class="mr-2"
       @click="replaceText"
     >
-      Replace
+      {{ translations.search.replace || '-' }}
     </ui-button>
     <ui-button
       v-tooltip="'Ctrl+Alt+Enter'"
       :disabled="!state.replaceWith"
       @click="replaceAllText"
     >
-      Replace all
+      {{ translations.search.replaceall || '-' }}
     </ui-button>
   </div>
 </template>
@@ -118,6 +120,40 @@ export default {
 
       if (text) state.query = text;
     });
+
+    const translations = shallowReactive({
+      search: {
+        find: 'search.find',
+        replace: 'search.replace',
+        replaceall: 'search.replaceall',
+        searchplaceholder: 'search.searchplaceholder',
+        replaceplaceholder: 'search.replaceplaceholder',
+        useRegex: 'search.useRegex',
+        clear: 'search.clear',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     onUnmounted(() => {
       props.editor.commands.clearSearch();
       Mousetrap.unbind(Object.keys(shortcuts));
@@ -127,6 +163,7 @@ export default {
       state,
       search,
       replaceText,
+      translations,
       replaceAllText,
     };
   },

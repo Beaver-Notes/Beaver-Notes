@@ -12,7 +12,7 @@
         @click="updateCurrentLink(note.id)"
       >
         <p class="text-overflow w-full">
-          {{ note.title || 'Untitled note' }}
+          {{ note.title || translations.link.untitlednote }}
         </p>
       </ui-list-item>
     </ui-list>
@@ -23,7 +23,7 @@
         id="bubble-input"
         v-model="currentLinkVal"
         type="url"
-        placeholder="URL or type @ to link a note"
+        :placeholder="translations.link.placeholder"
         class="flex-1 bg-transparent"
         @keydown="keydownHandler"
         @keydown.esc="editor.commands.focus()"
@@ -45,14 +45,14 @@
         <v-remixicon name="riSave3Line" />
       </button>
     </div>
-    <span class="text-xs text-gray-600 dark:text-gray-300 leading-none"
-      >Press {{ keyBinding }}+L to focus the input</span
-    >
+    <span class="text-xs text-gray-600 dark:text-gray-300 leading-none">{{
+      translations.link.shortcut || '-'
+    }}</span>
   </div>
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, shallowReactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 
@@ -133,8 +133,38 @@ export default {
       { immediate: true }
     );
 
+    const translations = shallowReactive({
+      link: {
+        untitlednote: 'link.untitlednote',
+        placeholder: 'link.placeholder',
+        shortcut: 'link.shortcut',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       notes,
+      translations,
       keydownHandler,
       currentLinkVal,
       selectedNoteIndex,

@@ -1,7 +1,8 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general space-y-8 w-full max-w-xl">
     <section>
-      <p class="mb-2">App theme</p>
+      <p class="mb-2">{{ translations.settings.apptheme || '-' }}</p>
       <div class="flex space-x-4 text-gray-600 dark:text-gray-200">
         <button
           v-for="item in themes"
@@ -13,27 +14,63 @@
           @click="theme.setTheme(item.name)"
         >
           <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
-          <p class="capitalize text-center text-sm">{{ item.name }}</p>
+          <p class="capitalize text-center text-sm">
+            {{ translations.settings[item.name] || item.name }}
+          </p>
         </button>
       </div>
     </section>
     <section>
-      <p class="mb-2">Sync path</p>
+      <div>
+        <p class="mb-2">{{ translations.settings.selectlanguage || '-' }}</p>
+        <ui-select
+          v-model="selectedLanguage"
+          class="w-full"
+          @change="updateLanguage"
+        >
+          <option
+            v-for="language in languages"
+            :key="language.code"
+            :value="language.code"
+          >
+            {{ language.name }}
+          </option>
+        </ui-select>
+      </div>
+    </section>
+    <section>
+      <p class="mb-2">{{ translations.settings.selectfont || '-' }}</p>
+      <ui-select
+        id="fontSelect"
+        v-model="selectedFont"
+        class="w-full"
+        @change="updateFont"
+      >
+        <option value="Arimo">Arimo</option>
+        <option value="avenir">Avenir</option>
+        <option value="EB Garamond">EB Garamond</option>
+        <option value="'Helvetica Neue', sans-serif">Helvetica</option>
+        <option value="open-dyslexic">Open Dyslexic</option>
+        <option value="Ubuntu">Ubuntu</option>
+      </ui-select>
+    </section>
+    <section>
+      <p class="mb-2">{{ translations.settings.syncpath || '-' }}</p>
       <div class="flex items-center space-x-2">
         <ui-input
           v-model="state.dataDir"
           readonly
-          placeholder="Path"
+          :placeholder="translations.settings.pathplaceholder || '-'"
           class="w-full"
           @click="chooseDefaultPath"
         />
         <ui-button class="w-full" @click="chooseDefaultPath">
-          Select Path
+          {{ translations.settings.selectpath || '-' }}
         </ui-button>
       </div>
     </section>
     <section>
-      <p class="mb-2">Import/Export data</p>
+      <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex space-x-4">
         <div class="bg-input transition w-6/12 rounded-lg p-4">
           <div class="text-center mb-8 dark:text-gray-300 text-gray-600">
@@ -51,20 +88,20 @@
             </span>
           </div>
           <ui-checkbox v-model="state.withPassword">
-            Encrypt with password
+            {{ translations.settings.encryptwpasswd || '-' }}
           </ui-checkbox>
           <expand-transition>
             <ui-input
               v-if="state.withPassword"
               v-model="state.password"
-              placeholder="Password"
+              :placeholder="translations.settings.password || '-'"
               class="mt-2"
               autofocus
               @keyup.enter="exportData"
             />
           </expand-transition>
-          <ui-button class="w-full mt-4" @click="exportData(defaultPath)"
-            >Export data</ui-button
+          <ui-button class="w-full mt-4" @click="exportData(defaultPath)">
+            {{ translations.settings.exportdata || '-' }}</ui-button
           >
         </div>
         <div class="bg-input transition w-6/12 rounded-lg p-4 flex flex-col">
@@ -84,7 +121,7 @@
           </div>
           <div class="flex-grow"></div>
           <ui-button class="w-full mt-6" @click="importData(defaultPath)">
-            Import Data
+            {{ translations.settings.importdata || '-' }}
           </ui-button>
         </div>
       </div>
@@ -104,10 +141,11 @@ import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
+import enTranslations from './locales/en.json';
+import itTranslations from './locales/it.json';
 
 export const state = shallowReactive({
   dataDir: '',
-  // other state properties...
 });
 export const dataDir = state.dataDir;
 
@@ -146,13 +184,13 @@ export default {
 
         if (canceled) return;
 
-        showAlert('App needs to relaunch for this change to take effect', {
+        showAlert(translations.settings.relaunch, {
           type: 'info',
-          buttons: ['Relaunch app'],
+          buttons: [translations.settings.relaunchbutton],
         });
 
         await storage.set('dataDir', dir);
-        await ipcRenderer.callMain('helper:relaunch');
+        window.location.reload(); // Reload the page
       } catch (error) {
         console.error(error);
       }
@@ -180,7 +218,8 @@ export default {
         if (canceled) return;
 
         let data = await storage.store();
-
+        data['default-path'] = defaultPath;
+        data['lockedNotes'] = JSON.parse(localStorage.getItem('lockedNotes'));
         if (state.withPassword) {
           data = AES.encrypt(JSON.stringify(data), state.password).toString();
         }
@@ -199,7 +238,7 @@ export default {
           dest: path.join(folderPath, 'assets'),
         });
 
-        alert(`Notes is exported in "${folderName}" folder`);
+        alert(`${translations.settings.exportmessage}"${folderName}"`);
 
         state.withPassword = false;
         state.password = '';
@@ -207,6 +246,7 @@ export default {
         console.error(error);
       }
     }
+
     async function mergeImportedData(data) {
       try {
         const keys = [
@@ -253,14 +293,15 @@ export default {
           path.join(dirPath, 'data.json')
         );
 
-        if (!data) return showAlert('Invalid data');
+        if (!data) return showAlert(translations.settings.invaliddata);
 
         if (typeof data === 'string') {
           dialog.prompt({
-            title: 'Input password',
-            body: 'This data is encrypted, you need to input the password to get access',
-            okText: 'Import',
-            placeholder: 'Password',
+            title: translations.settings.Inputpassword,
+            body: translations.settings.body,
+            okText: translations.settings.Import,
+            cancelText: translations.settings.Cancel,
+            placeholder: translations.settings.Password,
             onConfirm: (pass) => {
               try {
                 const bytes = AES.decrypt(data, pass);
@@ -269,7 +310,7 @@ export default {
 
                 mergeImportedData(resultObj);
               } catch (error) {
-                showAlert('Invalid password');
+                showAlert(translations.settings.Invalidpassword);
                 return false;
               }
             },
@@ -279,11 +320,20 @@ export default {
         }
 
         const dataDir = await storage.get('dataDir', '', 'settings');
+        const importedDefaultPath = data['default-path'];
+        const importedLockedNotes = data['lockedNotes'];
+        localStorage.setItem('default-path', importedDefaultPath);
+        localStorage.setItem(
+          'lockedNotes',
+          JSON.stringify(importedLockedNotes)
+        );
 
         await ipcRenderer.callMain('fs:copy', {
+          // eslint-disable-next-line no-undef
           path: path.join(folderPath, 'assets'),
           dest: path.join(dataDir, 'notes-assets'),
         });
+        window.reload();
       } catch (error) {
         console.error(error);
       }
@@ -301,14 +351,14 @@ export default {
 
         if (canceled) return;
 
-        showAlert('App needs to relaunch for this change to take effect', {
+        showAlert(translations.settings.relaunch, {
           type: 'info',
-          buttons: ['Relaunch app'],
+          buttons: [translations.settings.relaunchbutton],
         });
         defaultPath = dir;
         localStorage.setItem('default-path', defaultPath);
         state.dataDir = defaultPath;
-        await ipcRenderer.callMain('helper:relaunch');
+        window.location.reload(); // Reload the page
       } catch (error) {
         console.error(error);
       }
@@ -324,6 +374,57 @@ export default {
       'mod+shift+i': exportData,
     };
 
+    // Translations
+    const translations = shallowReactive({
+      settings: {
+        apptheme: 'settings.apptheme',
+        light: 'settings.light',
+        dark: 'settings.dark',
+        system: 'settings.system',
+        selectlanguage: 'settings.selectlanguage',
+        selectfont: 'settings.selectfont',
+        syncpath: 'settings.syncpath',
+        selectpath: 'settings.selectpath',
+        iedata: 'settings.iedata',
+        encryptwpasswd: 'settings.encryptwpasswd',
+        exportdata: 'settings.exportdata',
+        importdata: 'settings.importdata',
+        pathplaceholder: 'settings.pathplaceholder',
+        password: 'settings.password',
+        Inputpassword: 'settings.Inputpassword',
+        body: 'settings.body',
+        Import: 'settings.Import',
+        Cancel: 'settings.Cancel',
+        Password: 'settings.password',
+        Invalidpassword: 'settings.Invalidpassword',
+        relaunch: 'settings.relaunch',
+        relaunchbutton: 'settings.relaunchbutton',
+        exportmessage: 'settings.exportmessage',
+        invaliddata: 'settings.invaliddata',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
       shortcuts[combo]();
     });
@@ -333,12 +434,44 @@ export default {
       theme,
       themes,
       storage,
+      translations,
       exportData,
       importData,
       changeDataDir,
       chooseDefaultPath,
       defaultPath,
     };
+  },
+  data() {
+    return {
+      selectedFont: localStorage.getItem('selected-font') || 'Arimo',
+      selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
+      languages: [
+        { code: 'en', name: 'English', translations: enTranslations },
+        { code: 'it', name: 'Italiano', translations: itTranslations },
+      ],
+    };
+  },
+  mounted() {
+    document.documentElement.style.setProperty(
+      '--selected-font',
+      this.selectedFont
+    );
+  },
+  methods: {
+    updateFont() {
+      localStorage.setItem('selected-font', this.selectedFont);
+
+      document.documentElement.style.setProperty(
+        '--selected-font',
+        this.selectedFont
+      );
+    },
+    updateLanguage() {
+      const languageCode = this.selectedLanguage;
+      localStorage.setItem('selectedLanguage', languageCode);
+      window.location.reload(); // Reload the page
+    },
   },
 };
 </script>

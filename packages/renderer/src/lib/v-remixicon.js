@@ -1,5 +1,6 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riLockLine,
   riCupLine,
   riListCheck2,
   riUserSmileLine,
@@ -54,6 +55,7 @@ import {
   riWindowLine,
   riKeyboardLine,
   riCheckLine,
+  riLockUnlockLine,
   riFileDownloadLine,
   riFileUploadLine,
   riInformationLine,
@@ -66,6 +68,7 @@ import {
 VRemixIcon.add({
   riCupLine,
   riListCheck2,
+  riLockUnlockLine,
   riUserSmileLine,
   riDownload2Line,
   riUpload2Line,
@@ -113,6 +116,7 @@ VRemixIcon.add({
   riBrushLine,
   riSortAsc,
   riSortDesc,
+  riLockLine,
   riCloseLine,
   riSave3Line,
   riWindowLine,

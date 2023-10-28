@@ -5,7 +5,6 @@ import Settings from './pages/Settings.vue';
 import SettingsIndex from './pages/settings/Index.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
-import SettingsAccessibility from './pages/settings/Accessibility.vue';
 
 const routes = [
   {
@@ -26,11 +25,6 @@ const routes = [
       {
         path: '',
         component: SettingsIndex,
-      },
-      {
-        path: 'accessibility',
-        name: 'Settings-Acessibility',
-        component: SettingsAccessibility,
       },
       {
         path: 'shortcuts',
