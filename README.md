@@ -32,11 +32,10 @@ Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, W
 - **Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
 - **User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
 - **Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
-- **Tags and Categories:** Stay organized by using tags and categories to group related notes. Quickly find what you need when you need it.
-- **Efficient Search:** Our powerful search functionality helps you locate notes instantly, saving you time and effort.
+- **Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
+- **Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
 - **Note Linking:** Create a web of ideas and interconnected thoughts.
 - **Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
-- **Tags:** Let you categorize and organize your notes, thoughts, and ideas. And more ...
   
 ## Installation 🚀
 
@@ -44,7 +43,7 @@ Getting started with Beaver Notes is quick and easy! Visit our official website 
 
 ## Need Help? 🤔
 
-I and the community are here to help you! For any questions or support, reach out at  <a style="color: #f59e0b" href="mailto:danielerolli@proton.me">danielerolli@proton.</a> or get in touch using our social channels like <a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> and <a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>.
+I and the community are here to help you! For any questions or support, reach out at  <a style="color: #f59e0b" href="mailto:danielerolli@proton.me">danielerolli@proton.me</a> or get in touch using our social channels like <a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> and <a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>.
 
 
 ## Join the Community 🦫
