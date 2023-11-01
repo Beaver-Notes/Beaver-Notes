@@ -5,6 +5,7 @@
 
 <h1 align="center">Beaver Notes </h1>
 <h3 align="center">Your Private Note-Taking Buddy 📝</h3>
+<h5 align="center">Developed with love ❤️ in a rainy cottage in Northern Italy.</h3>
 <p align="center">
 <a style="color: #f59e0b" href="https://beavernotes.com">Website</a> 
 | 
