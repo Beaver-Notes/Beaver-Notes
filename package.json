@@ -47,7 +47,7 @@
     "eslint-plugin-prettier-vue": "^3.1.0",
     "eslint-plugin-vue": "^9.18.1",
     "lint-staged": "^11.1.2",
-    "postcss": "^8.3.6",
+    "postcss": "^8.4.31",
     "postcss-nested": "^5.0.6",
     "simple-git-hooks": "^2.5.1",
     "spectron": "^15.0.0",
