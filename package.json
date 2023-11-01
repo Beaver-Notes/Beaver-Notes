@@ -52,7 +52,7 @@
     "simple-git-hooks": "^2.5.1",
     "spectron": "^15.0.0",
     "tailwindcss": "^2.2.7",
-    "vite": "^2.4.4"
+    "vite": "^2.9.16"
   },
   "dependencies": {
     "@benrbray/prosemirror-math": "^0.2.2",
