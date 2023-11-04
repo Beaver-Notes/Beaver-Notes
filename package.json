@@ -1,7 +1,7 @@
 {
   "name": "Beaver-notes",
   "private": false,
-  "version": "2.0.0",
+  "version": "2.1.1",
   "author": "Daniele Rolli",
   "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
   "license": "MIT",
@@ -80,7 +80,7 @@
     "electron-store": "^8.0.0",
     "electron-updater": "^6.1.1",
     "fs-extra": "^10.0.0",
-    "katex": "^0.13.13",
+    "katex": "^0.13.0",
     "lowlight": "1.20.0",
     "mousetrap": "^1.6.5",
     "nanoid": "^3.1.25",

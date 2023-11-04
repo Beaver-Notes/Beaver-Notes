@@ -49,7 +49,7 @@ export default {
       },
       {
         name: 'donate',
-        url: 'https://www.buymeacoffee.com/app/dashboard',
+        url: 'https://www.buymeacoffee.com/beavernotes',
         icon: 'riCupLine',
       },
     ];
