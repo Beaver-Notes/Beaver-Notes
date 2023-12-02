@@ -55,3 +55,6 @@ Collaborating is one of the best ways to support your favorite piece of software
 Beaver Notes is proudly open-source and distributed under the <a style="color: #f59e0b" href="https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE">MIT License</a>.
 
 Take control of your notes with Beaver Notes! 🚀
+
+![Alt](https://repobeats.axiom.co/api/embed/96eb6008d766d6c485cafa54856db18bf4d7e274.svg "Repobeats analytics image")
+
