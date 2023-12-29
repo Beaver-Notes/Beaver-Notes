@@ -143,6 +143,7 @@ import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
 import enTranslations from './locales/en.json';
 import itTranslations from './locales/it.json';
+import deTranslations from './locales/de.json';
 
 export const state = shallowReactive({
   dataDir: '',
@@ -446,6 +447,7 @@ export default {
       languages: [
         { code: 'en', name: 'English', translations: enTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
+        { code: 'de', name: 'Deutsch', translations: deTranslations },
       ],
     };
   },
