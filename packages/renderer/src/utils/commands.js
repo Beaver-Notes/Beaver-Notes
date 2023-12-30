@@ -2,6 +2,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTheme } from '../composable/theme';
 import enTranslations from './locales/en.json';
 import itTranslations from './locales/it.json';
+import deTranslations from './locales/de.json';
 
 const theme = useTheme();
 
@@ -15,6 +16,10 @@ let translations = enTranslations;
 
 if (selectedLanguage === 'it') {
   translations = itTranslations;
+}
+
+if (selectedLanguage === 'de') {
+  translations = deTranslations;
 }
 
 let commands = [
