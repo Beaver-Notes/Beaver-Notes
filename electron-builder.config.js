@@ -20,6 +20,11 @@ const electronBuilderConfig = {
     icon: 'buildResources/icon.icns',
     target: ['dmg'],
     publish: ['github'],
+    hardenedRuntime: true,
+    entitlements: 'buildResources/entitlements.mac.plist',
+    entitlementsInherit: 'buildResources/entitlements.mac.plist',
+    gatekeeperAssess: false,
+    category: 'public.app-category.productivity',
   },
    linux: {
     icon: 'buildResources/icon-linux.icns',
