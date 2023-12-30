@@ -2,7 +2,7 @@
   "commands": {
     "new-note": "Neue Notiz erstellen",
     "settings": "Einstellungen",
-    "dark-theme": "Dunkles Theme anwenden",
-    "light-theme": "Helles Theme anwenden"
+    "dark-theme": "Dunkles Thema anwenden",
+    "light-theme": "Helles Thema anwenden"
   }
 }

@@ -28,8 +28,8 @@
   "commands": {
     "Createnewnote": "Neue Notiz erstellen",
     "Settings": "Einstellungen",
-    "Applydarktheme": "Dunkles Theme anwenden",
-    "Applylighttheme": "Helles Theme anwenden"
+    "Applydarktheme": "Dunkles Thema anwenden",
+    "Applylighttheme": "Helles Thema anwenden"
   },
   "filter": {
     "Selectlabel": "Kategorie auswählen",
@@ -100,7 +100,7 @@
     "Editor": "Bearbeitung",
     "Createnewnote": "Neue Notiz erstellen",
     "Togglecommandprompt": "Aktivieren der Befehlszeile",
-    "Toggledarktheme": "Theme umschalten",
+    "Toggledarktheme": "Thema umschalten",
     "Toggleexport": "Export",
     "Toggleimport": "Import",
     "Toeditednote": "Zur letzten geänderten Notiz gehen",
@@ -123,7 +123,7 @@
   },
   "settings": {
     "title": "Einstellungen",
-    "apptheme": "App Theme",
+    "apptheme": "App Thema",
     "light": "Hell",
     "dark": "Dunkel",
     "system": "System",
@@ -158,11 +158,11 @@
   },
   "sidebar": {
     "Notes": "Notizen",
-    "addNotes": "Notizen hinzufügen",
+    "addNotes": "Notiz hinzufügen",
     "Editednote": "Notiz bearbeiten",
     "toggleexport": "Export",
     "toggleimport": "Import",
-    "toggledarktheme": "Theme umschalten",
+    "toggledarktheme": "Thema umschalten",
     "Archive": "Archiv"
   },
   "commandprompt": {
