@@ -3,6 +3,7 @@ import { useTheme } from '../composable/theme';
 import enTranslations from './locales/en.json';
 import itTranslations from './locales/it.json';
 import deTranslations from './locales/de.json';
+import zhTranslations from './locales/zh.json';
 
 const theme = useTheme();
 
@@ -20,6 +21,10 @@ if (selectedLanguage === 'it') {
 
 if (selectedLanguage === 'de') {
   translations = deTranslations;
+}
+
+if (selectedLanguage === 'zh') {
+  translations = zhTranslations;
 }
 
 let commands = [
