@@ -1,0 +1,8 @@
+{
+  "commands": {
+    "new-note": "创建新笔记",
+    "settings": "设置",
+    "dark-theme": "使用深色主题",
+    "light-theme": "使用浅色主题"
+  }
+}
