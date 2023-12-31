@@ -144,6 +144,7 @@ import Mousetrap from '@/lib/mousetrap';
 import enTranslations from './locales/en.json';
 import itTranslations from './locales/it.json';
 import deTranslations from './locales/de.json';
+import zhTranslations from './locales/zh.json';
 
 export const state = shallowReactive({
   dataDir: '',
@@ -448,6 +449,7 @@ export default {
         { code: 'en', name: 'English', translations: enTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'de', name: 'Deutsch', translations: deTranslations },
+        { code: 'zh', name: '简体中文', translations: zhTranslations },
       ],
     };
   },

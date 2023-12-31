@@ -1,0 +1,172 @@
+{
+  "index": {
+    "newnote": "要创建新笔记，您可以按 Ctrl + N、Cmd + N 或单击左上角的 + 按钮",
+    "archived": "已归档",
+    "bookmarked": "已添加书签",
+    "all": "全部"
+  },
+  "search": {
+    "find": "查找",
+    "replace": "替换",
+    "replaceall": "替换全部",
+    "clear": "清除",
+    "useRegex": "使用正则 (Alt+R)",
+    "searchplaceholder": "搜索..." ,
+    "replaceplaceholder": "替换..."
+  },
+  "tiptap": {
+    "placeholder": "写点什么..."
+  },
+  "link": {
+    "unititlednote": "无标题笔记",
+    "placeholder": "输入 URL 或者键入 @ 以链接笔记",
+    "shortcut": "按 Ctrl + 单击以打开链接"
+  },
+  "image": {
+    "imgurl": "图片 URL"
+  },
+  "commands": {
+    "Createnewnote": "创建笔记",
+    "Settings": "设置",
+    "Applydarktheme": "使用深色主题",
+    "Applylighttheme": "使用浅色主题"
+  },
+  "filter": {
+    "Selectlabel": "选择标签",
+    "search": "+ F 开始搜索",
+    "searchplaceholder": "搜索...",
+    "Alphabetical": "按字母顺序",
+    "Createddate": "按创建日期",
+    "Lastupdated": "按最近更新",
+    "deletelabel": "删除标签",
+    "ascending": "升序",
+    "descending": "降序"
+  },
+  "menu": {
+    "paragraph": "段落",
+    "heading": "标题",
+    "image": "图片",
+    "imgurl": "图片 URL",
+    "Link": "链接",
+    "Print": "打印",
+    "Focusmode": "专注模式",
+    "headingsTree": "标题树",
+    "orderedlist": "有序列表",
+    "bulletlist": "符号列表",
+    "checklist": "清单列表",
+    "blockquote": "引用",
+    "codeblock": "代码块",
+    "bold": "粗体",
+    "italic": "斜体",
+    "underline": "下划线",
+    "strikethrough": "删除线",
+    "highlight": "高亮",
+    "inlinecode": "内联代码"
+  },
+  "card": {
+    "unarchived": "未归档的",
+    "unarchive": "取消归档",
+    "archive": "归档",
+    "removebookmark": "移除书签",
+    "bookmark": "书签",
+    "delete": "删除",
+    "content": "无内容",
+    "lock": "锁定",
+    "Unlock": "解锁",
+    "islocked": "此笔记已被锁定",
+    "unlocktoedit": "解锁后编辑",
+    "setupkey": "设置新的共享密钥",
+    "setkey": "设置密钥",
+    "Cancel": "取消",
+    "NewKey": "新建密钥",
+    "keyfail": "密钥设置已取消，笔记将不会被锁定。",
+    "nokey": "没有为此笔记设置共享密钥",
+    "enterpasswd": "请输入密码",
+    "Password": "密码",
+    "wrongpasswd": "密码错误，笔记无法被解锁。",
+    "Passwdcorrect": "密码正确。"
+  },
+  "about": {
+    "title": "Beaver Notes",
+    "description": "Beaver Notes 是带着爱❤️ 在意大利北部一座阴雨绵绵的小屋内开发的。",
+    "versionLabel": "版本号",
+    "website": "网址",
+    "github": "GitHub",
+    "donate": "捐献"
+  },
+  "shortcuts": {
+    "General": "通用快捷键",
+    "Navigates": "导航快捷键",
+    "Editor": "编辑快捷键",
+    "Createnewnote": "创建新笔记",
+    "Togglecommandprompt": "切换命令提示符",
+    "Toggledarktheme": "深色主题切换",
+    "Toggleexport": "导出",
+    "Toggleimport": "导入",
+    "Toeditednote": "编辑笔记",
+    "Tonotes": "查看笔记",
+    "Toarchivednotes": "查看已归档笔记",
+    "Tosettings": "打开设置",
+    "Bold": "粗体",
+    "Italic": "斜体",
+    "Underline": "下划线",
+    "Link": "链接",
+    "Strikethrough": "删除线",
+    "Highlight": "高亮",
+    "Inlinecode": "内联代码",
+    "Headings": "标题 (1-6)",
+    "Orderedlist": "有序列表",
+    "Bulletlist": "符号列表",
+    "Blockquote": "引号",
+    "Blockcode": "代码块",
+    "Previousnote": "以前的笔记"
+  },
+  "settings": {
+    "title": "设置",
+    "apptheme": "应用主题",
+    "light": "浅色",
+    "dark": "深色",
+    "system": "系统",
+    "selectlanguage": "选择语言",
+    "selectfont": "选择字体",
+    "syncpath": "同步路径",
+    "selectpath": "选择路径",
+    "iedata": "导入/导出数据",
+    "encryptwpasswd": "使用密码加密",
+    "exportdata": "导出数据",
+    "importdata": "导入数据",
+    "pathplaceholder": "路径",
+    "password": "密码",
+    "General": "通用",
+    "Shortcuts": "快捷键",
+    "About": "关于",
+    "Inputpassword": "请输入密码",
+    "body": "数据已经被加密，您需要输入密码才能访问",
+    "Import": "导入",
+    "Cancel": "取消",
+    "Password": "密码",
+    "Invalidpassword": "无效密码",
+    "relaunch": "应用需重启才能使此更改生效",
+    "relaunchbutton": "重启",
+    "exportmessage" : "笔记导出到",
+    "importsuccess" : "数据已成功导入",
+    "invaliddata": "数据不正确"
+  },
+  "_idvue": {
+    "Previousnote":"以前的笔记",
+    "unititlednote":"无标题笔记"
+  },
+  "sidebar": {
+    "Notes": "笔记",
+    "addNotes": "添加笔记",
+    "Editednote": "编辑笔记",
+    "toggleexport": "导出",
+    "toggleimport": "导入",
+    "toggledarktheme": "深色主题切换",
+    "Archive": "归档"
+  },
+  "commandprompt": {
+    "placeholder": "搜索文件或者键入 '>' 以搜索命令",
+    "unititlednote": "无标题笔记"
+  }
+}
