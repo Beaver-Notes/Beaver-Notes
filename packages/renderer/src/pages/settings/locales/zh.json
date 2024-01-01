@@ -1,16 +1,16 @@
 {
   "index": {
-    "newnote": "要创建新笔记，您可以按 Ctrl + N、Cmd + N 或单击左上角的 + 按钮",
+    "newnote": "创建新笔记，您可以按 Ctrl + N、Cmd + N 或点击左上角的 + 按钮",
     "archived": "已归档",
-    "bookmarked": "已添加书签",
+    "bookmarked": "已标记",
     "all": "全部"
   },
   "search": {
     "find": "查找",
     "replace": "替换",
-    "replaceall": "替换全部",
+    "replaceall": "全部替换",
     "clear": "清除",
-    "useRegex": "使用正则 (Alt+R)",
+    "useRegex": "使用正则表达式 (Alt+R)",
     "searchplaceholder": "搜索..." ,
     "replaceplaceholder": "替换..."
   },
@@ -19,17 +19,17 @@
   },
   "link": {
     "unititlednote": "无标题笔记",
-    "placeholder": "输入 URL 或者键入 @ 以链接笔记",
+    "placeholder": "输入 URL 或者键入 @ 进行笔记链接",
     "shortcut": "按 Ctrl + 单击以打开链接"
   },
   "image": {
-    "imgurl": "图片 URL"
+    "imgurl": "图片链接"
   },
   "commands": {
-    "Createnewnote": "创建笔记",
+    "Createnewnote": "创建新笔记",
     "Settings": "设置",
-    "Applydarktheme": "使用深色主题",
-    "Applylighttheme": "使用浅色主题"
+    "Applydarktheme": "应用深色主题",
+    "Applylighttheme": "应用浅色主题"
   },
   "filter": {
     "Selectlabel": "选择标签",
@@ -37,8 +37,8 @@
     "searchplaceholder": "搜索...",
     "Alphabetical": "按字母顺序",
     "Createddate": "按创建日期",
-    "Lastupdated": "按最近更新",
-    "deletelabel": "删除标签",
+    "Lastupdated": "按最后更新",
+    "deletelabel": "删除当前标签",
     "ascending": "升序",
     "descending": "降序"
   },
@@ -46,14 +46,14 @@
     "paragraph": "段落",
     "heading": "标题",
     "image": "图片",
-    "imgurl": "图片 URL",
+    "imgurl": "图片链接",
     "Link": "链接",
     "Print": "打印",
     "Focusmode": "专注模式",
-    "headingsTree": "标题树",
+    "headingsTree": "标题搜索",
     "orderedlist": "有序列表",
-    "bulletlist": "符号列表",
-    "checklist": "清单列表",
+    "bulletlist": "无序列表",
+    "checklist": "任务列表",
     "blockquote": "引用",
     "codeblock": "代码块",
     "bold": "粗体",
@@ -61,14 +61,14 @@
     "underline": "下划线",
     "strikethrough": "删除线",
     "highlight": "高亮",
-    "inlinecode": "内联代码"
+    "inlinecode": "行内代码"
   },
   "card": {
-    "unarchived": "未归档的",
+    "unarchived": "未归档",
     "unarchive": "取消归档",
     "archive": "归档",
-    "removebookmark": "移除书签",
-    "bookmark": "书签",
+    "removebookmark": "移除标记",
+    "bookmark": "标记",
     "delete": "删除",
     "content": "无内容",
     "lock": "锁定",
@@ -88,7 +88,7 @@
   },
   "about": {
     "title": "Beaver Notes",
-    "description": "Beaver Notes 是带着爱❤️ 在意大利北部一座阴雨绵绵的小屋内开发的。",
+    "description": "Beaver Notes 带着爱 ❤️ 开发于意大利北部一座阴雨绵绵的小屋内。",
     "versionLabel": "版本号",
     "website": "网址",
     "github": "GitHub",
@@ -97,10 +97,10 @@
   "shortcuts": {
     "General": "通用快捷键",
     "Navigates": "导航快捷键",
-    "Editor": "编辑快捷键",
+    "Editor": "编辑器快捷键",
     "Createnewnote": "创建新笔记",
     "Togglecommandprompt": "切换命令提示符",
-    "Toggledarktheme": "深色主题切换",
+    "Toggledarktheme": "切换深色主题",
     "Toggleexport": "导出",
     "Toggleimport": "导入",
     "Toeditednote": "编辑笔记",
@@ -113,7 +113,7 @@
     "Link": "链接",
     "Strikethrough": "删除线",
     "Highlight": "高亮",
-    "Inlinecode": "内联代码",
+    "Inlinecode": "行内代码",
     "Headings": "标题 (1-6)",
     "Orderedlist": "有序列表",
     "Bulletlist": "符号列表",
@@ -162,11 +162,11 @@
     "Editednote": "编辑笔记",
     "toggleexport": "导出",
     "toggleimport": "导入",
-    "toggledarktheme": "深色主题切换",
+    "toggledarktheme": "切换深色主题",
     "Archive": "归档"
   },
   "commandprompt": {
-    "placeholder": "搜索文件或者键入 '>' 以搜索命令",
+    "placeholder": "搜索文件或者键入 '>' 进行命令搜索",
     "unititlednote": "无标题笔记"
   }
 }
