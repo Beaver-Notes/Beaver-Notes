@@ -1,6 +1,6 @@
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-1-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <p align="center">
 <img style="align:center;" src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Notesnook Logo" width="100" />
@@ -73,6 +73,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="http://bigshans.github.io"><img src="https://avatars.githubusercontent.com/u/26884666?v=4?s=100" width="100px;" alt="Algernon"/><br /><sub><b>Algernon</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/issues?q=author%3Abigshans" title="Bug reports">🐛</a> <a href="#translation-bigshans" title="Translation">🌍</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/eag75"><img src="https://avatars.githubusercontent.com/u/155111097?v=4?s=100" width="100px;" alt="Danny Schellnock"/><br /><sub><b>Danny Schellnock</b></sub></a><br /><a href="#translation-eag75" title="Translation">🌍</a></td>
     </tr>
   </tbody>
 </table>
