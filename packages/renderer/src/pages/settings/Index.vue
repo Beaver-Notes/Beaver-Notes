@@ -322,9 +322,17 @@ export default {
 
         const dataDir = await storage.get('dataDir', '', 'settings');
         const importedDefaultPath = data['dataDir'];
-        const importedLockedNotes = data['lockStatus'];
+        const importedLockedStatus = data['lockStatus'];
+        const importedLockedNotes = data['lockedNotes'];
         localStorage.setItem('dataDir', importedDefaultPath);
-        localStorage.setItem('lockStatus', JSON.stringify(importedLockedNotes));
+        localStorage.setItem(
+          'lockStatus',
+          JSON.stringify(importedLockedStatus)
+        );
+        localStorage.setItem(
+          'lockedNotes',
+          JSON.stringify(importedLockedNotes)
+        );
 
         await ipcRenderer.callMain('fs:copy', {
           // eslint-disable-next-line no-undef
