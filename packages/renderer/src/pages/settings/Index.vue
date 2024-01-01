@@ -284,7 +284,7 @@ export default {
           filePaths: [dirPath],
         } = await ipcRenderer.callMain('dialog:open', {
           title: 'Import data',
-          properties: ['openFile'],
+          properties: ['openDirectory'],
           filters: [{ name: 'JSON', extensions: ['json'] }],
         });
 
