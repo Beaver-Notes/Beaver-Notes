@@ -285,7 +285,6 @@ export default {
         } = await ipcRenderer.callMain('dialog:open', {
           title: 'Import data',
           properties: ['openDirectory'],
-          filters: [{ name: 'JSON', extensions: ['json'] }],
         });
 
         if (canceled) return;
