@@ -35,11 +35,11 @@
     "*.{js,ts,vue}": "eslint --cache --fix"
   },
   "devDependencies": {
-    "dmg-builder": "^24.5.0",
     "@vitejs/plugin-vue": "^1.4.0",
     "autoprefixer": "^10.3.1",
     "babel-eslint": "^10.1.0",
     "cross-env": "^7.0.3",
+    "dmg-builder": "^24.5.0",
     "electron": "13.6.9",
     "electron-builder": "^22.11.7",
     "electron-devtools-installer": "^3.2.0",
