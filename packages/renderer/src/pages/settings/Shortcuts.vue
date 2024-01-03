@@ -23,13 +23,16 @@ const shortcuts = [
     title: 'General',
     items: [
       { name: 'Createnewnote', keys: getFormattedKeys(['Ctrl', 'N']) },
-      { name: 'Togglecommandprompt', keys: getFormattedKeys(['Ctrl', 'P']) },
+      {
+        name: 'Togglecommandprompt',
+        keys: getFormattedKeys(['Ctrl', 'Shift', 'P']),
+      },
       {
         name: 'Toggledarktheme',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'L']),
       },
       { name: 'Toggleexport', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
-      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'I']) },
+      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'U']) },
     ],
   },
   {

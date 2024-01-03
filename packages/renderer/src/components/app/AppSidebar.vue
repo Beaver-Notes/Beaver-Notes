@@ -151,6 +151,8 @@ export default {
       'mod+shift+n': () => router.push('/'),
       'mod+shift+a': () => router.push('/?archived=true'),
       'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
+      'mod+shift+u': importData,
+      'mod+shift+e': exportData,
     };
 
     emitter.on('new-note', addNote);
