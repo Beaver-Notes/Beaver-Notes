@@ -102,10 +102,8 @@ export default {
       state.selectedIndex = 0;
     }
 
-    Mousetrap.bind(['mod+p', 'mod+shift+p'], (event, combo) => {
+    Mousetrap.bind('mod+shift+p', () => {
       if (state.show) return clear();
-
-      if (combo === 'mod+shift+p') state.query = '>';
 
       document.querySelector('.command-input')?.focus();
       state.show = true;

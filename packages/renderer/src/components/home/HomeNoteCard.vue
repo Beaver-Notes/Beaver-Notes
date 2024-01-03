@@ -150,6 +150,7 @@
 <script setup>
 /* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
+import '../../assets/css/passwd.css';
 import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
 import { useGroupTooltip } from '@/composable/groupTooltip';

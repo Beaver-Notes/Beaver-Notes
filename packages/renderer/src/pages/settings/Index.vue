@@ -96,6 +96,7 @@
               v-model="state.password"
               :placeholder="translations.settings.password || '-'"
               class="mt-2"
+              style="-webkit-text-security: disc"
               autofocus
               @keyup.enter="exportData"
             />
@@ -145,6 +146,7 @@ import enTranslations from './locales/en.json';
 import itTranslations from './locales/it.json';
 import deTranslations from './locales/de.json';
 import zhTranslations from './locales/zh.json';
+import '../../assets/css/passwd.css';
 
 export const state = shallowReactive({
   dataDir: '',
@@ -322,9 +324,17 @@ export default {
 
         const dataDir = await storage.get('dataDir', '', 'settings');
         const importedDefaultPath = data['dataDir'];
-        const importedLockedNotes = data['lockStatus'];
+        const importedLockedStatus = data['lockStatus'];
+        const importedLockedNotes = data['lockedNotes'];
         localStorage.setItem('dataDir', importedDefaultPath);
-        localStorage.setItem('lockStatus', JSON.stringify(importedLockedNotes));
+        localStorage.setItem(
+          'lockStatus',
+          JSON.stringify(importedLockedStatus)
+        );
+        localStorage.setItem(
+          'lockedNotes',
+          JSON.stringify(importedLockedNotes)
+        );
 
         await ipcRenderer.callMain('fs:copy', {
           // eslint-disable-next-line no-undef
@@ -368,8 +378,8 @@ export default {
     });
 
     const shortcuts = {
-      'mod+shift+e': importData,
-      'mod+shift+i': exportData,
+      'mod+shift+u': importData,
+      'mod+shift+e': exportData,
     };
 
     // Translations

@@ -318,8 +318,9 @@ export default {
     }
 
     const shortcuts = {
-      'ctrl+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
-      'ctrl+shift+f': toggleFocusMode,
+      'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
+      'mod+shift+f': toggleFocusMode,
+      'mod+p': printContent,
     };
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
       shortcuts[combo]();
