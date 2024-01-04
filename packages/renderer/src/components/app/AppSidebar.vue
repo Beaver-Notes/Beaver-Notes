@@ -84,7 +84,7 @@
       class="transition p-2 mb-4"
       @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
     >
-      <v-remixicon name="riMoonClearLine" />
+      <v-remixicon :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'" />
     </button>
     <router-link
       v-tooltip:right="translations.settings.title + ' (' + keyBinding + '+,)'"
