@@ -162,7 +162,7 @@
     "Editednote": "编辑笔记",
     "toggleexport": "导出",
     "toggleimport": "导入",
-    "toggledarktheme": "切换深色主题",
+    "toggledarktheme": "启用/禁用深色主题",
     "Archive": "归档"
   },
   "commandprompt": {
