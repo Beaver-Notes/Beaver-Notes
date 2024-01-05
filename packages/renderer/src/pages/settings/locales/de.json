@@ -3,8 +3,11 @@
     "newnote": "Um eine neue Notiz zu erstellen, drücken Sie Strg + N, Cmd + N oder klicken Sie auf die Schaltfläche + oben links.",
     "archived": "Archiviert",
     "bookmarked": "Lesezeichen",
-    "all": "Alle"
-  },
+    "all": "Alle",
+    "syncreminder": "Synchronisationserinnerung",
+    "syncmessage": "Hallo zusammen! Bevor du anfängst, Notizen zu machen, importiere bitte deine bestehenden Notizen und exportiere sie, wenn du fertig bist, um sicherzustellen, dass sie auf allen deinen Geräten synchronisiert werden. Viel Spaß beim Notizen machen!",
+    "hide": "Nicht wieder anzeigen"
+},
   "search": {
     "find": "Suchen",
     "replace": "Ersetzen",
@@ -150,7 +153,8 @@
     "relaunchbutton": "Neustart",
     "exportmessage" : "Die Notizen werden exportiert in",
     "importsuccess" : "Daten erfolgreich importiert",
-    "invaliddata": "Ungültige Daten"
+    "invaliddata": "Ungültige Daten",
+    "syncreminder": "Verstecke Synchronisationserinnerung"
   },
   "_idvue": {
     "Previousnote":"Vorherige Notizen",
