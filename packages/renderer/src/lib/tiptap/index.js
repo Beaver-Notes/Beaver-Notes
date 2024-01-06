@@ -17,6 +17,8 @@ import Search from './exts/search';
 import Image from './exts/image';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
+import deTranslations from '../../pages/settings/locales/de.json';
+import zhTranslations from '../../pages/settings/locales/zh.json';
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en'; // Get the selected language from localStorage
 
@@ -27,6 +29,10 @@ if (selectedLanguage === 'it') {
   // eslint-disable-next-line no-unused-vars
   translations = itTranslations;
   // Import and assign other languages as needed
+} else if (selectedLanguage === 'de') {
+  translations = deTranslations;
+} else if (selectedLanguage === 'zh') {
+  translations = zhTranslations;
 }
 
 export const extensions = [

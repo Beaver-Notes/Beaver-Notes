@@ -70,6 +70,19 @@
       </div>
     </section>
     <section>
+      <label class="flex items-center space-x-2">
+        <input
+          v-model="disableAppReminder"
+          class="form-checkbox"
+          type="checkbox"
+          @change="updateDisableAppReminder"
+        />
+        <span class="inline-block align-middle">
+          {{ translations.settings.syncreminder || '-' }}
+        </span>
+      </label>
+    </section>
+    <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex space-x-4">
         <div class="bg-input transition w-6/12 rounded-lg p-4">
@@ -409,6 +422,7 @@ export default {
         relaunchbutton: 'settings.relaunchbutton',
         exportmessage: 'settings.exportmessage',
         invaliddata: 'settings.invaliddata',
+        syncreminder: 'settings.syncreminder',
       },
     });
 
@@ -452,6 +466,7 @@ export default {
   },
   data() {
     return {
+      disableAppReminder: localStorage.getItem('disableAppReminder') === 'true',
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
       selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
       languages: [
@@ -481,6 +496,12 @@ export default {
       const languageCode = this.selectedLanguage;
       localStorage.setItem('selectedLanguage', languageCode);
       window.location.reload(); // Reload the page
+    },
+    updateDisableAppReminder() {
+      localStorage.setItem(
+        'disableAppReminder',
+        this.disableAppReminder.toString()
+      );
     },
   },
 };

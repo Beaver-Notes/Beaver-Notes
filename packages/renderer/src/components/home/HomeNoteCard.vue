@@ -39,7 +39,7 @@
     </router-link>
     <button
       v-if="note.isLocked"
-      class="hover:text-gray-600 dark:text-white mr-2 transition"
+      class="hover:text-gray-600 dark:text-white h-full mr-2 transition"
       @click="unlockCard(note.id)"
     >
       <v-remixicon
@@ -157,7 +157,8 @@ import { useGroupTooltip } from '@/composable/groupTooltip';
 import { onMounted, shallowReactive, ref } from 'vue';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
-import 'dayjs/locale/fr';
+import 'dayjs/locale/de';
+import 'dayjs/locale/zh';
 
 defineProps({
   note: {

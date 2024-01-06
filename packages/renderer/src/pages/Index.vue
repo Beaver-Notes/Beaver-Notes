@@ -46,6 +46,82 @@
           @delete="noteStore.delete(note.id)"
           @update="noteStore.update(note.id, $event)"
         />
+        <div
+          v-if="showDialog"
+          class="
+            bg-black
+            p-5
+            overflow-y-auto
+            bg-opacity-20
+            modal-ui__content-container
+            z-50
+            flex
+            justify-center
+            items-end
+            md:items-center
+          "
+        >
+          s
+          <div
+            class="
+              modal-ui__content
+              shadow-lg
+              w-full
+              max-w-sm
+              bg-[#F8F8F7]
+              dark:bg-[#353333]
+              transform
+              rounded-lg
+              transition-transform
+              ui-card
+              overflow-hidden
+              p-4
+              modal-ui__content
+              shadow-lg
+              w-full
+              max-w-sm
+            "
+          >
+            <h3 class="font-semibold text-lg">
+              {{ translations.index.syncreminder || '-' }}
+            </h3>
+            <p class="mb-4">
+              {{ translations.index.syncmessage || '-' }}
+            </p>
+            <label class="flex items-center space-x-2">
+              <input
+                v-model="disableDialog"
+                type="checkbox"
+                class="form-checkbox"
+              />
+              <span class="inline-block align-middle">
+                {{ translations.index.hide || '-' }}</span
+              >
+            </label>
+            <button
+              class="
+                mt-4
+                ui-button
+                h-10
+                relative
+                transition
+                focus:ring-2
+                ring-amber-300
+                bg-primary
+                text-white
+                dark:bg-secondary dark:hover:bg-primary
+                hover:bg-secondary
+                py-2
+                px-4
+                w-full
+                rounded-lg
+              "
+              @click="closeDialog"
+            >
+              Close
+            </button>
+          </div>
+        </div>
       </template>
     </div>
     <div v-else class="text-center">
@@ -61,6 +137,7 @@ import {
   computed,
   reactive,
   watch,
+  ref,
   shallowRef,
   onMounted,
   onUnmounted,
@@ -217,6 +294,9 @@ export default {
       index: {
         newnote: 'index.newnote',
         all: 'index.all',
+        syncreminder: 'index.syncreminder',
+        syncmessage: 'index.syncmessage',
+        hide: 'index.hide',
       },
     });
 
@@ -241,6 +321,27 @@ export default {
       }
     };
 
+    // App Reminder Dialog
+    const showDialog = ref(checkAppReminder());
+    const disableDialog = ref(false);
+
+    function checkAppReminder() {
+      const disableReminder = localStorage.getItem('disableAppReminder');
+      return !(disableReminder === 'true');
+    }
+
+    const showAppReminderDialog = () => {
+      if (!disableDialog.value) {
+        showDialog.value = true;
+      }
+    };
+
+    const closeDialog = () => {
+      showDialog.value = false;
+      if (disableDialog.value) {
+        localStorage.setItem('disableAppReminder', 'true');
+      }
+    };
     return {
       notes,
       state,
@@ -248,7 +349,41 @@ export default {
       labelStore,
       translations,
       deleteLabel,
+      showDialog,
+      disableDialog,
+      showAppReminderDialog,
+      closeDialog,
     };
   },
 };
 </script>
+<style>
+input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ccc;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.3s;
+  vertical-align: middle;
+}
+
+input[type='checkbox']:checked {
+  border-color: #fbbf24;
+}
+
+/* Optional: You can add a custom background or other styles for the checked state */
+input[type='checkbox']:checked::before {
+  content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='rgba(251,191,36,1)'%3E%3C/path%3E%3C/svg%3E");
+  display: block;
+  width: 100%;
+  height: 100%;
+  font-size: 16px;
+  line-height: 20px;
+  text-align: center;
+  color: #fbbf24;
+}
+</style>

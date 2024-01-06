@@ -3,7 +3,10 @@
     "newnote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left",
     "archived": "Archived",
     "bookmarked": "Bookmarked",
-    "all": "All"
+    "all": "All",
+    "syncreminder": "Sync Reminder",
+    "syncmessage": "Hey there! Before you start taking notes, please make sure to import your existing notes and export them when you're done to ensure they are synced across all your devices. Happy note-taking!",
+    "hide": "Don't show this again"
   },
   "search": {
     "find": "Find",
@@ -11,7 +14,7 @@
     "replaceall": "Replace all",
     "clear": "Clear",
     "useRegex": "Use regex (Alt+R)",
-    "searchplaceholder": "Search..." ,
+    "searchplaceholder": "Search...",
     "replaceplaceholder": "Replace..."
   },
   "tiptap": {
@@ -148,13 +151,14 @@
     "Invalidpassword": "Invalid password",
     "relaunch": "App needs to relaunch for this change to take effect",
     "relaunchbutton": "Relaunch",
-    "exportmessage" : "Notes is exported in",
-    "importsuccess" : "Data imported successfully",
-    "invaliddata": "Invalid data"
+    "exportmessage": "Notes is exported in",
+    "importsuccess": "Data imported successfully",
+    "invaliddata": "Invalid data",
+    "syncreminder": "Hide sync reminder"
   },
   "_idvue": {
-    "Previousnote":"Previous notes",
-    "unititlednote":"Untitled note"
+    "Previousnote": "Previous notes",
+    "unititlednote": "Untitled note"
   },
   "sidebar": {
     "Notes": "Notes",

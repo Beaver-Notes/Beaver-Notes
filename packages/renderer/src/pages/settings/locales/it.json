@@ -4,7 +4,9 @@
     "archived": "Archiviate",
     "bookmarked": "Contrassegnate",
     "all": "Tutte",
-    "write-something": "Scrivi qualcosa ..."
+    "syncreminder": "Promemoria di sincronizzazione",
+    "syncmessage": "Ehi là! Prima di iniziare a prendere appunti, assicurati di importare i tuoi appunti esistenti ed esportarli quando hai finito per garantire la sincronizzazione su tutti i tuoi dispositivi. Buona scrittura!",
+    "hide": "Non mostrare più"
   },
   "search": {
     "find": "Trova",
@@ -29,8 +31,8 @@
   "commands": {
     "Createnewnote": "Crea una nuova nota",
     "Settings": "Impostazioni",
-    "ApplydarkTheme": "Applica il tema scuro",
-    "ApplylightTheme": "Applica il tema chiaro"
+    "Applydarktheme": "Applica il tema scuro",
+    "Applylighttheme": "Applica il tema chiaro"
   },
   "filter": {
     "Selectlabel": "Seleziona etichetta",
@@ -86,7 +88,7 @@
     "Password": "Password",
     "wrongpasswd": "Password errata. Impossibile sbloccare la nota.",
     "Passwdcorrect": "La password è incorretta."
-},
+  },
   "about": {
     "title": "Beaver Notes",
     "description": "Beaver Notes è stato sviluppato con amore ❤️ in una baita piovosa del Nord Italia.",
@@ -150,7 +152,8 @@
     "relaunch": "L'app deve essere riavviata affinché questa modifica abbia effetto",
     "relaunchbutton": "Riavvia l'app",
     "exportmessage": "Le note sono state esportate nella cartella",
-    "invaliddata": "Dati non validi"
+    "invaliddata": "Dati non validi",
+    "syncreminder": "Nascondi promemoria di sincronizzazione"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",
@@ -166,6 +169,7 @@
     "Archive": "Archivio"
   },
   "commandprompt": {
-    "placeholder": "Cerca un file o digita '>' per vedere i comandi"
+    "placeholder": "Cerca un file o digita '>' per vedere i comandi",
+    "unititlednote": "Nota senza titolo"
   }
 }
