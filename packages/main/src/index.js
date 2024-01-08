@@ -20,18 +20,6 @@ app.disableHardwareAcceleration();
  */
 const env = import.meta.env;
 
-// Install "Vue.js devtools"
-if (env.MODE === 'development') {
-  app.whenReady()
-    .then(() => import('electron-devtools-installer'))
-    .then(({default: installExtension, VUEJS3_DEVTOOLS}) => installExtension(VUEJS3_DEVTOOLS, {
-      loadExtensionOptions: {
-        allowFileAccess: true,
-      },
-    }))
-    .catch(e => console.error('Failed install extension:', e));
-}
-
 let mainWindow = null;
 
 const createWindow = async () => {
@@ -43,6 +31,7 @@ const createWindow = async () => {
       preload: join(__dirname, '../../preload/dist/index.cjs'),
       contextIsolation: env.MODE !== 'test',
       enableRemoteModule: env.MODE === 'test',
+      nodeIntegration: true,
     },
   });
 
@@ -70,6 +59,10 @@ const createWindow = async () => {
 
   await mainWindow.loadURL(pageUrl);
 };
+
+app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
+  return true;
+});
 
 app.on('second-instance', () => {
   if (mainWindow) {
