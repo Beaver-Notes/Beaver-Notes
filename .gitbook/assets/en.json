@@ -1,0 +1,65 @@
+{
+  "about": {
+    "title": "Beaver Notes",
+      "description": "Beaver Notes was developed with love ❤️ in a rainy cottage in Northern Italy.",
+      "versionLabel": "Version",
+      "website": "Website",
+      "github": "GitHub",
+      "donate": "Donate"
+  },
+  "shortcuts": {
+      "General": "General shortcuts",
+      "Navigates": "Navigates shortcuts",
+      "Editor": "Editor shortcuts",
+      "Createnewnote": "Create new note",
+      "Togglecommandprompt": "Toggle command prompt",
+      "Toggledarktheme": "Toggledark theme",
+      "Toggleexport": "Toggle export",
+      "Toggleimport": "Toggle import",
+      "Toeditednote": "Toedited note",
+      "Tonotes": "To notes",
+      "Toarchivednotes": "To archived notes",
+      "Tosettings": "To settings",
+      "Bold": "Bold",
+      "Italic": "Italic",
+      "Underline": "Underline",
+      "Link": "Link",
+      "Strikethrough": "Strikethrough",
+      "Highlight": "Highlight",
+      "Inlinecode": "Inline code",
+      "Headings": "Headings (1-6)",
+      "Orderedlist": "Ordered list",
+      "Bulletlist": "Bullet list",
+      "Blockquote": "Blockquote",
+      "Blockcode": "Block code",
+      "Previousnote": "Previous notes"
+  },
+  "settings": {
+    "title": "Settings",
+    "apptheme": "App Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System",
+    "selectlanguage": "Select language",
+    "selectfont": "Select font",
+    "syncpath": "Sync path",
+    "iedata": "Import / Export data",
+    "encryptwpasswd": "Encrypt with password",
+    "exportdata": "Export data",
+    "importdata": "Import data",
+    "pathplaceholder": "Path",
+    "password": "Password"
+  },
+  "sidebar": {
+    "Notes": "Notes",
+    "addNotes": "Add notes",
+    "Editednote" : "Edited note",
+    "toggleexport": "Toggle export",
+    "toggleimport": "Toggle import",
+    "toggledarktheme": "Toggle dark theme",
+    "Archive": "Archive"
+  },
+  "commandprompt": {
+    "placeholder": "Search file or type '>' to search commands"
+  }
+}

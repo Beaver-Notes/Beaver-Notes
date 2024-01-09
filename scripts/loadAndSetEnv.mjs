@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-const {loadEnv} = require('vite')
+import {loadEnv} from 'vite';
 
 /**
  * Load variables from `.env.[mode]` files in cwd
@@ -11,10 +10,11 @@ const {loadEnv} = require('vite')
  * @return {void}
  */
 export function loadAndSetEnv(mode, cwd) {
-  const env = loadEnv(mode || 'production', cwd)
+  const env = loadEnv(mode || 'production', cwd);
   for (const envKey in env) {
+    // eslint-disable-next-line no-prototype-builtins
     if (process.env[envKey] === undefined && env.hasOwnProperty(envKey)) {
-      process.env[envKey] = env[envKey]
+      process.env[envKey] = env[envKey];
     }
   }
 }

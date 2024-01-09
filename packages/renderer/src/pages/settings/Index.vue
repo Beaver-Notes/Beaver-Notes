@@ -155,11 +155,11 @@ import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
-import enTranslations from './locales/en.json';
-import itTranslations from './locales/it.json';
-import deTranslations from './locales/de.json';
-import zhTranslations from './locales/zh.json';
 import '../../assets/css/passwd.css';
+const enTranslations = import('../../pages/settings/locales/en.json');
+const itTranslations = import('../../pages/settings/locales/it.json');
+const deTranslations = import('../../pages/settings/locales/de.json');
+const zhTranslations = import('../../pages/settings/locales/zh.json');
 
 export const state = shallowReactive({
   dataDir: '',
