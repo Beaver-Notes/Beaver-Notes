@@ -26,8 +26,6 @@
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
-
-
 ![systems](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/f9c6e510-3bad-4563-b6b4-5dfc7dff7caa)
 
 
@@ -50,7 +48,7 @@ Getting started with Beaver Notes is quick and easy! Visit our official website 
 
 ## Need Help? 🤔
 
-I and the community are here to help you! For any questions or support, reach out at  <a style="color: #f59e0b" href="mailto:danielerolli@proton.me">danielerolli@proton.me</a> or get in touch using our social channels like <a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> and <a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>.
+I and the community are here to help you! For any questions or support, reach out at  <a style="color: #f59e0b" href="mailto:danielerolli@proton.me">danielerolli@proton.me</a> or get in touch using our social channels like <a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> and <a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>. Additionally, you can check out the [docs](https://danieles-organization.gitbook.io/beaver-notes/) for a more immediate solution.
 
 
 ## Join the Community 🦫
@@ -61,6 +59,8 @@ Collaborating is one of the best ways to support your favorite piece of software
 Beaver Notes is proudly open-source and distributed under the <a style="color: #f59e0b" href="https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE">MIT License</a>.
 
 Take control of your notes with Beaver Notes! 🚀
+
+## Stats 📈📉
 
 ![Alt](https://repobeats.axiom.co/api/embed/96eb6008d766d6c485cafa54856db18bf4d7e274.svg "Repobeats analytics image")
 
