@@ -1,9 +1,3 @@
----
-description: >-
-  Welcome to the official documentation for Beaver Notes. This docs will walk
-  you through everything you need to know for using and contributing to the
-  Beaver Project
----
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
@@ -12,33 +6,41 @@ description: >-
 <img style="align:center;" src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Notesnook Logo" width="100" />
 </p>
 
-## What's Inside
-
-* [**User Guides**](broken-reference): If you're a user, you'll find detailed instructions on how to install Beaver Notes on your preferred platform and get started with note-taking. Explore the user-friendly interface, unleash the power of Markdown formatting, and learn how to stay organized with tags.
-* [**Dev Guides**](broken-reference): For developers, we provide a step-by-step guide to set up your local development environment. From cloning the repository to building and testing the app, we've got you covered. Learn how to contribute code, improve documentation, and engage with the Beaver Notes community.
-* [**Translation Guide**](broken-reference): While this section of the documentation is located under the dev section, you don't need to be a developer to translate Beaver Notes. Join the fun and contribute to the project's growth by making the project available to even more people.
-
-## Let's Begin
-
-Ready to dive into the world of Beaver Notes? Whether you're a user or a developer, the navigation menu on the left will guide you through the various sections of this documentation. Let's take your productivity to new heights with Beaver Notes!\
+<h1 align="center">Beaver Notes </h1>
+<h3 align="center">Your Private Note-Taking Buddy 📝</h3>
+<h5 align="center">Developed with love ❤️ in a rainy cottage in Northern Italy.</h3>
+<p align="center">
+<a style="color: #f59e0b" href="https://beavernotes.com">Website</a> 
+| 
+<a style="color: #f59e0b" href="https://beavernotes.com/blog">Blog</a> 
+| 
+<a style="color: #f59e0b" href="https://danieles-organization.gitbook.io/beaver-notes/">Docs</a> 
+|
+<a style="color: #f59e0b" href="https://beavernotes.com/download">Downloads</a> 
+| 
+<a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> 
+| 
+<a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>
+</p>
 
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
-
-
 
 ![systems](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/f9c6e510-3bad-4563-b6b4-5dfc7dff7caa)
 
 
 ## Features 🛠️
 
-- **Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
-- **User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
-- **Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
-- **Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
-- **Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
-- **Note Linking:** Create a web of ideas and interconnected thoughts.
-- **Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
+- **🛡️ Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
+- **👋 User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
+- **🖋️ Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
+- **🏷️ Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
+- **🔎 Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
+- **🔗 Note Linking:** Create a web of ideas and interconnected thoughts.
+- **⌨️ Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
+- **🔏 Locked Notes:** Your thoughts and ideas can be kept even more private, ensuring that only you can access them.
+- **🔄 Sync your Notes:** Share your notes across devices by simply setting the path of your favorite service and clicking a button whenever you need your notes to be shared with other devices or loaded on yours. It's that easy!
+- **Discover more exciting features on [our website](https://beavernotes.com)**
   
 ## Installation 🚀
 
@@ -46,7 +48,7 @@ Getting started with Beaver Notes is quick and easy! Visit our official website 
 
 ## Need Help? 🤔
 
-I and the community are here to help you! For any questions or support, reach out at  <a style="color: #f59e0b" href="mailto:danielerolli@proton.me">danielerolli@proton.me</a> or get in touch using our social channels like <a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> and <a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>.
+I and the community are here to help you! For any questions or support, reach out at  <a style="color: #f59e0b" href="mailto:danielerolli@proton.me">danielerolli@proton.me</a> or get in touch using our social channels like <a style="color: #f59e0b" href="https://mastodon.social/@Beavernotes">Mastodon</a> and <a style="color: #f59e0b" href="https://www.reddit.com/r/BeaverNotes/">Reddit</a>. Additionally, you can check out the [docs](https://danieles-organization.gitbook.io/beaver-notes/) for a more immediate solution.
 
 
 ## Join the Community 🦫
@@ -57,6 +59,8 @@ Collaborating is one of the best ways to support your favorite piece of software
 Beaver Notes is proudly open-source and distributed under the <a style="color: #f59e0b" href="https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE">MIT License</a>.
 
 Take control of your notes with Beaver Notes! 🚀
+
+## Stats 📈📉
 
 ![Alt](https://repobeats.axiom.co/api/embed/96eb6008d766d6c485cafa54856db18bf4d7e274.svg "Repobeats analytics image")
 
@@ -83,4 +87,3 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
-
