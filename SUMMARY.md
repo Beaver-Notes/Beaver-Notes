@@ -8,6 +8,7 @@
 * [📔 Getting Around](user-guides/getting-around.md)
 * [⌨ Markdown syntax](user-guides/markdown-syntax.md)
 * [🔄 Set up the Sync](user-guides/set-up-the-sync.md)
+* [💻 Code block](user-guides/code-block.md)
 
 ## Dev Guides
 
