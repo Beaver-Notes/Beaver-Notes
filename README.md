@@ -33,13 +33,16 @@ Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, W
 
 ## Features 🛠️
 
-- **Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
-- **User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
-- **Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
-- **Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
-- **Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
-- **Note Linking:** Create a web of ideas and interconnected thoughts.
-- **Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
+- **🛡️ Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
+- **👋 User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
+- **🖋️ Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
+- **🏷️ Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
+- **🔎 Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
+- **🔗 Note Linking:** Create a web of ideas and interconnected thoughts.
+- **⌨️ Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
+- **🔏 Locked Notes:** Your thoughts and ideas can be kept even more private, ensuring that only you can access them.
+- **🔄 Sync your Notes:** Share your notes across devices by simply setting the path of your favorite service and clicking a button whenever you need your notes to be shared with other devices or loaded on yours. It's that easy!
+- **Discover more exciting features on [our website](https://beavernotes.com)**
   
 ## Installation 🚀
 
