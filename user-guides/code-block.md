@@ -12,7 +12,7 @@ To insert a code block in your note, you can simply type \`\`\` or \~\~\~ follow
 
 ## Setting up VSCode
 
-By default, VSCode doesn't support copying code with formatting. However, you can go into VSCode's settings, look for and enable 'Copy With Syntax Highlight.'"
+By default, VSCode doesn't support copying code with formatting. However, you can go into VSCode's settings, look for and disable 'Copy With Syntax Highlight.'"
 
 <figure><img src="../.gitbook/assets/Screenshot 2024-01-09 at 9.09.33 AM (1).png" alt=""><figcaption></figcaption></figure>
 
