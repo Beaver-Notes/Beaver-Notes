@@ -50,7 +50,6 @@
     "lint-staged": "^11.1.2",
     "postcss": "^8.4.33",
     "postcss-nested": "^6.0.1",
-    "simple-git-hooks": "^2.5.1",
     "spectron": "^15.0.0",
     "tailwindcss": "^2.2.7",
     "vite": "^5.0.11"
