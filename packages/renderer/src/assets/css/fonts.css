@@ -1,29 +1,176 @@
-/* inter-regular - latin */
+/* Avenir Font */
 @font-face {
-  font-family: 'Arimo';
-  font-style: normal;
+  font-family: "Avenir";
+  src: url("../fonts/Avenir/AvenirLTProBook.otf") format("opentype");
   font-weight: 400;
-  src: local(''),
-       url('../fonts/inter-v3-latin-regular.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
-       url('../fonts/inter-v3-latin-regular.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
-}
-/* inter-600 - latin */
-@font-face {
-  font-family: 'Arimo';
   font-style: normal;
-  font-weight: 600;
-  src: local(''),
-       url('../fonts/inter-v3-latin-600.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
-       url('../fonts/inter-v3-latin-600.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
 }
-/* inter-700 - latin */
+
 @font-face {
-  font-family: 'Arimo';
-  font-style: normal;
+  font-family: "Avenir";
+  src: url("../fonts/Avenir/AvenirLTProBold.otf") format("opentype");
   font-weight: 700;
-  src: local(''),
-       url('../fonts/inter-v3-latin-700.woff2') format('woff2'), /* Chrome 26+, Opera 23+, Firefox 39+ */
-       url('../fonts/inter-v3-latin-700.woff') format('woff'); /* Chrome 6+, Firefox 3.6+, IE 9+, Safari 5.1+ */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Avenir";
+  src: url("../fonts/Avenir/AvenirLTProOblique.otf") format("opentype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Avenir";
+  src: url("../fonts/Avenir/AvenirLTProBoldOblique.otf") format("opentype");
+  font-weight: 700;
+  font-style: italic;
+}
+/* Arimo */
+@font-face {
+  font-family: "Arimo";
+  src: url("../fonts/Arimo/static/Arimo-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Arimo";
+  src: url("../fonts/Arimo/static/Arimo-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Arimo";
+  src: url("../fonts/Arimo/static/Arimo-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* EB Garamond */
+@font-face {
+  font-family: "EB Garamond";
+  src: url("../fonts/EB_Garamond/static/EBGaramond-Regular.ttf")
+    format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("../fonts/EB_Garamond/static/EBGaramond-Bold.ttf")
+    format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "EB Garamond";
+  src: url("../fonts/EB_Garamond/static/EBGaramond-Italic.ttf")
+    format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* Helvetica Font */
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/Helvetica.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/Helvetica-Bold.ttf") format("truetype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/Helvetica-Oblique.ttf") format("truetype");
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/Helvetica-BoldOblique.ttf") format("truetype");
+  font-weight: bold;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/helvetica-compressed-5871d14b6903a.otf")
+    format("opentype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/helvetica-light-587ebe5a59211.ttf")
+    format("truetype");
+  font-weight: 300; /* Adjust the weight as needed */
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Helvetica";
+  src: url("../fonts/Helvetica/helvetica-rounded-bold-5871d05ead8de.otf")
+    format("opentype");
+  font-weight: bold;
+  font-style: normal;
+}
+
+/* Ubuntu */
+@font-face {
+  font-family: "Ubuntu";
+  src: url("../fonts/Ubuntu/Ubuntu-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Ubuntu";
+  src: url("../fonts/Ubuntu/Ubuntu-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Ubuntu";
+  src: url("../fonts/Ubuntu/Ubuntu-Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* OpenDyslexic */
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("../fonts/open_dyslexic/OpenDyslexic-Regular.otf")
+    format("opentype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("../fonts/open_dyslexic/OpenDyslexic-Bold.otf")
+    format("opentype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  src: url("../fonts/open_dyslexic/OpenDyslexic-Italic.otf")
+    format("opentype");
+  font-weight: 400;
+  font-style: italic;
 }
 
 
