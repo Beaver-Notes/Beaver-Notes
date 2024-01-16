@@ -10,7 +10,7 @@ To get started with Beaver Notes, visit the website at [beavernotes.com](https:/
 🪟 **Windows**: Press Windows Key + R, then type msinfo32 and hit Enter. Look for the System Type under System Information to find whether it's x64 or arm64.
 
 \
-🍎 **macOS**: Click the Apple menu in the top-left corner, choose About This Mac, and look for the Processor information. It will specify whether it's an Intel (x64) or Apple silicon (arm64) processor.
+🍎 **macOS**: Click the Apple menu in the top-left corner, choose About This Mac, and look for the Processor information. It will specify whether it's an Intel (x64) or Apple Silicon (arm64) processor.
 
 \
 🐧 **Linux**: Open a terminal and use the command uname -m. If it returns x86\_64, it's x64 architecture. If it returns aarch64, it's arm64 architecture.
@@ -34,7 +34,7 @@ in the terminal, and compare it with the one corresponding to your installer [Re
 
 #### &#x20;**🍺 HomeBrew**
 
-To install Beaver Notes through HomeBrew and get the convinience of easy upgradability run the following commands in your mac's terminal
+To install Beaver Notes through HomeBrew and get the convenience of easy upgradability run the following commands in your mac's terminal
 
 Add the tap to Homebrew
 
@@ -56,7 +56,7 @@ brew install beaver-notes
 
 ## 🪟 **Windows**
 
-When the download finishes, double-click on the installer to initiate the installation process. Like macOS, Windows has a protection feature for packages downloaded from the internet. Therefore, a pop-up saying “Windows protected your PC - Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.“ will appear. Click on 'More info' and then 'Run anyway' as the app has no other terms to agree to. The installer will as you to accept the MIT license and proced to install the app.
+When the download finishes, double-click on the installer to initiate the installation process. Like macOS, Windows has a protection feature for packages downloaded from the internet. Therefore, a pop-up saying “Windows protected your PC - Microsoft Defender SmartScreen prevented an unrecognized app from starting. Running this app might put your PC at risk.“ will appear. Click on 'More info' and then 'Run anyway' as the app has no other terms to agree to. The installer will as you to accept the MIT license and proceed to install the app.
 
 To verify that the code has not been subject to malicious modifications, check the SHA256 by running in Powershell:
 
@@ -66,7 +66,7 @@ Get-FileHash -Algorithm SHA256 "C:\Path\to\beaver-notes.exe"
 
 #### **🍦 Scoop**
 
-To install Beaver Notes through Scoop and get the delicious convinience of easy upgradability run the following commands in your PC's Powershell
+To install Beaver Notes through Scoop and get the delicious convenience of easy upgradability run the following commands in your PC's Powershell
 
 ```powershell
 scoop bucket add Beaver-Bucket https://github.com/Daniele-rolli/Beaver-Bucket
@@ -86,7 +86,7 @@ scoop install Beaver-Notes-arm
 
 ## 🐧 Linux&#x20;
 
-If your distribution is based on Debian or Fedora, such as Ubuntu, Linux Mint, Zorin OS, and others, you have the choice to install the software using either an AppImage package, the apt repo, or an .rpm package. For Arch Linux users an AUR repository is available otherwise for Arch and similar distributions, the AppImage package is also available, tho a repo is reccomended.
+If your distribution is based on Debian or Fedora, such as Ubuntu, Linux Mint, Zorin OS, and others, you have the choice to install the software using either an AppImage package, the apt repo, or an .rpm package. For Arch Linux users an AUR repository is available otherwise for Arch and similar distributions, the AppImage package is also available, tho a repo is recommended.
 
 **📦 Debian / Ubuntu Packages**
 
@@ -176,7 +176,7 @@ To launch Beaver Notes, either double-click the AppImage file or run it from the
 
 To integrate AppImages into your system, consider installing AppImageLauncher. For more information, visit their [GitHub repository.](https://github.com/TheAssassin/AppImageLauncher)
 
-Now that you've installed Beaver Notes successifully check out the next page to better understand the app's interface
+Now that you've installed Beaver Notes successfully check out the next page to better understand the app's interface
 
 \
 \
