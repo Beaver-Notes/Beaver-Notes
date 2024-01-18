@@ -61,7 +61,6 @@
             md:items-center
           "
         >
-          s
           <div
             class="
               modal-ui__content
@@ -154,6 +153,26 @@ import KeyboardNavigation from '@/utils/keyboard-navigation';
 export default {
   components: { HomeNoteCard, HomeNoteFilter },
   setup() {
+    const showDialog = ref(checkAppReminder());
+    const disableDialog = ref(false);
+
+    function checkAppReminder() {
+      const disableReminder = localStorage.getItem('disableAppReminder');
+      return !(disableReminder === 'true');
+    }
+
+    const showAppReminderDialog = () => {
+      if (!disableDialog.value) {
+        showDialog.value = true;
+      }
+    };
+
+    const closeDialog = () => {
+      showDialog.value = false;
+      if (disableDialog.value) {
+        localStorage.setItem('disableAppReminder', 'true');
+      }
+    };
     const route = useRoute();
     const router = useRouter();
     const noteStore = useNoteStore();
@@ -321,27 +340,6 @@ export default {
       }
     };
 
-    // App Reminder Dialog
-    const showDialog = ref(checkAppReminder());
-    const disableDialog = ref(false);
-
-    function checkAppReminder() {
-      const disableReminder = localStorage.getItem('disableAppReminder');
-      return !(disableReminder === 'true');
-    }
-
-    const showAppReminderDialog = () => {
-      if (!disableDialog.value) {
-        showDialog.value = true;
-      }
-    };
-
-    const closeDialog = () => {
-      showDialog.value = false;
-      if (disableDialog.value) {
-        localStorage.setItem('disableAppReminder', 'true');
-      }
-    };
     return {
       notes,
       state,
