@@ -117,7 +117,7 @@
               "
               @click="closeDialog"
             >
-              Close
+              {{ translations.index.close || '-' }}
             </button>
           </div>
         </div>
@@ -316,6 +316,7 @@ export default {
         syncreminder: 'index.syncreminder',
         syncmessage: 'index.syncmessage',
         hide: 'index.hide',
+        close: 'index.close',
       },
     });
 

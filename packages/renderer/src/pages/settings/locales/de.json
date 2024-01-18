@@ -6,7 +6,8 @@
     "all": "Alle",
     "syncreminder": "Synchronisationserinnerung",
     "syncmessage": "Hallo zusammen! Bevor du anfängst, Notizen zu machen, importiere bitte deine bestehenden Notizen und exportiere sie, wenn du fertig bist, um sicherzustellen, dass sie auf allen deinen Geräten synchronisiert werden. Viel Spaß beim Notizen machen!",
-    "hide": "Nicht wieder anzeigen"
+    "hide": "Nicht wieder anzeigen",
+    "close": "Schließen"
 },
   "search": {
     "find": "Suchen",
