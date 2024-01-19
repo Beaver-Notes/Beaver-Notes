@@ -6,7 +6,8 @@
     "all": "All",
     "syncreminder": "Sync Reminder",
     "syncmessage": "Hey there! Before you start taking notes, please make sure to import your existing notes and export them when you're done to ensure they are synced across all your devices. Happy note-taking!",
-    "hide": "Don't show this again"
+    "hide": "Don't show this again",
+    "close": "Close"
   },
   "search": {
     "find": "Find",

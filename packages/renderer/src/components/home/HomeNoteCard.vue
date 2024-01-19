@@ -27,7 +27,7 @@
     <router-link
       v-if="!note.isLocked"
       :to="`/note/${note.id}`"
-      class="text-gray-600 block dark:text-gray-100 flex-1"
+      class="text-gray-600 block dark:text-gray-100 flex-1 overflow-none"
       style="min-height: 64px"
     >
       <!-- Show different content for locked and unlocked notes -->

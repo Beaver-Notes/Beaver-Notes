@@ -6,7 +6,8 @@
     "all": "Tutte",
     "syncreminder": "Promemoria di sincronizzazione",
     "syncmessage": "Ehi là! Prima di iniziare a prendere appunti, assicurati di importare i tuoi appunti esistenti ed esportarli quando hai finito per garantire la sincronizzazione su tutti i tuoi dispositivi. Buona scrittura!",
-    "hide": "Non mostrare più"
+    "hide": "Non mostrare più",
+    "close": "Chiudi"
   },
   "search": {
     "find": "Trova",

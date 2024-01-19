@@ -50,7 +50,7 @@
         <option value="avenir">Avenir</option>
         <option value="EB Garamond">EB Garamond</option>
         <option value="'Helvetica Neue', sans-serif">Helvetica</option>
-        <option value="open-dyslexic">Open Dyslexic</option>
+        <option value="OpenDyslexic">Open Dyslexic</option>
         <option value="Ubuntu">Ubuntu</option>
       </ui-select>
     </section>

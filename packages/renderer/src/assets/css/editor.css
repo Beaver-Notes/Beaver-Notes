@@ -22,6 +22,12 @@
 .ProseMirror h5,
 .ProseMirror h6 {
   @apply dark:text-white;
+  margin-top: 1em !important;
+  margin-bottom: 1em !important; 
+}
+.ProseMirror p {
+  margin-top: 0.5em !important;
+  margin-bottom: 0.5em !important; 
 }
 .ProseMirror .mention {
   @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-amber-400 hover:underline;
@@ -71,7 +77,7 @@ img.ProseMirror-selectednode {
         outline: none;
         cursor: pointer;
         transition: border-color 0.3s;
-        margin-top: 4px;
+        margin-top: 0.8em;
       }
 
       input[type="checkbox"]:checked {
@@ -109,6 +115,8 @@ img.ProseMirror-selectednode {
   }
   img {
     @apply rounded;
+    margin-top: 1em !important;
+    margin-bottom: 1em !important; 
   }
   mark {
     @apply bg-yellow-200 dark:bg-yellow-100;
