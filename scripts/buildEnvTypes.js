@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-const {resolveConfig} = require('vite');
-const {writeFileSync, mkdirSync, existsSync} = require('fs');
-const {resolve, dirname} = require('path');
+import {resolveConfig} from 'vite';
+import {writeFileSync, mkdirSync, existsSync} from 'fs';
+import {resolve, dirname} from 'path';
 
 const MODES = ['production', 'development', 'test'];
 

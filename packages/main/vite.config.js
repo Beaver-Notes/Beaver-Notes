@@ -43,7 +43,6 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'electron',
-        'electron-devtools-installer',
         ...builtinModules,
       ],
       output: {

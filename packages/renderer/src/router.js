@@ -23,6 +23,7 @@ const routes = [
     component: Settings,
     children: [
       {
+        name: 'index',
         path: '',
         component: SettingsIndex,
       },

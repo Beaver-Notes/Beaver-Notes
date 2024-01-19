@@ -1,7 +1,7 @@
-const {writeFile, readFile} = require('fs/promises');
-const {execSync} = require('child_process');
-const electron = require('electron');
-const path = require('path');
+import  { writeFile, readFile } from 'fs/promises';
+import {execSync} from 'child_process';
+import electron from 'electron';
+import path from 'path';
 
 /**
  * Returns versions of electron vendors

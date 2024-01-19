@@ -2,7 +2,9 @@ import ExpandTransition from '../components/transitions/ExpandTransition.vue';
 import VTooltip from '../directives/VTooltip';
 import VAutofocus from '../directives/VAutofocus';
 
-const uiComponents = import.meta.globEager('../components/ui/*.vue');
+const uiComponents = import.meta.glob('../components/ui/*.vue', {
+  eager: true,
+});
 
 function registerComponents(app, components, prefix) {
   Object.keys(components).forEach((path) => {
