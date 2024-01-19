@@ -68,7 +68,10 @@ export default {
           downHandler();
           break;
         case 'Enter': {
-          const activeElement = filteredHeadings.value[selectedIndex.value].el;
+          const activeElement = filteredHeadings.value[selectedIndex.value]?.el;
+          if (activeElement == null) {
+            return;
+          }
           props.editor.commands.setTextSelection(
             activeElement.pmViewDesc.posAtEnd
           );
