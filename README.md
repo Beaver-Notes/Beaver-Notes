@@ -1,19 +1,10 @@
-# 🏠 Hub
-
+## Beaver Notes
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
-<p align="center">
-<img style="align:center;" src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Notesnook Logo" width="100" />
-</p>
-
 <div align="center">
-
-<img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Notesnook Logo" width="100">
-
+<img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
 </div>
-
-## Beaver Notes
 
 #### Your Private Note-Taking Buddy 📝
 
