@@ -150,6 +150,8 @@ import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import HomeNoteFilter from '@/components/home/HomeNoteFilter.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
 
+let hasReminded = true;
+
 export default {
   components: { HomeNoteCard, HomeNoteFilter },
   setup() {
@@ -158,7 +160,7 @@ export default {
 
     function checkAppReminder() {
       const disableReminder = localStorage.getItem('disableAppReminder');
-      return !(disableReminder === 'true');
+      return !(disableReminder === 'true') && hasReminded;
     }
 
     const showAppReminderDialog = () => {
@@ -169,6 +171,7 @@ export default {
 
     const closeDialog = () => {
       showDialog.value = false;
+      hasReminded = false;
       if (disableDialog.value) {
         localStorage.setItem('disableAppReminder', 'true');
       }
