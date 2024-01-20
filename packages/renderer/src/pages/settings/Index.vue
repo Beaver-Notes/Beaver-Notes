@@ -83,16 +83,6 @@
       </label>
     </section>
     <section>
-      <label>
-        <input
-          v-model="spellcheckEnabled"
-          type="checkbox"
-          @change="toggleSpellcheck"
-        />
-        <span class="inline-block ml-2 align-middle"> Toggle spell check </span>
-      </label>
-    </section>
-    <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex space-x-4">
         <div class="bg-input transition w-6/12 rounded-lg p-4">
@@ -476,7 +466,6 @@ export default {
   },
   data() {
     return {
-      spellcheckEnabled: localStorage.getItem('spellcheckEnabled') === 'true',
       disableAppReminder: localStorage.getItem('disableAppReminder') === 'true',
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
       selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
@@ -502,19 +491,6 @@ export default {
         '--selected-font',
         this.selectedFont
       );
-    },
-    toggleSpellcheck() {
-      // Update localStorage and apply spellcheck attribute to input elements
-      localStorage.setItem('spellcheckEnabled', this.spellcheckEnabled);
-      this.applySpellcheckAttribute();
-    },
-    applySpellcheckAttribute() {
-      const inputElements = document.querySelectorAll(
-        'input, textarea, [contenteditable="true"]'
-      );
-      inputElements.forEach((element) => {
-        element.setAttribute('spellcheck', this.spellcheckEnabled);
-      });
     },
     updateLanguage() {
       const languageCode = this.selectedLanguage;
