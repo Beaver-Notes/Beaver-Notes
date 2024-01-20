@@ -45,12 +45,14 @@ const createWindow = async () => {
     }
   });
 
-  mainWindow?.webContents.on('new-window', function(event, url) {
-    event.preventDefault();
-
+  mainWindow?.webContents.setWindowOpenHandler(function(details) {
+    const url = details.url;
     if (url.startsWith('note://')) return;
 
     shell.openExternal(url);
+    return {
+      action: 'deny',
+    };
   });
 
   const pageUrl = env.MODE === 'development'
