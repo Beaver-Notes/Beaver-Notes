@@ -476,7 +476,9 @@ export default {
   },
   data() {
     return {
-      spellcheckEnabled: localStorage.getItem('spellcheckEnabled') === 'true',
+      spellcheckEnabled:
+        localStorage.getItem('spellcheckEnabled') === 'true' &&
+        localStorage.getItem('spellcheckEnabled') != null,
       disableAppReminder: localStorage.getItem('disableAppReminder') === 'true',
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
       selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
@@ -514,6 +516,10 @@ export default {
       );
       inputElements.forEach((element) => {
         element.setAttribute('spellcheck', this.spellcheckEnabled);
+        window.electron.ipcRenderer.callMain(
+          'app:spellcheck',
+          this.spellcheckEnabled
+        );
       });
     },
     updateLanguage() {
