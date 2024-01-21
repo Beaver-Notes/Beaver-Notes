@@ -22,7 +22,7 @@
     "placeholder": "Write something..."
   },
   "link": {
-    "unititlednote": "Untitled note",
+    "untitlednote": "Untitled note",
     "placeholder": "URL or type @ to link a note",
     "shortcut": "Press Ctrl + Click to open the link"
   },
@@ -160,7 +160,7 @@
   },
   "_idvue": {
     "Previousnote": "Previous notes",
-    "unititlednote": "Untitled note"
+    "untitlednote": "Untitled note"
   },
   "sidebar": {
     "Notes": "Notes",
@@ -173,6 +173,6 @@
   },
   "commandprompt": {
     "placeholder": "Search file or type '>' to search commands",
-    "unititlednote": "Untitled note"
+    "untitlednote": "Untitled note"
   }
 }

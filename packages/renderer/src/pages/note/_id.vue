@@ -32,7 +32,7 @@
     <input
       :value="note.title"
       class="text-4xl block font-bold bg-transparent w-full mb-6"
-      :placeholder="translations._idvue.unititlednote || '-'"
+      :placeholder="translations._idvue.untitlednote || '-'"
       @input="updateNote({ title: $event.target.value })"
     />
     <note-editor
@@ -140,7 +140,7 @@ export default {
     const translations = shallowReactive({
       _idvue: {
         Previousnote: '_idvue.Previousnote',
-        unititlednote: '_idvue.unititlednote',
+        untitlednote: '_idvue.untitlednote',
       },
     });
 

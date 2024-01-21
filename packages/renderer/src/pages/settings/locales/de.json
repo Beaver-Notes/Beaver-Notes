@@ -22,7 +22,7 @@
     "placeholder": "Schreibe etwas..."
   },
   "link": {
-    "unititlednote": "Unbenannte Notiz",
+    "untitlednote": "Unbenannte Notiz",
     "placeholder": "URL oder @ eingeben, um eine Notiz zu verlinken",
     "shortcut": "Drücken Sie Strg + Klick, um den Link zu öffnen"
   },
@@ -160,7 +160,7 @@
   },
   "_idvue": {
     "Previousnote":"Vorherige Notizen",
-    "unititlednote":"Unbenannte Notiz"
+    "untitlednote":"Unbenannte Notiz"
   },
   "sidebar": {
     "Notes": "Notizen",
@@ -173,6 +173,6 @@
   },
   "commandprompt": {
     "placeholder": "Datei suchen oder '>' eingeben, um Befehle zu suchen",
-    "unititlednote": "Unbenannte Notiz"
+    "untitlednote": "Unbenannte Notiz"
   }
 }
