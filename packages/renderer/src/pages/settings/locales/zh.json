@@ -156,7 +156,7 @@
     "importsuccess" : "数据已成功导入",
     "invaliddata": "无效数据",
     "syncreminder": "隐藏同步提醒",
-    "spellcheck": "语法检查"
+    "spellcheck": "拼写检查"
   },
   "_idvue": {
     "Previousnote":"以前的笔记",
