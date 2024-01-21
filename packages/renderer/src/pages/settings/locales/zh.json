@@ -155,7 +155,8 @@
     "exportmessage" : "笔记导出到",
     "importsuccess" : "数据已成功导入",
     "invaliddata": "无效数据",
-    "syncreminder": "隐藏同步提醒"
+    "syncreminder": "隐藏同步提醒",
+    "spellcheck": "语法检查"
   },
   "_idvue": {
     "Previousnote":"以前的笔记",
