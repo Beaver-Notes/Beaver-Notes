@@ -172,6 +172,6 @@
   },
   "commandprompt": {
     "placeholder": "Search file or type '>' to search commands",
-    "unititlednote": "Untitled note"
+    "untitlednote": "Untitled note"
   }
 }
