@@ -132,7 +132,7 @@ export default {
     const translations = shallowReactive({
       commandprompt: {
         placeholder: 'commandprompt.placeholder',
-        unititlednote: 'commandprompt.unititlednote',
+        untitlednote: 'commandprompt.untitlednote',
       },
     });
 
