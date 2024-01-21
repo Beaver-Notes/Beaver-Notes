@@ -89,7 +89,9 @@
           type="checkbox"
           @change="toggleSpellcheck"
         />
-        <span class="inline-block ml-2 align-middle"> Toggle spell check </span>
+        <span class="inline-block ml-2 align-middle">
+          {{ translations.settings.spellcheck || '-' }}
+        </span>
       </label>
     </section>
     <section>
@@ -433,6 +435,7 @@ export default {
         exportmessage: 'settings.exportmessage',
         invaliddata: 'settings.invaliddata',
         syncreminder: 'settings.syncreminder',
+        spellcheck: 'settings.spellcheck',
       },
     });
 

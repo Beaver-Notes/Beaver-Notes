@@ -155,7 +155,8 @@
     "exportmessage" : "Die Notizen werden exportiert in",
     "importsuccess" : "Daten erfolgreich importiert",
     "invaliddata": "Ungültige Daten",
-    "syncreminder": "Verstecke Synchronisationserinnerung"
+    "syncreminder": "Verstecke Synchronisationserinnerung",
+    "spellcheck": "Rechtschreibprüfung"
   },
   "_idvue": {
     "Previousnote":"Vorherige Notizen",

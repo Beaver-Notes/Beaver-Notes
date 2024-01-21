@@ -155,7 +155,8 @@
     "exportmessage": "Notes is exported in",
     "importsuccess": "Data imported successfully",
     "invaliddata": "Invalid data",
-    "syncreminder": "Hide sync reminder"
+    "syncreminder": "Sync reminder",
+    "spellcheck": "Spellcheck"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

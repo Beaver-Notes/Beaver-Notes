@@ -154,7 +154,8 @@
     "relaunchbutton": "Riavvia l'app",
     "exportmessage": "Le note sono state esportate nella cartella",
     "invaliddata": "Dati non validi",
-    "syncreminder": "Nascondi promemoria di sincronizzazione"
+    "syncreminder": "Promemoria di sincronizzazione",
+    "spellcheck": "Controllo ortografico"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",
