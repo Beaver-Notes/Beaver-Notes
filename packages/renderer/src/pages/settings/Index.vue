@@ -352,14 +352,22 @@ export default {
         const importedLockedStatus = data['lockStatus'];
         const importedLockedNotes = data['lockedNotes'];
         localStorage.setItem('dataDir', importedDefaultPath);
-        localStorage.setItem(
-          'lockStatus',
-          JSON.stringify(importedLockedStatus)
-        );
-        localStorage.setItem(
-          'lockedNotes',
-          JSON.stringify(importedLockedNotes)
-        );
+        if (
+          importedLockedStatus !== null &&
+          importedLockedStatus !== undefined
+        ) {
+          localStorage.setItem(
+            'lockStatus',
+            JSON.stringify(importedLockedStatus)
+          );
+        }
+
+        if (importedLockedNotes !== null && importedLockedNotes !== undefined) {
+          localStorage.setItem(
+            'lockedNotes',
+            JSON.stringify(importedLockedNotes)
+          );
+        }
 
         await ipcRenderer.callMain('fs:copy', {
           // eslint-disable-next-line no-undef
