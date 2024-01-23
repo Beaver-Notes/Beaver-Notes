@@ -43,7 +43,9 @@ export const extensions = [
   LinkNote,
   LabelSuggestion,
   TaskList,
-  TaskItem,
+  TaskItem.configure({
+    nested: true,
+  }),
   CodeBlock,
   MathInline,
   MathBlock,
