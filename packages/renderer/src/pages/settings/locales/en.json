@@ -156,7 +156,12 @@
     "importsuccess": "Data imported successfully",
     "invaliddata": "Invalid data",
     "syncreminder": "Hide sync reminder",
-    "spellcheck": "Spellcheck"
+    "spellcheck": "Spellcheck",
+    "interfacesize": "Interface Size",
+    "large": "Large",
+    "medium": "Medium",
+    "default": "Default",
+    "morespace": "More space"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

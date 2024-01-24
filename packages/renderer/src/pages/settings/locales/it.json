@@ -155,7 +155,12 @@
     "exportmessage": "Le note sono state esportate nella cartella",
     "invaliddata": "Dati non validi",
     "syncreminder": "Nascondi promemoria di sincronizzazione",
-    "spellcheck": "Controllo ortografico"
+    "spellcheck": "Controllo ortografico",
+    "interfacescaling": "Dimensioni interfaccia",
+    "large": "Grande",
+    "medium": "Medio",
+    "default": "Predefinito",
+    "morespace": "Più spazio"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",

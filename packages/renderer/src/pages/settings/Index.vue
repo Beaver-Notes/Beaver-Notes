@@ -21,6 +21,87 @@
       </div>
     </section>
     <section>
+      <p class="mb-2">{{ translations.settings.interfacesize || '-' }}</p>
+      <div class="grid grid-cols-4 gap-4">
+        <button
+          class="
+            bg-input
+            p-2
+            rounded-lg
+            focus:ring-primary
+            transition
+            cursor-pointer
+          "
+          @click="setZoom(1.2)"
+        >
+          <img
+            src="/src/assets/images/Large.png"
+            class="w-40 border-2 mb-1 rounded-lg"
+          />
+          <p class="capitalize text-center text-sm">
+            {{ translations.settings.large || '-' }}
+          </p>
+        </button>
+        <button
+          class="
+            bg-input
+            p-2
+            rounded-lg
+            focus:ring-primary
+            transition
+            cursor-pointer
+          "
+          @click="setZoom(1.1)"
+        >
+          <img
+            src="/src/assets/images/Medium.png"
+            class="w-40 border-2 mb-1 rounded-lg"
+          />
+          <p class="capitalize text-center text-sm">
+            {{ translations.settings.medium || '-' }}
+          </p>
+        </button>
+        <button
+          class="
+            bg-input
+            p-2
+            rounded-lg
+            focus:ring-primary
+            transition
+            cursor-pointer
+          "
+          @click="setZoom(1.0)"
+        >
+          <img
+            src="/src/assets/images/Default.png"
+            class="w-40 border-2 mb-1 rounded-lg"
+          />
+          <p class="capitalize text-center text-sm">
+            {{ translations.settings.default || '-' }}
+          </p>
+        </button>
+        <button
+          class="
+            bg-input
+            p-2
+            rounded-lg
+            focus:ring-primary
+            transition
+            cursor-pointer
+          "
+          @click="setZoom(0.8)"
+        >
+          <img
+            src="/src/assets/images/More Space.png"
+            class="w-40 border-2 mb-1 rounded-lg"
+          />
+          <p class="capitalize text-center text-sm">
+            {{ translations.settings.morespace || '-' }}
+          </p>
+        </button>
+      </div>
+    </section>
+    <section>
       <div>
         <p class="mb-2">{{ translations.settings.selectlanguage || '-' }}</p>
         <ui-select
@@ -444,6 +525,11 @@ export default {
         invaliddata: 'settings.invaliddata',
         syncreminder: 'settings.syncreminder',
         spellcheck: 'settings.spellcheck',
+        interfacesize: 'settings.interfacesize',
+        large: 'settings.large',
+        medium: 'settings.medium',
+        default: 'settings.default',
+        morespace: 'settings.morespace',
       },
     });
 
@@ -515,6 +601,9 @@ export default {
         '--selected-font',
         this.selectedFont
       );
+    },
+    setZoom(newZoomLevel) {
+      window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
     },
     toggleSpellcheck() {
       // Update localStorage and apply spellcheck attribute to input elements

@@ -156,7 +156,12 @@
     "importsuccess" : "Daten erfolgreich importiert",
     "invaliddata": "Ungültige Daten",
     "syncreminder": "Verstecke Synchronisationserinnerung",
-    "spellcheck": "Rechtschreibprüfung"
+    "spellcheck": "Rechtschreibprüfung",
+    "interfacesize": "Interface-Größe",
+    "large": "Groß",
+    "medium": "Mittel",
+    "default": "Standard",
+    "morespace": "Mehr Platz"
   },
   "_idvue": {
     "Previousnote":"Vorherige Notizen",
