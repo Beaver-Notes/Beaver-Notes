@@ -79,8 +79,6 @@ app.on('window-all-closed', () => {
   }
 });
 
-let zoomLevel = 1.0;
-
 app.whenReady()
   .then(async () => {
     protocol.registerFileProtocol('assets', (request, callback) => {
@@ -108,8 +106,9 @@ ipcMain.answerRenderer('app:spellcheck', (isEnabled) => {
 
 ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
   mainWindow.webContents.zoomFactor = newZoomLevel;
-  zoomLevel = newZoomLevel;
 });
+
+ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
 
 ipcMain.answerRenderer('dialog:open', (props) => dialog.showOpenDialog(props));
 ipcMain.answerRenderer('dialog:message', (props) => dialog.showMessageBox(props));
