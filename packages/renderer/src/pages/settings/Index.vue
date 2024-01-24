@@ -24,14 +24,8 @@
       <p class="mb-2">{{ translations.settings.interfacesize || '-' }}</p>
       <div class="grid grid-cols-4 gap-4">
         <button
-          class="
-            bg-input
-            p-2
-            rounded-lg
-            focus:ring-primary
-            transition
-            cursor-pointer
-          "
+          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
           @click="setZoom(1.2)"
         >
           <img
@@ -43,14 +37,8 @@
           </p>
         </button>
         <button
-          class="
-            bg-input
-            p-2
-            rounded-lg
-            focus:ring-primary
-            transition
-            cursor-pointer
-          "
+          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.1' }"
           @click="setZoom(1.1)"
         >
           <img
@@ -62,14 +50,8 @@
           </p>
         </button>
         <button
-          class="
-            bg-input
-            p-2
-            rounded-lg
-            focus:ring-primary
-            transition
-            cursor-pointer
-          "
+          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.0' }"
           @click="setZoom(1.0)"
         >
           <img
@@ -81,14 +63,8 @@
           </p>
         </button>
         <button
-          class="
-            bg-input
-            p-2
-            rounded-lg
-            focus:ring-primary
-            transition
-            cursor-pointer
-          "
+          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '0.8' }"
           @click="setZoom(0.8)"
         >
           <img
@@ -181,14 +157,7 @@
         <div class="bg-input transition w-6/12 rounded-lg p-4">
           <div class="text-center mb-8 dark:text-gray-300 text-gray-600">
             <span
-              class="
-                p-5
-                rounded-full
-                bg-black
-                dark:bg-white dark:bg-opacity-5
-                bg-opacity-5
-                inline-block
-              "
+              class="p-5 rounded-full bg-black dark:bg-white dark:bg-opacity-5 bg-opacity-5 inline-block"
             >
               <v-remixicon size="36" name="riFileUploadLine" />
             </span>
@@ -214,14 +183,7 @@
         <div class="bg-input transition w-6/12 rounded-lg p-4 flex flex-col">
           <div class="text-center mb-6 dark:text-gray-300 text-gray-600">
             <span
-              class="
-                p-5
-                rounded-full
-                bg-black
-                dark:bg-white dark:bg-opacity-5
-                bg-opacity-5
-                inline-block
-              "
+              class="p-5 rounded-full bg-black dark:bg-white dark:bg-opacity-5 bg-opacity-5 inline-block"
             >
               <v-remixicon size="36" name="riFileDownloadLine" />
             </span>
@@ -278,6 +240,7 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
+      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
     });
 
     let defaultPath = '';
@@ -604,6 +567,8 @@ export default {
     },
     setZoom(newZoomLevel) {
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
+      this.state.zoomLevel = newZoomLevel.toFixed(1);
+      localStorage.setItem('zoomLevel', this.state.zoomLevel);
     },
     toggleSpellcheck() {
       // Update localStorage and apply spellcheck attribute to input elements
