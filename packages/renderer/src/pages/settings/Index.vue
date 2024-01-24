@@ -32,6 +32,7 @@
             transition
             cursor-pointer
           "
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === 1.2 }"
           @click="setZoom(1.2)"
         >
           <img
@@ -51,6 +52,7 @@
             transition
             cursor-pointer
           "
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === 1.1 }"
           @click="setZoom(1.1)"
         >
           <img
@@ -70,6 +72,7 @@
             transition
             cursor-pointer
           "
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === 1 }"
           @click="setZoom(1.0)"
         >
           <img
@@ -89,6 +92,7 @@
             transition
             cursor-pointer
           "
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === 0.8 }"
           @click="setZoom(0.8)"
         >
           <img
@@ -278,6 +282,7 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
+      zoomLevel: 1,
     });
 
     let defaultPath = '';
@@ -539,6 +544,7 @@ export default {
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
+      state.zoomLevel = await ipcRenderer.callMain('app:get-zoom');
     });
 
     const loadTranslations = async () => {
@@ -604,6 +610,7 @@ export default {
     },
     setZoom(newZoomLevel) {
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
+      this.state.zoomLevel = newZoomLevel;
     },
     toggleSpellcheck() {
       // Update localStorage and apply spellcheck attribute to input elements
