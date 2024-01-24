@@ -68,6 +68,10 @@ export default {
       }
     }
     theme.loadTheme();
+    window.electron.ipcRenderer.callMain(
+      'app:set-zoom',
+      +localStorage.getItem('zoomLevel') || 1
+    );
     return {
       store,
       retrieved,
