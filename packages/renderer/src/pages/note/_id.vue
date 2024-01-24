@@ -32,9 +32,19 @@
     <div
       contenteditable="true"
       :value="note.title"
-      class="text-4xl outline-none block font-bold bg-transparent w-full mb-6"
+      class="
+        text-4xl
+        outline-none
+        block
+        font-bold
+        bg-transparent
+        w-full
+        mb-6
+        title-placeholder
+      "
       :placeholder="translations._idvue.untitlednote || '-'"
       @input="updateNote({ title: $event.target.innerText })"
+      @keydown="disallowedEnter"
     >
       {{ note.title }}
     </div>
@@ -169,6 +179,12 @@ export default {
       }
     };
 
+    const disallowedEnter = (event) => {
+      if (event && event.key === 'Enter') {
+        event.returnValue = false;
+      }
+    };
+
     return {
       note,
       translations,
@@ -177,7 +193,14 @@ export default {
       showSearch,
       updateNote,
       closeSearch,
+      disallowedEnter,
     };
   },
 };
 </script>
+<style scoped>
+.title-placeholder:empty::before {
+  content: attr(placeholder);
+  color: #a1a1aa;
+}
+</style>
