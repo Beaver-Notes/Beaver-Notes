@@ -40,6 +40,7 @@
         bg-transparent
         w-full
         mb-6
+        cursor-text
         title-placeholder
       "
       :placeholder="translations._idvue.untitlednote || '-'"
