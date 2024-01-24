@@ -55,6 +55,7 @@ export default {
         if (note) router.push(`/note/${note.id}`);
 
         localStorage.setItem('first-time', false);
+        localStorage.setItem('spellcheckEnabled', 'true');
         retrieved.value = true;
       });
     } else {

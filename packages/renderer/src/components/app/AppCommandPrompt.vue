@@ -29,7 +29,7 @@
         @click="selectItem(item, true)"
       >
         <p class="text-overflow flex-1">
-          {{ item.title || translations.commandprompt.untitlenote }}
+          {{ item.title || translations.commandprompt.untitlednote }}
         </p>
         <template v-if="item.shortcut">
           <kbd v-for="key in item.shortcut" :key="key">

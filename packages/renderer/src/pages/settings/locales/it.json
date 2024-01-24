@@ -22,7 +22,7 @@
     "placeholder": "Scrivi qualcosa..."
   },
   "link": {
-    "unititlednote": "Nota senza titolo",
+    "untitlednote": "Nota senza titolo",
     "placeholder": "URL o digita @ per collegare un'altra nota",
     "shortcut": "Premi Ctrl + Clic per aprire il collegamento"
   },
@@ -154,11 +154,17 @@
     "relaunchbutton": "Riavvia l'app",
     "exportmessage": "Le note sono state esportate nella cartella",
     "invaliddata": "Dati non validi",
-    "syncreminder": "Nascondi promemoria di sincronizzazione"
+    "syncreminder": "Nascondi promemoria di sincronizzazione",
+    "spellcheck": "Controllo ortografico",
+    "interfacescaling": "Dimensioni interfaccia",
+    "large": "Grande",
+    "medium": "Medio",
+    "default": "Predefinito",
+    "morespace": "Più spazio"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",
-    "unititlednote": "Nota senza titolo"
+    "untitlednote": "Nota senza titolo"
   },
   "sidebar": {
     "Notes": "Note",
@@ -171,6 +177,6 @@
   },
   "commandprompt": {
     "placeholder": "Cerca un file o digita '>' per vedere i comandi",
-    "unititlednote": "Nota senza titolo"
+    "untitlednote": "Nota senza titolo"
   }
 }

@@ -29,12 +29,16 @@
         @keyup.esc="closeSearch"
       />
     </template>
-    <input
+    <div
+      contenteditable="true"
       :value="note.title"
-      class="text-4xl block font-bold bg-transparent w-full mb-6"
-      :placeholder="translations._idvue.unititlednote || '-'"
-      @input="updateNote({ title: $event.target.value })"
-    />
+      class="text-4xl outline-none block font-bold bg-transparent w-full mb-6"
+      :placeholder="translations._idvue.untitlednote || '-'"
+      @input="updateNote({ title: $event.target.innerText })"
+    >
+      {{ note.title }}
+    </div>
+
     <note-editor
       :id="$route.params.id"
       :key="$route.params.id"
@@ -140,7 +144,7 @@ export default {
     const translations = shallowReactive({
       _idvue: {
         Previousnote: '_idvue.Previousnote',
-        unititlednote: '_idvue.unititlednote',
+        untitlednote: '_idvue.untitlednote',
       },
     });
 

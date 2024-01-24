@@ -22,7 +22,7 @@
     "placeholder": "Write something..."
   },
   "link": {
-    "unititlednote": "Untitled note",
+    "untitlednote": "Untitled note",
     "placeholder": "URL or type @ to link a note",
     "shortcut": "Press Ctrl + Click to open the link"
   },
@@ -155,11 +155,17 @@
     "exportmessage": "Notes is exported in",
     "importsuccess": "Data imported successfully",
     "invaliddata": "Invalid data",
-    "syncreminder": "Hide sync reminder"
+    "syncreminder": "Hide sync reminder",
+    "spellcheck": "Spellcheck",
+    "interfacesize": "Interface Size",
+    "large": "Large",
+    "medium": "Medium",
+    "default": "Default",
+    "morespace": "More space"
   },
   "_idvue": {
     "Previousnote": "Previous notes",
-    "unititlednote": "Untitled note"
+    "untitlednote": "Untitled note"
   },
   "sidebar": {
     "Notes": "Notes",

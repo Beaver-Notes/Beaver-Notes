@@ -22,7 +22,7 @@
     "placeholder": "写点什么..."
   },
   "link": {
-    "unititlednote": "无标题笔记",
+    "untitlednote": "无标题笔记",
     "placeholder": "输入 URL 或者键入 @ 进行笔记链接",
     "shortcut": "按 Ctrl + 单击以打开链接"
   },
@@ -155,11 +155,12 @@
     "exportmessage" : "笔记导出到",
     "importsuccess" : "数据已成功导入",
     "invaliddata": "无效数据",
-    "syncreminder": "隐藏同步提醒"
+    "syncreminder": "隐藏同步提醒",
+    "spellcheck": "拼写检查"
   },
   "_idvue": {
     "Previousnote":"以前的笔记",
-    "unititlednote":"无标题笔记"
+    "untitlednote":"无标题笔记"
   },
   "sidebar": {
     "Notes": "笔记",
@@ -172,6 +173,6 @@
   },
   "commandprompt": {
     "placeholder": "搜索文件或者键入 '>' 进行命令搜索",
-    "unititlednote": "无标题笔记"
+    "untitlednote": "无标题笔记"
   }
 }
