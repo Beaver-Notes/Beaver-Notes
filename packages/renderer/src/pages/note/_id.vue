@@ -1,5 +1,5 @@
 <template>
-  <div v-if="note" class="max-w-3xl mx-auto relative px-4 lg:px-0">
+  <div v-if="note" class="max-w-3xl mx-auto relative pb-6 px-4 lg:px-0">
     <button
       v-if="$route.query.linked && !store.inFocusMode"
       class="left-0 ml-24 mt-4 fixed group"
