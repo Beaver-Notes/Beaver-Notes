@@ -4,7 +4,7 @@
 
 <div align="center">
 
-<img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Notesnook Logo" width="100">
+<img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="" width="100">
 
 </div>
 
@@ -14,7 +14,7 @@
 
 **Developed with love ❤️ in a rainy cottage in Northern Italy.**
 
-[Website](https://beavernotes.com) | [Blog](https://beavernotes.com/blog) | [Docs](https://danieles-organization.gitbook.io/beaver-notes/) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
+&#x20;                                        [Website](https://beavernotes.com) | [Blog](https://beavernotes.com/blog) | [Docs](https://danieles-organization.gitbook.io/beaver-notes/) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
