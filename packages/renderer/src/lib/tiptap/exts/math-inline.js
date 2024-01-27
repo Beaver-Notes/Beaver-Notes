@@ -27,14 +27,6 @@ export default Node.create({
     return [mathPlugin];
   },
   addInputRules() {
-    const input = makeInlineMathInputRule(REGEX_INLINE_MATH_DOLLARS, this.type);
-    input.find = input.match;
-    return [
-      {
-        find: input.match,
-        handler: ({ state, match, range }) =>
-          input.handler(state, match, range.from, range.to),
-      },
-    ];
+    return [makeInlineMathInputRule(REGEX_INLINE_MATH_DOLLARS, this.type)];
   },
 });
