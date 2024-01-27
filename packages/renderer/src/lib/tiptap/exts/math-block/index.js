@@ -35,6 +35,6 @@ export default Node.create({
     return VueNodeViewRenderer(MathBlock);
   },
   addInputRules() {
-    return [nodeInputRule({ find: inputRegex, type: this.type })];
+    return [nodeInputRule(inputRegex, this.type)];
   },
 });
