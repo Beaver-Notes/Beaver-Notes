@@ -8,6 +8,12 @@ module.exports = {
     extend: {
       fontFamily:{
         'primary': ['Arimo'],
+        'arimo': ['Arimo'],
+        'avenir': ['Avenir'],
+        'eb-garamond': ['EB Garamond'],
+        'helvetica': ['Helvetica', 'sans-serif'],
+        'open-dyslexic': ['Open Dyslexic'],
+        'ubuntu': ['Ubuntu']
       },
       colors: {
         primary: colors.amber['400'],

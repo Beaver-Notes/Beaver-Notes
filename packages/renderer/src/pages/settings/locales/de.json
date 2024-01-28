@@ -65,7 +65,8 @@
     "underline": "Unterstrichen",
     "strikethrough": "Durchgestrichen",
     "highlight": "Hervorheben",
-    "inlinecode": "Eingebetteter Code"
+    "inlinecode": "Eingebetteter Code",
+    "delete": "Delete current node"
   },
   "card": {
     "unarchived": "Nicht archiviert",

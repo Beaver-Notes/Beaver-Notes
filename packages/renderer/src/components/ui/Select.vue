@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div :class="{ 'inline-block': !block }" class="ui-select cursor-pointer">
     <label v-if="label" :for="selectId" class="text-gray-200 text-sm ml-2">
@@ -11,7 +12,8 @@
         w-full
         block
         transition
-        focus-within:ring-2 ring-amber-300
+        focus-within:ring-2
+        ring-amber-300
         bg-input
         rounded-lg
         appearance-none
@@ -32,7 +34,7 @@
         class="px-4 pr-8 bg-transparent py-2 z-10 appearance-none w-full h-full"
         @change="emitValue"
       >
-        <option v-if="placeholder" value="" disabled selected>
+        <option v-if="placeholder" value="" selected>
           {{ placeholder }}
         </option>
         <slot></slot>

@@ -65,7 +65,8 @@
     "underline": "Underline",
     "strikethrough": "Strikethrough",
     "highlight": "Highlight",
-    "inlinecode": "Inline code"
+    "inlinecode": "Inline code",
+    "delete": "Delete current note"
   },
   "card": {
     "unarchived": "Unarchived",

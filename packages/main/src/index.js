@@ -32,6 +32,7 @@ const createWindow = async () => {
       contextIsolation: env.MODE !== 'test',
       enableRemoteModule: env.MODE === 'test',
       nodeIntegration: true,
+      spellcheck: true,
     },
   });
 

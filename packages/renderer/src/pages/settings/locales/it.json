@@ -65,7 +65,8 @@
     "underline": "Sottolinea",
     "strikethrough": "Barra",
     "highlight": "Evidenzia",
-    "inlinecode": "Codice in linea"
+    "inlinecode": "Codice in linea",
+    "delete": "Delete current note"
   },
   "card": {
     "unarchived": "Non archiviato",

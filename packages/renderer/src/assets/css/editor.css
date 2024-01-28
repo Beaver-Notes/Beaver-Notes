@@ -5,7 +5,10 @@
   tab-size: 2;
   font-variant-ligatures: normal;
 }
-
+.ProseMirror {
+    font-size: 1.065rem;
+    line-height: 1.5;
+}
 .ProseMirror a {
   @apply text-primary dark:text-amber-400 !important;
 }
@@ -26,8 +29,8 @@
   margin-bottom: 1em !important; 
 }
 .ProseMirror p {
-  margin-top: 0.5em !important;
-  margin-bottom: 0.5em !important; 
+  margin-top: 0 !important;
+  margin-bottom: 0 !important; 
 }
 .ProseMirror .mention {
   @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-amber-400 hover:underline;
@@ -51,6 +54,17 @@ img.ProseMirror-selectednode {
   &:focus {
     outline: none;
   }
+  ul li {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      padding-left: 1.25em !important;
+      &::before {
+          top: 0.45em !important;
+      }
+  }
+  li ul {
+      margin-top: 0 !important;
+  }
   ul[data-type="taskList"] {
     list-style: none;
     padding: 0;
@@ -70,14 +84,14 @@ img.ProseMirror-selectednode {
       input[type="checkbox"] {
         appearance: none;
         -webkit-appearance: none;
-        width: 20px;
-        height: 20px;
+        width: 15px;
+        height: 15px;
         border-radius: 50%;
         border: 2px solid #ccc;
         outline: none;
         cursor: pointer;
         transition: border-color 0.3s;
-        margin-top: 0.8em;
+        margin-top: -0.1em;
       }
 
       input[type="checkbox"]:checked {
@@ -94,10 +108,13 @@ img.ProseMirror-selectednode {
         line-height: 20px;
         text-align: center;
         color: #FBBF24;
+        margin-top: -0.2em;
+        margin-left: -0.1em;
       }
 
       display: flex;
       align-items: flex-start;
+      padding-left: 0 !important;
     }
   }
   .find {

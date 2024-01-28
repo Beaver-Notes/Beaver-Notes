@@ -65,7 +65,8 @@
     "underline": "下划线",
     "strikethrough": "删除线",
     "highlight": "高亮",
-    "inlinecode": "行内代码"
+    "inlinecode": "行内代码",
+    "delete": "删除当前笔记"
   },
   "card": {
     "unarchived": "未归档",

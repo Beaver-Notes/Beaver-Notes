@@ -120,6 +120,13 @@
       </button>
       <hr class="border-r mx-2 h-6" />
       <button
+        v-tooltip.group="translations.menu.delete"
+        class="hoverable h-8 px-1 rounded-lg h-full"
+        @click="deleteNode"
+      >
+        <v-remixicon name="riDeleteBin6Line" />
+      </button>
+      <button
         v-tooltip.group="translations.menu.Focusmode"
         :class="{ 'is-active': store.inFocusMode }"
         class="hoverable h-8 px-1 rounded-lg h-full"
@@ -169,6 +176,8 @@ import { useStore } from '@/store';
 import { useEditorImage } from '@/composable/editorImage';
 import Mousetrap from '@/lib/mousetrap';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
+import { useNoteStore } from '../../store/note';
+import { useRouter } from 'vue-router';
 
 export default {
   components: { NoteMenuHeadingsTree },
@@ -180,6 +189,10 @@ export default {
     tree: {
       type: Boolean,
       default: false,
+    },
+    id: {
+      type: String,
+      default: '',
     },
   },
   emits: ['update:tree'],
@@ -281,6 +294,8 @@ export default {
     });
 
     const store = useStore();
+    const noteStore = useNoteStore();
+    const router = useRouter();
     const editorImage = useEditorImage(props.editor);
 
     useGroupTooltip();
@@ -317,8 +332,14 @@ export default {
       }
     }
 
+    function deleteNode() {
+      noteStore.delete(props.id);
+      router.push('/');
+    }
+
     const shortcuts = {
       'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
+      'mod+shift+d': deleteNode,
       'mod+shift+f': toggleFocusMode,
       'mod+p': printContent,
     };
@@ -355,6 +376,7 @@ export default {
         strikethrough: 'menu.strikethrough',
         inlinecode: 'menu.inlinecode',
         highlight: 'menu.highlight',
+        delete: 'menu.delete',
       },
     });
 
@@ -390,6 +412,7 @@ export default {
       textFormatting,
       getHeadingsTree,
       toggleFocusMode,
+      deleteNode,
       showHeadingsTree,
       printContent,
     };

@@ -21,7 +21,7 @@ const LabelSuggestion = Suggestion({ name: 'noteLabel', props }).configure({
   },
   suggestion: {
     char: '#',
-    items: (query) => {
+    items: ({ query }) => {
       const labelStore = useLabelStore();
 
       return labelStore.data
