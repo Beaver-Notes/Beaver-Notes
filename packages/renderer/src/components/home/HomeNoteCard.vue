@@ -159,6 +159,7 @@ import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
 import 'dayjs/locale/zh';
+import 'dayjs/locale/nl';
 
 defineProps({
   note: {
