@@ -35,5 +35,5 @@ Even if you're not a developer, there are plenty of ways to support Beaver Notes
 
 Collaboration is crucial in building a thriving community. Together, we can create an exceptional note-taking experience focused on privacy and efficiency.
 
-Ready to get started? Visit the [setup your environment](https://beavernotes.com/resources/docs/setup-your-environment) page, to get started. We can't wait to see what you bring to the Beaver Notes family!\
+Ready to get started? Visit the [setup your environment](setup-your-environment.md) page, to get started. We can't wait to see what you bring to the Beaver Notes family!\
 \
