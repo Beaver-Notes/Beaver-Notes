@@ -19,6 +19,7 @@ import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
+import nlTranslations from '../../pages/settings/locales/nl.json';
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en'; // Get the selected language from localStorage
 
@@ -33,6 +34,8 @@ if (selectedLanguage === 'it') {
   translations = deTranslations;
 } else if (selectedLanguage === 'zh') {
   translations = zhTranslations;
+} else if (selectedLanguage === 'nl') {
+  translations = nlTranslations;
 }
 
 export const extensions = [
