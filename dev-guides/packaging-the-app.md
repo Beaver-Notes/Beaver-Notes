@@ -12,10 +12,6 @@ The RPM package for macOS has been discontinued since October 2023. Therefore, t
 {% endhint %}
 
 {% hint style="warning" %}
-Releases are typically provided through the release section of GitHub and can only be published by the owner of the repository. If you've made any changes to the app and want it to be shipped with a new version, please open a GitHub issue or start a discussion.
-{% endhint %}
-
-{% hint style="danger" %}
 The packaging library electron-builder doesn't support flatpaks to learn more visit [the electron builder docs.](https://www.electron.build/configuration/flatpak.html)
 {% endhint %}
 
