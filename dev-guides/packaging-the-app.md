@@ -8,7 +8,7 @@ description: >-
 # 📦 Packaging the app
 
 {% hint style="info" %}
-The RPM package for macOS has been discontinued since October 2023. Therefore, the only way to build an RPM package on a Mac is by installing RPM through Homebrew, as indicated in this issue.
+The RPM package for macOS has been discontinued since October 2023. Therefore, the only way to build an RPM package on a Mac is by installing RPM through Homebrew, as indicated in [this issue](https://github.com/orgs/Homebrew/discussions/4826#discussioncomment-7225569).
 {% endhint %}
 
 {% hint style="warning" %}
