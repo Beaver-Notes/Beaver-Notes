@@ -18,11 +18,11 @@ async function insertImages(files, callback) {
     if (file.path) {
       const { fileName } = await copyImage(file.path, noteId);
 
-      callback(`assets://${noteId}/${fileName}`, name);
+      callback(`assets://${noteId}/${fileName}`, file.name);
     } else {
       const { fileName } = await writeImageFile(file, noteId);
 
-      callback(`assets://${noteId}/${fileName}`, name);
+      callback(`assets://${noteId}/${fileName}`, file.name);
     }
   }
 }
@@ -47,6 +47,17 @@ export default Image.extend({
               });
             });
           },
+          copy: async (view, event) => {
+            // Handle copying images from the editor (optional, depending on your use case)
+            const { from, to } = view.state.selection;
+            const slice = view.state.doc.slice(from, to);
+            const content = view.state.schema.nodeFromJSON(slice.toJSON());
+
+            const clipboardData = event.clipboardData || window.clipboardData;
+            clipboardData.setData('application/json', JSON.stringify(content));
+
+            event.preventDefault();
+          },
         },
         handleDrop: (view, event) => {
           insertImages(event.dataTransfer.files, (src, alt) => {
@@ -69,6 +80,37 @@ export default Image.extend({
       },
     });
 
-    return [handleImagePaste];
+    const handleImageCopy = new Plugin({
+      key: new PluginKey('handleCopyLink'),
+      props: {
+        handleDOMEvents: {
+          copy: async (view, event) => {
+            // Handle copying images from outside the editor (e.g., from other websites)
+            const clipboardData = event.clipboardData || window.clipboardData;
+            const items = Array.from(clipboardData.items || []);
+
+            const imageFiles = items.filter(
+              (item) => item.type.startsWith('image/') && item.kind === 'file'
+            );
+
+            if (imageFiles.length > 0) {
+              insertImages(imageFiles, (src, alt) => {
+                clipboardData.setData('text/plain', alt);
+                clipboardData.setData(
+                  'text/html',
+                  `<img src="${src}" alt="${alt}">`
+                );
+                clipboardData.setData('text/uri-list', src);
+
+                // Add any other formats as needed
+                event.preventDefault();
+              });
+            }
+          },
+        },
+      },
+    });
+
+    return [handleImagePaste, handleImageCopy];
   },
 });

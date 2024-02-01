@@ -10,16 +10,26 @@ const { path, ipcRenderer } = window.electron;
  **/
 async function readFile(file) {
   return new Promise((resolve, reject) => {
-    const fileReader = new FileReader(file);
+    const fileReader = new FileReader();
     fileReader.onload = (event) => {
-      /* @type {ArrayBuffer} */
       const result = event.target.result;
-      const view = new Uint32Array(result);
-      resolve(view);
+      const uint8Array = new Uint8Array(result);
+
+      // Ensure that the length is a multiple of 4
+      const paddedLength = Math.ceil(uint8Array.length / 4) * 4;
+      const paddedUint8Array = new Uint8Array(paddedLength);
+      paddedUint8Array.set(uint8Array);
+
+      // Create Uint32Array from padded Uint8Array
+      const uint32Array = new Uint32Array(paddedUint8Array.buffer);
+
+      resolve(uint32Array);
     };
+
     fileReader.onerror = (event) => {
       reject(event);
     };
+
     fileReader.readAsArrayBuffer(file);
   });
 }
