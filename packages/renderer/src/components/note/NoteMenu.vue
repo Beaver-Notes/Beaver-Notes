@@ -1,22 +1,6 @@
 <template>
   <div
-    class="
-      text-gray-600
-      dark:text-gray-300
-      bg-[#FFFFFF]
-      dark:bg-[#232222] dark:text-gray-50
-      overflow-x-auto
-      scroll
-      border-b
-      z-20
-      top-0
-      w-full
-      left-0
-      py-1
-      sticky
-      top-0
-      no-print
-    "
+    class="text-gray-600 dark:text-gray-300 bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
   >
     <div class="w-full h-full flex items-center justify-between w-full">
@@ -120,12 +104,14 @@
       </button>
       <hr class="border-r mx-2 h-6" />
       <button
+        v-if="showAdavancedSettings"
         v-tooltip.group="translations.menu.delete"
         class="hoverable h-8 px-1 rounded-lg h-full"
         @click="deleteNode"
       >
         <v-remixicon name="riDeleteBin6Line" />
       </button>
+
       <button
         v-tooltip.group="translations.menu.Focusmode"
         :class="{ 'is-active': store.inFocusMode }"
@@ -400,6 +386,10 @@ export default {
       }
     };
 
+    const showAdavancedSettings = computed(() => {
+      return localStorage.getItem('advanced-settings') === 'true';
+    });
+
     return {
       store,
       lists,
@@ -413,6 +403,7 @@ export default {
       getHeadingsTree,
       toggleFocusMode,
       deleteNode,
+      showAdavancedSettings,
       showHeadingsTree,
       printContent,
     };

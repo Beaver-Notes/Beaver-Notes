@@ -158,6 +158,19 @@
       </label>
     </section>
     <section>
+      <label class="flex items-center space-x-2">
+        <input
+          v-model="advancedSettings"
+          class="form-checkbox"
+          type="checkbox"
+          @change="toggleAdvancedSettings"
+        />
+        <span class="inline-block align-middle">
+          {{ translations.settings.advancedSettings || '-' }}
+        </span>
+      </label>
+    </section>
+    <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex space-x-4">
         <div class="bg-input transition w-6/12 rounded-lg p-4">
@@ -479,6 +492,7 @@ export default {
     // Translations
     const translations = shallowReactive({
       settings: {
+        advancedSettings: 'settings.advancedSettings',
         apptheme: 'settings.apptheme',
         light: 'settings.light',
         dark: 'settings.dark',
@@ -555,6 +569,7 @@ export default {
   },
   data() {
     return {
+      advancedSettings: localStorage.getItem('advanced-settings') === 'true',
       spellcheckEnabled:
         localStorage.getItem('spellcheckEnabled') === 'true' &&
         localStorage.getItem('spellcheckEnabled') != null,
@@ -576,6 +591,12 @@ export default {
     );
   },
   methods: {
+    toggleAdvancedSettings() {
+      localStorage.setItem(
+        'advanced-settings',
+        this.advancedSettings.toString()
+      );
+    },
     updateFont() {
       localStorage.setItem('selected-font', this.selectedFont);
 

@@ -16,13 +16,7 @@
     />
     <div
       v-if="noteStore.notes.length !== 0"
-      class="
-        grid grid-cols-1
-        md:grid-cols-2
-        lg:grid-cols-3
-        xl:grid-cols-4
-        gap-4
-      "
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
     >
       <template
         v-for="name in $route.query.archived
@@ -48,38 +42,10 @@
         />
         <div
           v-if="showDialog"
-          class="
-            bg-black
-            p-5
-            overflow-y-auto
-            bg-opacity-20
-            modal-ui__content-container
-            z-50
-            flex
-            justify-center
-            items-end
-            md:items-center
-          "
+          class="bg-black p-5 overflow-y-auto bg-opacity-20 modal-ui__content-container z-50 flex justify-center items-end md:items-center"
         >
           <div
-            class="
-              modal-ui__content
-              shadow-lg
-              w-full
-              max-w-sm
-              bg-[#F8F8F7]
-              dark:bg-[#353333]
-              transform
-              rounded-lg
-              transition-transform
-              ui-card
-              overflow-hidden
-              p-4
-              modal-ui__content
-              shadow-lg
-              w-full
-              max-w-sm
-            "
+            class="modal-ui__content shadow-lg w-full max-w-sm bg-[#F8F8F7] dark:bg-[#353333] transform rounded-lg transition-transform ui-card overflow-hidden p-4 modal-ui__content shadow-lg w-full max-w-sm"
           >
             <h3 class="font-semibold text-lg">
               {{ translations.index.syncreminder || '-' }}
@@ -98,23 +64,7 @@
               >
             </label>
             <button
-              class="
-                mt-4
-                ui-button
-                h-10
-                relative
-                transition
-                focus:ring-2
-                ring-amber-300
-                bg-primary
-                text-white
-                dark:bg-secondary dark:hover:bg-primary
-                hover:bg-secondary
-                py-2
-                px-4
-                w-full
-                rounded-lg
-              "
+              class="mt-4 ui-button h-10 relative transition focus:ring-2 ring-amber-300 bg-primary text-white dark:bg-secondary dark:hover:bg-primary hover:bg-secondary py-2 px-4 w-full rounded-lg"
               @click="closeDialog"
             >
               {{ translations.index.close || '-' }}
