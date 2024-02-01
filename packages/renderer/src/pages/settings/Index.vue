@@ -200,6 +200,17 @@
           </ui-button>
         </div>
       </div>
+      <div class="flex items-center">
+        <v-remixicon
+          name="riQuestionLine"
+          class="inline-block align-middle mr-1 mt-2"
+        />
+        <p class="text-sm relative text-gray-500 mt-2">
+          <span v-tooltip:right="translations.settings.encryptionMessage">
+            {{ translations.settings.aboutDataEncryption || '-' }}
+          </span>
+        </p>
+      </div>
     </section>
   </div>
 </template>
@@ -499,6 +510,8 @@ export default {
         medium: 'settings.medium',
         default: 'settings.default',
         morespace: 'settings.morespace',
+        aboutDataEncryption: 'settings.aboutDataEncryption',
+        encryptionMessage: 'settings.encryptionMessage',
       },
     });
 

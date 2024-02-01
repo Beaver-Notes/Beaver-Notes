@@ -162,7 +162,9 @@
     "large": "Large",
     "medium": "Medium",
     "default": "Default",
-    "morespace": "More space"
+    "morespace": "More space",
+    "aboutDataEncryption": "About data encryption",
+    "encryptionMessage": "Beaver notes employes AES-128 through crypto-es"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

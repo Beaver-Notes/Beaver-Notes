@@ -1,5 +1,6 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riQuestionLine,
   riLockLine,
   riCupLine,
   riListCheck2,
@@ -67,6 +68,7 @@ import {
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
+  riQuestionLine,
   riCupLine,
   riListCheck2,
   riLockUnlockLine,
