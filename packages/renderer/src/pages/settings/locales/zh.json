@@ -162,7 +162,9 @@
     "large": "偏大",
     "medium": "中等",
     "default": "默认",
-    "morespace": "更多空间"
+    "morespace": "更多空间",
+    "aboutDataEncryption": "关于数据加密",
+    "encryptionMessage": "Beaver notes 采用 crypto-es 的 AES-128 算法加密"
   },
   "_idvue": {
     "Previousnote":"以前的笔记",
