@@ -219,6 +219,7 @@ export default {
 
     const disallowedEnter = (event) => {
       if (event && event.key === 'Enter') {
+        noteEditor.value.$el.querySelector('*[tabindex="0"]').focus();
         event.returnValue = false;
       }
     };
