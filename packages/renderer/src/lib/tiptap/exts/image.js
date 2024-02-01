@@ -15,14 +15,15 @@ async function insertImages(files, callback) {
       continue;
     }
     const noteId = store.activeNoteId;
+    const name = file.name; // Assuming you want to use the file name
     if (file.path) {
       const { fileName } = await copyImage(file.path, noteId);
 
-      callback(`assets://${noteId}/${fileName}`, file.name);
+      callback(`assets://${noteId}/${fileName}`, name);
     } else {
       const { fileName } = await writeImageFile(file, noteId);
 
-      callback(`assets://${noteId}/${fileName}`, file.name);
+      callback(`assets://${noteId}/${fileName}`, name);
     }
   }
 }
@@ -34,7 +35,10 @@ export default Image.extend({
       props: {
         handleDOMEvents: {
           paste: async (view, event) => {
-            insertImages(event.clipboardData.files, (src, alt) => {
+            const files = (
+              event.clipboardData || event.originalEvent.clipboardData
+            ).files;
+            insertImages(files, (src, alt) => {
               if (this.editor.isActive('image')) {
                 this.editor.commands.setTextSelection(
                   view.state.tr.curSelection.to + 1
@@ -47,18 +51,8 @@ export default Image.extend({
               });
             });
           },
-          copy: async (view, event) => {
-            // Handle copying images from the editor (optional, depending on your use case)
-            const { from, to } = view.state.selection;
-            const slice = view.state.doc.slice(from, to);
-            const content = view.state.schema.nodeFromJSON(slice.toJSON());
-
-            const clipboardData = event.clipboardData || window.clipboardData;
-            clipboardData.setData('application/json', JSON.stringify(content));
-
-            event.preventDefault();
-          },
         },
+
         handleDrop: (view, event) => {
           insertImages(event.dataTransfer.files, (src, alt) => {
             const { schema } = view.state;
@@ -80,37 +74,6 @@ export default Image.extend({
       },
     });
 
-    const handleImageCopy = new Plugin({
-      key: new PluginKey('handleCopyLink'),
-      props: {
-        handleDOMEvents: {
-          copy: async (view, event) => {
-            // Handle copying images from outside the editor (e.g., from other websites)
-            const clipboardData = event.clipboardData || window.clipboardData;
-            const items = Array.from(clipboardData.items || []);
-
-            const imageFiles = items.filter(
-              (item) => item.type.startsWith('image/') && item.kind === 'file'
-            );
-
-            if (imageFiles.length > 0) {
-              insertImages(imageFiles, (src, alt) => {
-                clipboardData.setData('text/plain', alt);
-                clipboardData.setData(
-                  'text/html',
-                  `<img src="${src}" alt="${alt}">`
-                );
-                clipboardData.setData('text/uri-list', src);
-
-                // Add any other formats as needed
-                event.preventDefault();
-              });
-            }
-          },
-        },
-      },
-    });
-
-    return [handleImagePaste, handleImageCopy];
+    return [handleImagePaste];
   },
 });

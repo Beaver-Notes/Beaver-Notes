@@ -10,26 +10,23 @@ const { path, ipcRenderer } = window.electron;
  **/
 async function readFile(file) {
   return new Promise((resolve, reject) => {
-    const fileReader = new FileReader();
+    const fileReader = new FileReader(file);
     fileReader.onload = (event) => {
+      /* @type {ArrayBuffer} */
       const result = event.target.result;
-      const uint8Array = new Uint8Array(result);
 
-      // Ensure that the length is a multiple of 4
-      const paddedLength = Math.ceil(uint8Array.length / 4) * 4;
-      const paddedUint8Array = new Uint8Array(paddedLength);
-      paddedUint8Array.set(uint8Array);
+      // Pad the byte length to be a multiple of 4
+      const paddedLength = Math.ceil(result.byteLength / 4) * 4;
+      const paddedBuffer = new ArrayBuffer(paddedLength);
+      const paddedView = new Uint8Array(paddedBuffer);
+      paddedView.set(new Uint8Array(result));
 
-      // Create Uint32Array from padded Uint8Array
-      const uint32Array = new Uint32Array(paddedUint8Array.buffer);
-
-      resolve(uint32Array);
+      const uint32View = new Uint32Array(paddedBuffer);
+      resolve(uint32View);
     };
-
     fileReader.onerror = (event) => {
       reject(event);
     };
-
     fileReader.readAsArrayBuffer(file);
   });
 }
