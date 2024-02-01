@@ -2,16 +2,25 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import Image from '@tiptap/extension-image';
 import { useStore } from '@/store';
 import copyImage from '@/utils/copy-image';
+import { writeImageFile } from '@/utils/copy-image';
 
 async function insertImages(files, callback) {
   const store = useStore();
 
   for (const file of files) {
-    const isImage = file.type.startsWith('image/') && file.path;
+    console.log(file);
+    const isImage = file.type.startsWith('image/') && file instanceof File;
 
-    if (isImage) {
-      const noteId = store.activeNoteId;
+    if (!isImage) {
+      continue;
+    }
+    const noteId = store.activeNoteId;
+    if (file.path) {
       const { fileName } = await copyImage(file.path, noteId);
+
+      callback(`assets://${noteId}/${fileName}`, name);
+    } else {
+      const { fileName } = await writeImageFile(file, noteId);
 
       callback(`assets://${noteId}/${fileName}`, name);
     }
