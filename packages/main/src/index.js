@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, protocol, nativeTheme, shell } from 'electr
 import { ipcMain } from 'electron-better-ipc';
 import { join, normalize } from 'path';
 import { URL } from 'url';
-import { remove, readJson, ensureDir, copy, outputJson, pathExistsSync } from 'fs-extra';
+import { remove, readJson, ensureDir, copy, outputJson, pathExistsSync, writeFileSync } from 'fs-extra';
 import store from './store';
 
 const isSingleInstance = app.requestSingleInstanceLock();
@@ -121,6 +121,7 @@ ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
 ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
 ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
 ipcMain.answerRenderer('fs:remove', (path) => remove(path));
+ipcMain.answerRenderer('fs:writeFile', ({ path, data }) => writeFileSync(path, data));
 
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
   app.relaunch({ args: process.argv.slice(1).concat(['--relaunch']), ...options });
