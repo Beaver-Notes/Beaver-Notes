@@ -245,6 +245,7 @@ const enTranslations = import('../../pages/settings/locales/en.json');
 const itTranslations = import('../../pages/settings/locales/it.json');
 const deTranslations = import('../../pages/settings/locales/de.json');
 const zhTranslations = import('../../pages/settings/locales/zh.json');
+const nlTranslations = import('../../pages/settings/locales/nl.json');
 
 export const state = shallowReactive({
   dataDir: '',
@@ -577,9 +578,10 @@ export default {
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
       selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
       languages: [
+        { code: 'de', name: 'Deutsch', translations: deTranslations },
         { code: 'en', name: 'English', translations: enTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
-        { code: 'de', name: 'Deutsch', translations: deTranslations },
+        { code: 'nl', name: 'Nederlands', translations: nlTranslations },
         { code: 'zh', name: '简体中文', translations: zhTranslations },
       ],
     };

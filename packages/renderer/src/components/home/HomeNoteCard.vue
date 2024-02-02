@@ -47,13 +47,7 @@
         name="riLockLine"
       />
       <div
-        class="
-          text-xs text-gray-500
-          dark:text-gray-400
-          invisible
-          group-hover:visible
-          dark:text-white
-        "
+        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-white"
       >
         {{ translations.card.unlocktoedit || '-' }}
       </div>
@@ -79,14 +73,7 @@
             ? translations.card.unarchive
             : translations.card.archive
         "
-        class="
-          hover:text-gray-900
-          mr-2
-          dark:hover:text-white
-          transition
-          invisible
-          group-hover:visible
-        "
+        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
         @click="$emit('update', { isArchived: !note.isArchived })"
       >
         <v-remixicon
@@ -96,14 +83,7 @@
       <button
         v-if="!note.isLocked"
         v-tooltip.group="translations.card.lock"
-        class="
-          hover:text-gray-900
-          mr-2
-          dark:hover:text-white
-          transition
-          invisible
-          group-hover:visible
-        "
+        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
         @click="lockNote(note.id)"
       >
         <v-remixicon name="riLockLine" />
@@ -111,27 +91,14 @@
       <button
         v-if="note.isLocked"
         v-tooltip.group="translations.card.lock"
-        class="
-          hover:text-gray-900
-          mr-2
-          dark:hover:text-white
-          transition
-          invisible
-          group-hover:visible
-        "
+        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
         <v-remixicon name="riLockUnlockLine" />
       </button>
       <button
         v-tooltip.group="translations.card.delete"
-        class="
-          hover:text-red-500
-          dark:hover:text-red-400
-          transition
-          invisible
-          group-hover:visible
-        "
+        class="hover:text-red-500 dark:hover:text-red-400 transition invisible group-hover:visible"
         @click="$emit('delete', note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" />
@@ -159,6 +126,7 @@ import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
 import 'dayjs/locale/zh';
+import 'dayjs/locale/nl';
 
 defineProps({
   note: {
