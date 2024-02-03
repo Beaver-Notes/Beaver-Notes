@@ -1,6 +1,6 @@
 <template>
   <ui-card
-    v-if="state.show"
+    v-if="store.showPrompt"
     padding="p-4"
     class="command-prompt w-full max-w-lg mx-auto shadow-xl m-4"
   >
@@ -34,7 +34,7 @@
               {{ item.title || translations.commandprompt.untitlednote }}
             </span>
             <span v-if="!isCommand">
-              {{ toLocal(item.updatedAt) }}
+              {{ formatDate(item.updatedAt) }}
             </span>
           </p>
           <p v-if="!isCommand" class="text-overflow text-xs">
@@ -51,30 +51,37 @@
   </ui-card>
 </template>
 <script>
-import { shallowReactive, computed, watch, onMounted } from 'vue';
+import { shallowReactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
 import commands from '@/utils/commands';
 import dayjs from 'dayjs';
+import { useStore } from '@/store';
 
 export default {
   setup() {
     const router = useRouter();
     const noteStore = useNoteStore();
+    const store = useStore();
 
-    const toLocal = (timestamp) => dayjs(timestamp).format('YYYY-MM-DD hh:mm');
+    const formatDate = (timestamp) =>
+      dayjs(timestamp).format('YYYY-MM-DD hh:mm');
 
     const state = shallowReactive({
-      show: false,
       query: '',
       selectedIndex: 0,
     });
 
+    store.showPrompt = false;
+
     const spliceContent = (content) => {
       if (Array.isArray(content)) {
         return content.map((c) => spliceContent(c)).join('');
+      }
+      if (content == null) {
+        return '';
       }
       if ('content' in content) {
         return spliceContent(content.content);
@@ -129,16 +136,16 @@ export default {
       clear();
     }
     function clear() {
-      state.show = false;
+      store.showPrompt = false;
       state.query = '';
       state.selectedIndex = 0;
     }
 
     Mousetrap.bind('mod+shift+p', () => {
-      if (state.show) return clear();
+      if (store.showPrompt) return clear();
 
       document.querySelector('.command-input')?.focus();
-      state.show = true;
+      store.showPrompt = true;
     });
 
     watch(items, () => {
@@ -188,15 +195,29 @@ export default {
       }
     };
 
+    const escQuit = (event) => {
+      if (event.code === 'Escape') {
+        clear();
+      }
+    };
+
+    onMounted(() => {
+      document.addEventListener('keyup', escQuit);
+    });
+    onUnmounted(() => {
+      document.removeEventListener('keyup', escQuit);
+    });
+
     return {
       items,
       translations,
+      store,
       state,
       isCommand,
       clear,
       selectItem,
       keydownHandler,
-      toLocal,
+      formatDate,
       spliceContent,
     };
   },

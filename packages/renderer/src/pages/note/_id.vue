@@ -217,12 +217,23 @@ export default {
       }
     };
 
+    const focusEditor = () =>
+      noteEditor.value.$el.querySelector('*[tabindex="0"]').focus();
     const disallowedEnter = (event) => {
       if (event && event.key === 'Enter') {
-        noteEditor.value.$el.querySelector('*[tabindex="0"]').focus();
+        focusEditor();
         event.returnValue = false;
       }
     };
+
+    watch(
+      () => store.showPrompt,
+      (n) => {
+        if (!n) {
+          focusEditor();
+        }
+      }
+    );
 
     return {
       id,

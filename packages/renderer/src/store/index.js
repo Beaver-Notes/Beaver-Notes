@@ -6,6 +6,7 @@ export const useStore = defineStore('main', {
   state: () => ({
     inFocusMode: false,
     activeNoteId: '',
+    showPrompt: false,
   }),
   actions: {
     retrieve() {
