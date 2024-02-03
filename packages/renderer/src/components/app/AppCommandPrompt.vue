@@ -28,9 +28,19 @@
         class="cursor-pointer"
         @click="selectItem(item, true)"
       >
-        <p class="text-overflow flex-1">
-          {{ item.title || translations.commandprompt.untitlednote }}
-        </p>
+        <div class="w-full">
+          <p class="text-overflow w-full flex flex-1 justify-between">
+            <span>
+              {{ item.title || translations.commandprompt.untitlednote }}
+            </span>
+            <span v-if="!isCommand">
+              {{ toLocal(item.updatedAt) }}
+            </span>
+          </p>
+          <p v-if="!isCommand" class="text-overflow text-xs">
+            {{ spliceContent(item.content.content[0]) }}
+          </p>
+        </div>
         <template v-if="item.shortcut">
           <kbd v-for="key in item.shortcut" :key="key">
             {{ key }}
@@ -47,11 +57,14 @@ import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
 import commands from '@/utils/commands';
+import dayjs from 'dayjs';
 
 export default {
   setup() {
     const router = useRouter();
     const noteStore = useNoteStore();
+
+    const toLocal = (timestamp) => dayjs(timestamp).format('YYYY-MM-DD hh:mm');
 
     const state = shallowReactive({
       show: false,
@@ -59,16 +72,35 @@ export default {
       selectedIndex: 0,
     });
 
-    const items = computed(() => {
-      const searchQuery = state.query.toLocaleLowerCase();
-      const isCommand = searchQuery.startsWith('>');
-      const filterItems = isCommand ? commands : noteStore.notes;
+    const spliceContent = (content) => {
+      if (Array.isArray(content)) {
+        return content.map((c) => spliceContent(c)).join('');
+      }
+      if ('content' in content) {
+        return spliceContent(content.content);
+      }
+      if (content.type.toLocaleLowerCase().includes('label')) {
+        return `#${content.attrs.id}`;
+      }
+      return content.label ?? content.text ?? '';
+    };
 
-      return filterItems.filter(({ title }) =>
-        title
-          .toLocaleLowerCase()
-          .includes(isCommand ? searchQuery.substr(1) : searchQuery)
-      );
+    const isCommand = computed(() => state.query.startsWith('>'));
+    const queryTerm = computed(() => {
+      const searchQuery = state.query.toLocaleLowerCase();
+      return (isCommand.value ? searchQuery.substr(1) : searchQuery).trim();
+    });
+
+    const items = computed(() => {
+      const filterItems = isCommand.value ? commands : noteStore.notes;
+
+      return filterItems.filter(({ title, content }) => {
+        const isInTitle = title.toLocaleLowerCase().includes(queryTerm.value);
+        if (!isCommand.value) {
+          return spliceContent(content).includes(queryTerm.value) || isInTitle;
+        }
+        return isInTitle;
+      });
     });
 
     function keydownHandler(event) {
@@ -160,9 +192,12 @@ export default {
       items,
       translations,
       state,
+      isCommand,
       clear,
       selectItem,
       keydownHandler,
+      toLocal,
+      spliceContent,
     };
   },
 };
