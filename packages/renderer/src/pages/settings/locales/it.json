@@ -66,7 +66,17 @@
     "strikethrough": "Barra",
     "highlight": "Evidenzia",
     "inlinecode": "Codice in linea",
-    "delete": "Delete current note"
+    "delete": "Elimina nota corrente",
+    "tableOptions": "Opzioni tabella",
+    "tableInsert": "Inserisci tabella",
+    "addRowAbove": "Aggiungi riga sopra",
+    "addRowBelow": "Aggiungi riga sotto",
+    "addColumnLeft": "Aggiungi colonna a sinistra",
+    "addColumnRight": "Aggiungi colonna a destra",
+    "deleteRow": "Elimina riga",
+    "deleteColumn": "Elimina colonna",
+    "toggleHeader": "Cella di intestazione",
+    "deleteTable": "Elimina tabella"
   },
   "card": {
     "unarchived": "Non archiviato",
@@ -164,7 +174,7 @@
     "morespace": "Più spazio",
     "aboutDataEncryption": "Informazioni sulla crittografia dei dati",
     "encryptionMessage": "Beaver notes usa AES-128 attraverso crypto-es",
-    "advancedSettings" : "Impostazioni avanzate"
+    "advancedSettings": "Impostazioni avanzate"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",

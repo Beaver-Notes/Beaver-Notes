@@ -75,7 +75,8 @@
     "addColumnRight": "Add column right",
     "deleteRow": "Delete row",
     "deleteColumn": "Delete column",
-    "toggleHeader": "Toggle header cell"
+    "toggleHeader": "Toggle header cell",
+    "deleteTable": "Delete table"
   },
   "card": {
     "unarchived": "Unarchived",

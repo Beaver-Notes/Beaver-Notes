@@ -147,14 +147,14 @@
         <button
           v-tooltip.group="translations.menu.addColumnLeft"
           class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().addColumnLeft().run()"
+          @click="editor.chain().focus().addColumnBefore().run()"
         >
           <v-remixicon name="riInsertColumnLeft" />
         </button>
         <button
           v-tooltip.group="translations.menu.addColumnRight"
           class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().addColumnRight().run()"
+          @click="editor.chain().focus().addColumnAfter().run()"
         >
           <v-remixicon name="riInsertColumnRight" />
         </button>
@@ -171,6 +171,13 @@
           @click="editor.chain().focus().toggleHeaderCell().run()"
         >
           <v-remixicon name="riBrush2Fill" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.deleteTable"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().deleteTable().run()"
+        >
+          <v-remixicon name="riDeleteBin6Line" />
         </button>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
@@ -451,6 +458,7 @@ export default {
         deleteRow: 'menu.deleteRow',
         deleteColumn: 'menu.deleteColumn',
         toggleHeader: 'menu.toggleHeader',
+        deleteTable: 'menu.deleteTable',
       },
     });
 

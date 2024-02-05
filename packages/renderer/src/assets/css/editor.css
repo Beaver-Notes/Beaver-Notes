@@ -144,6 +144,27 @@ img.ProseMirror-selectednode {
     margin-top: 0.75em;
   }
 
+  table {
+    @apply border-collapse table-fixed w-full m-0 overflow-hidden;
+
+    td,
+    th {
+      @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
+    }
+
+    th {
+      @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+    }
+
+    .selectedCell:after {
+      @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
+    }
+
+    .column-resize-handle {
+     @apply absolute top-0 w-1 pointer-events-none
+    }
+    }
+
   pre {
     background: #0D0D0D;
     color: #FFF;
