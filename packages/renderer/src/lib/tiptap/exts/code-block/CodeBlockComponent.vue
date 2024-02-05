@@ -3,15 +3,7 @@
     <select
       v-model="selectedLanguage"
       contenteditable="false"
-      class="
-        absolute
-        text-sm
-        right-0
-        m-2
-        rounded
-        bg-opacity-5 bg-black
-        dark:bg-gray-300 dark:bg-opacity-5
-      "
+      class="absolute text-sm right-0 m-2 rounded bg-opacity-5 bg-black dark:bg-gray-300 dark:bg-opacity-5"
     >
       <option :value="null">auto</option>
       <option disabled>—</option>
