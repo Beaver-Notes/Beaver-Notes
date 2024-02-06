@@ -54,6 +54,12 @@ img.ProseMirror-selectednode {
   &:focus {
     outline: none;
   }
+  li[data-checked="false"] {
+  @apply dark:text-white
+}
+li[data-checked="true"] {
+  @apply text-neutral-500 line-through
+}
   ul li {
       margin-top: 0 !important;
       margin-bottom: 0 !important;
