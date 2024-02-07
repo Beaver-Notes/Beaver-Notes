@@ -164,6 +164,7 @@
     "relaunch": "L'app deve essere riavviata affinché questa modifica abbia effetto",
     "relaunchbutton": "Riavvia l'app",
     "exportmessage": "Le note sono state esportate nella cartella",
+    "importsuccess": "Dati importati con successo",
     "invaliddata": "Dati non validi",
     "syncreminder": "Nascondi promemoria di sincronizzazione",
     "spellcheck": "Controllo ortografico",

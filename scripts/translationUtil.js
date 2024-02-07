@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import readline from 'node:readline';
 
 const targetLng = process.argv.slice(-1)[0];
-const __dirname = import.meta.dirname;
+const __dirname = new URL('.', import.meta.url).pathname;
 
 if (targetLng === process.argv[1]) {
   console.log('Need Language.');

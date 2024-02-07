@@ -25,7 +25,7 @@
     "watch": "node scripts/watch.js",
     "lint": "eslint . --ext js,ts,vue",
     "postinstall": "electron-builder install-app-deps",
-    "trans": "node scripts/transDiff.js"
+    "tran-util": "node scripts/translationUtil.js"
   },
   "browserslist": [
     "Chrome 91"
