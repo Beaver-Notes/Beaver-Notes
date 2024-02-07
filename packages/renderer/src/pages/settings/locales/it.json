@@ -65,7 +65,18 @@
     "underline": "Sottolinea",
     "strikethrough": "Barra",
     "highlight": "Evidenzia",
-    "inlinecode": "Codice in linea"
+    "inlinecode": "Codice in linea",
+    "delete": "Elimina nota corrente",
+    "tableOptions": "Opzioni tabella",
+    "tableInsert": "Inserisci tabella",
+    "addRowAbove": "Aggiungi riga sopra",
+    "addRowBelow": "Aggiungi riga sotto",
+    "addColumnLeft": "Aggiungi colonna a sinistra",
+    "addColumnRight": "Aggiungi colonna a destra",
+    "deleteRow": "Elimina riga",
+    "deleteColumn": "Elimina colonna",
+    "toggleHeader": "Cella di intestazione",
+    "deleteTable": "Elimina tabella"
   },
   "card": {
     "unarchived": "Non archiviato",
@@ -153,6 +164,7 @@
     "relaunch": "L'app deve essere riavviata affinché questa modifica abbia effetto",
     "relaunchbutton": "Riavvia l'app",
     "exportmessage": "Le note sono state esportate nella cartella",
+    "importsuccess": "Dati importati con successo",
     "invaliddata": "Dati non validi",
     "syncreminder": "Nascondi promemoria di sincronizzazione",
     "spellcheck": "Controllo ortografico",
@@ -160,7 +172,10 @@
     "large": "Grande",
     "medium": "Medio",
     "default": "Predefinito",
-    "morespace": "Più spazio"
+    "morespace": "Più spazio",
+    "aboutDataEncryption": "Informazioni sulla crittografia dei dati",
+    "encryptionMessage": "Beaver notes usa AES-128 attraverso crypto-es",
+    "advancedSettings": "Impostazioni avanzate"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",

@@ -15,6 +15,10 @@ import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import Search from './exts/search';
 import Image from './exts/image';
+import Table from '@tiptap/extension-table';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import TableRow from '@tiptap/extension-table-row';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -46,6 +50,10 @@ export const extensions = [
   LinkNote,
   LabelSuggestion,
   TaskList,
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
   TaskItem.configure({
     nested: true,
   }),

@@ -103,12 +103,18 @@
         class="w-full"
         @change="updateFont"
       >
-        <option value="Arimo">Arimo</option>
-        <option value="avenir">Avenir</option>
-        <option value="EB Garamond">EB Garamond</option>
-        <option value="'Helvetica Neue', sans-serif">Helvetica</option>
-        <option value="OpenDyslexic">Open Dyslexic</option>
-        <option value="Ubuntu">Ubuntu</option>
+        <option value="Arimo" class="font-arimo">Arimo</option>
+        <option value="avenir" class="font-avenir">Avenir</option>
+        <option value="EB Garamond" class="font-eb-faramond">
+          EB Garamond
+        </option>
+        <option value="'Helvetica Neue', sans-serif" class="font-helvetica">
+          Helvetica
+        </option>
+        <option value="OpenDyslexic" class="font-open-dyslexic">
+          Open Dyslexic
+        </option>
+        <option value="Ubuntu" class="font-ubuntu">Ubuntu</option>
       </ui-select>
     </section>
     <section>
@@ -148,6 +154,19 @@
         />
         <span class="inline-block ml-2 align-middle">
           {{ translations.settings.spellcheck || '-' }}
+        </span>
+      </label>
+    </section>
+    <section>
+      <label class="flex items-center space-x-2">
+        <input
+          v-model="advancedSettings"
+          class="form-checkbox"
+          type="checkbox"
+          @change="toggleAdvancedSettings"
+        />
+        <span class="inline-block align-middle">
+          {{ translations.settings.advancedSettings || '-' }}
         </span>
       </label>
     </section>
@@ -193,6 +212,17 @@
             {{ translations.settings.importdata || '-' }}
           </ui-button>
         </div>
+      </div>
+      <div class="flex items-center">
+        <v-remixicon
+          name="riQuestionLine"
+          class="inline-block align-middle mr-1 mt-2"
+        />
+        <p class="text-sm relative text-gray-500 mt-2">
+          <span v-tooltip:right="translations.settings.encryptionMessage">
+            {{ translations.settings.aboutDataEncryption || '-' }}
+          </span>
+        </p>
       </div>
     </section>
   </div>
@@ -463,6 +493,7 @@ export default {
     // Translations
     const translations = shallowReactive({
       settings: {
+        advancedSettings: 'settings.advancedSettings',
         apptheme: 'settings.apptheme',
         light: 'settings.light',
         dark: 'settings.dark',
@@ -494,6 +525,8 @@ export default {
         medium: 'settings.medium',
         default: 'settings.default',
         morespace: 'settings.morespace',
+        aboutDataEncryption: 'settings.aboutDataEncryption',
+        encryptionMessage: 'settings.encryptionMessage',
       },
     });
 
@@ -537,6 +570,7 @@ export default {
   },
   data() {
     return {
+      advancedSettings: localStorage.getItem('advanced-settings') === 'true',
       spellcheckEnabled:
         localStorage.getItem('spellcheckEnabled') === 'true' &&
         localStorage.getItem('spellcheckEnabled') != null,
@@ -544,9 +578,10 @@ export default {
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
       selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
       languages: [
+        { code: 'de', name: 'Deutsch', translations: deTranslations },
         { code: 'en', name: 'English', translations: enTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
-        { code: 'de', name: 'Deutsch', translations: deTranslations },
+        { code: 'nl', name: 'Nederlands', translations: nlTranslations },
         { code: 'zh', name: '简体中文', translations: zhTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
       ],
@@ -559,6 +594,12 @@ export default {
     );
   },
   methods: {
+    toggleAdvancedSettings() {
+      localStorage.setItem(
+        'advanced-settings',
+        this.advancedSettings.toString()
+      );
+    },
     updateFont() {
       localStorage.setItem('selected-font', this.selectedFont);
 

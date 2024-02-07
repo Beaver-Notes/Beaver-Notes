@@ -48,7 +48,7 @@ const LinkNote = Suggestion({ name: 'linkNote', props, configure }).configure({
   },
   suggestion: {
     char: '@@',
-    items: (query) => {
+    items: ({ query }) => {
       const noteStore = useNoteStore();
 
       return noteStore.notes

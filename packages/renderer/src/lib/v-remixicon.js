@@ -1,5 +1,14 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riBrush2Fill,
+  riInsertColumnLeft,
+  riInsertColumnRight,
+  riDeleteColumn,
+  riDeleteRow,
+  riInsertRowTop,
+  riInsertRowBottom,
+  riArrowDropDownFill,
+  riQuestionLine,
   riLockLine,
   riCupLine,
   riListCheck2,
@@ -67,6 +76,15 @@ import {
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
+  riBrush2Fill,
+  riInsertColumnLeft,
+  riInsertColumnRight,
+  riDeleteColumn,
+  riDeleteRow,
+  riInsertRowTop,
+  riInsertRowBottom,
+  riQuestionLine,
+  riArrowDropDownFill,
   riCupLine,
   riListCheck2,
   riLockUnlockLine,

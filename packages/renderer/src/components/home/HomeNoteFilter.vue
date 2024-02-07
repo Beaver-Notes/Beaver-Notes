@@ -28,10 +28,11 @@
           :name="label === '' ? 'riPriceTag3Line' : 'riDeleteBin6Line'"
         />
       </ui-button>
-      <ui-select :model-value="label" @change="$emit('update:label', $event)">
-        <option value="" selected>
-          {{ translations.filter.Selectlabel || '-' }}
-        </option>
+      <ui-select
+        :model-value="label"
+        :placeholder="translations.filter.Selectlabel || '-'"
+        @change="$emit('update:label', $event)"
+      >
         <option v-for="item in labels" :key="item" :valye="item">
           {{ item }}
         </option>

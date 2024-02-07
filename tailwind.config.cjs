@@ -8,6 +8,12 @@ module.exports = {
     extend: {
       fontFamily:{
         'primary': ['Arimo'],
+        'arimo': ['Arimo'],
+        'avenir': ['Avenir'],
+        'eb-garamond': ['EB Garamond'],
+        'helvetica': ['Helvetica', 'sans-serif'],
+        'open-dyslexic': ['Open Dyslexic'],
+        'ubuntu': ['Ubuntu']
       },
       colors: {
         primary: colors.amber['400'],
@@ -24,6 +30,19 @@ module.exports = {
           '700': '#B45309',
           '800': '#92400E',
           '900': '#78350F',
+        },
+        neutral: {
+          '50': 'fafafa',
+          '100': '#f5f5f5',
+          '200': '#e5e5e5',
+          '300': '#d4d4d4',
+          '400': '#a3a3a3',
+          '500': '#737373',
+          '600': '#525252',
+          '700': '#404040',
+          '800': '#262626',
+          '900': '#171717',
+          '950': '#0a0a0a',
         },
       },
       container: {

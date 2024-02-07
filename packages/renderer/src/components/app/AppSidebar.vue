@@ -1,22 +1,6 @@
 <template>
   <aside
-    class="
-      w-16
-      text-gray-600
-      dark:text-gray-200
-      bg-[#F8F8F7]
-      dark:bg-[#353333]
-      fixed
-      text-center
-      flex flex-col
-      items-center
-      h-full
-      left-0
-      top-0
-      z-40
-      py-4
-      no-print
-    "
+    class="w-16 text-gray-600 dark:text-gray-200 bg-[#F8F8F7] dark:bg-[#353333] fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
   >
     <!-- Sidebar top icons-->
     <button

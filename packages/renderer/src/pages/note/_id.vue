@@ -8,21 +8,14 @@
     >
       <v-remixicon
         name="riArrowDownLine"
-        class="
-          mr-2
-          -ml-1
-          group-hover:-translate-x-1
-          transform
-          transition
-          rotate-90
-        "
+        class="mr-2 -ml-1 group-hover:-translate-x-1 transform transition rotate-90"
       />
       <span>
         {{ translations._idvue.Previousnote || '-' }}
       </span>
     </button>
     <template v-if="editor">
-      <note-menu v-bind="{ editor }" class="mb-6" />
+      <note-menu v-bind="{ editor, id }" class="mb-6" />
       <note-search
         v-if="showSearch"
         v-bind="{ editor }"
@@ -32,17 +25,7 @@
     <div
       contenteditable="true"
       :value="note.title"
-      class="
-        text-4xl
-        outline-none
-        block
-        font-bold
-        bg-transparent
-        w-full
-        mb-6
-        cursor-text
-        title-placeholder
-      "
+      class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
       :placeholder="translations._idvue.untitlednote || '-'"
       @input="updateNote({ title: $event.target.innerText })"
       @keydown="disallowedEnter"
@@ -52,16 +35,28 @@
 
     <note-editor
       :id="$route.params.id"
+      ref="noteEditor"
       :key="$route.params.id"
       :model-value="note.content"
       :cursor-position="note.lastCursorPosition"
-      @update="updateNote({ content: $event })"
+      @update="
+        autoScroll();
+        updateNote({ content: $event });
+      "
       @init="editor = $event"
+      @keyup.down="autoScroll"
     />
   </div>
 </template>
 <script>
-import { shallowRef, computed, watch, onMounted, shallowReactive } from 'vue';
+import {
+  ref,
+  shallowRef,
+  computed,
+  watch,
+  onMounted,
+  shallowReactive,
+} from 'vue';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -84,9 +79,51 @@ export default {
     const labelStore = useLabelStore();
 
     const editor = shallowRef(null);
+    const noteEditor = ref();
     const showSearch = shallowRef(false);
 
-    const note = computed(() => noteStore.getById(route.params.id));
+    const id = computed(() => route.params.id);
+    const note = computed(() => noteStore.getById(id.value));
+
+    const autoScroll = debounce(() => {
+      if (!noteEditor.value) {
+        return;
+      }
+      const lastChild =
+        noteEditor.value.$el.querySelector('.ProseMirror').lastChild;
+      // does scrollbar appear
+      if (
+        !(
+          document.body.scrollHeight >
+          (window.innerHeight || document.documentElement.clientHeight)
+        )
+      ) {
+        return;
+      }
+      const selection = window.getSelection();
+      // the anchorNode must be the child of the last child or is the last child.
+      if (!lastChild.contains(selection.anchorNode)) {
+        return;
+      }
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const lastRect = lastChild.getBoundingClientRect();
+
+      const lineHeight = rect.height;
+
+      const offset = Math.abs(rect.bottom - lastRect.bottom);
+      // editor must fill the viewport
+      if (lastRect.top + lastRect.height <= window.innerHeight) {
+        return;
+      }
+      if (lineHeight === 0) {
+        // empty line
+        lastChild.scrollIntoView();
+      } else if (offset < lineHeight) {
+        // the offset of last line will not exceed the line height
+        lastChild.scrollIntoView();
+      }
+    }, 50);
 
     const updateNote = debounce((data) => {
       Object.assign(data, { updatedAt: Date.now() });
@@ -182,11 +219,14 @@ export default {
 
     const disallowedEnter = (event) => {
       if (event && event.key === 'Enter') {
+        noteEditor.value.$el.querySelector('*[tabindex="0"]').focus();
         event.returnValue = false;
       }
     };
 
     return {
+      id,
+      noteEditor,
       note,
       translations,
       store,
@@ -195,6 +235,7 @@ export default {
       updateNote,
       closeSearch,
       disallowedEnter,
+      autoScroll,
     };
   },
 };
