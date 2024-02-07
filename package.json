@@ -24,7 +24,8 @@
     "test": "node tests/app.spec.js",
     "watch": "node scripts/watch.js",
     "lint": "eslint . --ext js,ts,vue",
-    "postinstall": "electron-builder install-app-deps"
+    "postinstall": "electron-builder install-app-deps",
+    "trans": "node scripts/transDiff.js"
   },
   "browserslist": [
     "Chrome 91"
