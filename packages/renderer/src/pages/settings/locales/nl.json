@@ -66,7 +66,17 @@
     "strikethrough": "Doorgestreept",
     "highlight": "Markeren",
     "inlinecode": "Code regel",
-    "delete": "Verwijder huidige notitie"
+    "delete": "Verwijder huidige notitie",
+    "tableOptions": "Tabel opties",
+    "tableInsert": "Voeg tabel in",
+    "addRowAbove": "Rij erboven invoegen",
+    "addRowBelow": "Rij eronder invoegen",
+    "addColumnLeft": "Kolom links invoegen",
+    "addColumnRight": "Kolom rechts invoegen",
+    "deleteRow": "Rij verwijderen",
+    "deleteColumn": "Kolom verwijderen",
+    "toggleHeader": "Koptekstcel in-/uitschakelen",
+    "deleteTable": "Tabel verwijderen"
   },
   "card": {
     "unarchived": "Niet gearchiveerd",
@@ -164,7 +174,8 @@
     "default": "Standaard",
     "morespace": "Meer ruimte",
     "aboutDataEncryption": "Over data encryption",
-    "encryptionMessage": "Beaver notes gebruikt AES-128 doormiddel van crypto-es"
+    "encryptionMessage": "Beaver notes gebruikt AES-128 doormiddel van crypto-es",
+    "advancedSettings": "Geadvanceerde instellingen"
   },
   "_idvue": {
     "Previousnote":"Vorige notitie",
