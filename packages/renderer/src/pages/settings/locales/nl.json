@@ -1,5 +1,5 @@
 {
-"index": {
+  "index": {
     "newnote": "Om een nieuwe notitie te maken, druk Ctrl + N, Cmd + N of klik de + knop links boven",
     "archived": "gearchiveerd",
     "bookmarked": "Bookmarked",
@@ -15,7 +15,7 @@
     "replaceall": "Vervang alles",
     "clear": "Legen",
     "useRegex": "Gebruik regex (Alt+R)",
-    "searchplaceholder": "Zoeken..." ,
+    "searchplaceholder": "Zoeken...",
     "replaceplaceholder": "Vervangen..."
   },
   "tiptap": {
@@ -66,7 +66,17 @@
     "strikethrough": "Doorgestreept",
     "highlight": "Markeren",
     "inlinecode": "Code regel",
-    "delete": "Verwijder huidige notitie"
+    "delete": "Verwijder huidige notitie",
+    "tableOptions": "Table options",
+    "tableInsert": "Insert table",
+    "addRowAbove": "Add row above",
+    "addRowBelow": "Add row below",
+    "addColumnLeft": "Add column left",
+    "addColumnRight": "Add column right",
+    "deleteRow": "Delete row",
+    "deleteColumn": "Delete column",
+    "toggleHeader": "Toggle header cell",
+    "deleteTable": "Delete table"
   },
   "card": {
     "unarchived": "Niet gearchiveerd",
@@ -153,8 +163,8 @@
     "Invalidpassword": "ongeldig wachtwoord",
     "relaunch": "De applicatie moet opnieuw opgestart om de veranderingen door te voeren",
     "relaunchbutton": "Herstarten",
-    "exportmessage" : "Notities zijn geëxporteerd naar",
-    "importsuccess" : "Data succesvol geïmporteerd",
+    "exportmessage": "Notities zijn geëxporteerd naar",
+    "importsuccess": "Data succesvol geïmporteerd",
     "invaliddata": "Ongeldige data",
     "syncreminder": "laat de synchronizeer herindering niet meer zien",
     "spellcheck": "Spellings check",
@@ -168,8 +178,8 @@
     "advancedSettings": "Geavanceerde instellingen"
   },
   "_idvue": {
-    "Previousnote":"Vorige notitie",
-    "untitlednote":"lege notitie"
+    "Previousnote": "Vorige notitie",
+    "untitlednote": "lege notitie"
   },
   "sidebar": {
     "Notes": "notities",
@@ -182,6 +192,6 @@
   },
   "commandprompt": {
     "placeholder": "bestand zoeken of typ '>' om opdrachten te zoeken",
-    "unititlednote": "lege notitie"
+    "untitlednote": "lege notitie"
   }
 }

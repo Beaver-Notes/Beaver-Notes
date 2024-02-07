@@ -8,14 +8,14 @@
     "syncmessage": "Hallo, bevor du mit dem Erstellen von Notizen beginnst, importiere bitte deine bestehenden Notizen und exportiere sie, wenn du fertig bist, um sicherzustellen, dass sie auf allen deinen Geräten synchronisiert sind. Viel Spaß mit deinen Notizen!",
     "hide": "Nicht wieder anzeigen",
     "close": "Schließen"
-},
+  },
   "search": {
     "find": "Suchen",
     "replace": "Ersetzen",
     "replaceall": "Alle Ersetzen",
     "clear": "Löschen",
     "useRegex": "Reguläre Ausdrücke verwenden (Alt+R)",
-    "searchplaceholder": "Suchen..." ,
+    "searchplaceholder": "Suchen...",
     "replaceplaceholder": "Ersetzen..."
   },
   "tiptap": {
@@ -163,8 +163,8 @@
     "Invalidpassword": "Ungültiges Passwort",
     "relaunch": "Die App muss neu gestartet werden, damit diese Änderung wirksam wird.",
     "relaunchbutton": "Neustart",
-    "exportmessage" : "Die Notizen werden exportiert in",
-    "importsuccess" : "Daten erfolgreich importiert",
+    "exportmessage": "Die Notizen werden exportiert in",
+    "importsuccess": "Daten erfolgreich importiert",
     "invaliddata": "Ungültige Daten",
     "syncreminder": "Verstecke Synchronisationserinnerung",
     "spellcheck": "Rechtschreibprüfung",
@@ -178,8 +178,8 @@
     "advancedSettings": "Erweiterte Einstellungen"
   },
   "_idvue": {
-    "Previousnote":"Vorherige Notizen",
-    "untitlednote":"Unbenannte Notiz"
+    "Previousnote": "Vorherige Notizen",
+    "untitlednote": "Unbenannte Notiz"
   },
   "sidebar": {
     "Notes": "Notizen",
