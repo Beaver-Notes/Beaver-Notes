@@ -15,7 +15,7 @@
     "replaceall": "Vervang alles",
     "clear": "Legen",
     "useRegex": "Gebruik regex (Alt+R)",
-    "searchplaceholder": "Zoeken...",
+    "searchplaceholder": "Zoeken..." ,
     "replaceplaceholder": "Vervangen..."
   },
   "tiptap": {
@@ -67,16 +67,16 @@
     "highlight": "Markeren",
     "inlinecode": "Code regel",
     "delete": "Verwijder huidige notitie",
-    "tableOptions": "Table options",
-    "tableInsert": "Insert table",
-    "addRowAbove": "Add row above",
-    "addRowBelow": "Add row below",
-    "addColumnLeft": "Add column left",
-    "addColumnRight": "Add column right",
-    "deleteRow": "Delete row",
-    "deleteColumn": "Delete column",
-    "toggleHeader": "Toggle header cell",
-    "deleteTable": "Delete table"
+    "tableOptions": "Tabel opties",
+    "tableInsert": "Voeg tabel in",
+    "addRowAbove": "Rij erboven invoegen",
+    "addRowBelow": "Rij eronder invoegen",
+    "addColumnLeft": "Kolom links invoegen",
+    "addColumnRight": "Kolom rechts invoegen",
+    "deleteRow": "Rij verwijderen",
+    "deleteColumn": "Kolom verwijderen",
+    "toggleHeader": "Koptekstcel in-/uitschakelen",
+    "deleteTable": "Tabel verwijderen"
   },
   "card": {
     "unarchived": "Niet gearchiveerd",
@@ -163,8 +163,8 @@
     "Invalidpassword": "ongeldig wachtwoord",
     "relaunch": "De applicatie moet opnieuw opgestart om de veranderingen door te voeren",
     "relaunchbutton": "Herstarten",
-    "exportmessage": "Notities zijn geëxporteerd naar",
-    "importsuccess": "Data succesvol geïmporteerd",
+    "exportmessage" : "Notities zijn geëxporteerd naar",
+    "importsuccess" : "Data succesvol geïmporteerd",
     "invaliddata": "Ongeldige data",
     "syncreminder": "laat de synchronizeer herindering niet meer zien",
     "spellcheck": "Spellings check",
@@ -175,11 +175,11 @@
     "morespace": "Meer ruimte",
     "aboutDataEncryption": "Over data encryption",
     "encryptionMessage": "Beaver notes gebruikt AES-128 doormiddel van crypto-es",
-    "advancedSettings": "Geavanceerde instellingen"
+    "advancedSettings": "Geadvanceerde instellingen"
   },
   "_idvue": {
-    "Previousnote": "Vorige notitie",
-    "untitlednote": "lege notitie"
+    "Previousnote":"Vorige notitie",
+    "unititlednote":"lege notitie"
   },
   "sidebar": {
     "Notes": "notities",
@@ -192,6 +192,6 @@
   },
   "commandprompt": {
     "placeholder": "bestand zoeken of typ '>' om opdrachten te zoeken",
-    "untitlednote": "lege notitie"
+    "unititlednote": "lege notitie"
   }
 }
