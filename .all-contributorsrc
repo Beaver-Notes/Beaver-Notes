@@ -37,6 +37,16 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "mee141",
+      "name": "mee_",
+      "avatar_url": "https://avatars.githubusercontent.com/u/93583530?v=4",
+      "profile": "https://github.com/mee141",
+      "contributions": [
+        "translation",
+        "maintenance"
+      ]
     }
   ],
   "contributorsPerLine": 7,

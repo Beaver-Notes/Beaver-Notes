@@ -179,7 +179,7 @@
   },
   "_idvue": {
     "Previousnote":"Vorige notitie",
-    "unititlednote":"lege notitie"
+    "untitlednote":"lege notitie"
   },
   "sidebar": {
     "Notes": "notities",
@@ -192,6 +192,6 @@
   },
   "commandprompt": {
     "placeholder": "bestand zoeken of typ '>' om opdrachten te zoeken",
-    "unititlednote": "lege notitie"
+    "untitlednote": "lege notitie"
   }
 }

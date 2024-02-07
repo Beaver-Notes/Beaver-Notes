@@ -583,6 +583,7 @@ export default {
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
         { code: 'zh', name: '简体中文', translations: zhTranslations },
+        { code: 'nl', name: 'Nederlands', translations: nlTranslations },
       ],
     };
   },
