@@ -41,7 +41,8 @@
   </ui-card>
 </template>
 <script>
-import { shallowReactive, computed, watch, onMounted } from 'vue';
+import { shallowReactive, computed, watch, onMounted, ref } from 'vue';
+import { useDialog } from '../../composable/dialog';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
@@ -83,14 +84,63 @@ export default {
         state.selectedIndex = (state.selectedIndex + 1) % items.value.length;
       }
     }
-    function selectItem(item, isItem) {
+    const dialog = useDialog();
+    const isLocked = ref(false);
+    const userPassword = ref('');
+    async function unlockCard(note) {
+      const sharedKey = localStorage.getItem('sharedKey');
+      const lockedNotes = JSON.parse(localStorage.getItem('lockedNotes')) || {};
+
+      if (!sharedKey) {
+        alert(translations.card.nokey);
+      } else {
+        dialog.prompt({
+          title: translations.card.enterpasswd,
+          okText: translations.card.Unlock,
+          cancelText: translations.card.Cancel,
+          placeholder: translations.card.Password,
+          onConfirm: async (enteredPassword) => {
+            const encoder = new TextEncoder();
+            const enteredPasswordBuffer = encoder.encode(enteredPassword);
+
+            crypto.subtle
+              .digest('SHA-256', enteredPasswordBuffer)
+              .then((hash) => {
+                const hashArray = Array.from(new Uint8Array(hash));
+                const hashHex = hashArray
+                  .map((byte) => byte.toString(16).padStart(2, '0'))
+                  .join('');
+
+                if (hashHex === sharedKey) {
+                  console.log(translations.card.Passwordcorrect);
+                  isLocked.value = false;
+                  userPassword.value = '';
+                  noteStore.unlockNote(note);
+                  lockedNotes[note] = false;
+
+                  // Navigate to the note route after unlocking the note
+                  router.push(`/note/${note}`);
+                } else {
+                  console.log(translations.card.Passwordcorrect);
+                  alert(translations.card.wrongpasswd);
+                }
+              });
+          },
+        });
+      }
+    }
+
+    async function selectItem(item, isItem) {
       let selectedItem = items.value[state.selectedIndex];
 
       if (isItem) selectedItem = item;
 
-      if (selectedItem.handler) {
-        selectedItem.handler();
+      // Check if the selected note is locked
+      if (selectedItem.isLocked) {
+        // Prompt for password to unlock the note
+        await unlockCard(selectedItem.id);
       } else {
+        // Open the note if it's not locked
         selectedItem.id && router.push(`/note/${selectedItem.id}`);
       }
 
