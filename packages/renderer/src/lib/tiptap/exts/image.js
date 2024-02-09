@@ -14,66 +14,65 @@ async function insertImages(files, callback) {
     if (!isImage) {
       continue;
     }
-    const noteId = store.activeNoteId;
-    const name = file.name; // Assuming you want to use the file name
-    if (file.path) {
-      const { fileName } = await copyImage(file.path, noteId);
 
+    const noteId = store.activeNoteId;
+    const name = file.name;
+    const currentDate = new Date();
+    const timestamp = currentDate.getTime(); // Get timestamp in milliseconds
+
+    if (file.path) {
+      const { fileName } = await copyImage(file.path, noteId, timestamp);
+      // Append timestamp to the filename
       callback(`assets://${noteId}/${fileName}`, name);
     } else {
-      const { fileName } = await writeImageFile(file, noteId);
-
+      const { fileName } = await writeImageFile(file, noteId, timestamp);
       callback(`assets://${noteId}/${fileName}`, name);
     }
   }
 }
 
+const handleImagePaste = new Plugin({
+  key: new PluginKey('handlePasteLink'),
+  props: {
+    handleDOMEvents: {
+      paste: async (view, event) => {
+        const files = (event.clipboardData || event.originalEvent.clipboardData)
+          .files;
+
+        insertImages(files, (src, alt) => {
+          if (view.state.selection.$cursor) {
+            const transaction = view.state.tr.replaceSelectionWith(
+              view.state.schema.nodes.image.create({ src, alt })
+            );
+            view.dispatch(transaction);
+          }
+        });
+      },
+    },
+
+    handleDrop: (view, event) => {
+      insertImages(event.dataTransfer.files, (src, alt) => {
+        const { schema } = view.state;
+        const coordinates = view.posAtCoords({
+          left: event.clientX,
+          top: event.clientY,
+        });
+        const node = schema.nodes.image.create({
+          alt,
+          src,
+        });
+        const transaction = view.state.tr.insert(coordinates.pos, node);
+
+        view.dispatch(transaction);
+      });
+
+      return true;
+    },
+  },
+});
+
 export default Image.extend({
   addProseMirrorPlugins() {
-    const handleImagePaste = new Plugin({
-      key: new PluginKey('handlePasteLink'),
-      props: {
-        handleDOMEvents: {
-          paste: async (view, event) => {
-            const files = (
-              event.clipboardData || event.originalEvent.clipboardData
-            ).files;
-            insertImages(files, (src, alt) => {
-              if (this.editor.isActive('image')) {
-                this.editor.commands.setTextSelection(
-                  view.state.tr.curSelection.to + 1
-                );
-              }
-
-              this.editor.commands.setImage({
-                alt,
-                src,
-              });
-            });
-          },
-        },
-
-        handleDrop: (view, event) => {
-          insertImages(event.dataTransfer.files, (src, alt) => {
-            const { schema } = view.state;
-            const coordinates = view.posAtCoords({
-              left: event.clientX,
-              top: event.clientY,
-            });
-            const node = schema.nodes.image.create({
-              alt,
-              src,
-            });
-            const transaction = view.state.tr.insert(coordinates.pos, node);
-
-            view.dispatch(transaction);
-          });
-
-          return true;
-        },
-      },
-    });
-
     return [handleImagePaste];
   },
 });
