@@ -30,17 +30,16 @@
       class="text-gray-600 block dark:text-gray-100 flex-1 overflow-none"
       style="min-height: 64px"
     >
-      <!-- Show different content for locked and unlocked notes -->
       {{
         note.isLocked
-          ? 'Note is locked'
+          ? translations.card.unlocktoedit
           : truncateText(note.content, 160) || translations.card.content
       }}
     </router-link>
     <button
       v-if="note.isLocked"
       class="hover:text-gray-600 dark:text-white h-full mr-2 transition"
-      @click="unlockCard(note.id)"
+      @click="unlockNote(note.id)"
     >
       <v-remixicon
         class="w-24 h-auto text-gray-600 dark:text-white"
@@ -90,7 +89,7 @@
       </button>
       <button
         v-if="note.isLocked"
-        v-tooltip.group="translations.card.lock"
+        v-tooltip.group="translations.card.unlock"
         class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
@@ -137,55 +136,66 @@ defineProps({
 });
 defineEmits(['update', 'delete', 'update:label']);
 
-const isLocked = ref(false);
 const dialog = useDialog();
 const userPassword = ref('');
-const noteStore = useNoteStore();
 
 useGroupTooltip();
 
 async function lockNote(note) {
   const passwordStore = usePasswordStore(); // Get the password store instance
+  const noteStore = useNoteStore(); // Get the note store instance
 
-  const hasPasswordHashes = await passwordStore.retrieve(); // Retrieve password hashes
+  try {
+    const hasPasswordHashes = await passwordStore.retrieve(); // Retrieve password hashes
 
-  if (hasPasswordHashes.length === 0) {
-    dialog.prompt({
-      title: translations.card.setupkey,
-      okText: translations.card.setkey,
-      cancelText: translations.card.Cancel,
-      placeholder: translations.card.NewKey,
-      onConfirm: async (newKey) => {
-        if (newKey) {
-          try {
-            // Add the password hash to the store
-            await passwordStore.add(newKey);
-            // Lock the note
-            noteStore.lockNote(note);
-            isLocked.value = true;
-            console.log(`Note (ID: ${note}) is locked`);
-          } catch (error) {
-            console.error('Error setting up key:', error);
+    if (hasPasswordHashes.length === 0) {
+      dialog.prompt({
+        title: translations.card.enterpasswd,
+        okText: translations.card.lock,
+        cancelText: translations.card.Cancel,
+        placeholder: translations.card.Password,
+        onConfirm: async (newKey) => {
+          if (newKey) {
+            try {
+              // Add the password hash to the store
+              await passwordStore.add(newKey);
+              // Lock the note
+              await noteStore.lockNote(note, newKey); // Pass the new key to lockNote
+              console.log(`Note (ID: ${note}) is locked`);
+            } catch (error) {
+              console.error('Error setting up key:', error);
+              alert(translations.card.keyfail);
+            }
+          } else {
             alert(translations.card.keyfail);
           }
-        } else {
-          alert(translations.card.keyfail);
-        }
-      },
-    });
-  } else {
-    // If password hashes are already stored, proceed with locking the note
-    noteStore.lockNote(note);
-    isLocked.value = true;
-    console.log(`Note (ID: ${note}) is locked`);
+        },
+      });
+    } else {
+      // If password hashes are already stored, proceed with locking the note
+      dialog.prompt({
+        title: translations.card.enterpasswd,
+        okText: translations.card.lock,
+        cancelText: translations.card.Cancel,
+        placeholder: translations.card.Password,
+        onConfirm: async (enteredPassword) => {
+          await noteStore.lockNote(note, enteredPassword);
+          console.log(`Note (ID: ${note}) is locked`);
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error locking note:', error);
   }
 }
 
 async function unlockNote(note) {
   const passwordStore = usePasswordStore();
+  const noteStore = useNoteStore();
+
   dialog.prompt({
     title: translations.card.enterpasswd,
-    okText: translations.card.Unlock,
+    okText: translations.card.unlock,
     cancelText: translations.card.Cancel,
     placeholder: translations.card.Password,
     onConfirm: async (enteredPassword) => {
@@ -196,9 +206,8 @@ async function unlockNote(note) {
         if (isValidPassword) {
           console.log(translations.card.Passwordcorrect);
           // Note unlocked
-          isLocked.value = false;
           userPassword.value = '';
-          noteStore.unlockNote(note);
+          await noteStore.unlockNote(note, enteredPassword); // Pass entered password to unlockNote
           console.log(`Note (ID: ${note}) is unlocked`);
         } else {
           console.log(translations.card.Passwordcorrect);
@@ -211,67 +220,6 @@ async function unlockNote(note) {
     },
   });
 }
-
-async function unlockCard(note) {
-  const passwordStore = usePasswordStore(); // Get the password store instance
-
-  const hasPasswordHashes = await passwordStore.retrieve(); // Retrieve password hashes
-
-  if (hasPasswordHashes.length === 0) {
-    // If no password hashes are stored, alert the user
-    alert(translations.card.nokey);
-  } else {
-    // Prompt the user to enter the password
-    dialog.prompt({
-      title: translations.card.enterpasswd,
-      okText: translations.card.Unlock,
-      cancelText: translations.card.Cancel,
-      placeholder: translations.card.Password,
-      onConfirm: async (enteredPassword) => {
-        try {
-          // Check if the entered password is valid
-          const isValidPassword = await passwordStore.isValidPassword(
-            enteredPassword
-          );
-          if (isValidPassword) {
-            console.log(translations.card.Passwordcorrect);
-            // Note unlocked
-            isLocked.value = false;
-            userPassword.value = '';
-            noteStore.unlockNote(note);
-            console.log(`Note (ID: ${note}) is unlocked`);
-          } else {
-            console.log(translations.card.Passwordcorrect);
-            alert(translations.card.wrongpasswd);
-          }
-        } catch (error) {
-          console.error('Error unlocking note:', error);
-          alert(translations.card.wrongpasswd);
-        }
-      },
-    });
-  }
-}
-
-function checkLockedNotes() {
-  const lockedNotes = JSON.parse(localStorage.getItem('lockedNotes')) || {};
-
-  // Iterate through the keys in the local storage
-  for (const noteId in lockedNotes) {
-    if (noteId === 'undefined') {
-      // Skip the 'undefined' key
-      continue;
-    }
-
-    const isLocked = lockedNotes[noteId];
-    if (isLocked) {
-      noteStore.lockNote(noteId);
-    }
-  }
-}
-
-// Call the function to check and output locked notes
-checkLockedNotes();
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
 

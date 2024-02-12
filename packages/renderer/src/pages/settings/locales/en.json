@@ -87,7 +87,7 @@
     "delete": "Delete",
     "content": "No content",
     "lock": "Lock",
-    "Unlock": "Unlock",
+    "unlock": "Unlock",
     "islocked": "This note is locked",
     "unlocktoedit": "Unlock to edit",
     "setupkey": "Set Up a New Shared Key",

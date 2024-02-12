@@ -87,7 +87,7 @@
     "delete": "删除",
     "content": "无内容",
     "lock": "锁定",
-    "Unlock": "解锁",
+    "unlock": "解锁",
     "islocked": "此笔记已被锁定",
     "unlocktoedit": "解锁后编辑",
     "setupkey": "设置新的共享密钥",

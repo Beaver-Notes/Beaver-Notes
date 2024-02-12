@@ -87,7 +87,7 @@
     "delete": "Elimina",
     "content": "Nessun contenuto",
     "lock": "Blocca",
-    "Unlock": "Sblocca",
+    "unlock": "Sblocca",
     "islocked": "Questa nota è bloccata",
     "unlocktoedit": "Sblocca per modificare",
     "setupkey": "Imposta una nuova chiave condivisa",

@@ -87,7 +87,7 @@
     "delete": "Verwijder",
     "content": "Geen inhoud",
     "lock": "Vergrendel",
-    "Unlock": "Ontgrendel",
+    "unlock": "Ontgrendel",
     "islocked": "Deze notitie is vergrendeld",
     "unlocktoedit": "Ontgrendel om aan te passen",
     "setupkey": "Een nieuw gedeeld sleutel instellen",

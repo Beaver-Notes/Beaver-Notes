@@ -87,7 +87,7 @@
     "delete": "Löschen",
     "content": "Kein Inhalt",
     "lock": "Sperren",
-    "Unlock": "Entsperren",
+    "unlock": "Entsperren",
     "islocked": "Notiz ist gesperrt",
     "unlocktoedit": "Entsperren zum Bearbeiten",
     "setupkey": "Richten Sie einen neuen gemeinsamen Schlüssel ein",
