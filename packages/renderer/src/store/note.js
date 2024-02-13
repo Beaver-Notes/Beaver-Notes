@@ -153,6 +153,31 @@ export const useNoteStore = defineStore('note', {
       }
 
       try {
+        const note = this.data[id];
+        if (!note) {
+          console.error('Note not found.');
+          return;
+        }
+
+        // Check if content is encrypted
+        const isEncrypted =
+          typeof note.content.content[0] === 'string' &&
+          note.content.content[0].trim().length > 0;
+
+        if (!isEncrypted) {
+          // Content is not encrypted, update isLocked flag and return
+          this.data[id].isLocked = false;
+          this.isLocked[id] = false;
+          await storage.set(`notes.${id}`, this.data[id]);
+          this.lockStatus[id] = 'unlocked';
+          await Promise.all([
+            storage.set('lockStatus', this.lockStatus),
+            storage.set('isLocked', this.isLocked),
+          ]);
+          return;
+        }
+
+        // Content is encrypted, proceed with decryption
         const decryptedBytes = AES.decrypt(
           this.data[id].content.content[0],
           password
@@ -164,7 +189,6 @@ export const useNoteStore = defineStore('note', {
         this.isLocked[id] = false;
         await storage.set(`notes.${id}`, this.data[id]);
         this.lockStatus[id] = 'unlocked';
-        this.isLocked[id] = false;
         await Promise.all([
           storage.set('lockStatus', this.lockStatus),
           storage.set('isLocked', this.isLocked),
