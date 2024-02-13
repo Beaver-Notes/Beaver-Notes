@@ -153,13 +153,6 @@ export const useNoteStore = defineStore('note', {
       }
 
       try {
-        if (this.data[id].isLocked && !this.data[id].content.encrypted) {
-          console.log("This note wasn't locked properly.");
-          this.data[id].isLocked = false;
-          await storage.set(`notes.${id}`, this.data[id]);
-          return;
-        }
-
         const decryptedBytes = AES.decrypt(
           this.data[id].content.content[0],
           password
@@ -168,10 +161,13 @@ export const useNoteStore = defineStore('note', {
 
         this.data[id].content = JSON.parse(decryptedContent);
         this.data[id].isLocked = false;
+        this.isLocked[id] = false;
+        await storage.set(`notes.${id}`, this.data[id]);
         this.lockStatus[id] = 'unlocked';
+        this.isLocked[id] = false;
         await Promise.all([
-          storage.set(`notes.${id}`, this.data[id]),
           storage.set('lockStatus', this.lockStatus),
+          storage.set('isLocked', this.isLocked),
         ]);
       } catch (error) {
         console.error('Error unlocking note:', error);
