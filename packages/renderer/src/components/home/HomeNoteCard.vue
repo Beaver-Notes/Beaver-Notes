@@ -121,7 +121,7 @@ import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { onMounted, shallowReactive, ref } from 'vue';
+import { onMounted, shallowReactive } from 'vue';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
@@ -137,7 +137,6 @@ defineProps({
 defineEmits(['update', 'delete', 'update:label']);
 
 const dialog = useDialog();
-const userPassword = ref('');
 
 useGroupTooltip();
 
@@ -146,21 +145,22 @@ async function lockNote(note) {
   const noteStore = useNoteStore(); // Get the note store instance
 
   try {
-    const hasPasswordHashes = await passwordStore.retrieve(); // Retrieve password hashes
+    const hassharedKey = await passwordStore.retrieve(); // Retrieve the global password
 
-    if (hasPasswordHashes.length === 0) {
+    if (!hassharedKey) {
+      // If there's no global password set, prompt the user to set it
       dialog.prompt({
         title: translations.card.enterpasswd,
-        okText: translations.card.lock,
+        okText: translations.card.setkey,
         cancelText: translations.card.Cancel,
         placeholder: translations.card.Password,
         onConfirm: async (newKey) => {
           if (newKey) {
             try {
-              // Add the password hash to the store
-              await passwordStore.add(newKey);
-              // Lock the note
-              await noteStore.lockNote(note, newKey); // Pass the new key to lockNote
+              // Set the global password
+              await passwordStore.setsharedKey(newKey);
+              // Lock the note using the global password
+              await noteStore.lockNote(note, newKey);
               console.log(`Note (ID: ${note}) is locked`);
             } catch (error) {
               console.error('Error setting up key:', error);
@@ -172,15 +172,25 @@ async function lockNote(note) {
         },
       });
     } else {
-      // If password hashes are already stored, proceed with locking the note
+      // If the global password is set, prompt the user to enter it to lock the note
       dialog.prompt({
         title: translations.card.enterpasswd,
         okText: translations.card.lock,
         cancelText: translations.card.Cancel,
         placeholder: translations.card.Password,
         onConfirm: async (enteredPassword) => {
-          await noteStore.lockNote(note, enteredPassword);
-          console.log(`Note (ID: ${note}) is locked`);
+          // Validate the entered password against the stored global password
+          const isValidPassword = await passwordStore.isValidPassword(
+            enteredPassword
+          );
+          if (isValidPassword) {
+            // If the entered password matches the stored one, lock the note
+            await noteStore.lockNote(note, enteredPassword);
+            console.log(`Note (ID: ${note}) is locked`);
+          } else {
+            // If the entered password does not match, show an error message
+            alert(translations.card.wrongpasswd);
+          }
         },
       });
     }
@@ -200,17 +210,16 @@ async function unlockNote(note) {
     placeholder: translations.card.Password,
     onConfirm: async (enteredPassword) => {
       try {
+        // Validate the entered password against the global password
         const isValidPassword = await passwordStore.isValidPassword(
           enteredPassword
         );
         if (isValidPassword) {
           console.log(translations.card.Passwordcorrect);
-          // Note unlocked
-          userPassword.value = '';
+          // Note unlocked using the global password
           await noteStore.unlockNote(note, enteredPassword);
           console.log(`Note (ID: ${note}) is unlocked`);
         } else {
-          console.log(translations.card.Passwordcorrect);
           alert(translations.card.wrongpasswd);
         }
       } catch (error) {

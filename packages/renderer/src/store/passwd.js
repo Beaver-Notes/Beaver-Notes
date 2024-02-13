@@ -1,57 +1,37 @@
 import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage';
-import bcrypt from 'bcryptjs'; // Import bcrypt library
+import bcrypt from 'bcryptjs';
 
 const storage = useStorage();
 
 export const usePasswordStore = defineStore('password', {
   state: () => ({
-    hashedPasswords: [],
+    sharedKey: '', // Store the global password
   }),
   actions: {
     async retrieve() {
       try {
-        this.hashedPasswords = await storage.get('hashedPasswords', []);
-        return this.hashedPasswords;
+        const storedPassword = await storage.get('sharedKey', '');
+        this.sharedKey = storedPassword;
+        return this.sharedKey;
       } catch (error) {
-        console.error('Error retrieving hashed passwords:', error);
-        return [];
+        console.error('Error retrieving global password:', error);
+        return '';
       }
     },
-    async add(password) {
+    async setsharedKey(password) {
       try {
-        const saltRounds = 10; // Number of salt rounds
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-        this.hashedPasswords.push(hashedPassword);
-        await storage.set('hashedPasswords', this.hashedPasswords);
-        return hashedPassword;
+        const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
+        this.sharedKey = hashedPassword;
+        await storage.set('sharedKey', hashedPassword); // Store the hashed password
       } catch (error) {
-        console.error('Error hashing password:', error);
-        throw error;
-      }
-    },
-    async delete(password) {
-      try {
-        const index = this.hashedPasswords.indexOf(password);
-        if (index !== -1) {
-          this.hashedPasswords.splice(index, 1);
-          await storage.set('hashedPasswords', this.hashedPasswords);
-          return password;
-        }
-        return null;
-      } catch (error) {
-        console.error('Error deleting password:', error);
+        console.error('Error setting global password:', error);
         throw error;
       }
     },
     async isValidPassword(enteredPassword) {
       try {
-        for (const hashedPassword of this.hashedPasswords) {
-          if (await bcrypt.compare(enteredPassword, hashedPassword)) {
-            return true;
-          }
-        }
-        return false;
+        return await bcrypt.compare(enteredPassword, this.sharedKey); // Compare with hashed global password
       } catch (error) {
         console.error('Error validating password:', error);
         throw error;
