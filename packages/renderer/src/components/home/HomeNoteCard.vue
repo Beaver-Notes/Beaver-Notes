@@ -152,6 +152,7 @@ async function lockNote(note) {
       dialog.prompt({
         title: translations.card.enterpasswd,
         okText: translations.card.setkey,
+        body: translations.settings.warning,
         cancelText: translations.card.Cancel,
         placeholder: translations.card.Password,
         onConfirm: async (newKey) => {
@@ -256,12 +257,13 @@ const translations = shallowReactive({
     setkey: 'card.setkey',
     Cancel: 'card.Cancel',
     NewKey: 'card.NewKey',
-    keyfail: 'card.keyfail',
     nokey: 'card.nokey',
     enteredPassword: 'card.enteredPassword',
     Password: 'card.Password',
     wrongpasswd: 'card.wrongpasswd',
     Passwordcorrect: 'card.passwordcorrect',
+    warning: 'card.warning',
+    keyfail: 'card.keyfail',
   },
 });
 

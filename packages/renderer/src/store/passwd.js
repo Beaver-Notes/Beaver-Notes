@@ -37,5 +37,28 @@ export const usePasswordStore = defineStore('password', {
         throw error;
       }
     },
+    async resetPassword(currentPassword, newPassword) {
+      try {
+        // Check if the current password matches the stored one
+        const isCurrentPasswordValid = await this.isValidPassword(
+          currentPassword
+        );
+        if (!isCurrentPasswordValid) {
+          throw new Error('Current password is incorrect');
+        }
+
+        // Hash the new password
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update the sharedKey with the new hashed password
+        this.sharedKey = hashedNewPassword;
+        await storage.set('sharedKey', hashedNewPassword);
+
+        return true; // Password reset successful
+      } catch (error) {
+        console.error('Error resetting password:', error);
+        throw error;
+      }
+    },
   },
 });

@@ -133,6 +133,7 @@
       </div>
     </section>
     <section>
+      <p class="mb-2">{{ translations.settings.utilities || '-' }}</p>
       <label class="flex items-center space-x-2">
         <input
           v-model="disableAppReminder"
@@ -144,20 +145,16 @@
           {{ translations.settings.syncreminder || '-' }}
         </span>
       </label>
-    </section>
-    <section>
       <label>
         <input
           v-model="spellcheckEnabled"
           type="checkbox"
           @change="toggleSpellcheck"
         />
-        <span class="inline-block ml-2 align-middle">
+        <span class="inline-block ml-2 py-2 align-middle">
           {{ translations.settings.spellcheck || '-' }}
         </span>
       </label>
-    </section>
-    <section>
       <label class="flex items-center space-x-2">
         <input
           v-model="advancedSettings"
@@ -169,6 +166,12 @@
           {{ translations.settings.advancedSettings || '-' }}
         </span>
       </label>
+    </section>
+    <section>
+      <p class="mb-2">{{ translations.settings.security || '-' }}</p>
+      <ui-button class="w-full" @click="resetPasswordDialog">{{
+        translations.settings.resetPassword
+      }}</ui-button>
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
@@ -240,6 +243,7 @@ import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
+import { usePasswordStore } from '@/store/passwd';
 import '../../assets/css/passwd.css';
 const enTranslations = import('../../pages/settings/locales/en.json');
 const itTranslations = import('../../pages/settings/locales/it.json');
@@ -490,6 +494,52 @@ export default {
       'mod+shift+e': exportData,
     };
 
+    async function resetPasswordDialog() {
+      const passwordStore = usePasswordStore(); // Get the password store instance
+
+      dialog.prompt({
+        title: translations.settings.resetPasswordTitle,
+        okText: translations.settings.next,
+        cancelText: translations.settings.Cancel,
+        placeholder: translations.settings.password,
+        onConfirm: async (currentPassword) => {
+          if (currentPassword) {
+            const isCurrentPasswordValid = await passwordStore.isValidPassword(
+              currentPassword
+            );
+            if (isCurrentPasswordValid) {
+              dialog.prompt({
+                title: translations.settings.enterNewPassword,
+                okText: translations.settings.resetPassword,
+                body: translations.settings.warning,
+                cancelText: translations.settings.Cancel,
+                placeholder: translations.settings.newPassword,
+                onConfirm: async (newPassword) => {
+                  if (newPassword) {
+                    try {
+                      // Reset the password
+                      await passwordStore.setsharedKey(newPassword);
+                      console.log('Password reset successful');
+                      alert(translations.settings.passwordResetSuccess);
+                    } catch (error) {
+                      console.error('Error resetting password:', error);
+                      alert(translations.settings.passwordResetError);
+                    }
+                  } else {
+                    alert(translations.settings.invalidPassword);
+                  }
+                },
+              });
+            } else {
+              alert(translations.settings.wrongCurrentPassword);
+            }
+          } else {
+            alert(translations.settings.invalidPassword);
+          }
+        },
+      });
+    }
+
     // Translations
     const translations = shallowReactive({
       settings: {
@@ -527,6 +577,14 @@ export default {
         morespace: 'settings.morespace',
         aboutDataEncryption: 'settings.aboutDataEncryption',
         encryptionMessage: 'settings.encryptionMessage',
+        resetPasswordTitle: 'settings.resetPasswordTitle',
+        next: 'settings.next',
+        enterNewPassword: 'settings.enterNewPassword',
+        resetPassword: 'settings.resetPassword',
+        newPassword: 'settings.newPassword',
+        security: 'settings.security',
+        utilities: 'settings.utilities',
+        wrongCurrentPassword: 'settings.wrongCurrentPassword',
       },
     });
 
@@ -563,6 +621,7 @@ export default {
       translations,
       exportData,
       importData,
+      resetPasswordDialog,
       changeDataDir,
       chooseDefaultPath,
       defaultPath,
