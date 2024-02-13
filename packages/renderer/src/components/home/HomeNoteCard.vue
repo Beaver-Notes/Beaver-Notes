@@ -207,7 +207,7 @@ async function unlockNote(note) {
           console.log(translations.card.Passwordcorrect);
           // Note unlocked
           userPassword.value = '';
-          await noteStore.unlockNote(note, enteredPassword); // Pass entered password to unlockNote
+          await noteStore.unlockNote(note, enteredPassword);
           console.log(`Note (ID: ${note}) is unlocked`);
         } else {
           console.log(translations.card.Passwordcorrect);
