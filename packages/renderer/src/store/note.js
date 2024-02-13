@@ -10,7 +10,7 @@ export const useNoteStore = defineStore('note', {
   state: () => ({
     data: {},
     lockStatus: {},
-    isLocked: {}, // Add a new property for isLocked
+    isLocked: {},
   }),
   getters: {
     notes: (state) => Object.values(state.data).filter(({ id }) => id),
@@ -19,36 +19,26 @@ export const useNoteStore = defineStore('note', {
   actions: {
     retrieve() {
       return new Promise((resolve) => {
-        // Try to load data from Pinia store
         const piniaData = this.data;
         const piniaLockStatus = this.lockStatus;
 
-        // Try to load data from local storage
         storage.get('notes', {}).then((localStorageData) => {
-          // Merge data from Pinia and local storage, giving priority to local storage
           this.data = { ...piniaData, ...localStorageData };
 
-          // Load lock status data from local storage
           storage.get('lockStatus', {}).then((lockStatusData) => {
-            // Update the lock status data in Pinia from local storage
             this.lockStatus = { ...piniaLockStatus, ...lockStatusData };
 
-            // Ensure that the lock status for each note is correctly initialized
             for (const noteId in this.data) {
               if (this.lockStatus[noteId]) {
                 this.lockStatus[noteId] = lockStatusData[noteId];
               } else {
-                // Default to "unlocked" if no lock status is found
                 this.lockStatus[noteId] = 'unlocked';
               }
             }
 
-            // Load isLocked data from local storage
             storage.get('isLocked', {}).then((isLockedData) => {
-              // Update the isLocked data in Pinia from local storage
               this.isLocked = { ...isLockedData };
 
-              // Ensure that the isLocked status for each note is correctly initialized
               for (const noteId in this.data) {
                 if (this.isLocked[noteId]) {
                   this.data[noteId].isLocked = true;
@@ -76,11 +66,10 @@ export const useNoteStore = defineStore('note', {
           updatedAt: Date.now(),
           isBookmarked: false,
           isArchived: false,
-          isLocked: false, // Initially, the note is not locked
+          isLocked: false,
           ...note,
         };
 
-        // Save the note data in local storage and lock status in both local storage and Pinia
         storage.set('notes', this.data).then(() => {
           this.lockStatus[id] = 'unlocked';
           this.isLocked[id] = false;
@@ -98,7 +87,6 @@ export const useNoteStore = defineStore('note', {
           ...data,
         };
 
-        // Save the updated note data in local storage
         storage
           .set(`notes.${id}`, this.data[id])
           .then(() => resolve(this.data[id]));
@@ -113,12 +101,11 @@ export const useNoteStore = defineStore('note', {
         const dataDir = await storage.get('dataDir', '', 'settings');
         delete this.data[id];
 
-        // Remove the lock status and note data from both local storage and Pinia
         this.lockStatus[id] = undefined;
-        this.isLocked[id] = undefined; // Set the isLocked property
+        this.isLocked[id] = undefined;
         storage.delete(`notes.${id}`).then(() => {
           storage.set('lockStatus', this.lockStatus);
-          storage.set('isLocked', this.isLocked); // Save isLocked to local storage
+          storage.set('isLocked', this.isLocked);
         });
 
         await ipcRenderer.callMain(
@@ -139,24 +126,20 @@ export const useNoteStore = defineStore('note', {
 
       try {
         const encryptedContent = AES.encrypt(
-          JSON.stringify(this.data[id].content), // Encrypt the entire content object
+          JSON.stringify(this.data[id].content),
           password
         ).toString();
 
-        // Overwrite the content property with the encrypted content
         this.data[id].content = { type: 'doc', content: [encryptedContent] };
         this.data[id].isLocked = true;
         this.isLocked[id] = true;
-        // Save encrypted note data to storage
         await storage.set(`notes.${id}`, this.data[id]);
-        // Update lock status in storage
         this.lockStatus[id] = 'locked';
         this.isLocked[id] = true;
         await Promise.all([
           storage.set('lockStatus', this.lockStatus),
           storage.set('isLocked', this.isLocked),
         ]);
-        console.log(`Note (ID: ${id}) is locked`);
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -166,30 +149,30 @@ export const useNoteStore = defineStore('note', {
     async unlockNote(id, password) {
       if (!password) {
         console.error('No password provided.');
-        return; // Exit the function if no password is provided
+        return;
       }
 
-      // Perform decryption only if password is provided
       try {
+        if (this.data[id].isLocked && !this.data[id].content.encrypted) {
+          console.log("This note wasn't locked properly.");
+          this.data[id].isLocked = false;
+          await storage.set(`notes.${id}`, this.data[id]);
+          return;
+        }
+
         const decryptedBytes = AES.decrypt(
-          this.data[id].content.content[0], // Access the encrypted content from the array
+          this.data[id].content.content[0],
           password
-        ); // Decrypt the encrypted content
+        );
         const decryptedContent = decryptedBytes.toString(Utf8);
 
-        this.data[id].content = JSON.parse(decryptedContent); // Replace the content with the decrypted content
+        this.data[id].content = JSON.parse(decryptedContent);
         this.data[id].isLocked = false;
-        this.isLocked[id] = false;
-        // Save decrypted note data to storage
-        await storage.set(`notes.${id}`, this.data[id]);
-        // Update lock status in storage
         this.lockStatus[id] = 'unlocked';
-        this.isLocked[id] = false;
         await Promise.all([
+          storage.set(`notes.${id}`, this.data[id]),
           storage.set('lockStatus', this.lockStatus),
-          storage.set('isLocked', this.isLocked),
         ]);
-        console.log(`Note (ID: ${id}) is unlocked`);
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
@@ -204,7 +187,6 @@ export const useNoteStore = defineStore('note', {
           if (labelIndex === -1) {
             this.data[id].labels.push(labelId);
 
-            // Save the updated note data in local storage
             storage
               .set(`notes.${id}`, this.data[id])
               .then(() => resolve(labelId));
