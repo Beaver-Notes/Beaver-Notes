@@ -526,7 +526,7 @@ export default {
                       alert(translations.settings.passwordResetError);
                     }
                   } else {
-                    alert(translations.settings.invalidPassword);
+                    alert(translations.settings.Invalidpassword);
                   }
                 },
               });
@@ -534,7 +534,7 @@ export default {
               alert(translations.settings.wrongCurrentPassword);
             }
           } else {
-            alert(translations.settings.invalidPassword);
+            alert(translations.settings.Invalidpassword);
           }
         },
       });
@@ -585,6 +585,8 @@ export default {
         security: 'settings.security',
         utilities: 'settings.utilities',
         wrongCurrentPassword: 'settings.wrongCurrentPassword',
+        passwordResetSuccess: 'settings.passwordResetSuccess',
+        passwordResetError: 'settings.passwordResetError',
       },
     });
 
