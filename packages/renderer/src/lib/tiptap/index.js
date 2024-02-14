@@ -15,10 +15,15 @@ import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import Search from './exts/search';
 import Image from './exts/image';
+import Table from '@tiptap/extension-table';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import TableRow from '@tiptap/extension-table-row';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
+import nlTranslations from '../../pages/settings/locales/nl.json';
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en'; // Get the selected language from localStorage
 
@@ -33,6 +38,8 @@ if (selectedLanguage === 'it') {
   translations = deTranslations;
 } else if (selectedLanguage === 'zh') {
   translations = zhTranslations;
+} else if (selectedLanguage === 'nl') {
+  translations = nlTranslations;
 }
 
 export const extensions = [
@@ -43,6 +50,10 @@ export const extensions = [
   LinkNote,
   LabelSuggestion,
   TaskList,
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
   TaskItem.configure({
     nested: true,
   }),

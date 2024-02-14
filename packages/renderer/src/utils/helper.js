@@ -45,12 +45,25 @@ export function truncateText(str, limit) {
 export function extractNoteText(content) {
   let text = '';
 
-  for (const value of content) {
-    const trimmedText = (value.text || '').trim();
+  if (Array.isArray(content)) {
+    for (const value of content) {
+      const trimmedText = (value.text || '').trim();
 
-    if (trimmedText !== '') text += `${trimmedText} `;
+      if (trimmedText !== '') text += `${trimmedText} `;
 
-    if (value.content) text += extractNoteText(value.content);
+      if (value.content) text += extractNoteText(value.content);
+    }
+  } else if (typeof content === 'object') {
+    for (const key in content) {
+      const value = content[key];
+      const trimmedText = (value.text || '').trim();
+
+      if (trimmedText !== '') text += `${trimmedText} `;
+
+      if (value.content) text += extractNoteText(value.content);
+    }
+  } else if (typeof content === 'string') {
+    text += content;
   }
 
   return text;

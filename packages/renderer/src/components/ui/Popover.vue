@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="ui-popover inline-block" :class="{ hidden: to }">
     <div ref="targetEl" class="ui-popover__trigger h-full inline-block">
@@ -5,14 +6,7 @@
     </div>
     <div
       ref="content"
-      class="
-        ui-popover__content
-        bg-white
-        dark:bg-gray-800
-        rounded-lg
-        shadow-xl
-        border
-      "
+      class="ui-popover__content bg-white dark:bg-gray-800 rounded-lg shadow-xl border"
       :class="[padding]"
     >
       <slot v-bind="{ isShow }"></slot>

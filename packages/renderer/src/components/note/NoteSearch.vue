@@ -1,19 +1,6 @@
 <template>
   <div
-    class="
-      fixed
-      bottom-0
-      pl-20
-      bg-white
-      dark:bg-gray-800
-      flex
-      items-center
-      left-0
-      w-full
-      py-2
-      pr-8
-      z-30
-    "
+    class="fixed bottom-0 pl-20 bg-white dark:bg-gray-800 flex items-center left-0 w-full py-2 pr-8 z-30"
   >
     <ui-button
       v-tooltip="translations.search.useRegex"

@@ -4,6 +4,7 @@ import enTranslations from './locales/en.json';
 import itTranslations from './locales/it.json';
 import deTranslations from './locales/de.json';
 import zhTranslations from './locales/zh.json';
+import nlTranslations from './locales/nl.json';
 
 const theme = useTheme();
 
@@ -25,6 +26,10 @@ if (selectedLanguage === 'de') {
 
 if (selectedLanguage === 'zh') {
   translations = zhTranslations;
+}
+
+if (selectedLanguage === 'nl') {
+  translations = nlTranslations;
 }
 
 let commands = [

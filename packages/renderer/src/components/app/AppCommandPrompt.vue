@@ -25,27 +25,28 @@
         :key="item.id"
         :active="index === state.selectedIndex"
         :class="{ 'active-command-item': index === state.selectedIndex }"
-        class="cursor-pointer"
+        class="cursor-pointer flex items-center justify-between"
         @click="selectItem(item, true)"
       >
         <div class="w-full">
           <p class="text-overflow w-full flex flex-1 justify-between">
             <span>
               {{ item.title || translations.commandprompt.untitlednote }}
+              <template v-if="item.isLocked">
+                <v-remixicon
+                  name="riLockLine"
+                  class="text-gray-600 dark:text-white ml-2 w-4"
+                />
+              </template>
             </span>
             <span v-if="!isCommand">
               {{ formatDate(item.updatedAt) }}
             </span>
           </p>
-          <p v-if="!isCommand" class="text-overflow text-xs">
+          <p v-if="!isCommand && !item.isLocked" class="text-overflow text-xs">
             {{ spliceContent(item.content.content[0]) }}
           </p>
         </div>
-        <template v-if="item.shortcut">
-          <kbd v-for="key in item.shortcut" :key="key">
-            {{ key }}
-          </kbd>
-        </template>
       </ui-list-item>
     </ui-list>
   </ui-card>
@@ -77,6 +78,9 @@ export default {
     store.showPrompt = false;
 
     const spliceContent = (content) => {
+      if (typeof content === 'string') {
+        return content;
+      }
       if (Array.isArray(content)) {
         return content.map((c) => spliceContent(c)).join('');
       }

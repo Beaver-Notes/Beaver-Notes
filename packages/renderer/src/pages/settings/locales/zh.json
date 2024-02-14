@@ -15,7 +15,7 @@
     "replaceall": "全部替换",
     "clear": "清除",
     "useRegex": "使用正则表达式 (Alt+R)",
-    "searchplaceholder": "搜索..." ,
+    "searchplaceholder": "搜索...",
     "replaceplaceholder": "替换..."
   },
   "tiptap": {
@@ -66,7 +66,17 @@
     "strikethrough": "删除线",
     "highlight": "高亮",
     "inlinecode": "行内代码",
-    "delete": "删除当前笔记"
+    "delete": "删除当前笔记",
+    "tableOptions": "表格设置",
+    "tableInsert": "插入表格",
+    "addRowAbove": "向上添加一行",
+    "addRowBelow": "向下添加一行",
+    "addColumnLeft": "向左添加一列",
+    "addColumnRight": "向右添加一列",
+    "deleteRow": "删除当前行",
+    "deleteColumn": "删除当前列",
+    "toggleHeader": "切换头部单元格",
+    "deleteTable": "删除表格"
   },
   "card": {
     "unarchived": "未归档",
@@ -77,7 +87,7 @@
     "delete": "删除",
     "content": "无内容",
     "lock": "锁定",
-    "Unlock": "解锁",
+    "unlock": "解锁",
     "islocked": "此笔记已被锁定",
     "unlocktoedit": "解锁后编辑",
     "setupkey": "设置新的共享密钥",
@@ -153,8 +163,8 @@
     "Invalidpassword": "无效密码",
     "relaunch": "应用需重启才能使此更改生效",
     "relaunchbutton": "重启",
-    "exportmessage" : "笔记导出到",
-    "importsuccess" : "数据已成功导入",
+    "exportmessage": "笔记导出到",
+    "importsuccess": "数据已成功导入",
     "invaliddata": "无效数据",
     "syncreminder": "隐藏同步提醒",
     "spellcheck": "拼写检查",
@@ -164,11 +174,12 @@
     "default": "默认",
     "morespace": "更多空间",
     "aboutDataEncryption": "关于数据加密",
-    "encryptionMessage": "Beaver notes 采用 crypto-es 的 AES-128 算法加密"
+    "encryptionMessage": "Beaver notes 采用 crypto-es 的 AES-128 算法加密",
+    "advancedSettings": "高级设置"
   },
   "_idvue": {
-    "Previousnote":"以前的笔记",
-    "untitlednote":"无标题笔记"
+    "Previousnote": "以前的笔记",
+    "untitlednote": "无标题笔记"
   },
   "sidebar": {
     "Notes": "笔记",

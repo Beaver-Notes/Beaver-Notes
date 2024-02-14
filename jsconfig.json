@@ -8,5 +8,5 @@
     "strict": true,
     "isolatedModules": true,
     "lib": ["ESNext"]
-  },
+  }
 }

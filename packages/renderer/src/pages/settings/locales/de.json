@@ -5,17 +5,17 @@
     "bookmarked": "Lesezeichen",
     "all": "Alle",
     "syncreminder": "Synchronisationserinnerung",
-    "syncmessage": "Hallo zusammen! Bevor du anfängst, Notizen zu machen, importiere bitte deine bestehenden Notizen und exportiere sie, wenn du fertig bist, um sicherzustellen, dass sie auf allen deinen Geräten synchronisiert werden. Viel Spaß beim Notizen machen!",
+    "syncmessage": "Hallo, bevor du mit dem Erstellen von Notizen beginnst, importiere bitte deine bestehenden Notizen und exportiere sie, wenn du fertig bist, um sicherzustellen, dass sie auf allen deinen Geräten synchronisiert sind. Viel Spaß mit deinen Notizen!",
     "hide": "Nicht wieder anzeigen",
     "close": "Schließen"
-},
+  },
   "search": {
     "find": "Suchen",
     "replace": "Ersetzen",
     "replaceall": "Alle Ersetzen",
     "clear": "Löschen",
     "useRegex": "Reguläre Ausdrücke verwenden (Alt+R)",
-    "searchplaceholder": "Suchen..." ,
+    "searchplaceholder": "Suchen...",
     "replaceplaceholder": "Ersetzen..."
   },
   "tiptap": {
@@ -66,7 +66,17 @@
     "strikethrough": "Durchgestrichen",
     "highlight": "Hervorheben",
     "inlinecode": "Eingebetteter Code",
-    "delete": "Delete current node"
+    "delete": "Aktuelle Notiz löschen",
+    "tableOptions": "Tabellen Optionen",
+    "tableInsert": "Tabelle einfügen",
+    "addRowAbove": "Zeile oberhalb einfügen",
+    "addRowBelow": "Zeile unterhalb einfügen",
+    "addColumnLeft": "Spalte links einfügen",
+    "addColumnRight": "Spalte rechts einfügen",
+    "deleteRow": "Zeile löschen",
+    "deleteColumn": "Spalte löschen",
+    "toggleHeader": "Verstecke Kopfzeile",
+    "deleteTable": "Tabelle löschen"
   },
   "card": {
     "unarchived": "Nicht archiviert",
@@ -77,7 +87,7 @@
     "delete": "Löschen",
     "content": "Kein Inhalt",
     "lock": "Sperren",
-    "Unlock": "Entsperren",
+    "unlock": "Entsperren",
     "islocked": "Notiz ist gesperrt",
     "unlocktoedit": "Entsperren zum Bearbeiten",
     "setupkey": "Richten Sie einen neuen gemeinsamen Schlüssel ein",
@@ -153,8 +163,8 @@
     "Invalidpassword": "Ungültiges Passwort",
     "relaunch": "Die App muss neu gestartet werden, damit diese Änderung wirksam wird.",
     "relaunchbutton": "Neustart",
-    "exportmessage" : "Die Notizen werden exportiert in",
-    "importsuccess" : "Daten erfolgreich importiert",
+    "exportmessage": "Die Notizen werden exportiert in",
+    "importsuccess": "Daten erfolgreich importiert",
     "invaliddata": "Ungültige Daten",
     "syncreminder": "Verstecke Synchronisationserinnerung",
     "spellcheck": "Rechtschreibprüfung",
@@ -163,13 +173,13 @@
     "medium": "Mittel",
     "default": "Standard",
     "morespace": "Mehr Platz",
-    "aboutDataEncryption": "Über Datenverschlüsselung",
+    "aboutDataEncryption": "Über die Datenverschlüsselung",
     "encryptionMessage": "Beaver Notes verwendet AES-128 mit Crypto-es",
     "advancedSettings": "Erweiterte Einstellungen"
   },
   "_idvue": {
-    "Previousnote":"Vorherige Notizen",
-    "untitlednote":"Unbenannte Notiz"
+    "Previousnote": "Vorherige Notizen",
+    "untitlednote": "Unbenannte Notiz"
   },
   "sidebar": {
     "Notes": "Notizen",

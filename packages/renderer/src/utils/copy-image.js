@@ -31,10 +31,10 @@ async function readFile(file) {
   });
 }
 
-async function createFileName(filePath, id) {
+async function createFileName(filePath, id, timestamp) {
   const dataDir = await storage.get('dataDir');
   const { ext, name } = path.parse(filePath);
-  const fileName = SHA256(name).toString() + ext;
+  const fileName = `${SHA256(name + timestamp).toString()}${ext}`; // Include timestamp in hashing
   const destPath = path.join(dataDir, 'notes-assets', id, fileName);
   return { destPath, fileName };
 }
@@ -43,10 +43,14 @@ async function createFileName(filePath, id) {
  * @param {File} file
  * @param {string} id
  **/
-export async function writeImageFile(file, id) {
+export async function writeImageFile(file, id, timestamp) {
   try {
     const content = await readFile(file);
-    const { fileName, destPath } = await createFileName(file.name, id);
+    const { fileName, destPath } = await createFileName(
+      file.name,
+      id,
+      timestamp
+    );
     await ipcRenderer.callMain('fs:writeFile', {
       data: content,
       path: destPath,
@@ -57,9 +61,13 @@ export async function writeImageFile(file, id) {
   }
 }
 
-export default async function (filePath, id) {
+export default async function (filePath, id, timestamp) {
   try {
-    const { fileName, destPath } = await createFileName(filePath, id);
+    const { fileName, destPath } = await createFileName(
+      filePath,
+      id,
+      timestamp
+    );
 
     await ipcRenderer.callMain('fs:copy', {
       path: filePath,

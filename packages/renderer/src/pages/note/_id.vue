@@ -1,5 +1,9 @@
 <template>
-  <div v-if="note" class="max-w-3xl mx-auto relative pb-6 px-4 lg:px-0">
+  <div
+    v-if="note"
+    class="max-w-3xl mx-auto relative px-4 lg:px-0"
+    :class="{ 'pb-0': isLocked }"
+  >
     <button
       v-if="$route.query.linked && !store.inFocusMode"
       class="left-0 ml-24 mt-4 fixed group"
@@ -23,6 +27,7 @@
       />
     </template>
     <div
+      v-if="!isLocked"
       contenteditable="true"
       :value="note.title"
       class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
@@ -32,8 +37,32 @@
     >
       {{ note.title }}
     </div>
+    <div v-else class="flex flex-col items-center justify-center h-screen">
+      <v-remixicon
+        class="w-24 h-auto text-gray-600 dark:text-white"
+        name="riLockLine"
+      />
+      <p class="text-center pb-2 text-gray-600 dark:text-gray-200">
+        {{ translations.card.unlocktoedit }}
+      </p>
+      <div class="pb-2">
+        <button
+          class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-amber-300 bg-input py-2 px-3 rounded-lg w-64"
+          @click="unlockNote(note.id)"
+        >
+          {{ translations.card.unlock }}
+        </button>
+      </div>
+      <router-link
+        class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-amber-300 bg-input py-2 px-3 rounded-lg w-64"
+        :to="`/`"
+      >
+        {{ translations.index.close }}
+      </router-link>
+    </div>
 
     <note-editor
+      v-if="!isLocked"
       :id="$route.params.id"
       ref="noteEditor"
       :key="$route.params.id"
@@ -48,6 +77,7 @@
     />
   </div>
 </template>
+
 <script>
 import {
   ref,
@@ -59,8 +89,10 @@ import {
 } from 'vue';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
+import { usePasswordStore } from '@/store/passwd';
 import { useLabelStore } from '@/store/label';
 import { useStore } from '@/store';
+import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
@@ -77,6 +109,8 @@ export default {
     const storage = useStorage();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
+    const dialog = useDialog();
+    const userPassword = ref('');
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -84,6 +118,7 @@ export default {
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
+    const isLocked = computed(() => note.value && note.value.isLocked);
 
     const autoScroll = debounce(() => {
       if (!noteEditor.value) {
@@ -194,6 +229,13 @@ export default {
         Previousnote: '_idvue.Previousnote',
         untitlednote: '_idvue.untitlednote',
       },
+      card: {
+        unlocktoedit: 'card.unlocktoedit',
+        unlock: 'card.unlock',
+      },
+      index: {
+        close: 'index.close',
+      },
     });
 
     onMounted(async () => {
@@ -218,7 +260,7 @@ export default {
     };
 
     const focusEditor = () =>
-      noteEditor.value.$el.querySelector('*[tabindex="0"]').focus();
+      noteEditor.value.$el?.querySelector('*[tabindex="0"]')?.focus();
     const disallowedEnter = (event) => {
       if (event && event.key === 'Enter') {
         focusEditor();
@@ -235,22 +277,57 @@ export default {
       }
     );
 
+    async function unlockNote(note) {
+      const passwordStore = usePasswordStore();
+      const noteStore = useNoteStore();
+
+      dialog.prompt({
+        title: translations.card.enterpasswd,
+        okText: translations.card.unlock,
+        cancelText: translations.card.Cancel,
+        placeholder: translations.card.Password,
+        onConfirm: async (enteredPassword) => {
+          try {
+            const isValidPassword = await passwordStore.isValidPassword(
+              enteredPassword
+            );
+            if (isValidPassword) {
+              console.log(translations.card.Passwordcorrect);
+              // Note unlocked
+              userPassword.value = '';
+              await noteStore.unlockNote(note, enteredPassword); // Pass entered password to unlockNote
+              console.log(`Note (ID: ${note}) is unlocked`);
+            } else {
+              console.log(translations.card.Passwordcorrect);
+              alert(translations.card.wrongpasswd);
+            }
+          } catch (error) {
+            console.error('Error unlocking note:', error);
+            alert(translations.card.wrongpasswd);
+          }
+        },
+      });
+    }
+
     return {
       id,
       noteEditor,
       note,
       translations,
       store,
+      unlockNote,
       editor,
       showSearch,
       updateNote,
       closeSearch,
       disallowedEnter,
       autoScroll,
+      isLocked, // Include isLocked in the returned object
     };
   },
 };
 </script>
+
 <style scoped>
 .title-placeholder:empty::before {
   content: attr(placeholder);
