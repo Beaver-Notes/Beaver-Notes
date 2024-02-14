@@ -99,7 +99,8 @@
     "enterpasswd": "请输入密码",
     "Password": "密码",
     "wrongpasswd": "密码错误，笔记无法被解锁。",
-    "Passwdcorrect": "密码正确。"
+    "Passwdcorrect": "密码正确。",
+    "warning": "警告，如果您忘记您的密码，您将无法访问您已经锁定的笔记，并且设置新密码需要知道旧密码。"
   },
   "about": {
     "title": "Beaver Notes",
@@ -175,7 +176,18 @@
     "morespace": "更多空间",
     "aboutDataEncryption": "关于数据加密",
     "encryptionMessage": "Beaver notes 采用 crypto-es 的 AES-128 算法加密",
-    "advancedSettings": "高级设置"
+    "advancedSettings": "高级设置",
+    "resetPasswordTitle": "输入当前密码",
+    "next": "下一步",
+    "enterNewPassword": "输入新密码",
+    "resetPassword": "重置密码",
+    "newpassword": "设置新密码",
+    "utilities": "实用工具",
+    "security": "密码 & 安全",
+    "warning": "警告，如果您忘记您的密码，您将无法访问您已经锁定的笔记，并且设置新密码需要知道旧密码。",
+    "wrongCurrentPassword": "密码错误，请重试",
+    "passwordResetError": "重置密码时出了问题",
+    "passwordResetSuccess": "密码已重置成功"
   },
   "_idvue": {
     "Previousnote": "以前的笔记",
