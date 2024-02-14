@@ -49,10 +49,8 @@
   </ui-card>
 </template>
 <script>
-import { shallowReactive, computed, watch, onMounted, ref } from 'vue';
-import { useDialog } from '../../composable/dialog';
+import { shallowReactive, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
@@ -93,63 +91,19 @@ export default {
         state.selectedIndex = (state.selectedIndex + 1) % items.value.length;
       }
     }
-    const dialog = useDialog();
-    const userPassword = ref('');
-    async function unlockNote(selectedItem) {
-      const passwordStore = usePasswordStore();
-      const noteStore = useNoteStore();
+    function selectItem(item, isItem) {
+      let selectedItem = items.value[state.selectedIndex];
 
-      try {
-        const enteredPassword = await new Promise((resolve, reject) => {
-          dialog.prompt({
-            title: translations.card.enterpasswd,
-            okText: translations.card.unlock,
-            cancelText: translations.card.Cancel,
-            placeholder: translations.card.Password,
-            onConfirm: (enteredPassword) => resolve(enteredPassword),
-            onCancel: () => reject(new Error('Prompt canceled')),
-          });
-        });
+      if (isItem) selectedItem = item;
 
-        const isValidPassword = await passwordStore.isValidPassword(
-          enteredPassword
-        );
-        if (isValidPassword) {
-          console.log(translations.card.Passwordcorrect);
-          userPassword.value = '';
-          await noteStore.unlockNote(selectedItem.id, enteredPassword);
-          router.push(`/note/${selectedItem.id}`);
-        } else {
-          console.log(translations.card.Passwordcorrect);
-          alert(translations.card.wrongpasswd);
-        }
-      } catch (error) {
-        console.error('Error unlocking note:', error);
-        alert(translations.card.wrongpasswd);
-      }
-    }
-
-    async function selectItem(item, isItem) {
-      let selectedItem = item;
-
-      if (!isItem) {
-        selectedItem = items.value[state.selectedIndex];
-      }
-
-      if (!selectedItem) return; // If selectedItem is still undefined, return
-
-      // Check if the selected note is locked
-      if (selectedItem.isLocked) {
-        // Prompt for password to unlock the note
-        await unlockNote(selectedItem); // Pass selectedItem itself
+      if (selectedItem.handler) {
+        selectedItem.handler();
       } else {
-        // Open the note if it's not locked
         selectedItem.id && router.push(`/note/${selectedItem.id}`);
       }
 
       clear();
     }
-
     function clear() {
       state.show = false;
       state.query = '';

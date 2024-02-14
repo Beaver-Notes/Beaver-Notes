@@ -272,7 +272,7 @@ export default {
 
       dialog.prompt({
         title: translations.card.enterpasswd,
-        okText: translations.card.Unlock,
+        okText: translations.card.unlock,
         cancelText: translations.card.Cancel,
         placeholder: translations.card.Password,
         onConfirm: async (enteredPassword) => {
