@@ -99,7 +99,8 @@
     "enterpasswd": "Geben Sie das Passwort ein",
     "Password": "Passwort",
     "wrongpasswd": "Falsches Passwort. Notiz kann nicht entsperrt werden.",
-    "Passwdcorrect": "Das Passwort ist falsch."
+    "Passwdcorrect": "Das Passwort ist falsch.",
+    "warning": "Achtung: Wenn Sie Ihr Passwort vergessen, verlieren Sie den Zugriff auf Ihre gesperrten Notizen. Um ein neues Passwort festzulegen, müssen Sie das alte kennen."
   },
   "about": {
     "title": "Beaver Notes",
@@ -175,7 +176,19 @@
     "morespace": "Mehr Platz",
     "aboutDataEncryption": "Über die Datenverschlüsselung",
     "encryptionMessage": "Beaver Notes verwendet AES-128 mit Crypto-es",
-    "advancedSettings": "Erweiterte Einstellungen"
+    "advancedSettings": "Erweiterte Einstellungen",
+    "resetPasswordTitle": "Aktuelles Passwort eingeben",
+    "next": "Weiter",
+    "enterNewPassword": "Neues Passwort eingeben",
+    "resetPassword": "Passwort zurücksetzen",
+    "newpassword": "Neues Passwort eingeben",
+    "utilities": "Zusätzliche Optionen",
+    "security": "Passwort & Sicherheit",
+    "warning": "Achtung: Wenn Sie Ihr Passwort vergessen, verlieren Sie den Zugriff auf Ihre gesperrten Notizen. Um ein neues Passwort festzulegen, müssen Sie das alte kennen.",
+    "wrongCurrentPassword": "Falsches Passwort, bitte versuchen Sie es erneut",
+    "passwordResetError": "Beim Zurücksetzen Ihres Passworts ist etwas schief gelaufen",
+    "passwordResetSuccess": "Das Passwort wurde erfolgreich zurückgesetzt"
+
   },
   "_idvue": {
     "Previousnote": "Vorherige Notizen",
