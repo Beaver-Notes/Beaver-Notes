@@ -30,17 +30,16 @@
       class="text-gray-600 block dark:text-gray-100 flex-1 overflow-none"
       style="min-height: 64px"
     >
-      <!-- Show different content for locked and unlocked notes -->
       {{
         note.isLocked
-          ? 'Note is locked'
+          ? translations.card.unlocktoedit
           : truncateText(note.content, 160) || translations.card.content
       }}
     </router-link>
     <button
       v-if="note.isLocked"
       class="hover:text-gray-600 dark:text-white h-full mr-2 transition"
-      @click="unlockCard(note.id)"
+      @click="unlockNote(note.id)"
     >
       <v-remixicon
         class="w-24 h-auto text-gray-600 dark:text-white"
@@ -90,7 +89,7 @@
       </button>
       <button
         v-if="note.isLocked"
-        v-tooltip.group="translations.card.lock"
+        v-tooltip.group="translations.card.unlock"
         class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
@@ -120,8 +119,9 @@ import dayjs from '@/lib/dayjs';
 import '../../assets/css/passwd.css';
 import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
+import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { onMounted, shallowReactive, ref } from 'vue';
+import { onMounted, shallowReactive } from 'vue';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
@@ -136,154 +136,100 @@ defineProps({
 });
 defineEmits(['update', 'delete', 'update:label']);
 
-const isLocked = ref(false);
 const dialog = useDialog();
-const userPassword = ref('');
-const noteStore = useNoteStore();
 
 useGroupTooltip();
 
 async function lockNote(note) {
-  const sharedKey = localStorage.getItem('sharedKey');
-  const lockedNotes = JSON.parse(localStorage.getItem('lockedNotes')) || {};
+  const passwordStore = usePasswordStore(); // Get the password store instance
+  const noteStore = useNoteStore(); // Get the note store instance
 
-  if (!sharedKey) {
-    dialog.prompt({
-      title: translations.card.setupkey,
-      okText: translations.card.setkey,
-      cancelText: translations.card.Cancel,
-      placeholder: translations.card.NewKey,
-      onConfirm: async (newKey) => {
-        if (newKey) {
-          const encoder = new TextEncoder();
-          const sharedKeyBuffer = encoder.encode(newKey);
+  try {
+    const hassharedKey = await passwordStore.retrieve(); // Retrieve the global password
 
-          crypto.subtle.digest('SHA-256', sharedKeyBuffer).then((hash) => {
-            const hashArray = Array.from(new Uint8Array(hash));
-            const hashHex = hashArray
-              .map((byte) => byte.toString(16).padStart(2, '0'))
-              .join('');
-
-            localStorage.setItem('sharedKey', hashHex);
-            noteStore.lockNote(note);
-            isLocked.value = true;
-            lockedNotes[note] = true; // Lock the note using its ID
-            localStorage.setItem('lockedNotes', JSON.stringify(lockedNotes));
-            console.log(`Note (ID: ${note}) is locked`);
-          });
-        } else {
-          alert(translations.card.keyfail);
-        }
-      },
-    });
-  } else {
-    noteStore.lockNote(note);
-    isLocked.value = true;
-    lockedNotes[note] = true; // Lock the note using its ID
-    localStorage.setItem('lockedNotes', JSON.stringify(lockedNotes));
-    console.log(`Note (ID: ${note}) is locked`);
-  }
-}
-
-async function unlockCard(note) {
-  const sharedKey = localStorage.getItem('sharedKey');
-  const lockedNotes = JSON.parse(localStorage.getItem('lockedNotes')) || {};
-
-  if (!sharedKey) {
-    alert(translations.card.nokey);
-  } else {
-    dialog.prompt({
-      title: translations.card.enterpasswd,
-      okText: translations.card.Unlock,
-      cancelText: translations.card.Cancel,
-      placeholder: translations.card.Password,
-      onConfirm: async (enteredPassword) => {
-        const encoder = new TextEncoder();
-        const enteredPasswordBuffer = encoder.encode(enteredPassword);
-
-        crypto.subtle.digest('SHA-256', enteredPasswordBuffer).then((hash) => {
-          const hashArray = Array.from(new Uint8Array(hash));
-          const hashHex = hashArray
-            .map((byte) => byte.toString(16).padStart(2, '0'))
-            .join('');
-
-          if (hashHex === sharedKey) {
-            console.log(translations.card.Passwordcorrect);
-            // Note unlocked
-            isLocked.value = false;
-            userPassword.value = '';
-            noteStore.unlockNote(note);
-            lockedNotes[note] = false; // Unlock the note using its ID
+    if (!hassharedKey) {
+      // If there's no global password set, prompt the user to set it
+      dialog.prompt({
+        title: translations.card.enterpasswd,
+        okText: translations.card.setkey,
+        body: translations.settings.warning,
+        cancelText: translations.card.Cancel,
+        placeholder: translations.card.Password,
+        onConfirm: async (newKey) => {
+          if (newKey) {
+            try {
+              // Set the global password
+              await passwordStore.setsharedKey(newKey);
+              // Lock the note using the global password
+              await noteStore.lockNote(note, newKey);
+              console.log(`Note (ID: ${note}) is locked`);
+            } catch (error) {
+              console.error('Error setting up key:', error);
+              alert(translations.card.keyfail);
+            }
           } else {
-            console.log(translations.card.Passwordcorrect);
+            alert(translations.card.keyfail);
+          }
+        },
+      });
+    } else {
+      // If the global password is set, prompt the user to enter it to lock the note
+      dialog.prompt({
+        title: translations.card.enterpasswd,
+        okText: translations.card.lock,
+        cancelText: translations.card.Cancel,
+        placeholder: translations.card.Password,
+        onConfirm: async (enteredPassword) => {
+          // Validate the entered password against the stored global password
+          const isValidPassword = await passwordStore.isValidPassword(
+            enteredPassword
+          );
+          if (isValidPassword) {
+            // If the entered password matches the stored one, lock the note
+            await noteStore.lockNote(note, enteredPassword);
+            console.log(`Note (ID: ${note}) is locked`);
+          } else {
+            // If the entered password does not match, show an error message
             alert(translations.card.wrongpasswd);
           }
-        });
-      },
-    });
+        },
+      });
+    }
+  } catch (error) {
+    console.error('Error locking note:', error);
   }
 }
 
 async function unlockNote(note) {
-  const sharedKey = localStorage.getItem('sharedKey');
-  const lockedNotes = JSON.parse(localStorage.getItem('lockedNotes')) || {};
+  const passwordStore = usePasswordStore();
+  const noteStore = useNoteStore();
 
-  if (!sharedKey) {
-    alert(translations.card.nokey);
-  } else {
-    dialog.prompt({
-      title: translations.card.enterpasswd,
-      okText: translations.card.Unlock,
-      cancelText: translations.card.Cancel,
-      placeholder: translations.card.Password,
-      onConfirm: async (enteredPassword) => {
-        const encoder = new TextEncoder();
-        const enteredPasswordBuffer = encoder.encode(enteredPassword);
-
-        crypto.subtle.digest('SHA-256', enteredPasswordBuffer).then((hash) => {
-          const hashArray = Array.from(new Uint8Array(hash));
-          const hashHex = hashArray
-            .map((byte) => byte.toString(16).padStart(2, '0'))
-            .join('');
-
-          if (hashHex === sharedKey) {
-            console.log(translations.card.Passwordcorrect);
-            // Note unlocked
-            isLocked.value = false;
-            userPassword.value = '';
-            noteStore.unlockNote(note);
-            lockedNotes[note] = false; // Unlock the note using its ID
-            localStorage.setItem('lockedNotes', JSON.stringify(lockedNotes));
-            // Optionally, you can emit an event to notify the parent component
-          } else {
-            console.log(translations.card.Passwordcorrect);
-            alert(translations.card.wrongpasswd);
-          }
-        });
-      },
-    });
-  }
+  dialog.prompt({
+    title: translations.card.enterpasswd,
+    okText: translations.card.unlock,
+    cancelText: translations.card.Cancel,
+    placeholder: translations.card.Password,
+    onConfirm: async (enteredPassword) => {
+      try {
+        // Validate the entered password against the global password
+        const isValidPassword = await passwordStore.isValidPassword(
+          enteredPassword
+        );
+        if (isValidPassword) {
+          console.log(translations.card.Passwordcorrect);
+          // Note unlocked using the global password
+          await noteStore.unlockNote(note, enteredPassword);
+          console.log(`Note (ID: ${note}) is unlocked`);
+        } else {
+          alert(translations.card.wrongpasswd);
+        }
+      } catch (error) {
+        console.error('Error unlocking note:', error);
+        alert(translations.card.wrongpasswd);
+      }
+    },
+  });
 }
-
-function checkLockedNotes() {
-  const lockedNotes = JSON.parse(localStorage.getItem('lockedNotes')) || {};
-
-  // Iterate through the keys in the local storage
-  for (const noteId in lockedNotes) {
-    if (noteId === 'undefined') {
-      // Skip the 'undefined' key
-      continue;
-    }
-
-    const isLocked = lockedNotes[noteId];
-    if (isLocked) {
-      noteStore.lockNote(noteId);
-    }
-  }
-}
-
-// Call the function to check and output locked notes
-checkLockedNotes();
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
 
@@ -311,12 +257,13 @@ const translations = shallowReactive({
     setkey: 'card.setkey',
     Cancel: 'card.Cancel',
     NewKey: 'card.NewKey',
-    keyfail: 'card.keyfail',
     nokey: 'card.nokey',
     enteredPassword: 'card.enteredPassword',
     Password: 'card.Password',
     wrongpasswd: 'card.wrongpasswd',
     Passwordcorrect: 'card.passwordcorrect',
+    warning: 'card.warning',
+    keyfail: 'card.keyfail',
   },
 });
 

@@ -87,19 +87,20 @@
     "delete": "Delete",
     "content": "No content",
     "lock": "Lock",
-    "Unlock": "Unlock",
+    "unlock": "Unlock",
     "islocked": "This note is locked",
     "unlocktoedit": "Unlock to edit",
     "setupkey": "Set Up a New Shared Key",
     "setkey": "Set Key",
     "Cancel": "Cancel",
     "NewKey": "New Key",
-    "keyfail": "Key setup cancelled. Note cannot be locked.",
+    "keyfail": "Password setup cancelled. Note cannot be locked.",
     "nokey": "No shared key set up for this note.",
     "enterpasswd": "Enter the Password",
     "Password": "Password",
     "wrongpasswd": "Incorrect password. Note cannot be unlocked.",
-    "Passwdcorrect": "Password is incorrect."
+    "Passwdcorrect": "Password is incorrect.",
+    "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one."
   },
   "about": {
     "title": "Beaver Notes",
@@ -175,7 +176,18 @@
     "morespace": "More space",
     "aboutDataEncryption": "About data encryption",
     "encryptionMessage": "Beaver notes employes AES-128 through crypto-es",
-    "advancedSettings": "Advanced Settings"
+    "advancedSettings": "Advanced Settings",
+    "resetPasswordTitle": "Enter Current Password",
+    "next": "Next",
+    "enterNewPassword": "Enter new password",
+    "resetPassword": "Reset Password",
+    "newpassword": "Insert new password",
+    "utilities": "Utilities",
+    "security": "Password & Security",
+    "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
+    "wrongCurrentPassword": "Wrong password, please try again",
+    "passwordResetError": "Something went wrong while resetting your password",
+    "passwordResetSuccess": "The password has been reset successfully"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

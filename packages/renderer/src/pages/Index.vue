@@ -35,6 +35,7 @@
           v-for="note in notes[name]"
           :key="note.id"
           :note-id="note.id"
+          :is-locked="note.isLocked"
           v-bind="{ note }"
           @update:label="state.activeLabel = $event"
           @delete="noteStore.delete(note.id)"
@@ -180,6 +181,7 @@ export default {
 
       return filteredNotes;
     }
+
     function extractNoteContent(note) {
       const text = extractNoteText(note.content.content).toLocaleLowerCase();
 

@@ -87,7 +87,7 @@
     "delete": "Elimina",
     "content": "Nessun contenuto",
     "lock": "Blocca",
-    "Unlock": "Sblocca",
+    "unlock": "Sblocca",
     "islocked": "Questa nota è bloccata",
     "unlocktoedit": "Sblocca per modificare",
     "setupkey": "Imposta una nuova chiave condivisa",
@@ -99,7 +99,8 @@
     "enterpasswd": "Inserisci la password",
     "Password": "Password",
     "wrongpasswd": "Password errata. Impossibile sbloccare la nota.",
-    "Passwdcorrect": "La password è incorretta."
+    "Passwdcorrect": "La password è incorretta.",
+    "warning": "Attenzione, se dimentichi la tua password, perderai l'accesso alle tue note bloccate, e impostare una nuova password richiederà di conoscere quella vecchia."
   },
   "about": {
     "title": "Beaver Notes",
@@ -175,7 +176,16 @@
     "morespace": "Più spazio",
     "aboutDataEncryption": "Informazioni sulla crittografia dei dati",
     "encryptionMessage": "Beaver notes usa AES-128 attraverso crypto-es",
-    "advancedSettings": "Impostazioni avanzate"
+    "advancedSettings": "Impostazioni avanzate",
+    "resetPasswordTitle": "Inserisci Password Attuale",
+    "next": "Avanti",
+    "enterNewPassword": "Inserisci nuova password",
+    "resetPassword": "Ripristina Password",
+    "newpassword": "Inserisci nuova password",
+    "utilities": "Strumenti",
+    "security": "Password e Sicurezza",
+    "warning": "Attenzione, se dimentichi la tua password, perderai l'accesso alle tue note bloccate, e impostare una nuova password richiederà di conoscere quella vecchia.",
+    "wrongCurrentPassword": "Password errata, prova di nuovo"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",

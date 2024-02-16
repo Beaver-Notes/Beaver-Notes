@@ -25,16 +25,24 @@
         :key="item.id"
         :active="index === state.selectedIndex"
         :class="{ 'active-command-item': index === state.selectedIndex }"
-        class="cursor-pointer"
+        class="cursor-pointer flex items-center justify-between"
         @click="selectItem(item, true)"
       >
-        <p class="text-overflow flex-1">
-          {{ item.title || translations.commandprompt.untitlednote }}
-        </p>
-        <template v-if="item.shortcut">
-          <kbd v-for="key in item.shortcut" :key="key">
-            {{ key }}
-          </kbd>
+        <div class="flex items-center">
+          <span class="text-overflow flex-1">
+            {{ item.title || translations.commandprompt.untitlednote }}
+          </span>
+          <template v-if="item.shortcut">
+            <kbd v-for="key in item.shortcut" :key="key">
+              {{ key }}
+            </kbd>
+          </template>
+        </div>
+        <template v-if="item.isLocked">
+          <v-remixicon
+            name="riLockLine"
+            class="text-gray-600 dark:text-white ml-2"
+          />
         </template>
       </ui-list-item>
     </ui-list>
