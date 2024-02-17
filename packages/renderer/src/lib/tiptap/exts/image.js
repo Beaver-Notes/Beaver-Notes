@@ -1,5 +1,5 @@
 import { Plugin, PluginKey } from 'prosemirror-state';
-import Image from '@tiptap/extension-image';
+import ImageResize from 'tiptap-extension-resize-image';
 import { useStore } from '@/store';
 import copyImage from '@/utils/copy-image';
 import { writeImageFile } from '@/utils/copy-image';
@@ -36,17 +36,37 @@ const handleImagePaste = new Plugin({
   props: {
     handleDOMEvents: {
       paste: async (view, event) => {
-        const files = (event.clipboardData || event.originalEvent.clipboardData)
-          .files;
+        const items = (event.clipboardData || event.originalEvent.clipboardData)
+          .items;
+        const files = Array.from(items)
+          .filter((item) => item.kind === 'file')
+          .map((item) => item.getAsFile());
+        const urls = Array.from(items)
+          .filter(
+            (item) => item.kind === 'string' && item.type.startsWith('image/')
+          )
+          .map((item) => item.getAsString());
 
-        insertImages(files, (src, alt) => {
-          if (view.state.selection.$cursor) {
-            const transaction = view.state.tr.replaceSelectionWith(
-              view.state.schema.nodes.image.create({ src, alt })
-            );
-            view.dispatch(transaction);
-          }
-        });
+        if (files.length > 0) {
+          insertImages(files, (src, alt) => {
+            if (view.state.selection.$cursor) {
+              const transaction = view.state.tr.replaceSelectionWith(
+                view.state.schema.nodes.image.create({ src, alt })
+              );
+              view.dispatch(transaction);
+            }
+          });
+        }
+
+        if (urls.length > 0) {
+          // Handle pasting URLs here, for example, just insert them as text
+          const text = urls.join('\n');
+          const transaction = view.state.tr.insertText(
+            text,
+            view.state.selection.from
+          );
+          view.dispatch(transaction);
+        }
       },
     },
 
@@ -71,7 +91,7 @@ const handleImagePaste = new Plugin({
   },
 });
 
-export default Image.extend({
+export default ImageResize.extend({
   addProseMirrorPlugins() {
     return [handleImagePaste];
   },
