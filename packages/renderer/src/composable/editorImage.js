@@ -11,42 +11,36 @@ export function useEditorImage(editor) {
     editor.chain().focus().setImage({ src: url }).run();
   }
 
-  function selectImage(applyImg) {
-    return new Promise(async (resolve, reject) => {
-      const { ipcRenderer } = window.electron;
-      const clipboardImage = await getClipboardImage();
+  async function selectImage(applyImg) {
+    const { ipcRenderer } = window.electron;
+    const clipboardImage = await getClipboardImage();
 
-      if (clipboardImage) {
-        // If there is an image in the clipboard, use it.
-        if (applyImg) setImage(clipboardImage);
-        resolve(clipboardImage);
-      } else {
-        // If there is no image in the clipboard, open the file dialog.
-        const { canceled, filePaths } = await ipcRenderer.callMain(
-          'dialog:open',
-          {
-            properties: ['openFile'],
-            filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
-          }
-        );
-
-        if (canceled || filePaths.length === 0) {
-          reject(new Error('No image selected'));
-        } else {
-          copyImage(filePaths[0], route.params.id)
-            .then(({ fileName }) => {
-              const imgPath = `assets://${route.params.id}/${fileName}`;
-
-              if (applyImg) setImage(imgPath);
-
-              resolve(imgPath);
-            })
-            .catch((error) => {
-              reject(error);
-            });
+    if (clipboardImage) {
+      // If there is an image in the clipboard, use it.
+      if (applyImg) setImage(clipboardImage);
+      return clipboardImage;
+    } else {
+      // If there is no image in the clipboard, open the file dialog.
+      const { canceled, filePaths } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          properties: ['openFile'],
+          filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
         }
+      );
+
+      if (canceled || filePaths.length === 0) {
+        throw new Error('No image selected');
+      } else {
+        copyImage(filePaths[0], route.params.id).then(({ fileName }) => {
+          const imgPath = `assets://${route.params.id}/${fileName}`;
+
+          if (applyImg) setImage(imgPath);
+
+          return imgPath;
+        });
       }
-    });
+    }
   }
 
   async function getClipboardImage() {
