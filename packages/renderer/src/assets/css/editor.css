@@ -136,8 +136,8 @@ li[data-checked="true"] {
   }
   img {
     @apply rounded;
-    margin-top: 1em !important;
-    margin-bottom: 1em !important; 
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
   }
   mark {
     @apply bg-yellow-200 dark:bg-yellow-100;
