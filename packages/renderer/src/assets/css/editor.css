@@ -139,6 +139,18 @@ li[data-checked="true"] {
     margin-top: 0 !important;
     margin-bottom: 0 !important;
   }
+  .ProseMirror-selectednode {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    img {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+    }
+  }
+  div:has(img) {
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
   mark {
     @apply bg-yellow-200 dark:bg-yellow-100;
   }
