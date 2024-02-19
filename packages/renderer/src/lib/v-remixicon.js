@@ -1,5 +1,6 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riAttachmentLine,
   riBrush2Fill,
   riInsertColumnLeft,
   riInsertColumnRight,
@@ -76,6 +77,7 @@ import {
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
+  riAttachmentLine,
   riBrush2Fill,
   riInsertColumnLeft,
   riInsertColumnRight,
