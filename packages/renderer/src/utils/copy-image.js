@@ -35,7 +35,9 @@ async function createFileName(filePath, id, timestamp) {
   const dataDir = await storage.get('dataDir');
   const { ext, name } = path.parse(filePath);
   const fileName = `${SHA256(name + timestamp).toString()}${ext}`; // Include timestamp in hashing
-  const destPath = path.join(dataDir, 'notes-assets', id, fileName);
+  const assetsPath = path.join(dataDir, 'notes-assets', id);
+  await ipcRenderer.callMain('fs:ensureDir', assetsPath);
+  const destPath = path.join(assetsPath, fileName);
   return { destPath, fileName };
 }
 

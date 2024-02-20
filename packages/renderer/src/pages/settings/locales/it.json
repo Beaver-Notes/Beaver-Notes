@@ -185,7 +185,9 @@
     "utilities": "Strumenti",
     "security": "Password e Sicurezza",
     "warning": "Attenzione, se dimentichi la tua password, perderai l'accesso alle tue note bloccate, e impostare una nuova password richiederà di conoscere quella vecchia.",
-    "wrongCurrentPassword": "Password errata, prova di nuovo"
+    "wrongCurrentPassword": "Password errata, prova di nuovo",
+    "passwordResetError": "Qualcosa è andato storto durante il reset della password",
+    "passwordResetSuccess": "La password è stata resettata con successo"
   },
   "_idvue": {
     "Previousnote": "Note precedenti",

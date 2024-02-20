@@ -470,15 +470,10 @@ export default {
         });
 
         if (canceled) return;
-
-        showAlert(translations.settings.relaunch, {
-          type: 'info',
-          buttons: [translations.settings.relaunchbutton],
-        });
         defaultPath = dir;
         localStorage.setItem('default-path', defaultPath);
         state.dataDir = defaultPath;
-        window.location.reload(); // Reload the page
+        window.location.reload();
       } catch (error) {
         console.error(error);
       }
