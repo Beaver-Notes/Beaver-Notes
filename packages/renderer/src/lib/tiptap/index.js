@@ -14,6 +14,14 @@ import MathBlock from './exts/math-block';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import Search from './exts/search';
+import {
+  blueCallout,
+  yellowCallout,
+  redCallout,
+  purpleCallout,
+  blackCallout,
+  greenCallout,
+} from './exts/Callouts';
 import Image from './exts/image';
 import Table from '@tiptap/extension-table';
 import TableCell from '@tiptap/extension-table-cell';
@@ -47,6 +55,12 @@ export const extensions = [
   Highlight,
   Typography,
   Underline,
+  blueCallout,
+  yellowCallout,
+  redCallout,
+  purpleCallout,
+  blackCallout,
+  greenCallout,
   LinkNote,
   LabelSuggestion,
   TaskList,

@@ -470,15 +470,10 @@ export default {
         });
 
         if (canceled) return;
-
-        showAlert(translations.settings.relaunch, {
-          type: 'info',
-          buttons: [translations.settings.relaunchbutton],
-        });
         defaultPath = dir;
         localStorage.setItem('default-path', defaultPath);
         state.dataDir = defaultPath;
-        window.location.reload(); // Reload the page
+        window.location.reload();
       } catch (error) {
         console.error(error);
       }
@@ -526,7 +521,7 @@ export default {
                       alert(translations.settings.passwordResetError);
                     }
                   } else {
-                    alert(translations.settings.invalidPassword);
+                    alert(translations.settings.Invalidpassword);
                   }
                 },
               });
@@ -534,7 +529,7 @@ export default {
               alert(translations.settings.wrongCurrentPassword);
             }
           } else {
-            alert(translations.settings.invalidPassword);
+            alert(translations.settings.Invalidpassword);
           }
         },
       });
@@ -585,6 +580,8 @@ export default {
         security: 'settings.security',
         utilities: 'settings.utilities',
         wrongCurrentPassword: 'settings.wrongCurrentPassword',
+        passwordResetSuccess: 'settings.passwordResetSuccess',
+        passwordResetError: 'settings.passwordResetError',
       },
     });
 
@@ -642,7 +639,6 @@ export default {
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
         { code: 'zh', name: '简体中文', translations: zhTranslations },
-        { code: 'nl', name: 'Nederlands', translations: nlTranslations },
       ],
     };
   },

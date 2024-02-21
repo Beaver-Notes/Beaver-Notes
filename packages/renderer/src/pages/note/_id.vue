@@ -1,8 +1,8 @@
 <template>
   <div
     v-if="note"
-    class="max-w-3xl mx-auto relative px-4 lg:px-0"
-    :class="{ 'pb-0': isLocked }"
+    class="max-w-3xl mx-auto relative px-4 lg:px-0 pb-6"
+    :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
       v-if="$route.query.linked && !store.inFocusMode"

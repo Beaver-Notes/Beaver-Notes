@@ -15,7 +15,7 @@
     "replaceall": "Vervang alles",
     "clear": "Legen",
     "useRegex": "Gebruik regex (Alt+R)",
-    "searchplaceholder": "Zoeken..." ,
+    "searchplaceholder": "Zoeken...",
     "replaceplaceholder": "Vervangen..."
   },
   "tiptap": {
@@ -99,7 +99,8 @@
     "enterpasswd": "Voer wachtwoord in",
     "Password": "Wachtwoord",
     "wrongpasswd": "Onjuist wachtwoord, notitie kan niet worden ontgrendel.",
-    "Passwdcorrect": "Wachtwoord is onjuist."
+    "Passwdcorrect": "Wachtwoord is onjuist.",
+    "warning": "Waarschuwing, als je je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord."
   },
   "about": {
     "title": "Beaver Notes",
@@ -163,8 +164,8 @@
     "Invalidpassword": "ongeldig wachtwoord",
     "relaunch": "De applicatie moet opnieuw opgestart om de veranderingen door te voeren",
     "relaunchbutton": "Herstarten",
-    "exportmessage" : "Notities zijn geëxporteerd naar",
-    "importsuccess" : "Data succesvol geïmporteerd",
+    "exportmessage": "Notities zijn geëxporteerd naar",
+    "importsuccess": "Data succesvol geïmporteerd",
     "invaliddata": "Ongeldige data",
     "syncreminder": "laat de synchronizeer herindering niet meer zien",
     "spellcheck": "Spellings check",
@@ -175,11 +176,22 @@
     "morespace": "Meer ruimte",
     "aboutDataEncryption": "Over data encryption",
     "encryptionMessage": "Beaver notes gebruikt AES-128 doormiddel van crypto-es",
-    "advancedSettings": "Geadvanceerde instellingen"
+    "advancedSettings": "Geadvanceerde instellingen",
+    "resetPasswordTitle": "Voer huidig wachtwoord in",
+    "next": "Volgende",
+    "enterNewPassword": "Voer nieuw wachtwoord in",
+    "resetPassword": "Wachtwoord opnieuw instellen",
+    "newpassword": "Voer nieuw wachtwoord in",
+    "utilities": "Hulpprogramma's",
+    "security": "Wachtwoord en beveiliging",
+    "warning": "Waarschuwing, als je je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord.",
+    "wrongCurrentPassword": "Verkeerd wachtwoord, probeer het opnieuw",
+    "passwordResetError": "Er is iets misgegaan bij het opnieuw instellen van je wachtwoord",
+    "passwordResetSuccess": "Het wachtwoord is succesvol opnieuw ingesteld"
   },
   "_idvue": {
-    "Previousnote":"Vorige notitie",
-    "untitlednote":"lege notitie"
+    "Previousnote": "Vorige notitie",
+    "untitlednote": "lege notitie"
   },
   "sidebar": {
     "Notes": "notities",

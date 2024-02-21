@@ -96,6 +96,7 @@
     "terser": "^5.26.0",
     "tiny-emitter": "^2.1.0",
     "tippy.js": "^6.3.1",
+    "tiptap-extension-resize-image": "^1.0.3",
     "v-remixicon": "^0.0.9",
     "vue": "^3.4.6",
     "vue-router": "^4.0.11"
