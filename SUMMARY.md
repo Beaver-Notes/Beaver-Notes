@@ -10,6 +10,7 @@
 * [🔄 Set up the Sync](user-guides/set-up-the-sync.md)
 * [💻 Code block](user-guides/code-block.md)
 * [⌨️ Callouts](user-guides/callouts.md)
+* [🔒 Security](user-guides/security.md)
 
 ## Dev Guides
 
