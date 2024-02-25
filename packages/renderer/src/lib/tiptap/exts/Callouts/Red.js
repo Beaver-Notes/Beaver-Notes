@@ -56,7 +56,7 @@ export const redCallout = Node.create({
   addInputRules() {
     return [
       wrappingInputRule({
-        find: /(?:^|\s)>(\[red])$/,
+        find: /(?:^|\s)>(\[red])\s?$/,
         type: this.type,
         getContent: (match) => {
           const [, red] = match;
