@@ -56,7 +56,7 @@ export const blackCallout = Node.create({
   addInputRules() {
     return [
       wrappingInputRule({
-        find: /(?:^|\s)>(\[black])$/,
+        find: /(?:^|\s)>(\[black])\s?$/,
         type: this.type,
         getContent: (match) => {
           const [, black] = match;
