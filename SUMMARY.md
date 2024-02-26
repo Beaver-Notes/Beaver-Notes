@@ -6,12 +6,12 @@
 
 * [🚀 Installation](user-guides/installation.md)
 * [📔 Getting Around](user-guides/getting-around.md)
-* [⌨️ Markdown syntax](user-guides/markdown-syntax.md)
-* [🔄 Set up the Sync](user-guides/set-up-the-sync.md)
+* [✒️ Markdown syntax](user-guides/markdown-syntax.md)
+* [🏷️ Labels](user-guides/labels.md)
 * [💻 Code block](user-guides/code-block.md)
 * [⌨️ Callouts](user-guides/callouts.md)
 * [🔒 Security](user-guides/security.md)
-* [🏷️ Labels](user-guides/labels.md)
+* [🔄 Set up the Sync](user-guides/set-up-the-sync.md)
 
 ## Dev Guides
 
