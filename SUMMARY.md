@@ -11,6 +11,7 @@
 * [💻 Code block](user-guides/code-block.md)
 * [⌨️ Callouts](user-guides/callouts.md)
 * [🔒 Security](user-guides/security.md)
+* [🏷️ Labels](user-guides/labels.md)
 
 ## Dev Guides
 
