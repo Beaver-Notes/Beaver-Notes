@@ -177,16 +177,3 @@ To launch Beaver Notes, either double-click the AppImage file or run it from the
 To integrate AppImages into your system, consider installing AppImageLauncher. For more information, visit their [GitHub repository.](https://github.com/TheAssassin/AppImageLauncher)
 
 Now that you've installed Beaver Notes successfully check out the next page to better understand the app's interface
-
-\
-\
-\
-\
-
-
-
-
-
-
-\
-\

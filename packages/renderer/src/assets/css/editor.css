@@ -163,7 +163,7 @@ li[data-checked="true"] {
   }
 
   table {
-    @apply border-collapse table-fixed w-full m-0 overflow-hidden;
+    @apply border-collapse table-fixed w-full overflow-hidden;
 
     td,
     th {
@@ -172,6 +172,10 @@ li[data-checked="true"] {
 
     th {
       @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+    }
+
+    td:first-child {
+      @apply left-2
     }
 
     .selectedCell:after {
