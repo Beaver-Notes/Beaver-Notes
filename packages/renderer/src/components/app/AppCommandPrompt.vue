@@ -1,6 +1,6 @@
 <template>
   <ui-card
-    v-if="state.show"
+    v-if="store.showPrompt"
     padding="p-4"
     class="command-prompt w-full max-w-lg mx-auto shadow-xl m-4"
   >
@@ -28,55 +28,100 @@
         class="cursor-pointer flex items-center justify-between"
         @click="selectItem(item, true)"
       >
-        <div class="flex items-center">
-          <span class="text-overflow flex-1">
-            {{ item.title || translations.commandprompt.untitlednote }}
-          </span>
-          <template v-if="item.shortcut">
-            <kbd v-for="key in item.shortcut" :key="key">
-              {{ key }}
-            </kbd>
-          </template>
+        <div class="w-full">
+          <p class="text-overflow w-full flex flex-1 justify-between">
+            <span>
+              {{ item.title || translations.commandprompt.untitlednote }}
+              <template v-if="item.isLocked">
+                <v-remixicon
+                  name="riLockLine"
+                  class="text-gray-600 dark:text-white ml-2 w-4 translate-y-[-1.5px]"
+                />
+              </template>
+            </span>
+            <span v-if="!isCommand">
+              {{ formatDate(item.updatedAt) }}
+            </span>
+          </p>
+          <p v-if="!isCommand && !item.isLocked" class="text-overflow text-xs">
+            {{ item.content }}
+          </p>
         </div>
-        <template v-if="item.isLocked">
-          <v-remixicon
-            name="riLockLine"
-            class="text-gray-600 dark:text-white ml-2"
-          />
-        </template>
       </ui-list-item>
     </ui-list>
   </ui-card>
 </template>
 <script>
-import { shallowReactive, computed, watch, onMounted } from 'vue';
+import { shallowReactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
 import commands from '@/utils/commands';
+import dayjs from 'dayjs';
+import { useStore } from '@/store';
 
 export default {
   setup() {
     const router = useRouter();
     const noteStore = useNoteStore();
+    const store = useStore();
+
+    const formatDate = (timestamp) =>
+      dayjs(timestamp).format('YYYY-MM-DD hh:mm');
 
     const state = shallowReactive({
-      show: false,
       query: '',
       selectedIndex: 0,
     });
 
-    const items = computed(() => {
-      const searchQuery = state.query.toLocaleLowerCase();
-      const isCommand = searchQuery.startsWith('>');
-      const filterItems = isCommand ? commands : noteStore.notes;
+    store.showPrompt = false;
 
-      return filterItems.filter(({ title }) =>
-        title
-          .toLocaleLowerCase()
-          .includes(isCommand ? searchQuery.substr(1) : searchQuery)
-      );
+    const mergeContent = (content) => {
+      if (typeof content === 'string') {
+        return content;
+      }
+      if (Array.isArray(content)) {
+        return content.map((c) => mergeContent(c)).join('');
+      }
+      if (content == null) {
+        return '';
+      }
+      if ('content' in content) {
+        return mergeContent(content.content);
+      }
+      if (content.type.toLocaleLowerCase().includes('label')) {
+        return `#${content.attrs.id}`;
+      }
+      return content.label ?? content.text ?? '';
+    };
+
+    const isCommand = computed(() => state.query.startsWith('>'));
+    const queryTerm = computed(() => {
+      const searchQuery = state.query.toLocaleLowerCase();
+      return (isCommand.value ? searchQuery.substr(1) : searchQuery).trim();
+    });
+
+    const items = computed(() => {
+      const filterItems = isCommand.value ? commands : noteStore.notes;
+
+      return filterItems
+        .map((item) => {
+          if (isCommand.value) {
+            return item;
+          }
+          return {
+            ...item,
+            content: mergeContent(item.content),
+          };
+        })
+        .filter(({ title, content }) => {
+          const isInTitle = title.toLocaleLowerCase().includes(queryTerm.value);
+          if (!isCommand.value) {
+            return content.includes(queryTerm.value) || isInTitle;
+          }
+          return isInTitle;
+        });
     });
 
     function keydownHandler(event) {
@@ -105,16 +150,16 @@ export default {
       clear();
     }
     function clear() {
-      state.show = false;
+      store.showPrompt = false;
       state.query = '';
       state.selectedIndex = 0;
     }
 
     Mousetrap.bind('mod+shift+p', () => {
-      if (state.show) return clear();
+      if (store.showPrompt) return clear();
 
       document.querySelector('.command-input')?.focus();
-      state.show = true;
+      store.showPrompt = true;
     });
 
     watch(items, () => {
@@ -164,13 +209,30 @@ export default {
       }
     };
 
+    const escQuit = (event) => {
+      if (event.code === 'Escape') {
+        clear();
+      }
+    };
+
+    onMounted(() => {
+      document.addEventListener('keyup', escQuit);
+    });
+    onUnmounted(() => {
+      document.removeEventListener('keyup', escQuit);
+    });
+
     return {
       items,
       translations,
+      store,
       state,
+      isCommand,
       clear,
       selectItem,
       keydownHandler,
+      formatDate,
+      mergeContent,
     };
   },
 };
