@@ -35,7 +35,7 @@
               <template v-if="item.isLocked">
                 <v-remixicon
                   name="riLockLine"
-                  class="text-gray-600 dark:text-white ml-2 w-4"
+                  class="text-gray-600 dark:text-white ml-2 w-4 translate-y-[-1.5px]"
                 />
               </template>
             </span>
@@ -44,7 +44,7 @@
             </span>
           </p>
           <p v-if="!isCommand && !item.isLocked" class="text-overflow text-xs">
-            {{ spliceContent(item.content.content[0]) }}
+            {{ item.content }}
           </p>
         </div>
       </ui-list-item>
@@ -77,18 +77,18 @@ export default {
 
     store.showPrompt = false;
 
-    const spliceContent = (content) => {
+    const mergeContent = (content) => {
       if (typeof content === 'string') {
         return content;
       }
       if (Array.isArray(content)) {
-        return content.map((c) => spliceContent(c)).join('');
+        return content.map((c) => mergeContent(c)).join('');
       }
       if (content == null) {
         return '';
       }
       if ('content' in content) {
-        return spliceContent(content.content);
+        return mergeContent(content.content);
       }
       if (content.type.toLocaleLowerCase().includes('label')) {
         return `#${content.attrs.id}`;
@@ -105,13 +105,23 @@ export default {
     const items = computed(() => {
       const filterItems = isCommand.value ? commands : noteStore.notes;
 
-      return filterItems.filter(({ title, content }) => {
-        const isInTitle = title.toLocaleLowerCase().includes(queryTerm.value);
-        if (!isCommand.value) {
-          return spliceContent(content).includes(queryTerm.value) || isInTitle;
-        }
-        return isInTitle;
-      });
+      return filterItems
+        .map((item) => {
+          if (isCommand.value) {
+            return item;
+          }
+          return {
+            ...item,
+            content: mergeContent(item.content),
+          };
+        })
+        .filter(({ title, content }) => {
+          const isInTitle = title.toLocaleLowerCase().includes(queryTerm.value);
+          if (!isCommand.value) {
+            return content.includes(queryTerm.value) || isInTitle;
+          }
+          return isInTitle;
+        });
     });
 
     function keydownHandler(event) {
@@ -222,7 +232,7 @@ export default {
       selectItem,
       keydownHandler,
       formatDate,
-      spliceContent,
+      mergeContent,
     };
   },
 };
