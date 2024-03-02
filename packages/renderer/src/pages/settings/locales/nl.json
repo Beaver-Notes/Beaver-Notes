@@ -175,7 +175,7 @@
     "default": "Standaard",
     "morespace": "Meer ruimte",
     "aboutDataEncryption": "Over data encryption",
-    "encryptionMessage": "Beaver notes gebruikt AES-128 doormiddel van crypto-es",
+    "encryptionMessage": "Beaver Notes gebruikt AES-128 doormiddel van crypto-es",
     "advancedSettings": "Geadvanceerde instellingen",
     "resetPasswordTitle": "Voer huidig wachtwoord in",
     "next": "Volgende",

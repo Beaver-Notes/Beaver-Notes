@@ -1,6 +1,6 @@
 ---
 description: >-
-  This page will guid you through inserting and formatting code blocks,
+  This page will guide you through inserting and formatting code blocks,
   including setting up VSCode for maintaining code formatting when pasting.
 ---
 

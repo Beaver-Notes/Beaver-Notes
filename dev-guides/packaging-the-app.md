@@ -23,7 +23,7 @@ A good example of how this guide should be used, even though it wasn't created u
 
 Let's suppose you are here to package Beaver Notes for your favorite package manager, whether it's for 🐧Linux, 🍎macOS, or 🪟Windows. The first thing you should do is check the package manager's website or repository for a documentation page. This will help you cover the steps we can't provide here due to the variety of package managers.
 
-### Usefull Resources
+### Useful Resources
 
 Usually you'll need the following to package an app:
 
