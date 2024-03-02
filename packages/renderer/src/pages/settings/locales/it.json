@@ -175,7 +175,7 @@
     "default": "Predefinito",
     "morespace": "Più spazio",
     "aboutDataEncryption": "Informazioni sulla crittografia dei dati",
-    "encryptionMessage": "Beaver notes usa AES-128 attraverso crypto-es",
+    "encryptionMessage": "Beaver Notes usa AES-128 attraverso crypto-es",
     "advancedSettings": "Impostazioni avanzate",
     "resetPasswordTitle": "Inserisci Password Attuale",
     "next": "Avanti",
