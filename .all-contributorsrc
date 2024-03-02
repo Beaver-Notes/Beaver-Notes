@@ -47,6 +47,16 @@
         "translation",
         "maintenance"
       ]
+    },
+    {
+      "login": "bricker",
+      "name": "Bryan Ricker",
+      "avatar_url": "https://avatars.githubusercontent.com/u/978899?v=4",
+      "profile": "https://www.eave.fyi",
+      "contributions": [
+        "doc",
+        "translation"
+      ]
     }
   ],
   "contributorsPerLine": 7,
