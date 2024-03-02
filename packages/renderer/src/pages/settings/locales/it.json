@@ -92,6 +92,8 @@
     "unlocktoedit": "Sblocca per modificare",
     "setupkey": "Imposta una nuova chiave condivisa",
     "setkey": "Imposta chiave",
+    "confirmPrompt": "Sei sicuro?",
+    "confirm": "Confermare",
     "Cancel": "Annulla",
     "NewKey": "Nuova chiave",
     "keyfail": "Impostazione chiave annullata. Impossibile bloccare la nota.",

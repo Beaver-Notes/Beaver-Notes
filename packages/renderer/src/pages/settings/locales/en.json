@@ -92,6 +92,8 @@
     "unlocktoedit": "Unlock to edit",
     "setupkey": "Set Up a New Shared Key",
     "setkey": "Set Key",
+    "confirmPrompt": "Are you sure?",
+    "confirm": "Confirm",
     "Cancel": "Cancel",
     "NewKey": "New Key",
     "keyfail": "Password setup cancelled. Note cannot be locked.",

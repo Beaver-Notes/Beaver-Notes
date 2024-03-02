@@ -98,7 +98,7 @@
       <button
         v-tooltip.group="translations.card.delete"
         class="hover:text-red-500 dark:hover:text-red-400 transition invisible group-hover:visible"
-        @click="$emit('delete', note.id)"
+        @click="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" />
       </button>
@@ -134,7 +134,7 @@ defineProps({
     default: () => ({}),
   },
 });
-defineEmits(['update', 'delete', 'update:label']);
+defineEmits(['update', 'update:label']);
 
 const dialog = useDialog();
 
@@ -227,6 +227,19 @@ async function unlockNote(note) {
         console.error('Error unlocking note:', error);
         alert(translations.card.wrongpasswd);
       }
+    },
+  });
+}
+
+async function deleteNote(note) {
+  const noteStore = useNoteStore();
+
+  dialog.confirm({
+    title: translations.card.confirmPrompt,
+    okText: translations.card.confirm,
+    cancelText: translations.card.Cancel,
+    onConfirm: async () => {
+      await noteStore.delete(note);
     },
   });
 }

@@ -92,6 +92,8 @@
     "unlocktoedit": "Ontgrendel om aan te passen",
     "setupkey": "Een nieuw gedeeld sleutel instellen",
     "setkey": "sleutel instellen",
+    "confirmPrompt": "Weet je het zeker?",
+    "confirm": "Bevestigen",
     "Cancel": "Annuleer",
     "NewKey": "Nieuwe sleutel",
     "keyfail": "sleutel opstellen geannuleerd, notitie kan niet worden vergrendeld.",
