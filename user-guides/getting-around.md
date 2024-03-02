@@ -16,7 +16,7 @@ Upon launching Beaver Notes, you'll be greeted by a clean and intuitive user int
   2. Edit Note: Easily modify the content of any note by clicking on the "Edit" option.
   3. Notes Section: All your notes are displayed in neatly organized cards for easy browsing and reference.
   4. Archive: Keep your notes organized by archiving them when they're no longer in active use. Simply click on the archive icon at the top left corner.
-  5. Import / Export: These two buttons let you export and import notes when an export path is select in settings
+  5. Import / Export: These two buttons let you export and import notes when an export path is set in settings.
   6. Dark Mode: For those who prefer a darker interface, switch to dark mode effortlessly from the bottom left corner.
   7. Settings: Fine-tune Beaver Notes to your preferences by accessing the settings from the sidebar.
 * Editor: The right side of the screen is the editor, where you can compose or modify your notes using Beaver Notes' powerful markdown formatting.
