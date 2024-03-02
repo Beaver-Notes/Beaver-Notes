@@ -39,7 +39,7 @@ Keyboard Shortcuts: Speed up your workflow by using keyboard shortcuts to perfor
 
 For more keyboard shortcuts, open the settings.
 
-### Command Prompt:
+### Command Prompt
 
 Quickly find notes or execute commands using the command prompt. To open the command prompt, press Ctrl+P or Ctrl+Shift+P / Cmd+P or Cmd+Shift+P to quickly find a command.
 
