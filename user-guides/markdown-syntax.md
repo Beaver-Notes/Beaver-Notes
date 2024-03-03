@@ -1,6 +1,6 @@
 ---
 description: >-
-  Markdown is a powerful language that helps you get things done quickly, master
+  Markdown is a powerful language that helps you get things done quickly. Master
   it and your notes will take shape in no time.
 ---
 
@@ -13,7 +13,7 @@ Markdown is a simple text formatting language that makes it easy to style and st
 ## The syntax
 
 {% hint style="info" %}
-This section of the docs doesn't cover the whole markdown syntax but only the syntax supported by Beaver Notes if what you are trying to type isn't in here it's probably not supported
+This section of the docs doesn't cover the whole markdown syntax but only the syntax supported by Beaver Notes. If what you are trying to type isn't in here, it's probably not supported.
 {% endhint %}
 
 ### Headings
@@ -57,7 +57,7 @@ print('This is a code block, the block below is a math block!')
 $E=mc^2$
 ````
 
-#### Image (from links only)
+#### Images (from links only)
 
 <figure><img src="https://picsum.photos/800/400" alt=""><figcaption></figcaption></figure>
 

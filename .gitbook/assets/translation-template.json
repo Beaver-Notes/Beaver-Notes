@@ -82,6 +82,8 @@
     "unlocktoedit": "Unlock to edit",
     "setupkey": "Set Up a New Shared Key",
     "setkey": "Set Key",
+    "confirmPrompt": "Are you sure?",
+    "confirm": "Confirm",
     "Cancel": "Cancel",
     "NewKey": "New Key",
     "keyfail": "Key setup cancelled. Note cannot be locked.",
@@ -101,7 +103,7 @@
   },
   "shortcuts": {
     "General": "General shortcuts",
-    "Navigates": "Navigates shortcuts",
+    "Navigates": "Navigation shortcuts",
     "Editor": "Editor shortcuts",
     "Createnewnote": "Create new note",
     "Togglecommandprompt": "Toggle command prompt",
@@ -164,7 +166,7 @@
     "default": "Default",
     "morespace": "More space",
     "aboutDataEncryption": "About data encryption",
-    "encryptionMessage": "Beaver notes employes AES-128 through crypto-es"
+    "encryptionMessage": "Beaver Notes uses AES-128 through crypto-es"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

@@ -250,6 +250,7 @@ import Mousetrap from '@/lib/mousetrap';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
+import { useDialog } from '@/composable/dialog';
 
 export default {
   components: { NoteMenuHeadingsTree },
@@ -369,6 +370,7 @@ export default {
     const noteStore = useNoteStore();
     const router = useRouter();
     const editorImage = useEditorImage(props.editor);
+    const dialog = useDialog();
 
     useGroupTooltip();
 
@@ -405,8 +407,15 @@ export default {
     }
 
     function deleteNode() {
-      noteStore.delete(props.id);
-      router.push('/');
+      dialog.confirm({
+        title: translations.card.confirmPrompt,
+        okText: translations.card.confirm,
+        cancelText: translations.card.Cancel,
+        onConfirm: async () => {
+          await noteStore.delete(props.id);
+          router.push('/');
+        },
+      });
     }
 
     const shortcuts = {

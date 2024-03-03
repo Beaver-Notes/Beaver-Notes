@@ -92,6 +92,8 @@
     "unlocktoedit": "Entsperren zum Bearbeiten",
     "setupkey": "Richten Sie einen neuen gemeinsamen Schlüssel ein",
     "setkey": "Setze Schlüssel",
+    "confirmPrompt": "Bist du sicher?",
+    "confirm": "Bestätigen",
     "Cancel": "Abbrechen",
     "NewKey": "Neuer Schlüssel",
     "keyfail": "Schlüssel Erstellung abgebrochen. Notiz konnte nicht gesperrt werden.",
