@@ -22,8 +22,8 @@ After clicking 'Select Path,' your file manager window will open. Simply choose 
 
 <figure><img src="../.gitbook/assets/files.webp" alt=""><figcaption></figcaption></figure>
 
-Once you've selected the path, the app will reload for the changes to take effect, and you'll be taken back to the editor. From there, you can either press the two buttons in the sidebar to import and export your notes or just press Ctrl/Cmd+Shift+U to import and Ctrl/Cmd+Shift+E to export.
+Once you've finished selecting the path, a prompt will appear, asking you to relaunch the app for the changes to take effect. Simply press 'Relaunch,' and you're all set.
 
-{% hint style="info" %}
-"If the buttons in the sidebar or the shortcuts don't work the first time, try accessing settings and exporting your data manually. After that, both the buttons and the shortcuts should work.
-{% endhint %}
+<figure><img src="../.gitbook/assets/relaunch.webp" alt=""><figcaption></figcaption></figure>
+
+Kudos, you've successfully set up the synchronization! Now, all you need to do is click 'Export' in the sidebar before closing the app, and remember to toggle 'Import' as soon as you open it.
