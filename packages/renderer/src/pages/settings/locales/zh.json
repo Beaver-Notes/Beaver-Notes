@@ -92,6 +92,8 @@
     "unlocktoedit": "解锁后编辑",
     "setupkey": "设置新的共享密钥",
     "setkey": "设置密钥",
+    "confirmPrompt": "你确定吗？",
+    "confirm": "确认",
     "Cancel": "取消",
     "NewKey": "新建密钥",
     "keyfail": "密钥设置已取消，笔记将不会被锁定。",

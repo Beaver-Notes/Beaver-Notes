@@ -38,7 +38,6 @@
           :is-locked="note.isLocked"
           v-bind="{ note }"
           @update:label="state.activeLabel = $event"
-          @delete="noteStore.delete(note.id)"
           @update="noteStore.update(note.id, $event)"
         />
         <div
@@ -96,6 +95,7 @@ import {
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
+import { useDialog } from '@/composable/dialog';
 import { sortArray, extractNoteText } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import HomeNoteFilter from '@/components/home/HomeNoteFilter.vue';
@@ -131,6 +131,7 @@ export default {
     const router = useRouter();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
+    const dialog = useDialog();
 
     const keyboardNavigation = shallowRef(null);
     const state = reactive({
@@ -249,9 +250,18 @@ export default {
 
           if (!activeItem || !noteId) return;
 
-          if (key === 'Enter') router.push(`/note/${noteId}`);
-          else if (key === 'Backspace' || key === 'Delete')
-            noteStore.delete(noteId);
+          if (key === 'Enter') {
+            router.push(`/note/${noteId}`);
+          } else if (key === 'Backspace' || key === 'Delete') {
+            dialog.confirm({
+              title: translations.card.confirmPrompt,
+              okText: translations.card.confirm,
+              cancelText: translations.card.Cancel,
+              onConfirm: async () => {
+                await noteStore.delete(noteId);
+              },
+            });
+          }
         }
       );
     });
