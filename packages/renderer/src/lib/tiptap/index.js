@@ -22,6 +22,7 @@ import {
   blackCallout,
   greenCallout,
 } from './exts/Callouts';
+import { LiteralTab } from './exts/literal-tab';
 import Image from './exts/image';
 import Table from '@tiptap/extension-table';
 import TableCell from '@tiptap/extension-table-cell';
@@ -54,6 +55,7 @@ export const extensions = [
   StarterKit,
   Highlight,
   Typography,
+  LiteralTab,
   Underline,
   blueCallout,
   yellowCallout,
