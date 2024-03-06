@@ -34,7 +34,7 @@ Keyboard Shortcuts: Speed up your workflow by using keyboard shortcuts to perfor
 * Ctrl+, / Cmd+,: Navigate to the settings.
 * Ctrl+Shift+W / Cmd+Shift+W : Open the current edited note.
 * Ctrl+Shift+N / Cmd+Shift+N : Navigate to all notes.
-* trl+Shift+A / Cmd+Shift+A: Navigate to archived notes.
+* Ctrl+Shift+A / Cmd+Shift+A: Navigate to archived notes.
 * Ctrl+Shift+L / Cmd+Shift+L: Toggle dark mode.
 
 For more keyboard shortcuts, open the settings.

@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="note"
-    class="max-w-3xl mx-auto relative px-4 lg:px-0 pb-6"
+    class="max-w-3xl mx-auto relative px-4 sm:px-1 lg:px-0 pb-6"
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
@@ -18,7 +18,7 @@
         {{ translations._idvue.Previousnote || '-' }}
       </span>
     </button>
-    <template v-if="editor">
+    <template v-if="editor && !note.isLocked">
       <note-menu v-bind="{ editor, id }" class="mb-6" />
       <note-search
         v-if="showSearch"
@@ -259,12 +259,23 @@ export default {
       }
     };
 
+    const focusEditor = () =>
+      noteEditor.value?.$el?.querySelector('*[tabindex="0"]')?.focus();
     const disallowedEnter = (event) => {
       if (event && event.key === 'Enter') {
-        noteEditor.value.$el.querySelector('*[tabindex="0"]').focus();
+        focusEditor();
         event.returnValue = false;
       }
     };
+
+    watch(
+      () => store.showPrompt,
+      (n) => {
+        if (!n) {
+          focusEditor();
+        }
+      }
+    );
 
     async function unlockNote(note) {
       const passwordStore = usePasswordStore();
@@ -311,7 +322,7 @@ export default {
       closeSearch,
       disallowedEnter,
       autoScroll,
-      isLocked, // Include isLocked in the returned object
+      isLocked,
     };
   },
 };

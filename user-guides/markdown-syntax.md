@@ -4,7 +4,7 @@ description: >-
   it and your notes will take shape in no time.
 ---
 
-# ⌨ Markdown syntax
+# ✒️ Markdown syntax
 
 ## What's Markdown
 
