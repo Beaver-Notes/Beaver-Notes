@@ -13,6 +13,7 @@ import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
+import FileEmbed from './exts/file-embed';
 import Search from './exts/search';
 import {
   blueCallout,
@@ -34,15 +35,12 @@ import deTranslations from '../../pages/settings/locales/de.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
 import nlTranslations from '../../pages/settings/locales/nl.json';
 
-const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en'; // Get the selected language from localStorage
+const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
 
-let translations = enTranslations; // Default to English translations
+let translations = enTranslations;
 
-// Import and apply translations based on the selected language
 if (selectedLanguage === 'it') {
-  // eslint-disable-next-line no-unused-vars
   translations = itTranslations;
-  // Import and assign other languages as needed
 } else if (selectedLanguage === 'de') {
   translations = deTranslations;
 } else if (selectedLanguage === 'zh') {
@@ -64,6 +62,7 @@ export const extensions = [
   blackCallout,
   greenCallout,
   LinkNote,
+  FileEmbed,
   LabelSuggestion,
   TaskList,
   Table,

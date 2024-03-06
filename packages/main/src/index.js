@@ -25,7 +25,7 @@ let mainWindow = null;
 const createWindow = async () => {
   mainWindow = new BrowserWindow({
     show: false,
-    width: 950,
+    width: 980,
     height: 600,
     webPreferences: {
       preload: join(__dirname, '../../preload/dist/index.cjs'),
@@ -103,6 +103,10 @@ ipcMain.answerRenderer('app:info', () => ({
 
 ipcMain.answerRenderer('app:spellcheck', (isEnabled) => {
     mainWindow.webContents.session.setSpellCheckerEnabled(isEnabled);
+});
+
+ipcMain.answerRenderer('open-file-external', (src) => {
+  shell.openPath(src);
 });
 
 ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {

@@ -345,6 +345,10 @@ export default {
           path: path.join(dataDir, 'notes-assets'),
           dest: path.join(folderPath, 'assets'),
         });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dataDir, 'file-assets'),
+          dest: path.join(folderPath, 'file-assets'),
+        });
 
         alert(`${translations.settings.exportmessage}"${folderName}"`);
 
@@ -449,9 +453,12 @@ export default {
         }
 
         await ipcRenderer.callMain('fs:copy', {
-          // eslint-disable-next-line no-undef
-          path: path.join(folderPath, 'assets'),
+          path: path.join(dirPath, 'assets'),
           dest: path.join(dataDir, 'notes-assets'),
+        });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dirPath, 'file-assets'),
+          dest: path.join(dataDir, 'file-assets'),
         });
         window.reload();
       } catch (error) {

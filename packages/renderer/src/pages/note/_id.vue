@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="note"
-    class="max-w-3xl mx-auto relative px-4 lg:px-0 pb-6"
+    class="max-w-3xl mx-auto relative px-4 sm:px-1 lg:px-0 pb-6"
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
@@ -322,7 +322,7 @@ export default {
       closeSearch,
       disallowedEnter,
       autoScroll,
-      isLocked, // Include isLocked in the returned object
+      isLocked,
     };
   },
 };

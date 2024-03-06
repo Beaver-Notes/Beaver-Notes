@@ -1,6 +1,6 @@
 <template>
   <div
-    class="text-gray-600 dark:text-gray-300 bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
+    class="text-gray-600 dark:text-gray-300 bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
   >
     <div class="w-full h-full flex items-center justify-between w-full">
@@ -94,6 +94,21 @@
       >
         <v-remixicon name="riLink" />
       </button>
+      <button
+        v-tooltip.group="translations.menu.File"
+        :class="{ 'is-active': editor.isActive('file') }"
+        class="transition hoverable h-8 px-1 rounded-lg"
+        @click="$refs.fileInput.click()"
+      >
+        <v-remixicon name="riFile2Line" />
+      </button>
+      <input
+        ref="fileInput"
+        type="file"
+        class="hidden"
+        multiple
+        @change="handleFileSelect"
+      />
       <button
         v-tooltip.group="translations.menu.tableOptions"
         class="hoverable h-8 px-1 rounded-lg"
@@ -197,7 +212,6 @@
       >
         <v-remixicon name="riDeleteBin6Line" />
       </button>
-
       <button
         v-tooltip.group="translations.menu.Focusmode"
         :class="{ 'is-active': store.inFocusMode }"
@@ -245,6 +259,7 @@ import {
 } from 'vue';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
+import { saveFile } from '../../utils/copy-doc';
 import { useEditorImage } from '@/composable/editorImage';
 import Mousetrap from '@/lib/mousetrap';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
@@ -443,6 +458,7 @@ export default {
         image: 'menu.image',
         imgurl: 'menu.imgurl',
         Link: 'menu.Link',
+        File: 'menu.File',
         Print: 'menu.Print',
         Focusmode: 'menu.Focusmode',
         headingsTree: 'menu.headingsTree',
@@ -495,10 +511,28 @@ export default {
       return localStorage.getItem('advanced-settings') === 'true';
     });
 
+    const handleFileSelect = async (event) => {
+      const files = event.target.files;
+      if (!files.length) return;
+
+      const timestamp = Date.now(); // Generate a timestamp for the file
+      try {
+        for (const file of files) {
+          const { fileName, destPath } = await saveFile(file, timestamp);
+          // Insert file embed into the editor content
+          props.editor.commands.setFileEmbed(destPath, fileName).run();
+        }
+      } catch (error) {
+        console.error(error);
+        // Handle error
+      }
+    };
+
     return {
       store,
       lists,
       imgUrl,
+      handleFileSelect,
       translations,
       headings,
       insertImage,
