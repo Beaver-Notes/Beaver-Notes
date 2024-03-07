@@ -4,6 +4,7 @@
     <editor-content
       :editor="editor"
       class="prose dark:text-gray-100 max-w-none prose-indigo"
+      @paste="handlePaste"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
   </div>
@@ -71,6 +72,18 @@ export default {
       }
     }
 
+    function handlePaste(event) {
+      event.preventDefault();
+
+      const clipboardData = event.clipboardData || window.clipboardData;
+      const pastedHTML = clipboardData.getData('text/html');
+      const pastedText = clipboardData.getData('text/plain');
+
+      // Insert HTML content if available, otherwise insert plain text content
+      const contentToInsert = pastedHTML || pastedText;
+      editor.value.commands.insertContent(contentToInsert);
+    }
+
     onMounted(() => {
       emit('init', editor.value);
 
@@ -86,6 +99,7 @@ export default {
 
     return {
       editor,
+      handlePaste,
     };
   },
 };

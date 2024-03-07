@@ -774,6 +774,11 @@
   resolved "https://registry.npmmirror.com/@tiptap/extension-task-list/-/extension-task-list-2.1.16.tgz#c0707d4bf3956ed58c85975f21361dd3e16c268f"
   integrity sha512-NZzjK8SN3LZcjnwHLiCYPrNRs4nqax+b36GqB1o4GC1Vqmkt8ynW+MII09i08LhBYVJSX2yzRKPE2RDhCeAWig==
 
+"@tiptap/extension-text-align@^2.2.4":
+  version "2.2.4"
+  resolved "https://registry.yarnpkg.com/@tiptap/extension-text-align/-/extension-text-align-2.2.4.tgz#db63ca334e3d5512a67652e393ed9ee982d78b6a"
+  integrity sha512-iojhpsv3n/r4g/4wMFl1d85RloWrAV3TRUJluurPQZJdrJ7ynJ2fiPqmigAXyaYAJ3+a1ryu9JPlktT9RdYO/A==
+
 "@tiptap/extension-text@^2.1.16":
   version "2.1.16"
   resolved "https://registry.npmmirror.com/@tiptap/extension-text/-/extension-text-2.1.16.tgz#188d46545450f1b1969d70853f24ab14437827ec"
