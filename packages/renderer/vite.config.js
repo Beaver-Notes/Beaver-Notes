@@ -36,6 +36,7 @@ export default defineConfig({
     sourcemap: true,
     target: `chrome${chrome}`,
     outDir: 'dist',
+    chunkSizeWarningLimit: 1600,
     assetsDir: '.',
     terserOptions: {
       ecma: 2020,

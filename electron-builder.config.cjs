@@ -29,7 +29,7 @@ const electronBuilderConfig = {
   },
    linux: {
     icon: 'buildResources/icon-linux.icns',
-    target: ['AppImage', 'rpm', 'deb'],
+    target: ['AppImage', 'rpm', 'deb', 'flatpak'],
     publish: ['github'],
     maintainer: 'Daniele Rolli <danielerolli@proton.me>',
     category: 'Productivity',
