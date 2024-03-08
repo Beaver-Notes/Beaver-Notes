@@ -520,7 +520,7 @@ export default {
         for (const file of files) {
           const { fileName, destPath } = await saveFile(file, timestamp);
           // Insert file embed into the editor content
-          props.editor.commands.setFileEmbed(destPath, fileName).run();
+          props.editor.commands.setFileEmbed(destPath, fileName);
         }
       } catch (error) {
         console.error(error);
