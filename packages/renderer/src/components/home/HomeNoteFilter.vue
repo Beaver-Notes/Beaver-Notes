@@ -22,18 +22,18 @@
         "
         icon
         class="rounded-r-none"
-        @click="$emit('delete:label', label)"
+        @click="deleteLabel"
       >
         <v-remixicon
           :name="label === '' ? 'riPriceTag3Line' : 'riDeleteBin6Line'"
         />
       </ui-button>
       <ui-select
-        :model-value="label"
+        :model-value="_label"
         :placeholder="translations.filter.Selectlabel || '-'"
         @change="$emit('update:label', $event)"
       >
-        <option v-for="item in labels" :key="item" :valye="item">
+        <option v-for="item in labels" :key="item" :value="item">
           {{ item }}
         </option>
       </ui-select>
@@ -61,7 +61,14 @@
 </template>
 
 <script>
-import { onUnmounted, onMounted, shallowReactive, computed } from 'vue';
+import {
+  watch,
+  ref,
+  onUnmounted,
+  onMounted,
+  shallowReactive,
+  computed,
+} from 'vue';
 import Mousetrap from '@/lib/mousetrap';
 
 export default {
@@ -94,9 +101,10 @@ export default {
     'update:sortBy',
     'delete:label',
   ],
-  setup() {
+  setup(props, { emit }) {
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
+    const _label = ref(props.label);
 
     const translations = shallowReactive({
       filter: {
@@ -148,10 +156,23 @@ export default {
       }
     };
 
+    watch(
+      () => props.label,
+      (newLabel) => {
+        _label.value = newLabel;
+      }
+    );
+    const deleteLabel = async () => {
+      emit('delete:label', props.label);
+      _label.value = '';
+    };
+
     return {
       sorts,
       keyBinding,
       translations,
+      _label,
+      deleteLabel,
     };
   },
 };
