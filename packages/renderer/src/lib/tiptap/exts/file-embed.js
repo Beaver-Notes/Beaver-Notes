@@ -40,7 +40,7 @@ const FileEmbed = Node.create({
         src: HTMLAttributes.src,
         'data-file-name': HTMLAttributes.fileName,
         class:
-          'p-2 text-lg w-full bg-[#F8F8F7] dark:bg-[#353333] rounded-lg cursor-pointer', // Add cursor pointer
+          'p-2 w-full bg-[#F8F8F7] hover:bg-[#EFEFEF] dark:hover:bg-[#373737] dark:bg-[#353333] rounded-lg cursor-pointer', // Add cursor pointer
       },
       HTMLAttributes.fileName,
     ];
