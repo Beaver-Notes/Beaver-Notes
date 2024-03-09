@@ -222,36 +222,52 @@ export default {
 
     async function importData() {
       try {
-        const today = dayjs();
-        const folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-        const dirPath = path.join(defaultPath, folderName);
+        let today = dayjs();
+        let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+        let dirPath = path.join(defaultPath, folderName);
 
-        let { data } = await ipcRenderer.callMain(
-          'fs:read-json',
-          path.join(dirPath, 'data.json')
-        );
+        while (true) {
+          // Attempt to read data from the current directory
+          try {
+            let { data } = await ipcRenderer.callMain(
+              'fs:read-json',
+              path.join(dirPath, 'data.json')
+            );
 
-        if (typeof data === 'string') {
-          const password = 'userInputPassword'; // Replace with your logic to get the password
+            if (typeof data === 'string') {
+              const password = 'userInputPassword'; // Replace with your logic to get the password
 
-          const bytes = AES.decrypt(data, password);
-          const result = bytes.toString(Utf8);
-          const resultObj = JSON.parse(result);
+              const bytes = AES.decrypt(data, password);
+              const result = bytes.toString(Utf8);
+              const resultObj = JSON.parse(result);
 
-          mergeImportedData(resultObj);
-        } else {
-          mergeImportedData(data);
+              mergeImportedData(resultObj);
+
+              const dataDir = await storage.get('dataDir', '', 'settings');
+              const importPathToAssets = path.join(dirPath, 'assets');
+
+              await ipcRenderer.callMain('fs:copy', {
+                path: importPathToAssets,
+                dest: path.join(dataDir, 'notes-assets'),
+              });
+
+              console.log('Assets copied successfully.');
+            } else {
+              mergeImportedData(data);
+            }
+            return; // Exit the function after successfully importing data
+          } catch (error) {
+            // Directory doesn't exist, try previous date
+            today = today.subtract(1, 'day');
+            folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+            dirPath = path.join(defaultPath, folderName);
+
+            if (today.isBefore('YYYY-MM-DD')) {
+              console.error('No data available for syncing.');
+              return; // Exit the function if no suitable directory is found
+            }
+          }
         }
-
-        const dataDir = await storage.get('dataDir', '', 'settings');
-        const importPathToAssets = path.join(dirPath, 'assets');
-
-        await ipcRenderer.callMain('fs:copy', {
-          path: importPathToAssets,
-          dest: path.join(dataDir, 'notes-assets'),
-        });
-
-        console.log('Assets copied successfully.');
       } catch (error) {
         console.error('Error while importing data:', error);
       }
