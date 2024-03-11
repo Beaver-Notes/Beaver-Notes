@@ -7,12 +7,12 @@
       @paste="handlePaste"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
-    <note-bubble-menu-table v-if="editor" v-bind="{ editor }" />
+    <note-bubble-menu-table v-if="editor" v-bind="{ editor, isTyping }" />
   </div>
 </template>
 
 <script>
-import { onMounted } from 'vue';
+import { onMounted, watch, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
 import { extensions } from '@/lib/tiptap';
@@ -100,9 +100,24 @@ export default {
       });
     });
 
+    const isTyping = ref(false);
+
+    watch(
+      () => editor.value && editor.value.getHTML(),
+      (newValue, oldValue) => {
+        if (newValue !== oldValue) {
+          isTyping.value = true;
+
+          setTimeout(() => {
+            isTyping.value = false;
+          }, 1000);
+        }
+      }
+    );
     return {
       editor,
       handlePaste,
+      isTyping,
     };
   },
 };

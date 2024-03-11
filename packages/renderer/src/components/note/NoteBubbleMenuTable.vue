@@ -1,6 +1,6 @@
 <template>
   <bubble-menu
-    v-if="menuOpen"
+    v-if="menuOpen && !isTyping"
     v-bind="{ editor, shouldShow: () => true }"
     class="bg-white dark:bg-gray-800 p-1.5 rounded-lg max-w-xs border shadow-xl"
   >
@@ -73,6 +73,10 @@ export default {
     editor: {
       type: Object,
       default: () => ({}),
+    },
+    isTyping: {
+      type: Boolean,
+      default: false,
     },
   },
   setup(props) {
