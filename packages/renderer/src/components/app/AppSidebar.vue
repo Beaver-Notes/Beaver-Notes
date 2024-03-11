@@ -183,6 +183,10 @@ export default {
           path: path.join(dataDir, 'notes-assets'),
           dest: path.join(folderPath, 'assets'),
         });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dataDir, 'file-assets'),
+          dest: path.join(folderPath, 'file-assets'),
+        });
 
         state.withPassword = false;
         state.password = '';
@@ -226,46 +230,46 @@ export default {
         let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
         let dirPath = path.join(defaultPath, folderName);
 
-        while (true) {
-          // Attempt to read data from the current directory
-          try {
-            let { data } = await ipcRenderer.callMain(
-              'fs:read-json',
-              path.join(dirPath, 'data.json')
-            );
+        // Attempt to read data from the current directory
+        try {
+          let { data } = await ipcRenderer.callMain(
+            'fs:read-json',
+            path.join(dirPath, 'data.json')
+          );
 
-            if (typeof data === 'string') {
-              const password = 'userInputPassword'; // Replace with your logic to get the password
+          if (typeof data === 'string') {
+            const password = 'userInputPassword'; // Replace with your logic to get the password
 
-              const bytes = AES.decrypt(data, password);
-              const result = bytes.toString(Utf8);
-              const resultObj = JSON.parse(result);
+            const bytes = AES.decrypt(data, password);
+            const result = bytes.toString(Utf8);
+            const resultObj = JSON.parse(result);
 
-              mergeImportedData(resultObj);
+            mergeImportedData(resultObj);
 
-              const dataDir = await storage.get('dataDir', '', 'settings');
-              const importPathToAssets = path.join(dirPath, 'assets');
+            const dataDir = await storage.get('dataDir', '', 'settings');
 
-              await ipcRenderer.callMain('fs:copy', {
-                path: importPathToAssets,
-                dest: path.join(dataDir, 'notes-assets'),
-              });
+            await ipcRenderer.callMain('fs:copy', {
+              path: path.join(dirPath, 'assets'),
+              dest: path.join(dataDir, 'notes-assets'),
+            });
+            await ipcRenderer.callMain('fs:copy', {
+              path: path.join(dirPath, 'file-assets'),
+              dest: path.join(dataDir, 'file-assets'),
+            });
+            console.log('Assets copied successfully.');
+          } else {
+            mergeImportedData(data);
+          }
+          return; // Exit the function after successfully importing data
+        } catch (error) {
+          // Directory doesn't exist, try previous date
+          today = today.subtract(1, 'day');
+          folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+          dirPath = path.join(defaultPath, folderName);
 
-              console.log('Assets copied successfully.');
-            } else {
-              mergeImportedData(data);
-            }
-            return; // Exit the function after successfully importing data
-          } catch (error) {
-            // Directory doesn't exist, try previous date
-            today = today.subtract(1, 'day');
-            folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-            dirPath = path.join(defaultPath, folderName);
-
-            if (today.isBefore('YYYY-MM-DD')) {
-              console.error('No data available for syncing.');
-              return; // Exit the function if no suitable directory is found
-            }
+          if (today.isBefore('YYYY-MM-DD')) {
+            console.error('No data available for syncing.');
+            return; // Exit the function if no suitable directory is found
           }
         }
       } catch (error) {
