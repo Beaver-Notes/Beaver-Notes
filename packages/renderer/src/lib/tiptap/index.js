@@ -11,6 +11,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
+import TextDirection from 'tiptap-text-direction';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-embed';
@@ -75,6 +76,9 @@ export const extensions = [
   CodeBlock,
   MathInline,
   MathBlock,
+  TextDirection.configure({
+    types: ['heading', 'paragraph'],
+  }),
   Image,
   Search,
   Placeholder.configure({

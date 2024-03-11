@@ -14,8 +14,9 @@
     />
   </bubble-menu>
 </template>
+
 <script>
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 import { BubbleMenu } from '@tiptap/vue-3';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
@@ -30,18 +31,32 @@ export default {
     },
   },
   setup(props) {
-    onMounted(() => {
-      Mousetrap.bind('mod+l', () => {
-        if (props.editor.isActive('image') || props.editor.isActive('link')) {
-          const input = document.getElementById('bubble-input');
+    const focusInput = () => {
+      const input = document.getElementById('bubble-input');
+      input?.focus();
+    };
 
-          input?.focus();
-        }
-      });
+    onMounted(() => {
+      Mousetrap.bind('mod+l', focusInput);
     });
+
     onUnmounted(() => {
       Mousetrap.unbind('mod+l');
     });
+
+    // Watch for changes in the active mode of the editor
+    watch(
+      () => [props.editor.isActive('image'), props.editor.isActive('link')],
+      ([isImageActive, isLinkActive]) => {
+        if (isImageActive || isLinkActive) {
+          focusInput();
+        }
+      }
+    );
+
+    return {
+      focusInput,
+    };
   },
 };
 </script>
