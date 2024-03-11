@@ -381,8 +381,6 @@ export default {
 
           await storage.set(key, mergedData);
         }
-
-        window.location.reload();
       } catch (error) {
         console.error(error);
       }
@@ -413,13 +411,48 @@ export default {
             okText: translations.settings.Import,
             cancelText: translations.settings.Cancel,
             placeholder: translations.settings.Password,
-            onConfirm: (pass) => {
+            onConfirm: async (pass) => {
               try {
                 const bytes = AES.decrypt(data, pass);
                 const result = bytes.toString(Utf8);
                 const resultObj = JSON.parse(result);
 
-                mergeImportedData(resultObj);
+                await mergeImportedData(resultObj); // Wait for merge operation to finish
+                const dataDir = await storage.get('dataDir', '', 'settings');
+                const importedDefaultPath = data['dataDir'];
+                const importedLockedStatus = data['lockStatus'];
+                const importedLockedNotes = data['lockedNotes'];
+                localStorage.setItem('dataDir', importedDefaultPath);
+                if (
+                  importedLockedStatus !== null &&
+                  importedLockedStatus !== undefined
+                ) {
+                  localStorage.setItem(
+                    'lockStatus',
+                    JSON.stringify(importedLockedStatus)
+                  );
+                }
+
+                if (
+                  importedLockedNotes !== null &&
+                  importedLockedNotes !== undefined
+                ) {
+                  localStorage.setItem(
+                    'lockedNotes',
+                    JSON.stringify(importedLockedNotes)
+                  );
+                }
+                await ipcRenderer.callMain('fs:copy', {
+                  path: path.join(dirPath, 'assets'),
+                  dest: path.join(dataDir, 'notes-assets'),
+                });
+                await ipcRenderer.callMain('fs:copy', {
+                  path: path.join(dirPath, 'file-assets'),
+                  dest: path.join(dataDir, 'file-assets'),
+                });
+
+                console.log('Assets copied successfully.');
+                window.location.reload();
               } catch (error) {
                 showAlert(translations.settings.Invalidpassword);
                 return false;
@@ -427,40 +460,43 @@ export default {
             },
           });
         } else {
-          mergeImportedData(data);
-        }
+          await mergeImportedData(data); // Wait for merge operation to finish
+          const dataDir = await storage.get('dataDir', '', 'settings');
+          const importedDefaultPath = data['dataDir'];
+          const importedLockedStatus = data['lockStatus'];
+          const importedLockedNotes = data['lockedNotes'];
+          localStorage.setItem('dataDir', importedDefaultPath);
+          if (
+            importedLockedStatus !== null &&
+            importedLockedStatus !== undefined
+          ) {
+            localStorage.setItem(
+              'lockStatus',
+              JSON.stringify(importedLockedStatus)
+            );
+          }
 
-        const dataDir = await storage.get('dataDir', '', 'settings');
-        const importedDefaultPath = data['dataDir'];
-        const importedLockedStatus = data['lockStatus'];
-        const importedLockedNotes = data['lockedNotes'];
-        localStorage.setItem('dataDir', importedDefaultPath);
-        if (
-          importedLockedStatus !== null &&
-          importedLockedStatus !== undefined
-        ) {
-          localStorage.setItem(
-            'lockStatus',
-            JSON.stringify(importedLockedStatus)
-          );
-        }
+          if (
+            importedLockedNotes !== null &&
+            importedLockedNotes !== undefined
+          ) {
+            localStorage.setItem(
+              'lockedNotes',
+              JSON.stringify(importedLockedNotes)
+            );
+          }
+          await ipcRenderer.callMain('fs:copy', {
+            path: path.join(dirPath, 'assets'),
+            dest: path.join(dataDir, 'notes-assets'),
+          });
+          await ipcRenderer.callMain('fs:copy', {
+            path: path.join(dirPath, 'file-assets'),
+            dest: path.join(dataDir, 'file-assets'),
+          });
 
-        if (importedLockedNotes !== null && importedLockedNotes !== undefined) {
-          localStorage.setItem(
-            'lockedNotes',
-            JSON.stringify(importedLockedNotes)
-          );
+          console.log('Assets copied successfully.');
+          window.location.reload();
         }
-
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dirPath, 'assets'),
-          dest: path.join(dataDir, 'notes-assets'),
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dirPath, 'file-assets'),
-          dest: path.join(dataDir, 'file-assets'),
-        });
-        window.reload();
       } catch (error) {
         console.error(error);
       }

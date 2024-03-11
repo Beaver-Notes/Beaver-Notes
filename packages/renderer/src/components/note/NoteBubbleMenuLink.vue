@@ -52,7 +52,14 @@
 </template>
 
 <script>
-import { ref, computed, watch, shallowReactive, onMounted, onUnmounted } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  shallowReactive,
+  onMounted,
+  onUnmounted,
+} from 'vue';
 import { useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 
