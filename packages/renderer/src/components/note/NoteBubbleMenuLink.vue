@@ -21,7 +21,6 @@
     <div class="flex items-center space-x-2">
       <input
         id="bubble-input"
-        ref="linkInput"
         v-model="currentLinkVal"
         type="url"
         :placeholder="translations.link.placeholder"

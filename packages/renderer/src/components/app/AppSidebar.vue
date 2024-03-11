@@ -342,6 +342,13 @@ export default {
       },
       settings: {
         title: 'settings.title',
+        Inputpassword: 'settings.Inputpassword',
+        body: 'settings.body',
+        Import: 'settings.Import',
+        Cancel: 'settings.Cancel',
+        Password: 'settings.Password',
+        invaliddata: 'settings.invaliddata',
+        Invalidpassword: 'settings.Invalidpassword',
       },
     });
 

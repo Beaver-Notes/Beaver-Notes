@@ -7,6 +7,7 @@
       @paste="handlePaste"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
+    <note-bubble-menu-table v-if="editor" v-bind="{ editor }" />
   </div>
 </template>
 
@@ -15,6 +16,7 @@ import { onMounted } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
 import { extensions } from '@/lib/tiptap';
+import NoteBubbleMenuTable from './NoteBubbleMenuTable.vue';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
@@ -23,6 +25,7 @@ export default {
   components: {
     EditorContent,
     NoteBubbleMenu,
+    NoteBubbleMenuTable,
   },
   props: {
     modelValue: {
