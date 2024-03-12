@@ -5,7 +5,7 @@
 ![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat-square)
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat-square)
 [![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
-![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)
+[![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)](https://mastodon.social/@Beavernotes)
 [![Checkout the docs](https://img.shields.io/badge/Checkout_the_docs-blue?style=flat-square&logo=Gitbook&logoColor=white&color=blue)](https://danieles-organization.gitbook.io/beaver-notes)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <div align="center">
