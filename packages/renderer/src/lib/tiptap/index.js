@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
+import Document from '@tiptap/extension-document';
 import BubbleMenu from '@tiptap/extension-bubble-menu';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
@@ -6,6 +7,7 @@ import Typography from '@tiptap/extension-typography';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
+import Gapcursor from '@tiptap/extension-gapcursor';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -16,6 +18,7 @@ import TextDirection from 'tiptap-text-direction';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-embed';
+import Text from '@tiptap/extension-text';
 import Search from './exts/search';
 import {
   blueCallout,
@@ -63,10 +66,12 @@ export const extensions = [
   }),
   Highlight,
   Typography,
+  Document,
   LiteralTab,
   Underline,
   blueCallout,
   yellowCallout,
+  Text,
   redCallout,
   purpleCallout,
   blackCallout,
@@ -75,7 +80,10 @@ export const extensions = [
   FileEmbed,
   LabelSuggestion,
   TaskList,
-  Table,
+  Gapcursor,
+  Table.configure({
+    resizable: true,
+  }),
   TableCell,
   TableHeader,
   TableRow,

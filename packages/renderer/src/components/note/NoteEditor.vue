@@ -101,19 +101,23 @@ export default {
     });
 
     const isTyping = ref(false);
+    let typingTimeout;
 
     watch(
       () => editor.value && editor.value.getHTML(),
       (newValue, oldValue) => {
         if (newValue !== oldValue) {
+          clearTimeout(typingTimeout);
+
           isTyping.value = true;
 
-          setTimeout(() => {
+          typingTimeout = setTimeout(() => {
             isTyping.value = false;
           }, 1000);
         }
       }
     );
+
     return {
       editor,
       handlePaste,

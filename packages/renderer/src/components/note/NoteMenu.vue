@@ -442,16 +442,14 @@ export default {
       const files = event.target.files;
       if (!files.length) return;
 
-      const timestamp = Date.now(); // Generate a timestamp for the file
+      const timestamp = Date.now();
       try {
         for (const file of files) {
           const { fileName, destPath } = await saveFile(file, timestamp);
-          // Insert file embed into the editor content
           props.editor.commands.setFileEmbed(destPath, fileName);
         }
       } catch (error) {
         console.error(error);
-        // Handle error
       }
     };
 

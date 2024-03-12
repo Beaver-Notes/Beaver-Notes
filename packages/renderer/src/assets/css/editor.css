@@ -168,6 +168,8 @@ li[data-checked="true"] {
     td,
     th {
       @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
+      word-wrap: break-word;
+      max-width: 10px;
     }
 
     th {
@@ -201,4 +203,13 @@ li[data-checked="true"] {
       font-size: 0.8rem;
     }
   }
+}
+.tableWrapper {
+  padding: 1rem 0;
+  overflow-x: hidden;
+}
+
+.resize-cursor {
+  cursor: ew-resize;
+  cursor: col-resize;
 }

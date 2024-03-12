@@ -92,6 +92,17 @@ export default {
       }
     );
 
+    // Watch for changes in isTyping prop
+    watch(
+      () => props.isTyping,
+      (newValue) => {
+        // If user is typing, close the menu
+        if (newValue) {
+          menuOpen.value = false;
+        }
+      }
+    );
+
     const translations = shallowReactive({
       menu: {
         paragraph: 'menu.paragraph',
@@ -149,8 +160,7 @@ export default {
     };
 
     const handleCloseMenu = () => {
-      console.log('Menu closed');
-      menuOpen.value = false; // Close the menu
+      menuOpen.value = false;
     };
 
     return {
