@@ -141,18 +141,28 @@
           type="checkbox"
           @change="updateDisableAppReminder"
         />
-        <span class="inline-block align-middle">
+        <span class="inline-block ml-2 py-0.5 align-middle">
           {{ translations.settings.syncreminder || '-' }}
         </span>
       </label>
-      <label>
+      <label class="flex items-center space-x-2">
         <input
           v-model="spellcheckEnabled"
           type="checkbox"
           @change="toggleSpellcheck"
         />
-        <span class="inline-block ml-2 py-2 align-middle">
+        <span class="inline-block ml-2 py-0.5 align-middle">
           {{ translations.settings.spellcheck || '-' }}
+        </span>
+      </label>
+      <label class="flex items-center space-x-2">
+        <input
+          v-model="editorWidthChecked"
+          type="checkbox"
+          @change="toggleEditorWidth"
+        />
+        <span class="inline-block py-0.5 align-middle">
+          {{ translations.settings.fullWidth || '-' }}
         </span>
       </label>
       <label class="flex items-center space-x-2">
@@ -162,7 +172,7 @@
           type="checkbox"
           @change="toggleAdvancedSettings"
         />
-        <span class="inline-block align-middle">
+        <span class="inline-block py-0.5 align-middle">
           {{ translations.settings.advancedSettings || '-' }}
         </span>
       </label>
@@ -232,7 +242,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted } from 'vue';
+import { shallowReactive, onMounted, computed } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -608,6 +618,7 @@ export default {
         invaliddata: 'settings.invaliddata',
         syncreminder: 'settings.syncreminder',
         spellcheck: 'settings.spellcheck',
+        fullWidth: 'settings.fullwidth',
         interfacesize: 'settings.interfacesize',
         large: 'settings.large',
         medium: 'settings.medium',
@@ -653,6 +664,21 @@ export default {
       shortcuts[combo]();
     });
 
+    const editorWidthChecked = computed({
+      get: () => localStorage.getItem('editorWidth') === '68rem',
+      set: (value) => {
+        localStorage.setItem('editorWidth', value ? '68rem' : '52rem');
+        document.documentElement.style.setProperty(
+          '--selected-width',
+          value ? '68rem' : '52rem'
+        );
+      },
+    });
+
+    const toggleEditorWidth = () => {
+      editorWidthChecked.value = !editorWidthChecked.value;
+    };
+
     return {
       state,
       theme,
@@ -665,6 +691,8 @@ export default {
       changeDataDir,
       chooseDefaultPath,
       defaultPath,
+      editorWidthChecked,
+      toggleEditorWidth,
     };
   },
   data() {
