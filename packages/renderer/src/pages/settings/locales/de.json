@@ -172,6 +172,7 @@
     "invaliddata": "Ungültige Daten",
     "syncreminder": "Verstecke Synchronisationserinnerung",
     "spellcheck": "Rechtschreibprüfung",
+    "fullWidth": "Seite erweitern",
     "interfacesize": "Anzeigegröße",
     "large": "Groß",
     "medium": "Mittel",
@@ -191,7 +192,6 @@
     "wrongCurrentPassword": "Falsches Passwort, bitte versuchen Sie es erneut",
     "passwordResetError": "Beim Zurücksetzen Ihres Passworts ist etwas schief gelaufen",
     "passwordResetSuccess": "Das Passwort wurde erfolgreich zurückgesetzt"
-
   },
   "_idvue": {
     "Previousnote": "Vorherige Notizen",
