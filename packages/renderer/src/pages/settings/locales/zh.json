@@ -107,7 +107,7 @@
   },
   "about": {
     "title": "Beaver Notes",
-    "description": "Beaver Notes 带着爱 ❤️ 开发于意大利北部一座阴雨绵绵的小屋内。",
+    "description": "Beaver Notes 带着爱 ❤️ 开发于意大利北部的一座雨屋中。",
     "versionLabel": "版本号",
     "website": "网址",
     "github": "GitHub",
@@ -172,7 +172,7 @@
     "invaliddata": "无效数据",
     "syncreminder": "隐藏同步提醒",
     "spellcheck": "拼写检查",
-    "fullWidth": "展开页面",
+    "fullWidth": "宽幅页面",
     "interfacesize": "界面尺寸",
     "large": "偏大",
     "medium": "中等",
