@@ -30,10 +30,10 @@
     "imgurl": "Bild url"
   },
   "commands": {
-    "Createnewnote": "Neue Notiz erstellen",
-    "Settings": "Einstellungen",
-    "Applydarktheme": "Dunkles Thema anwenden",
-    "Applylighttheme": "Helles Thema anwenden"
+    "newnote": "Neue Notiz erstellen",
+    "settings": "Einstellungen",
+    "darktheme": "Dunkles Thema anwenden",
+    "lighttheme": "Helles Thema anwenden"
   },
   "filter": {
     "Selectlabel": "Kategorie auswählen",

@@ -1,8 +1,0 @@
-{
-  "commands": {
-    "new-note": "creëer nieuwe notitie",
-    "settings": "Instellingen",
-    "dark-theme": "Donker thema toepassen",
-    "light-theme": "Licht thema toepassen"
-  }
-}
