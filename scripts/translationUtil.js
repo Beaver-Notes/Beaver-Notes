@@ -70,4 +70,3 @@ function diffObject(source, target) {
 }
 
 await diffTranslation('../packages/renderer/src/pages/settings/locales');
-await diffTranslation('../packages/renderer/src/utils/locales');
