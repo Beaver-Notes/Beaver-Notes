@@ -1,6 +1,6 @@
 # 🌎 Translations
 
-Localizing is crucial to ensure that Beaver is accessible to a wider audience. Instead of depending solely on an internal translation team, we invite your participation, enabling anyone to submit translations effortlessly, even without technical expertise. To facilitate the onboarding of new translators, we've crafted this translation guide.
+**Localizing is crucial to ensure that Beaver is accessible to a wider audience. Instead of depending solely on an internal translation team, we invite your participation, enabling anyone to submit translations effortlessly, even without technical expertise. To facilitate the onboarding of new translators, we've crafted this translation guide.**
 
 {% hint style="info" %}
 The legacy guide for localizing Beaver is still available; however, we highly encourage you to follow this new guide for compatibility's sake and to guarantee a smoother integration.
