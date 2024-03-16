@@ -24,7 +24,7 @@ Remember to email us at[ danielerolli@proton.me ](mailto:danielerolli@proton.me)
 
 ## Add a new locale&#x20;
 
-To add a new locale head to Translatiosn and then click new locale on the top right corner, you'll be then prompted to select from a list of more than 558 languages. From there you'll just need to select a reference locale and start typing.&#x20;
+To add a new locale, head to Translations and then click "New Locale" in the top right corner. You'll be prompted to select from a list of more than 558 languages. From there, you'll just need to select a reference locale and start typing.
 
 <figure><img src="../.gitbook/assets/Screenshot 2024-03-16 at 10.46.57 PM (1).png" alt=""><figcaption><p>New locale button</p></figcaption></figure>
 
