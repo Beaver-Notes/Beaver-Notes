@@ -19,4 +19,5 @@
 * [🛠️ Setup Your Environment](dev-guides/setup-your-environment.md)
 * [🏗️ Building and Testing Beaver Notes](dev-guides/building-and-testing-beaver-notes.md)
 * [📦 Packaging the app](dev-guides/packaging-the-app.md)
-* [🗺️ Translate Beaver](dev-guides/translate-beaver.md)
+* [🌎 Translations](dev-guides/translations.md)
+* [🗺️ Translate Beaver (Legacy)](dev-guides/translate-beaver.md)
