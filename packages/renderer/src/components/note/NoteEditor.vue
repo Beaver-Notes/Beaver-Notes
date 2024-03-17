@@ -82,8 +82,49 @@ export default {
       const pastedHTML = clipboardData.getData('text/html');
       const pastedText = clipboardData.getData('text/plain');
 
-      // Insert HTML content if available, otherwise insert plain text content
-      const contentToInsert = pastedHTML || pastedText;
+      let contentToInsert = '';
+
+      // Check if HTML content is available
+      if (pastedHTML) {
+        // Insert HTML content if available
+        const lines = pastedHTML.split(/<\/p>/i);
+
+        lines.forEach((line, index) => {
+          if (line.trim() !== '') {
+            // Add a newline character between lines
+            if (index !== 0) {
+              contentToInsert += '\n';
+            }
+
+            contentToInsert += line.trim();
+          }
+        });
+      } else {
+        // If HTML content is not available, handle plain text content
+        const lines = pastedText.split(/\r\n|\r|\n/);
+
+        lines.forEach((line, index) => {
+          if (line.trim() !== '') {
+            // Add a newline character between lines
+            if (index !== 0) {
+              contentToInsert += '\n';
+            }
+
+            contentToInsert += `<p>${line.trim()}</p>`;
+          }
+        });
+      }
+
+      // Add space before and after HTML tags except for specific ones
+      contentToInsert = contentToInsert.replace(
+        /<(?!\s*\/?\s*(a|br|i|em|strong|b))[^>]+>/gi,
+        ' $& '
+      );
+      // Remove spaces before punctuation signs
+      contentToInsert = contentToInsert.replace(/\s+([.,;:!?])/g, '$1');
+      // Remove unnecessary spaces at the beginning and end of the content
+      contentToInsert = contentToInsert.trim() + ' ';
+
       editor.value.commands.insertContent(contentToInsert);
     }
 
