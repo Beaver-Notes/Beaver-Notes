@@ -33,7 +33,9 @@ export default {
     const retrieved = ref(false);
 
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
+    const editorWidth = localStorage.getItem('editorWidth') || '52rem';
     document.documentElement.style.setProperty('--selected-font', selectedFont);
+    document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const isFirstTime = localStorage.getItem('first-time');
 

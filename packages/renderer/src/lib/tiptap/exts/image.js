@@ -69,6 +69,25 @@ const handleImagePaste = new Plugin({
         }
       },
     },
+
+    handleDrop: (view, event) => {
+      insertImages(event.dataTransfer.files, (src, alt) => {
+        const { schema } = view.state;
+        const coordinates = view.posAtCoords({
+          left: event.clientX,
+          top: event.clientY,
+        });
+        const node = schema.nodes.image.create({
+          alt,
+          src,
+        });
+        const transaction = view.state.tr.insert(coordinates.pos, node);
+
+        view.dispatch(transaction);
+      });
+
+      return true;
+    },
   },
 });
 

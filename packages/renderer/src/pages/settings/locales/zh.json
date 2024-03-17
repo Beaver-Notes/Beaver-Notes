@@ -30,10 +30,10 @@
     "imgurl": "图片链接"
   },
   "commands": {
-    "Createnewnote": "创建新笔记",
-    "Settings": "设置",
-    "Applydarktheme": "应用深色主题",
-    "Applylighttheme": "应用浅色主题"
+    "newnote": "创建新笔记",
+    "settings": "设置",
+    "darktheme": "应用深色主题",
+    "lighttheme": "应用浅色主题"
   },
   "filter": {
     "Selectlabel": "选择标签",
@@ -107,7 +107,7 @@
   },
   "about": {
     "title": "Beaver Notes",
-    "description": "Beaver Notes 带着爱 ❤️ 开发于意大利北部一座阴雨绵绵的小屋内。",
+    "description": "Beaver Notes 带着爱 ❤️ 开发于意大利北部的一座雨屋中。",
     "versionLabel": "版本号",
     "website": "网址",
     "github": "GitHub",
@@ -172,6 +172,7 @@
     "invaliddata": "无效数据",
     "syncreminder": "隐藏同步提醒",
     "spellcheck": "拼写检查",
+    "fullWidth": "扩展页面",
     "interfacesize": "界面尺寸",
     "large": "偏大",
     "medium": "中等",

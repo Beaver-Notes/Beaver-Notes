@@ -25,9 +25,8 @@
         type="url"
         :placeholder="translations.link.placeholder"
         class="flex-1 bg-transparent"
-        @keydown="keydownHandler"
-        @keydown.esc="editor.commands.focus()"
-        @keyup.enter="updateCurrentLink"
+        @keydown.enter="handleEnter"
+        @keydown.esc="handleEsc"
       />
       <button
         icon
@@ -52,7 +51,14 @@
 </template>
 
 <script>
-import { ref, computed, watch, shallowReactive, onMounted } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  shallowReactive,
+  onMounted,
+  onUnmounted,
+} from 'vue';
 import { useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 
@@ -63,9 +69,11 @@ export default {
       default: () => ({}),
     },
   },
-  setup(props) {
+  emits: ['close-menu'],
+  setup(props, { emit }) {
     const route = useRoute();
     const noteStore = useNoteStore();
+    const isMounted = ref(false); // Track component mount state
 
     const selectedNoteIndex = ref(0);
     const currentLinkVal = ref('');
@@ -85,10 +93,7 @@ export default {
         .slice(0, 6);
     });
 
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
-    const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
-
-    function updateCurrentLink(id) {
+    const updateCurrentLink = (id) => {
       let value = currentLinkVal.value;
 
       if (currentLinkVal.value.startsWith('@') || typeof id === 'string') {
@@ -104,27 +109,35 @@ export default {
         .extendMarkRange('link')
         .setLink({ href: value })
         .run();
+    };
+
+    const handleCloseMenu = () => {
+      console.log('Menu closed');
+      if (isMounted.value) {
+        emit('close-menu'); // Emit the close-menu event if component is mounted
+      }
+    };
+
+    function handleEnter(event) {
+      // Close and save changes on Enter key press
+      if (event.key === 'Enter') {
+        updateCurrentLink();
+        handleCloseMenu();
+      }
     }
-    function keydownHandler(event) {
-      if (!currentLinkVal.value.startsWith('@')) return;
 
-      const notesLength = notes.value.length;
-
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-
-        selectedNoteIndex.value =
-          (selectedNoteIndex.value + notesLength - 1) % notesLength;
-      } else if (event.key === 'ArrowDown') {
-        event.preventDefault();
-
-        selectedNoteIndex.value = (selectedNoteIndex.value + 1) % notesLength;
+    function handleEsc(event) {
+      // Close and discard changes on Esc key press
+      if (event.key === 'Escape') {
+        currentLinkVal.value = '';
+        handleCloseMenu();
       }
     }
 
     watch(currentLinkVal, (value) => {
       if (value.startsWith('@')) selectedNoteIndex.value = 0;
     });
+
     watch(
       () => props.editor.getAttributes('link'),
       (value) => {
@@ -142,11 +155,16 @@ export default {
     });
 
     onMounted(async () => {
+      isMounted.value = true; // Set component mount state to true
       // Load translations
       const loadedTranslations = await loadTranslations();
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
+    });
+
+    onUnmounted(() => {
+      isMounted.value = false; // Set component mount state to false when unmounted
     });
 
     const loadTranslations = async () => {
@@ -165,11 +183,12 @@ export default {
     return {
       notes,
       translations,
-      keydownHandler,
-      currentLinkVal,
       selectedNoteIndex,
+      currentLinkVal,
+      handleEnter,
+      handleEsc,
+      handleCloseMenu,
       updateCurrentLink,
-      keyBinding,
     };
   },
 };

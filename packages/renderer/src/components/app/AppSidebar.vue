@@ -89,6 +89,7 @@ import emitter from 'tiny-emitter/instance';
 import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
 import { useStorage } from '@/composable/storage';
+import { useDialog } from '@/composable/dialog';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
@@ -98,12 +99,22 @@ export default {
     const { ipcRenderer, path } = window.electron;
     const theme = useTheme();
     const router = useRouter();
+    const dialog = useDialog();
     const noteStore = useNoteStore();
     const storage = useStorage();
     const defaultPath = localStorage.getItem('default-path');
 
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
+
+    function showAlert(message, options = {}) {
+      ipcRenderer.callMain('dialog:message', {
+        type: 'error',
+        title: 'Alert',
+        message,
+        ...options,
+      });
+    }
 
     const state = shallowReactive({
       dataDir: '',
@@ -183,6 +194,10 @@ export default {
           path: path.join(dataDir, 'notes-assets'),
           dest: path.join(folderPath, 'assets'),
         });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dataDir, 'file-assets'),
+          dest: path.join(folderPath, 'file-assets'),
+        });
 
         state.withPassword = false;
         state.password = '';
@@ -213,8 +228,6 @@ export default {
 
           await storage.set(key, mergedData);
         }
-
-        window.location.reload();
       } catch (error) {
         console.error(error);
       }
@@ -222,36 +235,88 @@ export default {
 
     async function importData() {
       try {
-        const today = dayjs();
-        const folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-        const dirPath = path.join(defaultPath, folderName);
+        let today = dayjs();
+        let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+        let dirPath = path.join(defaultPath, folderName);
 
-        let { data } = await ipcRenderer.callMain(
-          'fs:read-json',
-          path.join(dirPath, 'data.json')
-        );
+        try {
+          let { data } = await ipcRenderer.callMain(
+            'fs:read-json',
+            path.join(dirPath, 'data.json')
+          );
 
-        if (typeof data === 'string') {
-          const password = 'userInputPassword'; // Replace with your logic to get the password
+          if (!data) return showAlert(translations.settings.invaliddata);
 
-          const bytes = AES.decrypt(data, password);
-          const result = bytes.toString(Utf8);
-          const resultObj = JSON.parse(result);
+          if (typeof data === 'string') {
+            dialog.prompt({
+              title: translations.settings.Inputpassword,
+              body: translations.settings.body,
+              okText: translations.settings.Import,
+              cancelText: translations.settings.Cancel,
+              placeholder: translations.settings.Password,
+              onConfirm: async (pass) => {
+                try {
+                  const bytes = AES.decrypt(data, pass);
+                  const result = bytes.toString(Utf8);
+                  const resultObj = JSON.parse(result);
 
-          mergeImportedData(resultObj);
-        } else {
-          mergeImportedData(data);
+                  await mergeImportedData(resultObj); // Wait for merge operation to finish
+                  const dataDir = await storage.get('dataDir', '', 'settings');
+                  const importedDefaultPath = data['dataDir'];
+                  const importedLockedStatus = data['lockStatus'];
+                  const importedLockedNotes = data['lockedNotes'];
+                  localStorage.setItem('dataDir', importedDefaultPath);
+                  if (
+                    importedLockedStatus !== null &&
+                    importedLockedStatus !== undefined
+                  ) {
+                    localStorage.setItem(
+                      'lockStatus',
+                      JSON.stringify(importedLockedStatus)
+                    );
+                  }
+
+                  if (
+                    importedLockedNotes !== null &&
+                    importedLockedNotes !== undefined
+                  ) {
+                    localStorage.setItem(
+                      'lockedNotes',
+                      JSON.stringify(importedLockedNotes)
+                    );
+                  }
+                  await ipcRenderer.callMain('fs:copy', {
+                    path: path.join(dirPath, 'assets'),
+                    dest: path.join(dataDir, 'notes-assets'),
+                  });
+                  await ipcRenderer.callMain('fs:copy', {
+                    path: path.join(dirPath, 'file-assets'),
+                    dest: path.join(dataDir, 'file-assets'),
+                  });
+
+                  console.log('Assets copied successfully.');
+                  window.location.reload();
+                } catch (error) {
+                  showAlert(translations.settings.Invalidpassword);
+                  return false;
+                }
+              },
+            });
+          } else {
+            await mergeImportedData(data); // Wait for merge operation to finish
+            console.log('Data merged successfully.');
+            window.location.reload();
+          }
+        } catch (error) {
+          today = today.subtract(1, 'day');
+          folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+          dirPath = path.join(defaultPath, folderName);
+
+          if (today.isBefore('YYYY-MM-DD')) {
+            console.error('No data available for syncing.');
+            return;
+          }
         }
-
-        const dataDir = await storage.get('dataDir', '', 'settings');
-        const importPathToAssets = path.join(dirPath, 'assets');
-
-        await ipcRenderer.callMain('fs:copy', {
-          path: importPathToAssets,
-          dest: path.join(dataDir, 'notes-assets'),
-        });
-
-        console.log('Assets copied successfully.');
       } catch (error) {
         console.error('Error while importing data:', error);
       }
@@ -277,6 +342,13 @@ export default {
       },
       settings: {
         title: 'settings.title',
+        Inputpassword: 'settings.Inputpassword',
+        body: 'settings.body',
+        Import: 'settings.Import',
+        Cancel: 'settings.Cancel',
+        Password: 'settings.Password',
+        invaliddata: 'settings.invaliddata',
+        Invalidpassword: 'settings.Invalidpassword',
       },
     });
 

@@ -30,10 +30,10 @@
     "imgurl": "Percorso dell'immagine"
   },
   "commands": {
-    "Createnewnote": "Crea una nuova nota",
-    "Settings": "Impostazioni",
-    "Applydarktheme": "Applica il tema scuro",
-    "Applylighttheme": "Applica il tema chiaro"
+    "newnote": "Crea una nuova nota",
+    "settings": "Impostazioni",
+    "darktheme": "Applica il tema scuro",
+    "lighttheme": "Applica il tema chiaro"
   },
   "filter": {
     "Selectlabel": "Seleziona etichetta",
@@ -172,6 +172,7 @@
     "invaliddata": "Dati non validi",
     "syncreminder": "Nascondi promemoria di sincronizzazione",
     "spellcheck": "Controllo ortografico",
+    "fullWidth": "Espandi pagina",
     "interfacesize": "Dimensioni interfaccia",
     "large": "Grande",
     "medium": "Medio",

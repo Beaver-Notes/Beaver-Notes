@@ -30,10 +30,10 @@
     "imgurl": "Image url"
   },
   "commands": {
-    "Createnewnote": "Create new note",
-    "Settings": "Settings",
-    "Applydarktheme": "Apply dark theme",
-    "Applylighttheme": "Apply light theme"
+    "newnote": "Create new note",
+    "settings": "Settings",
+    "darktheme": "Apply dark theme",
+    "lighttheme": "Apply light theme"
   },
   "filter": {
     "Selectlabel": "Select label",
@@ -172,6 +172,7 @@
     "invaliddata": "Invalid data",
     "syncreminder": "Hide sync reminder",
     "spellcheck": "Spellcheck",
+    "fullWidth": "Expand page",
     "interfacesize": "Interface Size",
     "large": "Large",
     "medium": "Medium",

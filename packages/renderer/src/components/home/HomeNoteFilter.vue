@@ -29,7 +29,7 @@
         />
       </ui-button>
       <ui-select
-        :model-value="_label"
+        :model-value="newLabel"
         :placeholder="translations.filter.Selectlabel || '-'"
         @change="$emit('update:label', $event)"
       >
@@ -104,7 +104,7 @@ export default {
   setup(props, { emit }) {
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
-    const _label = ref(props.label);
+    const newLabel = ref(props.label);
 
     const translations = shallowReactive({
       filter: {
@@ -159,19 +159,19 @@ export default {
     watch(
       () => props.label,
       (newLabel) => {
-        _label.value = newLabel;
+        newLabel.value = newLabel;
       }
     );
     const deleteLabel = async () => {
       emit('delete:label', props.label);
-      _label.value = '';
+      newLabel.value = '';
     };
 
     return {
       sorts,
       keyBinding,
       translations,
-      _label,
+      newLabel,
       deleteLabel,
     };
   },

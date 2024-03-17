@@ -7,14 +7,16 @@
       @paste="handlePaste"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
+    <note-bubble-menu-table v-if="editor" v-bind="{ editor, isTyping }" />
   </div>
 </template>
 
 <script>
-import { onMounted } from 'vue';
+import { onMounted, watch, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
 import { extensions } from '@/lib/tiptap';
+import NoteBubbleMenuTable from './NoteBubbleMenuTable.vue';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
@@ -23,6 +25,7 @@ export default {
   components: {
     EditorContent,
     NoteBubbleMenu,
+    NoteBubbleMenuTable,
   },
   props: {
     modelValue: {
@@ -79,8 +82,49 @@ export default {
       const pastedHTML = clipboardData.getData('text/html');
       const pastedText = clipboardData.getData('text/plain');
 
-      // Insert HTML content if available, otherwise insert plain text content
-      const contentToInsert = pastedHTML || pastedText;
+      let contentToInsert = '';
+
+      // Check if HTML content is available
+      if (pastedHTML) {
+        // Insert HTML content if available
+        const lines = pastedHTML.split(/<\/p>/i);
+
+        lines.forEach((line, index) => {
+          if (line.trim() !== '') {
+            // Add a newline character between lines
+            if (index !== 0) {
+              contentToInsert += '\n';
+            }
+
+            contentToInsert += line.trim();
+          }
+        });
+      } else {
+        // If HTML content is not available, handle plain text content
+        const lines = pastedText.split(/\r\n|\r|\n/);
+
+        lines.forEach((line, index) => {
+          if (line.trim() !== '') {
+            // Add a newline character between lines
+            if (index !== 0) {
+              contentToInsert += '\n';
+            }
+
+            contentToInsert += `<p>${line.trim()}</p>`;
+          }
+        });
+      }
+
+      // Add space before and after HTML tags except for specific ones
+      contentToInsert = contentToInsert.replace(
+        /<(?!\s*\/?\s*(a|br|i|em|strong|b))[^>]+>/gi,
+        ' $& '
+      );
+      // Remove spaces before punctuation signs
+      contentToInsert = contentToInsert.replace(/\s+([.,;:!?])/g, '$1');
+      // Remove unnecessary spaces at the beginning and end of the content
+      contentToInsert = contentToInsert.trim() + ' ';
+
       editor.value.commands.insertContent(contentToInsert);
     }
 
@@ -97,9 +141,28 @@ export default {
       });
     });
 
+    const isTyping = ref(false);
+    let typingTimeout;
+
+    watch(
+      () => editor.value && editor.value.getHTML(),
+      (newValue, oldValue) => {
+        if (newValue !== oldValue) {
+          clearTimeout(typingTimeout);
+
+          isTyping.value = true;
+
+          typingTimeout = setTimeout(() => {
+            isTyping.value = false;
+          }, 1000);
+        }
+      }
+    );
+
     return {
       editor,
       handlePaste,
+      isTyping,
     };
   },
 };

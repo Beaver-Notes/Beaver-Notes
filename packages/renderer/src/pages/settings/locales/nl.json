@@ -30,10 +30,10 @@
     "imgurl": "Afbeelding url"
   },
   "commands": {
-    "Createnewnote": "creëer nieuwe notitie",
-    "Settings": "Instellingen",
-    "Applydarktheme": "Donker thema toepassen",
-    "Applylighttheme": "Licht thema toepassen"
+    "newnote": "creëer nieuwe notitie",
+    "settings": "Instellingen",
+    "darktheme": "Donker thema toepassen",
+    "lighttheme": "Licht thema toepassen"
   },
   "filter": {
     "Selectlabel": "Selecteer label",
@@ -172,6 +172,7 @@
     "invaliddata": "Ongeldige data",
     "syncreminder": "laat de synchronizeer herindering niet meer zien",
     "spellcheck": "Spellings check",
+    "fullWidth": "Pagina uitbreiden",
     "interfacesize": "Scherm groote",
     "large": "Groot",
     "medium": "Gemiddeld",

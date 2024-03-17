@@ -110,91 +110,18 @@
         @change="handleFileSelect"
       />
       <button
-        v-tooltip.group="translations.menu.tableOptions"
-        class="hoverable h-8 px-1 rounded-lg"
-        @click="openDropdown"
+        v-tooltip.group="translations.menu.tableInsert"
+        class="transition hoverable h-8 px-1 rounded-lg"
+        @click="
+          editor
+            .chain()
+            .focus()
+            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+            .run()
+        "
       >
         <v-remixicon name="riTableLine" />
       </button>
-
-      <!-- Dropdown using ui-popover -->
-      <ui-popover
-        v-model="isDropdownOpen"
-        trigger="manual"
-        @close="closeDropdown"
-      >
-        <template #trigger> </template>
-
-        <button
-          v-tooltip.group="translations.menu.tableInsert"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="
-            editor
-              .chain()
-              .focus()
-              .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-              .run()
-          "
-        >
-          <v-remixicon name="riTableLine" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.addRowAbove"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().addRowBefore().run()"
-        >
-          <v-remixicon name="riInsertRowTop" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.addRowBelow"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().addRowAfter().run()"
-        >
-          <v-remixicon name="riInsertRowBottom" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.deleteRow"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().deleteRow().run()"
-        >
-          <v-remixicon name="riDeleteRow" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.addColumnLeft"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().addColumnBefore().run()"
-        >
-          <v-remixicon name="riInsertColumnLeft" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.addColumnRight"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().addColumnAfter().run()"
-        >
-          <v-remixicon name="riInsertColumnRight" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.deleteColumn"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().deleteColumn().run()"
-        >
-          <v-remixicon name="riDeleteColumn" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.toggleHeader"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().toggleHeaderCell().run()"
-        >
-          <v-remixicon name="riBrush2Fill" />
-        </button>
-        <button
-          v-tooltip.group="translations.menu.deleteTable"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.chain().focus().deleteTable().run()"
-        >
-          <v-remixicon name="riDeleteBin6Line" />
-        </button>
-      </ui-popover>
       <hr class="border-r mx-2 h-6" />
       <button
         v-tooltip.group="translations.menu.Print"
@@ -515,16 +442,14 @@ export default {
       const files = event.target.files;
       if (!files.length) return;
 
-      const timestamp = Date.now(); // Generate a timestamp for the file
+      const timestamp = Date.now();
       try {
         for (const file of files) {
           const { fileName, destPath } = await saveFile(file, timestamp);
-          // Insert file embed into the editor content
           props.editor.commands.setFileEmbed(destPath, fileName);
         }
       } catch (error) {
         console.error(error);
-        // Handle error
       }
     };
 
@@ -546,29 +471,6 @@ export default {
       showHeadingsTree,
       printContent,
     };
-  },
-  data() {
-    return {
-      isDropdownOpen: false,
-    };
-  },
-  methods: {
-    openDropdown() {
-      // Open the dropdown
-      this.isDropdownOpen = true;
-    },
-    closeDropdown() {
-      // Close the dropdown
-      this.isDropdownOpen = false;
-    },
-    handleButtonClick(option) {
-      // Handle the click event for each button
-      console.log(`Button clicked: ${option}`);
-      // You can add custom logic based on the button clicked
-
-      // Close the dropdown after handling the click
-      this.isDropdownOpen = false;
-    },
   },
 };
 </script>

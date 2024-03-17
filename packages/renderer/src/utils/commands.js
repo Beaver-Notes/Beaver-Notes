@@ -1,10 +1,10 @@
 import emitter from 'tiny-emitter/instance';
 import { useTheme } from '../composable/theme';
-import enTranslations from './locales/en.json';
-import itTranslations from './locales/it.json';
-import deTranslations from './locales/de.json';
-import zhTranslations from './locales/zh.json';
-import nlTranslations from './locales/nl.json';
+import enTranslations from '../pages/settings/locales/en.json';
+import itTranslations from '../pages/settings/locales/it.json';
+import deTranslations from '../pages/settings/locales/de.json';
+import zhTranslations from '../pages/settings/locales/zh.json';
+import nlTranslations from '../pages/settings/locales/nl.json';
 
 const theme = useTheme();
 
@@ -12,7 +12,7 @@ function getModifierKey() {
   return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
 }
 
-const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en'; // Get the selected language from localStorage
+const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
 
 let translations = enTranslations;
 
@@ -35,24 +35,24 @@ if (selectedLanguage === 'nl') {
 let commands = [
   {
     id: 'new-note',
-    title: translations.commands['new-note'],
+    title: translations.commands.newnote,
     shortcut: [getModifierKey(), 'N'],
     handler: () => emitter.emit('new-note'),
   },
   {
     id: 'settings',
-    title: translations.commands['settings'],
+    title: translations.commands.settings,
     shortcut: [getModifierKey(), ','],
     handler: () => emitter.emit('open-settings'),
   },
   {
     id: 'dark-theme',
-    title: translations.commands['dark-theme'],
+    title: translations.commands.darktheme,
     handler: () => theme.setTheme('dark'),
   },
   {
     id: 'light-theme',
-    title: translations.commands['light-theme'],
+    title: translations.commands.lighttheme,
     handler: () => theme.setTheme('light'),
   },
 ];

@@ -1,8 +1,0 @@
-{
-  "commands": {
-    "new-note": "Neue Notiz erstellen",
-    "settings": "Einstellungen",
-    "dark-theme": "Dunkles Thema anwenden",
-    "light-theme": "Helles Thema anwenden"
-  }
-}

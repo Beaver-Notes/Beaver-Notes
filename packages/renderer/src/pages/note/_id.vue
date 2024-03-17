@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="note"
-    class="max-w-3xl mx-auto relative px-4 sm:px-1 lg:px-0 pb-6"
+    class="editor mx-auto relative px-4 lg:px-0 pb-6"
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
@@ -332,5 +332,13 @@ export default {
 .title-placeholder:empty::before {
   content: attr(placeholder);
   color: #a1a1aa;
+}
+
+:root {
+  --selected-width: '48rem';
+}
+
+.editor {
+  max-width: var(--selected-width);
 }
 </style>
