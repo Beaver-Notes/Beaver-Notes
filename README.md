@@ -1,7 +1,13 @@
-# 🏠 Hub
-
-[![All Contributors](https://img.shields.io/badge/all\_contributors-5-orange.svg?style=flat-square)](./#contributors-)
-
+## Beaver Notes
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
+![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat-square&logo=archlinux&color=blue)
+![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat-square)
+![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat-square)
+[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
+[![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)](https://mastodon.social/@Beavernotes)
+[![Checkout the docs](https://img.shields.io/badge/Checkout_the_docs-blue?style=flat-square&logo=Gitbook&logoColor=white&color=blue)](https://danieles-organization.gitbook.io/beaver-notes)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
 <div align="center">
 
 <img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
@@ -57,7 +63,24 @@ Take control of your notes with Beaver Notes! 🚀
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
 
-| <p><a href="http://bigshans.github.io"><img src="https://avatars.githubusercontent.com/u/26884666?v=4?s=100" alt="Algernon"><br>Algernon</a><br><a href="https://github.com/Daniele-rolli/Beaver-Notes/issues?q=author%3Abigshans">🐛</a> <a href="./#translation-bigshans">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bigshans">💻</a> <a href="./#maintenance-bigshans">🚧</a></p> | <p><a href="https://github.com/eag75"><img src="https://avatars.githubusercontent.com/u/155111097?v=4?s=100" alt="Danny Schellnock"><br>Danny Schellnock</a><br><a href="./#translation-eag75">🌍</a> <a href="./#maintenance-eag75">🚧</a></p> | <p><a href="https://github.com/kant"><img src="https://avatars.githubusercontent.com/u/32717?v=4?s=100" alt="Darío Hereñú"><br>Darío Hereñú</a><br><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=kant">📖</a></p> | <p><a href="https://github.com/mee141"><img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" alt="mee_"><br>mee_</a><br><a href="./#translation-mee141">🌍</a> <a href="./#maintenance-mee141">🚧</a></p> | <p><a href="https://www.eave.fyi"><img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" alt="Bryan Ricker"><br>Bryan Ricker</a><br><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker">📖</a> <a href="./#translation-bricker">🌍</a></p> |
-| :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="http://bigshans.github.io"><img src="https://avatars.githubusercontent.com/u/26884666?v=4?s=100" width="100px;" alt="Algernon"/><br /><sub><b>Algernon</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/issues?q=author%3Abigshans" title="Bug reports">🐛</a> <a href="#translation-bigshans" title="Translation">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bigshans" title="Code">💻</a> <a href="#maintenance-bigshans" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/eag75"><img src="https://avatars.githubusercontent.com/u/155111097?v=4?s=100" width="100px;" alt="Danny Schellnock"/><br /><sub><b>Danny Schellnock</b></sub></a><br /><a href="#translation-eag75" title="Translation">🌍</a> <a href="#maintenance-eag75" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kant"><img src="https://avatars.githubusercontent.com/u/32717?v=4?s=100" width="100px;" alt="Darío Hereñú"/><br /><sub><b>Darío Hereñú</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=kant" title="Documentation">📖</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mee141"><img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" width="100px;" alt="mee_"/><br /><sub><b>mee_</b></sub></a><br /><a href="#translation-mee141" title="Translation">🌍</a> <a href="#maintenance-mee141" title="Maintenance">🚧</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://www.eave.fyi"><img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" width="100px;" alt="Bryan Ricker"/><br /><sub><b>Bryan Ricker</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Documentation">📖</a> <a href="#translation-bricker" title="Translation">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Code">💻</a></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!

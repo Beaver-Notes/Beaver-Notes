@@ -55,7 +55,8 @@
       "profile": "https://www.eave.fyi",
       "contributions": [
         "doc",
-        "translation"
+        "translation",
+        "code"
       ]
     }
   ],
