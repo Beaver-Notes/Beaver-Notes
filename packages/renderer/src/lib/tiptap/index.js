@@ -1,6 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
 import Document from '@tiptap/extension-document';
-import BubbleMenu from '@tiptap/extension-bubble-menu';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
 import Typography from '@tiptap/extension-typography';
@@ -56,14 +55,6 @@ if (selectedLanguage === 'it') {
 
 export const extensions = [
   StarterKit,
-  BubbleMenu.configure({
-    pluginKey: 'bubbleMenuOne',
-    element: document.querySelector('.menu-one'),
-  }),
-  BubbleMenu.configure({
-    pluginKey: 'bubbleMenuTwo',
-    element: document.querySelector('.menu-two'),
-  }),
   Highlight,
   Typography,
   Document,

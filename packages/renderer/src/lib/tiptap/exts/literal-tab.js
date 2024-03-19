@@ -6,7 +6,6 @@ export const LiteralTab = Extension.create({
   addKeyboardShortcuts() {
     return {
       Tab: () => {
-        console.log('test');
         return this.editor
           .chain()
           .focus()
