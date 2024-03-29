@@ -12,13 +12,12 @@
 
 <img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
 
-</div>
-
-**Your Private Note-Taking Buddy 📝**
-
-**Developed with love ❤️ in a rainy cottage in Northern Italy.**
+<p><b>Your Private Note-Taking Buddy 📝</b></p>
+<p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
 
 [Website](https://beavernotes.com) | [Blog](https://beavernotes.com/blog) | [Docs](https://danieles-organization.gitbook.io/beaver-notes/) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
+
+</div>
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
