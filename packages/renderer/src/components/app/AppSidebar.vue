@@ -171,6 +171,10 @@ export default {
       });
     }
 
+    if (typeof window !== 'undefined') {
+      window.addNote = addNote;
+    }
+
     async function exportData() {
       try {
         let data = await storage.store();

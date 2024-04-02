@@ -96,7 +96,10 @@ export default {
               contentToInsert += '\n';
             }
 
-            contentToInsert += line.trim();
+            // Check if the line contains an image tag
+            if (!line.includes('<img')) {
+              contentToInsert += line.trim();
+            }
           }
         });
       } else {

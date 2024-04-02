@@ -445,8 +445,9 @@ export default {
       const timestamp = Date.now();
       try {
         for (const file of files) {
-          const { fileName, destPath } = await saveFile(file, timestamp);
-          props.editor.commands.setFileEmbed(destPath, fileName);
+          const { fileName, relativePath } = await saveFile(file, timestamp);
+          const src = `${relativePath}`; // Construct the complete source path
+          props.editor.commands.setFileEmbed(src, fileName);
         }
       } catch (error) {
         console.error(error);
