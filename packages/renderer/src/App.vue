@@ -74,6 +74,10 @@ export default {
       'app:set-zoom',
       +localStorage.getItem('zoomLevel') || 1
     );
+    window.electron.ipcRenderer.callMain(
+      'app:change-menu-visibility',
+      localStorage.getItem('visibility-menubar') === 'true' || false
+    );
     return {
       store,
       retrieved,

@@ -176,6 +176,17 @@
           {{ translations.settings.advancedSettings || '-' }}
         </span>
       </label>
+      <label class="flex items-center space-x-2">
+        <input
+          v-model="visibilityMenubar"
+          class="form-checkbox"
+          type="checkbox"
+          @change="toggleVisibilityOfMenubar"
+        />
+        <span class="inline-block py-0.5 align-middle">
+          {{ translations.settings.menuBarVisibility || '-' }}
+        </span>
+      </label>
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.security || '-' }}</p>
@@ -636,6 +647,7 @@ export default {
         wrongCurrentPassword: 'settings.wrongCurrentPassword',
         passwordResetSuccess: 'settings.passwordResetSuccess',
         passwordResetError: 'settings.passwordResetError',
+        menuBarVisibility: 'settings.menuBarVisibility',
       },
     });
 
@@ -679,6 +691,19 @@ export default {
       editorWidthChecked.value = !editorWidthChecked.value;
     };
 
+    const visibilityMenubar = computed({
+      get: () => localStorage.getItem('visibility-menubar') === 'true',
+      set: (val) => {
+        localStorage.setItem('visibility-menubar', val.toString());
+      },
+    });
+    const toggleVisibilityOfMenubar = async () => {
+      await window.electron.ipcRenderer.callMain(
+        'app:change-menu-visibility',
+        localStorage.getItem('visibility-menubar') === 'true'
+      );
+    };
+
     return {
       state,
       theme,
@@ -693,6 +718,8 @@ export default {
       defaultPath,
       editorWidthChecked,
       toggleEditorWidth,
+      visibilityMenubar,
+      toggleVisibilityOfMenubar,
     };
   },
   data() {

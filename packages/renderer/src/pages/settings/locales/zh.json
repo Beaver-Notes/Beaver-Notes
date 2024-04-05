@@ -191,7 +191,8 @@
     "warning": "警告，如果您忘记您的密码，您将无法访问您已经锁定的笔记，并且设置新密码需要知道旧密码。",
     "wrongCurrentPassword": "密码错误，请重试",
     "passwordResetError": "重置密码时出了问题",
-    "passwordResetSuccess": "密码已重置成功"
+    "passwordResetSuccess": "密码已重置成功",
+    "menuBarVisibility": "隐藏菜单栏"
   },
   "_idvue": {
     "Previousnote": "以前的笔记",

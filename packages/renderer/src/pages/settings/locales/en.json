@@ -191,7 +191,8 @@
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wrongCurrentPassword": "Wrong password, please try again",
     "passwordResetError": "Something went wrong while resetting your password",
-    "passwordResetSuccess": "The password has been reset successfully"
+    "passwordResetSuccess": "The password has been reset successfully",
+    "menuBarVisibility": "Hidden Menu Bar"
   },
   "_idvue": {
     "Previousnote": "Previous notes",
