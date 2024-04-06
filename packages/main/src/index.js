@@ -170,7 +170,6 @@ ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data)
 );
-
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
   app.relaunch({
     args: process.argv.slice(1).concat(['--relaunch']),

@@ -86,20 +86,22 @@ export default {
 
       // Check if HTML content is available
       if (pastedHTML) {
-        // Insert HTML content if available
-        const lines = pastedHTML.split(/<\/p>/i);
+        // Sanitize HTML content
+        const tempElement = document.createElement('div');
+        tempElement.innerHTML = pastedHTML;
 
-        lines.forEach((line, index) => {
-          if (line.trim() !== '') {
-            // Add a newline character between lines
-            if (index !== 0) {
-              contentToInsert += '\n';
-            }
-
-            // Check if the line contains an image tag
-            if (!line.includes('<img')) {
-              contentToInsert += line.trim();
-            }
+        // Loop through child nodes and sanitize each node
+        tempElement.childNodes.forEach((node) => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            // Remove unwanted attributes
+            node.removeAttribute('_d-id');
+            // Remove inline styles
+            node.removeAttribute('style');
+            // Append the sanitized HTML to the contentToInsert
+            contentToInsert += node.outerHTML;
+          } else if (node.nodeType === Node.TEXT_NODE) {
+            // Append text nodes directly
+            contentToInsert += node.textContent;
           }
         });
       } else {
