@@ -134,6 +134,13 @@ li[data-checked="true"] {
     pointer-events: none;
     height: 0;
   }
+  p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    @apply text-gray-400 dark:text-gray-700;
+    pointer-events: none;
+    height: 0;
+  }
   img {
     @apply rounded;
     margin-top: 0 !important;
@@ -195,6 +202,7 @@ li[data-checked="true"] {
     font-family: 'JetBrainsMono', monospace;
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
+    direction: ltr;
 
     code {
       color: inherit;

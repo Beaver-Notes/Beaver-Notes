@@ -7,15 +7,7 @@
     <div class="flex">
       <div class="w-64">
         <ui-list
-          class="
-            space-y-1
-            sticky
-            top-10
-            mr-8
-            rounded-lg
-            dark:text-gray-200
-            text-gray-600
-          "
+          class="space-y-1 sticky top-10 ltr:mr-8 rtl:ml-8 rounded-lg dark:text-gray-200 text-gray-600"
         >
           <router-link
             v-for="(item, id) in settings"
@@ -25,7 +17,7 @@
             class="block"
           >
             <ui-list-item :active="isExactActive" class="cursor-pointer">
-              <v-remixicon :name="item.icon" class="mr-2 -ml-1" />
+              <v-remixicon :name="item.icon" class="ltr:mr-2 rtl:ml-2 -ml-1" />
               {{ item.name }}
             </ui-list-item>
           </router-link>

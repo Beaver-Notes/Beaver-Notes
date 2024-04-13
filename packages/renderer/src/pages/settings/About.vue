@@ -23,7 +23,7 @@
         class="dark:hover:text-white hover:text-gray-900 transition"
       >
         <v-remixicon :name="link.icon" />
-        <span class="align-middle ml-1">{{
+        <span class="align-right ml-1">{{
           translations.about[link.name] || '-'
         }}</span>
       </a>
