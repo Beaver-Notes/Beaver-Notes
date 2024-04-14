@@ -76,7 +76,7 @@ export default {
     );
     window.electron.ipcRenderer.callMain(
       'app:change-menu-visibility',
-      localStorage.getItem('visibility-menubar') === 'true' || false
+      localStorage.getItem('visibility-menubar') !== 'true' || false
     );
     return {
       store,
