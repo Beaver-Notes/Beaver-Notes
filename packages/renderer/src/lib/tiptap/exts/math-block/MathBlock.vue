@@ -12,6 +12,7 @@
           type="textarea"
           placeholder="Text here..."
           class="bg-transparent flex-1"
+          style="direction: ltr"
           @input="updateContent($event, 'content', true)"
           @keydown="handleKeydown"
         />
