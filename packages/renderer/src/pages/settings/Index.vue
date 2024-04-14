@@ -86,7 +86,7 @@
           @click="toggleRtl"
         >
           <img
-            :src="theme.currentTheme.value === 'dark' ? LTRImgDark : LTRImg"
+            :src="theme.currentTheme.value === 'dark' ? RTLImgDark : RTLImg"
             class="w-full mx-auto mb-1 rounded-lg"
           />
 
@@ -98,7 +98,7 @@
           @click="toggleLtr"
         >
           <img
-            :src="theme.currentTheme.value === 'dark' ? RTLImgDark : RTLImg"
+            :src="theme.currentTheme.value === 'dark' ? LTRImgDark : LTRImg"
             class="w-full mx-auto mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">LTR</p>
