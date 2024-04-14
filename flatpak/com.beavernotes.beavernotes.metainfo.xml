@@ -8,7 +8,7 @@
     <update_contact>danielerolli@proton.me</update_contact>
     <launchable type="desktop-id">com.beavernotes.beavernotes.desktop</launchable>
     <content_rating type="oars-1.1" />
-    <summary>Your Personal Note-Taking Haven for Privacy and Efficiency</summary>
+    <summary>Privacy-First note taking app</summary>
     <description>
         <p>Beaver Notes is the note-taking app designed with simplicity and privacy in mind. Safeguard your thoughts and ideas effortlessly, knowing they're securely stored on your device. With Beaver Notes, only you have access to your data.</p>
     </description>
@@ -23,9 +23,11 @@
     <screenshots>
         <screenshot type="default">
             <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-1.jpeg</image>
+            <caption>Editor Showcase</caption>
         </screenshot>
         <screenshot>
             <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-2.jpeg</image>
+            <caption>Welcome note</caption>
         </screenshot>
     </screenshots>
     <url type="homepage">https://beavernotes.com</url>
