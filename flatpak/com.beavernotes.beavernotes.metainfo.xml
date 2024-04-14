@@ -22,10 +22,10 @@
     </categories>
     <screenshots>
         <screenshot type="default">
-            <image href="https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-1.jpeg"/>
+            <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-1.jpeg</image>
         </screenshot>
         <screenshot>
-            <image href="https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-2.jpeg"/>
+            <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-2.jpeg</image>
         </screenshot>
     </screenshots>
     <url type="homepage">https://beavernotes.com</url>
