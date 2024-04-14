@@ -82,15 +82,11 @@
       <div class="grid grid-cols-2 gap-4">
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': directionPreference === 'rtl' }"
           @click="toggleRtl"
         >
           <img
-            :src="
-              theme.currentTheme.value === 'dark'
-                ? '/src/assets/images/RTL-dark.png'
-                : '/src/assets/images/RTL.png'
-            "
+            :src="theme.currentTheme.value === 'dark' ? RTLImgDark : RTLImg"
             class="w-full mx-auto mb-1 rounded-lg"
           />
 
@@ -98,15 +94,11 @@
         </button>
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.1' }"
+          :class="{ 'ring-2 ring-primary': directionPreference === 'ltr' }"
           @click="toggleLtr"
         >
           <img
-            :src="
-              theme.currentTheme.value === 'dark'
-                ? '/src/assets/images/LTR-dark.png'
-                : '/src/assets/images/LTR.png'
-            "
+            :src="theme.currentTheme.value === 'dark' ? LTRImgDark : LTRImg"
             class="w-full mx-auto mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">LTR</p>
@@ -343,6 +335,11 @@ import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import '../../assets/css/passwd.css';
+import LTRImg from '@/assets/images/LTR.png';
+import LTRImgDark from '@/assets/images/LTR-dark.png';
+import RTLImg from '@/assets/images/RTL.png';
+import RTLImgDark from '@/assets/images/RTL-dark.png';
+
 const enTranslations = import('../../pages/settings/locales/en.json');
 const itTranslations = import('../../pages/settings/locales/it.json');
 const deTranslations = import('../../pages/settings/locales/de.json');
@@ -788,6 +785,7 @@ export default {
 
     const toggleLtr = () => {
       localStorage.setItem('directionPreference', 'ltr');
+      window.location.reload();
     };
 
     return {
@@ -808,13 +806,16 @@ export default {
       toggleEditorWidth,
       visibilityMenubar,
       toggleVisibilityOfMenubar,
+      LTRImg,
+      LTRImgDark,
+      RTLImg,
+      RTLImgDark,
     };
   },
   data() {
     return {
       advancedSettings: localStorage.getItem('advanced-settings') === 'true',
-      directionPreference:
-        localStorage.getItem('directionPreference') === 'ltr',
+      directionPreference: localStorage.getItem('directionPreference') || 'ltr',
       spellcheckEnabled:
         localStorage.getItem('spellcheckEnabled') === 'true' &&
         localStorage.getItem('spellcheckEnabled') != null,
