@@ -204,7 +204,12 @@
     "toggleexport": "Export",
     "toggleimport": "Import",
     "toggledarktheme": "Thema umschalten",
-    "Archive": "Archiv"
+    "Archive": "Archiv",
+    "notification": "Benachrichtigung",
+    "exportSuccess": "Export erfolgreich!",
+    "importSuccess": "Import erfolgreich!",
+    "exportFail": "Export fehlgeschlagen!",
+    "importFail": "Import fehlgeschlagen!"
   },
   "commandprompt": {
     "placeholder": "Datei suchen oder '>' eingeben, um Befehle zu suchen",

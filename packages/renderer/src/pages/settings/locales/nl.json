@@ -204,7 +204,12 @@
     "toggleexport": "Exporteer",
     "toggleimport": "Importeer",
     "toggledarktheme": "Thema omschakelen",
-    "Archive": "Archief"
+    "Archive": "Archief",
+    "notification": "Kennisgeving",
+    "exportSuccess": "Exporteren succesvol!",
+    "importSuccess": "Importeren succesvol!",
+    "exportFail": "Exporteren mislukt!",
+    "importFail": "Importeren mislukt!"
   },
   "commandprompt": {
     "placeholder": "bestand zoeken of typ '>' om opdrachten te zoeken",

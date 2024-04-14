@@ -204,7 +204,12 @@
     "toggleexport": "Esporta",
     "toggleimport": "Importa",
     "toggledarktheme": "Attiva/disattiva tema scuro",
-    "Archive": "Archivio"
+    "Archive": "Archivio",
+    "notification": "Notifica",
+    "exportSuccess": "Esportazione riuscita!",
+    "importSuccess": "Importazione riuscita!",
+    "exportFail": "Esportazione fallita!",
+    "importFail": "Importazione fallita!"
   },
   "commandprompt": {
     "placeholder": "Cerca un file o digita '>' per vedere i comandi",
