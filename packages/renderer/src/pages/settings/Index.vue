@@ -82,7 +82,7 @@
       <div class="grid grid-cols-2 gap-4">
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': directionPreference === 'rtl' }"
           @click="toggleRtl"
         >
           <img
@@ -94,7 +94,7 @@
         </button>
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.1' }"
+          :class="{ 'ring-2 ring-primary': directionPreference === 'ltr' }"
           @click="toggleLtr"
         >
           <img
@@ -785,6 +785,7 @@ export default {
 
     const toggleLtr = () => {
       localStorage.setItem('directionPreference', 'ltr');
+      window.location.reload();
     };
 
     return {
@@ -814,8 +815,7 @@ export default {
   data() {
     return {
       advancedSettings: localStorage.getItem('advanced-settings') === 'true',
-      directionPreference:
-        localStorage.getItem('directionPreference') === 'ltr',
+      directionPreference: localStorage.getItem('directionPreference') || 'ltr',
       spellcheckEnabled:
         localStorage.getItem('spellcheckEnabled') === 'true' &&
         localStorage.getItem('spellcheckEnabled') != null,
