@@ -6,12 +6,24 @@ import path from 'path';
 
 const apiKey = 'electron';
 /**
+ * @typedef {object} NotificationProps
+ * @property {string} title 消息标题
+ * @property {body} body 消息主体
+ */
+/**
+ * @param {NotificationProps} props
+ */
+function notification(props) {
+  return ipcRenderer.callMain('app:notification', props);
+}
+/**
  * @see https://github.com/electron/electron/issues/21437#issuecomment-573522360
  */
 const api = {
   path,
   clipboard,
   ipcRenderer,
+  notification,
   access: (dir) => access(dir, constants.R_OK | constants.W_OK),
   versions: process.versions,
 };
