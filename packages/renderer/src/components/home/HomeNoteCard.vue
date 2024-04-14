@@ -27,7 +27,7 @@
     <router-link
       v-if="!note.isLocked"
       :to="`/note/${note.id}`"
-      class="text-gray-600 block dark:text-gray-100 flex-1 overflow-none"
+      class="text-gray-600 block dark:text-gray-100 flex-1 overflow-hidden overflow-ellipsis"
       style="min-height: 64px"
     >
       {{
@@ -36,6 +36,7 @@
           : truncateText(note.content, 160) || translations.card.content
       }}
     </router-link>
+
     <button
       v-if="note.isLocked"
       class="hover:text-gray-600 dark:text-white h-full mr-2 transition"

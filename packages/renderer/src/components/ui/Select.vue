@@ -5,21 +5,7 @@
       {{ label }}
     </label>
     <div
-      class="
-        ui-select__content
-        flex
-        items-center
-        w-full
-        block
-        transition
-        focus-within:ring-2
-        ring-amber-300
-        bg-input
-        rounded-lg
-        appearance-none
-        focus:outline-none
-        relative
-      "
+      class="ui-select__content flex items-center w-full block transition focus-within:ring-2 ring-amber-300 bg-input rounded-lg appearance-none focus:outline-none relative"
     >
       <v-remixicon
         v-if="prependIcon"

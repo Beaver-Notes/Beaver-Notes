@@ -39,6 +39,10 @@ import deTranslations from '../../pages/settings/locales/de.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
 import nlTranslations from '../../pages/settings/locales/nl.json';
 
+const directionPreference = localStorage.getItem('directionPreference');
+
+const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
+
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
 
 let translations = enTranslations;
@@ -85,7 +89,7 @@ export const extensions = [
   MathInline,
   MathBlock,
   TextDirection.configure({
-    types: ['heading', 'paragraph'],
+    defaultDirection: defaultDirection,
   }),
   Image,
   Search,

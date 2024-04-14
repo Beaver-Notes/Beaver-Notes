@@ -21,7 +21,7 @@
             : translations.filter.deletelabel
         "
         icon
-        class="rounded-r-none"
+        class="ltr:rounded-r-none rtl:rounded-l-none"
         @click="deleteLabel"
       >
         <v-remixicon
@@ -46,7 +46,7 @@
             : translations.filter.discending
         "
         icon
-        class="rounded-r-none"
+        class="ltr:rounded-r-none rtl:rounded-l-none"
         @click="$emit('update:sortOrder', sortOrder === 'asc' ? 'desc' : 'asc')"
       >
         <v-remixicon :name="sortOrder === 'asc' ? 'riSortAsc' : 'riSortDesc'" />
@@ -158,8 +158,8 @@ export default {
 
     watch(
       () => props.label,
-      (newLabel) => {
-        newLabel.value = newLabel;
+      (newLabelValue) => {
+        newLabel.value = newLabelValue;
       }
     );
     const deleteLabel = async () => {

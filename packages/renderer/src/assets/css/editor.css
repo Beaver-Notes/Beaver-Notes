@@ -6,8 +6,8 @@
   font-variant-ligatures: normal;
 }
 .ProseMirror {
-    font-size: 1.065rem;
-    line-height: 1.5;
+  font-size: 1.065rem;
+  line-height: 1.5;
 }
 .ProseMirror a {
   @apply text-primary dark:text-amber-400 !important;
@@ -26,11 +26,11 @@
 .ProseMirror h6 {
   @apply dark:text-white;
   margin-top: 1em !important;
-  margin-bottom: 1em !important; 
+  margin-bottom: 1em !important;
 }
 .ProseMirror p {
   margin-top: 0 !important;
-  margin-bottom: 0 !important; 
+  margin-bottom: 0 !important;
 }
 .ProseMirror .mention {
   @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-amber-400 hover:underline;
@@ -47,31 +47,31 @@ img.ProseMirror-selectednode {
 }
 
 .ProseMirror {
-  min-height:  400px;
+  min-height: 400px;
   & > :first-child {
     margin-top: 0;
   }
   &:focus {
     outline: none;
   }
-  li[data-checked="false"] {
-  @apply dark:text-white
-}
-li[data-checked="true"] {
-  @apply text-neutral-500 line-through
-}
-  ul li {
-      margin-top: 0 !important;
-      margin-bottom: 0 !important;
-      padding-left: 1.25em !important;
-      &::before {
-          top: 0.45em !important;
-      }
+  li[data-checked='false'] {
+    @apply dark:text-white;
+  }
+  li[data-checked='true'] {
+    @apply text-neutral-500 line-through;
+  }
+  ul li  {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-left: 1.25em !important;
+    &::before {
+      top: 0.45em !important;
+    }
   }
   li ul {
-      margin-top: 0 !important;
+    margin-top: 0 !important;
   }
-  ul[data-type="taskList"] {
+  ul[data-type='taskList'] {
     list-style: none;
     padding: 0;
     li {
@@ -79,9 +79,14 @@ li[data-checked="true"] {
         height: 0 !important;
         width: 0 !important;
       }
-      > label {
+      > label [dir='ltr'] {
         flex: 0 0 auto;
         margin-right: 0.5rem;
+        user-select: none;
+      }
+      > label [dir='rtl'] {
+        flex: 0 0 auto;
+        margin-left: 0.5rem;
         user-select: none;
       }
       p {
@@ -98,10 +103,10 @@ li[data-checked="true"] {
         cursor: pointer;
         transition: border-color 0.3s;
         vertical-align: middle;
-      }      
+      }
 
-      input[type="checkbox"]:checked {
-        border-color: #FBBF24;
+      input[type='checkbox']:checked {
+        border-color: #fbbf24;
       }
 
       /* Optional: You can add a custom background or other styles for the checked state */
@@ -127,9 +132,16 @@ li[data-checked="true"] {
   .inline-code {
     @apply p-0.5 px-1 !important;
   }
-  p.is-editor-empty:first-child::before {
+  p.is-editor-empty:first-child::before[dir='ltr'] {
     content: attr(data-placeholder);
     float: left;
+    @apply text-gray-400 dark:text-gray-700;
+    pointer-events: none;
+    height: 0;
+  }
+  p.is-editor-empty:first-child::before[dir='rtl'] {
+    content: attr(data-placeholder);
+    float: right;
     @apply text-gray-400 dark:text-gray-700;
     pointer-events: none;
     height: 0;
@@ -177,7 +189,7 @@ li[data-checked="true"] {
     }
 
     td:first-child {
-      @apply left-2
+      @apply left-2;
     }
 
     .selectedCell:after {
@@ -185,16 +197,17 @@ li[data-checked="true"] {
     }
 
     .column-resize-handle {
-     @apply absolute top-0 w-1 pointer-events-none
+      @apply absolute top-0 w-1 pointer-events-none;
     }
-    }
+  }
 
   pre {
-    background: #0D0D0D;
-    color: #FFF;
+    background: #0d0d0d;
+    color: #fff;
     font-family: 'JetBrainsMono', monospace;
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
+    direction: ltr;
 
     code {
       color: inherit;

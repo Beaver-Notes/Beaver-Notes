@@ -17,7 +17,7 @@ module.exports = {
       },
       colors: {
         primary: colors.amber['400'],
-        secondary: colors.amber ['300'],
+        secondary: colors.amber['300'],
         gray: colors.gray,
         amber: {
           '50': '#FFFBEB',
