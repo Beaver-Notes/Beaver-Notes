@@ -246,6 +246,24 @@
           </span>
         </label>
       </div>
+      <div class="flex items-center space-x-2 py-1">
+        <label class="relative inline-flex cursor-pointer items-center">
+          <input
+            id="switch"
+            v-model="visibilityMenubar"
+            type="checkbox"
+            class="peer sr-only"
+            @change="toggleVisibilityOfMenubar"
+          />
+          <label for="switch" class="hidden"></label>
+          <div
+            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+          ></div>
+          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+            {{ translations.settings.menuBarVisibility || '-' }}
+          </span>
+        </label>
+      </div>
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.security || '-' }}</p>
@@ -707,6 +725,7 @@ export default {
         wrongCurrentPassword: 'settings.wrongCurrentPassword',
         passwordResetSuccess: 'settings.passwordResetSuccess',
         passwordResetError: 'settings.passwordResetError',
+        menuBarVisibility: 'settings.menuBarVisibility',
       },
     });
 
@@ -750,6 +769,18 @@ export default {
       editorWidthChecked.value = !editorWidthChecked.value;
     };
 
+    const visibilityMenubar = computed({
+      get: () => localStorage.getItem('visibility-menubar') === 'true',
+      set: (val) => {
+        localStorage.setItem('visibility-menubar', val.toString());
+      },
+    });
+    const toggleVisibilityOfMenubar = async () => {
+      await window.electron.ipcRenderer.callMain(
+        'app:change-menu-visibility',
+        localStorage.getItem('visibility-menubar') !== 'true'
+      );
+    };
     const toggleRtl = () => {
       localStorage.setItem('directionPreference', 'rtl');
       window.location.reload();
@@ -757,7 +788,6 @@ export default {
 
     const toggleLtr = () => {
       localStorage.setItem('directionPreference', 'ltr');
-      window.location.reload();
     };
 
     return {
@@ -776,6 +806,8 @@ export default {
       defaultPath,
       editorWidthChecked,
       toggleEditorWidth,
+      visibilityMenubar,
+      toggleVisibilityOfMenubar,
     };
   },
   data() {
