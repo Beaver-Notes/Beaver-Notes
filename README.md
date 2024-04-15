@@ -1,4 +1,5 @@
-## Beaver Notes
+<h1 align="center">Beaver Notes</h1>
+
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
 ![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat-square&logo=archlinux&color=blue)
