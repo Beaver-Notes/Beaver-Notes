@@ -6,8 +6,8 @@
   font-variant-ligatures: normal;
 }
 .ProseMirror {
-  font-size: 1.065rem;
-  line-height: 1.5;
+    font-size: 1.065rem;
+    line-height: 1.5;
 }
 .ProseMirror a {
   @apply text-primary dark:text-amber-400 !important;
@@ -26,16 +26,22 @@
 .ProseMirror h6 {
   @apply dark:text-white;
   margin-top: 1em !important;
-  margin-bottom: 1em !important;
+  margin-bottom: 1em !important; 
 }
 .ProseMirror p {
   margin-top: 0 !important;
-  margin-bottom: 0 !important;
+  margin-bottom: 0 !important; 
 }
 .ProseMirror .mention {
   @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-amber-400 hover:underline;
   cursor: pointer;
 }
+
+[dir="rtl"] .mention {
+  display: inline-block;
+  margin-left: 2px;
+}
+
 .ProseMirror .math-block {
   @apply dark:bg-gray-800;
 }
@@ -47,31 +53,36 @@ img.ProseMirror-selectednode {
 }
 
 .ProseMirror {
-  min-height: 400px;
+  min-height:  400px;
   & > :first-child {
     margin-top: 0;
   }
   &:focus {
     outline: none;
   }
-  li[data-checked='false'] {
-    @apply dark:text-white;
+  li[data-checked="false"] {
+  @apply dark:text-white
+}
+li[data-checked="true"] {
+  @apply text-neutral-500 line-through
+}
+  ul li {
+      margin-top: 0 !important;
+      margin-bottom: 0 !important;
+      @apply pr-[1.25em] rtl:pr-[1.25em] !important;
+      &::before {
+          top: 0.45em !important;
+      }
   }
-  li[data-checked='true'] {
-    @apply text-neutral-500 line-through;
-  }
-  ul li  {
+  ol li {
     margin-top: 0 !important;
     margin-bottom: 0 !important;
-    padding-left: 1.25em !important;
-    &::before {
-      top: 0.45em !important;
-    }
-  }
+    @apply pr-[1.25em] rtl:pr-[1.25em] !important;
+}
   li ul {
-    margin-top: 0 !important;
+      margin-top: 0 !important;
   }
-  ul[data-type='taskList'] {
+  ul[data-type="taskList"] {
     list-style: none;
     padding: 0;
     li {
@@ -79,14 +90,9 @@ img.ProseMirror-selectednode {
         height: 0 !important;
         width: 0 !important;
       }
-      > label [dir='ltr'] {
+      > label {
         flex: 0 0 auto;
         margin-right: 0.5rem;
-        user-select: none;
-      }
-      > label [dir='rtl'] {
-        flex: 0 0 auto;
-        margin-left: 0.5rem;
         user-select: none;
       }
       p {
@@ -103,13 +109,12 @@ img.ProseMirror-selectednode {
         cursor: pointer;
         transition: border-color 0.3s;
         vertical-align: middle;
+      }      
+
+      input[type="checkbox"]:checked {
+        border-color: #FBBF24;
       }
 
-      input[type='checkbox']:checked {
-        border-color: #fbbf24;
-      }
-
-      /* Optional: You can add a custom background or other styles for the checked state */
       input[type='checkbox']:checked::before {
         content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='rgba(251,191,36,1)'%3E%3C/path%3E%3C/svg%3E");
         display: block;
@@ -132,16 +137,8 @@ img.ProseMirror-selectednode {
   .inline-code {
     @apply p-0.5 px-1 !important;
   }
-  p.is-editor-empty:first-child::before[dir='ltr'] {
+  p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
-    float: left;
-    @apply text-gray-400 dark:text-gray-700;
-    pointer-events: none;
-    height: 0;
-  }
-  p.is-editor-empty:first-child::before[dir='rtl'] {
-    content: attr(data-placeholder);
-    float: right;
     @apply text-gray-400 dark:text-gray-700;
     pointer-events: none;
     height: 0;
@@ -179,35 +176,37 @@ img.ProseMirror-selectednode {
 
     td,
     th {
-      @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
-      word-wrap: break-word;
-      max-width: 10px;
+        @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
+        word-wrap: break-word;
+        max-width: 10px;
+        text-align: initial; /* Reset text alignment */
     }
 
     th {
-      @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+        @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+        text-align: initial; /* Reset text alignment */
     }
 
+    /* Adjust padding for first child based on direction */
     td:first-child {
-      @apply left-2;
+        @apply left-2 rtl:left-auto rtl:right-2; /* Adjust left and right properties for RTL */
     }
 
     .selectedCell:after {
-      @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
+        @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
     }
 
     .column-resize-handle {
-      @apply absolute top-0 w-1 pointer-events-none;
+        @apply absolute top-0 w-1 pointer-events-none;
     }
-  }
+}
 
   pre {
-    background: #0d0d0d;
-    color: #fff;
+    background: #0D0D0D;
+    color: #FFF;
     font-family: 'JetBrainsMono', monospace;
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
-    direction: ltr;
 
     code {
       color: inherit;
@@ -225,4 +224,10 @@ img.ProseMirror-selectednode {
 .resize-cursor {
   cursor: ew-resize;
   cursor: col-resize;
+}
+.prose ul > li::before {
+  @apply left-1 rtl:right-1;
+}
+.prose ol > li::before {
+  @apply left-1 rtl:right-1;
 }
