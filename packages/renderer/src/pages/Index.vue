@@ -57,7 +57,7 @@
               <input
                 v-model="disableDialog"
                 type="checkbox"
-                class="form-checkbox"
+                class="form-checkbox rtl:ml-2"
               />
               <span class="inline-block align-middle">
                 {{ translations.index.hide || '-' }}</span

@@ -1,6 +1,9 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div :class="{ 'inline-block': !block }" class="ui-select cursor-pointer">
+  <div
+    :class="{ 'inline-block': !block }"
+    class="ui-select cursor-pointer rtl:-rotate-180"
+  >
     <label v-if="label" :for="selectId" class="text-gray-200 text-sm ml-2">
       {{ label }}
     </label>
@@ -17,7 +20,7 @@
         :id="selectId"
         :class="{ 'pl-8': prependIcon }"
         :value="modelValue"
-        class="px-4 pr-8 bg-transparent py-2 z-10 appearance-none w-full h-full"
+        class="px-4 rtl:rotate-180 pr-8 bg-transparent py-2 z-10 appearance-none w-full h-full"
         @change="emitValue"
       >
         <option v-if="placeholder" value="" selected>
@@ -28,7 +31,7 @@
       <v-remixicon
         size="28"
         name="riArrowDropDownLine"
-        class="absolute text-gray-600 dark:text-gray-200 mr-2 right-0"
+        class="absolute text-gray-600 dark:text-gray-200 mr-2 right-0 rtl:right-auto rtl:left-0"
       />
     </div>
   </div>

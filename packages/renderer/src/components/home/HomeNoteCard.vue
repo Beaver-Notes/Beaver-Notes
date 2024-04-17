@@ -98,7 +98,7 @@
       </button>
       <button
         v-tooltip.group="translations.card.delete"
-        class="hover:text-red-500 dark:hover:text-red-400 transition invisible group-hover:visible"
+        class="hover:text-red-500 rtl:mr-2 dark:hover:text-red-400 transition invisible group-hover:visible"
         @click="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" />

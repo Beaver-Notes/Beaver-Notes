@@ -1,6 +1,6 @@
 <template>
   <div class="flex items-start mb-6 space-x-4">
-    <div class="flex-1">
+    <div class="flex-1 rtl:ml-4">
       <ui-input
         :model-value="query"
         class="w-full note-search-input"

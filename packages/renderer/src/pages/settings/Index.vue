@@ -238,7 +238,8 @@
           </span>
         </label>
       </div>
-      <div class="flex items-center space-x-2 py-1">
+      <!-- menubar visibility -->
+      <div class="flex items-center space-x-2 py-1" v-if="!isMacOS">
         <label class="relative inline-flex cursor-pointer items-center">
           <input
             id="switch"
@@ -830,6 +831,11 @@ export default {
         { code: 'zh', name: '简体中文', translations: zhTranslations },
       ],
     };
+  },
+  computed: {
+    isMacOS() {
+      return window.navigator.platform.toLowerCase().includes('mac');
+    },
   },
   mounted() {
     document.documentElement.style.setProperty(

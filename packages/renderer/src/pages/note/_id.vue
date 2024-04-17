@@ -6,13 +6,13 @@
   >
     <button
       v-if="$route.query.linked && !store.inFocusMode"
-      class="left-0 ml-24 mt-4 fixed group"
+      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group"
       title="Alt+Arrow left"
       @click="$router.back()"
     >
       <v-remixicon
         name="riArrowDownLine"
-        class="mr-2 -ml-1 group-hover:-translate-x-1 transform transition rotate-90"
+        class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
       />
       <span>
         {{ translations._idvue.Previousnote || '-' }}
