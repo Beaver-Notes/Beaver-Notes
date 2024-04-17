@@ -4,7 +4,6 @@
     <editor-content
       :editor="editor"
       class="prose dark:text-gray-100 max-w-none prose-indigo"
-      @paste="handlePaste"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
     <note-bubble-menu-table v-if="editor" v-bind="{ editor, isTyping }" />
