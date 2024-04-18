@@ -224,7 +224,7 @@
         </label>
       </div>
       <!-- Menubar visibility -->
-      <div class="flex items-center space-x-2 py-1" v-if="!isMacOS">
+      <div v-if="!isMacOS" class="flex items-center space-x-2 py-1">
         <label class="relative inline-flex cursor-pointer items-center">
           <input
             id="switch"
@@ -276,7 +276,7 @@
             class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
           ></div>
           <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            Auto sync
+            {{ translations.settings.autosync || '-' }}
           </span>
         </label>
       </div>
@@ -364,11 +364,12 @@ import LTRImgDark from '@/assets/images/LTR-dark.png';
 import RTLImg from '@/assets/images/RTL.png';
 import RTLImgDark from '@/assets/images/RTL-dark.png';
 
-const enTranslations = import('../../pages/settings/locales/en.json');
-const itTranslations = import('../../pages/settings/locales/it.json');
 const deTranslations = import('../../pages/settings/locales/de.json');
-const zhTranslations = import('../../pages/settings/locales/zh.json');
+const enTranslations = import('../../pages/settings/locales/en.json');
+const esTranslations = import('../../pages/settings/locales/es.json');
+const itTranslations = import('../../pages/settings/locales/it.json');
 const nlTranslations = import('../../pages/settings/locales/nl.json');
+const zhTranslations = import('../../pages/settings/locales/zh.json');
 
 export const state = shallowReactive({
   dataDir: '',
@@ -747,6 +748,10 @@ export default {
         passwordResetSuccess: 'settings.passwordResetSuccess',
         passwordResetError: 'settings.passwordResetError',
         menuBarVisibility: 'settings.menuBarVisibility',
+        interfaceDirection: 'settings.interfaceDirection',
+        LTR: 'settings.LTR',
+        RTL: 'settings.RTL',
+        autosync: 'settings.autosync',
       },
     });
 
@@ -851,6 +856,7 @@ export default {
       languages: [
         { code: 'de', name: 'Deutsch', translations: deTranslations },
         { code: 'en', name: 'English', translations: enTranslations },
+        { code: 'es', name: 'Español', translations: esTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
         { code: 'zh', name: '简体中文', translations: zhTranslations },

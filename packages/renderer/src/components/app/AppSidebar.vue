@@ -175,6 +175,8 @@ export default {
       window.addNote = addNote;
     }
 
+    // import & export
+
     async function exportData() {
       try {
         let data = await storage.store();
@@ -342,6 +344,164 @@ export default {
       }
     }
 
+    // auto sync
+
+    const autoSync = localStorage.getItem('autoSync');
+    const autoSyncInterval = 30 * 60 * 1000; // 30 minutes in milliseconds
+
+    function scheduleAutoSync() {
+      if (autoSync === 'true') {
+        // Run import immediately
+        importAndExportData();
+        // Schedule subsequent imports and exports at intervals
+        setInterval(importAndExportData, autoSyncInterval);
+      }
+    }
+
+    function importAndExportData() {
+      syncimportData()
+        .then(() => syncexportData())
+        .catch((error) => console.error('Error during import/export:', error));
+    }
+
+    async function syncexportData() {
+      try {
+        let data = await storage.store();
+
+        if (state.withPassword) {
+          data = AES.encrypt(JSON.stringify(data), state.password).toString();
+        }
+
+        const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
+        const dataDir = await storage.get('dataDir', '', 'settings');
+
+        const exportPath = defaultPath; // Use the selected default path
+        const folderPath = path.join(exportPath, folderName);
+
+        await ipcRenderer.callMain('fs:ensureDir', folderPath);
+        await ipcRenderer.callMain('fs:output-json', {
+          path: path.join(folderPath, 'data.json'),
+          data: { data },
+        });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dataDir, 'notes-assets'),
+          dest: path.join(folderPath, 'assets'),
+        });
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(dataDir, 'file-assets'),
+          dest: path.join(folderPath, 'file-assets'),
+        });
+
+        state.withPassword = false;
+        state.password = '';
+        notification({
+          title: translations.sidebar.notification,
+          body: translations.sidebar.exportSuccess,
+        });
+      } catch (error) {
+        notification({
+          title: translations.sidebar.notification,
+          body: translations.sidebar.exportFail,
+        });
+        console.error(error);
+      }
+    }
+
+    async function syncimportData() {
+      try {
+        let today = dayjs();
+        let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+        let dirPath = path.join(defaultPath, folderName);
+
+        try {
+          let { data } = await ipcRenderer.callMain(
+            'fs:read-json',
+            path.join(dirPath, 'data.json')
+          );
+
+          if (!data) return showAlert(translations.settings.invaliddata);
+
+          if (typeof data === 'string') {
+            dialog.prompt({
+              title: translations.settings.Inputpassword,
+              body: translations.settings.body,
+              okText: translations.settings.Import,
+              cancelText: translations.settings.Cancel,
+              placeholder: translations.settings.Password,
+              onConfirm: async (pass) => {
+                try {
+                  const bytes = AES.decrypt(data, pass);
+                  const result = bytes.toString(Utf8);
+                  const resultObj = JSON.parse(result);
+
+                  await mergeImportedData(resultObj); // Wait for merge operation to finish
+                  const dataDir = await storage.get('dataDir', '', 'settings');
+                  const importedDefaultPath = data['dataDir'];
+                  const importedLockedStatus = data['lockStatus'];
+                  const importedLockedNotes = data['lockedNotes'];
+                  localStorage.setItem('dataDir', importedDefaultPath);
+                  if (
+                    importedLockedStatus !== null &&
+                    importedLockedStatus !== undefined
+                  ) {
+                    localStorage.setItem(
+                      'lockStatus',
+                      JSON.stringify(importedLockedStatus)
+                    );
+                  }
+
+                  if (
+                    importedLockedNotes !== null &&
+                    importedLockedNotes !== undefined
+                  ) {
+                    localStorage.setItem(
+                      'lockedNotes',
+                      JSON.stringify(importedLockedNotes)
+                    );
+                  }
+                  await ipcRenderer.callMain('fs:copy', {
+                    path: path.join(dirPath, 'assets'),
+                    dest: path.join(dataDir, 'notes-assets'),
+                  });
+                  await ipcRenderer.callMain('fs:copy', {
+                    path: path.join(dirPath, 'file-assets'),
+                    dest: path.join(dataDir, 'file-assets'),
+                  });
+
+                  console.log('Assets copied successfully.');
+                } catch (error) {
+                  showAlert(translations.settings.Invalidpassword);
+                  return false;
+                }
+              },
+            });
+          } else {
+            await mergeImportedData(data); // Wait for merge operation to finish
+            console.log('Data merged successfully.');
+          }
+        } catch (error) {
+          today = today.subtract(1, 'day');
+          folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+          dirPath = path.join(defaultPath, folderName);
+
+          if (today.isBefore('YYYY-MM-DD')) {
+            console.error('No data available for syncing.');
+            return;
+          }
+        }
+        notification({
+          title: translations.sidebar.notification,
+          body: translations.sidebar.importSuccess,
+        });
+      } catch (error) {
+        notification({
+          title: translations.sidebar.notification,
+          body: translations.sidebar.importFail,
+        });
+        console.error('Error while importing data:', error);
+      }
+    }
+
     console.log('Default path from local storage:', defaultPath);
 
     onUnmounted(() => {
@@ -384,6 +544,9 @@ export default {
         Object.assign(translations, loadedTranslations);
       }
     });
+
+    // Schedule autoSync if enabled
+    scheduleAutoSync();
 
     const loadTranslations = async () => {
       const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';

@@ -36,6 +36,7 @@ import TableRow from '@tiptap/extension-table-row';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
+import esTranslations from '../../pages/settings/locales/es.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
 import nlTranslations from '../../pages/settings/locales/nl.json';
 
@@ -55,6 +56,8 @@ if (selectedLanguage === 'it') {
   translations = zhTranslations;
 } else if (selectedLanguage === 'nl') {
   translations = nlTranslations;
+} else if (selectedLanguage === 'es') {
+  translations = esTranslations;
 }
 
 export const extensions = [

@@ -195,7 +195,8 @@
     "menuBarVisibility": "Hidden Menu Bar",
     "interfaceDirection": "Interface Direction",
     "LTR": "LTR",
-    "RTL": "RTL"
+    "RTL": "RTL",
+    "autosync": "Auto sync"
   },
   "_idvue": {
     "Previousnote": "Previous notes",
