@@ -8,6 +8,7 @@ import {
   Menu,
   Notification,
 } from 'electron';
+import windowStateKeeper from 'electron-window-state';
 import { ipcMain } from 'electron-better-ipc';
 import path, { join, normalize } from 'path';
 import { URL } from 'url';
@@ -40,10 +41,18 @@ const env = import.meta.env;
 let mainWindow = null;
 
 const createWindow = async () => {
+  // Load the previous window state or fallback to defaults
+  let mainWindowState = windowStateKeeper({
+    defaultWidth: 1000,
+    defaultHeight: 800,
+  });
+
+  // Create the window using the state information
   mainWindow = new BrowserWindow({
-    show: false,
-    width: 950,
-    height: 600,
+    x: mainWindowState.x,
+    y: mainWindowState.y,
+    width: mainWindowState.width,
+    height: mainWindowState.height,
     webPreferences: {
       preload: join(__dirname, '../../preload/dist/index.cjs'),
       contextIsolation: env.MODE !== 'test',
@@ -52,6 +61,8 @@ const createWindow = async () => {
       spellcheck: true,
     },
   });
+
+  mainWindowState.manage(mainWindow);
 
   mainWindow.setMenuBarVisibility(true); // Show menu bar
 
@@ -78,7 +89,7 @@ const createWindow = async () => {
       ? env.VITE_DEV_SERVER_URL
       : new URL(
           '../renderer/dist/index.html',
-          'file://' + __dirname,
+          'file://' + __dirname
         ).toString();
 
   await mainWindow.loadURL(pageUrl);
@@ -140,7 +151,7 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
     // If src is a relative path
     fullPath = path.join(app.getPath('userData'), src);
   }
-  
+
   try {
     await shell.openPath(fullPath);
     console.log(`File ${fullPath} opened successfully`);
@@ -157,24 +168,26 @@ ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
 
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
 
-ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) => win.setMenuBarVisibility(visibility));
+ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) =>
+  win.setMenuBarVisibility(visibility)
+);
 
 ipcMain.answerRenderer('dialog:open', (props) => dialog.showOpenDialog(props));
 ipcMain.answerRenderer('dialog:message', (props) =>
-  dialog.showMessageBox(props),
+  dialog.showMessageBox(props)
 );
 ipcMain.answerRenderer('dialog:save', (props) => dialog.showSaveDialog(props));
 
 ipcMain.answerRenderer('fs:copy', ({ path, dest }) => copy(path, dest));
 ipcMain.answerRenderer('fs:output-json', ({ path, data }) =>
-  outputJson(path, data),
+  outputJson(path, data)
 );
 ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
 ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
 ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
 ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-  writeFileSync(path, data),
+  writeFileSync(path, data)
 );
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
   app.relaunch({
@@ -186,22 +199,22 @@ ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
 ipcMain.answerRenderer('helper:get-path', (name) => app.getPath(name));
 ipcMain.answerRenderer(
   'helper:is-dark-theme',
-  () => nativeTheme.shouldUseDarkColors,
+  () => nativeTheme.shouldUseDarkColors
 );
 
 ipcMain.answerRenderer('storage:store', (name) => store[name]?.store);
 ipcMain.answerRenderer(
   'storage:replace',
-  ({ name, data }) => (store[name].store = data),
+  ({ name, data }) => (store[name].store = data)
 );
 ipcMain.answerRenderer('storage:get', ({ name, key, def }) =>
-  store[name]?.get(key, def),
+  store[name]?.get(key, def)
 );
 ipcMain.answerRenderer('storage:set', ({ name, key, value }) =>
-  store[name]?.set(key, value),
+  store[name]?.set(key, value)
 );
 ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
-  store[name]?.delete(key),
+  store[name]?.delete(key)
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
@@ -306,7 +319,7 @@ const template = [
         click: async () => {
           const { shell } = require('electron');
           await shell.openExternal(
-            'https://danieles-organization.gitbook.io/beaver-notes',
+            'https://danieles-organization.gitbook.io/beaver-notes'
           );
         },
       },
