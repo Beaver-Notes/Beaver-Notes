@@ -139,7 +139,7 @@ li[data-checked="true"] {
   }
   p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
-    @apply text-gray-400 dark:text-gray-700;
+    @apply text-gray-400 dark:text-gray-700 float-left rtl:float-right;
     pointer-events: none;
     height: 0;
   }

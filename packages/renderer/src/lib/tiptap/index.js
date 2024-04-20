@@ -19,6 +19,7 @@ import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-embed';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
+import Iframe from './exts/iframe.ts';
 import {
   blueCallout,
   yellowCallout,
@@ -115,6 +116,7 @@ export const extensions = [
       title: 'Ctrl+Click to open URL',
     },
   }),
+  Iframe,
 ];
 
 export default function ({ extensions: optsExts, ...opts }) {

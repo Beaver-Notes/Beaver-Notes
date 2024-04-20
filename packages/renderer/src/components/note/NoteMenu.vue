@@ -86,6 +86,27 @@
           @click="insertImage"
         />
       </ui-popover>
+      <ui-popover padding="p-2 flex items-center">
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.image"
+            class="transition hoverable h-8 px-1 rounded-lg"
+          >
+            <v-remixicon name="riMovieLine" />
+          </button>
+        </template>
+        <input
+          v-model="vidUrl"
+          class="bg-transparent mr-2"
+          :placeholder="translations.menu.vidUrl || '-'"
+          @keyup.enter="addIframe"
+        />
+        <v-remixicon
+          name="riSave3Line"
+          class="mr-2 cursor-pointer"
+          @click="addIframe"
+        />
+      </ui-popover>
       <button
         v-tooltip.group="translations.menu.Link"
         :class="{ 'is-active': editor.isActive('link') }"
@@ -321,6 +342,7 @@ export default {
     useGroupTooltip();
 
     const imgUrl = shallowRef('');
+    const vidUrl = shallowRef('');
     const headingsTree = shallowRef([]);
     const showHeadingsTree = shallowRef(false);
 
@@ -329,6 +351,38 @@ export default {
       imgUrl.value = '';
       props.editor.commands.focus();
     }
+    function addIframe() {
+      if (vidUrl.value.trim() === '') {
+        // Prevent adding iframe if vidUrl is empty or only contains whitespace
+        return;
+      }
+
+      let videoUrl = vidUrl.value.trim();
+
+      // Check if the URL is a YouTube video URL in the regular format
+      if (videoUrl.includes('youtube.com/watch?v=')) {
+        let videoId = videoUrl.split('v=')[1];
+        const ampersandPosition = videoId.indexOf('&');
+        if (ampersandPosition !== -1) {
+          videoId = videoId.substring(0, ampersandPosition);
+        }
+        // Convert to the embed format
+        videoUrl = `https://www.youtube.com/embed/${videoId}`;
+      }
+
+      // Use the value of vidUrl to set the iframe source
+      props.editor
+        .chain()
+        .focus()
+        .setIframe({
+          src: videoUrl,
+        })
+        .run();
+
+      // Clear the input field after setting the iframe source
+      vidUrl.value = '';
+    }
+
     function getHeadingsTree() {
       const editorEl = props.editor.options.element;
       const headingEls = editorEl.querySelectorAll('h1, h2, h3, h4');
@@ -481,10 +535,12 @@ export default {
       store,
       lists,
       imgUrl,
+      vidUrl,
       handleFileSelect,
       translations,
       headings,
       insertImage,
+      addIframe,
       editorImage,
       headingsTree,
       textFormatting,

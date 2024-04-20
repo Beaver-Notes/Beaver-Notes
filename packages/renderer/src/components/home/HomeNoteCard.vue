@@ -117,6 +117,8 @@
 <script setup>
 /* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
+const { ipcRenderer, path, notification } = window.electron;
+import { useStorage } from '@/composable/storage';
 import '../../assets/css/passwd.css';
 import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
@@ -139,6 +141,15 @@ defineProps({
 defineEmits(['update', 'update:label']);
 
 const dialog = useDialog();
+const storage = useStorage();
+const state = shallowReactive({
+  dataDir: '',
+  password: '',
+  fontSize: '16',
+  withPassword: false,
+  lastUpdated: null,
+});
+const defaultPath = localStorage.getItem('default-path');
 
 useGroupTooltip();
 
@@ -241,9 +252,59 @@ async function deleteNote(note) {
     okText: translations.card.confirm,
     cancelText: translations.card.Cancel,
     onConfirm: async () => {
+      // Delete the note locally
       await noteStore.delete(note);
+
+      // Trigger export if auto sync is on
+      const autoSync = localStorage.getItem('autoSync');
+      if (autoSync === 'true') {
+        await syncexportData();
+      }
     },
   });
+}
+
+async function syncexportData() {
+  try {
+    let data = await storage.store();
+
+    if (state.withPassword) {
+      data = AES.encrypt(JSON.stringify(data), state.password).toString();
+    }
+
+    const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
+    const dataDir = await storage.get('dataDir', '', 'settings');
+
+    const exportPath = defaultPath; // Use the selected default path
+    const folderPath = path.join(exportPath, folderName);
+
+    await ipcRenderer.callMain('fs:ensureDir', folderPath);
+    await ipcRenderer.callMain('fs:output-json', {
+      path: path.join(folderPath, 'data.json'),
+      data: { data },
+    });
+    await ipcRenderer.callMain('fs:copy', {
+      path: path.join(dataDir, 'notes-assets'),
+      dest: path.join(folderPath, 'assets'),
+    });
+    await ipcRenderer.callMain('fs:copy', {
+      path: path.join(dataDir, 'file-assets'),
+      dest: path.join(folderPath, 'file-assets'),
+    });
+
+    state.withPassword = false;
+    state.password = '';
+    notification({
+      title: translations.sidebar.notification,
+      body: translations.sidebar.exportSuccess,
+    });
+  } catch (error) {
+    notification({
+      title: translations.sidebar.notification,
+      body: translations.sidebar.exportFail,
+    });
+    console.error(error);
+  }
 }
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
