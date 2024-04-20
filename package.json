@@ -83,6 +83,7 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.10.6",
     "electron-better-ipc": "^2.0.1",
+    "electron-browser-storage": "^1.0.7",
     "electron-fetch": "^1.9.1",
     "electron-store": "^8.0.0",
     "electron-updater": "^6.1.1",

@@ -9,6 +9,7 @@ import {
   Notification,
 } from 'electron';
 import windowStateKeeper from 'electron-window-state';
+const { localStorage } = require('electron-browser-storage');
 import { ipcMain } from 'electron-better-ipc';
 import path, { join, normalize } from 'path';
 import { URL } from 'url';
@@ -22,6 +23,8 @@ import {
   writeFileSync,
 } from 'fs-extra';
 import store from './store';
+import enTranslations from '../../renderer/src/pages/settings/locales/en.json';
+import itTranslations from '../../renderer/src/pages/settings/locales/it.json';
 
 const isMac = process.platform === 'darwin';
 
@@ -126,6 +129,7 @@ app
 
     await ensureDir(join(app.getPath('userData'), 'notes-assets'));
     createWindow();
+    initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
 
@@ -223,109 +227,121 @@ function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');
 }
 
-// Function to set the application menu
+function initializeMenu() {
+  // languages
 
-const template = [
-  // { role: 'appMenu' }
-  ...(isMac
-    ? [
+  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+
+  let translations = enTranslations;
+
+  if (selectedLanguage === 'it') {
+    translations = itTranslations;
+  } 
+
+  // Function to set the application menu
+
+  const template = [
+    // { role: 'appMenu' }
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : []),
+    // { role: 'fileMenu' }
+    {
+      label: 'File',
+      submenu: [
         {
-          label: app.name,
-          submenu: [
-            { type: 'separator' },
-            { role: 'services' },
-            { type: 'separator' },
-            { role: 'hide' },
-            { role: 'hideOthers' },
-            { role: 'unhide' },
-            { type: 'separator' },
-            { role: 'quit' },
-          ],
+          label: translations.commands.newnote,
+          accelerator: 'CmdOrCtrl+N',
+          click: addNoteFromMenu,
         },
-      ]
-    : []),
-  // { role: 'fileMenu' }
-  {
-    label: 'File',
-    submenu: [
-      {
-        label: 'New Note',
-        accelerator: 'CmdOrCtrl+N',
-        click: addNoteFromMenu,
-      },
-      isMac ? { role: 'close' } : { role: 'quit' },
-    ],
-  },
-  // { role: 'editMenu' }
-  {
-    label: 'Edit',
-    submenu: [
-      { role: 'undo' },
-      { role: 'redo' },
-      { type: 'separator' },
-      { role: 'cut' },
-      { role: 'copy' },
-      { role: 'paste' },
-      ...(isMac
-        ? [
-            { role: 'pasteAndMatchStyle' },
-            { role: 'delete' },
-            { role: 'selectAll' },
-            { type: 'separator' },
-            {
-              label: 'Speech',
-              submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }],
-            },
-          ]
-        : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
-    ],
-  },
-  // { role: 'viewMenu' }
-  {
-    label: 'View',
-    submenu: [
-      { role: 'reload' },
-      { role: 'forceReload' },
-      { role: 'toggleDevTools' },
-      { type: 'separator' },
-      { role: 'resetZoom' },
-      { role: 'zoomIn' },
-      { role: 'zoomOut' },
-      { type: 'separator' },
-      { role: 'togglefullscreen' },
-    ],
-  },
-  // { role: 'windowMenu' }
-  {
-    label: 'Window',
-    submenu: [
-      { role: 'minimize' },
-      { role: 'zoom' },
-      ...(isMac
-        ? [
-            { type: 'separator' },
-            { role: 'front' },
-            { type: 'separator' },
-            { role: 'window' },
-          ]
-        : [{ role: 'close' }]),
-    ],
-  },
-  {
-    role: 'help',
-    submenu: [
-      {
-        label: 'Beaver Help',
-        click: async () => {
-          const { shell } = require('electron');
-          await shell.openExternal(
-            'https://danieles-organization.gitbook.io/beaver-notes'
-          );
+        isMac ? { role: 'close' } : { role: 'quit' },
+      ],
+    },
+    // { role: 'editMenu' }
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        ...(isMac
+          ? [
+              { role: 'pasteAndMatchStyle' },
+              { role: 'delete' },
+              { role: 'selectAll' },
+              { type: 'separator' },
+              {
+                label: 'Speech',
+                submenu: [{ role: 'startSpeaking' }, { role: 'stopSpeaking' }],
+              },
+            ]
+          : [{ role: 'delete' }, { type: 'separator' }, { role: 'selectAll' }]),
+      ],
+    },
+    // { role: 'viewMenu' }
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    // { role: 'windowMenu' }
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac
+          ? [
+              { type: 'separator' },
+              { role: 'front' },
+              { type: 'separator' },
+              { role: 'window' },
+            ]
+          : [{ role: 'close' }]),
+      ],
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Beaver Help',
+          click: async () => {
+            const { shell } = require('electron');
+            await shell.openExternal(
+              'https://danieles-organization.gitbook.io/beaver-notes'
+            );
+          },
         },
-      },
-    ],
-  },
-];
+      ],
+    },
+  ];
 
-const menu = Menu.buildFromTemplate(template);
-Menu.setApplicationMenu(menu);
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}

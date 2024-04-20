@@ -194,6 +194,10 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 
+const state = shallowReactive({
+  zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
+});
+
 export default {
   components: { NoteMenuHeadingsTree },
   props: {
@@ -337,7 +341,26 @@ export default {
 
       headingsTree.value = headingsArr;
     }
+    const setZoom = (newZoomLevel) => {
+      // Call IPC renderer to set zoom level
+      window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
+
+      // Update state and localStorage with the new zoom level
+      state.zoomLevel = newZoomLevel.toFixed(1);
+      localStorage.setItem('zoomLevel', state.zoomLevel);
+    };
+
+    // When the button is clicked, retrieve zoom level from local storage and call setZoom with that value
+    const handleZoomButtonClick = () => {
+      // Retrieve zoom level from localStorage
+      const storedZoomLevel = parseFloat(localStorage.getItem('zoomLevel'));
+
+      // Call setZoom with the retrieved zoom level
+      setZoom(storedZoomLevel);
+    };
+
     function toggleFocusMode() {
+      handleZoomButtonClick();
       store.inFocusMode = !store.inFocusMode;
 
       if (store.inFocusMode) {
