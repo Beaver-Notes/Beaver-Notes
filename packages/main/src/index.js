@@ -25,6 +25,10 @@ import {
 import store from './store';
 import enTranslations from '../../renderer/src/pages/settings/locales/en.json';
 import itTranslations from '../../renderer/src/pages/settings/locales/it.json';
+import deTranslations from '../../renderer/src/pages/settings/locales/de.json';
+import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
+import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
+import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
 
 const isMac = process.platform === 'darwin';
 
@@ -236,7 +240,23 @@ function initializeMenu() {
 
   if (selectedLanguage === 'it') {
     translations = itTranslations;
-  } 
+  }
+
+  if (selectedLanguage === 'de') {
+    translations = deTranslations;
+  }
+  
+  if (selectedLanguage === 'zh') {
+    translations = zhTranslations;
+  }
+  
+  if (selectedLanguage === 'nl') {
+    translations = nlTranslations;
+  }
+  
+  if (selectedLanguage === 'es') {
+    translations = esTranslations;
+  }
 
   // Function to set the application menu
 
