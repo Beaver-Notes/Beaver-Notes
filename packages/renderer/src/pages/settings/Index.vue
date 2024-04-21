@@ -146,6 +146,9 @@
         <option value="OpenDyslexic" class="font-open-dyslexic">
           Open Dyslexic
         </option>
+        <option value="Roboto Mono" class="font-roboto-mono">
+          Roboto Mono
+        </option>
         <option value="Ubuntu" class="font-ubuntu">Ubuntu</option>
       </ui-select>
     </section>
@@ -936,4 +939,3 @@ export default {
   },
 };
 </script>
-
