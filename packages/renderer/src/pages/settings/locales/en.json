@@ -51,6 +51,8 @@
     "heading": "Heading",
     "image": "Image",
     "imgurl": "Image url",
+    "video": "Video",
+    "vidUrl": "Video url",
     "Link": "Link",
     "File": "File",
     "Print": "Print",

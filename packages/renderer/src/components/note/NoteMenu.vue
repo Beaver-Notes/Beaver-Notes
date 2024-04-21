@@ -89,7 +89,7 @@
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
           <button
-            v-tooltip.group="translations.menu.image"
+            v-tooltip.group="translations.menu.video"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
             <v-remixicon name="riMovieLine" />
@@ -461,6 +461,8 @@ export default {
         heading: 'menu.heading',
         image: 'menu.image',
         imgurl: 'menu.imgurl',
+        video: 'menu.video',
+        vidUrl: 'menu.vidUrl',
         Link: 'menu.Link',
         File: 'menu.File',
         Print: 'menu.Print',
