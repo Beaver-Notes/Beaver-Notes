@@ -1,4 +1,5 @@
-## Beaver Notes
+<h1 align="center">Beaver Notes</h1>
+
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
 ![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat-square&logo=archlinux&color=blue)
@@ -6,19 +7,20 @@
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat-square)
 [![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
 [![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)](https://mastodon.social/@Beavernotes)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=license)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=security)
 [![Checkout the docs](https://img.shields.io/badge/Checkout_the_docs-blue?style=flat-square&logo=Gitbook&logoColor=white&color=blue)](https://danieles-organization.gitbook.io/beaver-notes)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <div align="center">
 
 <img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
 
-</div>
-
-**Your Private Note-Taking Buddy 📝**
-
-**Developed with love ❤️ in a rainy cottage in Northern Italy.**
+<p><b>Your Private Note-Taking Buddy 📝</b></p>
+<p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
 
 [Website](https://beavernotes.com) | [Blog](https://beavernotes.com/blog) | [Docs](https://danieles-organization.gitbook.io/beaver-notes/) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
+
+</div>
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
