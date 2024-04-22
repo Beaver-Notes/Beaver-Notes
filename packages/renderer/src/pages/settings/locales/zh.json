@@ -51,6 +51,8 @@
     "heading": "标题",
     "image": "图片",
     "imgurl": "图片链接",
+    "video": "视频",
+    "vidUrl": "视频链接",
     "Link": "链接",
     "File": "文件",
     "Print": "打印",
@@ -192,7 +194,11 @@
     "wrongCurrentPassword": "密码错误，请重试",
     "passwordResetError": "重置密码时出了问题",
     "passwordResetSuccess": "密码已重置成功",
-    "menuBarVisibility": "隐藏菜单栏"
+    "menuBarVisibility": "隐藏菜单栏",
+    "interfaceDirection": "界面方向",
+    "LTR": "从左到右",
+    "RTL": "从右到左",
+    "autosync": "自动同步"
   },
   "_idvue": {
     "Previousnote": "以前的笔记",
