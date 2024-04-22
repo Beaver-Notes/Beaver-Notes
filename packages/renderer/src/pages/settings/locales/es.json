@@ -107,7 +107,9 @@
         "tableInsert": "Insertar tabla",
         "tableOptions": "Opciones de tabla",
         "toggleHeader": "Activar celda de cabecera",
-        "underline": "Subrayado"
+        "underline": "Subrayado",
+        "vidUrl": "Url Vídeo",
+        "video": "Vídeo"
     },
     "search": {
         "clear": "Limpiar",
