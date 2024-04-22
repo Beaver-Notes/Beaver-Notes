@@ -5,23 +5,15 @@ description: >-
   Beaver into your own language.
 ---
 
-# 🗺 Translate Beaver
+# 🗺️ Translate Beaver (Legacy)
 
-{% hint style="warning" %}
 Disclaimer: Languages can be added to Beaver Notes regardless of territorial or cultural issues. Our aim is to make note-taking universally accessible, allowing users to choose their preferred language. There's no place for hate and discrimination in this community, so please be respectful and cooperative. Together, we can build an inclusive note-taking experience, benefiting all.
-{% endhint %}
 
 ## Getting Started
 
-Before you begin, ensure that you have [setup-your-environment.md](setup-your-environment.md "mention") and have a functioning GitHub account. If everything checks out you can start translating Beaver Notes right away. To begin with download the '**translations-template.json**' and '**command-translation-template.json**'  files and place the former in '**/packages/renderer/src/pages/settings/locales**,' and the latter in '**/packages/renderer/src/utils/locales'**.
+Before you begin, ensure that you have [setup-your-environment.md](setup-your-environment.md "mention") and have a functioning GitHub account. If everything checks out you can start translating Beaver Notes right away. To begin with download the **'translations-template.json',** rename it using the **ISO 639-1** format. You can find your language code [here](https://en.wikipedia.org/wiki/List\_of\_ISO\_639-1\_codes). and place it in **'/packages/renderer/src/pages/settings/locales,'**
 
-{% file src="../.gitbook/assets/translations-template.json" %}
-
-{% file src="../.gitbook/assets/command-translations-template.json" %}
-
-{% hint style="info" %}
-Please rename both files using the ISO 639-1 format. You can find your language code [here](https://en.wikipedia.org/wiki/List\_of\_ISO\_639-1\_codes).
-{% endhint %}
+{% file src="../.gitbook/assets/translation-template (1).json" %}
 
 ## Translating
 
