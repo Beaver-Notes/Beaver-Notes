@@ -171,138 +171,140 @@
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.utilities || '-' }}</p>
-      <!-- advanced settings -->
-      <div class="flex items-center space-x-2 py-1">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="advancedSettings"
-            type="checkbox"
-            class="peer sr-only"
-            @change="toggleAdvancedSettings"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.advancedSettings || '-' }}
-          </span>
-        </label>
-      </div>
-      <!-- App Reminder -->
-      <div class="flex items-center space-x-2">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="disableAppReminder"
-            type="checkbox"
-            class="peer sr-only"
-            @change="updateDisableAppReminder"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.syncreminder || '-' }}
-          </span>
-        </label>
-      </div>
-      <!-- Expan Page -->
-      <div class="flex items-center space-x-2 py-1">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="editorWidthChecked"
-            type="checkbox"
-            class="peer sr-only"
-            @change="toggleEditorWidth"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.fullWidth || '-' }}
-          </span>
-        </label>
-      </div>
-      <!-- Clear Text - OLED -->
-      <div class="flex items-center space-x-2">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="ClearFontChecked"
-            type="checkbox"
-            class="peer sr-only"
-            @change="toggleClearFont"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.clearfont || '-' }}
-          </span>
-        </label>
-      </div>
-      <!-- Menubar visibility -->
-      <div v-if="!isMacOS" class="flex items-center space-x-2">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="visibilityMenubar"
-            type="checkbox"
-            class="peer sr-only"
-            @change="toggleVisibilityOfMenubar"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.menuBarVisibility || '-' }}
-          </span>
-        </label>
-      </div>
-      <!-- Spellcheck -->
-      <div class="flex items-center space-x-2 py-1">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="spellcheckEnabled"
-            type="checkbox"
-            class="peer sr-only"
-            @change="toggleSpellcheck"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.spellcheck || '-' }}
-          </span>
-        </label>
-      </div>
-      <!-- Auto Sync -->
-      <div class="flex items-center space-x-2">
-        <label class="relative inline-flex cursor-pointer items-center">
-          <input
-            id="switch"
-            v-model="autoSync"
-            type="checkbox"
-            class="peer sr-only"
-            @change="updateAutoSync"
-          />
-          <label for="switch" class="hidden"></label>
-          <div
-            class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-          ></div>
-          <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-            {{ translations.settings.autosync || '-' }}
-          </span>
-        </label>
+      <div class="space-y-1">
+        <!-- advanced settings -->
+        <div class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="advancedSettings"
+              type="checkbox"
+              class="peer sr-only"
+              @change="toggleAdvancedSettings"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.advancedSettings || '-' }}
+            </span>
+          </label>
+        </div>
+        <!-- App Reminder -->
+        <div class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="disableAppReminder"
+              type="checkbox"
+              class="peer sr-only"
+              @change="updateDisableAppReminder"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.syncreminder || '-' }}
+            </span>
+          </label>
+        </div>
+        <!-- Expan Page -->
+        <div class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="editorWidthChecked"
+              type="checkbox"
+              class="peer sr-only"
+              @change="toggleEditorWidth"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.fullWidth || '-' }}
+            </span>
+          </label>
+        </div>
+        <!-- Clear Text - OLED -->
+        <div class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="ClearFontChecked"
+              type="checkbox"
+              class="peer sr-only"
+              @change="toggleClearFont"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.clearfont || '-' }}
+            </span>
+          </label>
+        </div>
+        <!-- Menubar visibility -->
+        <div v-if="!isMacOS" class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="visibilityMenubar"
+              type="checkbox"
+              class="peer sr-only"
+              @change="toggleVisibilityOfMenubar"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.menuBarVisibility || '-' }}
+            </span>
+          </label>
+        </div>
+        <!-- Spellcheck -->
+        <div class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="spellcheckEnabled"
+              type="checkbox"
+              class="peer sr-only"
+              @change="toggleSpellcheck"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.spellcheck || '-' }}
+            </span>
+          </label>
+        </div>
+        <!-- Auto Sync -->
+        <div class="flex items-center space-x-2">
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="autoSync"
+              type="checkbox"
+              class="peer sr-only"
+              @change="updateAutoSync"
+            />
+            <label for="switch" class="hidden"></label>
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
+              {{ translations.settings.autosync || '-' }}
+            </span>
+          </label>
+        </div>
       </div>
     </section>
     <section>
