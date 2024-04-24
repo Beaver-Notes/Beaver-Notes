@@ -267,7 +267,7 @@
         </label>
       </div>
       <!-- Spellcheck -->
-      <div class="flex items-center space-x-2 py-1">
+      <div class="flex items-center space-x-2">
         <label class="relative inline-flex cursor-pointer items-center">
           <input
             id="switch"
@@ -286,7 +286,7 @@
         </label>
       </div>
       <!-- Auto Sync -->
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center space-x-2 py-1">
         <label class="relative inline-flex cursor-pointer items-center">
           <input
             id="switch"

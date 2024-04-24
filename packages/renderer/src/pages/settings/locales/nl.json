@@ -136,6 +136,7 @@
         "apptheme": "App Thema",
         "autosync": "automatische synchronisatie",
         "body": "Deze data is versleutelt, je moet het wachtwoord invullen om toegang te krijgen",
+        "clearfont": "Scherpe letters - OLED",
         "dark": "Donker",
         "default": "Standaard",
         "encryptionMessage": "Beaver Notes gebruikt AES-128 doormiddel van crypto-es",

@@ -136,6 +136,7 @@
         "apptheme": "Tema",
         "autosync": "Sincronización automática",
         "body": "Estos datos están encriptados, necesitas introducir tu contraseña para acceder a ellos.",
+        "clearfont": "Fuente nítida - OLED",
         "dark": "Oscuro",
         "default": "Predefinido",
         "encryptionMessage": "Beaver Notes utiliza el cifrado AES-128 de crypto-es",

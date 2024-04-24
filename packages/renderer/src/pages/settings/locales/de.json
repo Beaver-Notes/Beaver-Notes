@@ -136,6 +136,7 @@
         "apptheme": "App Thema",
         "autosync": "Auto Sync",
         "body": "Diese Daten sind verschlüsselt, Sie müssen das Passwort eingeben, um Zugang zu erhalten.",
+        "clearfont": "Scharfe Zeichensatz - OLED",
         "dark": "Dunkel",
         "default": "Standard",
         "encryptionMessage": "Beaver Notes verwendet AES-128 mit Crypto-es",
