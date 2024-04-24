@@ -1,6 +1,6 @@
 <template>
   <div
-    class="text-gray-600 dark:text-gray-300 bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
+    class="text-gray-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
   >
     <div class="w-full h-full flex items-center justify-between w-full">
@@ -565,7 +565,7 @@ export default {
 }
 
 button {
-  @apply hover:text-gray-800 dark:hover:text-white;
+  @apply hover:text-gray-800 dark:hover:text-[color:var(--selected-dark-text)];
 }
 
 button.is-active {

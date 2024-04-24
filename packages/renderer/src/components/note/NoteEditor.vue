@@ -52,6 +52,13 @@ export default {
       extensions,
     });
 
+    const selectedDarkText =
+      localStorage.getItem('selected-dark-text') || 'white';
+    document.documentElement.style.setProperty(
+      '--selected-dark-text',
+      selectedDarkText
+    );
+
     function handleClick(view, pos, { target, ctrlKey, cmdKey }) {
       const closestAnchor = target.closest('a');
       const isTiptapURL = closestAnchor?.hasAttribute('tiptap-url');

@@ -198,7 +198,8 @@
     "interfaceDirection": "Interface Direction",
     "LTR": "LTR",
     "RTL": "RTL",
-    "autosync": "Auto sync"
+    "autosync": "Auto sync",
+    "clearfont": "Clear Font - OLED"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

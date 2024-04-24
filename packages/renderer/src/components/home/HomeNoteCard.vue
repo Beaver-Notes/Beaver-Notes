@@ -27,7 +27,7 @@
     <router-link
       v-if="!note.isLocked"
       :to="`/note/${note.id}`"
-      class="text-gray-600 block dark:text-gray-100 flex-1 overflow-hidden overflow-ellipsis"
+      class="text-gray-600 block dark:text-[color:var(--selected-dark-text)] flex-1 overflow-hidden overflow-ellipsis"
       style="min-height: 64px"
     >
       {{
@@ -39,15 +39,15 @@
 
     <button
       v-if="note.isLocked"
-      class="hover:text-gray-600 dark:text-white h-full mr-2 transition"
+      class="hover:text-gray-600 dark:text-[color:var(--selected-dark-text)] h-full mr-2 transition"
       @click="unlockNote(note.id)"
     >
       <v-remixicon
-        class="w-24 h-auto text-gray-600 dark:text-white"
+        class="w-24 h-auto text-gray-600 dark:text-[color:var(--selected-dark-text)]"
         name="riLockLine"
       />
       <div
-        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-white"
+        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
       >
         {{ translations.card.unlocktoedit || '-' }}
       </div>
@@ -60,7 +60,7 @@
             ? translations.card.removebookmark
             : translations.card.bookmark
         "
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition"
         @click="$emit('update', { isBookmarked: !note.isBookmarked })"
       >
         <v-remixicon
@@ -73,7 +73,7 @@
             ? translations.card.unarchive
             : translations.card.archive
         "
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="$emit('update', { isArchived: !note.isArchived })"
       >
         <v-remixicon
@@ -83,7 +83,7 @@
       <button
         v-if="!note.isLocked"
         v-tooltip.group="translations.card.lock"
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="lockNote(note.id)"
       >
         <v-remixicon name="riLockLine" />
@@ -91,7 +91,7 @@
       <button
         v-if="note.isLocked"
         v-tooltip.group="translations.card.unlock"
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
         <v-remixicon name="riLockUnlockLine" />

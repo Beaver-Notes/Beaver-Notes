@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="w-16 text-gray-600 dark:text-gray-200 bg-[#F8F8F7] dark:bg-[#353333] fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
+    class="w-16 text-gray-600 dark:text-[color:var(--selected-dark-text)] bg-[#F8F8F7] dark:bg-[#353333] fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
   >
     <!-- Sidebar top icons-->
     <button
@@ -16,7 +16,7 @@
       v-tooltip:right="
         translations.sidebar.Editednote + ' (' + keyBinding + '+Shift+W)'
       "
-      class="transition dark:hover:text-white hover:text-gray-800 p-2 mb-4"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
       :class="{ 'text-primary': $route.name === 'Note' }"
       @click="openLastEdited"
     >
@@ -32,7 +32,7 @@
       :class="{
         'text-primary dark:text-secondary': $route.fullPath === nav.path,
       }"
-      class="transition dark:hover:text-white hover:text-gray-800 p-2 mb-4"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
     >
       <v-remixicon :name="nav.icon" />
     </router-link>
@@ -62,8 +62,8 @@
       "
       :class="[
         theme.isDark()
-          ? 'text-primary dark:text-secondary'
-          : 'dark:hover:text-white hover:text-gray-800',
+          ? 'text-primary dark:text-[color:var(--selected-dark-text)]'
+          : 'dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800',
       ]"
       class="transition p-2 mb-4"
       @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
@@ -73,7 +73,7 @@
     <router-link
       v-tooltip:right="translations.settings.title + ' (' + keyBinding + '+,)'"
       to="/settings"
-      class="transition dark:hover:text-white hover:text-gray-800 p-2"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2"
       active-class="text-primary dark:text-secondary"
     >
       <v-remixicon name="riSettingsLine" />

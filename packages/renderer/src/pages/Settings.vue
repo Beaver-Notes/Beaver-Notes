@@ -7,7 +7,7 @@
     <div class="flex">
       <div class="w-64">
         <ui-list
-          class="space-y-1 sticky top-10 ltr:mr-8 rtl:ml-8 rounded-lg dark:text-gray-200 text-gray-600"
+          class="space-y-1 sticky top-10 ltr:mr-8 rtl:ml-8 rounded-lg dark:text-[color:var(--selected-dark-text)] text-gray-600"
         >
           <router-link
             v-for="(item, id) in settings"
