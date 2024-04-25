@@ -142,6 +142,9 @@ app
     await ensureDir(join(app.getPath('userData'), 'notes-assets'));
     createWindow();
     initializeMenu();
+    await ensureDir(join(app.getPath('userData'), 'files-assets'));
+    createWindow();
+    initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
 

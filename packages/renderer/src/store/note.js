@@ -113,6 +113,11 @@ export const useNoteStore = defineStore('note', {
           path.join(dataDir, 'notes-assets', id)
         );
 
+        await ipcRenderer.callMain(
+          'fs:remove',
+          path.join(dataDir, 'file-assets', id)
+        );
+
         return id;
       } catch (error) {
         console.error(error);
