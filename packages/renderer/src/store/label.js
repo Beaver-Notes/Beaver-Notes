@@ -23,6 +23,13 @@ export const useLabelStore = defineStore('label', {
     },
     add(name) {
       return new Promise((resolve) => {
+        // Check if name is a string and not empty
+        if (typeof name !== 'string' || name.trim() === '') {
+          console.error('Invalid name:', name);
+          resolve(null);
+          return;
+        }
+
         const validName = name.slice(0, 50);
 
         this.data.push(validName);
