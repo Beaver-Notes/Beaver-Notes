@@ -13,7 +13,7 @@
   @apply text-primary dark:text-amber-400 !important;
 }
 .ProseMirror strong {
-  @apply dark:text-white;
+  @apply dark:text-[color:var(--selected-dark-text)];
 }
 .ProseMirror blockquote {
   @apply dark:border-gray-700 dark:text-gray-100;
@@ -24,18 +24,25 @@
 .ProseMirror h4,
 .ProseMirror h5,
 .ProseMirror h6 {
-  @apply dark:text-white;
+  @apply dark:text-[color:var(--selected-dark-text)];
   margin-top: 1em !important;
   margin-bottom: 1em !important; 
 }
 .ProseMirror p {
   margin-top: 0 !important;
   margin-bottom: 0 !important; 
+  @apply dark:text-[color:var(--selected-dark-text)];
 }
 .ProseMirror .mention {
   @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-amber-400 hover:underline;
   cursor: pointer;
 }
+
+[dir="rtl"] .mention {
+  display: inline-block;
+  margin-left: 2px;
+}
+
 .ProseMirror .math-block {
   @apply dark:bg-gray-800;
 }
@@ -55,7 +62,7 @@ img.ProseMirror-selectednode {
     outline: none;
   }
   li[data-checked="false"] {
-  @apply dark:text-white
+  @apply dark:text-[color:var(--selected-dark-text)]
 }
 li[data-checked="true"] {
   @apply text-neutral-500 line-through
@@ -63,11 +70,16 @@ li[data-checked="true"] {
   ul li {
       margin-top: 0 !important;
       margin-bottom: 0 !important;
-      padding-left: 1.25em !important;
+      @apply pr-[1.25em] rtl:pr-[1.25em] !important;
       &::before {
           top: 0.45em !important;
       }
   }
+  ol li {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    @apply pr-[1.25em] rtl:pr-[1.25em] !important;
+}
   li ul {
       margin-top: 0 !important;
   }
@@ -104,7 +116,6 @@ li[data-checked="true"] {
         border-color: #FBBF24;
       }
 
-      /* Optional: You can add a custom background or other styles for the checked state */
       input[type='checkbox']:checked::before {
         content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='rgba(251,191,36,1)'%3E%3C/path%3E%3C/svg%3E");
         display: block;
@@ -129,8 +140,7 @@ li[data-checked="true"] {
   }
   p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
-    float: left;
-    @apply text-gray-400 dark:text-gray-700;
+    @apply text-gray-400 dark:text-gray-700 float-left rtl:float-right;
     pointer-events: none;
     height: 0;
   }
@@ -167,27 +177,30 @@ li[data-checked="true"] {
 
     td,
     th {
-      @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
-      word-wrap: break-word;
-      max-width: 10px;
+        @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
+        word-wrap: break-word;
+        max-width: 10px;
+        text-align: initial; /* Reset text alignment */
     }
 
     th {
-      @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+        @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+        text-align: initial; /* Reset text alignment */
     }
 
+    /* Adjust padding for first child based on direction */
     td:first-child {
-      @apply left-2
+        @apply left-2 rtl:left-auto rtl:right-2; /* Adjust left and right properties for RTL */
     }
 
     .selectedCell:after {
-      @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
+        @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
     }
 
     .column-resize-handle {
-     @apply absolute top-0 w-1 pointer-events-none
+        @apply absolute top-0 w-1 pointer-events-none;
     }
-    }
+}
 
   pre {
     background: #0D0D0D;
@@ -212,4 +225,10 @@ li[data-checked="true"] {
 .resize-cursor {
   cursor: ew-resize;
   cursor: col-resize;
+}
+.prose ul > li::before {
+  @apply left-1 rtl:right-1;
+}
+.prose ol > li::before {
+  @apply left-1 rtl:right-1;
 }

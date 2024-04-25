@@ -2,6 +2,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTheme } from '../composable/theme';
 import enTranslations from '../pages/settings/locales/en.json';
 import itTranslations from '../pages/settings/locales/it.json';
+import esTranslations from '../pages/settings/locales/es.json';
 import deTranslations from '../pages/settings/locales/de.json';
 import zhTranslations from '../pages/settings/locales/zh.json';
 import nlTranslations from '../pages/settings/locales/nl.json';
@@ -30,6 +31,10 @@ if (selectedLanguage === 'zh') {
 
 if (selectedLanguage === 'nl') {
   translations = nlTranslations;
+}
+
+if (selectedLanguage === 'es') {
+  translations = esTranslations;
 }
 
 let commands = [

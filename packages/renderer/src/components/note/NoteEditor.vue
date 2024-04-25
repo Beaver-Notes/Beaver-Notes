@@ -4,7 +4,6 @@
     <editor-content
       :editor="editor"
       class="prose dark:text-gray-100 max-w-none prose-indigo"
-      @paste="handlePaste"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
     <note-bubble-menu-table v-if="editor" v-bind="{ editor, isTyping }" />
@@ -53,6 +52,13 @@ export default {
       extensions,
     });
 
+    const selectedDarkText =
+      localStorage.getItem('selected-dark-text') || 'white';
+    document.documentElement.style.setProperty(
+      '--selected-dark-text',
+      selectedDarkText
+    );
+
     function handleClick(view, pos, { target, ctrlKey, cmdKey }) {
       const closestAnchor = target.closest('a');
       const isTiptapURL = closestAnchor?.hasAttribute('tiptap-url');
@@ -73,59 +79,6 @@ export default {
       } else if (isMentionURL) {
         router.push(`/?label=${encodeURIComponent(target.dataset.id)}`);
       }
-    }
-
-    function handlePaste(event) {
-      event.preventDefault();
-
-      const clipboardData = event.clipboardData || window.clipboardData;
-      const pastedHTML = clipboardData.getData('text/html');
-      const pastedText = clipboardData.getData('text/plain');
-
-      let contentToInsert = '';
-
-      // Check if HTML content is available
-      if (pastedHTML) {
-        // Insert HTML content if available
-        const lines = pastedHTML.split(/<\/p>/i);
-
-        lines.forEach((line, index) => {
-          if (line.trim() !== '') {
-            // Add a newline character between lines
-            if (index !== 0) {
-              contentToInsert += '\n';
-            }
-
-            contentToInsert += line.trim();
-          }
-        });
-      } else {
-        // If HTML content is not available, handle plain text content
-        const lines = pastedText.split(/\r\n|\r|\n/);
-
-        lines.forEach((line, index) => {
-          if (line.trim() !== '') {
-            // Add a newline character between lines
-            if (index !== 0) {
-              contentToInsert += '\n';
-            }
-
-            contentToInsert += `<p>${line.trim()}</p>`;
-          }
-        });
-      }
-
-      // Add space before and after HTML tags except for specific ones
-      contentToInsert = contentToInsert.replace(
-        /<(?!\s*\/?\s*(a|br|i|em|strong|b))[^>]+>/gi,
-        ' $& '
-      );
-      // Remove spaces before punctuation signs
-      contentToInsert = contentToInsert.replace(/\s+([.,;:!?])/g, '$1');
-      // Remove unnecessary spaces at the beginning and end of the content
-      contentToInsert = contentToInsert.trim() + ' ';
-
-      editor.value.commands.insertContent(contentToInsert);
     }
 
     onMounted(() => {
@@ -161,7 +114,6 @@ export default {
 
     return {
       editor,
-      handlePaste,
       isTyping,
     };
   },

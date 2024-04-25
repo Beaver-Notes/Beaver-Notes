@@ -1,6 +1,6 @@
 <template>
   <div class="flex items-start mb-6 space-x-4">
-    <div class="flex-1">
+    <div class="flex-1 rtl:ml-4">
       <ui-input
         :model-value="query"
         class="w-full note-search-input"
@@ -21,7 +21,7 @@
             : translations.filter.deletelabel
         "
         icon
-        class="rounded-r-none"
+        class="ltr:rounded-r-none rtl:rounded-l-none"
         @click="deleteLabel"
       >
         <v-remixicon
@@ -46,7 +46,7 @@
             : translations.filter.discending
         "
         icon
-        class="rounded-r-none"
+        class="ltr:rounded-r-none rtl:rounded-l-none"
         @click="$emit('update:sortOrder', sortOrder === 'asc' ? 'desc' : 'asc')"
       >
         <v-remixicon :name="sortOrder === 'asc' ? 'riSortAsc' : 'riSortDesc'" />
@@ -158,8 +158,8 @@ export default {
 
     watch(
       () => props.label,
-      (newLabel) => {
-        newLabel.value = newLabel;
+      (newLabelValue) => {
+        newLabel.value = newLabelValue;
       }
     );
     const deleteLabel = async () => {

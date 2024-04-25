@@ -33,8 +33,14 @@ export default {
     const retrieved = ref(false);
 
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
+    const selectedDarkText =
+      localStorage.getItem('selected-dark-text') || 'white';
     const editorWidth = localStorage.getItem('editorWidth') || '52rem';
     document.documentElement.style.setProperty('--selected-font', selectedFont);
+    document.documentElement.style.setProperty(
+      '--selected-dark-text',
+      selectedDarkText
+    );
     document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const isFirstTime = localStorage.getItem('first-time');
@@ -73,6 +79,10 @@ export default {
     window.electron.ipcRenderer.callMain(
       'app:set-zoom',
       +localStorage.getItem('zoomLevel') || 1
+    );
+    window.electron.ipcRenderer.callMain(
+      'app:change-menu-visibility',
+      localStorage.getItem('visibility-menubar') !== 'true' || false
     );
     return {
       store,

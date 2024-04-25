@@ -26,7 +26,7 @@
       >
         <p
           v-if="notes[name].length !== 0"
-          class="col-span-full text-gray-600 dark:text-gray-200 capitalize"
+          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize"
           :class="{ 'mt-2': name === 'all' }"
         >
           {{ translations.index[name] }}
@@ -57,7 +57,7 @@
               <input
                 v-model="disableDialog"
                 type="checkbox"
-                class="form-checkbox"
+                class="form-checkbox rtl:ml-2"
               />
               <span class="inline-block align-middle">
                 {{ translations.index.hide || '-' }}</span
@@ -75,7 +75,9 @@
     </div>
     <div v-else class="text-center">
       <img src="../assets/images/Beaver.png" class="mx-auto" />
-      <p class="max-w-md mx-auto dark:text-gray-300 text-gray-600 mt-2">
+      <p
+        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
+      >
         {{ translations.index.newnote || '-' }}
       </p>
     </div>
@@ -349,5 +351,34 @@ input[type='checkbox']:checked::before {
   line-height: 20px;
   text-align: center;
   color: #fbbf24;
+}
+</style>
+<style lang="scss">
+@use 'sass:math';
+.tiptap {
+  > * + * {
+    margin-top: 0.75em;
+  }
+}
+
+.iframe-wrapper {
+  position: relative;
+  padding-bottom: math.div(100, 16) * 9%;
+  height: 0;
+  overflow: hidden;
+  width: 100%;
+  height: auto;
+
+  &.ProseMirror-selectednode {
+    outline: 3px solid #fbbf24;
+  }
+
+  iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
 }
 </style>

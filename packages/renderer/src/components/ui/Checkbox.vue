@@ -1,6 +1,9 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <label class="checkbox-ui inline-flex items-center">
-    <div class="relative h-5 w-5 inline-block focus-within:ring-2 ring-amber-300 rounded">
+    <div
+      class="relative h-5 w-5 inline-block focus-within:ring-2 ring-amber-300 rounded"
+    >
       <input
         type="checkbox"
         class="opacity-0 checkbox-ui__input"
@@ -9,16 +12,7 @@
         @change="changeHandler"
       />
       <div
-        class="
-          border
-          rounded
-          absolute
-          top-0
-          left-0
-          bg-input
-          checkbox-ui__mark
-          cursor-pointer
-        "
+        class="border rounded absolute top-0 left-0 bg-input checkbox-ui__mark cursor-pointer"
       >
         <v-remixicon
           name="riCheckLine"
@@ -27,7 +21,7 @@
         ></v-remixicon>
       </div>
     </div>
-    <span v-if="$slots.default" class="ml-2">
+    <span v-if="$slots.default" class="ltr:ml-2 rtl:mr-2">
       <slot></slot>
     </span>
   </label>

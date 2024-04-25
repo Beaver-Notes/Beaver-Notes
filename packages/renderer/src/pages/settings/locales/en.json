@@ -51,6 +51,8 @@
     "heading": "Heading",
     "image": "Image",
     "imgurl": "Image url",
+    "video": "Video",
+    "vidUrl": "Video url",
     "Link": "Link",
     "File": "File",
     "Print": "Print",
@@ -191,7 +193,13 @@
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wrongCurrentPassword": "Wrong password, please try again",
     "passwordResetError": "Something went wrong while resetting your password",
-    "passwordResetSuccess": "The password has been reset successfully"
+    "passwordResetSuccess": "The password has been reset successfully",
+    "menuBarVisibility": "Hidden Menu Bar",
+    "interfaceDirection": "Interface Direction",
+    "LTR": "LTR",
+    "RTL": "RTL",
+    "autosync": "Auto sync",
+    "clearfont": "Clear Font - OLED"
   },
   "_idvue": {
     "Previousnote": "Previous notes",
@@ -204,7 +212,12 @@
     "toggleexport": "Toggle export",
     "toggleimport": "Toggle import",
     "toggledarktheme": "Toggle dark theme",
-    "Archive": "Archive"
+    "Archive": "Archive",
+    "notification": "Notification",
+    "exportSuccess": "Export successful!",
+    "importSuccess": "Import successful!",
+    "exportFail": "Export failed!",
+    "importFail": "Import failed!"
   },
   "commandprompt": {
     "placeholder": "Search file or type '>' to search commands",

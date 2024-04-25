@@ -6,7 +6,10 @@ const props = {
   onAdd: (query, command) => {
     const labelStore = useLabelStore();
 
-    labelStore.add(query).then((name) => {
+    // For simplicity, you can define a default color here or fetch it from somewhere else
+    const color = 'green';
+
+    labelStore.add({ name: query, color }).then((name) => {
       command({ id: name });
     });
   },
@@ -25,7 +28,10 @@ const LabelSuggestion = Suggestion({ name: 'noteLabel', props }).configure({
       const labelStore = useLabelStore();
 
       return labelStore.data
-        .filter((item) => item.toLowerCase().startsWith(query.toLowerCase()))
+        .filter((item) => {
+          const itemAsString = String(item);
+          return itemAsString.toLowerCase().startsWith(query.toLowerCase());
+        })
         .slice(0, 7);
     },
   },

@@ -1,6 +1,6 @@
 <template>
   <bubble-menu
-    v-if="menuOpen"
+    v-show="editor.isActive('image') || editor.isActive('link')"
     v-bind="{ editor, shouldShow: () => true }"
     class="bg-white dark:bg-gray-800 rounded-lg max-w-xs border shadow-xl"
   >
@@ -11,12 +11,11 @@
           : 'note-bubble-menu-link'
       "
       v-bind="{ editor }"
-      @close-menu="handleCloseMenu"
     />
   </bubble-menu>
 </template>
 <script>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { BubbleMenu } from '@tiptap/vue-3';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
@@ -31,18 +30,6 @@ export default {
     },
   },
   setup(props) {
-    const menuOpen = ref(false);
-    watch(
-      () => [props.editor.isActive('image'), props.editor.isActive('link')],
-      ([isImageActive, isLinkActive]) => {
-        menuOpen.value = isImageActive || isLinkActive;
-      }
-    );
-
-    const handleCloseMenu = () => {
-      console.log('Menu closed');
-      menuOpen.value = false; // Close the menu
-    };
     onMounted(() => {
       Mousetrap.bind('mod+l', () => {
         if (props.editor.isActive('image') || props.editor.isActive('link')) {
@@ -55,10 +42,6 @@ export default {
     onUnmounted(() => {
       Mousetrap.unbind('mod+l');
     });
-    return {
-      menuOpen,
-      handleCloseMenu,
-    };
   },
 };
 </script>

@@ -27,7 +27,7 @@
     <router-link
       v-if="!note.isLocked"
       :to="`/note/${note.id}`"
-      class="text-gray-600 block dark:text-gray-100 flex-1 overflow-none"
+      class="text-gray-600 block dark:text-[color:var(--selected-dark-text)] flex-1 overflow-hidden overflow-ellipsis"
       style="min-height: 64px"
     >
       {{
@@ -36,17 +36,18 @@
           : truncateText(note.content, 160) || translations.card.content
       }}
     </router-link>
+
     <button
       v-if="note.isLocked"
-      class="hover:text-gray-600 dark:text-white h-full mr-2 transition"
+      class="hover:text-gray-600 dark:text-[color:var(--selected-dark-text)] h-full mr-2 transition"
       @click="unlockNote(note.id)"
     >
       <v-remixicon
-        class="w-24 h-auto text-gray-600 dark:text-white"
+        class="w-24 h-auto text-gray-600 dark:text-[color:var(--selected-dark-text)]"
         name="riLockLine"
       />
       <div
-        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-white"
+        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
       >
         {{ translations.card.unlocktoedit || '-' }}
       </div>
@@ -59,7 +60,7 @@
             ? translations.card.removebookmark
             : translations.card.bookmark
         "
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition"
         @click="$emit('update', { isBookmarked: !note.isBookmarked })"
       >
         <v-remixicon
@@ -72,7 +73,7 @@
             ? translations.card.unarchive
             : translations.card.archive
         "
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="$emit('update', { isArchived: !note.isArchived })"
       >
         <v-remixicon
@@ -82,7 +83,7 @@
       <button
         v-if="!note.isLocked"
         v-tooltip.group="translations.card.lock"
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="lockNote(note.id)"
       >
         <v-remixicon name="riLockLine" />
@@ -90,14 +91,14 @@
       <button
         v-if="note.isLocked"
         v-tooltip.group="translations.card.unlock"
-        class="hover:text-gray-900 mr-2 dark:hover:text-white transition invisible group-hover:visible"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
         <v-remixicon name="riLockUnlockLine" />
       </button>
       <button
         v-tooltip.group="translations.card.delete"
-        class="hover:text-red-500 dark:hover:text-red-400 transition invisible group-hover:visible"
+        class="hover:text-red-500 rtl:mr-2 dark:hover:text-red-400 transition invisible group-hover:visible"
         @click="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" />
@@ -116,6 +117,8 @@
 <script setup>
 /* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
+const { ipcRenderer, path, notification } = window.electron;
+import { useStorage } from '@/composable/storage';
 import '../../assets/css/passwd.css';
 import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
@@ -127,6 +130,7 @@ import 'dayjs/locale/it';
 import 'dayjs/locale/de';
 import 'dayjs/locale/zh';
 import 'dayjs/locale/nl';
+import 'dayjs/locale/es';
 
 defineProps({
   note: {
@@ -137,6 +141,15 @@ defineProps({
 defineEmits(['update', 'update:label']);
 
 const dialog = useDialog();
+const storage = useStorage();
+const state = shallowReactive({
+  dataDir: '',
+  password: '',
+  fontSize: '16',
+  withPassword: false,
+  lastUpdated: null,
+});
+const defaultPath = localStorage.getItem('default-path');
 
 useGroupTooltip();
 
@@ -239,9 +252,59 @@ async function deleteNote(note) {
     okText: translations.card.confirm,
     cancelText: translations.card.Cancel,
     onConfirm: async () => {
+      // Delete the note locally
       await noteStore.delete(note);
+
+      // Trigger export if auto sync is on
+      const autoSync = localStorage.getItem('autoSync');
+      if (autoSync === 'true') {
+        await syncexportData();
+      }
     },
   });
+}
+
+async function syncexportData() {
+  try {
+    let data = await storage.store();
+
+    if (state.withPassword) {
+      data = AES.encrypt(JSON.stringify(data), state.password).toString();
+    }
+
+    const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
+    const dataDir = await storage.get('dataDir', '', 'settings');
+
+    const exportPath = defaultPath; // Use the selected default path
+    const folderPath = path.join(exportPath, folderName);
+
+    await ipcRenderer.callMain('fs:ensureDir', folderPath);
+    await ipcRenderer.callMain('fs:output-json', {
+      path: path.join(folderPath, 'data.json'),
+      data: { data },
+    });
+    await ipcRenderer.callMain('fs:copy', {
+      path: path.join(dataDir, 'notes-assets'),
+      dest: path.join(folderPath, 'assets'),
+    });
+    await ipcRenderer.callMain('fs:copy', {
+      path: path.join(dataDir, 'file-assets'),
+      dest: path.join(folderPath, 'file-assets'),
+    });
+
+    state.withPassword = false;
+    state.password = '';
+    notification({
+      title: translations.sidebar.notification,
+      body: translations.sidebar.exportSuccess,
+    });
+  } catch (error) {
+    notification({
+      title: translations.sidebar.notification,
+      body: translations.sidebar.exportFail,
+    });
+    console.error(error);
+  }
 }
 
 const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';

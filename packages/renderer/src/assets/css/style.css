@@ -1,10 +1,12 @@
 :root {
   --selected-font: 'Arimo', sans-serif;
+  --selected-dark-text: white;
+  @apply dark:text-[color:var(--selected-dark-text)];
 }
 
 body {
   font-family: var(--selected-font);
-  @apply bg-[#FFFFFF] dark:bg-[#232222] dark:text-white;
+  @apply bg-[#FFFFFF] dark:bg-[#232222] dark:text-[color:var(--selected-dark-text)];
 }
 .dark * {
   border-color: rgba(255, 255, 255, 0.1);
@@ -20,7 +22,7 @@ select {
 }
 
 option {
-  @apply dark:bg-gray-700 dark:text-white;
+  @apply dark:bg-gray-700 dark:text-[color:var(--selected-dark-text)];
 }
 
 .v-remixicon {

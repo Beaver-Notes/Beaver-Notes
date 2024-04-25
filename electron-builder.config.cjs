@@ -36,7 +36,7 @@ const electronBuilderConfig = {
   },
   win: {
     icon: 'buildResources/icon.ico',
-    target: ['nsis'],
+    target: ['nsis', 'portable'],
     publish: ['github'],
   },
   nsis: {

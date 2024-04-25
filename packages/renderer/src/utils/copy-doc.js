@@ -30,11 +30,12 @@ export async function saveFile(file, timestamp) {
   try {
     const contentUint8Array = await readFile(file);
     const { fileName, destPath } = await createFileName(file, timestamp);
+    const relativePath = path.join('file-assets', fileName); // Construct relative path
     await ipcRenderer.callMain('fs:writeFile', {
-      data: contentUint8Array, // Pass the Uint8Array
+      data: contentUint8Array,
       path: destPath,
     });
-    return { fileName, destPath };
+    return { fileName, relativePath }; // Return relative path instead of destPath
   } catch (error) {
     console.error(error);
     throw new Error('Failed to save file');

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+    <id>com.beavernotes.beavernotes</id>
+    <metadata_license>CC0-1.0</metadata_license>
+    <project_license>MIT</project_license>
+    <name>Beaver Notes</name>
+    <developer_name>Daniele Rolli</developer_name>
+    <update_contact>danielerolli@proton.me</update_contact>
+    <launchable type="desktop-id">com.beavernotes.beavernotes.desktop</launchable>
+    <content_rating type="oars-1.1" />
+    <summary>Privacy-First note taking app</summary>
+    <description>
+        <p>Beaver Notes is the note-taking app designed with simplicity and privacy in mind. Safeguard your thoughts and ideas effortlessly, knowing they're securely stored on your device. With Beaver Notes, only you have access to your data.</p>
+    </description>
+    <branding>
+        <color type="primary" scheme_preference="light">#ffb43f</color>
+        <color type="primary" scheme_preference="dark">#d58400</color>
+    </branding>
+    <categories>
+        <category>Utility</category>
+        <category>Office</category>
+    </categories>
+    <screenshots>
+        <screenshot type="default">
+            <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-1.jpeg</image>
+            <caption>Editor Showcase</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-2.jpeg</image>
+            <caption>Welcome note</caption>
+        </screenshot>
+    </screenshots>
+    <url type="homepage">https://beavernotes.com</url>
+    <url type="bugtracker">https://github.com/Daniele-rolli/Beaver-Notes/issues</url>
+    <url type="donation">https://www.buymeacoffee.com/beavernotes</url>
+    <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
+    <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
+    <releases>
+    <release version="3.1.0" date="2024-04-25">
+  <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.1.0</url>
+    <description>
+      <p>Release description</p>
+        <ul>
+          <li>UI improvements</li>
+          <li>RTL Support</li>
+          <li>Spanish Translation</li>
+          <li>Auto sync</li>
+          <li>Sync notification</li>
+          <li>Clear Font - for OLED displays</li>
+          <li>App menu</li>
+          <li>Embedded Videos</li>
+        </ul>
+    </description>
+  </release>
+        <release version="3.0.0" date="2024-03-18"/>
+    </releases>
+</component>

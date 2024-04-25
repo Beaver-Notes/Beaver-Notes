@@ -35,7 +35,7 @@
               <template v-if="item.isLocked">
                 <v-remixicon
                   name="riLockLine"
-                  class="text-gray-600 dark:text-white ml-2 w-4 translate-y-[-1.5px]"
+                  class="text-gray-600 dark:text-[color:var(--selected-dark-text)] ml-2 w-4 translate-y-[-1.5px]"
                 />
               </template>
             </span>
