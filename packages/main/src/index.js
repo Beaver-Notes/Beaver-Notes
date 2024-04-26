@@ -142,7 +142,7 @@ app
     await ensureDir(join(app.getPath('userData'), 'notes-assets'));
     createWindow();
     initializeMenu();
-    await ensureDir(join(app.getPath('userData'), 'files-assets'));
+    await ensureDir(join(app.getPath('userData'), 'file-assets'));
     createWindow();
     initializeMenu();
   })
