@@ -136,7 +136,7 @@
         "apptheme": "应用主题",
         "autosync": "自动同步",
         "body": "数据已经被加密，您需要输入密码才能访问",
-        "clearfont": "锐利字体 - OLED",
+        "clearfont": "清晰字体 - OLED",
         "dark": "深色",
         "default": "默认",
         "encryptionMessage": "Beaver Notes 采用 crypto-es 的 AES-128 算法加密",
