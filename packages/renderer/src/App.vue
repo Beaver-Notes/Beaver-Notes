@@ -11,7 +11,7 @@
   <ui-dialog />
 </template>
 <script>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
@@ -42,6 +42,26 @@ export default {
       selectedDarkText
     );
     document.documentElement.style.setProperty('--selected-width', editorWidth);
+
+    const zoom = async () => {
+      // Set zoom level to 1.0 if it doesn't exist in localStorage
+      if (!localStorage.getItem('zoomLevel')) {
+        localStorage.setItem('zoomLevel', '1.0');
+      }
+
+      // Send message to main process to set zoom level
+      window.electron.ipcRenderer.callMain('app:set-zoom', 1.0);
+
+      // Update state with new zoom level
+      this.state.zoomLevel = '1.0';
+
+      // Save zoom level in localStorage
+      localStorage.setItem('zoomLevel', '1.0');
+    };
+
+    onMounted(() => {
+      zoom();
+    });
 
     const isFirstTime = localStorage.getItem('first-time');
 
@@ -87,6 +107,7 @@ export default {
     return {
       store,
       retrieved,
+      zoom,
     };
   },
 };
