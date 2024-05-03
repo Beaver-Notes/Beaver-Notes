@@ -44,19 +44,16 @@ export default {
     document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const zoom = async () => {
-      // Set zoom level to 1.0 if it doesn't exist in localStorage
-      if (!localStorage.getItem('zoomLevel')) {
+      // Check if zoom level exists in localStorage
+      const zoomLevel = localStorage.getItem('zoomLevel');
+
+      // If zoom level doesn't exist in localStorage, set it to 1.0
+      if (!zoomLevel) {
         localStorage.setItem('zoomLevel', '1.0');
+
+        // Send message to main process to set zoom level
+        window.electron.ipcRenderer.callMain('app:set-zoom', 1.0);
       }
-
-      // Send message to main process to set zoom level
-      window.electron.ipcRenderer.callMain('app:set-zoom', 1.0);
-
-      // Update state with new zoom level
-      this.state.zoomLevel = '1.0';
-
-      // Save zoom level in localStorage
-      localStorage.setItem('zoomLevel', '1.0');
     };
 
     onMounted(() => {

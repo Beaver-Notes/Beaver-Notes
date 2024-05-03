@@ -11,19 +11,32 @@ export const LiteralTab = Extension.create({
           .focus()
           .command(({ tr, state }) => {
             const { $from } = state.selection;
-            const startPos = $from.pos;
+            const startPos = $from.start();
 
-            tr.insertText('\t', startPos);
+            // Check if a list item is active
+            const isListItemActive =
+              this.editor.isActive('bulletList') ||
+              this.editor.isActive('orderedList');
 
-            const endPos = startPos + 1;
-            const selection = state.selection.constructor.near(
-              tr.doc.resolve(endPos)
-            );
-            tr.setSelection(selection);
+            try {
+              if (isListItemActive) {
+                event.preventDefault(); // You might need to handle this more appropriately
+              } else {
+                tr = tr.insertText('\t', startPos);
 
-            return true;
+                const endPos = startPos + 1;
+                const selection = state.selection.constructor.near(
+                  tr.doc.resolve(endPos)
+                );
+                tr = tr.setSelection(selection);
+              }
+            } catch (error) {
+              console.error('Error applying transaction:', error);
+            }
+
+            return tr; // Return the modified transaction
           })
-          .run();
+          .run(); // Run the chain once
       },
     };
   },
