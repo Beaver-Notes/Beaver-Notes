@@ -1,7 +1,6 @@
 <h1 align="center">Beaver Notes</h1>
 
-[![Flags](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/d02f4a66-95d3-4921-94c8-31b7708157b4)](https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations)
-
+[![Flags](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/1ee996f8-bc7a-4579-8968-43770a0b9c52)](https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations)
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
