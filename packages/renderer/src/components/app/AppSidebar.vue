@@ -60,11 +60,7 @@
       v-tooltip:right="
         translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
       "
-      :class="[
-        theme.isDark()
-          ? 'text-primary dark:text-[color:var(--selected-dark-text)]'
-          : 'dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800',
-      ]"
+      :class="[theme.isDark() ? 'text-primary' : '']"
       class="transition p-2 mb-4"
       @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
     >
