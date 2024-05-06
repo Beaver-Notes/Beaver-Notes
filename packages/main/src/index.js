@@ -138,10 +138,12 @@ app
 
       callback({ path: normalize(imgPath) });
     });
-
-    await ensureDir(join(app.getPath('userData'), 'notes-assets'));
+    await Promise.all([
+      ensureDir(join(app.getPath('userData'), 'notes-assets')),
+      ensureDir(join(app.getPath('userData'), 'file-assets'))
+    ]);
     createWindow();
-    initializeMenu();
+    initializeMenu();    
   })
   .catch((e) => console.error('Failed create window:', e));
 

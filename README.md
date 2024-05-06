@@ -1,6 +1,7 @@
 <h1 align="center">Beaver Notes</h1>
 
-[![Flags](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/1ee996f8-bc7a-4579-8968-43770a0b9c52)](https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations)
+[![Flags](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/d02f4a66-95d3-4921-94c8-31b7708157b4)](https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations)
+
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
@@ -77,7 +78,6 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kant"><img src="https://avatars.githubusercontent.com/u/32717?v=4?s=100" width="100px;" alt="Darío Hereñú"/><br /><sub><b>Darío Hereñú</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=kant" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mee141"><img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" width="100px;" alt="mee_"/><br /><sub><b>mee_</b></sub></a><br /><a href="#translation-mee141" title="Translation">🌍</a> <a href="#maintenance-mee141" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.eave.fyi"><img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" width="100px;" alt="Bryan Ricker"/><br /><sub><b>Bryan Ricker</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Documentation">📖</a> <a href="#translation-bricker" title="Translation">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Code">💻</a></td>
-        <td align="center" valign="top" width="14.28%"><img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="verthandii"/><br /><sub><b>Verthandii</b></sub><br /> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commit/6b3240dbc69f667f6a74cd29387f628f94c67ef2" title="Translation">🌍</a></td>
     </tr>
   </tbody>
 </table>
