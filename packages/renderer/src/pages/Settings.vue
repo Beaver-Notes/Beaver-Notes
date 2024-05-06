@@ -37,6 +37,12 @@ const settings = computed(() => ({
     path: '/settings',
     description: '',
   },
+  'Settings-Appearance': {
+    name: translations.settings.Appearance,
+    icon: 'riBrush3Fill',
+    path: '/settings/appearance',
+    description: '',
+  },
   'Settings-Shortcuts': {
     name: translations.settings.Shortcuts,
     icon: 'riKeyboardLine',

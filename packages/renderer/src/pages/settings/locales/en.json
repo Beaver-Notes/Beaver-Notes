@@ -199,7 +199,9 @@
     "LTR": "LTR",
     "RTL": "RTL",
     "autosync": "Auto sync",
-    "clearfont": "Clear Font - OLED"
+    "clearfont": "Clear Font - OLED",
+    "Appearance": "Appearance",
+    "editorOptions": "Editor Options"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

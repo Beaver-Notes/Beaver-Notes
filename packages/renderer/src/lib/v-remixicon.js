@@ -3,6 +3,7 @@ import {
   riFile2Line,
   riMovieLine,
   riAttachmentLine,
+  riBrush3Fill,
   riBrush2Fill,
   riInsertColumnLeft,
   riInsertColumnRight,
@@ -81,6 +82,7 @@ import {
 VRemixIcon.add({
   riAttachmentLine,
   riBrush2Fill,
+  riBrush3Fill,
   riInsertColumnLeft,
   riInsertColumnRight,
   riDeleteColumn,
