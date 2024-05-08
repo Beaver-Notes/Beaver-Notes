@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 w-full max-w-xl">
+  <div class="general space-y-8 mb-14 w-full max-w-xl">
     <section>
       <div>
         <p class="mb-2">{{ translations.settings.selectlanguage || '-' }}</p>

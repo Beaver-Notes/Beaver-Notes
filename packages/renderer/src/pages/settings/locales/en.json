@@ -201,7 +201,7 @@
     "autosync": "Auto sync",
     "clearfont": "Clear Font - OLED",
     "Appearance": "Appearance",
-    "editorOptions": "Editor Options"
+    "interfaceOptions": "Interface Options"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

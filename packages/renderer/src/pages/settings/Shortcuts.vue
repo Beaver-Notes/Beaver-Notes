@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 w-full max-w-xl">
+  <div class="general space-y-8 mb-14 w-full max-w-xl">
     <section v-for="shortcut in shortcuts" :key="shortcut.title">
       <p class="mb-2">{{ translations.shortcuts[shortcut.title] || '-' }}</p>
       <ui-list class="rounded-lg">

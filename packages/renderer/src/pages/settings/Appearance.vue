@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 w-full max-w-xl">
+  <div class="general space-y-8 mb-14 w-full max-w-xl">
     <!-- App theme -->
     <section>
       <p class="mb-2">{{ translations.settings.apptheme || '-' }}</p>
@@ -141,7 +141,7 @@
       </ui-select>
     </section>
     <section>
-      <p class="mb-2">{{ translations.settings.editorOptions || '-' }}</p>
+      <p class="mb-2">{{ translations.settings.interfaceOptions || '-' }}</p>
       <div class="space-y-1">
         <!-- Expan Page -->
         <div class="flex items-center space-x-2">
