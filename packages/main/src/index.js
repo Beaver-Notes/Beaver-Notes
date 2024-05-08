@@ -44,7 +44,7 @@ if (!isSingleInstance) {
 if (process.env.PORTABLE_EXECUTABLE_DIR)
   app.setPath(
     'userData',
-    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data'),
+    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
   );
 
 /**
@@ -114,6 +114,14 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
   return true;
 });
 
+let beforeQuitListener = async (event) => {
+  console.log('Closing application');
+  event.preventDefault();
+  await SyncExportData();
+};
+
+app.on('before-quit', beforeQuitListener);
+
 app.on('second-instance', () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -140,10 +148,10 @@ app
     });
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
-      ensureDir(join(app.getPath('userData'), 'file-assets'))
+      ensureDir(join(app.getPath('userData'), 'file-assets')),
     ]);
     createWindow();
-    initializeMenu();    
+    initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
 
@@ -182,6 +190,14 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
 
 ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
   mainWindow.webContents.zoomFactor = newZoomLevel;
+});
+
+ipcMain.answerRenderer('app:quitter', () => {
+  // Check if the listener is present before removing it
+  if (beforeQuitListener) {
+    app.removeListener('before-quit', beforeQuitListener);
+  }
+  app.quit();
 });
 
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
@@ -239,6 +255,10 @@ ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
 
 function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');
+}
+
+function SyncExportData() {
+  mainWindow.webContents.executeJavaScript('sync();');
 }
 
 function initializeMenu() {
