@@ -71,6 +71,16 @@ const handleImagePaste = new Plugin({
     },
 
     handleDrop: (view, event) => {
+      // Check if Option key is pressed
+      if (
+        event.altKey ||
+        event.getModifierState('Alt') ||
+        event.optionKey ||
+        event.getModifierState('AltGraph')
+      ) {
+        return false; // Ignore drop event
+      }
+
       insertImages(event.dataTransfer.files, (src, alt) => {
         const { schema } = view.state;
         const coordinates = view.posAtCoords({

@@ -109,7 +109,11 @@
         "toggleHeader": "Cella di intestazione",
         "underline": "Sottolinea",
         "vidUrl": "URL Video",
-        "video": "Video"
+        "video": "Video",
+        "noData": "Nessun dato",
+        "Untitled": "Senza titolo",
+        "Add": "Aggiungi",
+        "searchHeadings": "Ricerca intestazioni"
     },
     "search": {
         "clear": "Elimina",
@@ -177,7 +181,9 @@
         "title": "Impostazioni",
         "utilities": "Strumenti",
         "warning": "Attenzione, se dimentichi la tua password, perderai l'accesso alle tue note bloccate, e impostare una nuova password richiederà di conoscere quella vecchia.",
-        "wrongCurrentPassword": "Password errata, prova di nuovo"
+        "wrongCurrentPassword": "Password errata, prova di nuovo",
+        "Appearance": "Aspetto",
+        "interfaceOptions": "Opzioni interfaccia"
     },
     "shortcuts": {
         "Blockcode": "Blocco di codice",
@@ -204,7 +210,10 @@
         "Toggleimport": "Importa",
         "Tonotes": "Vai alle note",
         "Tosettings": "Vai alle impostazioni",
-        "Underline": "Sottolineato"
+        "Underline": "Sottolineato",
+        "EmbedFile": "Allega documento",
+        "Drag": "Trascina",
+        "Arrowleft" : "Freccia sinistra" 
     },
     "sidebar": {
         "Archive": "Archivio",

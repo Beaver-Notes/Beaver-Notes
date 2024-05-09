@@ -498,6 +498,8 @@ export default {
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
+      // Add event listeners for drag and drop
+      document.addEventListener('drop', handleDrop);
     });
 
     const loadTranslations = async () => {
@@ -532,6 +534,29 @@ export default {
         console.error(error);
       }
     };
+
+    // Function to handle drop event
+    async function handleDrop(event) {
+      if (event.altKey || event.getModifierState('Alt') || event.metaKey) {
+        // Alt/Opt key is pressed
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Access dropped files
+        const files = event.dataTransfer.files;
+        const timestamp = Date.now();
+
+        try {
+          for (const file of files) {
+            const { fileName, relativePath } = await saveFile(file, timestamp);
+            const src = `${relativePath}`; // Construct the complete source path
+            props.editor.commands.setFileEmbed(src, fileName);
+          }
+        } catch (error) {
+          console.error('Error saving and embedding files:', error);
+        }
+      }
+    }
 
     return {
       store,
