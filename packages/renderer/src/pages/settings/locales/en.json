@@ -79,7 +79,11 @@
     "deleteRow": "Delete row",
     "deleteColumn": "Delete column",
     "toggleHeader": "Toggle header cell",
-    "deleteTable": "Delete table"
+    "deleteTable": "Delete table",
+    "noData": "No data",
+    "Untitled": "Untitled",
+    "Add": "Add",
+    "searchHeadings": "Search headings"
   },
   "card": {
     "unarchived": "Unarchived",
@@ -140,7 +144,10 @@
     "Bulletlist": "Bullet list",
     "Blockquote": "Blockquote",
     "Blockcode": "Block code",
-    "Previousnote": "Previous notes"
+    "Previousnote": "Previous notes",
+    "EmbedFile": "Embed file",
+    "Drag": "Drag",
+    "Arrowleft": "Arrow left"
   },
   "settings": {
     "title": "Settings",
@@ -199,7 +206,9 @@
     "LTR": "LTR",
     "RTL": "RTL",
     "autosync": "Auto sync",
-    "clearfont": "Clear Font - OLED"
+    "clearfont": "Clear Font - OLED",
+    "Appearance": "Appearance",
+    "interfaceOptions": "Interface Options"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

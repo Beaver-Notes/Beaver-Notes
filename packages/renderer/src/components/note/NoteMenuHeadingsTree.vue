@@ -3,7 +3,7 @@
     <ui-input
       v-model.lowercase="query"
       prepend-icon="riSearchLine"
-      placeholder="Search headings"
+      :placeholder="translations.menu.searchHeadings || '-'"
       autofocus
       class="mb-4"
       @keydown="keydownHandler"
@@ -26,7 +26,7 @@
   </div>
 </template>
 <script>
-import { shallowRef, computed } from 'vue';
+import { shallowRef, computed, shallowReactive, onMounted } from 'vue';
 
 export default {
   props: {
@@ -98,6 +98,34 @@ export default {
         (selectedIndex.value + 1) % filteredHeadings.value.length;
     }
 
+    // Translations
+
+    const translations = shallowReactive({
+      menu: {
+        searchHeadings: 'menu.searchHeadings',
+      },
+    });
+
+    onMounted(async () => {
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       query,
       paddings,
@@ -105,6 +133,7 @@ export default {
       keydownHandler,
       scrollIntoView,
       filteredHeadings,
+      translations,
     };
   },
 };
