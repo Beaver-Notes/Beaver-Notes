@@ -40,6 +40,7 @@ import deTranslations from '../../pages/settings/locales/de.json';
 import esTranslations from '../../pages/settings/locales/es.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
 import nlTranslations from '../../pages/settings/locales/nl.json';
+import ukTranslations from '../../pages/settings/locales/uk.json';
 
 const directionPreference = localStorage.getItem('directionPreference');
 
@@ -59,6 +60,8 @@ if (selectedLanguage === 'it') {
   translations = nlTranslations;
 } else if (selectedLanguage === 'es') {
   translations = esTranslations;
+} else if (selectedLanguage === 'uk') {
+  translations = ukTranslations;
 }
 
 export const extensions = [
