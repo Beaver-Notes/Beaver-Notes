@@ -102,7 +102,6 @@ const createWindow = async () => {
       })
       .finally(() => {
         mainWindow.close();
-        app.quit();
       });
     canClosed = true;
   });
@@ -132,6 +131,7 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
   return true;
 });
 
+<<<<<<< Updated upstream
 let beforeQuitListener = async (event) => {
   console.log('Closing application');
   event.preventDefault();
@@ -139,6 +139,12 @@ let beforeQuitListener = async (event) => {
 };
 
 app.on('before-quit', beforeQuitListener);
+=======
+async function windowCloseHandler(win) {
+  await ipcMain.callRenderer(win, 'win:close');
+  app.quit();
+}
+>>>>>>> Stashed changes
 
 app.on('second-instance', () => {
   if (mainWindow) {
