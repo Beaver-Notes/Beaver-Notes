@@ -186,7 +186,7 @@
         "wrongCurrentPassword": "密码错误，请重试"
     },
     "shortcuts": {
-        "Arrowleft": "左箭头",
+        "Arrowleft": "方向键左",
         "Blockcode": "代码块",
         "Blockquote": "引号",
         "Bold": "粗体",
