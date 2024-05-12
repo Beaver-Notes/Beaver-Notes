@@ -96,15 +96,9 @@ const createWindow = async () => {
       return;
     }
     e.preventDefault();
-    windowCloseHandler(mainWindow)
-      .catch((e) => {
-        console.error(e);
-      })
-      .finally(() => {
-        mainWindow.close();
-      });
+    windowCloseHandler(mainWindow);
     canClosed = true;
-  });
+ });
 
   mainWindow?.webContents.setWindowOpenHandler(function (details) {
     const url = details.url;
@@ -132,8 +126,13 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
 });
 
 async function windowCloseHandler(win) {
-  await ipcMain.callRenderer(win, 'win:close');
-  app.quit();
+  try {
+    await ipcMain.callRenderer(win, 'win:close');
+  } catch (error) {
+    console.error('Error handling window close:', error);
+  } finally {
+    app.quit();
+  }
 }
 
 app.on('second-instance', () => {
