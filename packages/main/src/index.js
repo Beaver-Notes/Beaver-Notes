@@ -29,6 +29,7 @@ import deTranslations from '../../renderer/src/pages/settings/locales/de.json';
 import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
 import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
 import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
+import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
 
 const { localStorage } = browserStorage;
 
@@ -101,6 +102,7 @@ const createWindow = async () => {
       })
       .finally(() => {
         mainWindow.close();
+        app.quit();
       });
     canClosed = true;
   });
@@ -286,6 +288,11 @@ function initializeMenu() {
 
   if (selectedLanguage === 'es') {
     translations = esTranslations;
+  }
+
+
+  if (selectedLanguage === 'uk') {
+    translations = ukTranslations;
   }
 
   // Function to set the application menu

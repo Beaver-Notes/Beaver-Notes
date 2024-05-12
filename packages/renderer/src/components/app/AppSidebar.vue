@@ -406,10 +406,6 @@ export default {
 
         state.withPassword = false;
         state.password = '';
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.exportSuccess,
-        });
       } catch (error) {
         notification({
           title: translations.sidebar.notification,
@@ -435,86 +431,85 @@ export default {
         let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
         let dirPath = path.join(defaultPath, folderName);
 
+        let data;
+
+        // Check if today's folder exists, if not, try the previous day
         try {
-          let { data } = await ipcRenderer.callMain(
+          ({ data } = await ipcRenderer.callMain(
             'fs:read-json',
             path.join(dirPath, 'data.json')
-          );
-
-          if (!data) return showAlert(translations.settings.invaliddata);
-
-          if (typeof data === 'string') {
-            dialog.prompt({
-              title: translations.settings.Inputpassword,
-              body: translations.settings.body,
-              okText: translations.settings.Import,
-              cancelText: translations.settings.Cancel,
-              placeholder: translations.settings.Password,
-              onConfirm: async (pass) => {
-                try {
-                  const bytes = AES.decrypt(data, pass);
-                  const result = bytes.toString(Utf8);
-                  const resultObj = JSON.parse(result);
-
-                  await mergeImportedData(resultObj); // Wait for merge operation to finish
-                  const dataDir = await storage.get('dataDir', '', 'settings');
-                  const importedDefaultPath = data['dataDir'];
-                  const importedLockedStatus = data['lockStatus'];
-                  const importedLockedNotes = data['lockedNotes'];
-                  localStorage.setItem('dataDir', importedDefaultPath);
-                  if (
-                    importedLockedStatus !== null &&
-                    importedLockedStatus !== undefined
-                  ) {
-                    localStorage.setItem(
-                      'lockStatus',
-                      JSON.stringify(importedLockedStatus)
-                    );
-                  }
-
-                  if (
-                    importedLockedNotes !== null &&
-                    importedLockedNotes !== undefined
-                  ) {
-                    localStorage.setItem(
-                      'lockedNotes',
-                      JSON.stringify(importedLockedNotes)
-                    );
-                  }
-                  await ipcRenderer.callMain('fs:copy', {
-                    path: path.join(dirPath, 'assets'),
-                    dest: path.join(dataDir, 'notes-assets'),
-                  });
-                  await ipcRenderer.callMain('fs:copy', {
-                    path: path.join(dirPath, 'file-assets'),
-                    dest: path.join(dataDir, 'file-assets'),
-                  });
-
-                  console.log('Assets copied successfully.');
-                } catch (error) {
-                  showAlert(translations.settings.Invalidpassword);
-                  return false;
-                }
-              },
-            });
-          } else {
-            await mergeImportedData(data); // Wait for merge operation to finish
-            console.log('Data merged successfully.');
-          }
+          ));
         } catch (error) {
+          // If today's folder doesn't exist, try the previous day
           today = today.subtract(1, 'day');
           folderName = today.format('[Beaver Notes] YYYY-MM-DD');
           dirPath = path.join(defaultPath, folderName);
-
-          if (today.isBefore('YYYY-MM-DD')) {
-            console.error('No data available for syncing.');
-            return;
-          }
+          ({ data } = await ipcRenderer.callMain(
+            'fs:read-json',
+            path.join(dirPath, 'data.json')
+          ));
         }
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.importSuccess,
-        });
+
+        if (!data) return showAlert(translations.settings.invaliddata);
+
+        if (typeof data === 'string') {
+          dialog.prompt({
+            title: translations.settings.Inputpassword,
+            body: translations.settings.body,
+            okText: translations.settings.Import,
+            cancelText: translations.settings.Cancel,
+            placeholder: translations.settings.Password,
+            onConfirm: async (pass) => {
+              try {
+                const bytes = AES.decrypt(data, pass);
+                const result = bytes.toString(Utf8);
+                const resultObj = JSON.parse(result);
+
+                await mergeImportedData(resultObj); // Wait for merge operation to finish
+                const dataDir = await storage.get('dataDir', '', 'settings');
+                const importedDefaultPath = data['dataDir'];
+                const importedLockedStatus = data['lockStatus'];
+                const importedLockedNotes = data['lockedNotes'];
+                localStorage.setItem('dataDir', importedDefaultPath);
+                if (
+                  importedLockedStatus !== null &&
+                  importedLockedStatus !== undefined
+                ) {
+                  localStorage.setItem(
+                    'lockStatus',
+                    JSON.stringify(importedLockedStatus)
+                  );
+                }
+
+                if (
+                  importedLockedNotes !== null &&
+                  importedLockedNotes !== undefined
+                ) {
+                  localStorage.setItem(
+                    'lockedNotes',
+                    JSON.stringify(importedLockedNotes)
+                  );
+                }
+                await ipcRenderer.callMain('fs:copy', {
+                  path: path.join(dirPath, 'assets'),
+                  dest: path.join(dataDir, 'notes-assets'),
+                });
+                await ipcRenderer.callMain('fs:copy', {
+                  path: path.join(dirPath, 'file-assets'),
+                  dest: path.join(dataDir, 'file-assets'),
+                });
+
+                console.log('Assets copied successfully.');
+              } catch (error) {
+                showAlert(translations.settings.Invalidpassword);
+                return false;
+              }
+            },
+          });
+        } else {
+          await mergeImportedData(data); // Wait for merge operation to finish
+          console.log('Data merged successfully.');
+        }
       } catch (error) {
         notification({
           title: translations.sidebar.notification,

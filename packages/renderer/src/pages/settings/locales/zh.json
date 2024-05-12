@@ -1,6 +1,6 @@
 {
     "_idvue": {
-        "Previousnote": "以前的笔记",
+        "Previousnote": "之前的笔记",
         "untitlednote": "无标题笔记"
     },
     "about": {
@@ -77,10 +77,12 @@
         "untitlednote": "无标题笔记"
     },
     "menu": {
+        "Add": "添加",
         "File": "文件",
         "Focusmode": "专注模式",
         "Link": "链接",
         "Print": "打印",
+        "Untitled": "无标题",
         "addColumnLeft": "向左添加一列",
         "addColumnRight": "向右添加一列",
         "addRowAbove": "向上添加一行",
@@ -101,8 +103,10 @@
         "imgurl": "图片链接",
         "inlinecode": "行内代码",
         "italic": "斜体",
+        "noData": "无数据",
         "orderedlist": "有序列表",
         "paragraph": "段落",
+        "searchHeadings": "标题搜索",
         "strikethrough": "删除线",
         "tableInsert": "插入表格",
         "tableOptions": "表格设置",
@@ -122,6 +126,7 @@
     },
     "settings": {
         "About": "关于",
+        "Appearance": "外观",
         "Cancel": "取消",
         "General": "通用",
         "Import": "导入",
@@ -149,6 +154,7 @@
         "importdata": "导入数据",
         "importsuccess": "数据已成功导入",
         "interfaceDirection": "界面方向",
+        "interfaceOptions": "界面设置",
         "interfacesize": "界面尺寸",
         "invaliddata": "无效数据",
         "large": "偏大",
@@ -180,12 +186,15 @@
         "wrongCurrentPassword": "密码错误，请重试"
     },
     "shortcuts": {
+        "Arrowleft": "左箭头",
         "Blockcode": "代码块",
         "Blockquote": "引号",
         "Bold": "粗体",
         "Bulletlist": "符号列表",
         "Createnewnote": "创建新笔记",
+        "Drag": "拖拽",
         "Editor": "编辑器快捷键",
+        "EmbedFile": "内嵌文件",
         "General": "通用快捷键",
         "Headings": "标题 (1-6)",
         "Highlight": "高亮",
@@ -194,7 +203,7 @@
         "Link": "链接",
         "Navigates": "导航快捷键",
         "Orderedlist": "有序列表",
-        "Previousnote": "以前的笔记",
+        "Previousnote": "之前的笔记",
         "Strikethrough": "删除线",
         "Toarchivednotes": "查看已归档笔记",
         "Toeditednote": "编辑笔记",

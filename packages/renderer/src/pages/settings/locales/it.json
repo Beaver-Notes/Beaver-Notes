@@ -77,10 +77,12 @@
         "untitlednote": "Nota senza titolo"
     },
     "menu": {
+        "Add": "Aggiungi",
         "File": "Documento",
         "Focusmode": "Modalità di focus",
         "Link": "Collegamento",
         "Print": "Stampa",
+        "Untitled": "Senza titolo",
         "addColumnLeft": "Aggiungi colonna a sinistra",
         "addColumnRight": "Aggiungi colonna a destra",
         "addRowAbove": "Aggiungi riga sopra",
@@ -101,19 +103,17 @@
         "imgurl": "URL immagine",
         "inlinecode": "Codice in linea",
         "italic": "Corsivo",
+        "noData": "Nessun dato",
         "orderedlist": "Elenco numerico",
         "paragraph": "Paragrafo",
+        "searchHeadings": "Ricerca intestazioni",
         "strikethrough": "Barra",
         "tableInsert": "Inserisci tabella",
         "tableOptions": "Opzioni tabella",
         "toggleHeader": "Cella di intestazione",
         "underline": "Sottolinea",
         "vidUrl": "URL Video",
-        "video": "Video",
-        "noData": "Nessun dato",
-        "Untitled": "Senza titolo",
-        "Add": "Aggiungi",
-        "searchHeadings": "Ricerca intestazioni"
+        "video": "Video"
     },
     "search": {
         "clear": "Elimina",
@@ -126,6 +126,7 @@
     },
     "settings": {
         "About": "Informazioni",
+        "Appearance": "Aspetto",
         "Cancel": "Annulla",
         "General": "Generale",
         "Import": "Importa",
@@ -153,6 +154,7 @@
         "importdata": "Importa dati",
         "importsuccess": "Dati importati con successo",
         "interfaceDirection": "Direzione interfaccia",
+        "interfaceOptions": "Opzioni interfaccia",
         "interfacesize": "Dimensioni interfaccia",
         "invaliddata": "Dati non validi",
         "large": "Grande",
@@ -181,17 +183,18 @@
         "title": "Impostazioni",
         "utilities": "Strumenti",
         "warning": "Attenzione, se dimentichi la tua password, perderai l'accesso alle tue note bloccate, e impostare una nuova password richiederà di conoscere quella vecchia.",
-        "wrongCurrentPassword": "Password errata, prova di nuovo",
-        "Appearance": "Aspetto",
-        "interfaceOptions": "Opzioni interfaccia"
+        "wrongCurrentPassword": "Password errata, prova di nuovo"
     },
     "shortcuts": {
+        "Arrowleft": "Freccia sinistra",
         "Blockcode": "Blocco di codice",
         "Blockquote": "Citazione",
         "Bold": "Grassetto",
         "Bulletlist": "Elenco puntato",
         "Createnewnote": "Crea una nuova nota",
+        "Drag": "Trascina",
         "Editor": "Scorciatoie dell'editor",
+        "EmbedFile": "Allega documento",
         "General": "Scorciatoie generali",
         "Headings": "Intestazioni (1-6)",
         "Highlight": "Evidenziato",
@@ -210,10 +213,7 @@
         "Toggleimport": "Importa",
         "Tonotes": "Vai alle note",
         "Tosettings": "Vai alle impostazioni",
-        "Underline": "Sottolineato",
-        "EmbedFile": "Allega documento",
-        "Drag": "Trascina",
-        "Arrowleft" : "Freccia sinistra" 
+        "Underline": "Sottolineato"
     },
     "sidebar": {
         "Archive": "Archivio",
