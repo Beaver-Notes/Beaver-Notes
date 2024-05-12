@@ -16,6 +16,12 @@ const apiKey = 'electron';
 function notification(props) {
   return ipcRenderer.callMain('app:notification', props);
 }
+ipcRenderer.answerMain('app:sync', async () => {
+  if (!window.sync) {
+    return;
+  }
+  await window.sync();
+});
 /**
  * @see https://github.com/electron/electron/issues/21437#issuecomment-573522360
  */

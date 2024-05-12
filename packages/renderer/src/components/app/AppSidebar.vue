@@ -427,10 +427,7 @@ export default {
 
       if (autoSync === 'true') {
         await syncexportData();
-        await ipcRenderer.callMain('app:quitter');
       }
-
-      await ipcRenderer.callMain('app:quitter');
     }
 
     async function syncimportData() {
