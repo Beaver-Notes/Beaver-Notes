@@ -95,13 +95,12 @@ const createWindow = async () => {
       return;
     }
     e.preventDefault();
-    windowCloseHandler()
-      .then(() => {
-        app.quit();
-      })
+    windowCloseHandler(mainWindow)
       .catch((e) => {
         console.error(e);
-        app.exit(1);
+      })
+      .finally(() => {
+        mainWindow.close();
       });
     canClosed = true;
   });
@@ -131,8 +130,8 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
   return true;
 });
 
-async function windowCloseHandler() {
-  await SyncExportData();
+async function windowCloseHandler(win) {
+  await ipcMain.callRenderer(win, 'win:close');
 }
 
 app.on('second-instance', () => {
@@ -260,10 +259,6 @@ ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
 
 function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');
-}
-
-function SyncExportData() {
-  return ipcMain.callRenderer(mainWindow, 'app:sync');
 }
 
 function initializeMenu() {

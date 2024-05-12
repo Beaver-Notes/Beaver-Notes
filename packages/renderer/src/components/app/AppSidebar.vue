@@ -89,6 +89,7 @@ import { useDialog } from '@/composable/dialog';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
+import { onClose } from '../../composable/onClose';
 
 export default {
   setup() {
@@ -418,9 +419,7 @@ export default {
       }
     }
 
-    if (typeof window !== 'undefined') {
-      window.sync = exportAndQuit;
-    }
+    onClose(exportAndQuit);
 
     async function exportAndQuit() {
       const autoSync = localStorage.getItem('autoSync');
