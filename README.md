@@ -25,7 +25,7 @@
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
-![systems](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/f9c6e510-3bad-4563-b6b4-5dfc7dff7caa)
+![Beaver Notes demo](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/a7b38689-0363-49f0-8ed8-60e7358b1df6)
 
 ## Features 🛠️
 
