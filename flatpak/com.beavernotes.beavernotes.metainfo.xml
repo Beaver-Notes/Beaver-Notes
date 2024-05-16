@@ -36,6 +36,22 @@
     <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
     <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
     <releases>
+     <release version="3.2.0" date="2024-05-16">
+  <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.2.0</url>
+    <description>
+      <p>Release description</p>
+        <ul>
+          <li>Auto sync fix</li>
+          <li>Focus mode fix</li>
+          <li>Fix tab key</li>
+          <li>Alt + drag to embed files</li>
+          <li>Introducing Ukrainian</li>
+          <li>Update translations</li>
+          <li>Settings redesign</li>
+          <li>UI improvements</li>
+        </ul>
+    </description>
+  </release>
     <release version="3.1.0" date="2024-04-25">
   <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.1.0</url>
     <description>
