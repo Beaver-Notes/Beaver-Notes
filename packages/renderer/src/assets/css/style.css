@@ -40,8 +40,11 @@ option {
   height: 9px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-gray-700;
+  @apply bg-[#d8d9d9] dark:bg-[#424546];
   border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-[#9ed6f4] dark:bg-[#2c6685];
 }
 ::-webkit-scrollbar-track {
   background: transparent;
