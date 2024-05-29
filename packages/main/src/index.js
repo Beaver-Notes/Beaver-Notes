@@ -30,6 +30,7 @@ import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
 import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
 import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
 import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
+import api from './server';
 
 const { localStorage } = browserStorage;
 
@@ -45,7 +46,7 @@ if (!isSingleInstance) {
 if (process.env.PORTABLE_EXECUTABLE_DIR)
   app.setPath(
     'userData',
-    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data'),
+    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
   );
 
 /**
@@ -98,7 +99,7 @@ const createWindow = async () => {
     e.preventDefault();
     windowCloseHandler(mainWindow);
     canClosed = true;
- });
+  });
 
   mainWindow?.webContents.setWindowOpenHandler(function (details) {
     const url = details.url;
@@ -115,7 +116,7 @@ const createWindow = async () => {
       ? env.VITE_DEV_SERVER_URL
       : new URL(
           '../renderer/dist/index.html',
-          'file://' + __dirname,
+          'file://' + __dirname
         ).toString();
 
   await mainWindow.loadURL(pageUrl);
@@ -164,6 +165,7 @@ app
       ensureDir(join(app.getPath('userData'), 'file-assets')),
     ]);
     createWindow();
+    api();
     initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
@@ -208,25 +210,25 @@ ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
 
 ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) =>
-  win.setMenuBarVisibility(visibility),
+  win.setMenuBarVisibility(visibility)
 );
 
 ipcMain.answerRenderer('dialog:open', (props) => dialog.showOpenDialog(props));
 ipcMain.answerRenderer('dialog:message', (props) =>
-  dialog.showMessageBox(props),
+  dialog.showMessageBox(props)
 );
 ipcMain.answerRenderer('dialog:save', (props) => dialog.showSaveDialog(props));
 
 ipcMain.answerRenderer('fs:copy', ({ path, dest }) => copy(path, dest));
 ipcMain.answerRenderer('fs:output-json', ({ path, data }) =>
-  outputJson(path, data),
+  outputJson(path, data)
 );
 ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
 ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
 ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
 ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-  writeFileSync(path, data),
+  writeFileSync(path, data)
 );
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
   app.relaunch({
@@ -238,22 +240,22 @@ ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
 ipcMain.answerRenderer('helper:get-path', (name) => app.getPath(name));
 ipcMain.answerRenderer(
   'helper:is-dark-theme',
-  () => nativeTheme.shouldUseDarkColors,
+  () => nativeTheme.shouldUseDarkColors
 );
 
 ipcMain.answerRenderer('storage:store', (name) => store[name]?.store);
 ipcMain.answerRenderer(
   'storage:replace',
-  ({ name, data }) => (store[name].store = data),
+  ({ name, data }) => (store[name].store = data)
 );
 ipcMain.answerRenderer('storage:get', ({ name, key, def }) =>
-  store[name]?.get(key, def),
+  store[name]?.get(key, def)
 );
 ipcMain.answerRenderer('storage:set', ({ name, key, value }) =>
-  store[name]?.set(key, value),
+  store[name]?.set(key, value)
 );
 ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
-  store[name]?.delete(key),
+  store[name]?.delete(key)
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
@@ -389,7 +391,7 @@ function initializeMenu() {
           click: async () => {
             const { shell } = require('electron');
             await shell.openExternal(
-              'https://danieles-organization.gitbook.io/beaver-notes',
+              'https://danieles-organization.gitbook.io/beaver-notes'
             );
           },
         },

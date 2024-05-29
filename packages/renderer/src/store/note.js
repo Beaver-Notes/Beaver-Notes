@@ -1,8 +1,8 @@
 import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
-import { AES } from 'crypto-es/lib/aes';
-import { useStorage } from '../composable/storage';
-import { Utf8 } from 'crypto-es/lib/core';
+import { AES } from 'crypto-es/lib/aes.js';
+import { useStorage } from '../composable/storage.js';
+import { Utf8 } from 'crypto-es/lib/core.js';
 
 const storage = useStorage();
 

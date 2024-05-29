@@ -17,6 +17,7 @@ import { useTheme } from './composable/theme';
 import { useStore } from './store';
 import { useNoteStore } from './store/note';
 import { useLabelStore } from './store/label';
+import { io } from 'socket.io-client';
 import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
@@ -56,8 +57,41 @@ export default {
       }
     };
 
+    const setupSocket = () => {
+      const socket = io('http://localhost:3000');
+      const noteStore = useNoteStore();
+
+      socket.on('newNote', (note) => {
+        noteStore.add(note).then((newNote) => {
+          console.log('Note received and added:', newNote);
+        });
+      });
+
+      socket.on('deleteNote', async (id) => {
+        try {
+          const deletedNoteId = await noteStore.delete(id);
+          console.log('Note deleted:', deletedNoteId);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+
+      socket.on('addLabel', async ({ id, labelId }) => {
+        try {
+          const addedLabelId = await noteStore.addLabel(id, labelId);
+          console.log('Label added to note:', addedLabelId);
+        } catch (error) {
+          console.error(error);
+        }
+      });
+
+      socket.on('connect_error', (error) => {
+        console.error('Socket.IO Error:', error);
+      });
+    };
+
     onMounted(() => {
-      zoom();
+      setupSocket();
     });
 
     const isFirstTime = localStorage.getItem('first-time');
