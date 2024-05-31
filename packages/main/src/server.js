@@ -1,3 +1,5 @@
+import {verify} from './token/middleware';
+
 // backend/api.js
 const express = require('express');
 const http = require('http');
@@ -16,7 +18,11 @@ const io = socketIo(server, {
 
 const port = 3000;
 
-const api = () => {
+/**
+ * @param {import('electron-better-ipc').ipcMain} ipcMain
+ * @param {import('electron').BrowserWindow} win
+ */
+const api = (ipcMain, win) => {
   // Middleware
   app.use(express.json());
   app.use(cors());
@@ -41,6 +47,17 @@ const api = () => {
     console.log('Label added to note:', labelId, 'Note ID:', id);
     io.emit('addLabel', { id, labelId }); // Broadcast the label addition to all connected clients
     res.send('Adding Label');
+  });
+
+  app.post('/request-auth', (req, res) => {
+    const { id, platform } = req.body;
+    ipcMain.callRenderer(win, 'auth:request-auth', { id, platform });
+    res.send('request sent!');
+  });
+
+  app.get('/confirm-auth', verify([]), (req, res) => {
+    console.log(req.auth);
+    res.send('passed');
   });
 
   // Start the server
