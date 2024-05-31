@@ -201,7 +201,7 @@
     "wrongCurrentPassword": "Wrong password, please try again",
     "passwordResetError": "Something went wrong while resetting your password",
     "passwordResetSuccess": "The password has been reset successfully",
-    "menuBarVisibility": "Hidden Menu Bar",
+    "menuBarVisibility": "Hide Menu Bar",
     "interfaceDirection": "Interface Direction",
     "LTR": "LTR",
     "RTL": "RTL",

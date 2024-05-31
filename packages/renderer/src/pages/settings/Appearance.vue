@@ -142,63 +142,71 @@
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.interfaceOptions || '-' }}</p>
-      <div class="space-y-1">
-        <!-- Expan Page -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="editorWidthChecked"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleEditorWidth"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.fullWidth || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Clear Text - OLED -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="ClearFontChecked"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleClearFont"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.clearfont || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Menubar visibility -->
-        <div v-if="!isMacOS" class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="visibilityMenubar"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleVisibilityOfMenubar"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.menuBarVisibility || '-' }}
-            </span>
-          </label>
+      <div className="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
+        <div class="space-y-1">
+          <!-- Expan Page -->
+          <div class="flex items-center border-b-2 py-2 justify-between">
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.fullWidth || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="editorWidthChecked"
+                type="checkbox"
+                class="peer sr-only"
+                @change="toggleEditorWidth"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
+          <!-- Clear Text - OLED -->
+          <div class="flex items-center py-2 justify-between">
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.clearfont || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="ClearFontChecked"
+                type="checkbox"
+                class="peer sr-only"
+                @change="toggleClearFont"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
+          <!-- Menubar visibility -->
+          <div
+            v-if="!isMacOS"
+            class="flex border-t-2 items-center py-2 justify-between"
+          >
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.menuBarVisibility || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="visibilityMenubar"
+                type="checkbox"
+                class="peer sr-only"
+                @change="toggleVisibilityOfMenubar"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
         </div>
       </div>
     </section>
