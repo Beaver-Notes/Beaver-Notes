@@ -93,6 +93,7 @@
     "highlight.js": "^11.9.0",
     "katex": "^0.13.0",
     "lowlight": "2.4.0",
+    "mermaid": "^10.9.1",
     "mousetrap": "^1.6.5",
     "nanoid": "^3.1.25",
     "pinia": "^2.0.0-rc.4",
@@ -106,6 +107,7 @@
     "tiptap-text-direction": "^0.3.1",
     "v-remixicon": "^0.0.9",
     "vue": "^3.4.6",
+    "vue-mermaid-render": "^0.1.4",
     "vue-router": "^4.0.11"
   }
 }

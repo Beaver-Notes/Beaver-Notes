@@ -13,6 +13,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
+import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
@@ -94,6 +95,7 @@ export const extensions = [
   }),
   CodeBlock,
   MathInline,
+  MermaidBlock,
   MathBlock,
   TextDirection.configure({
     defaultDirection: defaultDirection,
