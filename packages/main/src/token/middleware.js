@@ -20,7 +20,8 @@ export function verify(permissions) {
         return ;
       }
       const authRecords = store.settings.get('authRecords') || [];
-      if (authRecords.length === 0 || !authRecords.some((a) => a.id === info.id && a.clientId === info.clientId && a.platform === info.platform && a.name === info.name && a.auth === info.auth && a.status === 1)) {
+      console.log(authRecords, info);
+      if (authRecords.length === 0 || !authRecords.some((a) => a.id === info.id && a.clientId === info.clientId && a.platform === info.platform && a.name === info.name && a.auth === info.auth && a.status === 1 && a.createdAt === info.createdAt && a.expiredTime === info.expiredTime)) {
         res.status(401);
         res.send('Authorization not recorded!');
         return ;

@@ -102,7 +102,7 @@ export default {
               id: data.id,
               platform: data.platform,
               name: 'Test',
-              auth: ['label:add', 'label:delete'],
+              auth: ['label:add', 'note:delete'],
             });
             dialog.confirm({
               body: `token: ${token}`,

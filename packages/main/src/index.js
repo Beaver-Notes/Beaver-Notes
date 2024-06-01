@@ -261,7 +261,7 @@ ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
 ipcMain.answerRenderer('auth:create-token', (data) => {
-  const { token, id } = generateToken(data, {
+  const { token, id, createdAt, expiredTime } = generateToken(data, {
     expiredTime: 0,
   });
   const auths = store.settings.get('authRecords') || [];
@@ -273,6 +273,8 @@ ipcMain.answerRenderer('auth:create-token', (data) => {
     name: data.name,
     auth: data.auth.toSorted().join(','),
     status: 1,
+    createdAt,
+    expiredTime,
   });
   store.settings.set('authRecords', auths);
   console.log('auth:', token);

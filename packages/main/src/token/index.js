@@ -54,6 +54,8 @@ export function generateToken(clientInfo, options) {
   return {
     id,
     token,
+    expiredTime,
+    createdAt,
   };
 }
 

@@ -35,7 +35,7 @@ const api = (ipcMain, win) => {
     res.send('Creating Note');
   });
 
-  app.post('/delete-note', verify(['label:delete']), (req, res) => {
+  app.post('/delete-note', verify(['note:delete']), (req, res) => {
     const { id } = req.body;
     console.log('Note deleted:', id);
     io.emit('deleteNote', id); // Broadcast the note ID to all connected clients

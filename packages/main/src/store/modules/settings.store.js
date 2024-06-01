@@ -17,6 +17,12 @@ const schema = {
         clientId: {
           type: 'string',
         },
+        expiredTime: {
+          type: 'number',
+        },
+        createdAt: {
+          type: 'number',
+        },
         platform: {
           type: 'string',
         },
