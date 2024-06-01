@@ -28,7 +28,7 @@ const api = (ipcMain, win) => {
   app.use(cors());
 
   // POST endpoint to receive note data
-  app.post('/add-note', (req, res) => {
+  app.post('/add-note', verify(['note:add']), (req, res) => {
     const note = req.body;
     console.log('Note received:', note);
     io.emit('newNote', note); // Broadcast the note to all connected clients

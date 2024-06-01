@@ -16,7 +16,7 @@ export function verify(permissions) {
       const info = separateToken(token);
       if (!permissions.every((p) => info.auth.indexOf(p) >= 0)) {
         res.status(401);
-        res.send('No such auth!');
+        res.send('No such permission!');
         return ;
       }
       const authRecords = store.settings.get('authRecords') || [];
