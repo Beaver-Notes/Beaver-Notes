@@ -1,5 +1,5 @@
 export default {
-welcome: {
+  welcome: {
     id: 'welcome',
     title: 'Welcome to Beaver Notes',
     content:

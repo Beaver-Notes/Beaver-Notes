@@ -30,6 +30,8 @@ import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
 import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
 import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
 import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
+import api from './server';
+import {generateToken} from './token';
 
 const { localStorage } = browserStorage;
 
@@ -98,7 +100,7 @@ const createWindow = async () => {
     e.preventDefault();
     windowCloseHandler(mainWindow);
     canClosed = true;
- });
+  });
 
   mainWindow?.webContents.setWindowOpenHandler(function (details) {
     const url = details.url;
@@ -164,6 +166,7 @@ app
       ensureDir(join(app.getPath('userData'), 'file-assets')),
     ]);
     createWindow();
+    api(ipcMain, mainWindow);
     initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
@@ -257,6 +260,26 @@ ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
+ipcMain.answerRenderer('auth:create-token', (data) => {
+  const { token, id, createdAt, expiredTime } = generateToken(data, {
+    expiredTime: 0,
+  });
+  const auths = store.settings.get('authRecords') || [];
+  console.log(auths);
+  auths.push({
+    id,
+    clientId: data.id,
+    platform: data.platform,
+    name: data.name,
+    auth: data.auth.toSorted().join(','),
+    status: 1,
+    createdAt,
+    expiredTime,
+  });
+  store.settings.set('authRecords', auths);
+  console.log('auth:', token);
+  return token;
+});
 
 function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');

@@ -5,38 +5,37 @@ export const LiteralTab = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      Tab: () => {
-        return this.editor
+      Tab: ({ editor }) => {
+        return editor
           .chain()
           .focus()
-          .command(({ tr, state }) => {
+          .command(({ state, dispatch }) => {
             const { $from } = state.selection;
             const startPos = $from.start();
 
             // Check if a list item is active
             const isListItemActive =
-              this.editor.isActive('bulletList') ||
-              this.editor.isActive('orderedList');
+              editor.isActive('bulletList') || editor.isActive('orderedList');
 
-            try {
-              if (isListItemActive) {
-                event.preventDefault(); // You might need to handle this more appropriately
-              } else {
-                tr = tr.insertText('\t', startPos);
-
-                const endPos = startPos + 1;
-                const selection = state.selection.constructor.near(
-                  tr.doc.resolve(endPos)
-                );
-                tr = tr.setSelection(selection);
-              }
-            } catch (error) {
-              console.error('Error applying transaction:', error);
+            if (isListItemActive) {
+              // Prevent the default behavior of tab key in the editor
+              return false;
             }
 
-            return tr; // Return the modified transaction
+            // Insert tab character at the current position
+            const transaction = state.tr.insertText('\t', startPos);
+
+            const endPos = startPos + 1;
+            const selection = state.selection.constructor.near(
+              transaction.doc.resolve(endPos)
+            );
+            transaction.setSelection(selection);
+            dispatch(transaction);
+
+            // Prevent the default behavior of tab key in the browser
+            return true;
           })
-          .run(); // Run the chain once
+          .run();
       },
     };
   },
