@@ -21,6 +21,7 @@ import { io } from 'socket.io-client';
 import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
+import { useDialog } from './composable/dialog';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
@@ -92,6 +93,23 @@ export default {
 
     onMounted(() => {
       setupSocket();
+      window.electron.setRequestAuthConfirm((data) => {
+        const dialog = useDialog();
+        dialog.confirm({
+          body: `Do you confirm to give ${data.platform} permission?`,
+          onConfirm: async () => {
+            const token = await window.electron.createToken({
+              id: data.id,
+              platform: data.platform,
+              name: 'Test',
+              auth: ['label:add', 'note:delete'],
+            });
+            dialog.confirm({
+              body: `token: ${token}`,
+            });
+          },
+        });
+      });
     });
 
     const isFirstTime = localStorage.getItem('first-time');
