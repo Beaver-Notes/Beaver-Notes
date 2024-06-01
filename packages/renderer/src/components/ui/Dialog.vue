@@ -3,7 +3,9 @@
     <template #header>
       <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
     </template>
-    <p class="text-gray-600 dark:text-gray-200 leading-tight">
+    <p
+      class="text-gray-600 dark:text-gray-200 leading-tight break-words overflow-hidden"
+    >
       {{ state.options.body }}
     </p>
     <ui-input
@@ -28,6 +30,7 @@
     </div>
   </ui-modal>
 </template>
+
 <script>
 import { reactive, watch } from 'vue';
 import emitter from 'tiny-emitter/instance';
@@ -81,6 +84,7 @@ export default {
         state.input = '';
       }
     }
+
     function keyupHandler({ code }) {
       if (code === 'Enter') {
         fireCallback('onConfirm');
