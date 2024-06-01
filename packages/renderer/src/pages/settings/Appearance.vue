@@ -140,6 +140,27 @@
         <option value="Ubuntu" class="font-ubuntu">Ubuntu</option>
       </ui-select>
     </section>
+    <!-- Code Font -->
+    <section>
+      <p class="mb-2">{{ translations.settings.selectcodefont || '-' }}</p>
+      <ui-select
+        id="codeFontSelect"
+        v-model="selectedCodeFont"
+        class="w-full"
+        @change="updateCodeFont"
+      >
+        <option value="Anonymous Pro" class="anonymous-pro">
+          Anonymous Pro
+        </option>
+        <option value="Hack" class="font-hack">Hack</option>
+        <option value="JetBrains Mono" class="font-JetBrainsMono">
+          JetBrains Mono
+        </option>
+        <option value="Source Code Pro" class="font-source-code-pro">
+          Source Code Pro
+        </option>
+      </ui-select>
+    </section>
     <section>
       <p class="mb-2">{{ translations.settings.interfaceOptions || '-' }}</p>
       <div className="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
@@ -636,6 +657,8 @@ export default {
     return {
       directionPreference: localStorage.getItem('directionPreference') || 'ltr',
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
+      selectedCodeFont:
+        localStorage.getItem('selected-font-code') || 'JetBrains Mono',
       selectedLanguage: localStorage.getItem('selectedLanguage') || 'en', // Initialize with a value from localStorage if available
       languages: [
         { code: 'de', name: 'Deutsch', translations: deTranslations },
@@ -674,6 +697,14 @@ export default {
       document.documentElement.style.setProperty(
         '--selected-font',
         this.selectedFont
+      );
+    },
+    updateCodeFont() {
+      localStorage.setItem('selected-font-code', this.selectedCodeFont);
+
+      document.documentElement.style.setProperty(
+        '--selected-font-code',
+        this.selectedCodeFont
       );
     },
     setZoom(newZoomLevel) {
