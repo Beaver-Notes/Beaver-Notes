@@ -1,6 +1,15 @@
 const crypto = require('crypto');
 
 /**
+ * @typedef {object} ClientConfig
+ * @property {string} id
+ * @property {number} createdAt
+ * @property {string} clientId
+ * @property {string} name
+ * @property {string} platform
+ * @property {string} auth
+ */
+/**
  * @typedef {object} ClientInfo
  * @property {id} string
  * @property {string} name
@@ -19,17 +28,24 @@ export function generateToken(clientInfo, options) {
   if (!clientInfo) {
     throw new Error('Client info is blank!');
   }
-  options = options ?? { expiredTime: 0 };
+  options = options ?? {expiredTime: 0};
   const expiredTime = options.expiredTime ?? 0;
   const createdAt = Date.now();
   const id = crypto.randomUUID();
   const masterKey = crypto.randomBytes(32);
-  const version = 'v1';
   const iv = crypto.randomBytes(12);
   const salt = crypto.randomBytes(64);
   const key = crypto.pbkdf2Sync(masterKey, salt, 2145, 32, 'sha512');
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const text = [version, createdAt, expiredTime, id, clientInfo.id, clientInfo.name, clientInfo.platform, clientInfo.auth.join(',')].map((v) => encode(v)).join(',');
+  const text = JSON.stringify({
+    createdAt,
+    expiredTime,
+    id,
+    clientId: clientInfo.id,
+    name: clientInfo.name,
+    platform: clientInfo.platform,
+    auth: clientInfo.auth.join(','),
+  });
   const encryptedText = cipher.update(text, 'utf8', 'hex') + cipher.final('hex');
   console.log(encryptedText);
   const encrypted = Buffer.from(encryptedText, 'hex');
@@ -53,36 +69,12 @@ export function separateToken(s) {
   const iv = bData.subarray(offset, offset + 12); offset += 12;
   const tag = bData.subarray(offset, offset + 16); offset += 16;
   const text = bData.subarray(offset);
-  const key = crypto.pbkdf2Sync(masterKey, salt , 2145, 32, 'sha512');
+  const key = crypto.pbkdf2Sync(masterKey, salt, 2145, 32, 'sha512');
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
   decipher.setAuthTag(tag);
   const decrypted = decipher.update(text, 'hex', 'utf8') + decipher.final('utf8');
-  const [version, createdAt, expiredTime, id, clientId, name, platform, auth] = decode(decrypted);
-  return {
-    version,
-    createdAt: +createdAt,
-    expiredTime: +expiredTime,
-    clientId,
-    platform,
-    id,
-    name,
-    auth: auth.split(','),
-  };
+  /** @type {ClientConfig} */
+  const res = JSON.parse(decrypted);
+  return res;
 }
 
-/**
- * @param {number|string} s
- * return {string}
- */
-function encode(s) {
-  s = typeof s === 'number' ? s.toString() : s;
-  return encodeURIComponent(s);
-}
-
-/**
- * @param {string} s
- * @returns {string[]}
- */
-function decode(s) {
-  return s.split(',').map((v) => decodeURIComponent(v));
-}

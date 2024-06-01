@@ -23,9 +23,11 @@ const schema = {
         name: {
           type: 'string',
         },
+        // authorizated permissions
         auth: {
           type: 'string',
         },
+        // 1 active 0 inactive
         status: {
           type: 'number',
           default: 0,
