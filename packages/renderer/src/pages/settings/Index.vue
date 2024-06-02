@@ -122,12 +122,6 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">{{ translations.settings.security || '-' }}</p>
-      <ui-button class="w-full" @click="resetPasswordDialog">{{
-        translations.settings.resetPassword
-      }}</ui-button>
-    </section>
-    <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex ltr:space-x-4">
         <div class="bg-input rtl:ml-4 transition w-6/12 rounded-lg p-4">
@@ -180,80 +174,6 @@
             {{ translations.settings.aboutDataEncryption || '-' }}
           </span>
         </p>
-      </div>
-    </section>
-    <section>
-      <p class="mb-2">{{ t(translations.settings.authorizedApplications) }}</p>
-      <div
-        v-if="appStore.authRecords.length === 0"
-        class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl"
-      >
-        <div class="space-y-0 py-2">
-          {{ translations.settings.noAuthorizedApplicaitons || '-' }}
-        </div>
-      </div>
-      <div v-else class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
-        <div
-          v-for="(auth, index) in appStore.authRecords"
-          :key="auth.id"
-          class="space-y-1"
-        >
-          <div
-            class="flex items-center py-2 justify-between"
-            :class="{ 'border-b-2': index !== appStore.authRecords.length - 1 }"
-          >
-            <div>
-              <div class="text-lg flex gap-1">
-                <div>{{ auth.name }}</div>
-                <div
-                  v-if="auth.auth !== '' && auth.auth != null"
-                  class="flex text-sm gap-1"
-                >
-                  <div
-                    v-for="p in auth.auth.split(',')"
-                    :key="p"
-                    class="py-0.5 px-1 rounded-md bg-primary text-amber-500 bg-opacity-5 dark:text-amber-400"
-                  >
-                    {{ p }}
-                  </div>
-                </div>
-              </div>
-              <div class="text-sm">
-                <span>{{ t(translations.settings.id) }}: {{ auth.id }}</span>
-              </div>
-              <div>
-                <div class="text-sm flex gap-1">
-                  <div>
-                    {{ t(translations.settings.platform) }}: {{ auth.platform }}
-                  </div>
-                  <div>
-                    {{ t(translations.settings.createdAt) }}:
-                    {{ formatTime(auth.createdAt) }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="flex gap-1">
-              <label class="relative inline-flex cursor-pointer items-center">
-                <input
-                  v-model="authorizatedApps[index]"
-                  type="checkbox"
-                  class="peer sr-only"
-                  @change="(e) => toggleAuth(auth, authorizatedApps[index])"
-                />
-                <div
-                  class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-                ></div>
-              </label>
-              <v-remixicon
-                name="riCloseLine"
-                class="cursor-pointer"
-                @click="() => deleteAuth(auth)"
-              />
-            </div>
-          </div>
-        </div>
       </div>
     </section>
   </div>

@@ -94,16 +94,8 @@
 
 <script>
 import { shallowReactive, onMounted, ref, watch } from 'vue';
-import { AES } from 'crypto-es/lib/aes';
-import { Utf8 } from 'crypto-es/lib/core';
-import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
-import dayjs from '@/lib/dayjs';
-import lightImg from '@/assets/images/light.png';
-import darkImg from '@/assets/images/dark.png';
-import systemImg from '@/assets/images/system.png';
-import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
@@ -126,279 +118,15 @@ export const dataDir = state.dataDir;
 
 export default {
   setup() {
-    const { ipcRenderer, path } = window.electron;
-    const themes = [
-      { name: 'light', img: lightImg },
-      { name: 'dark', img: darkImg },
-      { name: 'system', img: systemImg },
-    ];
-
-    const theme = useTheme();
-    // eslint-disable-next-line no-unused-vars
     const dialog = useDialog();
     const storage = useStorage();
 
-    const state = shallowReactive({
-      dataDir: '',
-      password: '',
-      withPassword: false,
-      lastUpdated: null,
-      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
-    });
-
     let defaultPath = '';
-
-    async function changeDataDir() {
-      try {
-        const {
-          canceled,
-          filePaths: [dir],
-        } = await ipcRenderer.callMain('dialog:open', {
-          title: 'Select directory',
-          properties: ['openDirectory'],
-        });
-
-        if (canceled) return;
-
-        showAlert(translations.settings.relaunch, {
-          type: 'info',
-          buttons: [translations.settings.relaunchbutton],
-        });
-
-        await storage.set('dataDir', dir);
-        window.location.reload(); // Reload the page
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
-    function showAlert(message, options = {}) {
-      ipcRenderer.callMain('dialog:message', {
-        type: 'error',
-        title: 'Alert',
-        message,
-        ...options,
-      });
-    }
-
-    async function exportData() {
-      try {
-        const { canceled, filePaths } = await ipcRenderer.callMain(
-          'dialog:open',
-          {
-            title: 'Export data',
-            properties: ['openDirectory'],
-          }
-        );
-
-        if (canceled) return;
-
-        let data = await storage.store();
-        data['default-path'] = defaultPath;
-        data['lockedNotes'] = JSON.parse(localStorage.getItem('lockedNotes'));
-        if (state.withPassword) {
-          data = AES.encrypt(JSON.stringify(data), state.password).toString();
-        }
-
-        const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
-        const folderPath = path.join(filePaths[0], folderName);
-        const dataDir = await storage.get('dataDir', '', 'settings');
-
-        await ipcRenderer.callMain('fs:ensureDir', folderPath);
-        await ipcRenderer.callMain('fs:output-json', {
-          path: path.join(folderPath, 'data.json'),
-          data: { data },
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'notes-assets'),
-          dest: path.join(folderPath, 'assets'),
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'file-assets'),
-          dest: path.join(folderPath, 'file-assets'),
-        });
-
-        alert(`${translations.settings.exportmessage}"${folderName}"`);
-
-        state.withPassword = false;
-        state.password = '';
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
-    async function mergeImportedData(data) {
-      try {
-        const keys = [
-          { key: 'notes', dfData: {} },
-          { key: 'labels', dfData: [] },
-        ];
-
-        for (const { key, dfData } of keys) {
-          const currentData = await storage.get(key, dfData);
-          const importedData = data[key] ?? dfData;
-          let mergedData;
-
-          if (key === 'labels') {
-            const mergedArr = [...currentData, ...importedData];
-
-            mergedData = [...new Set(mergedArr)];
-          } else {
-            mergedData = { ...currentData, ...importedData };
-          }
-
-          await storage.set(key, mergedData);
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    }
-    async function importData() {
-      try {
-        const {
-          canceled,
-          filePaths: [dirPath],
-        } = await ipcRenderer.callMain('dialog:open', {
-          title: 'Import data',
-          properties: ['openDirectory'],
-        });
-
-        if (canceled) return;
-
-        let { data } = await ipcRenderer.callMain(
-          'fs:read-json',
-          path.join(dirPath, 'data.json')
-        );
-
-        if (!data) return showAlert(translations.settings.invaliddata);
-
-        if (typeof data === 'string') {
-          dialog.prompt({
-            title: translations.settings.Inputpassword,
-            body: translations.settings.body,
-            okText: translations.settings.Import,
-            cancelText: translations.settings.Cancel,
-            placeholder: translations.settings.Password,
-            onConfirm: async (pass) => {
-              try {
-                const bytes = AES.decrypt(data, pass);
-                const result = bytes.toString(Utf8);
-                const resultObj = JSON.parse(result);
-
-                await mergeImportedData(resultObj); // Wait for merge operation to finish
-                const dataDir = await storage.get('dataDir', '', 'settings');
-                const importedDefaultPath = data['dataDir'];
-                const importedLockedStatus = data['lockStatus'];
-                const importedLockedNotes = data['lockedNotes'];
-                localStorage.setItem('dataDir', importedDefaultPath);
-                if (
-                  importedLockedStatus !== null &&
-                  importedLockedStatus !== undefined
-                ) {
-                  localStorage.setItem(
-                    'lockStatus',
-                    JSON.stringify(importedLockedStatus)
-                  );
-                }
-
-                if (
-                  importedLockedNotes !== null &&
-                  importedLockedNotes !== undefined
-                ) {
-                  localStorage.setItem(
-                    'lockedNotes',
-                    JSON.stringify(importedLockedNotes)
-                  );
-                }
-                await ipcRenderer.callMain('fs:copy', {
-                  path: path.join(dirPath, 'assets'),
-                  dest: path.join(dataDir, 'notes-assets'),
-                });
-                await ipcRenderer.callMain('fs:copy', {
-                  path: path.join(dirPath, 'file-assets'),
-                  dest: path.join(dataDir, 'file-assets'),
-                });
-
-                console.log('Assets copied successfully.');
-                window.location.reload();
-              } catch (error) {
-                showAlert(translations.settings.Invalidpassword);
-                return false;
-              }
-            },
-          });
-        } else {
-          await mergeImportedData(data); // Wait for merge operation to finish
-          const dataDir = await storage.get('dataDir', '', 'settings');
-          const importedDefaultPath = data['dataDir'];
-          const importedLockedStatus = data['lockStatus'];
-          const importedLockedNotes = data['lockedNotes'];
-          localStorage.setItem('dataDir', importedDefaultPath);
-          if (
-            importedLockedStatus !== null &&
-            importedLockedStatus !== undefined
-          ) {
-            localStorage.setItem(
-              'lockStatus',
-              JSON.stringify(importedLockedStatus)
-            );
-          }
-
-          if (
-            importedLockedNotes !== null &&
-            importedLockedNotes !== undefined
-          ) {
-            localStorage.setItem(
-              'lockedNotes',
-              JSON.stringify(importedLockedNotes)
-            );
-          }
-          await ipcRenderer.callMain('fs:copy', {
-            path: path.join(dirPath, 'assets'),
-            dest: path.join(dataDir, 'notes-assets'),
-          });
-          await ipcRenderer.callMain('fs:copy', {
-            path: path.join(dirPath, 'file-assets'),
-            dest: path.join(dataDir, 'file-assets'),
-          });
-
-          console.log('Assets copied successfully.');
-          window.location.reload();
-        }
-      } catch (error) {
-        console.error(error);
-      }
-    }
-
-    async function chooseDefaultPath() {
-      try {
-        const {
-          canceled,
-          filePaths: [dir],
-        } = await ipcRenderer.callMain('dialog:open', {
-          title: 'Select directory',
-          properties: ['openDirectory'],
-        });
-
-        if (canceled) return;
-        defaultPath = dir;
-        localStorage.setItem('default-path', defaultPath);
-        state.dataDir = defaultPath;
-        window.location.reload();
-      } catch (error) {
-        console.error(error);
-      }
-    }
 
     onMounted(() => {
       defaultPath = localStorage.getItem('default-path') || ''; // Set defaultPath here
       state.dataDir = defaultPath;
     });
-
-    const shortcuts = {
-      'mod+shift+u': importData,
-      'mod+shift+e': exportData,
-    };
 
     async function resetPasswordDialog() {
       const passwordStore = usePasswordStore(); // Get the password store instance
@@ -530,10 +258,6 @@ export default {
       }
     };
 
-    Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
-      shortcuts[combo]();
-    });
-
     const appStore = useAppStore();
     appStore.updateFromStorage();
     const authorizatedApps = ref(
@@ -569,15 +293,9 @@ export default {
 
     return {
       state,
-      theme,
-      themes,
       storage,
       translations,
-      exportData,
-      importData,
       resetPasswordDialog,
-      changeDataDir,
-      chooseDefaultPath,
       defaultPath,
       appStore,
       formatTime,
