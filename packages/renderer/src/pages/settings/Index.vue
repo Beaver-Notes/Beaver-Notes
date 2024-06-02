@@ -183,12 +183,14 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">Authorizated Applications</p>
+      <p class="mb-2">{{ t(translations.settings.authoriedApplications) }}</p>
       <div
         v-if="appStore.authRecords.length === 0"
         class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl"
       >
-        <div class="space-y-0 py-2">No Application Authorizated</div>
+        <div class="space-y-0 py-2">
+          {{ translations.settings.noAuthorizedApplicaitons || '-' }}
+        </div>
       </div>
       <div v-else class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
         <div
@@ -203,11 +205,17 @@
             <div>
               <div class="text-lg">{{ auth.name }}</div>
               <div class="text-sm">
-                <span>id: {{ auth.id }}</span>
+                <span>{{ t(translations.settings.id) }}: {{ auth.id }}</span>
               </div>
               <div class="text-sm flex gap-1">
-                <span>platfrom: {{ auth.platform }}</span>
-                <span>created at: {{ formatTime(auth.createdAt) }}</span>
+                <span
+                  >{{ t(translations.settings.platform) }}:
+                  {{ auth.platform }}</span
+                >
+                <span
+                  >{{ t(translations.settings.createdAt) }}:
+                  {{ formatTime(auth.createdAt) }}</span
+                >
               </div>
             </div>
 
@@ -252,6 +260,7 @@ import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
 import { useAppStore } from '../../store/app';
+import { t } from '@/utils/translations';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -643,6 +652,12 @@ export default {
         RTL: 'settings.RTL',
         autosync: 'settings.autosync',
         clearfont: 'settings.clearfont',
+        platform: 'settings.platform',
+        noAuthorizedApplicaitons: 'settings.noAuthorizedApplicaitons',
+        id: 'settings.id',
+        confirmDelete: 'settings.confirmDelete',
+        createdAt: 'settings.createdAt',
+        authoriedApplications: 'settings.authoriedApplications',
       },
     });
 
@@ -686,7 +701,10 @@ export default {
 
     function deleteAuth(auth) {
       dialog.confirm({
-        body: `Are you sure you want to delete ${auth.name}(id: ${auth.id})?`,
+        body: t(translations.settings.confirmDelete, {
+          name: auth.name,
+          id: auth.id,
+        }),
         onConfirm: async () => {
           appStore.authRecords = appStore.authRecords.filter(
             (a) => a.id !== auth.id
@@ -718,6 +736,7 @@ export default {
       deleteAuth,
       toggleAuth,
       authorizatedApps,
+      t,
     };
   },
   data() {

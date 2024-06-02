@@ -24,6 +24,8 @@ import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useDialog } from './composable/dialog';
 import { useClipboard } from './composable/clipboard';
 import { useAppStore } from './store/app';
+import { useTranslation } from './composable/translations';
+import { t } from './utils/translations';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
@@ -94,12 +96,16 @@ export default {
     };
 
     const appStore = useAppStore();
+    const translations = ref({ dialog: {} });
     const requestAuth = (data) => {
       const dialog = useDialog();
+      const trans = translations.value;
       dialog.auth({
-        body: `Do you confirm to give ${data.platform} permission?`,
+        body: t(trans.dialog.confirmGrantPermission, {
+          platform: data.platform,
+        }),
         auth: data.auth || [],
-        label: 'Name',
+        label: t(trans.dialog.tokenName),
         allowedEmpty: false,
         onConfirm: async ({ name, auths }) => {
           const token = await window.electron.createToken({
@@ -110,8 +116,8 @@ export default {
           });
           appStore.updateFromStorage();
           dialog.confirm({
-            body: `token: ${token}`,
-            okText: 'Copy',
+            body: `Token: ${token}`,
+            okText: t(trans.dialog.copy),
             onConfirm: () => {
               const { copyToClipboard } = useClipboard();
               copyToClipboard(token);
@@ -120,6 +126,14 @@ export default {
         },
       });
     };
+
+    onMounted(async () => {
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+    });
 
     onMounted(() => {
       setupSocket();
