@@ -160,6 +160,10 @@
         "exportmessage": "Notes is exported in",
         "fullWidth": "Expand page",
         "id": " ID",
+        "permissions": "Permissions",
+        "revoke": "Revoke",
+        "disable": "Disable",
+        "enable": "Enable",
         "iedata": "Import / Export data",
         "importdata": "Import data",
         "importsuccess": "Data imported successfully",
@@ -195,7 +199,8 @@
         "title": "Settings",
         "utilities": "Utilities",
         "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
-        "wrongCurrentPassword": "Wrong password, please try again"
+        "wrongCurrentPassword": "Wrong password, please try again",
+        "privacysecurity": "Privacy & Security"
     },
     "shortcuts": {
         "Arrowleft": "Arrow left",

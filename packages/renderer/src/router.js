@@ -6,6 +6,7 @@ import SettingsIndex from './pages/settings/Index.vue';
 import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
+import privacysecurity from './pages/settings/privacysecurity.vue';
 
 const routes = [
   {
@@ -37,6 +38,11 @@ const routes = [
         path: 'shortcuts',
         name: 'Settings-Shortcuts',
         component: SettingsShortcuts,
+      },
+      {
+        path: 'privacysecurity',
+        name: 'Settings-privacysecurity',
+        component: privacysecurity,
       },
       {
         path: 'about',
