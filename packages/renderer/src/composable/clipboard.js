@@ -23,7 +23,7 @@ export const useClipboard = () => {
   const copyToClipboard = (code) => {
     const clipboard = navigator.clipboard;
     if (clipboard != null) {
-      clipboard
+      return clipboard
         .writeText(code)
         .then(() => {
           copyState.value = 1;

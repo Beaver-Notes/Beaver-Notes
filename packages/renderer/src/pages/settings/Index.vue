@@ -182,11 +182,85 @@
         </p>
       </div>
     </section>
+    <section>
+      <p class="mb-2">{{ t(translations.settings.authorizedApplications) }}</p>
+      <div
+        v-if="appStore.authRecords.length === 0"
+        class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl"
+      >
+        <div class="space-y-0 py-2">
+          {{ translations.settings.noAuthorizedApplicaitons || '-' }}
+        </div>
+      </div>
+      <div v-else class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
+        <div
+          v-for="(auth, index) in appStore.authRecords"
+          :key="auth.id"
+          class="space-y-1"
+        >
+          <div
+            class="flex items-center py-2 justify-between"
+            :class="{ 'border-b-2': index !== appStore.authRecords.length - 1 }"
+          >
+            <div>
+              <div class="text-lg flex gap-1">
+                <div>{{ auth.name }}</div>
+                <div
+                  v-if="auth.auth !== '' && auth.auth != null"
+                  class="flex text-sm gap-1"
+                >
+                  <div
+                    v-for="p in auth.auth.split(',')"
+                    :key="p"
+                    class="py-0.5 px-1 rounded-md bg-primary text-amber-500 bg-opacity-5 dark:text-amber-400"
+                  >
+                    {{ p }}
+                  </div>
+                </div>
+              </div>
+              <div class="text-sm">
+                <span>{{ t(translations.settings.id) }}: {{ auth.id }}</span>
+              </div>
+              <div>
+                <div class="text-sm flex gap-1">
+                  <div>
+                    {{ t(translations.settings.platform) }}: {{ auth.platform }}
+                  </div>
+                  <div>
+                    {{ t(translations.settings.createdAt) }}:
+                    {{ formatTime(auth.createdAt) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="flex gap-1">
+              <label class="relative inline-flex cursor-pointer items-center">
+                <input
+                  v-model="authorizatedApps[index]"
+                  type="checkbox"
+                  class="peer sr-only"
+                  @change="(e) => toggleAuth(auth, authorizatedApps[index])"
+                />
+                <div
+                  class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                ></div>
+              </label>
+              <v-remixicon
+                name="riCloseLine"
+                class="cursor-pointer"
+                @click="() => deleteAuth(auth)"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script>
-import { shallowReactive, onMounted } from 'vue';
+import { shallowReactive, onMounted, ref, watch } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -198,7 +272,10 @@ import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
+import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
+import { useAppStore } from '../../store/app';
+import { t } from '@/utils/translations';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -590,6 +667,12 @@ export default {
         RTL: 'settings.RTL',
         autosync: 'settings.autosync',
         clearfont: 'settings.clearfont',
+        platform: 'settings.platform',
+        noAuthorizedApplicaitons: 'settings.noAuthorizedApplicaitons',
+        id: 'settings.id',
+        confirmDelete: 'settings.confirmDelete',
+        createdAt: 'settings.createdAt',
+        authorizedApplications: 'settings.authorizedApplications',
       },
     });
 
@@ -618,6 +701,39 @@ export default {
       shortcuts[combo]();
     });
 
+    const appStore = useAppStore();
+    appStore.updateFromStorage();
+    const authorizatedApps = ref(
+      appStore.authRecords.map((a) => a.status === 1)
+    );
+
+    watch(
+      () => appStore.authRecords,
+      (records) => {
+        authorizatedApps.value = records.map((a) => a.status === 1);
+      }
+    );
+
+    function deleteAuth(auth) {
+      dialog.confirm({
+        body: t(translations.settings.confirmDelete, {
+          name: auth.name,
+          id: auth.id,
+        }),
+        onConfirm: async () => {
+          appStore.authRecords = appStore.authRecords.filter(
+            (a) => a.id !== auth.id
+          );
+          await appStore.updateToStorage();
+        },
+      });
+    }
+
+    async function toggleAuth(auth, v) {
+      auth.status = v ? 1 : 0;
+      await appStore.updateToStorage();
+    }
+
     return {
       state,
       theme,
@@ -630,6 +746,12 @@ export default {
       changeDataDir,
       chooseDefaultPath,
       defaultPath,
+      appStore,
+      formatTime,
+      deleteAuth,
+      toggleAuth,
+      authorizatedApps,
+      t,
     };
   },
   data() {

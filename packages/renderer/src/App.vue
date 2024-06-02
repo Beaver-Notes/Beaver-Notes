@@ -11,7 +11,7 @@
   <ui-dialog />
 </template>
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
@@ -22,6 +22,10 @@ import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useDialog } from './composable/dialog';
+import { useClipboard } from './composable/clipboard';
+import { useAppStore } from './store/app';
+import { useTranslation } from './composable/translations';
+import { t } from './utils/translations';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
@@ -97,25 +101,54 @@ export default {
       });
     };
 
-    onMounted(() => {
-      setupSocket();
-      window.electron.setRequestAuthConfirm((data) => {
-        const dialog = useDialog();
-        dialog.confirm({
-          body: `Do you confirm to give ${data.platform} permission?`,
-          onConfirm: async () => {
-            const token = await window.electron.createToken({
-              id: data.id,
-              platform: data.platform,
-              name: 'Test',
-              auth: ['label:add', 'note:delete', 'note:add'],
-            });
-            dialog.confirm({
-              body: `token: ${token}`,
-            });
-          },
-        });
+    const appStore = useAppStore();
+    const translations = ref({ dialog: {} });
+    const requestAuth = (data) => {
+      const dialog = useDialog();
+      const trans = translations.value;
+      dialog.auth({
+        body: t(trans.dialog.confirmGrantPermission, {
+          platform: data.platform,
+        }),
+        auth: data.auth || [],
+        label: t(trans.dialog.tokenName),
+        allowedEmpty: false,
+        onConfirm: async ({ name, auths }) => {
+          const token = await window.electron.createToken({
+            id: data.id,
+            platform: data.platform,
+            name,
+            auth: auths,
+          });
+          appStore.updateFromStorage();
+          dialog.confirm({
+            body: `Token: ${token}`,
+            okText: t(trans.dialog.copy),
+            onConfirm: () => {
+              const { copyToClipboard } = useClipboard();
+              copyToClipboard(token);
+            },
+          });
+        },
       });
+    };
+
+    onMounted(async () => {
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+    });
+
+    onMounted(async () => {
+      setupSocket();
+      await appStore.updateFromStorage();
+      window.electron.setRequestAuthConfirm(requestAuth);
+    });
+
+    onUnmounted(() => {
+      appStore.updateToStorage();
     });
 
     const isFirstTime = localStorage.getItem('first-time');

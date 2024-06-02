@@ -50,8 +50,8 @@ const api = (ipcMain, win) => {
   });
 
   app.post('/request-auth', (req, res) => {
-    const { id, platform } = req.body;
-    ipcMain.callRenderer(win, 'auth:request-auth', { id, platform });
+    const { id, platform, auth } = req.body;
+    ipcMain.callRenderer(win, 'auth:request-auth', { id, platform, auth: auth || [] });
     res.send('request sent!');
   });
 
