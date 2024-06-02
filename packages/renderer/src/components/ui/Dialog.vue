@@ -25,6 +25,7 @@
       :label="state.options.label"
       class="w-full mt-4 no-security-text"
     ></ui-input>
+    <div v-if="isEmpty" class="text-sm text-red-500 mt-2">Input is empty.</div>
     <div v-if="state.type === 'auth'" class="w-full mt-4 flex flex-wrap gap-2">
       <ui-checkbox v-for="p in auths" :key="p.label" v-model="p.value">{{
         p.label
@@ -57,6 +58,7 @@ const defaultOptions = {
   placeholder: '',
   label: '',
   auth: [],
+  allowedEmpty: true,
   okText: 'Confirm',
   okVariant: 'primary',
   cancelText: 'Cancel',
@@ -74,6 +76,7 @@ export default {
     });
 
     const auths = ref(allPermissions.map((p) => ({ label: p, value: false })));
+    const isEmpty = ref(false);
 
     emitter.on('show-dialog', (type, options) => {
       state.type = type;
@@ -89,6 +92,7 @@ export default {
       }
 
       state.show = true;
+      isEmpty.value = false;
     });
 
     function fireCallback(type) {
@@ -104,6 +108,14 @@ export default {
           : true;
       let hide = true;
 
+      console.log(type, state.options.allowedEmpty);
+      if (type !== 'onCancel' && !state.options.allowedEmpty) {
+        if (state.input == null || state.input === '') {
+          isEmpty.value = true;
+          return;
+        }
+      }
+
       if (callback) {
         const cbReturn = callback(param);
 
@@ -115,6 +127,7 @@ export default {
         state.show = false;
         state.input = '';
       }
+      isEmpty.value = false;
     }
 
     function keyupHandler({ code }) {
@@ -140,6 +153,7 @@ export default {
       state,
       fireCallback,
       auths,
+      isEmpty,
     };
   },
 };

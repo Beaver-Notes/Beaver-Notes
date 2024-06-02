@@ -11,7 +11,7 @@
   <ui-dialog />
 </template>
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
@@ -23,6 +23,7 @@ import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useDialog } from './composable/dialog';
 import { useClipboard } from './composable/clipboard';
+import { useAppStore } from './store/app';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
@@ -92,32 +93,42 @@ export default {
       });
     };
 
+    const appStore = useAppStore();
+    const requestAuth = (data) => {
+      const dialog = useDialog();
+      dialog.auth({
+        body: `Do you confirm to give ${data.platform} permission?`,
+        auth: data.auth || [],
+        label: 'Name',
+        allowedEmpty: false,
+        onConfirm: async ({ name, auths }) => {
+          const token = await window.electron.createToken({
+            id: data.id,
+            platform: data.platform,
+            name,
+            auth: auths,
+          });
+          appStore.updateFromStorage();
+          dialog.confirm({
+            body: `token: ${token}`,
+            okText: 'Copy',
+            onConfirm: () => {
+              const { copyToClipboard } = useClipboard();
+              copyToClipboard(token);
+            },
+          });
+        },
+      });
+    };
+
     onMounted(() => {
       setupSocket();
-      window.electron.setRequestAuthConfirm((data) => {
-        const dialog = useDialog();
-        dialog.auth({
-          body: `Do you confirm to give ${data.platform} permission?`,
-          auth: data.auth || [],
-          label: 'Name',
-          onConfirm: async ({ name, auths }) => {
-            const token = await window.electron.createToken({
-              id: data.id,
-              platform: data.platform,
-              name,
-              auth: auths,
-            });
-            dialog.confirm({
-              body: `token: ${token}`,
-              okText: 'Copy',
-              onConfirm: () => {
-                const { copyToClipboard } = useClipboard();
-                copyToClipboard(token);
-              },
-            });
-          },
-        });
-      });
+      appStore.updateFromStorage();
+      window.electron.setRequestAuthConfirm(requestAuth);
+    });
+
+    onUnmounted(() => {
+      appStore.updateToStorage();
     });
 
     const isFirstTime = localStorage.getItem('first-time');
