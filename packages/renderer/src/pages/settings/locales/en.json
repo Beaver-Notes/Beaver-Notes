@@ -208,7 +208,8 @@
     "autosync": "Auto sync",
     "clearfont": "Clear Font - OLED",
     "Appearance": "Appearance",
-    "interfaceOptions": "Interface Options"
+    "interfaceOptions": "Interface Options",
+    "selectcodefont": "Select Code Font"
   },
   "_idvue": {
     "Previousnote": "Previous notes",

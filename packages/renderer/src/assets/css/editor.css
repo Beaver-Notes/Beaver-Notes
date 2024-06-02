@@ -205,7 +205,7 @@ li[data-checked="true"] {
   pre {
     background: #0D0D0D;
     color: #FFF;
-    font-family: 'JetBrainsMono', monospace;
+    font-family: var(--selected-font-code);
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
 
