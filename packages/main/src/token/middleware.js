@@ -7,39 +7,85 @@ import store from '../store';
 export function verify(permissions) {
   return (req, res, next) => {
     const token = (req.headers['authorization'] ?? '').replace('Bearer ', '');
+    
     if (!token) {
-      res.status(401);
-      res.send('Token is blank!');
-      return ;
+      console.log('Token is blank!');
+      return res.status(401).send('Token is blank!');
     }
+    
     try {
       const info = separateToken(token);
-      if (!permissions.every((p) => info.auth.indexOf(p) >= 0)) {
-        res.status(401);
-        res.send('No such permission!');
-        return ;
+      
+      // Log the entire info object
+      console.log('Parsed token info:', info);
+
+      // Ensure info.auth is a string and convert it to an array
+      if (typeof info.auth === 'string') {
+        info.auth = info.auth.split(',').sort();
       }
+
+      // Ensure info.auth is now an array
+      if (!Array.isArray(info.auth)) {
+        console.log('Token auth data is invalid!', info.auth);
+        return res.status(401).send('Token auth data is invalid!');
+      }
+
+      // Log the permissions being checked
+      console.log('Required permissions:', permissions);
+      console.log('Token permissions:', info.auth);
+
+      // Ensure all permissions are present
+      if (!permissions.every((p) => info.auth.includes(p))) {
+        console.log('No such permission!');
+        return res.status(401).send('No such permission!');
+      }
+      
       const authRecords = store.settings.get('authRecords') || [];
-      console.log(authRecords, info);
-      if (authRecords.length === 0 || !authRecords.some((a) => a.id === info.id && a.clientId === info.clientId && a.platform === info.platform && a.name === info.name && a.auth === info.auth && a.status === 1 && a.createdAt === info.createdAt && a.expiredTime === info.expiredTime)) {
-        res.status(401);
-        res.send('Authorization not recorded!');
-        return ;
-      }
-      if (info.expiredTime !== 0) {
-        if (Date.now() > info.expiredTime + info.createdAt) {
-          res.status(401);
-          res.send('Token is expired!');
-          return ;
+
+      // Log the authorization records
+      console.log('Authorization records:', authRecords);
+
+      // Ensure authRecords is an array of objects with auth as a comma-separated string
+      const isAuthorized = authRecords.some((record) => {
+        const recordAuthArray = record.auth.split(',').sort(); // Convert back to array and sort
+        const infoAuthSorted = info.auth.sort();
+        const match = (
+          typeof record === 'object' &&
+          record !== null &&
+          Array.isArray(recordAuthArray) &&
+          record.id === info.id &&
+          record.clientId === info.clientId &&
+          record.platform === info.platform &&
+          record.name === info.name &&
+          JSON.stringify(recordAuthArray) === JSON.stringify(infoAuthSorted) && // Compare sorted arrays
+          record.status === 1 &&
+          record.createdAt === info.createdAt &&
+          record.expiredTime === info.expiredTime
+        );
+
+        if (!match) {
+          console.log('Record mismatch:', record, info);
         }
+
+        return match;
+      });
+
+      if (!isAuthorized) {
+        console.log('Authorization not recorded!');
+        return res.status(401).send('Authorization not recorded!');
       }
+      
+      if (info.expiredTime !== 0 && Date.now() > info.createdAt + info.expiredTime) {
+        console.log('Token is expired!');
+        return res.status(401).send('Token is expired!');
+      }
+
       req.auth = info;
-    } catch (e) {
-      console.error(e);
-      res.status(401);
-      res.send('Token is not valid!');
-      return ;
+    } catch (error) {
+      console.error('Token validation error:', error);
+      return res.status(401).send('Token is not valid!');
     }
+    
     next();
   };
 }
