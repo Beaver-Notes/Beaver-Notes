@@ -183,7 +183,7 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">{{ t(translations.settings.authoriedApplications) }}</p>
+      <p class="mb-2">{{ t(translations.settings.authorizedApplications) }}</p>
       <div
         v-if="appStore.authRecords.length === 0"
         class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl"
@@ -203,19 +203,34 @@
             :class="{ 'border-b-2': index !== appStore.authRecords.length - 1 }"
           >
             <div>
-              <div class="text-lg">{{ auth.name }}</div>
+              <div class="text-lg flex gap-1">
+                <div>{{ auth.name }}</div>
+                <div
+                  v-if="auth.auth !== '' && auth.auth != null"
+                  class="flex text-sm gap-1"
+                >
+                  <div
+                    v-for="p in auth.auth.split(',')"
+                    :key="p"
+                    class="py-0.5 px-1 rounded-md bg-primary text-amber-500 bg-opacity-5 dark:text-amber-400"
+                  >
+                    {{ p }}
+                  </div>
+                </div>
+              </div>
               <div class="text-sm">
                 <span>{{ t(translations.settings.id) }}: {{ auth.id }}</span>
               </div>
-              <div class="text-sm flex gap-1">
-                <span
-                  >{{ t(translations.settings.platform) }}:
-                  {{ auth.platform }}</span
-                >
-                <span
-                  >{{ t(translations.settings.createdAt) }}:
-                  {{ formatTime(auth.createdAt) }}</span
-                >
+              <div>
+                <div class="text-sm flex gap-1">
+                  <div>
+                    {{ t(translations.settings.platform) }}: {{ auth.platform }}
+                  </div>
+                  <div>
+                    {{ t(translations.settings.createdAt) }}:
+                    {{ formatTime(auth.createdAt) }}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -657,7 +672,7 @@ export default {
         id: 'settings.id',
         confirmDelete: 'settings.confirmDelete',
         createdAt: 'settings.createdAt',
-        authoriedApplications: 'settings.authoriedApplications',
+        authorizedApplications: 'settings.authorizedApplications',
       },
     });
 
