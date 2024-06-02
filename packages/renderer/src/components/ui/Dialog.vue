@@ -122,7 +122,6 @@ export default {
           : true;
       let hide = true;
 
-      console.log(type, state.options.allowedEmpty);
       if (type !== 'onCancel' && !state.options.allowedEmpty) {
         if (state.input == null || state.input === '') {
           isEmpty.value = true;
