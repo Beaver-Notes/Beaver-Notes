@@ -1,5 +1,6 @@
 :root {
   --selected-font: 'Arimo', sans-serif;
+  --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;
   @apply dark:text-[color:var(--selected-dark-text)];
 }

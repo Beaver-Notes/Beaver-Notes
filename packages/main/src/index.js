@@ -271,7 +271,7 @@ ipcMain.answerRenderer('auth:create-token', (data) => {
     clientId: data.id,
     platform: data.platform,
     name: data.name,
-    auth: data.auth.toSorted().join(','),
+    auth: data.auth.sort().join(','), // Store as a sorted, comma-separated string
     status: 1,
     createdAt,
     expiredTime,

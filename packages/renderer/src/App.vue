@@ -39,10 +39,16 @@ export default {
     const retrieved = ref(false);
 
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
+    const selectedCodeFont =
+      localStorage.getItem('selected-font-code') || 'JetBrains Mono';
     const selectedDarkText =
       localStorage.getItem('selected-dark-text') || 'white';
     const editorWidth = localStorage.getItem('editorWidth') || '52rem';
     document.documentElement.style.setProperty('--selected-font', selectedFont);
+    document.documentElement.style.setProperty(
+      '--selected-font-code',
+      selectedCodeFont
+    );
     document.documentElement.style.setProperty(
       '--selected-dark-text',
       selectedDarkText
@@ -135,9 +141,9 @@ export default {
       });
     });
 
-    onMounted(() => {
+    onMounted(async () => {
       setupSocket();
-      appStore.updateFromStorage();
+      await appStore.updateFromStorage();
       window.electron.setRequestAuthConfirm(requestAuth);
     });
 
