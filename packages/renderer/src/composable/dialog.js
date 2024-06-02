@@ -9,8 +9,13 @@ export function useDialog() {
     emitter.emit('show-dialog', 'prompt', options);
   }
 
+  function auth(options) {
+    emitter.emit('show-dialog', 'auth', options);
+  }
+
   return {
     prompt,
     confirm,
+    auth,
   };
 }

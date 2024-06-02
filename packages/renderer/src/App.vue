@@ -22,6 +22,7 @@ import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useDialog } from './composable/dialog';
+import { useClipboard } from './composable/clipboard';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
@@ -95,17 +96,24 @@ export default {
       setupSocket();
       window.electron.setRequestAuthConfirm((data) => {
         const dialog = useDialog();
-        dialog.confirm({
+        dialog.auth({
           body: `Do you confirm to give ${data.platform} permission?`,
-          onConfirm: async () => {
+          auth: data.auth || [],
+          label: 'Name',
+          onConfirm: async ({ name, auths }) => {
             const token = await window.electron.createToken({
               id: data.id,
               platform: data.platform,
-              name: 'Test',
-              auth: ['label:add', 'note:delete'],
+              name,
+              auth: auths,
             });
             dialog.confirm({
               body: `token: ${token}`,
+              okText: 'Copy',
+              onConfirm: () => {
+                const { copyToClipboard } = useClipboard();
+                copyToClipboard(token);
+              },
             });
           },
         });

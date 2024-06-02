@@ -49,7 +49,9 @@ export default {
 
     function openTextarea() {
       showTextarea.value = true;
-      inputRef.value.focus();
+      if (inputRef.value) {
+        inputRef.value.focus();
+      }
     }
 
     function closeTextarea() {

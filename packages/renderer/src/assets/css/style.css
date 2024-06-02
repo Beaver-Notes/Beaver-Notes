@@ -64,3 +64,6 @@ option {
   text-overflow: ellipsis;
 }
 
+.no-security-text input {
+    -webkit-text-security: none !important;
+}

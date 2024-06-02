@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <ui-modal :model-value="state.show" content-class="max-w-sm" persist>
     <template #header>
@@ -16,6 +17,19 @@
       :label="state.options.label"
       class="w-full mt-4"
     ></ui-input>
+    <ui-input
+      v-else-if="state.type === 'auth'"
+      v-model="state.input"
+      autofocus
+      :placeholder="state.options.placeholder"
+      :label="state.options.label"
+      class="w-full mt-4 no-security-text"
+    ></ui-input>
+    <div v-if="state.type === 'auth'" class="w-full mt-4 flex flex-wrap gap-2">
+      <ui-checkbox v-for="p in auths" :key="p.label" v-model="p.value">{{
+        p.label
+      }}</ui-checkbox>
+    </div>
     <div class="mt-8 flex space-x-2 rtl:space-x-0">
       <ui-button class="w-6/12 rtl:ml-2" @click="fireCallback('onCancel')">
         {{ state.options.cancelText }}
@@ -32,8 +46,9 @@
 </template>
 
 <script>
-import { reactive, watch } from 'vue';
+import { reactive, watch, ref } from 'vue';
 import emitter from 'tiny-emitter/instance';
+import { allPermissions } from '../../constants';
 
 const defaultOptions = {
   html: false,
@@ -41,6 +56,7 @@ const defaultOptions = {
   title: '',
   placeholder: '',
   label: '',
+  auth: [],
   okText: 'Confirm',
   okVariant: 'primary',
   cancelText: 'Cancel',
@@ -57,6 +73,8 @@ export default {
       options: defaultOptions,
     });
 
+    const auths = ref(allPermissions.map((p) => ({ label: p, value: false })));
+
     emitter.on('show-dialog', (type, options) => {
       state.type = type;
       state.options = {
@@ -64,12 +82,26 @@ export default {
         ...options,
       };
 
+      const checkedAuths = state.options.auth || [];
+      for (let i = 0, len = auths.value.length; i < len; i++) {
+        const auth = auths.value[i].label;
+        auths.value[i].value = checkedAuths.findIndex((a) => a === auth) >= 0;
+      }
+
       state.show = true;
     });
 
     function fireCallback(type) {
       const callback = state.options[type];
-      const param = state.type === 'prompt' ? state.input : true;
+      const param =
+        state.type === 'prompt'
+          ? state.input
+          : state.type === 'auth'
+          ? {
+              name: state.input,
+              auths: auths.value.filter((a) => a.value).map((a) => a.label),
+            }
+          : true;
       let hide = true;
 
       if (callback) {
@@ -107,6 +139,7 @@ export default {
     return {
       state,
       fireCallback,
+      auths,
     };
   },
 };
