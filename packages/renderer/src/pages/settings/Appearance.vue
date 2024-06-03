@@ -551,6 +551,7 @@ export default {
         RTL: 'settings.RTL',
         autosync: 'settings.autosync',
         clearfont: 'settings.clearfont',
+        selectcodefont: 'settings.selectcodefont',
       },
     });
 
