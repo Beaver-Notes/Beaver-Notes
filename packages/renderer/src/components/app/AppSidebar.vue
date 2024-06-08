@@ -395,6 +395,16 @@ export default {
           path: path.join(folderPath, 'data.json'),
           data: { data },
         });
+
+        // Create a backup of the JSON file
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(folderPath, 'data.json'),
+          dest: path.join(
+            folderPath,
+            `data_${dayjs().format('YYYYMMDD_HHmmss')}.json.bak`
+          ),
+        });
+
         await ipcRenderer.callMain('fs:copy', {
           path: path.join(dataDir, 'notes-assets'),
           dest: path.join(folderPath, 'assets'),
@@ -431,14 +441,7 @@ export default {
         let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
         let dirPath = path.join(defaultPath, folderName);
 
-        try {
-          let { data } = await ipcRenderer.callMain(
-            'fs:read-json',
-            path.join(dirPath, 'data.json')
-          );
-
-          if (!data) return showAlert(translations.settings.invaliddata);
-
+        const importData = async (data) => {
           if (typeof data === 'string') {
             dialog.prompt({
               title: translations.settings.Inputpassword,
@@ -497,6 +500,17 @@ export default {
             await mergeImportedData(data); // Wait for merge operation to finish
             console.log('Data merged successfully.');
           }
+        };
+
+        try {
+          let { data } = await ipcRenderer.callMain(
+            'fs:read-json',
+            path.join(dirPath, 'data.json')
+          );
+
+          if (!data) return showAlert(translations.settings.invaliddata);
+
+          await importData(data);
         } catch (error) {
           today = today.subtract(1, 'day');
           folderName = today.format('[Beaver Notes] YYYY-MM-DD');
@@ -505,6 +519,23 @@ export default {
           if (today.isBefore('YYYY-MM-DD')) {
             console.error('No data available for syncing.');
             return;
+          }
+
+          try {
+            let { data } = await ipcRenderer.callMain(
+              'fs:read-json',
+              path.join(dirPath, 'data.json')
+            );
+
+            if (!data) return showAlert(translations.settings.invaliddata);
+
+            await importData(data);
+          } catch (error) {
+            notification({
+              title: translations.sidebar.notification,
+              body: translations.sidebar.importFail,
+            });
+            console.error('Error while importing data:', error);
           }
         }
       } catch (error) {
