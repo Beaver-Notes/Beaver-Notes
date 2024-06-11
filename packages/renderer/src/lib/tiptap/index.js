@@ -21,6 +21,7 @@ import FileEmbed from './exts/file-embed';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
 import Iframe from './exts/iframe.ts';
+import CollapsibleSection from './exts/collapsible-block';
 import {
   blueCallout,
   yellowCallout,
@@ -88,6 +89,7 @@ export const extensions = [
     resizable: true,
   }),
   TableCell,
+  CollapsibleSection,
   TableHeader,
   TableRow,
   TaskItem.configure({
