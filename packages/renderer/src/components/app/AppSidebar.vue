@@ -354,14 +354,6 @@ export default {
     // auto sync
 
     const autoSync = localStorage.getItem('autoSync');
-    const autoSyncInterval = 30 * 60 * 1000; // 30 minutes in milliseconds
-
-    function scheduleAutoSync() {
-      if (autoSync === 'true') {
-        importAndExportData();
-        setInterval(importAndExportData, autoSyncInterval);
-      }
-    }
 
     const handleNavigation = async (nav) => {
       if (autoSync === 'true') {
@@ -369,12 +361,6 @@ export default {
       }
       router.push(nav.path);
     };
-
-    function importAndExportData() {
-      syncimportData()
-        .then(() => syncexportData())
-        .catch((error) => console.error('Error during import/export:', error));
-    }
 
     async function syncexportData() {
       try {
@@ -588,10 +574,8 @@ export default {
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
+      syncimportData();
     });
-
-    // Schedule autoSync if enabled
-    scheduleAutoSync();
 
     const loadTranslations = async () => {
       const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
