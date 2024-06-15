@@ -9,7 +9,7 @@
           <span>{{ fileName }}</span>
         </div>
         <button
-          class="download-button bg-input p-1 rounded-lg outline-none"
+          class="download-button bg-input p-1 px-3 rounded-lg outline-none"
           @click="downloadFile"
         >
           <v-remixicon name="riDownloadLine" class="w-6 h-6" />
