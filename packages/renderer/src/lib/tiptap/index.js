@@ -22,6 +22,7 @@ import Text from '@tiptap/extension-text';
 import Search from './exts/search';
 import Iframe from './exts/iframe.ts';
 import CollapsibleSection from './exts/collapsible-block';
+import collapseHeading from './exts/collapseHeading';
 import {
   blueCallout,
   yellowCallout,
@@ -124,6 +125,7 @@ export const extensions = [
     },
   }),
   Iframe,
+  collapseHeading,
 ];
 
 export default function ({ extensions: optsExts, ...opts }) {

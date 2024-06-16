@@ -1,11 +1,11 @@
 <template>
   <node-view-wrapper class="collapsible-section">
     <button @click="toggleOpen">{{ node.attrs.open ? '▼' : '▶' }}</button>
-    <div class="collapsible-header">
+    <div contenteditable="" class="collapsible-header">
       <node-view-content
         v-model="title"
-        @input="updateTitle"
         class="collapsible-title"
+        @input="updateTitle"
       ></node-view-content>
     </div>
     <div v-show="node.attrs.open" class="collapsible-content">

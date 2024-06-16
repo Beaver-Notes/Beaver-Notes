@@ -425,6 +425,9 @@ export default {
       try {
         let today = dayjs();
         let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+        if (!defaultPath) {
+          return;
+        }
         let dirPath = path.join(defaultPath, folderName);
 
         const importData = async (data) => {
