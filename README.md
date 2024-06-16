@@ -16,7 +16,7 @@
 <div align="center">
 <img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
 
-<p><b>Your Private Note-Taking Buddy 📝</b></p>
+<p><b>Build your knowledge one log at a time</b></p>
 <p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
 
 [Website](https://beavernotes.com) | [Blog](https://beavernotes.com/blog) | [Docs](https://danieles-organization.gitbook.io/beaver-notes/) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
