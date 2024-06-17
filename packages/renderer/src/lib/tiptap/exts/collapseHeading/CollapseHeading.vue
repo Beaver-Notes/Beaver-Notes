@@ -12,16 +12,11 @@
 </template>
 <script setup>
 import { NodeViewWrapper, NodeViewContent, nodeViewProps } from '@tiptap/vue-3';
-import { computed, nextTick, toRaw } from 'vue';
+import { computed, toRaw } from 'vue';
 
 const props = defineProps(nodeViewProps);
 const attrs = computed(() => props.node.attrs);
 const isOpen = computed(() => attrs.value.open);
-function toggleOpenStatus() {
-  props.updateAttributes({
-    open: !isOpen.value,
-  });
-}
 function findPos(node) {
   const allNodePos = props.editor.$nodes(node.type.name);
   // don't use eq, beacause it will be matched wrong node.
@@ -55,13 +50,11 @@ function collapseHeading() {
   const collapsedContent = JSON.stringify(nodes.slice(start + 1, end));
   collapsedContent !== '[]' &&
     editor.commands.deleteRange({ from: rs, to: re });
-  props.updateAttributes({
-    collapsedContent,
-  });
+  return collapsedContent;
 }
 function unCollapsedHeading() {
   const collapsedContent = attrs.value.collapsedContent;
-  if (collapsedContent === '') {
+  if (collapsedContent == null || collapsedContent === '') {
     return;
   }
   const editor = props.editor;
@@ -81,21 +74,17 @@ function unCollapsedHeading() {
       nodePos.from + nodePos.node.content.size,
       cNodes
     );
-    props.updateAttributes({
-      collapsedContent: '',
-    });
   } catch (e) {
     console.error(e);
   }
+  return '';
 }
 function toggleCollapse() {
-  nextTick(() => {
-    if (attrs.value.open) {
-      collapseHeading();
-    } else {
-      unCollapsedHeading();
-    }
-    toggleOpenStatus();
+  const content = attrs.value.open ? collapseHeading() : unCollapsedHeading();
+  props.updateAttributes({
+    level: attrs.value.level,
+    open: !isOpen.value,
+    collapsedContent: content,
   });
 }
 </script>

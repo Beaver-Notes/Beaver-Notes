@@ -1,6 +1,7 @@
 import Heading from '@tiptap/extension-heading';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import CollapseHeading from './CollapseHeading.vue';
+import { mergeAttributes } from '@tiptap/core';
 
 export default Heading.extend({
   addOptions() {
@@ -13,16 +14,24 @@ export default Heading.extend({
     };
   },
   parseHTML() {
-    return this.options.levels.map((v) => ({
-      tag: `h${v}`,
-      attrs: {
-        level: v,
-      },
+    return this.options.levels.map((level) => ({
+      tag: `h${level}`,
+      attrs: { ...this.options.HTMLAttributes, level },
     }));
   },
-  renderHTML(opt) {
-    const dom = this.parent?.(opt);
-    return dom;
+
+  renderHTML({ node, HTMLAttributes }) {
+    const hasLevel = this.options.levels.includes(node.attrs.level);
+    const level = hasLevel ? node.attrs.level : this.options.levels[0];
+    Object.assign(HTMLAttributes, node.attrs);
+    // record the initial attributes
+    Object.assign(this.options.HTMLAttributes, HTMLAttributes);
+
+    return [
+      `h${level}`,
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
   addAttributes() {
     const options = this.parent?.() ?? {};
@@ -30,9 +39,11 @@ export default Heading.extend({
       ...options,
       open: {
         default: true,
+        rendered: false,
       },
       collapsedContent: {
         default: '',
+        rendered: false,
       },
     };
   },
@@ -42,10 +53,19 @@ export default Heading.extend({
       update: ({ oldNode, newNode, updateProps }) => {
         if (newNode.type.name !== this.name) return false;
         // Make sure to redraw node as the vue renderer will not show the updated children
+        if (Object.keys(oldNode.attrs).length === 0) {
+          // When `oldNode.attrs` is `{}`, we need to solve it in a special way.
+          // collapse
+          if (this.options.HTMLAttributes.level === newNode.attrs.level) {
+            updateProps();
+            return true;
+          }
+          // toggleHeading
+          return false;
+        }
         if (newNode.attrs.level !== oldNode.attrs.level) {
-          const attrs = { ...oldNode.attrs };
-          attrs.level = newNode.attrs.level;
-          newNode.attrs = attrs;
+          const newLevel = newNode.attrs.level;
+          newNode.attrs = { ...oldNode.attrs, level: newLevel };
           return false;
         }
         updateProps();
