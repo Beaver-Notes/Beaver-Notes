@@ -10,29 +10,27 @@ export const LiteralTab = Extension.create({
           .chain()
           .focus()
           .command(({ state, dispatch }) => {
-            const { $from } = state.selection;
-            const startPos = $from.start();
-
-            // Check if a list item is active
+            const { selection, tr } = state;
+            const { $from } = selection;
             const isListItemActive =
               editor.isActive('bulletList') || editor.isActive('orderedList');
 
             if (isListItemActive) {
-              // Prevent the default behavior of tab key in the editor
+              // Prevent the default behavior of the tab key in the editor for list items
               return false;
             }
 
-            // Insert tab character at the current position
-            const transaction = state.tr.insertText('\t', startPos);
+            // Insert a tab character at the current cursor position
+            const transaction = tr.insertText('\t', $from.pos);
 
-            const endPos = startPos + 1;
-            const selection = state.selection.constructor.near(
-              transaction.doc.resolve(endPos)
+            // Move the cursor to the position after the inserted tab character
+            const selectionToEnd = selection.constructor.near(
+              transaction.doc.resolve($from.pos + 1)
             );
-            transaction.setSelection(selection);
+            transaction.setSelection(selectionToEnd);
             dispatch(transaction);
 
-            // Prevent the default behavior of tab key in the browser
+            // Prevent the default behavior of the tab key in the browser
             return true;
           })
           .run();
