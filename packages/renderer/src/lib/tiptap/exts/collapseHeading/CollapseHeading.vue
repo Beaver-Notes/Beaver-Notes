@@ -70,10 +70,14 @@ function unCollapsedHeading() {
     if (cNodes.length === 0) {
       return;
     }
-    editor.commands.insertContentAt(
-      nodePos.from + nodePos.node.content.size,
-      cNodes
-    );
+    if (nodePos.node.content.size === 0) {
+      editor.commands.insertContentAt(nodePos.range, cNodes);
+    } else {
+      editor.commands.insertContentAt(
+        nodePos.from + nodePos.node.content.size,
+        cNodes
+      );
+    }
   } catch (e) {
     console.error(e);
   }
