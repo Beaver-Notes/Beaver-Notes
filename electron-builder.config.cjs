@@ -11,7 +11,6 @@ const electronBuilderConfig = {
   },
   files: [
     'packages/**/dist/**',
-    '!node_modules/**/*',
   ],
   extraMetadata: {
     version: packageJSON.version,

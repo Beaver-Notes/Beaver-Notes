@@ -2,7 +2,7 @@ import { Node, mergeAttributes, nodeInputRule } from '@tiptap/core';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import MermaidDiagram from './MermaidBlock.vue';
 
-const inputRegex = /^```mermaid\s+$/;
+const inputRegex = /^::mermaid\s+$/;
 
 export default Node.create({
   name: 'mermaidDiagram',

@@ -17,7 +17,7 @@ import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
-import FileEmbed from './exts/file-embed';
+import FileEmbed from './exts/file-block';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
 import Iframe from './exts/iframe.ts';

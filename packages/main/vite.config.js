@@ -4,6 +4,7 @@ import { builtinModules } from 'module';
 
 import {defineConfig} from 'vite';
 import {loadAndSetEnv} from '../../scripts/loadAndSetEnv.mjs';
+import packages from '../../package.json';
 
 const PACKAGE_ROOT = __dirname;
 
@@ -43,6 +44,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         'electron',
+        ...Object.keys(packages.dependencies),
         ...builtinModules,
       ],
       output: {

@@ -36,10 +36,10 @@
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.utilities || '-' }}</p>
-      <div className="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
+      <div>
         <div class="space-y-1">
           <!-- advanced settings -->
-          <div class="flex items-center border-b-2 py-2 justify-between">
+          <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
                 {{ translations.settings.advancedSettings || '-' }}
@@ -59,7 +59,7 @@
             </label>
           </div>
           <!-- App Reminder -->
-          <div class="flex items-center border-b-2 py-2 justify-between">
+          <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
                 {{ translations.settings.syncreminder || '-' }}
@@ -79,7 +79,7 @@
             </label>
           </div>
           <!-- Spellcheck -->
-          <div class="flex items-center border-b-2 py-2 justify-between">
+          <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
                 {{ translations.settings.spellcheck || '-' }}
