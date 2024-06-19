@@ -1,7 +1,9 @@
 <template>
   <div
+    ref="container"
     class="text-gray-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
+    @wheel="changeWheelDirection"
   >
     <div class="w-full h-full flex items-center justify-between w-full">
       <!-- <input
@@ -204,6 +206,7 @@ import {
   onMounted,
   computed,
   shallowReactive,
+  ref,
 } from 'vue';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
@@ -498,6 +501,8 @@ export default {
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
+      // Add event listeners for drag and drop
+      document.addEventListener('drop', handleDrop);
     });
 
     const loadTranslations = async () => {
@@ -533,6 +538,37 @@ export default {
       }
     };
 
+    // Function to handle drop event
+    async function handleDrop(event) {
+      if (event.altKey || event.getModifierState('Alt') || event.metaKey) {
+        // Alt/Opt key is pressed
+        event.preventDefault();
+        event.stopPropagation();
+
+        // Access dropped files
+        const files = event.dataTransfer.files;
+        const timestamp = Date.now();
+
+        try {
+          for (const file of files) {
+            const { fileName, relativePath } = await saveFile(file, timestamp);
+            const src = `${relativePath}`; // Construct the complete source path
+            props.editor.commands.setFileEmbed(src, fileName);
+          }
+        } catch (error) {
+          console.error('Error saving and embedding files:', error);
+        }
+      }
+    }
+
+    const container = ref();
+    function changeWheelDirection(e) {
+      e.preventDefault();
+      if (container.value) {
+        container.value.scrollLeft += e.deltaY + e.deltaX;
+      }
+    }
+
     return {
       store,
       lists,
@@ -552,6 +588,8 @@ export default {
       showAdavancedSettings,
       showHeadingsTree,
       printContent,
+      container,
+      changeWheelDirection,
     };
   },
 };

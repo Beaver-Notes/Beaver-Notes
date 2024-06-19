@@ -1,14 +1,21 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 w-full max-w-xl">
+  <div class="general space-y-8 mb-14 w-full max-w-xl">
     <section v-for="shortcut in shortcuts" :key="shortcut.title">
       <p class="mb-2">{{ translations.shortcuts[shortcut.title] || '-' }}</p>
       <ui-list class="rounded-lg">
         <ui-list-item v-for="item in shortcut.items" :key="item.name">
           <p class="flex-1">{{ translations.shortcuts[item.name] || '-' }}</p>
-          <kbd v-for="key in item.keys" :key="key" class="mr-1">{{
-            getFormattedKey(key)
-          }}</kbd>
+          <kbd v-for="key in item.keys" :key="key" class="mr-1">
+            <!-- Directly include "Drag" and "Arrow left" -->
+            {{
+              key === 'Drag'
+                ? translations.shortcuts.Drag
+                : key === 'Arrow left'
+                ? translations.shortcuts.Arrowleft
+                : getFormattedKey(key)
+            }}
+          </kbd>
         </ui-list-item>
       </ui-list>
     </section>
@@ -17,6 +24,60 @@
 
 <script setup>
 import { onMounted, shallowReactive } from 'vue';
+
+// Translations
+
+const translations = shallowReactive({
+  shortcuts: {
+    General: 'shortcuts.General',
+    Navigates: 'shortcuts.Navigates',
+    Editor: 'shortcuts.Editor',
+    Createnewnote: 'shortcuts.Createnewnote',
+    Togglecommandprompt: 'shortcuts.Togglecommandprompt',
+    Toggledarktheme: 'shortcuts.Toggledarktheme',
+    Toggleexport: 'shortcuts.Toggleexport',
+    Toggleimport: 'shortcuts.Toggleimport',
+    Toeditednote: 'shortcuts.Toeditednote',
+    Tonotes: 'shortcuts.Tonotes',
+    Toarchivednotes: 'shortcuts.Toarchivednotes',
+    Tosettings: 'shortcuts.Tosettings',
+    Bold: 'shortcuts.Bold',
+    Italic: 'shortcuts.Italic',
+    Underline: 'shortcuts.Underline',
+    Link: 'shortcuts.Link',
+    Strikethrough: 'shortcuts.Strikethrough',
+    Highlight: 'shortcuts.Highlight',
+    Inlinecode: 'shortcuts.Inlinecode',
+    Headings: 'shortcuts.Headings',
+    Orderedlist: 'shortcuts.Orderedlist',
+    Bulletlist: 'shortcuts.Bulletlist',
+    Blockquote: 'shortcuts.Blockquote',
+    Blockcode: 'shortcuts.Blockcode',
+    Previousnote: 'shortcuts.Previousnote',
+    EmbedFile: 'shortcuts.EmbedFile',
+    Drag: 'shortcuts.Drag',
+  },
+});
+
+onMounted(async () => {
+  const loadedTranslations = await loadTranslations();
+  if (loadedTranslations) {
+    Object.assign(translations, loadedTranslations);
+  }
+});
+
+const loadTranslations = async () => {
+  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+  try {
+    const translationModule = await import(
+      `./locales/${selectedLanguage}.json`
+    );
+    return translationModule.default;
+  } catch (error) {
+    console.error('Error loading translations:', error);
+    return null;
+  }
+};
 
 const shortcuts = [
   {
@@ -68,62 +129,14 @@ const shortcuts = [
       { name: 'Bulletlist', keys: getFormattedKeys(['Ctrl', 'Shift', '8']) },
       { name: 'Blockquote', keys: getFormattedKeys(['Ctrl', 'Shift', 'B']) },
       { name: 'Blockcode', keys: getFormattedKeys(['Ctrl', 'Alt', 'C']) },
+      {
+        name: 'EmbedFile',
+        keys: getFormattedKeys(['Alt', 'Drag']),
+      },
       { name: 'Previousnote', keys: getFormattedKeys(['Alt', 'Arrow left']) },
     ],
   },
 ];
-
-// Translations
-
-const translations = shallowReactive({
-  shortcuts: {
-    General: 'shortcuts.General',
-    Navigates: 'shortcuts.Navigates',
-    Editor: 'shortcuts.Editor',
-    Createnewnote: 'shortcuts.Createnewnote',
-    Togglecommandprompt: 'shortcuts.Togglecommandprompt',
-    Toggledarktheme: 'shortcuts.Toggledarktheme',
-    Toggleexport: 'shortcuts.Toggleexport',
-    Toggleimport: 'shortcuts.Toggleimport',
-    Toeditednote: 'shortcuts.Toeditednote',
-    Tonotes: 'shortcuts.Tonotes',
-    Toarchivednotes: 'shortcuts.Toarchivednotes',
-    Tosettings: 'shortcuts.Tosettings',
-    Bold: 'shortcuts.Bold',
-    Italic: 'shortcuts.Italic',
-    Underline: 'shortcuts.Underline',
-    Link: 'shortcuts.Link',
-    Strikethrough: 'shortcuts.Strikethrough',
-    Highlight: 'shortcuts.Highlight',
-    Inlinecode: 'shortcuts.Inlinecode',
-    Headings: 'shortcuts.Headings',
-    Orderedlist: 'shortcuts.Orderedlist',
-    Bulletlist: 'shortcuts.Bulletlist',
-    Blockquote: 'shortcuts.Blockquote',
-    Blockcode: 'shortcuts.Blockcode',
-    Previousnote: 'shortcuts.Previousnote',
-  },
-});
-
-onMounted(async () => {
-  const loadedTranslations = await loadTranslations();
-  if (loadedTranslations) {
-    Object.assign(translations, loadedTranslations);
-  }
-});
-
-const loadTranslations = async () => {
-  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-  try {
-    const translationModule = await import(
-      `./locales/${selectedLanguage}.json`
-    );
-    return translationModule.default;
-  } catch (error) {
-    console.error('Error loading translations:', error);
-    return null;
-  }
-};
 
 function getFormattedKey(key) {
   if (isMacOS()) {

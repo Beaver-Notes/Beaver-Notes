@@ -3,8 +3,10 @@ import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Settings from './pages/Settings.vue';
 import SettingsIndex from './pages/settings/Index.vue';
+import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
+import privacysecurity from './pages/settings/privacysecurity.vue';
 
 const routes = [
   {
@@ -28,9 +30,19 @@ const routes = [
         component: SettingsIndex,
       },
       {
+        path: 'appearance',
+        name: 'Settings-Appearance',
+        component: SettingsAppearance,
+      },
+      {
         path: 'shortcuts',
         name: 'Settings-Shortcuts',
         component: SettingsShortcuts,
+      },
+      {
+        path: 'privacysecurity',
+        name: 'Settings-privacysecurity',
+        component: privacysecurity,
       },
       {
         path: 'about',

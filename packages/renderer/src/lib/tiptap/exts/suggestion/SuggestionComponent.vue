@@ -6,7 +6,7 @@
   >
     <ui-list class="cursor-pointer space-y-1">
       <p v-if="items.length === 0 && query.length === 0" class="text-center">
-        No data
+        {{ translations.menu.noData || '-' }}
       </p>
       <template v-else>
         <ui-list-item
@@ -16,7 +16,9 @@
           class="label-item w-full text-overflow"
           @click="selectItem(index)"
         >
-          <p class="text-overflow">{{ getLabel(item) || 'Untitled' }}</p>
+          <p class="text-overflow">
+            {{ getLabel(item) || 'translations.menu.noData' }}
+          </p>
         </ui-list-item>
       </template>
       <ui-list-item
@@ -26,7 +28,9 @@
         @click="onAdd(query, command)"
       >
         <v-remixicon name="riAddLine" class="mr-2" />
-        Add "<strong class="text-overflow"> {{ query.slice(0, 50) }} </strong>"
+        {{ translations.menu.Add || '-' }} "<strong class="text-overflow">
+          {{ query.slice(0, 50) }} </strong
+        >"
       </ui-list-item>
     </ui-list>
   </ui-card>
@@ -34,7 +38,7 @@
 
 <script setup>
 /* eslint-disable no-undef */
-import { watch, ref } from 'vue';
+import { watch, ref, shallowReactive, onMounted } from 'vue';
 
 const props = defineProps({
   onSelect: Function,
@@ -124,6 +128,36 @@ watch(
     selectedIndex.value = 0;
   }
 );
+
+// Translations
+
+const translations = shallowReactive({
+  menu: {
+    noData: 'menu.Nodata',
+    untitled: 'menu.untitled',
+    Add: 'menu.Add',
+  },
+});
+
+onMounted(async () => {
+  const loadedTranslations = await loadTranslations();
+  if (loadedTranslations) {
+    Object.assign(translations, loadedTranslations);
+  }
+});
+
+const loadTranslations = async () => {
+  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+  try {
+    const translationModule = await import(
+      `../../../../pages/settings/locales/${selectedLanguage}.json`
+    );
+    return translationModule.default;
+  } catch (error) {
+    console.error('Error loading translations:', error);
+    return null;
+  }
+};
 
 defineExpose({ onKeyDown });
 </script>

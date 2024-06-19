@@ -74,7 +74,11 @@
       </template>
     </div>
     <div v-else class="text-center">
-      <img src="../assets/images/Beaver.png" class="mx-auto" />
+      <img
+        :src="theme.currentTheme.value === 'dark' ? BeaverDark : Beaver"
+        class="mx-auto w-2/4"
+      />
+
       <p
         class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
       >
@@ -95,6 +99,7 @@ import {
   shallowReactive,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useTheme } from '@/composable/theme';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
@@ -102,6 +107,8 @@ import { sortArray, extractNoteText } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import HomeNoteFilter from '@/components/home/HomeNoteFilter.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
+import Beaver from '@/assets/images/Beaver.png';
+import BeaverDark from '@/assets/images/Beaver-dark.png';
 
 let hasReminded = true;
 
@@ -110,6 +117,7 @@ export default {
   setup() {
     const showDialog = ref(checkAppReminder());
     const disableDialog = ref(false);
+    const theme = useTheme();
 
     function checkAppReminder() {
       const disableReminder = localStorage.getItem('disableAppReminder');
@@ -319,6 +327,9 @@ export default {
       disableDialog,
       showAppReminderDialog,
       closeDialog,
+      Beaver,
+      BeaverDark,
+      theme,
     };
   },
 };

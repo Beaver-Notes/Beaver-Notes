@@ -6,6 +6,7 @@ import esTranslations from '../pages/settings/locales/es.json';
 import deTranslations from '../pages/settings/locales/de.json';
 import zhTranslations from '../pages/settings/locales/zh.json';
 import nlTranslations from '../pages/settings/locales/nl.json';
+import ukTranslations from '../pages/settings/locales/uk.json';
 
 const theme = useTheme();
 
@@ -35,6 +36,10 @@ if (selectedLanguage === 'nl') {
 
 if (selectedLanguage === 'es') {
   translations = esTranslations;
+}
+
+if (selectedLanguage === 'uk') {
+  translations = ukTranslations;
 }
 
 let commands = [

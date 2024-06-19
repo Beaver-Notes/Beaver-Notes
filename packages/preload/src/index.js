@@ -16,6 +16,14 @@ const apiKey = 'electron';
 function notification(props) {
   return ipcRenderer.callMain('app:notification', props);
 }
+let closeFnList = [];
+let requestAuthConfirm;
+ipcRenderer.answerMain('win:close', async () => {
+  await Promise.allSettled(closeFnList.map((fn) => fn()));
+});
+ipcRenderer.answerMain('auth:request-auth', (data) => {
+  requestAuthConfirm && requestAuthConfirm(data);
+});
 /**
  * @see https://github.com/electron/electron/issues/21437#issuecomment-573522360
  */
@@ -26,6 +34,9 @@ const api = {
   notification,
   access: (dir) => access(dir, constants.R_OK | constants.W_OK),
   versions: process.versions,
+  addCloseFn: (fn) => closeFnList.every(f => f !== fn) && closeFnList.push(fn),
+  setRequestAuthConfirm: (fn) => requestAuthConfirm = fn,
+  createToken: (data) => ipcRenderer.callMain('auth:create-token', data),
 };
 
 if (import.meta.env.MODE !== 'test') {

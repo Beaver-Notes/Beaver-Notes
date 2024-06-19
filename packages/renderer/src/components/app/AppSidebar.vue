@@ -22,20 +22,20 @@
     >
       <v-remixicon name="riEditLine" />
     </button>
-    <router-link
+    <button
       v-for="nav in navs"
       :key="nav.name"
       v-tooltip:right="
         `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
       "
-      :to="nav.path"
       :class="{
         'text-primary dark:text-secondary': $route.fullPath === nav.path,
       }"
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
+      @click="handleNavigation(nav)"
     >
       <v-remixicon :name="nav.icon" />
-    </router-link>
+    </button>
     <!-- Navbar bottom icons -->
     <div class="flex-grow"></div>
     <button
@@ -60,11 +60,7 @@
       v-tooltip:right="
         translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
       "
-      :class="[
-        theme.isDark()
-          ? 'text-primary dark:text-[color:var(--selected-dark-text)]'
-          : 'dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800',
-      ]"
+      :class="[theme.isDark() ? 'text-primary' : '']"
       class="transition p-2 mb-4"
       @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
     >
@@ -93,6 +89,7 @@ import { useDialog } from '@/composable/dialog';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
+import { onClose } from '../../composable/onClose';
 
 export default {
   setup() {
@@ -130,12 +127,22 @@ export default {
         path: '/',
         icon: 'riBookletLine',
         shortcut: 'mod+shift+n',
+        action: () => {
+          // Add your pre-action logic here
+          console.log('Pre-action logic for Notes navigation');
+          router.push('/');
+        },
       },
       {
         name: translations.sidebar.Archive,
         path: '/?archived=true',
         icon: 'riArchiveDrawerLine',
         shortcut: 'mod+shift+a',
+        action: () => {
+          // Add your pre-action logic here
+          console.log('Pre-action logic for Archive navigation');
+          router.push('/?archived=true');
+        },
       },
     ]);
 
@@ -347,22 +354,13 @@ export default {
     // auto sync
 
     const autoSync = localStorage.getItem('autoSync');
-    const autoSyncInterval = 30 * 60 * 1000; // 30 minutes in milliseconds
 
-    function scheduleAutoSync() {
+    const handleNavigation = async (nav) => {
       if (autoSync === 'true') {
-        // Run import immediately
-        importAndExportData();
-        // Schedule subsequent imports and exports at intervals
-        setInterval(importAndExportData, autoSyncInterval);
+        await syncexportData(); // Wait for syncexportData() to complete if autoSync is true
       }
-    }
-
-    function importAndExportData() {
-      syncimportData()
-        .then(() => syncexportData())
-        .catch((error) => console.error('Error during import/export:', error));
-    }
+      router.push(nav.path);
+    };
 
     async function syncexportData() {
       try {
@@ -383,6 +381,16 @@ export default {
           path: path.join(folderPath, 'data.json'),
           data: { data },
         });
+
+        // Create a backup of the JSON file
+        await ipcRenderer.callMain('fs:copy', {
+          path: path.join(folderPath, 'data.json'),
+          dest: path.join(
+            folderPath,
+            `data_${dayjs().format('YYYYMMDD_HHmmss')}.json.bak`
+          ),
+        });
+
         await ipcRenderer.callMain('fs:copy', {
           path: path.join(dataDir, 'notes-assets'),
           dest: path.join(folderPath, 'assets'),
@@ -394,10 +402,6 @@ export default {
 
         state.withPassword = false;
         state.password = '';
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.exportSuccess,
-        });
       } catch (error) {
         notification({
           title: translations.sidebar.notification,
@@ -407,20 +411,26 @@ export default {
       }
     }
 
+    onClose(exportAndQuit);
+
+    async function exportAndQuit() {
+      const autoSync = localStorage.getItem('autoSync');
+
+      if (autoSync === 'true') {
+        await syncexportData();
+      }
+    }
+
     async function syncimportData() {
       try {
         let today = dayjs();
         let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+        if (!defaultPath) {
+          return;
+        }
         let dirPath = path.join(defaultPath, folderName);
 
-        try {
-          let { data } = await ipcRenderer.callMain(
-            'fs:read-json',
-            path.join(dirPath, 'data.json')
-          );
-
-          if (!data) return showAlert(translations.settings.invaliddata);
-
+        const importData = async (data) => {
           if (typeof data === 'string') {
             dialog.prompt({
               title: translations.settings.Inputpassword,
@@ -479,6 +489,17 @@ export default {
             await mergeImportedData(data); // Wait for merge operation to finish
             console.log('Data merged successfully.');
           }
+        };
+
+        try {
+          let { data } = await ipcRenderer.callMain(
+            'fs:read-json',
+            path.join(dirPath, 'data.json')
+          );
+
+          if (!data) return showAlert(translations.settings.invaliddata);
+
+          await importData(data);
         } catch (error) {
           today = today.subtract(1, 'day');
           folderName = today.format('[Beaver Notes] YYYY-MM-DD');
@@ -488,11 +509,24 @@ export default {
             console.error('No data available for syncing.');
             return;
           }
+
+          try {
+            let { data } = await ipcRenderer.callMain(
+              'fs:read-json',
+              path.join(dirPath, 'data.json')
+            );
+
+            if (!data) return showAlert(translations.settings.invaliddata);
+
+            await importData(data);
+          } catch (error) {
+            notification({
+              title: translations.sidebar.notification,
+              body: translations.sidebar.importFail,
+            });
+            console.error('Error while importing data:', error);
+          }
         }
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.importSuccess,
-        });
       } catch (error) {
         notification({
           title: translations.sidebar.notification,
@@ -543,10 +577,8 @@ export default {
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
+      syncimportData();
     });
-
-    // Schedule autoSync if enabled
-    scheduleAutoSync();
 
     const loadTranslations = async () => {
       const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
@@ -569,6 +601,7 @@ export default {
       noteStore,
       openLastEdited,
       keyBinding,
+      handleNavigation,
       exportData,
       importData,
     };

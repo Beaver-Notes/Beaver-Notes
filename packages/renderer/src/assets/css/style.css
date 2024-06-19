@@ -1,5 +1,6 @@
 :root {
   --selected-font: 'Arimo', sans-serif;
+  --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;
   @apply dark:text-[color:var(--selected-dark-text)];
 }
@@ -35,18 +36,19 @@ option {
   @apply px-2 py-1 text-sm text-gray-200 rounded-md;
 }
 
-.scroll {
-  &::-webkit-scrollbar {
-    width: 7px;
-    height: 9px;
-  }
-  &::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-700;
-    border-radius: 8px;
-  }
-  &::-webkit-scrollbar-track {
-    background: transparent;
-  }
+::-webkit-scrollbar {
+  width: 10px;
+  height: 9px;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-[#d8d9d9] dark:bg-[#424546];
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-[#9ed6f4] dark:bg-[#2c6685];
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .text-overflow {
@@ -63,3 +65,6 @@ option {
   text-overflow: ellipsis;
 }
 
+.no-security-text input {
+    -webkit-text-security: none !important;
+}

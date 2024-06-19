@@ -13,6 +13,7 @@ import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
+import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
@@ -20,6 +21,7 @@ import FileEmbed from './exts/file-embed';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
 import Iframe from './exts/iframe.ts';
+import collapseHeading from './exts/collapseHeading';
 import {
   blueCallout,
   yellowCallout,
@@ -40,6 +42,7 @@ import deTranslations from '../../pages/settings/locales/de.json';
 import esTranslations from '../../pages/settings/locales/es.json';
 import zhTranslations from '../../pages/settings/locales/zh.json';
 import nlTranslations from '../../pages/settings/locales/nl.json';
+import ukTranslations from '../../pages/settings/locales/uk.json';
 
 const directionPreference = localStorage.getItem('directionPreference');
 
@@ -59,6 +62,8 @@ if (selectedLanguage === 'it') {
   translations = nlTranslations;
 } else if (selectedLanguage === 'es') {
   translations = esTranslations;
+} else if (selectedLanguage === 'uk') {
+  translations = ukTranslations;
 }
 
 export const extensions = [
@@ -91,6 +96,7 @@ export const extensions = [
   }),
   CodeBlock,
   MathInline,
+  MermaidBlock,
   MathBlock,
   TextDirection.configure({
     defaultDirection: defaultDirection,
@@ -117,6 +123,7 @@ export const extensions = [
     },
   }),
   Iframe,
+  collapseHeading,
 ];
 
 export default function ({ extensions: optsExts, ...opts }) {

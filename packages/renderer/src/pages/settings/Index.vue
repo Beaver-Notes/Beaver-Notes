@@ -1,116 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 w-full max-w-xl">
-    <section>
-      <p class="mb-2">{{ translations.settings.apptheme || '-' }}</p>
-      <div
-        class="flex ltr:space-x-4 text-gray-600 dark:text-[color:var(--selected-dark-text)]"
-      >
-        <button
-          v-for="item in themes"
-          :key="item.name"
-          :class="{
-            'ring-2 ring-primary': theme.currentTheme.value === item.name,
-          }"
-          class="bg-input p-2 rtl:mx-2 rounded-lg transition cursor-pointer"
-          @click="theme.setTheme(item.name)"
-        >
-          <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings[item.name] || item.name }}
-          </p>
-        </button>
-      </div>
-    </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.interfacesize || '-' }}</p>
-      <div class="grid grid-cols-4 gap-4">
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
-          @click="setZoom(1.2)"
-        >
-          <img
-            src="/src/assets/images/Large.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.large || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.1' }"
-          @click="setZoom(1.1)"
-        >
-          <img
-            src="/src/assets/images/Medium.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.medium || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.0' }"
-          @click="setZoom(1.0)"
-        >
-          <img
-            src="/src/assets/images/Default.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.default || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '0.8' }"
-          @click="setZoom(0.8)"
-        >
-          <img
-            src="/src/assets/images/More Space.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.morespace || '-' }}
-          </p>
-        </button>
-      </div>
-    </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.interfaceDirection || '-' }}</p>
-      <div class="grid grid-cols-2 gap-4">
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': directionPreference === 'rtl' }"
-          @click="toggleRtl"
-        >
-          <img
-            :src="theme.currentTheme.value === 'dark' ? RTLImgDark : RTLImg"
-            class="w-full mx-auto mb-1 rounded-lg"
-          />
-
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.RTL || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': directionPreference === 'ltr' }"
-          @click="toggleLtr"
-        >
-          <img
-            :src="theme.currentTheme.value === 'dark' ? LTRImgDark : LTRImg"
-            class="w-full mx-auto mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.LTR || '-' }}
-          </p>
-        </button>
-      </div>
-    </section>
+  <div class="general space-y-8 mb-14 w-full max-w-xl">
     <section>
       <div>
         <p class="mb-2">{{ translations.settings.selectlanguage || '-' }}</p>
@@ -130,31 +20,6 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">{{ translations.settings.selectfont || '-' }}</p>
-      <ui-select
-        id="fontSelect"
-        v-model="selectedFont"
-        class="w-full"
-        @change="updateFont"
-      >
-        <option value="Arimo" class="font-arimo">Arimo</option>
-        <option value="avenir" class="font-avenir">Avenir</option>
-        <option value="EB Garamond" class="font-eb-faramond">
-          EB Garamond
-        </option>
-        <option value="'Helvetica Neue', sans-serif" class="font-helvetica">
-          Helvetica
-        </option>
-        <option value="OpenDyslexic" class="font-open-dyslexic">
-          Open Dyslexic
-        </option>
-        <option value="Roboto Mono" class="font-roboto-mono">
-          Roboto Mono
-        </option>
-        <option value="Ubuntu" class="font-ubuntu">Ubuntu</option>
-      </ui-select>
-    </section>
-    <section>
       <p class="mb-2">{{ translations.settings.syncpath || '-' }}</p>
       <div class="flex items-center ltr:space-x-2">
         <ui-input
@@ -171,147 +36,90 @@
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.utilities || '-' }}</p>
-      <div class="space-y-1">
-        <!-- advanced settings -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="advancedSettings"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleAdvancedSettings"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.advancedSettings || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- App Reminder -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="disableAppReminder"
-              type="checkbox"
-              class="peer sr-only"
-              @change="updateDisableAppReminder"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.syncreminder || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Expan Page -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="editorWidthChecked"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleEditorWidth"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.fullWidth || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Clear Text - OLED -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="ClearFontChecked"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleClearFont"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.clearfont || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Menubar visibility -->
-        <div v-if="!isMacOS" class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="visibilityMenubar"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleVisibilityOfMenubar"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.menuBarVisibility || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Spellcheck -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="spellcheckEnabled"
-              type="checkbox"
-              class="peer sr-only"
-              @change="toggleSpellcheck"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.spellcheck || '-' }}
-            </span>
-          </label>
-        </div>
-        <!-- Auto Sync -->
-        <div class="flex items-center space-x-2">
-          <label class="relative inline-flex cursor-pointer items-center">
-            <input
-              id="switch"
-              v-model="autoSync"
-              type="checkbox"
-              class="peer sr-only"
-              @change="updateAutoSync"
-            />
-            <label for="switch" class="hidden"></label>
-            <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-            <span class="inline-block ltr:ml-2 rtl:mr-2 align-middle">
-              {{ translations.settings.autosync || '-' }}
-            </span>
-          </label>
+      <div className="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
+        <div class="space-y-1">
+          <!-- advanced settings -->
+          <div class="flex items-center border-b-2 py-2 justify-between">
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.advancedSettings || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="advancedSettings"
+                type="checkbox"
+                class="peer sr-only"
+                @change="toggleAdvancedSettings"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
+          <!-- App Reminder -->
+          <div class="flex items-center border-b-2 py-2 justify-between">
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.syncreminder || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="disableAppReminder"
+                type="checkbox"
+                class="peer sr-only"
+                @change="updateDisableAppReminder"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
+          <!-- Spellcheck -->
+          <div class="flex items-center border-b-2 py-2 justify-between">
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.spellcheck || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="spellcheckEnabled"
+                type="checkbox"
+                class="peer sr-only"
+                @change="toggleSpellcheck"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
+          <!-- Auto Sync -->
+          <div class="flex items-center py-2 justify-between">
+            <div>
+              <span class="block text-lg align-left">
+                {{ translations.settings.autosync || '-' }}
+              </span>
+            </div>
+            <label class="relative inline-flex cursor-pointer items-center">
+              <input
+                id="switch"
+                v-model="autoSync"
+                type="checkbox"
+                class="peer sr-only"
+                @change="updateAutoSync"
+              />
+              <div
+                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              ></div>
+            </label>
+          </div>
         </div>
       </div>
-    </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.security || '-' }}</p>
-      <ui-button class="w-full" @click="resetPasswordDialog">{{
-        translations.settings.resetPassword
-      }}</ui-button>
     </section>
     <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
@@ -372,7 +180,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, computed } from 'vue';
+import { shallowReactive, onMounted, ref, watch } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -384,11 +192,10 @@ import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
+import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
-import LTRImg from '@/assets/images/LTR.png';
-import LTRImgDark from '@/assets/images/LTR-dark.png';
-import RTLImg from '@/assets/images/RTL.png';
-import RTLImgDark from '@/assets/images/RTL-dark.png';
+import { useAppStore } from '../../store/app';
+import { t } from '@/utils/translations';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -396,6 +203,7 @@ const esTranslations = import('../../pages/settings/locales/es.json');
 const itTranslations = import('../../pages/settings/locales/it.json');
 const nlTranslations = import('../../pages/settings/locales/nl.json');
 const zhTranslations = import('../../pages/settings/locales/zh.json');
+const ukTranslations = import('../../pages/settings/locales/uk.json');
 
 export const state = shallowReactive({
   dataDir: '',
@@ -779,6 +587,12 @@ export default {
         RTL: 'settings.RTL',
         autosync: 'settings.autosync',
         clearfont: 'settings.clearfont',
+        platform: 'settings.platform',
+        noAuthorizedApplicaitons: 'settings.noAuthorizedApplicaitons',
+        id: 'settings.id',
+        confirmDelete: 'settings.confirmDelete',
+        createdAt: 'settings.createdAt',
+        authorizedApplications: 'settings.authorizedApplications',
       },
     });
 
@@ -807,59 +621,38 @@ export default {
       shortcuts[combo]();
     });
 
-    const editorWidthChecked = computed({
-      get: () => localStorage.getItem('editorWidth') === '68rem',
-      set: (value) => {
-        localStorage.setItem('editorWidth', value ? '68rem' : '52rem');
-        document.documentElement.style.setProperty(
-          '--selected-width',
-          value ? '68rem' : '52rem'
-        );
-        window.location.reload();
-      },
-    });
+    const appStore = useAppStore();
+    appStore.updateFromStorage();
+    const authorizatedApps = ref(
+      appStore.authRecords.map((a) => a.status === 1)
+    );
 
-    const toggleEditorWidth = () => {
-      editorWidthChecked.value = !editorWidthChecked.value;
-    };
+    watch(
+      () => appStore.authRecords,
+      (records) => {
+        authorizatedApps.value = records.map((a) => a.status === 1);
+      }
+    );
 
-    const ClearFontChecked = computed({
-      get: () => localStorage.getItem('selected-dark-text') === '#CCCCCC',
-      set: (value) => {
-        localStorage.setItem('selected-dark-text', value ? '#CCCCCC' : 'white');
-        document.documentElement.style.setProperty(
-          'selected-dark-text',
-          value ? '#CCCCCC' : 'white'
-        );
-        window.location.reload();
-      },
-    });
+    function deleteAuth(auth) {
+      dialog.confirm({
+        body: t(translations.settings.confirmDelete, {
+          name: auth.name,
+          id: auth.id,
+        }),
+        onConfirm: async () => {
+          appStore.authRecords = appStore.authRecords.filter(
+            (a) => a.id !== auth.id
+          );
+          await appStore.updateToStorage();
+        },
+      });
+    }
 
-    const toggleClearFont = () => {
-      ClearFontChecked.value = !ClearFontChecked.value;
-    };
-
-    const visibilityMenubar = computed({
-      get: () => localStorage.getItem('visibility-menubar') === 'true',
-      set: (val) => {
-        localStorage.setItem('visibility-menubar', val.toString());
-      },
-    });
-    const toggleVisibilityOfMenubar = async () => {
-      await window.electron.ipcRenderer.callMain(
-        'app:change-menu-visibility',
-        localStorage.getItem('visibility-menubar') !== 'true'
-      );
-    };
-    const toggleRtl = () => {
-      localStorage.setItem('directionPreference', 'rtl');
-      window.location.reload();
-    };
-
-    const toggleLtr = () => {
-      localStorage.setItem('directionPreference', 'ltr');
-      window.location.reload();
-    };
+    async function toggleAuth(auth, v) {
+      auth.status = v ? 1 : 0;
+      await appStore.updateToStorage();
+    }
 
     return {
       state,
@@ -868,23 +661,17 @@ export default {
       storage,
       translations,
       exportData,
-      toggleRtl,
-      toggleLtr,
       importData,
       resetPasswordDialog,
       changeDataDir,
       chooseDefaultPath,
       defaultPath,
-      editorWidthChecked,
-      toggleClearFont,
-      ClearFontChecked,
-      toggleEditorWidth,
-      visibilityMenubar,
-      toggleVisibilityOfMenubar,
-      LTRImg,
-      LTRImgDark,
-      RTLImg,
-      RTLImgDark,
+      appStore,
+      formatTime,
+      deleteAuth,
+      toggleAuth,
+      authorizatedApps,
+      t,
     };
   },
   data() {
@@ -905,6 +692,7 @@ export default {
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
         { code: 'zh', name: '简体中文', translations: zhTranslations },
+        { code: 'uk', name: 'Українська', translations: ukTranslations },
       ],
     };
   },
@@ -913,40 +701,12 @@ export default {
       return window.navigator.platform.toLowerCase().includes('mac');
     },
   },
-  mounted() {
-    document.documentElement.style.setProperty(
-      '--selected-font',
-      this.selectedFont
-    );
-  },
   methods: {
     toggleAdvancedSettings() {
       localStorage.setItem(
         'advanced-settings',
         this.advancedSettings.toString()
       );
-    },
-    toggledirectionPreference() {
-      // Update the directionPreference value based on checkbox state
-      this.directionPreference =
-        this.directionPreference === 'rtl' ? 'ltr' : 'rtl';
-      // Set the updated value in localStorage
-      localStorage.setItem('directionPreference', this.directionPreference);
-      // Apply the direction preference immediately without reloading the page
-      document.documentElement.dir = this.directionPreference;
-    },
-    updateFont() {
-      localStorage.setItem('selected-font', this.selectedFont);
-
-      document.documentElement.style.setProperty(
-        '--selected-font',
-        this.selectedFont
-      );
-    },
-    setZoom(newZoomLevel) {
-      window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
-      this.state.zoomLevel = newZoomLevel.toFixed(1);
-      localStorage.setItem('zoomLevel', this.state.zoomLevel);
     },
     toggleSpellcheck() {
       localStorage.setItem('spellcheckEnabled', this.spellcheckEnabled);

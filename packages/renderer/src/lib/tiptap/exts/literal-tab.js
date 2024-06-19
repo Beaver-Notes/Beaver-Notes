@@ -5,22 +5,34 @@ export const LiteralTab = Extension.create({
 
   addKeyboardShortcuts() {
     return {
-      Tab: () => {
-        return this.editor
+      Tab: ({ editor }) => {
+        return editor
           .chain()
           .focus()
-          .command(({ tr, state }) => {
-            const { $from } = state.selection;
-            const startPos = $from.pos;
+          .command(({ state, dispatch }) => {
+            const { $cursor } = state.selection;
+            const startPos = $cursor.pos;
 
-            tr.insertText('\t', startPos);
+            // Check if a list item is active
+            const isListItemActive =
+              editor.isActive('bulletList') || editor.isActive('orderedList');
+
+            if (isListItemActive) {
+              // Prevent the default behavior of tab key in the editor
+              return false;
+            }
+
+            // Insert tab character at the current position
+            const transaction = state.tr.insertText('\t', startPos);
 
             const endPos = startPos + 1;
             const selection = state.selection.constructor.near(
-              tr.doc.resolve(endPos)
+              transaction.doc.resolve(endPos)
             );
-            tr.setSelection(selection);
+            transaction.setSelection(selection);
+            dispatch(transaction);
 
+            // Prevent the default behavior of tab key in the browser
             return true;
           })
           .run();

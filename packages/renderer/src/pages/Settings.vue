@@ -37,10 +37,22 @@ const settings = computed(() => ({
     path: '/settings',
     description: '',
   },
+  'Settings-Appearance': {
+    name: translations.settings.Appearance,
+    icon: 'riBrush3Fill',
+    path: '/settings/appearance',
+    description: '',
+  },
   'Settings-Shortcuts': {
     name: translations.settings.Shortcuts,
     icon: 'riKeyboardLine',
     path: '/settings/shortcuts',
+    description: '',
+  },
+  'Settings-Security': {
+    name: translations.settings.privacysecurity,
+    icon: 'riLockLine',
+    path: '/settings/privacysecurity',
     description: '',
   },
   'Settings-About': {
