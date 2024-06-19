@@ -1,5 +1,5 @@
 {
-  "name": "Beaver-notes",
+  "name": "beaver-notes",
   "type": "module",
   "private": false,
   "version": "3.2.0",
@@ -13,7 +13,7 @@
   "homepage": "https://beavernotes.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Daniele-rolli/Beaver-Notes"
+    "url": "git+https://github.com/Daniele-rolli/Beaver-Notes.git"
   },
   "main": "packages/main/dist/index.cjs",
   "scripts": {
@@ -57,6 +57,7 @@
     "@tailwindcss/typography": "^0.5.13",
     "@tiptap/extension-code": "^2.1.16",
     "@tiptap/extension-code-block-lowlight": "^2.1.16",
+    "@tiptap/extension-heading": "^2.4.0",
     "@tiptap/extension-highlight": "^2.1.16",
     "@tiptap/extension-image": "^2.1.16",
     "@tiptap/extension-link": "^2.1.16",

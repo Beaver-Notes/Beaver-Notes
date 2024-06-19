@@ -21,6 +21,7 @@ import FileEmbed from './exts/file-block';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
 import Iframe from './exts/iframe.ts';
+import collapseHeading from './exts/collapseHeading';
 import {
   blueCallout,
   yellowCallout,
@@ -122,6 +123,7 @@ export const extensions = [
     },
   }),
   Iframe,
+  collapseHeading,
 ];
 
 export default function ({ extensions: optsExts, ...opts }) {

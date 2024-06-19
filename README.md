@@ -8,7 +8,7 @@
 ![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat-square&logo=archlinux&color=blue)
 ![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat-square)
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat-square)
-[![All Contributors](https://img.shields.io/badge/all_contributors-5-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-7-orange.svg?style=flat-square)](#contributors-)
 [![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)](https://mastodon.social/@Beavernotes)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=license)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=security)
@@ -17,7 +17,7 @@
 <div align="center">
 <img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
 
-<p><b>Your Private Note-Taking Buddy 📝</b></p>
+<p><b>Build your knowledge one log at a time</b></p>
 <p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
 
 [Website](https://beavernotes.com) | [Blog](https://beavernotes.com/blog) | [Docs](https://danieles-organization.gitbook.io/beaver-notes/) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
@@ -26,7 +26,7 @@
 
 Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
-![systems](https://github.com/Daniele-rolli/Beaver-Notes/assets/67503004/f9c6e510-3bad-4563-b6b4-5dfc7dff7caa)
+![Beaver Notes demo](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/a7b38689-0363-49f0-8ed8-60e7358b1df6)
 
 ## Features 🛠️
 
@@ -78,6 +78,8 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/kant"><img src="https://avatars.githubusercontent.com/u/32717?v=4?s=100" width="100px;" alt="Darío Hereñú"/><br /><sub><b>Darío Hereñú</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=kant" title="Documentation">📖</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mee141"><img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" width="100px;" alt="mee_"/><br /><sub><b>mee_</b></sub></a><br /><a href="#translation-mee141" title="Translation">🌍</a> <a href="#maintenance-mee141" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.eave.fyi"><img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" width="100px;" alt="Bryan Ricker"/><br /><sub><b>Bryan Ricker</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Documentation">📖</a> <a href="#translation-bricker" title="Translation">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Code">💻</a></td>
+        <td align="center" valign="top" width="14.28%"><img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="verthandii"/><br /><sub><b>Verthandii</b></sub><br /> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commit/6b3240dbc69f667f6a74cd29387f628f94c67ef2" title="Translation">🌍</a></td>
+       <td align="center" valign="top" width="14.28%"><img src="https://files.mastodon.social/cache/accounts/avatars/109/133/358/983/739/539/original/581ad9fb29a9a04d.png" width="100px;" alt="mondstern"/><br /><sub><a href="https://moooon.dresden.network"><b>Mondstern</b></a></sub><br /> <a title="Translation">🌍</a></td>
     </tr>
   </tbody>
 </table>
