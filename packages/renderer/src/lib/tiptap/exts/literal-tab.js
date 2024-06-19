@@ -10,8 +10,8 @@ export const LiteralTab = Extension.create({
           .chain()
           .focus()
           .command(({ state, dispatch }) => {
-            const { $from } = state.selection;
-            const startPos = $from.start();
+            const { $cursor } = state.selection;
+            const startPos = $cursor.pos;
 
             // Check if a list item is active
             const isListItemActive =
