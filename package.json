@@ -26,7 +26,7 @@
     "lint": "eslint . --ext js,ts,vue",
     "postinstall": "electron-builder install-app-deps",
     "tran-util": "node scripts/translationUtil.js",
-    "update-tran": "node scripts/updateTranslations.js"
+    "tran-update": "node scripts/updateTranslations.js"
   },
   "browserslist": [
     "Chrome 91"

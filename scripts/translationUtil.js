@@ -36,7 +36,7 @@ async function showUnsynchronized(localePath) {
   if (Object.keys(diffObj).length > 0) {
     console.log(`\n${highlightText(`Unsynchronized translations for ${targetLng}:`)}`);
     console.log(diffObj);
-    console.log(`Run ${highlightText('yarn run update-tran')} to update.`);
+    console.log(`Run ${highlightText('yarn run tran-update')} to update.`);
   } else {
     console.log(`\nTranslations for ${targetLng} are synchronized.`);
   }

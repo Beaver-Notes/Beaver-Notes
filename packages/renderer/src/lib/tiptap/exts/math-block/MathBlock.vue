@@ -32,8 +32,7 @@
         <img src="@/assets/svg/katex.svg" width="48" style="margin: 0" />
         <div class="flex-grow"></div>
         <p v-if="isContentChange" class="text-sm" style="margin: 0">
-          Press <strong>Ctrl</strong>+<strong>Enter</strong> to exit from math
-          block
+          <strong>{{ translations._idvue.exit }}</strong>
         </p>
         <v-remixicon
           v-tooltip="'KaTeX Macros (Ctrl+Shift+M)'"
@@ -47,7 +46,7 @@
   </node-view-wrapper>
 </template>
 <script>
-import { onMounted, ref } from 'vue';
+import { shallowReactive, onMounted, ref } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import katex from 'katex';
 
@@ -111,9 +110,37 @@ export default {
       renderContent();
     });
 
+    const translations = shallowReactive({
+      sidebar: {
+        exit: '_idvue.exit',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       contentRef,
       handleKeydown,
+      translations,
       updateContent,
       useKatexMacros,
       isContentChange,

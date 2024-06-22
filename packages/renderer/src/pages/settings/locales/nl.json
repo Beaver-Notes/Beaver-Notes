@@ -1,7 +1,16 @@
 {
   "_idvue": {
     "Previousnote": "Vorige notitie",
+    "exit": "Druk op Ctrl + Enter om te sluiten",
     "untitlednote": "lege notitie"
+  },
+  "about": {
+    "description": "Beaver Notes is ontwikeld met lievde ❤️ in een regenachtige hut in Noord-Italië.",
+    "donate": "Doneer",
+    "github": "GitHub",
+    "title": "Beaver Notes",
+    "versionLabel": "Versie",
+    "website": "Website"
   },
   "card": {
     "Cancel": "Annuleer",
