@@ -1,7 +1,5 @@
-#!/bin/node
 import path from 'node:path';
 import fs from 'node:fs';
-import readline from 'node:readline';
 
 const targetLng = process.argv.slice(-1)[0];
 const __dirname = new URL('.', import.meta.url).pathname;
@@ -11,36 +9,36 @@ if (targetLng === process.argv[1]) {
   process.exit(1);
 }
 
-function writeData(tips, path, data) {
-  const rl = readline.createInterface(process.stdin, process.stdout);
-  return new Promise((resolve) => {
-    rl.question(tips, (anwser) => {
-      if (anwser.toLocaleLowerCase()[0] === 'y') {
-        fs.writeFileSync(path, JSON.stringify(data, null, 2));
-        console.log('Writed!');
-      }
-      rl.close();
-      resolve();
-    });
-  });
+function highlightText(text) {
+  return `\x1b[33m${text}\x1b[0m`; // Yellow color
 }
 
-async function diffTranslation(localePath) {
+async function showUnsynchronized(localePath) {
   const enPath = path.resolve(__dirname, `${localePath}/en.json`);
   const targetPath = path.resolve(__dirname, `${localePath}/${targetLng}.json`);
-  const enTranslation = JSON.parse(fs.readFileSync(enPath).toString());
-  if (!fs.existsSync(targetPath)) {
-    await writeData(`No such translation for ${targetLng}.\nCan you generate it on \x1b[31m${targetPath}\x1b[0m from English?y/[n]`, targetPath, enTranslation);
+  
+  if (!fs.existsSync(enPath)) {
+    console.log(`\n${highlightText('Error:')} English translation file (${enPath}) not found.`);
     return;
   }
+
+  if (!fs.existsSync(targetPath)) {
+    console.log(`\n${highlightText(`No translation found for ${targetLng}`)}.`);
+    console.log(`Run ${highlightText('yarn run update-tran')} to update.`);
+    return;
+  }
+
+  const enTranslation = JSON.parse(fs.readFileSync(enPath).toString());
   const targetTranslation = JSON.parse(fs.readFileSync(targetPath).toString());
-  const [obj, diffObj] = diffObject(enTranslation, targetTranslation);
+  
+  const [ diffObj] = diffObject(enTranslation, targetTranslation);
+  
   if (Object.keys(diffObj).length > 0) {
-    console.log('diff translation in ' + targetPath + ' is');
+    console.log(`\n${highlightText(`Unsynchronized translations for ${targetLng}:`)}`);
     console.log(diffObj);
-    await writeData(`Overwrite ${targetLng}?y/[n]`, targetPath, Object.assign(targetTranslation, obj));
+    console.log(`Run ${highlightText('yarn run tran-update')} to update.`);
   } else {
-    console.log('no diff in ' + targetPath);
+    console.log(`\nTranslations for ${targetLng} are synchronized.`);
   }
 }
 
@@ -69,4 +67,4 @@ function diffObject(source, target) {
   return [obj, diffObj];
 }
 
-await diffTranslation('../packages/renderer/src/pages/settings/locales');
+showUnsynchronized('../packages/renderer/src/pages/settings/locales');
