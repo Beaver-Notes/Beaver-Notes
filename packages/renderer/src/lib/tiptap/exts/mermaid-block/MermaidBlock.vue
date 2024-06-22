@@ -2,8 +2,17 @@
   <NodeViewWrapper>
     <div>
       <VueMermaidRender
+        v-if="currentTheme === 'dark'"
         :class="{ 'dark:text-purple-400 text-purple-500': selected }"
         :content="mermaidContent"
+        :config="config"
+        @click="openTextarea"
+      />
+      <VueMermaidRender
+        v-else
+        :class="{ 'dark:text-purple-400 text-purple-500': selected }"
+        :content="mermaidContent"
+        :config="config"
         @click="openTextarea"
       />
       <div v-if="showTextarea" class="bg-input transition rounded-lg p-2">
@@ -22,9 +31,10 @@
 </template>
 
 <script>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import { VueMermaidRender } from 'vue-mermaid-render';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
+import { useTheme } from '@/composable/theme';
 
 export default {
   components: {
@@ -36,6 +46,10 @@ export default {
     const mermaidContent = ref('');
     const inputRef = ref(null);
     const showTextarea = ref(false);
+    const { currentTheme } = useTheme();
+    const config = computed(() => ({
+      theme: currentTheme.value === 'dark' ? 'dark' : 'default',
+    }));
 
     function renderContent() {
       mermaidContent.value = props.node.attrs.content || '';
@@ -77,6 +91,8 @@ export default {
       showTextarea,
       openTextarea,
       closeTextarea,
+      config,
+      currentTheme,
     };
   },
 };
