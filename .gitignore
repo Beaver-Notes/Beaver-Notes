@@ -58,3 +58,4 @@ types/env.d.ts
 .idea/httpRequests
 /.idea/csv-plugin.xml
 .DS_Store
+*.development
