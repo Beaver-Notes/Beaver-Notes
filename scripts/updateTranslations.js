@@ -1,15 +1,16 @@
 #!/bin/node
-import '../env.js';
+import { loadEnv } from '../env.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
 import fetch from 'node-fetch';
 import readline from 'node:readline';
 
+loadEnv('private');
 const API_BASE_URL = 'https://translate-beaver.duckdns.org/api/v1';
-const PROJECT_ID = process.env.PROJECT_ID;
-const CLIENT_ID = process.env.CLIENT_ID;
-const CLIENT_SECRET = process.env.CLIENT_SECRET;
+const PROJECT_ID = process.env.PROJECT_ID.trim();
+const CLIENT_ID = process.env.CLIENT_ID.trim();
+const CLIENT_SECRET = process.env.CLIENT_SECRET.trim();
 const LOCALES_DIR = './packages/renderer/src/pages/settings/locales';
 
 async function getAuthToken() {
@@ -99,7 +100,12 @@ function askUserForLanguage(translations) {
     });
     console.log(`${translations.length + 1}. Download all languages`);
 
-    rl.question('Please select a language by number: ', (answer) => {
+    rl.question('Please select a language by number or type q to quit: ', (answer) => {
+      if (answer === 'q') {
+        rl.close();
+        console.log('quit');
+        return;
+      }
       const index = parseInt(answer, 10) - 1;
       if (index === translations.length) {
         resolve('all');
