@@ -1,6 +1,7 @@
 {
   "_idvue": {
     "Previousnote": "Notas previas",
+    "exit": "Pulsa Ctrl + Enter para cerrar",
     "untitlednote": "Sin título"
   },
   "about": {
@@ -26,7 +27,7 @@
     "islocked": "Esta nota está bloqueada",
     "keyfail": "Configuración de contraseña cancelada. La nota no pudo ser bloqueada.",
     "lock": "Bloquear",
-    "nokey": "No se ha configurado una llave compartida para esta nota.",
+    "nokey": "No se ha configurado una llave compartida para esta nota",
     "removebookmark": "Desfijar",
     "setkey": "Establecer llave",
     "setupkey": "Configura una nueva llave compartida",

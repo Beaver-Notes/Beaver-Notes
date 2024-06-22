@@ -1,6 +1,7 @@
 {
   "_idvue": {
     "Previousnote": "Previous notes",
+    "exit": "Press Ctrl + Enter to close",
     "untitlednote": "Untitled note"
   },
   "about": {
@@ -26,7 +27,7 @@
     "islocked": "This note is locked",
     "keyfail": "Password setup cancelled. Note cannot be locked.",
     "lock": "Lock",
-    "nokey": "No shared key set up for this note.",
+    "nokey": "No shared key set up for this note",
     "removebookmark": "Remove bookmark",
     "setkey": "Set Key",
     "setupkey": "Set Up a New Shared Key",
