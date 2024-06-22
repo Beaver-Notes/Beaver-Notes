@@ -47,105 +47,57 @@ export default defineComponent({
 
     async function updateGraph(graphDefinition) {
       const id = genSvgId();
-      const res = await mermaid.render(
-        id,
-        graphDefinition,
-        elRef.value || undefined
-      );
+      const res = await mermaid.render(id, graphDefinition);
       mermaidString.value = res.svg;
-    }
-
-    function applyThemeStyles(svgElement) {
-      if (!svgElement) return;
-
-      const isDarkMode = currentTheme.value === 'dark';
-
-      // Define theme-specific colors
-      const themeColors = {
-        light: {
-          textColor: '#000000',
-          borderColor: '#333',
-          arrowStrokeColor: '#000000',
-        },
-        dark: {
-          textColor: '#FFFFFF',
-          borderColor: '#666', // Darker border color for better visibility
-          arrowStrokeColor: '#FFFFFF',
-        },
-      };
-
-      // Apply colors based on current theme
-      const colors = themeColors[isDarkMode ? 'dark' : 'light'];
-
-      // Reset styles for all elements inside the SVG
-      svgElement.querySelectorAll('*').forEach((elem) => {
-        elem.style.stroke = null;
-        elem.style.fill = null;
-      });
-
-      // Apply theme-specific styles
-      svgElement.querySelectorAll('text').forEach((text) => {
-        text.style.fill = colors.textColor;
-      });
-
-      svgElement.querySelectorAll('rect, circle, path').forEach((shape) => {
-        shape.style.stroke = colors.borderColor;
-        shape.style.fill = colors.fillColor;
-      });
-
-      svgElement.querySelectorAll('path').forEach((path) => {
-        if (path.getAttribute('marker-end') === 'url(#arrowhead)') {
-          path.style.stroke = colors.arrowStrokeColor;
-        } else {
-          path.style.stroke = colors.borderColor;
-        }
-      });
-
-      svgElement.querySelectorAll('line').forEach((line) => {
-        line.style.stroke = colors.borderColor;
-      });
-
-      svgElement.querySelectorAll('.actor-man circle').forEach((circle) => {
-        circle.style.stroke = colors.borderColor;
-      });
     }
 
     function initializeMermaid() {
       if (!elRef.value) return;
 
-      if (props.config) {
-        mermaid.initialize({ startOnLoad: false, ...props.config });
-      } else {
-        mermaid.initialize({ startOnLoad: false });
-      }
+      const isDarkMode = currentTheme.value === 'dark';
+      const theme = isDarkMode ? 'dark' : 'default';
+
+      mermaid.initialize({
+        startOnLoad: false,
+        theme,
+        ...props.config,
+      });
+    }
+
+    function addThemeToContent(content) {
+      const isDarkMode = currentTheme.value === 'dark';
+      const theme = isDarkMode ? 'dark' : 'default';
+
+      return `%%{init: {'theme':'${theme}'}}%%\n${content}`;
     }
 
     onMounted(() => {
       initializeMermaid();
+      if (props.content) {
+        const themedContent = addThemeToContent(props.content);
+        updateGraph(themedContent);
+      }
     });
 
     watch(
       () => props.content,
       (newContent) => {
         if (newContent) {
-          updateGraph(newContent);
+          const themedContent = addThemeToContent(newContent);
+          updateGraph(themedContent);
         }
       },
       { immediate: true }
     );
 
     watch(
-      () => mermaidString.value,
-      () => {
-        applyThemeStyles(elRef.value.querySelector('svg'));
-      }
-    );
-
-    watch(
       () => currentTheme.value,
       () => {
-        applyThemeStyles(elRef.value.querySelector('svg'));
-        initializeMermaid(); // Re-initialize Mermaid.js on theme change
+        initializeMermaid();
+        if (props.content) {
+          const themedContent = addThemeToContent(props.content);
+          updateGraph(themedContent);
+        }
       }
     );
 
