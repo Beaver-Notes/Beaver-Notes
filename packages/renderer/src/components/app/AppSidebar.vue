@@ -577,7 +577,11 @@ export default {
       if (loadedTranslations) {
         Object.assign(translations, loadedTranslations);
       }
-      syncimportData();
+      const autoSync = localStorage.getItem('autoSync');
+
+      if (autoSync === 'true') {
+        await syncimportData();
+      }
     });
 
     const loadTranslations = async () => {
@@ -599,6 +603,8 @@ export default {
       theme,
       addNote,
       noteStore,
+      syncimportData,
+      syncexportData,
       openLastEdited,
       keyBinding,
       handleNavigation,
