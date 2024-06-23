@@ -22,12 +22,16 @@
     </categories>
     <screenshots>
         <screenshot type="default">
-            <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-1.jpeg</image>
-            <caption>Editor Showcase</caption>
+            <image>https://github.com/Beaver-Notes/Beaver-Notes/blob/c6527c19fc8d606a9127c0b15b937534e5888ac5/flatpak/Home.png?raw=true</image>
+            <caption>Home</caption>
         </screenshot>
-        <screenshot>  
-            <image>https://raw.githubusercontent.com/Daniele-rolli/Beaver-Notes/d4127df63bc3039ed28a37c0839e8c192bf0b798/flatpak/screenshot-2.jpeg</image>
-            <caption>Welcome note</caption>
+        <screenshot>
+            <image>https://github.com/Beaver-Notes/Beaver-Notes/blob/c6527c19fc8d606a9127c0b15b937534e5888ac5/flatpak/Note%201.png?raw=true</image>
+            <caption>Example note 1</caption>
+        </screenshot>
+        <screenshot>
+            <image>https://github.com/Beaver-Notes/Beaver-Notes/blob/c6527c19fc8d606a9127c0b15b937534e5888ac5/flatpak/Note%202.png?raw=true</image>
+            <caption>Example note 2</caption>
         </screenshot>
     </screenshots>
     <url type="homepage">https://beavernotes.com</url>
