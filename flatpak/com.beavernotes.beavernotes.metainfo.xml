@@ -45,49 +45,20 @@
 <description>
   <p>Release description</p>
   <ul>
-    <li>Bug Fixes:
-      <ul>
-        <li>Welcome Note (#184)</li>
-        <li>Scroll Bar (#185)</li>
-        <li>Tab Key Behavior (#195 & #197)</li>
-      </ul>
-    </li>
-    <li>New Features:
-      <ul>
-        <li>Mermaid Block Integration</li>
-        <li>Enhanced Code Block</li>
-        <li>Custom Fonts</li>
-        <li>Copy Button</li>
-        <li>Improved File Block</li>
-        <li>New Design</li>
-        <li>Download Button</li>
-        <li>Enhanced Callouts will now be inserted using ::color name</li>
-        <li>Data API for Third-Party Integrations</li>
-        <li>Collapsible Headings</li>
-      </ul>
-    </li>
-    <li>Security and Privacy:
-      <ul>
-        <li>New Settings (Password & Integrations)</li>
-      </ul>
-    </li>
-    <li>Improvements:
-      <ul>
-        <li>Improved Sync</li>
-      </ul>
-    </li>
-    <li>Translations:
-      <ul>
-        <li>Updated translations for English, German, Italian, Dutch, Spanish, and Simplified Chinese</li>
-      </ul>
-    </li>
-    <li>Design Enhancements:
-      <ul>
-        <li>Enhanced Toggles</li>
-        <li>Improved Dialogs</li>
-        <li>New Checkboxes</li>
-      </ul>
-    </li>
+    <li>Mermaid Block Integration</li>
+    <li>Enhanced Code Block</li>
+    <li>Improved File Block</li>
+    <li>Enhanced Callouts</li>
+    <li>Data API for Third-Party Integrations</li>
+    <li>Collapsible Headings</li>
+    <li>New Settings (Password & Integrations)</li>
+    <li>Improved Sync</li>
+    <li>Enhanced Toggles</li>
+    <li>Improved Dialogs</li>
+    <li>New Checkboxes</li>
+    <li>Fixed Scroll Bar</li>
+    <li>Perfected Welcome Note</li>
+    <li>Fixed Tab Key Behavior</li>
   </ul>
 </description>
   </release>
