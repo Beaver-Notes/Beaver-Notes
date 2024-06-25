@@ -59,10 +59,6 @@ Beaver Notes is proudly open-source and distributed under the [MIT License](http
 
 Take control of your notes with Beaver Notes! 🚀
 
-## Stats 📈📉
-
-![Alt](https://repobeats.axiom.co/api/embed/96eb6008d766d6c485cafa54856db18bf4d7e274.svg)
-
 ## Contributors ✨
 
 Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
