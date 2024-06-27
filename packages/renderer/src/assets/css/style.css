@@ -23,7 +23,7 @@ select {
 }
 
 option {
-  @apply dark:bg-gray-700 dark:text-[color:var(--selected-dark-text)];
+  @apply dark:bg-neutral-700 dark:text-[color:var(--selected-dark-text)];
 }
 
 .v-remixicon {
@@ -33,7 +33,7 @@ option {
 .tippy-box[data-theme~='tooltip-theme'] {
   background-color: #191919;
   color: white;
-  @apply px-2 py-1 text-sm text-gray-200 rounded-md;
+  @apply px-2 py-1 text-sm text-neutral-200 rounded-md;
 }
 
 ::-webkit-scrollbar {

@@ -1,6 +1,6 @@
 .ProseMirror pre,
 .ProseMirror .inline-code {
-  @apply bg-black bg-opacity-5 rounded-lg dark:bg-gray-600 dark:bg-opacity-30 text-gray-700 dark:text-gray-200 pt-6 !important;
+  @apply bg-black bg-opacity-5 rounded-lg dark:bg-neutral-600 dark:bg-opacity-30 text-neutral-700 dark:text-neutral-200 pt-6 !important;
   font-family: 'Helvetica', 'Arial', sans-serif;
   tab-size: 2;
   font-variant-ligatures: normal;
@@ -16,7 +16,7 @@
   @apply dark:text-[color:var(--selected-dark-text)];
 }
 .ProseMirror blockquote {
-  @apply dark:border-gray-700 dark:text-gray-100;
+  @apply dark:border-neutral-700 dark:text-neutral-100;
 }
 .ProseMirror h1,
 .ProseMirror h2,
@@ -44,7 +44,7 @@
 }
 
 .ProseMirror .math-block {
-  @apply dark:bg-gray-800;
+  @apply dark:bg-neutral-800;
 }
 .math-node .math-src {
   @apply dark:text-purple-400 text-purple-500 !important;
@@ -141,7 +141,7 @@ li[data-checked="true"] {
   }
   p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
-    @apply text-gray-400 dark:text-gray-700 float-left rtl:float-right;
+    @apply text-neutral-400 dark:text-neutral-700 float-left rtl:float-right;
     pointer-events: none;
     height: 0;
   }
@@ -185,7 +185,7 @@ li[data-checked="true"] {
     }
 
     th {
-        @apply bg-gray-700 bg-opacity-10 dark:bg-gray-600 dark:bg-opacity-30 !important;
+        @apply bg-neutral-700 bg-opacity-10 dark:bg-neutral-600 dark:bg-opacity-30 !important;
         text-align: initial; /* Reset text alignment */
     }
 

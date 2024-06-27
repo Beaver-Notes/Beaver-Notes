@@ -3,16 +3,16 @@
 @tailwind utilities;
 
 .hoverable {
-  @apply hover:bg-gray-800 hover:bg-opacity-5 dark:hover:bg-gray-200 dark:hover:bg-opacity-5;
+  @apply hover:bg-neutral-800 hover:bg-opacity-5 dark:hover:bg-neutral-200 dark:hover:bg-opacity-5;
 }
 .bg-input {
-  @apply bg-black bg-opacity-5 hover:bg-opacity-10 dark:bg-gray-200 dark:bg-opacity-5 dark:hover:bg-opacity-10 focus:ring-2;
+  @apply bg-black bg-opacity-5 hover:bg-opacity-10 dark:bg-neutral-200 dark:bg-opacity-5 dark:hover:bg-opacity-10 focus:ring-2;
 }
 
 kbd {
   font-family: inherit;
   display: inline-block;
   min-width: 28px;
-  @apply p-1 text-center text-sm rounded-md text-gray-600 ml-1 dark:text-[color:var(--selected-dark-text)] bg-gray-100 dark:bg-gray-700 border;
+  @apply p-1 text-center text-sm rounded-md text-neutral-600 ml-1 dark:text-[color:var(--selected-dark-text)] bg-neutral-100 dark:bg-neutral-600 border;
 }
 

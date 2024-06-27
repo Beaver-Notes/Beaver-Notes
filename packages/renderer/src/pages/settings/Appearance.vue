@@ -206,10 +206,7 @@
             </label>
           </div>
           <!-- Menubar visibility -->
-          <div
-            v-if="!isMacOS"
-            class="flex border-t-2 items-center py-2 justify-between"
-          >
+          <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
                 {{ translations.settings.menuBarVisibility || '-' }}
