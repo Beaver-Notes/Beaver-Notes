@@ -40,28 +40,37 @@
     <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
     <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
     <releases>
-         <release version="3.3.0" date="2024-06-23">
-  <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.3.0</url>
+             <release version="3.4.0" date="2024-06-28">
+  <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.4.0</url>
 <description>
   <p>Release description</p>
   <ul>
-    <li>Mermaid Block Integration</li>
-    <li>Enhanced Code Block</li>
-    <li>Improved File Block</li>
-    <li>Enhanced Callouts</li>
-    <li>Data API for Third-Party Integrations</li>
-    <li>Collapsible Headings</li>
-    <li>Improved Sync</li>
-    <li>Enhanced Toggles</li>
-    <li>Improved Dialogs</li>
-    <li>New Checkboxes</li>
-    <li>Fixed Scroll Bar</li>
-    <li>Perfected Welcome Note</li>
-    <li>Fixed Tab Key Behavior</li>
+    <li>Major UI fixes</li>
   </ul>
 </description>
   </release>
-     <release version="3.2.0" date="2024-05-16">
+  <release version="3.3.0" date="2024-06-23">
+    <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.3.0</url>
+      <description>
+        <p>Release description</p>
+           <ul>
+            <li>Mermaid Block Integration</li>
+            <li>Enhanced Code Block</li>
+            <li>Improved File Block</li>
+            <li>Enhanced Callouts</li>
+            <li>Data API for Third-Party Integrations</li>
+            <li>Collapsible Headings</li>
+            <li>Improved Sync</li>
+            <li>Enhanced Toggles</li>
+            <li>Improved Dialogs</li>
+            <li>New Checkboxes</li>
+            <li>Fixed Scroll Bar</li>
+            <li>Perfected Welcome Note</li>
+            <li>Fixed Tab Key Behavior</li>
+          </ul>
+      </description>
+  </release>
+  <release version="3.2.0" date="2024-05-16">
   <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.2.0</url>
     <description>
       <p>Release description</p>

@@ -159,9 +159,9 @@ function isMacOS() {
 
 <style scoped>
 section p.flex-1 {
-  @apply dark:text-gray-200 text-gray-600;
+  @apply dark:text-neutral-200 text-neutral-600;
 }
 section .ui-list {
-  @apply bg-gray-800 bg-opacity-5 dark:bg-gray-200 dark:bg-opacity-5;
+  @apply bg-neutral-800 bg-opacity-5 dark:bg-neutral-200 dark:bg-opacity-5;
 }
 </style>
