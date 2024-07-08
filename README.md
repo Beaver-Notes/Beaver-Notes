@@ -15,7 +15,7 @@
 [![Checkout the docs](https://img.shields.io/badge/Checkout_the_docs-blue?style=flat-square&logo=Gitbook&logoColor=white&color=blue)](https://danieles-organization.gitbook.io/beaver-notes)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <div align="center">
-<img src="https://beavernotes.com/resources/Beaver-Icon.webp" alt="Beaver Logo" width="100">
+<img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
 <p><b>Build your knowledge one log at a time</b></p>
 <p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
