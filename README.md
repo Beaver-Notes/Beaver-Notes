@@ -20,7 +20,7 @@
 <p><b>Build your knowledge one log at a time</b></p>
 <p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
 
-[Website](https://beavernotes.com) | [Blog](https://beaver-notes.github.io/Beaver-Blog/) | [Docs](https://beaver-notes.github.io/Beaver-Docs/docs/category/user-guides) | [Downloads](https://beavernotes.com/download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/)
+[Website](https://beavernotes.com) | [Blog](https://beaver-notes.github.io/Beaver-Blog/) | [Docs](https://beaver-notes.github.io/Beaver-Docs/docs/category/user-guides) | [Downloads](https://beavernotes.com/#/Download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/) | [Bluesky](https://bsky.app/profile/beavernotes.bsky.social)
 
 </div>
 
