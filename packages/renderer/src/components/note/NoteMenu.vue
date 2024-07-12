@@ -1,10 +1,7 @@
 <template>
-  <div
-    ref="container"
+  <div ref="container"
     class="text-gray-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
-    :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
-    @wheel="changeWheelDirection"
-  >
+    :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }" @wheel="changeWheelDirection">
     <div class="w-full h-full flex items-center justify-between w-full">
       <!-- <input
         type="number"
@@ -21,179 +18,92 @@
         min="1"
         title="Font size"
       /> -->
-      <button
-        v-tooltip.group="translations.menu.paragraph"
-        :class="{ 'is-active': editor.isActive('paragraph') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().setParagraph().run()"
-      >
+      <button v-tooltip.group="translations.menu.paragraph" :class="{ 'is-active': editor.isActive('paragraph') }"
+        class="transition hoverable h-8 px-1 rounded-lg" @click="editor.chain().focus().setParagraph().run()">
         <v-remixicon name="riParagraph" />
       </button>
-      <button
-        v-for="heading in [1, 2]"
-        :key="heading"
-        v-tooltip.group="`${translations.menu.heading} ${heading}`"
+      <button v-for="heading in [1, 2]" :key="heading" v-tooltip.group="`${translations.menu.heading} ${heading}`"
         :class="{ 'is-active': editor.isActive('heading', { level: heading }) }"
         class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().toggleHeading({ level: heading }).run()"
-      >
+        @click="editor.chain().focus().toggleHeading({ level: heading }).run()">
         <v-remixicon :name="`riH${heading}`" />
       </button>
       <hr class="border-r mx-2 h-6" />
-      <button
-        v-for="action in textFormatting"
-        :key="action.name"
-        v-tooltip.group="action.title"
-        :class="{ 'is-active': editor.isActive(action.activeState) }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="action.handler"
-      >
+      <button v-for="action in textFormatting" :key="action.name" v-tooltip.group="action.title"
+        :class="{ 'is-active': editor.isActive(action.activeState) }" class="transition hoverable h-8 px-1 rounded-lg"
+        @click="action.handler">
         <v-remixicon :name="action.icon" />
       </button>
       <hr class="border-r mx-2 h-6" />
-      <button
-        v-for="action in lists"
-        :key="action.name"
-        v-tooltip.group="action.title"
-        :class="{ 'is-active': editor.isActive(action.activeState) }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="action.handler"
-      >
+      <button v-for="action in lists" :key="action.name" v-tooltip.group="action.title"
+        :class="{ 'is-active': editor.isActive(action.activeState) }" class="transition hoverable h-8 px-1 rounded-lg"
+        @click="action.handler">
         <v-remixicon :name="action.icon" />
       </button>
       <hr class="border-r mx-2 h-6" />
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.image"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
+          <button v-tooltip.group="translations.menu.image" class="transition hoverable h-8 px-1 rounded-lg">
             <v-remixicon name="riImageLine" />
           </button>
         </template>
-        <input
-          v-model="imgUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.imgurl || '-'"
-          @keyup.enter="insertImage"
-        />
-        <v-remixicon
-          name="riFolderOpenLine"
-          class="mr-2 cursor-pointer"
-          @click="editorImage.select(true)"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="insertImage"
-        />
+        <input v-model="imgUrl" class="bg-transparent mr-2" :placeholder="translations.menu.imgurl || '-'"
+          @keyup.enter="insertImage" />
+        <v-remixicon name="riFolderOpenLine" class="mr-2 cursor-pointer" @click="editorImage.select(true)" />
+        <v-remixicon name="riSave3Line" class="mr-2 cursor-pointer" @click="insertImage" />
       </ui-popover>
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.video"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
+          <button v-tooltip.group="translations.menu.video" class="transition hoverable h-8 px-1 rounded-lg">
             <v-remixicon name="riMovieLine" />
           </button>
         </template>
-        <input
-          v-model="vidUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.vidUrl || '-'"
-          @keyup.enter="addIframe"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="addIframe"
-        />
+        <input v-model="vidUrl" class="bg-transparent mr-2" :placeholder="translations.menu.vidUrl || '-'"
+          @keyup.enter="addIframe" />
+        <v-remixicon name="riSave3Line" class="mr-2 cursor-pointer" @click="addIframe" />
       </ui-popover>
-      <button
-        v-tooltip.group="translations.menu.Link"
-        :class="{ 'is-active': editor.isActive('link') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().toggleLink({ href: '' }).run()"
-      >
+      <button v-tooltip.group="translations.menu.Link" :class="{ 'is-active': editor.isActive('link') }"
+        class="transition hoverable h-8 px-1 rounded-lg" @click="editor.chain().focus().toggleLink({ href: '' }).run()">
         <v-remixicon name="riLink" />
       </button>
-      <button
-        v-tooltip.group="translations.menu.File"
-        :class="{ 'is-active': editor.isActive('file') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="$refs.fileInput.click()"
-      >
+      <button v-tooltip.group="translations.menu.File" :class="{ 'is-active': editor.isActive('file') }"
+        class="transition hoverable h-8 px-1 rounded-lg" @click="$refs.fileInput.click()">
         <v-remixicon name="riFile2Line" />
       </button>
-      <input
-        ref="fileInput"
-        type="file"
-        class="hidden"
-        multiple
-        @change="handleFileSelect"
-      />
-      <button
-        v-tooltip.group="translations.menu.tableInsert"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="
-          editor
-            .chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run()
-        "
-      >
+      <input ref="fileInput" type="file" class="hidden" multiple @change="handleFileSelect" />
+      <button v-tooltip.group="translations.menu.tableInsert" class="transition hoverable h-8 px-1 rounded-lg" @click="
+        editor
+          .chain()
+          .focus()
+          .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+          .run()
+        ">
         <v-remixicon name="riTableLine" />
       </button>
       <hr class="border-r mx-2 h-6" />
-      <button
-        v-tooltip.group="translations.menu.Print"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="printContent"
-      >
+      <button v-tooltip.group="translations.menu.Print" class="transition hoverable h-8 px-1 rounded-lg"
+        @click="printContent">
         <v-remixicon name="riPrinterLine" />
       </button>
       <hr class="border-r mx-2 h-6" />
-      <button
-        v-if="showAdavancedSettings"
-        v-tooltip.group="translations.menu.delete"
-        class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="deleteNode"
-      >
+      <button v-if="showAdavancedSettings" v-tooltip.group="translations.menu.delete"
+        class="hoverable h-8 px-1 rounded-lg h-full" @click="deleteNode">
         <v-remixicon name="riDeleteBin6Line" />
       </button>
-      <button
-        v-tooltip.group="translations.menu.Focusmode"
-        :class="{ 'is-active': store.inFocusMode }"
-        class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="toggleFocusMode"
-      >
+      <button v-tooltip.group="translations.menu.Focusmode" :class="{ 'is-active': store.inFocusMode }"
+        class="hoverable h-8 px-1 rounded-lg h-full" @click="toggleFocusMode">
         <v-remixicon name="riFocus3Line" />
       </button>
-      <button
-        v-tooltip.group="translations.menu.headingsTree"
-        :class="{ 'is-active': tree }"
-        class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="showHeadingsTree = !showHeadingsTree"
-      >
+      <button v-tooltip.group="translations.menu.headingsTree" :class="{ 'is-active': tree }"
+        class="hoverable h-8 px-1 rounded-lg h-full" @click="showHeadingsTree = !showHeadingsTree">
         <v-remixicon name="riSearchLine" />
       </button>
-      <ui-popover
-        v-slot="{ isShow }"
-        v-model="showHeadingsTree"
-        trigger="manual"
-        @show="getHeadingsTree"
-        @close="editor.commands.focus()"
-      >
-        <note-menu-headings-tree
-          v-if="isShow"
-          :editor="editor"
-          :headings="headingsTree"
-          @close="
-            showHeadingsTree = false;
-            editor.commands.focus();
-          "
-        />
+      <ui-popover v-slot="{ isShow }" v-model="showHeadingsTree" trigger="manual" @show="getHeadingsTree"
+        @close="editor.commands.focus()">
+        <note-menu-headings-tree v-if="isShow" :editor="editor" :headings="headingsTree" @close="
+          showHeadingsTree = false;
+        editor.commands.focus();
+        " />
       </ui-popover>
     </div>
   </div>
@@ -412,9 +322,20 @@ export default {
       // Retrieve zoom level from localStorage
       const storedZoomLevel = parseFloat(localStorage.getItem('zoomLevel'));
 
-      // Call setZoom with the retrieved zoom level
-      setZoom(storedZoomLevel);
+      // Check if the stored zoom level is a valid number
+      if (!isNaN(storedZoomLevel)) {
+        // Call setZoom with the retrieved zoom level
+        setZoom(storedZoomLevel);
+      } else {
+        console.warn(
+          'No valid zoom level found in localStorage. Setting default zoom level.'
+        );
+        // Set a default zoom level if the stored zoom level is invalid
+        const defaultZoomLevel = 1.0;
+        setZoom(defaultZoomLevel);
+      }
     };
+
 
     function toggleFocusMode() {
       handleZoomButtonClick();
@@ -611,6 +532,7 @@ button.is-active {
 }
 
 input[type='number'] {
+
   &::-webkit-outer-spin-button,
   &::-webkit-inner-spin-button {
     opacity: 1;
