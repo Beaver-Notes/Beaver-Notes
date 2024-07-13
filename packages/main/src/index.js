@@ -11,6 +11,7 @@ import {
 import windowStateKeeper from 'electron-window-state';
 import * as browserStorage from 'electron-browser-storage';
 import { ipcMain } from 'electron-better-ipc';
+const { exec } = require('child_process');
 import path, { join, normalize } from 'path';
 import { URL } from 'url';
 import {
@@ -31,7 +32,7 @@ import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
 import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
 import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
 import api from './server';
-import {generateToken} from './token';
+import { generateToken } from './token';
 
 const { localStorage } = browserStorage;
 
@@ -231,6 +232,28 @@ ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data),
 );
+ipcMain.answerRenderer('gvfs:copy', async ({ path, dest }) => {
+  try {
+    await new Promise((resolve, reject) => {
+      exec(
+        `cp -r '${path}/' '${dest}/'`,
+        (error, stdout, stderr) => {
+          if (error) {
+            console.error('Error copying using gvfs-move:', error);
+            reject(error);
+            return;
+          }
+          console.log('stdout:', stdout);
+          console.error('stderr:', stderr);
+          resolve();
+        },
+      );
+    });
+  } catch (error) {
+    console.error('Error during gvfs-move:', error);
+    throw error;
+  }
+});
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
   app.relaunch({
     args: process.argv.slice(1).concat(['--relaunch']),

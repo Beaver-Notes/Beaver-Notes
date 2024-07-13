@@ -198,19 +198,59 @@ export default {
         const exportPath = defaultPath; // Use the selected default path
         const folderPath = path.join(exportPath, folderName);
 
-        await ipcRenderer.callMain('fs:ensureDir', folderPath);
-        await ipcRenderer.callMain('fs:output-json', {
-          path: path.join(folderPath, 'data.json'),
-          data: { data },
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'notes-assets'),
-          dest: path.join(folderPath, 'assets'),
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'file-assets'),
-          dest: path.join(folderPath, 'file-assets'),
-        });
+        const containsGvfs = exportPath.includes('gvfs');
+
+        if (containsGvfs) {
+          // Ensure the directory exists
+          await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+          // Save main data.json
+          await ipcRenderer.callMain('fs:output-json', {
+            path: path.join(folderPath, 'data.json'),
+            data: { data },
+          });
+
+          // Copy notes-assets
+          const notesAssetsSource = path.join(dataDir, 'notes-assets');
+          const notesAssetsDest = path.join(folderPath, 'assets');
+          await ipcRenderer.callMain('gvfs:copy', {
+            path: notesAssetsSource,
+            dest: notesAssetsDest,
+          });
+
+          // Copy file-assets
+          const fileAssetsSource = path.join(dataDir, 'file-assets');
+          const fileAssetsDest = path.join(folderPath, 'file-assets');
+          await ipcRenderer.callMain('gvfs:copy', {
+            path: fileAssetsSource,
+            dest: fileAssetsDest,
+          });
+        } else {
+          // Ensure the directory exists
+          await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+          // Save main data.json
+          await ipcRenderer.callMain('fs:output-json', {
+            path: path.join(folderPath, 'data.json'),
+            data: { data },
+          });
+
+          // Copy notes-assets
+          const notesAssetsSource = path.join(dataDir, 'notes-assets');
+          const notesAssetsDest = path.join(folderPath, 'assets');
+          await ipcRenderer.callMain('fs:copy', {
+            path: notesAssetsSource,
+            dest: notesAssetsDest,
+          });
+
+          // Copy file-assets
+          const fileAssetsSource = path.join(dataDir, 'file-assets');
+          const fileAssetsDest = path.join(folderPath, 'file-assets');
+          await ipcRenderer.callMain('fs:copy', {
+            path: fileAssetsSource,
+            dest: fileAssetsDest,
+          });
+        }
 
         state.withPassword = false;
         state.password = '';
@@ -372,42 +412,78 @@ export default {
 
         const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
         const dataDir = await storage.get('dataDir', '', 'settings');
-
         const exportPath = defaultPath; // Use the selected default path
         const folderPath = path.join(exportPath, folderName);
 
-        await ipcRenderer.callMain('fs:ensureDir', folderPath);
-        await ipcRenderer.callMain('fs:output-json', {
-          path: path.join(folderPath, 'data.json'),
-          data: { data },
-        });
+        const containsGvfs = exportPath.includes('gvfs');
 
-        // Create a backup of the JSON file
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(folderPath, 'data.json'),
-          dest: path.join(
-            folderPath,
-            `data_${dayjs().format('YYYYMMDD_HHmmss')}.json.bak`
-          ),
-        });
+        if (containsGvfs) {
+          // Ensure the directory exists
+          await ipcRenderer.callMain('fs:ensureDir', folderPath);
 
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'notes-assets'),
-          dest: path.join(folderPath, 'assets'),
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'file-assets'),
-          dest: path.join(folderPath, 'file-assets'),
-        });
+          // Save main data.json
+          await ipcRenderer.callMain('fs:output-json', {
+            path: path.join(folderPath, 'data.json'),
+            data: { data },
+          });
+
+          // Copy notes-assets
+          const notesAssetsSource = path.join(dataDir, 'notes-assets');
+          const notesAssetsDest = path.join(folderPath, 'assets');
+          await ipcRenderer.callMain('gvfs:copy', {
+            path: notesAssetsSource,
+            dest: notesAssetsDest,
+          });
+
+          // Copy file-assets
+          const fileAssetsSource = path.join(dataDir, 'file-assets');
+          const fileAssetsDest = path.join(folderPath, 'file-assets');
+          await ipcRenderer.callMain('gvfs:copy', {
+            path: fileAssetsSource,
+            dest: fileAssetsDest,
+          });
+        } else {
+          // Ensure the directory exists
+          await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+          // Save main data.json
+          await ipcRenderer.callMain('fs:output-json', {
+            path: path.join(folderPath, 'data.json'),
+            data: { data },
+          });
+
+          // Copy notes-assets
+          const notesAssetsSource = path.join(dataDir, 'notes-assets');
+          const notesAssetsDest = path.join(folderPath, 'assets');
+          await ipcRenderer.callMain('fs:copy', {
+            path: notesAssetsSource,
+            dest: notesAssetsDest,
+          });
+
+          // Copy file-assets
+          const fileAssetsSource = path.join(dataDir, 'file-assets');
+          const fileAssetsDest = path.join(folderPath, 'file-assets');
+          await ipcRenderer.callMain('fs:copy', {
+            path: fileAssetsSource,
+            dest: fileAssetsDest,
+          });
+        }
 
         state.withPassword = false;
         state.password = '';
+
+        // Success notification
+        notification({
+          title: translations.sidebar.notification,
+          body: translations.sidebar.exportSuccess,
+        });
       } catch (error) {
+        // Error notification
         notification({
           title: translations.sidebar.notification,
           body: translations.sidebar.exportFail,
         });
-        console.error(error);
+        console.error('Error during syncexportData:', error);
       }
     }
 
