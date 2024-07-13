@@ -42,7 +42,7 @@ Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, W
 
 ## Installation 🚀
 
-Getting started with Beaver Notes is quick and easy! Visit our official website and download the installer for your operating system. Follow a few simple steps, and you're all set to take notes with confidence. If you happen to prefer package managers, check out the [package manager section ](https://beavernotes.com/package-manager.html)on the website. Thanks for joining our community.
+Getting started with Beaver Notes is quick and easy! Visit our official website and download the installer for your operating system. Follow a few simple steps, and you're all set to take notes with confidence. If you happen to prefer package managers, check out the [package manager section ](https://beavernotes.com/#/Packages)on the website. Thanks for joining our community.
 
 ## Need Help? 🤔
 
