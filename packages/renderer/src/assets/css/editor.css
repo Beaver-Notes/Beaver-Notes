@@ -1,3 +1,14 @@
+.collapse-indicator {
+    transform: rotate(90deg);
+}
+.collapse-indicator {
+    @apply absolute -left-6 top-2 cursor-pointer opacity-0 hover:opacity-100 h-5 w-6;
+}
+.collapse-indicator[data-hide] {
+    transform: none;
+    @apply opacity-100;
+}
+
 .ProseMirror pre,
 .ProseMirror .inline-code {
   @apply bg-black bg-opacity-5 rounded-lg dark:bg-neutral-600 dark:bg-opacity-30 text-neutral-700 dark:text-neutral-200 pt-6 !important;
