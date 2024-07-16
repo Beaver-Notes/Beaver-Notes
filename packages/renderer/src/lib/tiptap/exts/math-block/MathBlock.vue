@@ -46,7 +46,7 @@
   </node-view-wrapper>
 </template>
 <script>
-import { shallowReactive, onMounted, ref } from 'vue';
+import { shallowReactive, onMounted, ref, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import katex from 'katex';
 
@@ -80,12 +80,30 @@ export default {
         throwOnError: false,
       });
     }
+
+    // Debounce function to limit the rate of calling renderContent
+    const debounce = (func, delay) => {
+      let timer;
+      return function (...args) {
+        clearTimeout(timer);
+        timer = setTimeout(() => func.apply(this, args), delay);
+      };
+    };
+
+    const debouncedRenderContent = debounce(renderContent, 300);
+
     function updateContent({ target: { value } }, key, isRenderContent) {
       isContentChange.value = true;
       props.updateAttributes({ [key]: value });
 
-      if (isRenderContent) renderContent();
+      if (isRenderContent) {
+        // Use nextTick to ensure DOM updates are applied before rendering content
+        nextTick(() => {
+          debouncedRenderContent();
+        });
+      }
     }
+
     function handleKeydown(event) {
       const { ctrlKey, shiftKey, metaKey, key } = event;
 
