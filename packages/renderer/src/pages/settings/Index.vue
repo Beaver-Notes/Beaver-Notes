@@ -176,6 +176,22 @@
         </p>
       </div>
     </section>
+    <!-- Import data from other apps -->
+    <section>
+      <p class="mb-2">{{ translations.settings.importMarkdown || '-' }}</p>
+      <div class="flex items-center ltr:space-x-2">
+        <ui-input
+          v-model="state.importDir"
+          readonly
+          :placeholder="translations.settings.pathplaceholder || '-'"
+          class="w-full"
+          @click="selectDirectory"
+        />
+        <ui-button class="w-full rtl:mx-2" @click="selectDirectory">
+          {{ translations.settings.selectpath || '-' }}
+        </ui-button>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -196,6 +212,7 @@ import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
+import { processDirectory } from '@/utils/markdown';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -457,6 +474,28 @@ export default {
       }
     }
 
+    const selectDirectory = async () => {
+      try {
+        const {
+          canceled,
+          filePaths: [dir],
+        } = await ipcRenderer.callMain('dialog:open', {
+          title: 'Select directory',
+          properties: ['openDirectory'],
+        });
+
+        if (canceled) return;
+
+        state.importDir = dir;
+
+        await processDirectory(state.importDir);
+
+        await storage.set('importDir', state.importDir);
+      } catch (error) {
+        console.error('Error selecting directory:', error);
+      }
+    };
+
     async function chooseDefaultPath() {
       try {
         const {
@@ -667,6 +706,7 @@ export default {
       chooseDefaultPath,
       defaultPath,
       appStore,
+      selectDirectory,
       formatTime,
       deleteAuth,
       toggleAuth,
