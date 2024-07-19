@@ -110,6 +110,8 @@
     "vue-router": "^4.0.11"
   },
   "dependencies": {
+    "@tiptap/extension-subscript": "^2.5.4",
+    "@tiptap/extension-superscript": "^2.5.4",
     "cross-env": "^7.0.3",
     "express": "^4.19.2",
     "marked": "^13.0.2",

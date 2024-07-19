@@ -15,6 +15,8 @@ import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
@@ -98,6 +100,14 @@ export const extensions = [
   MathInline,
   MermaidBlock,
   MathBlock,
+  Subscript.extend({
+    addKeyboardShortcuts() {
+      return {
+        'Alt-,': () => this.editor.commands.toggleSubscript(),
+      };
+    },
+  }),
+  Superscript,
   TextDirection.configure({
     defaultDirection: defaultDirection,
   }),

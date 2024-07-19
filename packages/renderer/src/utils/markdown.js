@@ -76,11 +76,13 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
                     content: [
                       {
                         type: 'paragraph',
-                        content: await Promise.all(
-                          Array.from(li.childNodes)
-                            .map(convertElementToTiptap)
-                            .filter(Boolean)
-                        ),
+                        content: (
+                          await Promise.all(
+                            Array.from(li.childNodes).map(
+                              convertElementToTiptap
+                            )
+                          )
+                        ).filter(Boolean),
                       },
                     ],
                   };
@@ -98,11 +100,11 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
                 content: [
                   {
                     type: 'paragraph',
-                    content: await Promise.all(
-                      Array.from(li.childNodes)
-                        .map(convertElementToTiptap)
-                        .filter(Boolean)
-                    ),
+                    content: (
+                      await Promise.all(
+                        Array.from(li.childNodes).map(convertElementToTiptap)
+                      )
+                    ).filter(Boolean),
                   },
                 ],
               }))
@@ -123,11 +125,11 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
                 content: [
                   {
                     type: 'paragraph',
-                    content: await Promise.all(
-                      Array.from(li.childNodes)
-                        .map(convertElementToTiptap)
-                        .filter(Boolean)
-                    ),
+                    content: (
+                      await Promise.all(
+                        Array.from(li.childNodes).map(convertElementToTiptap)
+                      )
+                    ).filter(Boolean),
                   },
                 ],
               }))
@@ -136,24 +138,31 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       case 'LI':
         return { type: 'listItem', content };
       case 'CODE': {
-        if (element.parentElement.tagName === 'P') {
+        // Handle inline code
+        if (element.parentElement.tagName !== 'PRE') {
           return {
             type: 'text',
             marks: [{ type: 'code' }],
             text: element.textContent,
           };
         } else {
+          // Handle code block
           return {
             type: 'codeBlock',
             content: [{ type: 'text', text: element.textContent }],
           };
         }
       }
-      case 'PRE':
-        return {
-          type: 'codeBlock',
-          content: [{ type: 'text', text: element.textContent }],
-        };
+      case 'PRE': {
+        const codeElement = element.querySelector('code');
+        if (codeElement) {
+          return {
+            type: 'codeBlock',
+            content: [{ type: 'text', text: codeElement.textContent }],
+          };
+        }
+        return null;
+      }
       case 'BLOCKQUOTE':
         return { type: 'blockquote', content };
       case 'STRONG':
@@ -174,14 +183,49 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           marks: [{ type: 'strike' }],
           text: element.textContent,
         };
+      case 'A': {
+        const href = element.getAttribute('href');
+        return {
+          type: 'text',
+          marks: [{ type: 'link', attrs: { href } }],
+          text: element.textContent,
+        };
+      }
+      case 'SUP':
+        return {
+          type: 'text',
+          marks: [{ type: 'superscript' }],
+          text: element.textContent,
+        };
+      case 'SUB':
+        return {
+          type: 'text',
+          marks: [{ type: 'subscript' }],
+          text: element.textContent,
+        };
       case 'IMG': {
         const src = element.getAttribute('src');
         const alt = element.getAttribute('alt');
+
+        // Check if the image src is an HTTP or HTTPS URL
+        if (src.startsWith('http://') || src.startsWith('https://')) {
+          // If it is, simply return the src without copying the image
+          return {
+            type: 'image',
+            attrs: {
+              src,
+              alt,
+            },
+          };
+        }
+
+        // Proceed with local file handling for non-HTTP URLs
         const dataDir = await storage.get('dataDir');
         const filename = src.split('/').pop();
         const file = path.join(directoryPath, 'notes-assets', filename);
         const assetsPath = path.join(dataDir, 'notes-assets', id);
         console.log('assets path', assetsPath);
+
         try {
           await ipcRenderer.callMain('fs:copy', {
             path: file,
@@ -202,19 +246,27 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       case 'TABLE':
         return {
           type: 'table',
-          content: await Promise.all(
-            Array.from(element.querySelectorAll('tr')).map(async (row) => ({
-              type: 'tableRow',
-              content: await Promise.all(
-                Array.from(row.cells).map(async (cell) => ({
-                  type: 'tableCell',
-                  content: await Promise.all(
-                    Array.from(cell.childNodes).map(convertElementToTiptap)
-                  ),
-                }))
-              ),
-            }))
-          ),
+          content: (
+            await Promise.all(
+              Array.from(element.querySelectorAll('tr')).map(async (row) => ({
+                type: 'tableRow',
+                content: (
+                  await Promise.all(
+                    Array.from(row.cells).map(async (cell) => ({
+                      type: 'tableCell',
+                      content: (
+                        await Promise.all(
+                          Array.from(cell.childNodes).map(
+                            convertElementToTiptap
+                          )
+                        )
+                      ).filter(Boolean),
+                    }))
+                  )
+                ).filter(Boolean),
+              }))
+            )
+          ).filter(Boolean),
         };
       default:
         return null;
@@ -224,6 +276,21 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const bodyContent = await Promise.all(
     Array.from(doc.body.childNodes).map(convertElementToTiptap)
   );
+
+  // Extract and remove the H1 title if present
+  let title = '';
+  if (
+    bodyContent.length > 0 &&
+    bodyContent[0].type === 'heading' &&
+    bodyContent[0].attrs.level === 1
+  ) {
+    title = bodyContent
+      .shift()
+      .content.map((node) => node.text)
+      .join('');
+  }
+
+  // Filter out null values
   const filteredBodyContent = bodyContent.filter(Boolean);
 
   const convertMathBlocks = (markdown) => {
@@ -269,7 +336,7 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const mathBlocks = convertMathBlocks(markdown);
   json.content = [...filteredBodyContent, ...mathBlocks];
 
-  return json;
+  return { title, content: json };
 };
 
 export const processDirectory = async (directoryPath) => {
@@ -292,7 +359,7 @@ export const processDirectory = async (directoryPath) => {
         console.log('Markdown:', markdown);
 
         const id = uuidv4();
-        const noteContent = await convertMarkdownToTiptap(
+        const { title, content } = await convertMarkdownToTiptap(
           markdown,
           id,
           directoryPath
@@ -302,8 +369,8 @@ export const processDirectory = async (directoryPath) => {
         const labelArray = labels.value.split(',').map((label) => label.trim());
         const newNote = {
           id,
-          title: fileName.replace('.md', ''),
-          content: noteContent,
+          title: title || fileName.replace('.md', ''),
+          content,
           labels: labelArray,
           isBookmarked: isBookmarked.value,
           isArchived: isArchived.value,
