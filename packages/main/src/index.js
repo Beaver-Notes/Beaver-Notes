@@ -20,6 +20,7 @@ import {
   readJson,
   ensureDir,
   copy,
+  statSync,
   pathExists,
   readdir,
   outputJson,
@@ -238,6 +239,12 @@ ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
+});
+ipcMain.answerRenderer('fs:stat', async (filePath) => {
+  return statSync(filePath);
+});
+ipcMain.answerRenderer('fs:unlink', async (filePath) => {
+    fs.unlinkSync(filePath);
 });
 ipcMain.handle('fs:isFile', async ( filePath) => {
   try {

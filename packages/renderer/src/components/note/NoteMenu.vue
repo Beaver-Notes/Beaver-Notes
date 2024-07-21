@@ -536,10 +536,9 @@ export default {
       const files = event.target.files;
       if (!files.length) return;
 
-      const timestamp = Date.now();
       try {
         for (const file of files) {
-          const { fileName, relativePath } = await saveFile(file, timestamp);
+          const { fileName, relativePath } = await saveFile(file, props.id);
           const src = `${relativePath}`; // Construct the complete source path
           props.editor.commands.setFileEmbed(src, fileName);
         }
@@ -557,11 +556,10 @@ export default {
 
         // Access dropped files
         const files = event.dataTransfer.files;
-        const timestamp = Date.now();
 
         try {
           for (const file of files) {
-            const { fileName, relativePath } = await saveFile(file, timestamp);
+            const { fileName, relativePath } = await saveFile(file, props.id);
             const src = `${relativePath}`; // Construct the complete source path
             props.editor.commands.setFileEmbed(src, fileName);
           }
