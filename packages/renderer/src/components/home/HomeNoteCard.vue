@@ -61,7 +61,7 @@
             : translations.card.bookmark
         "
         class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition"
-        @click="$emit('update', { isBookmarked: !note.isBookmarked })"
+        @click="toggleBookmark(note)"
       >
         <v-remixicon
           :name="note.isBookmarked ? 'riBookmarkFill' : 'riBookmarkLine'"
@@ -74,7 +74,7 @@
             : translations.card.archive
         "
         class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="$emit('update', { isArchived: !note.isArchived })"
+        @click="toggleArchive(note)"
       >
         <v-remixicon
           :name="note.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'"
@@ -139,7 +139,7 @@ defineProps({
     default: () => ({}),
   },
 });
-defineEmits(['update', 'update:label']);
+const emit = defineEmits(['update', 'update:label']);
 
 const dialog = useDialog();
 const storage = useStorage();
@@ -177,6 +177,10 @@ async function lockNote(note) {
               // Lock the note using the global password
               await noteStore.lockNote(note, newKey);
               console.log(`Note (ID: ${note}) is locked`);
+              const autoSync = localStorage.getItem('autoSync');
+              if (autoSync === 'true') {
+                await syncexportData();
+              }
             } catch (error) {
               console.error('Error setting up key:', error);
               alert(translations.card.keyfail);
@@ -202,6 +206,10 @@ async function lockNote(note) {
             // If the entered password matches the stored one, lock the note
             await noteStore.lockNote(note, enteredPassword);
             console.log(`Note (ID: ${note}) is locked`);
+            const autoSync = localStorage.getItem('autoSync');
+            if (autoSync === 'true') {
+              await syncexportData();
+            }
           } else {
             // If the entered password does not match, show an error message
             alert(translations.card.wrongpasswd);
@@ -234,6 +242,10 @@ async function unlockNote(note) {
           // Note unlocked using the global password
           await noteStore.unlockNote(note, enteredPassword);
           console.log(`Note (ID: ${note}) is unlocked`);
+          const autoSync = localStorage.getItem('autoSync');
+          if (autoSync === 'true') {
+            await syncexportData();
+          }
         } else {
           alert(translations.card.wrongpasswd);
         }
@@ -363,6 +375,22 @@ const loadTranslations = async () => {
     return null;
   }
 };
+
+async function emitUpdate(payload) {
+  emit('update', payload);
+  const autoSync = localStorage.getItem('autoSync');
+  if (autoSync === 'true') {
+    await syncexportData();
+  }
+}
+
+async function toggleBookmark(note) {
+  emitUpdate({ isBookmarked: !note.isBookmarked });
+}
+
+async function toggleArchive(note) {
+  emitUpdate({ isArchived: !note.isArchived });
+}
 </script>
 <style>
 .note-card.active-note .group-hover\:visible {
