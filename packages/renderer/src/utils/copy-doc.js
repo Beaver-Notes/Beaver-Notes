@@ -23,7 +23,6 @@ async function createFileName(file, id) {
   const assetsPath = path.join(dataDir, 'file-assets', id);
   await ipcRenderer.callMain('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);
-  console.log(destPath);
   return { destPath, fileName };
 }
 
@@ -31,7 +30,7 @@ export async function saveFile(file, id) {
   try {
     const contentUint8Array = await readFile(file);
     const { fileName, destPath } = await createFileName(file, id);
-    const relativePath = path.join('file-assets', fileName); // Construct relative path
+    const relativePath = path.join('file-assets', id, fileName); // Construct relative path
     await ipcRenderer.callMain('fs:writeFile', {
       data: contentUint8Array,
       path: destPath,

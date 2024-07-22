@@ -147,18 +147,48 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           };
         } else {
           // Handle code block
+          const codeContent = element.textContent;
+          const language = element.parentElement.getAttribute('class') || '';
+
+          // Check if this is a Mermaid code block
+          if (language.startsWith('language-mermaid')) {
+            return {
+              type: 'mermaidDiagram',
+              attrs: {
+                content: codeContent,
+                init: '', // Add any initialization settings if needed
+              },
+            };
+          }
+
           return {
             type: 'codeBlock',
-            content: [{ type: 'text', text: element.textContent }],
+            attrs: { language: language.replace('language-', '') },
+            content: [{ type: 'text', text: codeContent }],
           };
         }
       }
       case 'PRE': {
         const codeElement = element.querySelector('code');
         if (codeElement) {
+          const codeContent = codeElement.textContent;
+          const language = codeElement.getAttribute('class') || '';
+
+          // Check if this is a Mermaid code block
+          if (language.startsWith('language-mermaid')) {
+            return {
+              type: 'mermaidDiagram',
+              attrs: {
+                content: codeContent,
+                init: '', // Add any initialization settings if needed
+              },
+            };
+          }
+
           return {
             type: 'codeBlock',
-            content: [{ type: 'text', text: codeElement.textContent }],
+            attrs: { language: language.replace('language-', '') },
+            content: [{ type: 'text', text: codeContent }],
           };
         }
         return null;
@@ -185,11 +215,69 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         };
       case 'A': {
         const href = element.getAttribute('href');
-        return {
-          type: 'text',
-          marks: [{ type: 'link', attrs: { href } }],
-          text: element.textContent,
-        };
+        const imgElement = element.querySelector('img');
+        const isYouTube =
+          href.includes('youtube.com') || href.includes('youtu.be');
+
+        if (imgElement) {
+          const src = imgElement.getAttribute('src');
+          if (src.includes('img.youtube.com')) {
+            const videoId = href.split('watch?v=')[1];
+            const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+            return {
+              type: 'iframe',
+              attrs: {
+                src: embedUrl,
+                frameborder: 0,
+                allowfullscreen: true,
+              },
+            };
+          }
+        }
+
+        if (isYouTube) {
+          const videoId =
+            href.split('v=')[1]?.split('&')[0] || href.split('/').pop();
+          const embedUrl = `https://www.youtube.com/embed/${videoId}`;
+          return {
+            type: 'iframe',
+            attrs: {
+              src: embedUrl,
+              frameborder: 0,
+              allowfullscreen: true,
+            },
+          };
+        }
+
+        if (href.startsWith('http://') || href.startsWith('https://')) {
+          return {
+            type: 'text',
+            marks: [{ type: 'link', attrs: { href } }],
+            text: element.textContent,
+          };
+        } else {
+          // Handle file links
+          const dataDir = await storage.get('dataDir');
+          const fileName = href.split('/').pop();
+          const file = path.join(directoryPath, 'file-assets', fileName);
+          const assetsPath = path.join(dataDir, 'file-assets', id);
+          try {
+            await ipcRenderer.callMain('fs:copy', {
+              path: file,
+              dest: path.join(assetsPath, fileName),
+            });
+            return {
+              type: 'fileEmbed',
+              attrs: {
+                src: `file-assets/${id}/${fileName}`,
+                fileName,
+              },
+            };
+          } catch (error) {
+            console.error(`Error processing file ${fileName}:`, error);
+            return null;
+          }
+        }
       }
       case 'SUP':
         return {
@@ -203,6 +291,45 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           marks: [{ type: 'subscript' }],
           text: element.textContent,
         };
+      case 'IFRAME': {
+        const src = element.getAttribute('src');
+        return {
+          type: 'iframe',
+          attrs: {
+            src,
+            frameborder: element.getAttribute('frameborder') || 0,
+            allowfullscreen: element.hasAttribute('allowfullscreen'),
+          },
+        };
+      }
+      case 'VIDEO': {
+        const src = element.querySelector('source')?.getAttribute('src');
+        if (src) {
+          return {
+            type: 'iframe',
+            attrs: {
+              src,
+              frameborder: 0,
+              allowfullscreen: false,
+            },
+          };
+        }
+        return null;
+      }
+      case 'AUDIO': {
+        const src = element.querySelector('source')?.getAttribute('src');
+        if (src) {
+          return {
+            type: 'iframe',
+            attrs: {
+              src,
+              frameborder: 0,
+              allowfullscreen: false,
+            },
+          };
+        }
+        return null;
+      }
       case 'IMG': {
         const src = element.getAttribute('src');
         const alt = element.getAttribute('alt');
@@ -224,8 +351,6 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         const filename = src.split('/').pop();
         const file = path.join(directoryPath, 'notes-assets', filename);
         const assetsPath = path.join(dataDir, 'notes-assets', id);
-        console.log('assets path', assetsPath);
-
         try {
           await ipcRenderer.callMain('fs:copy', {
             path: file,
@@ -293,48 +418,7 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   // Filter out null values
   const filteredBodyContent = bodyContent.filter(Boolean);
 
-  const convertMathBlocks = (markdown) => {
-    const mathBlockPattern = /\$\$(.*?)\$\$/gs;
-    let match;
-    const blocks = [];
-
-    let lastIndex = 0;
-    while ((match = mathBlockPattern.exec(markdown)) !== null) {
-      const textBeforeMath = markdown.substring(lastIndex, match.index);
-      if (textBeforeMath) {
-        const textNode = {
-          type: 'text',
-          text: textBeforeMath.trim(),
-        };
-        json.content.push(textNode);
-      }
-
-      blocks.push({
-        type: 'mathBlock',
-        attrs: {
-          content: match[1].trim(),
-          macros: '{\n  \\f: "#1f(#2)"\n}',
-          init: 'true',
-        },
-      });
-
-      lastIndex = match.index + match[0].length;
-    }
-
-    const textAfterMath = markdown.substring(lastIndex);
-    if (textAfterMath) {
-      const textNode = {
-        type: 'text',
-        text: textAfterMath.trim(),
-      };
-      json.content.push(textNode);
-    }
-
-    return blocks;
-  };
-
-  const mathBlocks = convertMathBlocks(markdown);
-  json.content = [...filteredBodyContent, ...mathBlocks];
+  json.content = [...filteredBodyContent];
 
   return { title, content: json };
 };

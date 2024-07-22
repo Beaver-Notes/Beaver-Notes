@@ -2,8 +2,8 @@
   <pre
     ref="elRef"
     :class="['mermaid', className]"
-    v-html="mermaidString"
     @click="onClick"
+    v-html="mermaidString"
   ></pre>
 </template>
 

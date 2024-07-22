@@ -22,7 +22,7 @@ import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
-import Iframe from './exts/iframe.ts';
+import Iframe from './exts/video-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
 import {
   blueCallout,

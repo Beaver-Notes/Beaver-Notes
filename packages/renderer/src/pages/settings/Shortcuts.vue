@@ -120,6 +120,8 @@ const shortcuts = [
       { name: 'Link', keys: getFormattedKeys(['Ctrl', 'K']) },
       { name: 'Strikethrough', keys: getFormattedKeys(['Ctrl', 'Shift', 'X']) },
       { name: 'Highlight', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
+      { name: 'SuperScript', keys: getFormattedKeys(['Ctrl', '.']) },
+      { name: 'SubScript', keys: getFormattedKeys(['Alt', ',']) },
       { name: 'Inlinecode', keys: getFormattedKeys(['Ctrl', 'E']) },
       {
         name: 'Headings',
