@@ -35,6 +35,37 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const convertElementToTiptap = async (element) => {
     if (element.nodeType === Node.TEXT_NODE) {
       const text = element.textContent;
+
+      // Handle inline math
+      const inlineMathPattern = /\$([^$]+)\$/g;
+      const inlineMathMatches = text.match(inlineMathPattern);
+      if (inlineMathMatches) {
+        const content = [];
+        let lastIndex = 0;
+
+        inlineMathMatches.forEach((match) => {
+          const index = text.indexOf(match, lastIndex);
+          if (index > lastIndex) {
+            content.push({
+              type: 'text',
+              text: text.substring(lastIndex, index),
+            });
+          }
+          const mathContent = match.slice(1, -1);
+          content.push({
+            type: 'math_inline',
+            content: [{ type: 'text', text: mathContent }],
+          });
+          lastIndex = index + match.length;
+        });
+
+        if (lastIndex < text.length) {
+          content.push({ type: 'text', text: text.substring(lastIndex) });
+        }
+
+        return { type: 'paragraph', content };
+      }
+
       if (text.trim()) {
         return { type: 'text', text };
       }
@@ -47,8 +78,23 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
     content = content.filter(Boolean);
 
     switch (element.tagName) {
-      case 'P':
+      case 'P': {
+        // Handle block math
+        const blockMathPattern = /^\$\$([^$]+)\$\$$/;
+        const blockMathMatch = element.textContent.match(blockMathPattern);
+        if (blockMathMatch) {
+          const mathContent = blockMathMatch[1].trim();
+          return {
+            type: 'mathBlock',
+            attrs: {
+              content: mathContent,
+              macros: '{\\f: "#1f(#2)"}',
+              init: 'true',
+            },
+          };
+        }
         return { type: 'paragraph', content };
+      }
       case 'H1':
         return { type: 'heading', attrs: { level: 1 }, content };
       case 'H2':
