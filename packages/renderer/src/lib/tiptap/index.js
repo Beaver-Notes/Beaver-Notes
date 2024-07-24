@@ -41,6 +41,9 @@ import Table from '@tiptap/extension-table';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import TableRow from '@tiptap/extension-table-row';
+import Footnote from './exts/footnote-block/footnote';
+import Footnotes from './exts/footnote-block/footnotes';
+import FootnoteReference from './exts/footnote-block/reference';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -75,7 +78,9 @@ export const extensions = [
   StarterKit,
   Highlight,
   Typography,
-  Document,
+  Document.extend({
+    content: 'block+ footnotes?',
+  }),
   audioBlock,
   LiteralTab,
   Underline,
@@ -89,6 +94,9 @@ export const extensions = [
   LinkNote,
   FileEmbed,
   LabelSuggestion,
+  Footnotes,
+  FootnoteReference,
+  Footnote,
   TaskList,
   Gapcursor,
   Table.configure({
