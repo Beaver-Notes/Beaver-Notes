@@ -212,36 +212,47 @@ export default Heading.extend({
     return ({ HTMLAttributes, node, editor }) => {
       const container = document.createElement('div');
       container.style.position = 'relative';
-      const content = document.createElement(`h` + node.attrs.level);
+
+      // Create the heading element
+      const content = document.createElement(`h${node.attrs.level}`);
+      content.style.marginLeft = '30px'; // Adjust based on your design
+      content.style.position = 'relative';
+
+      // Create the SVG indicator
       const indicator = createArrowSVG();
-      container.appendChild(indicator);
       indicator.classList.add('collapse-indicator');
-      if (HTMLAttributes.open != null) {
-        indicator.removeAttribute('data-hide', '');
-      } else {
-        indicator.setAttribute('data-hide', '');
-      }
-      const toggleClass = () => {
+
+      // Add styles for alignment and rotation
+      indicator.style.position = 'absolute';
+      indicator.style.left = '0';
+      indicator.style.top = '50%';
+      indicator.style.transform = 'translateY(-50%)'; // Center vertically
+      indicator.style.transition = 'transform 0.3s'; // Smooth rotation transition
+
+      // Update indicator class based on open/closed state
+      const updateIndicator = () => {
         if (node.attrs.open) {
-          if (indicator.hasAttribute('data-hide')) {
-            indicator.toggleAttribute('data-hide');
-          }
+          indicator.style.transform = 'translateY(-50%) rotate(0deg)';
         } else {
-          if (!indicator.hasAttribute('data-hide')) {
-            indicator.toggleAttribute('data-hide');
-          }
+          indicator.style.transform = 'translateY(-50%) rotate(90deg)';
         }
       };
+
+      updateIndicator();
+
+      // Toggle state on indicator click
       indicator.addEventListener('click', () => {
         if (node.attrs.open) {
           editor.commands.collapsedHeading();
         } else {
           editor.commands.unCollapsedHeading();
         }
-        toggleClass();
+        updateIndicator();
       });
 
+      container.appendChild(indicator);
       container.appendChild(content);
+
       return {
         dom: container,
         contentDOM: content,

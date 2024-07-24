@@ -101,6 +101,47 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         return { type: 'heading', attrs: { level: 2 }, content };
       case 'H3':
         return { type: 'heading', attrs: { level: 3 }, content };
+      case 'H4':
+        return { type: 'heading', attrs: { level: 4 }, content };
+      case 'H5':
+        return { type: 'heading', attrs: { level: 5 }, content };
+      case 'H6':
+        return { type: 'heading', attrs: { level: 6 }, content };
+      case 'DETAILS': {
+        const summaryElement = element.querySelector('summary');
+        const summaryContent = summaryElement
+          ? await convertElementToTiptap(summaryElement)
+          : null;
+
+        const detailsContent = await Promise.all(
+          Array.from(element.childNodes)
+            .filter((child) => child !== summaryElement) // Exclude the <summary> node
+            .map(convertElementToTiptap)
+        );
+
+        const nodes = [];
+        if (summaryContent) {
+          nodes.push({
+            type: 'heading',
+            attrs: { level: 4, open: true, collapsedContent: null },
+            content: summaryContent.content,
+          });
+        }
+
+        nodes.push(...detailsContent);
+
+        return nodes;
+      }
+      case 'SUMMARY': {
+        // This case might not be needed if SUMMARY is handled within DETAILS
+        // but included here for completeness
+        const summaryText = element.textContent;
+        return {
+          type: 'heading',
+          attrs: { level: 4, open: true, collapsedContent: null },
+          content: [{ type: 'text', text: summaryText }],
+        };
+      }
       case 'UL': {
         const isTaskList = Array.from(element.childNodes).some(
           (child) =>
@@ -282,8 +323,7 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         }
 
         if (isYouTube) {
-          const videoId =
-            href.split('v=')[1]?.split('&')[0] || href.split('/').pop();
+          const videoId = href.split('v=')[1] || href.split('youtu.be/')[1];
           const embedUrl = `https://www.youtube.com/embed/${videoId}`;
           return {
             type: 'iframe',
@@ -350,31 +390,111 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       }
       case 'VIDEO': {
         const src = element.querySelector('source')?.getAttribute('src');
-        if (src) {
+
+        // Check if the src starts with http or https
+        if (src.startsWith('http://') || src.startsWith('https://')) {
+          // Handle YouTube URLs
+          if (src.includes('youtube.com/watch?v=')) {
+            let EmbedId = src.split('v=')[1];
+            const ampersandPosition = EmbedId.indexOf('&');
+            if (ampersandPosition !== -1) {
+              EmbedId = EmbedId.substring(0, ampersandPosition);
+            }
+            // Convert to the embed format
+            return {
+              type: 'iframe',
+              attrs: {
+                src: `https://www.youtube.com/embed/${EmbedId}`,
+                frameborder: 0,
+                allowfullscreen: true,
+              },
+            };
+          } else if (src.includes('youtu.be/')) {
+            let EmbedId = src.split('youtu.be/')[1];
+            const queryPosition = EmbedId.indexOf('?');
+            if (queryPosition !== -1) {
+              EmbedId = EmbedId.substring(0, queryPosition);
+            }
+            // Convert to the embed format
+            return {
+              type: 'iframe',
+              attrs: {
+                src: `https://www.youtube.com/embed/${EmbedId}`,
+                frameborder: 0,
+                allowfullscreen: true,
+              },
+            };
+          } else {
+            // Handle other URLs
+            return {
+              type: 'iframe',
+              attrs: {
+                src: src,
+                frameborder: 0,
+                allowfullscreen: true,
+              },
+            };
+          }
+        }
+
+        // Handle local file sources
+        const dataDir = await storage.get('dataDir');
+        const fileName = src.split('/').pop();
+        const file = path.join(directoryPath, 'file-assets', fileName);
+        const assetsPath = path.join(dataDir, 'file-assets', id);
+
+        try {
+          await ipcRenderer.callMain('fs:copy', {
+            path: file,
+            dest: path.join(assetsPath, fileName),
+          });
           return {
-            type: 'iframe',
+            type: 'Video',
             attrs: {
-              src,
-              frameborder: 0,
-              allowfullscreen: false,
+              src: `file-assets://${id}/${fileName}`,
+              fileName: null,
             },
           };
+        } catch (error) {
+          console.error(`Error processing file ${fileName}:`, error);
+          return null;
         }
-        return null;
       }
       case 'AUDIO': {
         const src = element.querySelector('source')?.getAttribute('src');
-        if (src) {
+
+        // Check if the src starts with http or https
+        if (src.startsWith('http://') || src.startsWith('https://')) {
           return {
-            type: 'iframe',
+            type: 'Audio',
             attrs: {
               src,
-              frameborder: 0,
-              allowfullscreen: false,
+              fileName: null,
             },
           };
         }
-        return null;
+
+        const dataDir = await storage.get('dataDir');
+        const fileName = src.split('/').pop();
+        const file = path.join(directoryPath, 'file-assets', fileName);
+        const assetsPath = path.join(dataDir, 'file-assets', id);
+
+        try {
+          await ipcRenderer.callMain('fs:copy', {
+            path: file,
+            dest: path.join(assetsPath, fileName),
+          });
+          return {
+            type: 'Audio',
+            attrs: {
+              src: `file-assets://${id}/${fileName}`,
+              fileName: null,
+            },
+          };
+        } catch (error) {
+          console.error(`Error processing file ${fileName}:`, error);
+          return null;
+        }
       }
       case 'IMG': {
         const src = element.getAttribute('src');
@@ -461,10 +581,10 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       .join('');
   }
 
-  // Filter out null values
-  const filteredBodyContent = bodyContent.filter(Boolean);
+  // Flatten the array of nodes in case of nested arrays
+  const flattenedBodyContent = bodyContent.flat().filter(Boolean);
 
-  json.content = [...filteredBodyContent];
+  json.content = [...flattenedBodyContent];
 
   return { title, content: json };
 };

@@ -91,16 +91,16 @@
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
           <button
-            v-tooltip.group="translations.menu.video"
+            v-tooltip.group="translations.menu.Embed"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riMovieLine" />
+            <v-remixicon name="riPagesLine" />
           </button>
         </template>
         <input
           v-model="vidUrl"
           class="bg-transparent mr-2"
-          :placeholder="translations.menu.vidUrl || '-'"
+          :placeholder="translations.menu.EmbedUrl || '-'"
           @keyup.enter="addIframe"
         />
         <v-remixicon
@@ -109,6 +109,18 @@
           @click="addIframe"
         />
       </ui-popover>
+      <div class="flex items-center">
+        <button
+          v-tooltip.group="translations.menu.record"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="toggleRecording"
+        >
+          <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
+        </button>
+        <span v-if="isRecording" class="font-amber-400 font-semibold pr-1">{{
+          formattedTime
+        }}</span>
+      </div>
       <button
         v-tooltip.group="translations.menu.Link"
         :class="{ 'is-active': editor.isActive('link') }"
@@ -131,6 +143,21 @@
         class="hidden"
         multiple
         @change="handleFileSelect"
+      />
+      <button
+        v-tooltip.group="translations.menu.File"
+        :class="{ 'is-active': editor.isActive('file') }"
+        class="transition hoverable h-8 px-1 rounded-lg"
+        @click="$refs.videoInput.click()"
+      >
+        <v-remixicon name="riMovieLine" />
+      </button>
+      <input
+        ref="videoInput"
+        type="file"
+        class="hidden"
+        multiple
+        @change="handleVideoSelect"
       />
       <button
         v-tooltip.group="translations.menu.tableInsert"
@@ -217,6 +244,11 @@ import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
+import RecordRTC from 'recordrtc';
+const { path, ipcRenderer } = window.electron;
+import { useStorage } from '@/composable/storage';
+
+const storage = useStorage('settings');
 
 const state = shallowReactive({
   zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
@@ -360,17 +392,17 @@ export default {
         return;
       }
 
-      let videoUrl = vidUrl.value.trim();
+      let EmbedUrl = vidUrl.value.trim();
 
-      // Check if the URL is a YouTube video URL in the regular format
-      if (videoUrl.includes('youtube.com/watch?v=')) {
-        let videoId = videoUrl.split('v=')[1];
-        const ampersandPosition = videoId.indexOf('&');
+      // Check if the URL is a YouTube Embed URL in the regular format
+      if (EmbedUrl.includes('youtube.com/watch?v=')) {
+        let EmbedId = EmbedUrl.split('v=')[1];
+        const ampersandPosition = EmbedId.indexOf('&');
         if (ampersandPosition !== -1) {
-          videoId = videoId.substring(0, ampersandPosition);
+          EmbedId = EmbedId.substring(0, ampersandPosition);
         }
         // Convert to the embed format
-        videoUrl = `https://www.youtube.com/embed/${videoId}`;
+        EmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
       }
 
       // Use the value of vidUrl to set the iframe source
@@ -378,7 +410,7 @@ export default {
         .chain()
         .focus()
         .setIframe({
-          src: videoUrl,
+          src: EmbedUrl,
         })
         .run();
 
@@ -399,28 +431,21 @@ export default {
       headingsTree.value = headingsArr;
     }
     const setZoom = (newZoomLevel) => {
-      // Call IPC renderer to set zoom level
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
 
-      // Update state and localStorage with the new zoom level
       state.zoomLevel = newZoomLevel.toFixed(1);
       localStorage.setItem('zoomLevel', state.zoomLevel);
     };
 
-    // When the button is clicked, retrieve zoom level from local storage and call setZoom with that value
     const handleZoomButtonClick = () => {
-      // Retrieve zoom level from localStorage
       const storedZoomLevel = parseFloat(localStorage.getItem('zoomLevel'));
 
-      // Check if the stored zoom level is a valid number
       if (!isNaN(storedZoomLevel)) {
-        // Call setZoom with the retrieved zoom level
         setZoom(storedZoomLevel);
       } else {
         console.warn(
           'No valid zoom level found in localStorage. Setting default zoom level.'
         );
-        // Set a default zoom level if the stored zoom level is invalid
         const defaultZoomLevel = 1.0;
         setZoom(defaultZoomLevel);
       }
@@ -474,8 +499,9 @@ export default {
         heading: 'menu.heading',
         image: 'menu.image',
         imgurl: 'menu.imgurl',
-        video: 'menu.video',
-        vidUrl: 'menu.vidUrl',
+        Embed: 'menu.embed',
+        EmbedUrl: 'menu.EmbedUrl',
+        record: 'menu.record',
         Link: 'menu.Link',
         File: 'menu.File',
         Print: 'menu.Print',
@@ -547,6 +573,21 @@ export default {
       }
     };
 
+    const handleVideoSelect = async (event) => {
+      const files = event.target.files;
+      if (!files.length) return;
+
+      try {
+        for (const file of files) {
+          const { relativePath } = await saveFile(file, props.id);
+          const src = `${relativePath}`; // Construct the complete source path
+          props.editor.commands.setVideo(src);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     // Function to handle drop event
     async function handleDrop(event) {
       if (event.altKey || event.getModifierState('Alt') || event.metaKey) {
@@ -576,6 +617,135 @@ export default {
         container.value.scrollLeft += e.deltaY + e.deltaX;
       }
     }
+    const isRecording = ref(false);
+    let recorder;
+    let recordingStartTime = null;
+    let recordingInterval = null;
+    let stream = null; // Keep track of the media stream
+
+    const minutes = ref(0);
+    const seconds = ref(0);
+
+    const formattedTime = computed(() => {
+      return `${String(minutes.value).padStart(2, '0')}:${String(
+        seconds.value
+      ).padStart(2, '0')}`;
+    });
+
+    function generateRandomFilename(extension = 'ogg') {
+      const randomString = Math.random().toString(36).substring(2, 15);
+      const timestamp = Date.now();
+      return `${timestamp}_${randomString}.${extension}`;
+    }
+
+    async function toggleRecording() {
+      if (isRecording.value) {
+        // Stop recording
+        recorder.stopRecording(() => {
+          const blob = recorder.getBlob();
+          const filename = generateRandomFilename('ogg');
+
+          // Process and save the blob
+          handleBlob(blob, filename);
+
+          // Clean up
+          if (stream) {
+            // Stop all tracks in the stream
+            stream.getTracks().forEach((track) => {
+              track.stop();
+            });
+            stream = null; // Ensure the stream is nullified
+          }
+          if (recorder && typeof recorder.destroy === 'function') {
+            recorder.destroy();
+          }
+          recorder = null;
+        });
+
+        // Update state
+        isRecording.value = false;
+        clearInterval(recordingInterval);
+        recordingInterval = null;
+        minutes.value = 0;
+        seconds.value = 0;
+      } else {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false,
+          });
+
+          recorder = RecordRTC(stream, {
+            type: 'audio',
+            mimeType: 'audio/ogg',
+            recorderType: RecordRTC.StereoAudioRecorder,
+          });
+
+          recorder.startRecording();
+          isRecording.value = true;
+          recordingStartTime = Date.now();
+
+          recordingInterval = setInterval(() => {
+            if (isRecording.value) {
+              const elapsedTime = Math.floor(
+                (Date.now() - recordingStartTime) / 1000
+              );
+              minutes.value = Math.floor(elapsedTime / 60);
+              seconds.value = elapsedTime % 60;
+            }
+          }, 1000);
+        } catch (err) {
+          console.error('Error accessing media devices.', err);
+        }
+      }
+    }
+
+    async function handleBlob(blob, filename) {
+      const dataDir = await storage.get('dataDir');
+      const assetsPath = path.join(dataDir, 'file-assets', props.id);
+      await ipcRenderer.callMain('fs:ensureDir', assetsPath);
+      const destPath = path.join(assetsPath, filename);
+      const contentUint8Array = await readFile(blob);
+      await ipcRenderer.callMain('fs:writeFile', {
+        path: destPath,
+        data: contentUint8Array,
+      });
+      const audioPath = `file-assets://${props.id}/${filename}`;
+      props.editor.commands.setAudio(audioPath, filename);
+    }
+
+    async function readFile(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(blob);
+      });
+    }
+
+    onUnmounted(() => {
+      if (recordingInterval) {
+        clearInterval(recordingInterval);
+      }
+      if (recorder) {
+        if (recorder.stream) {
+          // Ensure all tracks are stopped
+          recorder.stream.getTracks().forEach((track) => track.stop());
+          // Nullify the stream
+          recorder.stream = null;
+        }
+        // Destroy the recorder if applicable
+        if (recorder && typeof recorder.destroy === 'function') {
+          recorder.destroy();
+        }
+        recorder = null;
+      }
+      // Ensure all media streams are closed
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        stream = null;
+      }
+    });
 
     return {
       store,
@@ -592,6 +762,10 @@ export default {
       textFormatting,
       getHeadingsTree,
       toggleFocusMode,
+      toggleRecording,
+      handleVideoSelect,
+      isRecording,
+      formattedTime,
       deleteNode,
       showAdavancedSettings,
       showHeadingsTree,

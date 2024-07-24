@@ -141,11 +141,6 @@
     ajv "^6.12.0"
     ajv-keywords "^3.4.1"
 
-"@edifice-tiptap-extensions/extension-audio@^1.5.14":
-  version "1.5.14"
-  resolved "https://registry.yarnpkg.com/@edifice-tiptap-extensions/extension-audio/-/extension-audio-1.5.14.tgz#f8508cd579eaa5e9d6e617e3aebd22eed261c950"
-  integrity sha512-JLt9k3t02zZsNXp0o0ndYVL363xIrnSFVW434QjE1CCvG/X34WkshXF9+OnAqLgEc+gxL1FtuXXEwoopvcTp/w==
-
 "@electron/asar@^3.2.1":
   version "3.2.10"
   resolved "https://registry.yarnpkg.com/@electron/asar/-/asar-3.2.10.tgz#615cf346b734b23cafa4e0603551010bd0e50aa8"
@@ -5948,6 +5943,11 @@ readline@^1.3.0:
   resolved "https://registry.yarnpkg.com/readline/-/readline-1.3.0.tgz#c580d77ef2cfc8752b132498060dc9793a7ac01c"
   integrity sha512-k2d6ACCkiNYz222Fs/iNze30rRJ1iIicW7JuX/7/cozvih6YCkFZH+J6mAFDVgv0dRBaAyr4jDqC95R2y4IADg==
 
+recordrtc@^5.6.2:
+  version "5.6.2"
+  resolved "https://registry.yarnpkg.com/recordrtc/-/recordrtc-5.6.2.tgz#48fc214b35084973ccce82c6251198b5742bc327"
+  integrity sha512-1QNKKNtl7+KcwD1lyOgP3ZlbiJ1d0HtXnypUy7yq49xEERxk31PHvE9RCciDrulPCY7WJ+oz0R9hpNxgsIurGQ==
+
 regexp.prototype.flags@^1.5.2:
   version "1.5.2"
   resolved "https://registry.yarnpkg.com/regexp.prototype.flags/-/regexp.prototype.flags-1.5.2.tgz#138f644a3350f981a858c44f6bb1a61ff59be334"
@@ -6789,13 +6789,6 @@ tiptap-extension-resize-image@^1.0.3:
   resolved "https://registry.yarnpkg.com/tiptap-extension-resize-image/-/tiptap-extension-resize-image-1.1.5.tgz#b150ec91a0adfa85f42415cf25fb353523c6cf51"
   integrity sha512-ZXadHII5Y9ZNVwg7QSQhJyNg2113/NUYzGrOalDSLTAG+fydG//rLIJ8cfmqZeLBkqvew7PN0qI5kSXPRtmX5Q==
 
-tiptap-footnotes@^2.0.0:
-  version "2.0.0"
-  resolved "https://registry.yarnpkg.com/tiptap-footnotes/-/tiptap-footnotes-2.0.0.tgz#b8d5afb7fd514d652e4895e22ba3c23fcd1e9d4d"
-  integrity sha512-FKs4d/YvF9cFIc9Se4v86P2TmLWL9nl6B1DewCPpfh/mvS+ifgOTvFz4iyK2KqMwLYArt1MTJVIsXXE2qyfcBw==
-  dependencies:
-    uuid "^9.0.1"
-
 tiptap-text-direction@^0.3.1:
   version "0.3.1"
   resolved "https://registry.yarnpkg.com/tiptap-text-direction/-/tiptap-text-direction-0.3.1.tgz#26ab22b55a892305275e5800677387cea52d66cd"
@@ -7079,7 +7072,7 @@ uuid@^8.0.0:
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-8.3.2.tgz#80d5b5ced271bb9af6c445f21a1a04c606cefbe2"
   integrity sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==
 
-uuid@^9.0.0, uuid@^9.0.1:
+uuid@^9.0.0:
   version "9.0.1"
   resolved "https://registry.yarnpkg.com/uuid/-/uuid-9.0.1.tgz#e188d4c8853cc722220392c424cd637f32293f30"
   integrity sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==

@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
+import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
@@ -11,6 +12,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
+import audioBlock from './exts/video-block';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
@@ -20,9 +22,10 @@ import Superscript from '@tiptap/extension-superscript';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
+import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
-import Iframe from './exts/video-block/iframe';
+import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
 import {
   blueCallout,
@@ -73,6 +76,7 @@ export const extensions = [
   Highlight,
   Typography,
   Document,
+  audioBlock,
   LiteralTab,
   Underline,
   blueCallout,
@@ -97,6 +101,7 @@ export const extensions = [
     nested: true,
   }),
   CodeBlock,
+  Video,
   MathInline,
   MermaidBlock,
   MathBlock,
@@ -112,6 +117,7 @@ export const extensions = [
     defaultDirection: defaultDirection,
   }),
   Image,
+  Audio,
   Search,
   Placeholder.configure({
     placeholder: translations.tiptap.placeholder,

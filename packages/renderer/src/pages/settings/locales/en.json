@@ -121,8 +121,9 @@
     "tableOptions": "Table options",
     "toggleHeader": "Toggle header cell",
     "underline": "Underline",
-    "vidUrl": "Video url",
-    "video": "Video"
+    "Embed": "Embed",
+    "EmbedUrl": "Insert URL",
+    "record": "Record"
   },
   "search": {
     "clear": "Clear",

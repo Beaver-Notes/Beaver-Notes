@@ -43,7 +43,7 @@ export default {
       localStorage.getItem('selected-font-code') || 'JetBrains Mono';
     const selectedDarkText =
       localStorage.getItem('selected-dark-text') || 'white';
-    const editorWidth = localStorage.getItem('editorWidth') || '52rem';
+    const editorWidth = localStorage.getItem('editorWidth') || '54rem';
     document.documentElement.style.setProperty('--selected-font', selectedFont);
     document.documentElement.style.setProperty(
       '--selected-font-code',

@@ -244,3 +244,12 @@ li[data-checked="true"] {
 .prose ol > li::before {
   @apply left-1 rtl:right-1;
 }
+
+.collapse-indicator {
+  position: absolute;
+  left: -30px; /* Adjust based on your layout */
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  transition: transform 0.3s;
+}

@@ -32,14 +32,24 @@ export default {
   setup(props) {
     const fileName = ref(props.node.attrs.fileName || '');
 
+    // Function to normalize the src URL
+    function normalizeSrc(src) {
+      if (src.startsWith('file-assets://')) {
+        return src.replace('file-assets://', 'file-assets/');
+      }
+      return src;
+    }
+
     function openDocument() {
-      const src = props.node.attrs.src;
+      let src = props.node.attrs.src;
+      src = normalizeSrc(src);
       ipcRenderer.callMain('open-file-external', src);
     }
 
     function downloadFile(event) {
       event.stopPropagation(); // Prevent triggering openDocument
-      const src = props.node.attrs.src;
+      let src = props.node.attrs.src;
+      src = normalizeSrc(src);
       const link = document.createElement('a');
       link.href = src;
       link.download = fileName.value;
