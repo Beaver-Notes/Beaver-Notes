@@ -23,7 +23,39 @@ const readMarkdownFile = async (filePath) => {
 };
 
 const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
-  const html = marked(markdown);
+  const footnoteDefinitions = [];
+  const referenceNumberToId = {};
+
+  // Step 1: Extract footnote references and definitions
+  const footnoteRegex = /\[\^(\d+)\]:\s+(.*)/g;
+
+  // Extract footnote definitions from markdown
+  let match;
+  while ((match = footnoteRegex.exec(markdown)) !== null) {
+    const referenceNumber = match[1];
+    const definition = match[2];
+    const uuid = uuidv4();
+    referenceNumberToId[referenceNumber] = uuid;
+    footnoteDefinitions.push({
+      type: 'footnote',
+      attrs: {
+        id: `fn:${referenceNumber}`,
+        'data-id': uuid,
+      },
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: definition }],
+        },
+      ],
+    });
+  }
+
+  // Remove footnote definitions from markdown for further processing
+  const cleanedMarkdown = markdown.replace(footnoteRegex, '');
+
+  // Step 2: Convert cleaned markdown to HTML
+  const html = marked(cleanedMarkdown);
   const json = {
     type: 'doc',
     content: [],
@@ -55,6 +87,42 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           content.push({
             type: 'math_inline',
             content: [{ type: 'text', text: mathContent }],
+          });
+          lastIndex = index + match.length;
+        });
+
+        if (lastIndex < text.length) {
+          content.push({ type: 'text', text: text.substring(lastIndex) });
+        }
+
+        return { type: 'paragraph', content };
+      }
+
+      // Handle footnote references
+      const footnotePattern = /\[\^(\d+)\]/g;
+      const footnoteMatches = text.match(footnotePattern);
+      if (footnoteMatches) {
+        const content = [];
+        let lastIndex = 0;
+
+        footnoteMatches.forEach((match) => {
+          const index = text.indexOf(match, lastIndex);
+          if (index > lastIndex) {
+            content.push({
+              type: 'text',
+              text: text.substring(lastIndex, index),
+            });
+          }
+          const referenceNumber = match.slice(2, -1);
+          const uuid = referenceNumberToId[referenceNumber];
+          content.push({
+            type: 'footnoteReference',
+            attrs: {
+              class: 'footnote-ref',
+              'data-id': uuid,
+              referenceNumber,
+              href: null,
+            },
           });
           lastIndex = index + match.length;
         });
@@ -559,6 +627,10 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             )
           ).filter(Boolean),
         };
+      case 'FOOTNOTE': {
+        // Skip footnote elements as they are already processed
+        return null;
+      }
       default:
         return null;
     }
@@ -585,6 +657,14 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const flattenedBodyContent = bodyContent.flat().filter(Boolean);
 
   json.content = [...flattenedBodyContent];
+
+  if (footnoteDefinitions.length > 0) {
+    json.content.push({
+      type: 'footnotes',
+      attrs: { class: 'footnotes' },
+      content: footnoteDefinitions,
+    });
+  }
 
   return { title, content: json };
 };
