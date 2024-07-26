@@ -98,7 +98,7 @@
           </button>
         </template>
         <input
-          v-model="vidUrl"
+          v-model="EmbedUrl"
           class="bg-transparent mr-2"
           :placeholder="translations.menu.EmbedUrl || '-'"
           @keyup.enter="addIframe"
@@ -129,36 +129,79 @@
       >
         <v-remixicon name="riLink" />
       </button>
-      <button
-        v-tooltip.group="translations.menu.File"
-        :class="{ 'is-active': editor.isActive('file') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="$refs.fileInput.click()"
-      >
-        <v-remixicon name="riFile2Line" />
-      </button>
-      <input
-        ref="fileInput"
-        type="file"
-        class="hidden"
-        multiple
-        @change="handleFileSelect"
-      />
-      <button
-        v-tooltip.group="translations.menu.File"
-        :class="{ 'is-active': editor.isActive('file') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="$refs.videoInput.click()"
-      >
-        <v-remixicon name="riMovieLine" />
-      </button>
-      <input
-        ref="videoInput"
-        type="file"
-        class="hidden"
-        multiple
-        @change="handleVideoSelect"
-      />
+      <ui-popover padding="p-2 flex items-center">
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.File"
+            class="transition hoverable h-8 px-1 rounded-lg"
+          >
+            <v-remixicon name="riFile2Line" />
+          </button>
+        </template>
+        <input
+          v-model="fileUrl"
+          class="bg-transparent mr-2"
+          :placeholder="translations.menu.fileUrl || '-'"
+          @keyup.enter="insertFile"
+        />
+        <v-remixicon
+          name="riFolderOpenLine"
+          class="mr-2 cursor-pointer"
+          @click="$refs.fileInput.click()"
+        />
+        <input
+          ref="fileInput"
+          type="file"
+          class="hidden"
+          multiple
+          @change="handleFileSelect"
+        />
+        <v-remixicon
+          name="riSave3Line"
+          class="mr-2 cursor-pointer"
+          @click="insertFile"
+        />
+      </ui-popover>
+      <ui-popover padding="p-2 flex items-center">
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.video"
+            class="transition hoverable h-8 px-1 rounded-lg"
+          >
+            <v-remixicon name="riMovieLine" />
+          </button>
+        </template>
+        <input
+          v-model="VideoUrl"
+          class="bg-transparent mr-2"
+          :placeholder="translations.menu.videoUrl || '-'"
+          @keyup.enter="insertVideo"
+        />
+        <v-remixicon
+          name="riFolderOpenLine"
+          class="mr-2 cursor-pointer"
+          @click="$refs.videoInput.click()"
+        />
+        <input
+          ref="videoInput"
+          type="file"
+          class="hidden"
+          multiple
+          @change="handleVideoSelect"
+        />
+        <input
+          ref="fileInput"
+          type="file"
+          class="hidden"
+          multiple
+          @change="handleFileSelect"
+        />
+        <v-remixicon
+          name="riSave3Line"
+          class="mr-2 cursor-pointer"
+          @click="insertVideo"
+        />
+      </ui-popover>
       <button
         v-tooltip.group="translations.menu.tableInsert"
         class="transition hoverable h-8 px-1 rounded-lg"
@@ -377,22 +420,44 @@ export default {
     useGroupTooltip();
 
     const imgUrl = shallowRef('');
-    const vidUrl = shallowRef('');
+    const fileUrl = shallowRef('');
+    const VideoUrl = shallowRef('');
+    const EmbedUrl = shallowRef('');
     const headingsTree = shallowRef([]);
     const showHeadingsTree = shallowRef(false);
+    function normalizePath(path) {
+      return path.replace(/\\/g, '');
+    }
 
     function insertImage() {
-      editorImage.set(imgUrl.value);
+      let imgUrlValue = normalizePath(imgUrl.value);
+      editorImage.set(imgUrlValue);
       imgUrl.value = '';
       props.editor.commands.focus();
     }
+
+    function insertFile() {
+      let fileUrlValue = normalizePath(fileUrl.value);
+      const url = fileUrlValue;
+      const filename = url.substring(url.lastIndexOf('/') + 1);
+      props.editor.commands.setFileEmbed(url, filename);
+      fileUrl.value = '';
+    }
+
+    function insertVideo() {
+      let videoUrlValue = normalizePath(VideoUrl.value);
+      const url = videoUrlValue;
+      props.editor.commands.setVideo(url);
+      VideoUrl.value = '';
+    }
+
     function addIframe() {
-      if (vidUrl.value.trim() === '') {
-        // Prevent adding iframe if vidUrl is empty or only contains whitespace
+      if (EmbedUrl.value.trim() === '') {
+        // Prevent adding iframe if EmbedUrl is empty or only contains whitespace
         return;
       }
 
-      let EmbedUrl = vidUrl.value.trim();
+      let EmbedUrl = EmbedUrl.value.trim();
 
       // Check if the URL is a YouTube Embed URL in the regular format
       if (EmbedUrl.includes('youtube.com/watch?v=')) {
@@ -405,7 +470,7 @@ export default {
         EmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
       }
 
-      // Use the value of vidUrl to set the iframe source
+      // Use the value of EmbedUrl to set the iframe source
       props.editor
         .chain()
         .focus()
@@ -415,7 +480,7 @@ export default {
         .run();
 
       // Clear the input field after setting the iframe source
-      vidUrl.value = '';
+      EmbedUrl.value = '';
     }
 
     function getHeadingsTree() {
@@ -590,23 +655,36 @@ export default {
 
     // Function to handle drop event
     async function handleDrop(event) {
-      if (event.altKey || event.getModifierState('Alt') || event.metaKey) {
-        // Alt/Opt key is pressed
-        event.preventDefault();
-        event.stopPropagation();
+      // Alt/Opt key is pressed
+      event.preventDefault();
+      event.stopPropagation();
 
-        // Access dropped files
-        const files = event.dataTransfer.files;
+      // Access dropped files
+      const files = event.dataTransfer.files;
 
-        try {
-          for (const file of files) {
-            const { fileName, relativePath } = await saveFile(file, props.id);
-            const src = `${relativePath}`; // Construct the complete source path
+      try {
+        for (const file of files) {
+          // Determine the type of the file
+          const mimeType = file.type;
+
+          // Ignore image files
+          if (mimeType.startsWith('image/')) {
+            continue;
+          }
+
+          const { fileName, relativePath } = await saveFile(file, props.id);
+          const src = `${relativePath}`; // Construct the complete source path
+
+          if (mimeType.startsWith('audio/')) {
+            props.editor.commands.setAudio(src);
+          } else if (mimeType.startsWith('video/')) {
+            props.editor.commands.setVideo(src);
+          } else {
             props.editor.commands.setFileEmbed(src, fileName);
           }
-        } catch (error) {
-          console.error('Error saving and embedding files:', error);
         }
+      } catch (error) {
+        console.error('Error saving and embedding files:', error);
       }
     }
 
@@ -711,7 +789,7 @@ export default {
         data: contentUint8Array,
       });
       const audioPath = `file-assets://${props.id}/${filename}`;
-      props.editor.commands.setAudio(audioPath, filename);
+      props.editor.commands.setAudio(audioPath);
     }
 
     async function readFile(blob) {
@@ -751,7 +829,7 @@ export default {
       store,
       lists,
       imgUrl,
-      vidUrl,
+      EmbedUrl,
       handleFileSelect,
       translations,
       headings,
@@ -766,6 +844,10 @@ export default {
       handleVideoSelect,
       isRecording,
       formattedTime,
+      insertFile,
+      fileUrl,
+      insertVideo,
+      VideoUrl,
       deleteNode,
       showAdavancedSettings,
       showHeadingsTree,

@@ -4,7 +4,7 @@ import { useStore } from '@/store';
 import copyImage from '@/utils/copy-image';
 import { writeImageFile } from '@/utils/copy-image';
 
-async function insertImages(files, callback) {
+export async function insertImages(files, callback) {
   const store = useStore();
 
   for (const file of files) {
@@ -71,17 +71,13 @@ const handleImagePaste = new Plugin({
     },
 
     handleDrop: (view, event) => {
-      // Check if Option key is pressed
-      if (
-        event.altKey ||
-        event.getModifierState('Alt') ||
-        event.optionKey ||
-        event.getModifierState('AltGraph')
-      ) {
-        return false; // Ignore drop event
-      }
+      // Filter image files
+      const imageFiles = Array.from(event.dataTransfer.files).filter((file) =>
+        file.type.startsWith('image/')
+      );
 
-      insertImages(event.dataTransfer.files, (src, alt) => {
+      // Process each image file
+      insertImages(imageFiles, (src, alt) => {
         const { schema } = view.state;
         const coordinates = view.posAtCoords({
           left: event.clientX,

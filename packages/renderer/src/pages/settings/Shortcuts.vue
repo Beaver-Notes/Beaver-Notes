@@ -131,10 +131,6 @@ const shortcuts = [
       { name: 'Bulletlist', keys: getFormattedKeys(['Ctrl', 'Shift', '8']) },
       { name: 'Blockquote', keys: getFormattedKeys(['Ctrl', 'Shift', 'B']) },
       { name: 'Blockcode', keys: getFormattedKeys(['Ctrl', 'Alt', 'C']) },
-      {
-        name: 'EmbedFile',
-        keys: getFormattedKeys(['Alt', 'Drag']),
-      },
       { name: 'Previousnote', keys: getFormattedKeys(['Alt', 'Arrow left']) },
     ],
   },

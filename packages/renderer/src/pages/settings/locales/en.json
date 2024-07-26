@@ -122,8 +122,11 @@
     "toggleHeader": "Toggle header cell",
     "underline": "Underline",
     "Embed": "Embed",
-    "EmbedUrl": "Insert URL",
-    "record": "Record"
+    "EmbedUrl": "Insert url",
+    "record": "Record",
+    "video": "Video",
+    "videoUrl": "Video url",
+    "fileUrl": "File url"
   },
   "search": {
     "clear": "Clear",
@@ -206,7 +209,9 @@
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wrongCurrentPassword": "Wrong password, please try again",
-    "importMarkdown": "Import Markdown"
+    "importMarkdown": "Import Markdown",
+    "emptyPathWarn": "Please select a sync path first.",
+    "gvfswarn": "Automatic sync through GVFS is not supported. Please use manual sync instead."
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",
@@ -215,7 +220,8 @@
     "Bold": "Bold",
     "Bulletlist": "Bullet List",
     "Createnewnote": "Create New Note",
-    "Drag": "Drag",
+    "SuperScript": "Superscript",
+    "SubScript": "Subscript",
     "Editor": "Editor Shortcuts",
     "EmbedFile": "Embed File",
     "General": "General Shortcuts",
