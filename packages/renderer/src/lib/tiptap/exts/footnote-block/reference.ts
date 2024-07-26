@@ -1,6 +1,5 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
-
 import { v4 as uuid } from "uuid";
 
 const REFNUM_ATTR = "data-reference-number";
@@ -55,7 +54,6 @@ const FootnoteReference = Node.create({
           return element.getAttribute(REFNUM_ATTR) || element.innerText;
         },
       },
-
       href: {
         renderHTML(attributes) {
           return {
@@ -105,6 +103,40 @@ const FootnoteReference = Node.create({
               return true;
             }
           },
+
+          // Handle paste events
+          handlePaste(view, event, slice) {
+            // Extract text from pasted content
+            const text = event.clipboardData?.getData("text/plain");
+            if (!text) return false;
+
+            // Find all footnote reference patterns in the pasted text
+            const footnoteRefs = [];
+            const regex = /\[\^(\d+)\]/g;
+            let match;
+            while ((match = regex.exec(text)) !== null) {
+              footnoteRefs.push({
+                number: match[1],
+                index: match.index,
+                length: match[0].length,
+              });
+            }
+
+            // Process the text to replace footnote references with footnote nodes
+            let offset = 0;
+            let newText = text;
+            footnoteRefs.forEach(({ number, index, length }) => {
+              const refNode = `<sup id="fnref:${number}"><a class="${REF_CLASS}" href="#fn:${number}" data-reference-number="${number}">${number}</a></sup>`;
+              newText = newText.slice(0, index + offset) + refNode + newText.slice(index + offset + length);
+              offset += refNode.length - length;
+            });
+
+            // Insert the processed content into the editor
+            const { tr } = view.state;
+            tr.replaceSelectionWith(view.state.schema.text(newText));
+            view.dispatch(tr);
+            return true;
+          },
         },
       }),
     ];
@@ -125,15 +157,15 @@ const FootnoteReference = Node.create({
   },
 
   addInputRules() {
-    // when a user types [^text], add a new footnote
     return [
       {
-        find: /\[\^(.*?)\]/,
+        find: /(^|\s)\[\^(\d+)\]$/, // Adjust regex to match [^1] only at the end of a line or surrounded by whitespace
         type: this.type,
         handler({ range, match, chain }) {
           const start = range.from;
-          let end = range.to;
-          if (match[1]) {
+          const end = range.to;
+
+          if (match[2]) {
             chain().deleteRange({ from: start, to: end }).addFootnote().run();
           }
         },
