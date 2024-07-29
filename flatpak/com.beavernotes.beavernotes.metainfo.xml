@@ -58,7 +58,7 @@
               <li>Alert pop-up for empty sync path or GVFS when trying to enable autosync.</li>
               <li>Drag to insert Files, Audios, Videos and Images</li>
               <li>Support for disk paths to insert Files, Images and Videos</li>
-              <li>New icon</div>
+              <li>New icon</li>
               <li>Updated electron from 28 to 31</li>
             </ul>
         </description>
