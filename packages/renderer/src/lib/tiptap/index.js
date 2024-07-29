@@ -12,7 +12,6 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
-import audioBlock from './exts/video-block';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
@@ -81,7 +80,6 @@ export const extensions = [
   Document.extend({
     content: 'block+ footnotes?',
   }),
-  audioBlock,
   LiteralTab,
   Underline,
   blueCallout,
