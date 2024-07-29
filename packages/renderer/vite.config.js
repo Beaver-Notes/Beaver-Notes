@@ -26,6 +26,9 @@ export default defineConfig({
     },
   },
   plugins: [vue()],
+  optimizeDeps: {
+    exclude: ['mermaid/dist/*'],
+  },
   base: '',
   server: {
     fsServe: {

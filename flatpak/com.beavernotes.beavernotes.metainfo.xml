@@ -40,13 +40,36 @@
     <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
     <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
     <releases>
-             <release version="3.4.0" date="2024-06-28">
-  <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.4.0</url>
-<description>
-  <p>Release description</p>
-  <ul>
-    <li>Major UI fixes</li>
-  </ul>
+      <release version="3.5.0" date="2024-07-29">
+        <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.5.0</url>
+        <description>
+          <p>Release description</p>
+            <ul>
+              <li>Focus mode fix</li>
+              <li>Export / Import to GVFS</li>
+              <li>Markdown files importer</li>
+              <li>Subscript and Superscript</li>
+              <li>Footnotes</li>
+              <li>Audio Notes</li>
+              <li>Video Support</li>
+              <li>Embeds (Website, Youtube videos, etc...)</li>
+              <li>Improved Collapsible headings</li>
+              <li>MathBlock real time rendering support</li>
+              <li>Alert pop-up for empty sync path or GVFS when trying to enable autosync.</li>
+              <li>Drag to insert Files, Audios, Videos and Images</li>
+              <li>Support for disk paths to insert Files, Images and Videos</li>
+              <li>New icon</div>
+              <li>Updated electron from 28 to 31</li>
+            </ul>
+        </description>
+      </release>
+  <release version="3.4.0" date="2024-06-28">
+    <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.4.0</url>
+    <description>
+      <p>Release description</p>
+    <ul>
+      <li>Major UI fixes</li>
+    </ul>
 </description>
   </release>
   <release version="3.3.0" date="2024-06-23">

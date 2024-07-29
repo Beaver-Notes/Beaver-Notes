@@ -111,7 +111,7 @@
                 v-model="autoSync"
                 type="checkbox"
                 class="peer sr-only"
-                @change="updateAutoSync"
+                @change="handleAutoSyncChange"
               />
               <div
                 class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
@@ -176,6 +176,22 @@
         </p>
       </div>
     </section>
+    <!-- Import data from other apps -->
+    <section>
+      <p class="mb-2">{{ translations.settings.importMarkdown || '-' }}</p>
+      <div class="flex items-center ltr:space-x-2">
+        <ui-input
+          v-model="state.importDir"
+          readonly
+          :placeholder="translations.settings.pathplaceholder || '-'"
+          class="w-full"
+          @click="selectDirectory"
+        />
+        <ui-button class="w-full rtl:mx-2" @click="selectDirectory">
+          {{ translations.settings.selectpath || '-' }}
+        </ui-button>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -196,6 +212,7 @@ import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
+import { processDirectory } from '@/utils/markdown';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -291,21 +308,50 @@ export default {
         const folderPath = path.join(filePaths[0], folderName);
         const dataDir = await storage.get('dataDir', '', 'settings');
 
-        await ipcRenderer.callMain('fs:ensureDir', folderPath);
-        await ipcRenderer.callMain('fs:output-json', {
-          path: path.join(folderPath, 'data.json'),
-          data: { data },
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'notes-assets'),
-          dest: path.join(folderPath, 'assets'),
-        });
-        await ipcRenderer.callMain('fs:copy', {
-          path: path.join(dataDir, 'file-assets'),
-          dest: path.join(folderPath, 'file-assets'),
-        });
+        const containsGvfs = folderPath.includes('gvfs');
 
-        alert(`${translations.settings.exportmessage}"${folderName}"`);
+        if (containsGvfs) {
+          // Ensure the directory exists
+          await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+          // Save main data.json
+          await ipcRenderer.callMain('fs:output-json', {
+            path: path.join(folderPath, 'data.json'),
+            data: { data },
+          });
+
+          // Copy notes-assets
+          const notesAssetsSource = path.join(dataDir, 'notes-assets');
+          const notesAssetsDest = path.join(folderPath, 'assets');
+          await ipcRenderer.callMain('gvfs:copy', {
+            path: notesAssetsSource,
+            dest: notesAssetsDest,
+          });
+
+          // Copy file-assets
+          const fileAssetsSource = path.join(dataDir, 'file-assets');
+          const fileAssetsDest = path.join(folderPath, 'file-assets');
+          await ipcRenderer.callMain('gvfs:copy', {
+            path: fileAssetsSource,
+            dest: fileAssetsDest,
+          });
+        } else {
+          await ipcRenderer.callMain('fs:ensureDir', folderPath);
+          await ipcRenderer.callMain('fs:output-json', {
+            path: path.join(folderPath, 'data.json'),
+            data: { data },
+          });
+          await ipcRenderer.callMain('fs:copy', {
+            path: path.join(dataDir, 'notes-assets'),
+            dest: path.join(folderPath, 'assets'),
+          });
+          await ipcRenderer.callMain('fs:copy', {
+            path: path.join(dataDir, 'file-assets'),
+            dest: path.join(folderPath, 'file-assets'),
+          });
+
+          alert(`${translations.settings.exportmessage}"${folderName}"`);
+        }
 
         state.withPassword = false;
         state.password = '';
@@ -456,6 +502,28 @@ export default {
         console.error(error);
       }
     }
+
+    const selectDirectory = async () => {
+      try {
+        const {
+          canceled,
+          filePaths: [dir],
+        } = await ipcRenderer.callMain('dialog:open', {
+          title: 'Select directory',
+          properties: ['openDirectory'],
+        });
+
+        if (canceled) return;
+
+        state.importDir = dir;
+
+        await processDirectory(state.importDir);
+
+        await storage.set('importDir', state.importDir);
+      } catch (error) {
+        console.error('Error selecting directory:', error);
+      }
+    };
 
     async function chooseDefaultPath() {
       try {
@@ -654,6 +722,31 @@ export default {
       await appStore.updateToStorage();
     }
 
+    const handleAutoSyncChange = () => {
+      const exportPath = defaultPath;
+
+      // Check if exportPath is null or empty
+      if (!exportPath || exportPath.trim() === '') {
+        showAlert(translations.settings.emptyPathWarn);
+        return; // Exit early since there's no valid path to process
+      }
+
+      const containsGvfs = exportPath.includes('gvfs');
+
+      if (containsGvfs) {
+        showAlert(translations.settings.gvfswarn);
+      } else {
+        // Read the current value from localStorage
+        const currentValue = localStorage.getItem('autoSync');
+
+        // Determine the new value
+        const newAutoSyncValue = currentValue === 'true' ? 'false' : 'true';
+
+        // Store the new value in localStorage
+        localStorage.setItem('autoSync', newAutoSyncValue);
+      }
+    };
+
     return {
       state,
       theme,
@@ -664,9 +757,11 @@ export default {
       importData,
       resetPasswordDialog,
       changeDataDir,
+      handleAutoSyncChange,
       chooseDefaultPath,
       defaultPath,
       appStore,
+      selectDirectory,
       formatTime,
       deleteAuth,
       toggleAuth,
@@ -734,9 +829,6 @@ export default {
         'disableAppReminder',
         this.disableAppReminder.toString()
       );
-    },
-    updateAutoSync() {
-      localStorage.setItem('autoSync', this.autoSync.toString());
     },
   },
 };

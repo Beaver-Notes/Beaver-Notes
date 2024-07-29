@@ -120,6 +120,8 @@ const shortcuts = [
       { name: 'Link', keys: getFormattedKeys(['Ctrl', 'K']) },
       { name: 'Strikethrough', keys: getFormattedKeys(['Ctrl', 'Shift', 'X']) },
       { name: 'Highlight', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
+      { name: 'SuperScript', keys: getFormattedKeys(['Ctrl', '.']) },
+      { name: 'SubScript', keys: getFormattedKeys(['Alt', ',']) },
       { name: 'Inlinecode', keys: getFormattedKeys(['Ctrl', 'E']) },
       {
         name: 'Headings',
@@ -129,10 +131,6 @@ const shortcuts = [
       { name: 'Bulletlist', keys: getFormattedKeys(['Ctrl', 'Shift', '8']) },
       { name: 'Blockquote', keys: getFormattedKeys(['Ctrl', 'Shift', 'B']) },
       { name: 'Blockcode', keys: getFormattedKeys(['Ctrl', 'Alt', 'C']) },
-      {
-        name: 'EmbedFile',
-        keys: getFormattedKeys(['Alt', 'Drag']),
-      },
       { name: 'Previousnote', keys: getFormattedKeys(['Alt', 'Arrow left']) },
     ],
   },

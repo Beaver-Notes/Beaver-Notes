@@ -29,7 +29,9 @@ export default Node.create<IframeOptions>({
     return {
       allowFullscreen: true,
       HTMLAttributes: {
-        class: 'iframe-wrapper',
+        class:
+          'iframe-wrapper relative overflow-auto border border-gray-300 resize-y',
+        style: 'width: 100%; height: 300px;',
       },
     };
   },

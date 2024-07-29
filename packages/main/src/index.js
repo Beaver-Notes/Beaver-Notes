@@ -11,13 +11,18 @@ import {
 import windowStateKeeper from 'electron-window-state';
 import * as browserStorage from 'electron-browser-storage';
 import { ipcMain } from 'electron-better-ipc';
+const { exec } = require('child_process');
 import path, { join, normalize } from 'path';
 import { URL } from 'url';
+const fs = require('node:fs');
 import {
   remove,
   readJson,
   ensureDir,
   copy,
+  statSync,
+  pathExists,
+  readdir,
   outputJson,
   pathExistsSync,
   writeFileSync,
@@ -31,7 +36,7 @@ import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
 import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
 import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
 import api from './server';
-import {generateToken} from './token';
+import { generateToken } from './token';
 
 const { localStorage } = browserStorage;
 
@@ -161,6 +166,12 @@ app
 
       callback({ path: normalize(imgPath) });
     });
+    protocol.registerFileProtocol('file-assets', (request, callback) => {
+      const url = request.url.substr(12);
+      const dir = store.settings.get('dataDir');
+      const filePath = `${dir}/file-assets/${url}`;
+      callback({ path: normalize(filePath) });
+    });
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
@@ -231,6 +242,44 @@ ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data),
 );
+ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
+ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
+  return readdir(dirPath);
+});
+ipcMain.answerRenderer('fs:stat', async (filePath) => {
+  return statSync(filePath);
+});
+ipcMain.answerRenderer('fs:unlink', async (filePath) => {
+  fs.unlinkSync(filePath);
+});
+ipcMain.handle('fs:isFile', async (filePath) => {
+  try {
+    const isFile = await pathExists(filePath);
+    return isFile;
+  } catch (error) {
+    console.error('Error checking if file exists:', error);
+    throw error; // Propagate the error back to the renderer process
+  }
+});
+ipcMain.answerRenderer('gvfs:copy', async ({ path, dest }) => {
+  try {
+    await new Promise((resolve, reject) => {
+      exec(`cp -r '${path}/' '${dest}/'`, (error, stdout, stderr) => {
+        if (error) {
+          console.error('Error copying using gvfs-move:', error);
+          reject(error);
+          return;
+        }
+        console.log('stdout:', stdout);
+        console.error('stderr:', stderr);
+        resolve();
+      });
+    });
+  } catch (error) {
+    console.error('Error during gvfs-move:', error);
+    throw error;
+  }
+});
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
   app.relaunch({
     args: process.argv.slice(1).concat(['--relaunch']),

@@ -16,21 +16,21 @@ async function readFile(file) {
   });
 }
 
-async function createFileName(file) {
+async function createFileName(file, id) {
   const dataDir = await storage.get('dataDir');
   const { ext, name } = path.parse(file.name);
   const fileName = `${name}${ext}`;
-  const assetsPath = path.join(dataDir, 'file-assets');
+  const assetsPath = path.join(dataDir, 'file-assets', id);
   await ipcRenderer.callMain('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);
   return { destPath, fileName };
 }
 
-export async function saveFile(file, timestamp) {
+export async function saveFile(file, id) {
   try {
     const contentUint8Array = await readFile(file);
-    const { fileName, destPath } = await createFileName(file, timestamp);
-    const relativePath = path.join('file-assets', fileName); // Construct relative path
+    const { fileName, destPath } = await createFileName(file, id);
+    const relativePath = `file-assets://${id}/${fileName}`; // Construct relative path
     await ipcRenderer.callMain('fs:writeFile', {
       data: contentUint8Array,
       path: destPath,

@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
+import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from '@tiptap/extension-highlight';
@@ -15,13 +16,16 @@ import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
+import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import Search from './exts/search';
-import Iframe from './exts/iframe.ts';
-import collapseHeading from './exts/collapseHeading';
+import Iframe from './exts/embed-block/iframe';
+import CollapseHeading from './exts/collapse-heading';
 import {
   blueCallout,
   yellowCallout,
@@ -36,6 +40,9 @@ import Table from '@tiptap/extension-table';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import TableRow from '@tiptap/extension-table-row';
+import Footnote from './exts/footnote-block/footnote';
+import Footnotes from './exts/footnote-block/footnotes';
+import FootnoteReference from './exts/footnote-block/reference';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -70,7 +77,9 @@ export const extensions = [
   StarterKit,
   Highlight,
   Typography,
-  Document,
+  Document.extend({
+    content: 'block+ footnotes?',
+  }),
   LiteralTab,
   Underline,
   blueCallout,
@@ -83,6 +92,9 @@ export const extensions = [
   LinkNote,
   FileEmbed,
   LabelSuggestion,
+  Footnotes,
+  FootnoteReference,
+  Footnote,
   TaskList,
   Gapcursor,
   Table.configure({
@@ -95,13 +107,23 @@ export const extensions = [
     nested: true,
   }),
   CodeBlock,
+  Video,
   MathInline,
   MermaidBlock,
   MathBlock,
+  Subscript.extend({
+    addKeyboardShortcuts() {
+      return {
+        'Alt-,': () => this.editor.commands.toggleSubscript(),
+      };
+    },
+  }),
+  Superscript,
   TextDirection.configure({
     defaultDirection: defaultDirection,
   }),
   Image,
+  Audio,
   Search,
   Placeholder.configure({
     placeholder: translations.tiptap.placeholder,
@@ -123,7 +145,7 @@ export const extensions = [
     },
   }),
   Iframe,
-  collapseHeading,
+  CollapseHeading,
 ];
 
 export default function ({ extensions: optsExts, ...opts }) {

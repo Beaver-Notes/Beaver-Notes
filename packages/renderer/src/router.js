@@ -6,7 +6,7 @@ import SettingsIndex from './pages/settings/Index.vue';
 import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
-import privacysecurity from './pages/settings/privacysecurity.vue';
+import PrivacySecurity from './pages/settings/privacysecurity.vue';
 
 const routes = [
   {
@@ -42,7 +42,7 @@ const routes = [
       {
         path: 'privacysecurity',
         name: 'Settings-privacysecurity',
-        component: privacysecurity,
+        component: PrivacySecurity,
       },
       {
         path: 'about',
@@ -50,6 +50,22 @@ const routes = [
         component: SettingsAbout,
       },
     ],
+  },
+  {
+    // Catch-all route for footnote links
+    path: '/fn:*',
+    name: 'Footnote',
+    beforeEnter: (to, from, next) => {
+      next(false);
+    },
+  },
+  {
+    // Catch-all route for any unmatched paths
+    path: '/:pathMatch(.*)*',
+    name: 'NotFound',
+    beforeEnter: (to, from, next) => {
+      next(false); // Prevents Vue Router from processing the route
+    },
   },
 ];
 

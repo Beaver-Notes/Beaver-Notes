@@ -580,10 +580,10 @@ export default {
     const editorWidthChecked = computed({
       get: () => localStorage.getItem('editorWidth') === '68rem',
       set: (value) => {
-        localStorage.setItem('editorWidth', value ? '68rem' : '52rem');
+        localStorage.setItem('editorWidth', value ? '68rem' : '54rem');
         document.documentElement.style.setProperty(
           '--selected-width',
-          value ? '68rem' : '52rem'
+          value ? '68rem' : '54rem'
         );
         window.location.reload();
       },

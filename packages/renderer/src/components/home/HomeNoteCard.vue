@@ -61,7 +61,7 @@
             : translations.card.bookmark
         "
         class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition"
-        @click="$emit('update', { isBookmarked: !note.isBookmarked })"
+        @click="toggleBookmark(note)"
       >
         <v-remixicon
           :name="note.isBookmarked ? 'riBookmarkFill' : 'riBookmarkLine'"
@@ -74,7 +74,7 @@
             : translations.card.archive
         "
         class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="$emit('update', { isArchived: !note.isArchived })"
+        @click="toggleArchive(note)"
       >
         <v-remixicon
           :name="note.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'"
@@ -139,7 +139,7 @@ defineProps({
     default: () => ({}),
   },
 });
-defineEmits(['update', 'update:label']);
+const emit = defineEmits(['update', 'update:label']);
 
 const dialog = useDialog();
 const storage = useStorage();
@@ -177,6 +177,10 @@ async function lockNote(note) {
               // Lock the note using the global password
               await noteStore.lockNote(note, newKey);
               console.log(`Note (ID: ${note}) is locked`);
+              const autoSync = localStorage.getItem('autoSync');
+              if (autoSync === 'true') {
+                await syncexportData();
+              }
             } catch (error) {
               console.error('Error setting up key:', error);
               alert(translations.card.keyfail);
@@ -202,6 +206,10 @@ async function lockNote(note) {
             // If the entered password matches the stored one, lock the note
             await noteStore.lockNote(note, enteredPassword);
             console.log(`Note (ID: ${note}) is locked`);
+            const autoSync = localStorage.getItem('autoSync');
+            if (autoSync === 'true') {
+              await syncexportData();
+            }
           } else {
             // If the entered password does not match, show an error message
             alert(translations.card.wrongpasswd);
@@ -234,6 +242,10 @@ async function unlockNote(note) {
           // Note unlocked using the global password
           await noteStore.unlockNote(note, enteredPassword);
           console.log(`Note (ID: ${note}) is unlocked`);
+          const autoSync = localStorage.getItem('autoSync');
+          if (autoSync === 'true') {
+            await syncexportData();
+          }
         } else {
           alert(translations.card.wrongpasswd);
         }
@@ -275,36 +287,106 @@ async function syncexportData() {
 
     const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
     const dataDir = await storage.get('dataDir', '', 'settings');
-
     const exportPath = defaultPath; // Use the selected default path
     const folderPath = path.join(exportPath, folderName);
 
-    await ipcRenderer.callMain('fs:ensureDir', folderPath);
-    await ipcRenderer.callMain('fs:output-json', {
-      path: path.join(folderPath, 'data.json'),
-      data: { data },
-    });
-    await ipcRenderer.callMain('fs:copy', {
-      path: path.join(dataDir, 'notes-assets'),
-      dest: path.join(folderPath, 'assets'),
-    });
-    await ipcRenderer.callMain('fs:copy', {
-      path: path.join(dataDir, 'file-assets'),
-      dest: path.join(folderPath, 'file-assets'),
-    });
+    const containsGvfs = exportPath.includes('gvfs');
+
+    if (containsGvfs) {
+      // Ensure the directory exists
+      await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+      // Save main data.json
+      await ipcRenderer.callMain('fs:output-json', {
+        path: path.join(folderPath, 'data.json'),
+        data: { data },
+      });
+
+      // Copy notes-assets
+      const notesAssetsSource = path.join(dataDir, 'notes-assets');
+      const notesAssetsDest = path.join(folderPath, 'assets');
+      await ipcRenderer.callMain('gvfs:copy', {
+        path: notesAssetsSource,
+        dest: notesAssetsDest,
+      });
+
+      // Copy file-assets
+      const fileAssetsSource = path.join(dataDir, 'file-assets');
+      const fileAssetsDest = path.join(folderPath, 'file-assets');
+      await ipcRenderer.callMain('gvfs:copy', {
+        path: fileAssetsSource,
+        dest: fileAssetsDest,
+      });
+    } else {
+      // Ensure the directory exists
+      await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+      // Save main data.json
+      await ipcRenderer.callMain('fs:output-json', {
+        path: path.join(folderPath, 'data.json'),
+        data: { data },
+      });
+
+      const backupFileName = `data_${dayjs().format(
+        'YYYYMMDD_HHmmss'
+      )}.json.bak`;
+      const backupFilePath = path.join(folderPath, backupFileName);
+
+      await ipcRenderer.callMain('fs:copy', {
+        path: path.join(folderPath, 'data.json'),
+        dest: backupFilePath,
+      });
+
+      // Limit the number of backup files to 4
+      const files = await ipcRenderer.callMain('fs:readdir', folderPath);
+      const backupFiles = files.filter((file) => file.endsWith('.json.bak'));
+
+      if (backupFiles.length > 4) {
+        // Sort backup files by creation time
+        const sortedBackupFiles = await Promise.all(
+          backupFiles.map(async (file) => {
+            const backupFilesPath = path.join(folderPath, file);
+            const stats = await ipcRenderer.callMain(
+              'fs:stat',
+              backupFilesPath
+            );
+            return { file, time: stats.birthtime };
+          })
+        ).then((files) => files.sort((a, b) => a.time - b.time));
+
+        // Delete oldest files
+        for (let i = 0; i < sortedBackupFiles.length - 4; i++) {
+          const oldFilesPath = path.join(folderPath, sortedBackupFiles[i].file);
+          await ipcRenderer.callMain('fs:unlink', oldFilesPath);
+        }
+      }
+
+      // Copy notes-assets
+      const notesAssetsSource = path.join(dataDir, 'notes-assets');
+      const notesAssetsDest = path.join(folderPath, 'assets');
+      await ipcRenderer.callMain('fs:copy', {
+        path: notesAssetsSource,
+        dest: notesAssetsDest,
+      });
+
+      // Copy file-assets
+      const fileAssetsSource = path.join(dataDir, 'file-assets');
+      const fileAssetsDest = path.join(folderPath, 'file-assets');
+      await ipcRenderer.callMain('fs:copy', {
+        path: fileAssetsSource,
+        dest: fileAssetsDest,
+      });
+    }
 
     state.withPassword = false;
     state.password = '';
-    notification({
-      title: translations.sidebar.notification,
-      body: translations.sidebar.exportSuccess,
-    });
   } catch (error) {
+    // Error notification
     notification({
       title: translations.sidebar.notification,
       body: translations.sidebar.exportFail,
     });
-    console.error(error);
+    console.error('Error during syncexportData:', error);
   }
 }
 
@@ -363,6 +445,22 @@ const loadTranslations = async () => {
     return null;
   }
 };
+
+async function emitUpdate(payload) {
+  emit('update', payload);
+  const autoSync = localStorage.getItem('autoSync');
+  if (autoSync === 'true') {
+    await syncexportData();
+  }
+}
+
+async function toggleBookmark(note) {
+  emitUpdate({ isBookmarked: !note.isBookmarked });
+}
+
+async function toggleArchive(note) {
+  emitUpdate({ isArchived: !note.isArchived });
+}
 </script>
 <style>
 .note-card.active-note .group-hover\:visible {
