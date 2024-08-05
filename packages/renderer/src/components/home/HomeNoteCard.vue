@@ -132,6 +132,7 @@ import 'dayjs/locale/zh';
 import 'dayjs/locale/nl';
 import 'dayjs/locale/es';
 import 'dayjs/locale/uk';
+import 'dayjs/locale/ru';
 
 defineProps({
   note: {
