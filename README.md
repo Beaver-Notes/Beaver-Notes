@@ -46,11 +46,11 @@ Getting started with Beaver Notes is quick and easy! Visit our official website 
 
 ## Need Help? 🤔
 
-I and the community are here to help you! For any questions or support, reach out at [danielerolli@proton.me](mailto:danielerolli@proton.me) or get in touch using our social channels like [Mastodon](https://mastodon.social/@Beavernotes) and [Reddit](https://www.reddit.com/r/BeaverNotes/). Additionally, you can check out the [docs](https://danieles-organization.gitbook.io/beaver-notes/) for a more immediate solution.
+I and the community are here to help you! For any questions or support, reach out at [danielerolli@proton.me](mailto:danielerolli@proton.me) or get in touch using our social channels like [Mastodon](https://mastodon.social/@Beavernotes) and [Reddit](https://www.reddit.com/r/BeaverNotes/). Additionally, you can check out the [docs](https://beaver-notes.github.io/Beaver-Docs/docs/category/user-guides) for a more immediate solution.
 
 ## Join the Community 🦫
 
-Collaborating is one of the best ways to support your favorite piece of software. If you're interested in contributing through coding, translating, sharing ideas, providing feedback, opening issues, helping promote, and more to enhance Beaver Notes, you are welcome to join the community. For more details, please check out the [Docs](https://danieles-organization.gitbook.io/beaver-notes/dev-guides/how-to-contribute).
+Collaborating is one of the best ways to support your favorite piece of software. If you're interested in contributing through coding, translating, sharing ideas, providing feedback, opening issues, helping promote, and more to enhance Beaver Notes, you are welcome to join the community. For more details, please check out the [Docs](https://beaver-notes.github.io/Beaver-Docs/docs/dev-docs/Beaver%20Notes/How%20to%20contribure).
 
 ## License 📜
 
@@ -85,3 +85,16 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
+💖 Support the Project
+
+<div align="center">
+    <p>
+        <a href="https://www.buymeacoffee.com/beavernotes">
+            <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="50" width="210" alt="beavernotes" />
+        </a>
+        <a href="https://ko-fi.com/danielerollibeavernotes">
+            <img src="https://cdn.ko-fi.com/cdn/kofi3.png?v=3" height="50" width="210" alt="danielerollibeavernotes" />
+        </a>
+    </p>
+</div>
