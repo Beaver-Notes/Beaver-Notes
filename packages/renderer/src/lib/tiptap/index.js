@@ -2,7 +2,7 @@ import { Editor } from '@tiptap/vue-3';
 import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
-import Highlight from '@tiptap/extension-highlight';
+import Highlight from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
@@ -78,7 +78,9 @@ if (selectedLanguage === 'it') {
 
 export const extensions = [
   StarterKit,
-  Highlight,
+  Highlight.configure({
+    multicolor: true,
+  }),
   Typography,
   Document.extend({
     content: 'block+ footnotes?',

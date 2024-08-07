@@ -173,9 +173,6 @@ li[data-checked="true"] {
     margin-top: 1em;
     margin-bottom: 1em;
   }
-  mark {
-    @apply bg-yellow-200 dark:bg-yellow-100;
-  }
 }
 
 /* Basic editor styles */
