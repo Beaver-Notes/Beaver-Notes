@@ -65,19 +65,89 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
+
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="http://bigshans.github.io"><img src="https://avatars.githubusercontent.com/u/26884666?v=4?s=100" width="100px;" alt="Algernon"/><br /><sub><b>Algernon</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/issues?q=author%3Abigshans" title="Bug reports">🐛</a> <a href="#translation-bigshans" title="Translation">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bigshans" title="Code">💻</a> <a href="#maintenance-bigshans" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/eag75"><img src="https://avatars.githubusercontent.com/u/155111097?v=4?s=100" width="100px;" alt="Danny Schellnock"/><br /><sub><b>Danny Schellnock</b></sub></a><br /><a href="#translation-eag75" title="Translation">🌍</a> <a href="#maintenance-eag75" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kant"><img src="https://avatars.githubusercontent.com/u/32717?v=4?s=100" width="100px;" alt="Darío Hereñú"/><br /><sub><b>Darío Hereñú</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=kant" title="Documentation">📖</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/mee141"><img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" width="100px;" alt="mee_"/><br /><sub><b>mee_</b></sub></a><br /><a href="#translation-mee141" title="Translation">🌍</a> <a href="#maintenance-mee141" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://www.eave.fyi"><img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" width="100px;" alt="Bryan Ricker"/><br /><sub><b>Bryan Ricker</b></sub></a><br /><a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Documentation">📖</a> <a href="#translation-bricker" title="Translation">🌍</a> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Code">💻</a></td>
-        <td align="center" valign="top" width="14.28%"><img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="verthandii"/><br /><sub><b>Verthandii</b></sub><br /> <a href="https://github.com/Daniele-rolli/Beaver-Notes/commit/6b3240dbc69f667f6a74cd29387f628f94c67ef2" title="Translation">🌍</a></td>
-       <td align="center" valign="top" width="14.28%"><img src="https://files.mastodon.social/cache/accounts/avatars/109/133/358/983/739/539/original/581ad9fb29a9a04d.png" width="100px;" alt="mondstern"/><br /><sub><a href="https://moooon.dresden.network"><b>Mondstern</b></a></sub><br /> <a title="Translation">🌍</a></td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="http://bigshans.github.io">
+          <img src="https://avatars.githubusercontent.com/u/26884666?v=4?s=100" width="100px;" alt="Algernon"/>
+          <br /><sub><b>Algernon</b></sub>
+        </a>
+        <br />
+        <a href="https://github.com/Daniele-rolli/Beaver-Notes/issues?q=author%3Abigshans" title="Bug reports">🐛</a>
+        <a href="#translation-bigshans" title="Translation">🌍</a>
+        <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bigshans" title="Code">💻</a>
+        <a href="#maintenance-bigshans" title="Maintenance">🚧</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/eag75">
+          <img src="https://avatars.githubusercontent.com/u/155111097?v=4?s=100" width="100px;" alt="Danny Schellnock"/>
+          <br /><sub><b>Danny Schellnock</b></sub>
+        </a>
+        <br />
+        <a href="#translation-eag75" title="Translation">🌍</a>
+        <a href="#maintenance-eag75" title="Maintenance">🚧</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/kant">
+          <img src="https://avatars.githubusercontent.com/u/32717?v=4?s=100" width="100px;" alt="Darío Hereñú"/>
+          <br /><sub><b>Darío Hereñú</b></sub>
+        </a>
+        <br />
+        <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=kant" title="Documentation">📖</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/mee141">
+          <img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" width="100px;" alt="mee_"/>
+          <br /><sub><b>mee_</b></sub>
+        </a>
+        <br />
+        <a href="#translation-mee141" title="Translation">🌍</a>
+        <a href="#maintenance-mee141" title="Maintenance">🚧</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://www.eave.fyi">
+          <img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" width="100px;" alt="Bryan Ricker"/>
+          <br /><sub><b>Bryan Ricker</b></sub>
+        </a>
+        <br />
+        <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Documentation">📖</a>
+        <a href="#translation-bricker" title="Translation">🌍</a>
+        <a href="https://github.com/Daniele-rolli/Beaver-Notes/commits?author=bricker" title="Code">💻</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="verthandii"/>
+        <br /><sub><b>Verthandii</b></sub>
+        <br />
+        <a href="https://github.com/Daniele-rolli/Beaver-Notes/commit/6b3240dbc69f667f6a74cd29387f628f94c67ef2" title="Translation">🌍</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://moooon.dresden.network">
+          <img src="https://files.mastodon.social/cache/accounts/avatars/109/133/358/983/739/539/original/581ad9fb29a9a04d.png" width="100px;" alt="Mondstern"/>
+          <br /><sub><b>Mondstern</b></sub>
+        </a>
+        <br />
+        <a title="Translation">🌍</a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" valign="top" width="14.28%">
+        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="Gabriel Soleil"/>
+        <br /><sub><b>Gabriel Soleil</b></sub>
+        <br />
+        <a title="Translation">🌍</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="Gabriel Soleil"/>
+        <br /><sub><b>Rem</b></sub>
+        <br />
+        <a title="Translation">🌍</a>
+      </td>
     </tr>
   </tbody>
 </table>
+
 
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
