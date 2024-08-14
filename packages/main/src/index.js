@@ -35,6 +35,8 @@ import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
 import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
 import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
 import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
+import ruTranslations from '../../renderer/src/pages/settings/locales/ru.json';
+import frTranslations from '../../renderer/src/pages/settings/locales/fr.json';
 import api from './server';
 import { generateToken } from './token';
 
@@ -341,29 +343,26 @@ function initializeMenu() {
 
   let translations = enTranslations;
 
-  if (selectedLanguage === 'it') {
-    translations = itTranslations;
-  }
-
   if (selectedLanguage === 'de') {
     translations = deTranslations;
-  }
-
-  if (selectedLanguage === 'zh') {
-    translations = zhTranslations;
-  }
-
-  if (selectedLanguage === 'nl') {
-    translations = nlTranslations;
-  }
-
-  if (selectedLanguage === 'es') {
+  } else if (selectedLanguage === 'en') {
+    translations = enTranslations;
+  } else if (selectedLanguage === 'es') {
     translations = esTranslations;
-  }
-
-  if (selectedLanguage === 'uk') {
+  } else if (selectedLanguage === 'fr') {
+    translations = frTranslations;
+  } else if (selectedLanguage === 'it') {
+    translations = itTranslations;
+  } else if (selectedLanguage === 'nl') {
+    translations = nlTranslations;
+  } else if (selectedLanguage === 'ru') {
+    translations = ruTranslations;
+  } else if (selectedLanguage === 'uk') {
     translations = ukTranslations;
-  }
+  } else if (selectedLanguage === 'zh') {
+    translations = zhTranslations;
+  }  
+
 
   // Function to set the application menu
 

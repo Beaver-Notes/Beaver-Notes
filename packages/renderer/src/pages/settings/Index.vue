@@ -222,6 +222,7 @@ const nlTranslations = import('../../pages/settings/locales/nl.json');
 const zhTranslations = import('../../pages/settings/locales/zh.json');
 const ukTranslations = import('../../pages/settings/locales/uk.json');
 const ruTranslations = import('../../pages/settings/locales/ru.json');
+const frTranslations = import('../../pages/settings/locales/fr.json');
 
 export const state = shallowReactive({
   dataDir: '',
@@ -785,11 +786,12 @@ export default {
         { code: 'de', name: 'Deutsch', translations: deTranslations },
         { code: 'en', name: 'English', translations: enTranslations },
         { code: 'es', name: 'Español', translations: esTranslations },
+        { code: 'fr', name: 'Français', translations: frTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
-        { code: 'zh', name: '简体中文', translations: zhTranslations },
-        { code: 'uk', name: 'Українська', translations: ukTranslations },
         { code: 'ru', name: 'Русский', translations: ruTranslations },
+        { code: 'uk', name: 'Українська', translations: ukTranslations },
+        { code: 'zh', name: '简体中文', translations: zhTranslations },
       ],
     };
   },
