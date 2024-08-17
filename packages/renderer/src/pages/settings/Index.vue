@@ -367,6 +367,8 @@ export default {
         const keys = [
           { key: 'notes', dfData: {} },
           { key: 'labels', dfData: [] },
+          { key: 'lockStatus', dfData: {} },
+          { key: 'isLocked', dfData: {} },
         ];
 
         for (const { key, dfData } of keys) {
@@ -376,7 +378,6 @@ export default {
 
           if (key === 'labels') {
             const mergedArr = [...currentData, ...importedData];
-
             mergedData = [...new Set(mergedArr)];
           } else {
             mergedData = { ...currentData, ...importedData };
@@ -388,6 +389,7 @@ export default {
         console.error(error);
       }
     }
+
     async function importData() {
       try {
         const {
@@ -420,12 +422,16 @@ export default {
                 const result = bytes.toString(Utf8);
                 const resultObj = JSON.parse(result);
 
+                // Merge imported data
                 await mergeImportedData(resultObj); // Wait for merge operation to finish
+
                 const dataDir = await storage.get('dataDir', '', 'settings');
-                const importedDefaultPath = data['dataDir'];
-                const importedLockedStatus = data['lockStatus'];
-                const importedLockedNotes = data['lockedNotes'];
+                const importedDefaultPath = resultObj['dataDir'];
+                const importedLockedStatus = resultObj['lockStatus'];
+                const importedIsLocked = resultObj['isLocked'];
+
                 localStorage.setItem('dataDir', importedDefaultPath);
+
                 if (
                   importedLockedStatus !== null &&
                   importedLockedStatus !== undefined
@@ -437,18 +443,20 @@ export default {
                 }
 
                 if (
-                  importedLockedNotes !== null &&
-                  importedLockedNotes !== undefined
+                  importedIsLocked !== null &&
+                  importedIsLocked !== undefined
                 ) {
                   localStorage.setItem(
-                    'lockedNotes',
-                    JSON.stringify(importedLockedNotes)
+                    'isLocked',
+                    JSON.stringify(importedIsLocked)
                   );
                 }
+
                 await ipcRenderer.callMain('fs:copy', {
                   path: path.join(dirPath, 'assets'),
                   dest: path.join(dataDir, 'notes-assets'),
                 });
+
                 await ipcRenderer.callMain('fs:copy', {
                   path: path.join(dirPath, 'file-assets'),
                   dest: path.join(dataDir, 'file-assets'),
@@ -463,12 +471,16 @@ export default {
             },
           });
         } else {
+          // Merge imported data
           await mergeImportedData(data); // Wait for merge operation to finish
+
           const dataDir = await storage.get('dataDir', '', 'settings');
           const importedDefaultPath = data['dataDir'];
           const importedLockedStatus = data['lockStatus'];
-          const importedLockedNotes = data['lockedNotes'];
+          const importedIsLocked = data['isLocked'];
+
           localStorage.setItem('dataDir', importedDefaultPath);
+
           if (
             importedLockedStatus !== null &&
             importedLockedStatus !== undefined
@@ -479,19 +491,15 @@ export default {
             );
           }
 
-          if (
-            importedLockedNotes !== null &&
-            importedLockedNotes !== undefined
-          ) {
-            localStorage.setItem(
-              'lockedNotes',
-              JSON.stringify(importedLockedNotes)
-            );
+          if (importedIsLocked !== null && importedIsLocked !== undefined) {
+            localStorage.setItem('isLocked', JSON.stringify(importedIsLocked));
           }
+
           await ipcRenderer.callMain('fs:copy', {
             path: path.join(dirPath, 'assets'),
             dest: path.join(dataDir, 'notes-assets'),
           });
+
           await ipcRenderer.callMain('fs:copy', {
             path: path.join(dirPath, 'file-assets'),
             dest: path.join(dataDir, 'file-assets'),
