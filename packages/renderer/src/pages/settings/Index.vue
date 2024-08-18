@@ -122,6 +122,29 @@
       </div>
     </section>
     <section>
+      <p class="mb-2">{{ translations.settings.Editor || '-' }}</p>
+      <div class="space-y-1">
+        <div class="flex items-center py-2 justify-between">
+          <div>
+            <span class="block text-lg align-left"
+              >{{ translations.settings.CollapsibleHeading || '-' }}
+            </span>
+          </div>
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="collapsibleHeading"
+              type="checkbox"
+              class="peer sr-only"
+            />
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+          </label>
+        </div>
+      </div>
+    </section>
+    <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex ltr:space-x-4">
         <div class="bg-input rtl:ml-4 transition w-6/12 rounded-lg p-4">
@@ -196,7 +219,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, ref, watch } from 'vue';
+import { shallowReactive, onMounted, ref, watch, computed } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -631,6 +654,8 @@ export default {
         password: 'settings.password',
         Inputpassword: 'settings.Inputpassword',
         body: 'settings.body',
+        Editor: 'settings.Editor',
+        CollapsibleHeading: 'settings.CollapsibleHeading',
         Import: 'settings.Import',
         Cancel: 'settings.Cancel',
         Password: 'settings.password',
@@ -757,6 +782,15 @@ export default {
       }
     };
 
+    const collapsibleHeading = computed({
+      get() {
+        return appStore.setting.collapsibleHeading;
+      },
+      set(v) {
+        appStore.setSettingStorage('collapsibleHeading', v);
+      },
+    });
+
     return {
       state,
       theme,
@@ -777,6 +811,7 @@ export default {
       toggleAuth,
       authorizatedApps,
       t,
+      collapsibleHeading,
     };
   },
   data() {

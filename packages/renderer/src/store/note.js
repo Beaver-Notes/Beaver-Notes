@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
+import { useAppStore } from './app';
 import { AES } from 'crypto-es/lib/aes.js';
 import { useStorage } from '../composable/storage.js';
 import { Utf8 } from 'crypto-es/lib/core.js';
@@ -52,6 +53,42 @@ export const useNoteStore = defineStore('note', {
           });
         });
       });
+    },
+
+    convertNote(id) {
+      const note = this.data[id];
+      note.content.content = this.uncollapseHeading(note.content.content);
+    },
+
+    uncollapseHeading(contents = []) {
+      if (contents.length === 0) {
+        return contents;
+      }
+      let newContents = [];
+      for (let i = 0; i < contents.length; i++) {
+        const content = contents[i];
+        newContents.push(content);
+        if (content.type === 'heading') {
+          let collapsedContent = content.attrs.collapsedContent ?? [];
+          if (typeof collapsedContent === 'string') {
+            if (collapsedContent === '') {
+              collapsedContent = [];
+            } else {
+              collapsedContent = JSON.parse(collapsedContent);
+            }
+          }
+          content.attrs.open = true;
+          content.attrs.collapsedContent = null;
+          if (collapsedContent.length === 0) {
+            continue;
+          }
+          newContents = [
+            ...newContents,
+            ...this.uncollapseHeading(collapsedContent),
+          ];
+        }
+      }
+      return newContents;
     },
 
     add(note = {}) {
@@ -190,6 +227,10 @@ export const useNoteStore = defineStore('note', {
         const decryptedContent = decryptedBytes.toString(Utf8);
 
         this.data[id].content = JSON.parse(decryptedContent);
+        const appStore = useAppStore();
+        if (!appStore.setting.collapsibleHeading) {
+          this.convertNote(id);
+        }
         this.data[id].isLocked = false;
         this.isLocked[id] = false;
         await storage.set(`notes.${id}`, this.data[id]);
