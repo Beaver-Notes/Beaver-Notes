@@ -106,11 +106,18 @@ function askUserForLanguage(translations) {
         console.log('quit');
         return;
       }
-      const index = parseInt(answer, 10) - 1;
-      if (index === translations.length) {
+      const indexes = answer.replaceAll(' ', '').split(',').map((n) => parseInt(n, 10) - 1).filter((n) => !isNaN(n));
+      if (indexes.length === 0) {
+        console.log('No valid selection. Exiting.');
+        process.exit(1);
+      }
+      if (indexes.some((index) => index === translations.length)) {
         resolve('all');
-      } else if (index >= 0 && index < translations.length) {
-        resolve(translations[index].locale.code);
+        return;
+      }
+      const validIndexes = indexes.filter((index) => index >= 0 && index < translations.length).map((i) => translations[i].locale.code);
+      if (validIndexes.length > 0) {
+        resolve(validIndexes);
       } else {
         console.log('Invalid selection. Exiting.');
         process.exit(1);
@@ -127,8 +134,8 @@ async function main() {
     const translations = await listTranslations(token);
     console.log('Translations listed successfully.');
 
-    const selectedLocale = await askUserForLanguage(translations);
-    if (selectedLocale === 'all') {
+    const selectedLocales = await askUserForLanguage(translations);
+    if (selectedLocales === 'all') {
       for (const translation of translations) {
         const { code } = translation.locale;
         const translationData = await downloadTranslation(token, code);
@@ -136,10 +143,10 @@ async function main() {
       }
       console.log('All translations downloaded and saved successfully.');
     } else {
-      const translation = await downloadTranslation(token, selectedLocale);
-      console.log('Translation downloaded successfully.');
-      saveTranslationFile(selectedLocale, translation);
-      console.log('Translation downloaded and saved successfully.');
+      const translations = await Promise.all(selectedLocales.map(async (selectedLocale) => ({ translation: await downloadTranslation(token, selectedLocale), selectedLocale })));
+      console.log('Translations downloaded successfully.');
+      await Promise.all(translations.map(({ selectedLocale, translation }) => saveTranslationFile(selectedLocale, translation)));
+      console.log('Translations downloaded and saved successfully.');
     }
   } catch (error) {
     console.error('Error:', error.message);
