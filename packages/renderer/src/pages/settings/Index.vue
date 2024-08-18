@@ -122,11 +122,13 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">编辑器</p>
+      <p class="mb-2">{{ translations.settings.Editor || '-' }}</p>
       <div class="space-y-1">
         <div class="flex items-center py-2 justify-between">
           <div>
-            <span class="block text-lg align-left"> 可折叠标题 </span>
+            <span class="block text-lg align-left"
+              >{{ translations.settings.CollapsibleHeading || '-' }}
+            </span>
           </div>
           <label class="relative inline-flex cursor-pointer items-center">
             <input
