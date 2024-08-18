@@ -51,6 +51,7 @@ import zhTranslations from '../../pages/settings/locales/zh.json';
 import nlTranslations from '../../pages/settings/locales/nl.json';
 import ukTranslations from '../../pages/settings/locales/uk.json';
 import ruTranslations from '../../pages/settings/locales/ru.json';
+import frTranslations from '../../pages/settings/locales/fr.json';
 
 const directionPreference = localStorage.getItem('directionPreference');
 
@@ -60,20 +61,24 @@ const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
 
 let translations = enTranslations;
 
-if (selectedLanguage === 'it') {
-  translations = itTranslations;
-} else if (selectedLanguage === 'de') {
+if (selectedLanguage === 'de') {
   translations = deTranslations;
-} else if (selectedLanguage === 'zh') {
-  translations = zhTranslations;
-} else if (selectedLanguage === 'nl') {
-  translations = nlTranslations;
+} else if (selectedLanguage === 'en') {
+  translations = enTranslations;
 } else if (selectedLanguage === 'es') {
   translations = esTranslations;
-} else if (selectedLanguage === 'uk') {
-  translations = ukTranslations;
+} else if (selectedLanguage === 'fr') {
+  translations = frTranslations;
+} else if (selectedLanguage === 'it') {
+  translations = itTranslations;
+} else if (selectedLanguage === 'nl') {
+  translations = nlTranslations;
 } else if (selectedLanguage === 'ru') {
   translations = ruTranslations;
+} else if (selectedLanguage === 'uk') {
+  translations = ukTranslations;
+} else if (selectedLanguage === 'zh') {
+  translations = zhTranslations;
 }
 
 const extensions = [
