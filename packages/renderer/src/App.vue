@@ -8,6 +8,12 @@
   <main v-if="retrieved" :class="{ 'pl-16': !store.inFocusMode }">
     <router-view />
   </main>
+  <div
+    v-if="appStore.loading"
+    class="fixed w-full h-full top-0 left-0 z-50 flex justify-center items-center bg-opacity-40 bg-black"
+  >
+    <ui-spinner :size="50" />
+  </div>
   <ui-dialog />
 </template>
 <script>
@@ -196,6 +202,7 @@ export default {
       store,
       retrieved,
       zoom,
+      appStore,
     };
   },
 };

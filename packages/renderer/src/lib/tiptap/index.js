@@ -76,7 +76,7 @@ if (selectedLanguage === 'it') {
   translations = ruTranslations;
 }
 
-export const extensions = [
+const extensions = [
   StarterKit,
   Highlight.configure({
     multicolor: true,
@@ -150,8 +150,9 @@ export const extensions = [
     },
   }),
   Iframe,
-  CollapseHeading,
 ];
+
+export { extensions, CollapseHeading };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({
