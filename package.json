@@ -110,6 +110,7 @@
     "vue-router": "^4.0.11"
   },
   "dependencies": {
+    "@tiptap/extension-hard-break": "^2.6.5",
     "@tiptap/extension-subscript": "^2.5.4",
     "@tiptap/extension-superscript": "^2.5.4",
     "add": "^2.0.6",
