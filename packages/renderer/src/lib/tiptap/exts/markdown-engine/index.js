@@ -5,22 +5,20 @@ const markdownEngine = Extension.create({
 
   addInputRules() {
     return [
+      // Handle line breaks as before
       {
         find: /\\ $/,
         handler: ({ state, range }) => {
           const { tr, selection } = state;
           const { from, to } = range;
 
-          // Replace matched text with a hard break
           tr.delete(from, to).insert(
             from,
             state.schema.nodes.hardBreak.create()
           );
 
-          // Set selection after the hard break
           tr.setSelection(selection.constructor.near(tr.doc.resolve(from + 1)));
 
-          // Check and apply transaction
           if (tr.docChanged && this.editor.view.state === state) {
             this.editor.view.dispatch(tr);
           }
@@ -34,16 +32,13 @@ const markdownEngine = Extension.create({
           const { tr, selection } = state;
           const { from, to } = range;
 
-          // Replace matched text with a hard break
           tr.delete(from, to).insert(
             from,
             state.schema.nodes.hardBreak.create()
           );
 
-          // Set selection after the hard break
           tr.setSelection(selection.constructor.near(tr.doc.resolve(from + 1)));
 
-          // Check and apply transaction
           if (tr.docChanged && this.editor.view.state === state) {
             this.editor.view.dispatch(tr);
           }
@@ -57,16 +52,74 @@ const markdownEngine = Extension.create({
           const { tr, selection } = state;
           const { from, to } = range;
 
-          // Replace matched text with a hard break
           tr.delete(from, to).insert(
             from,
             state.schema.nodes.hardBreak.create()
           );
 
-          // Set selection after the hard break
           tr.setSelection(selection.constructor.near(tr.doc.resolve(from + 1)));
 
-          // Check and apply transaction
+          if (tr.docChanged && this.editor.view.state === state) {
+            this.editor.view.dispatch(tr);
+          }
+
+          return true;
+        },
+      },
+      // Handle Markdown links
+      {
+        find: /(\[([^\]]+)\]\(([^)]+)\))/,
+        handler: ({ state, range, match }) => {
+          const { tr, selection } = state;
+          const { from, to } = range;
+          const text = match[2];
+          const href = match[3];
+
+          // Delete the entire matched text
+          tr.delete(from, to);
+
+          // Insert the text with a link mark
+          const linkMark = state.schema.marks.link.create({ href });
+          tr.insert(from, state.schema.text(text, [linkMark]));
+
+          // Move the selection after the inserted link
+          tr.setSelection(
+            selection.constructor.near(tr.doc.resolve(from + text.length))
+          );
+
+          if (tr.docChanged && this.editor.view.state === state) {
+            this.editor.view.dispatch(tr);
+          }
+
+          return true;
+        },
+      },
+    ];
+  },
+
+  addPasteRules() {
+    return [
+      {
+        match: /https?:\/\/[^\s]+/,
+        handler: ({ state, range, match }) => {
+          const { tr, selection } = state;
+          const { from, to } = range;
+          const url = match[0];
+
+          // Replace the pasted URL with a link mark
+          tr.delete(from, to);
+          tr.insert(
+            from,
+            state.schema.text(url, [
+              state.schema.marks.link.create({ href: url }),
+            ])
+          );
+
+          // Move the selection after the inserted link
+          tr.setSelection(
+            selection.constructor.near(tr.doc.resolve(from + url.length))
+          );
+
           if (tr.docChanged && this.editor.view.state === state) {
             this.editor.view.dispatch(tr);
           }
