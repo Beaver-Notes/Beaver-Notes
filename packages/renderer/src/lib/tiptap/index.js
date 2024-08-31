@@ -25,6 +25,7 @@ import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
+import drawingCanvas from './exts/drawing-block';
 import Search from './exts/search';
 import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
@@ -138,6 +139,7 @@ const extensions = [
   Image,
   Audio,
   Search,
+  drawingCanvas,
   markdownEngine,
   Placeholder.configure({
     placeholder: translations.tiptap.placeholder,

@@ -5,7 +5,7 @@
       <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
     </template>
     <p
-      class="text-gray-600 dark:text-gray-200 leading-tight break-words overflow-hidden"
+      class="text-neutral-600 dark:text-neutral-200 leading-tight break-words overflow-hidden"
     >
       {{ state.options.body }}
     </p>

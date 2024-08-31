@@ -4,7 +4,7 @@
     :class="{ 'inline-block': !block }"
     class="ui-select cursor-pointer rtl:-rotate-180"
   >
-    <label v-if="label" :for="selectId" class="text-gray-200 text-sm ml-2">
+    <label v-if="label" :for="selectId" class="text-neutral-200 text-sm ml-2">
       {{ label }}
     </label>
     <div
@@ -14,7 +14,7 @@
         v-if="prependIcon"
         size="20"
         :name="prependIcon"
-        class="absolute text-gray-600 dark:text-gray-200 left-0 ml-2"
+        class="absolute text-neutral-600 dark:text-neutral-200 left-0 ml-2"
       />
       <select
         :id="selectId"
@@ -31,7 +31,7 @@
       <v-remixicon
         size="28"
         name="riArrowDropDownLine"
-        class="absolute text-gray-600 dark:text-gray-200 mr-2 right-0 rtl:right-auto rtl:left-0"
+        class="absolute text-neutral-600 dark:text-neutral-200 mr-2 right-0 rtl:right-auto rtl:left-0"
       />
     </div>
   </div>
@@ -83,6 +83,6 @@ export default {
 }
 .ui-select option,
 .ui-select optgroup {
-  @apply bg-gray-100 dark:bg-gray-700;
+  @apply bg-neutral-100 dark:bg-neutral-700;
 }
 </style>
