@@ -20,23 +20,10 @@
         </template>
       </svg>
       <div
-        class="absolute bottom-2 w-4 h-4 right-2 cursor-row-resize"
+        class="absolute bottom-0 w-full h-3 cursor-row-resize bg-neutral-200 dark:bg-neutral-700 border-r border-l border-gray-300 hover:bg-neutral-300 hover:dark:bg-neutral-600 hover:bg-opacity-60 flex items-center justify-center"
         @mousedown="startResize"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          class="stroke-current"
-          :class="{ 'text-black': !isDarkMode, 'text-white': isDarkMode }"
-        >
-          <path
-            d="M21 15L15 21M21 8L8 21"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
+        <div class="bg-neutral-400 rounded w-10 h-1"></div>
       </div>
     </div>
     <div
@@ -188,11 +175,13 @@ export default {
       svgWidth: 500,
       isResizing: false,
       startY: 0,
-      tool: 'pencil', // Default tool
-      lastSize: 5, // Track the last used size
+      tool: 'pencil',
+      lastSize: 5,
       history: [],
       redoStack: [],
-      selectedPaths: new Set(), // To keep track of selected paths for erasing
+      selectedPaths: new Set(),
+      selectionRect: { x: 0, y: 0, width: 0, height: 0 }, // For eraser selection
+      showSelectionRect: false, // Toggle for showing selection rect
     };
   },
   computed: {
@@ -217,22 +206,18 @@ export default {
     setTool(tool) {
       this.tool = tool;
       if (tool === 'highlighter') {
-        this.color = '#FFFF00'; // Highlighter color
+        this.color = '#FFFF00';
         this.size = 10;
       } else if (tool === 'pencil') {
-        this.color = this.isDarkMode ? '#FFFFFF' : '#000000'; // Pen color
+        this.color = this.isDarkMode ? '#FFFFFF' : '#000000';
         this.size = this.lastSize;
       } else if (tool === 'eraser') {
-        this.color = '#f1f3f5'; // Eraser color
+        this.color = '#f1f3f5';
         this.size = 10;
       }
     },
     setSize(size) {
-      const sizes = {
-        thin: 2,
-        small: 5,
-        thick: 8,
-      };
+      const sizes = { thin: 2, small: 5, thick: 8 };
       this.lastSize = this.size;
       this.size = sizes[size] || 5;
     },
@@ -246,22 +231,15 @@ export default {
         .attr('stroke', this.color)
         .attr('stroke-width', this.size)
         .attr('fill', this.tool === 'highlighter' ? this.color : 'none')
-        .attr('opacity', this.tool === 'highlighter' ? 0.3 : 1); // Highlighter opacity
+        .attr('opacity', this.tool === 'highlighter' ? 0.3 : 1);
 
       if (this.tool === 'eraser') {
-        this.svg.selectAll('path').each((d, i, nodes) => {
-          const pathElement = d3.select(nodes[i]);
-          const pathBounds = pathElement.node().getBBox();
-          const [x, y] = d3.pointers(event)[0];
-          if (
-            x >= pathBounds.x &&
-            x <= pathBounds.x + pathBounds.width &&
-            y >= pathBounds.y &&
-            y <= pathBounds.y + pathBounds.height
-          ) {
-            this.selectedPaths.add(pathElement.attr('id'));
-          }
-        });
+        this.showSelectionRect = true;
+        const [x, y] = d3.pointers(event)[0];
+        this.selectionRect.x = x;
+        this.selectionRect.y = y;
+        this.selectionRect.width = 0;
+        this.selectionRect.height = 0;
       }
 
       const moveEvent = event.type === 'mousedown' ? 'mousemove' : 'touchmove';
@@ -270,19 +248,11 @@ export default {
     onMove(event) {
       event.preventDefault();
       if (this.tool === 'eraser') {
-        const [x, y] = d3.pointers(event)[0];
-        this.svg.selectAll('path').each((d, i, nodes) => {
-          const pathElement = d3.select(nodes[i]);
-          const pathBounds = pathElement.node().getBBox();
-          if (
-            x >= pathBounds.x &&
-            x <= pathBounds.x + pathBounds.width &&
-            y >= pathBounds.y &&
-            y <= pathBounds.y + pathBounds.height
-          ) {
-            this.selectedPaths.add(pathElement.attr('id'));
-          }
-        });
+        if (this.showSelectionRect) {
+          const [x, y] = d3.pointers(event)[0];
+          this.selectionRect.width = x - this.selectionRect.x;
+          this.selectionRect.height = y - this.selectionRect.y;
+        }
       } else {
         this.points.push(d3.pointers(event)[0]);
         this.tick();
@@ -293,9 +263,9 @@ export default {
       this.drawing = false;
 
       if (this.tool === 'eraser') {
-        this.eraseSelectedPaths();
+        this.erasePathsWithinSelection();
+        this.showSelectionRect = false;
       } else {
-        // Update the line list with the new drawing
         this.history.push({ lines: this.node.attrs.lines });
         this.redoStack = [];
         const updatedLines = this.node.attrs.lines.filter(
@@ -312,21 +282,30 @@ export default {
               tool: this.tool,
             },
           ],
-          height: this.svgHeight, // Save height attribute
+          height: this.svgHeight,
         });
 
         this.svg.select(`#id-${this.id}`).remove();
         this.id = uuid();
       }
       this.svg.on('mousemove touchmove', null);
-      this.selectedPaths.clear(); // Clear selected paths after drawing
+      this.selectedPaths.clear();
     },
-    eraseSelectedPaths() {
-      this.selectedPaths.forEach((pathId) => {
-        this.svg.select(`#${pathId}`).remove();
+    erasePathsWithinSelection() {
+      this.svg.selectAll('path').each((d, i, nodes) => {
+        const pathElement = d3.select(nodes[i]);
+        const pathBounds = pathElement.node().getBBox();
+        const rectBounds = this.selectionRect;
+        if (
+          pathBounds.x < rectBounds.x + rectBounds.width &&
+          pathBounds.x + pathBounds.width > rectBounds.x &&
+          pathBounds.y < rectBounds.y + rectBounds.height &&
+          pathBounds.y + pathBounds.height > rectBounds.y
+        ) {
+          pathElement.remove();
+        }
       });
 
-      // Update the node with remaining lines
       const remainingLines = this.node.attrs.lines.filter(
         (line) => !this.selectedPaths.has(`id-${line.id}`)
       );
@@ -341,7 +320,7 @@ export default {
     clear() {
       this.history.push({ lines: this.node.attrs.lines });
       this.redoStack = [];
-      this.updateAttributes({ lines: [], height: this.svgHeight }); // Save height
+      this.updateAttributes({ lines: [], height: this.svgHeight });
     },
     startResize(event) {
       this.isResizing = true;
@@ -354,8 +333,6 @@ export default {
         const deltaY = event.clientY - this.startY;
         this.svgHeight = Math.max(100, this.svgHeight + deltaY);
         this.startY = event.clientY;
-
-        // Save height during resize
         this.saveHeight();
       }
     },
@@ -375,8 +352,8 @@ export default {
         const lastLine =
           this.node.attrs.lines[this.node.attrs.lines.length - 1];
         if (lastLine) {
-          this.size = lastLine.size; // Load saved size
-          this.color = lastLine.color; // Load saved color
+          this.size = lastLine.size;
+          this.color = lastLine.color;
         }
       }
     },

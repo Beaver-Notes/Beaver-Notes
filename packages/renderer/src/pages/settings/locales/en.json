@@ -127,7 +127,8 @@
     "underline": "Underline",
     "vidUrl": "Video url",
     "video": "Video",
-    "videoUrl": "Video url"
+    "videoUrl": "Video url",
+    "draw": "Draw"
   },
   "search": {
     "clear": "Clear",

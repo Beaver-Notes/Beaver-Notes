@@ -204,7 +204,7 @@
           </button>
         </template>
         <button
-          v-tooltip.group="translations.menu.tableInsert"
+          v-tooltip.group="translations.menu.draw"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.commands.insertPaper"
         >
