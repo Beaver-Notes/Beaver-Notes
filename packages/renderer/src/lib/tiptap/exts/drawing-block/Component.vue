@@ -5,7 +5,7 @@
         ref="canvas"
         :height="svgHeight"
         :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
-        class="border border-gray-300"
+        :class="['border border-gray-300', paperType]"
       >
         <template v-for="item in node.attrs.lines" :key="item.id">
           <path
@@ -52,6 +52,17 @@
         >
           <v-remixicon name="riMarkPenLine" />
         </button>
+        <!-- Dropdown for Paper Type -->
+        <select
+          v-model="paperType"
+          class="border border-gray-300 rounded p-2 bg-neutral-100 dark:bg-neutral-800"
+          @change="changePaperType"
+        >
+          <option value="plain">Plain</option>
+          <option value="grid">Grid</option>
+          <option value="ruled">Ruled</option>
+          <option value="dotted">Dotted</option>
+        </select>
       </div>
       <div class="right-controls flex gap-2">
         <button
@@ -180,8 +191,9 @@ export default {
       history: [],
       redoStack: [],
       selectedPaths: new Set(),
-      selectionRect: { x: 0, y: 0, width: 0, height: 0 }, // For eraser selection
-      showSelectionRect: false, // Toggle for showing selection rect
+      selectionRect: { x: 0, y: 0, width: 0, height: 0 },
+      showSelectionRect: false,
+      paperType: this.node.attrs.paperType || 'plain', // Load saved paper type
     };
   },
   computed: {
@@ -201,8 +213,21 @@ export default {
       .on('mousedown touchstart', this.onStartDrawing)
       .on('mouseup touchend mouseleave touchleave', this.onEndDrawing);
     this.loadSavedAttributes();
+    this.applyPaperType();
   },
   methods: {
+    changePaperType() {
+      this.node.attrs.paperType = this.paperType; // Save the paper type to node.attrs
+      this.applyPaperType();
+      this.updateAttributes({ paperType: this.paperType });
+    },
+    applyPaperType() {
+      const canvas = this.$refs.canvas;
+      canvas.classList.remove('grid', 'ruled', 'dotted');
+      if (this.paperType !== 'plain') {
+        canvas.classList.add(this.paperType);
+      }
+    },
     setTool(tool) {
       this.tool = tool;
       if (tool === 'highlighter') {
@@ -263,14 +288,22 @@ export default {
       this.drawing = false;
 
       if (this.tool === 'eraser') {
+        // Save the current state before erasing
+        this.history.push({ lines: [...this.node.attrs.lines] });
         this.erasePathsWithinSelection();
         this.showSelectionRect = false;
       } else {
-        this.history.push({ lines: this.node.attrs.lines });
+        // Save the current state for undo
+        this.history.push({ lines: [...this.node.attrs.lines] });
+
+        // Clear redo stack since a new action is being recorded
         this.redoStack = [];
+
         const updatedLines = this.node.attrs.lines.filter(
           (item) => item.id !== this.id
         );
+
+        // Add the new path to the lines
         this.updateAttributes({
           lines: [
             ...updatedLines,
@@ -284,31 +317,35 @@ export default {
           ],
           height: this.svgHeight,
         });
-
-        this.svg.select(`#id-${this.id}`).remove();
-        this.id = uuid();
       }
+
+      // Clear the temporary path and reset ID for the next action
+      this.svg.select(`#id-${this.id}`).remove();
+      this.id = uuid();
+
       this.svg.on('mousemove touchmove', null);
       this.selectedPaths.clear();
     },
     erasePathsWithinSelection() {
-      this.svg.selectAll('path').each((d, i, nodes) => {
-        const pathElement = d3.select(nodes[i]);
-        const pathBounds = pathElement.node().getBBox();
+      const remainingLines = [];
+      this.node.attrs.lines.forEach((line) => {
+        const pathElement = this.svg.select(`#id-${line.id}`).node();
+        const pathBounds = pathElement.getBBox();
         const rectBounds = this.selectionRect;
+
         if (
-          pathBounds.x < rectBounds.x + rectBounds.width &&
-          pathBounds.x + pathBounds.width > rectBounds.x &&
-          pathBounds.y < rectBounds.y + rectBounds.height &&
-          pathBounds.y + pathBounds.height > rectBounds.y
+          !(
+            pathBounds.x < rectBounds.x + rectBounds.width &&
+            pathBounds.x + pathBounds.width > rectBounds.x &&
+            pathBounds.y < rectBounds.y + rectBounds.height &&
+            pathBounds.y + pathBounds.height > rectBounds.y
+          )
         ) {
-          pathElement.remove();
+          remainingLines.push(line);
+        } else {
+          this.selectedPaths.add(`id-${line.id}`);
         }
       });
-
-      const remainingLines = this.node.attrs.lines.filter(
-        (line) => !this.selectedPaths.has(`id-${line.id}`)
-      );
       this.updateAttributes({ lines: remainingLines, height: this.svgHeight });
     },
     tick() {
@@ -316,11 +353,6 @@ export default {
         const path = d3.line().curve(d3.curveBasis)(this.points);
         this.path.attr('d', path);
       });
-    },
-    clear() {
-      this.history.push({ lines: this.node.attrs.lines });
-      this.redoStack = [];
-      this.updateAttributes({ lines: [], height: this.svgHeight });
     },
     startResize(event) {
       this.isResizing = true;
@@ -359,16 +391,32 @@ export default {
     },
     undo() {
       if (this.canUndo) {
+        // Save the current state to redoStack before undoing
+        this.redoStack.push({ lines: [...this.node.attrs.lines] });
+
+        // Get the last state from the history
         const lastState = this.history.pop();
-        this.redoStack.push({ lines: this.node.attrs.lines });
-        this.updateAttributes(lastState);
+
+        // Update the current state with the last state from history
+        this.updateAttributes({
+          lines: lastState.lines,
+          height: this.svgHeight,
+        });
       }
     },
     redo() {
       if (this.canRedo) {
+        // Save the current state to history before redoing
+        this.history.push({ lines: [...this.node.attrs.lines] });
+
+        // Get the last state from the redo stack
         const redoState = this.redoStack.pop();
-        this.history.push({ lines: this.node.attrs.lines });
-        this.updateAttributes(redoState);
+
+        // Update the current state with the redo state
+        this.updateAttributes({
+          lines: redoState.lines,
+          height: this.svgHeight,
+        });
       }
     },
   },
@@ -387,6 +435,17 @@ export default {
       @apply bg-neutral-100 dark:bg-neutral-800 rounded-t-xl;
       cursor: crosshair;
       overflow: hidden;
+      &.grid {
+        background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"%3E%3Cpath fill="none" stroke="%23ccc" stroke-width="0.5" d="M20 0v20H0"%3E%3C/path%3E%3C/svg%3E');
+      }
+      &.ruled {
+        background-image: linear-gradient(transparent 95%, #ccc 5%);
+        background-size: 100% 20px;
+      }
+      &.dotted {
+        background-image: radial-gradient(#ccc 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
     }
 
     path {
