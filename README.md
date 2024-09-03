@@ -3,7 +3,7 @@
 [![Flags](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/7cba8f22-e0dd-4e6f-a41c-0b78d8e89c0b)](https://beaver-notes.github.io/Beaver-Docs/docs/dev-docs/Beaver%20Notes/Localization)
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-6-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-7-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 <div align="center">
 <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
@@ -66,6 +66,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/mee141"><img src="https://avatars.githubusercontent.com/u/93583530?v=4?s=100" width="100px;" alt="mee_"/><br /><sub><b>mee_</b></sub></a><br /><a href="#translation-mee141" title="Translation">🌍</a> <a href="#maintenance-mee141" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://www.eave.fyi"><img src="https://avatars.githubusercontent.com/u/978899?v=4?s=100" width="100px;" alt="Bryan Ricker"/><br /><sub><b>Bryan Ricker</b></sub></a><br /><a href="https://github.com/Beaver-Notes/Beaver-Notes/commits?author=bricker" title="Documentation">📖</a> <a href="#translation-bricker" title="Translation">🌍</a> <a href="https://github.com/Beaver-Notes/Beaver-Notes/commits?author=bricker" title="Code">💻</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://olavrb.no"><img src="https://avatars.githubusercontent.com/u/6450056?v=4?s=100" width="100px;" alt="Olav Rønnestad Birkeland"/><br /><sub><b>Olav Rønnestad Birkeland</b></sub></a><br /><a href="#platform-o-l-a-v" title="Packaging/porting to new platform">📦</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="http://tahinli.com"><img src="https://avatars.githubusercontent.com/u/96421894?v=4?s=100" width="100px;" alt="Ahmet Kaan GÜMÜŞ"/><br /><sub><b>Ahmet Kaan GÜMÜŞ</b></sub></a><br /><a href="#translation-Tahinli" title="Translation">🌍</a></td>
     </tr>
   </tbody>
 </table>
