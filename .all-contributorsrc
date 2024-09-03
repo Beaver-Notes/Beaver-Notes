@@ -67,6 +67,15 @@
       "contributions": [
         "platform"
       ]
+    },
+    {
+      "login": "Tahinli",
+      "name": "Ahmet Kaan GÜMÜŞ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/96421894?v=4",
+      "profile": "http://tahinli.com",
+      "contributions": [
+        "translation"
+      ]
     }
   ],
   "contributorsPerLine": 7,
