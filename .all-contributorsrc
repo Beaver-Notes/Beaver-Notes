@@ -58,6 +58,15 @@
         "translation",
         "code"
       ]
+    },
+    {
+      "login": "o-l-a-v",
+      "name": "Olav Rønnestad Birkeland",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6450056?v=4",
+      "profile": "https://olavrb.no",
+      "contributions": [
+        "platform"
+      ]
     }
   ],
   "contributorsPerLine": 7,
@@ -65,5 +74,5 @@
   "repoType": "github",
   "repoHost": "https://github.com",
   "projectName": "Beaver-Notes",
-  "projectOwner": "Daniele-rolli"
+  "projectOwner": "Beaver-Notes"
 }
