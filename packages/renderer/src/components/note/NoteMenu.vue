@@ -61,6 +61,14 @@
           </button>
         </template>
         <div class="grid grid-cols-4 gap-2 p-2">
+          <button
+            v-tooltip.group="translations.menu.highlight"
+            :class="{ 'is-active': editor.isActive('highlight') }"
+            class="transition hoverable w-8 h-8 px-1 rounded-lg cursor-pointer"
+            @click="editor.commands.unsetHighlight()"
+          >
+            <v-remixicon name="riCloseLine" />
+          </button>
           <div
             v-for="color in colors"
             :key="color"
@@ -854,7 +862,6 @@ export default {
     });
 
     const colors = [
-      'bg-gray-200 dark:bg-gray-100',
       'bg-orange-200 dark:bg-orange-40',
       'bg-yellow-200 dark:bg-yellow-100',
       'bg-green-200 dark:bg-green-100',
