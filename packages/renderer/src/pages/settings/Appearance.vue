@@ -87,6 +87,19 @@
       <div class="grid grid-cols-2 gap-4">
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': directionPreference === 'ltr' }"
+          @click="toggleLtr"
+        >
+          <img
+            :src="theme.currentTheme.value === 'dark' ? LTRImgDark : LTRImg"
+            class="w-full mx-auto mb-1 rounded-lg"
+          />
+          <p class="capitalize text-center text-sm">
+            {{ translations.settings.LTR || '-' }}
+          </p>
+        </button>
+        <button
+          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
           :class="{ 'ring-2 ring-primary': directionPreference === 'rtl' }"
           @click="toggleRtl"
         >
@@ -97,19 +110,6 @@
 
           <p class="capitalize text-center text-sm">
             {{ translations.settings.RTL || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': directionPreference === 'ltr' }"
-          @click="toggleLtr"
-        >
-          <img
-            :src="theme.currentTheme.value === 'dark' ? LTRImgDark : LTRImg"
-            class="w-full mx-auto mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.LTR || '-' }}
           </p>
         </button>
       </div>
