@@ -17,7 +17,7 @@
   <ui-dialog />
 </template>
 <script>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
@@ -28,6 +28,7 @@ import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useDialog } from './composable/dialog';
+import Mousetrap from '@/lib/mousetrap';
 import { useClipboard } from './composable/clipboard';
 import { useAppStore } from './store/app';
 import { useTranslation } from './composable/translations';
@@ -198,7 +199,46 @@ export default {
       'app:change-menu-visibility',
       localStorage.getItem('visibility-menubar') !== 'true' || false
     );
+
+    const state = reactive({
+      zoomLevel: parseFloat(localStorage.getItem('zoomLevel')) || 1.0,
+    });
+
+    const setZoom = (newZoomLevel) => {
+      window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
+      state.zoomLevel = newZoomLevel.toFixed(1);
+      localStorage.setItem('zoomLevel', state.zoomLevel);
+      // Apply the zoom level to the document body (or specific container)
+      document.body.style.zoom = state.zoomLevel;
+    };
+
+    onMounted(() => {
+      // Apply the stored zoom level on mount
+      document.body.style.zoom = state.zoomLevel;
+
+      // Detect platform and apply shortcuts for Windows and Linux only
+      const platform = navigator.userAgent.toLowerCase();
+      const isWindowsOrLinux =
+        platform.includes('win') || platform.includes('linux');
+
+      if (isWindowsOrLinux) {
+        Mousetrap.bind(['ctrl+=', 'ctrl+plus'], () => {
+          setZoom(Math.min(parseFloat(state.zoomLevel) + 0.1, 3.0));
+        });
+
+        Mousetrap.bind('ctrl+-', () => {
+          setZoom(Math.max(parseFloat(state.zoomLevel) - 0.1, 0.5));
+        });
+
+        Mousetrap.bind('ctrl+0', () => {
+          setZoom(1.0);
+        });
+      }
+    });
+
     return {
+      state,
+      setZoom,
       store,
       retrieved,
       zoom,

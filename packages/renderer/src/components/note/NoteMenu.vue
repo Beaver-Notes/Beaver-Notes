@@ -107,27 +107,6 @@
           @click="insertImage"
         />
       </ui-popover>
-      <ui-popover padding="p-2 flex items-center">
-        <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.Embed"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
-            <v-remixicon name="riPagesLine" />
-          </button>
-        </template>
-        <input
-          v-model="EmbedUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.EmbedUrl || '-'"
-          @keyup.enter="addIframe"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="addIframe"
-        />
-      </ui-popover>
       <div class="flex items-center">
         <button
           v-tooltip.group="translations.menu.record"
@@ -195,6 +174,27 @@
         <v-remixicon name="riTableLine" />
       </button>
       <ui-popover padding="p-2 flex items-center">
+        <ui-popover padding="p-2 flex items-center">
+          <template #trigger>
+            <button
+              v-tooltip.group="translations.menu.Embed"
+              class="transition hoverable h-8 px-1 rounded-lg"
+            >
+              <v-remixicon name="riPagesLine" />
+            </button>
+          </template>
+          <input
+            v-model="EmbedUrl"
+            class="bg-transparent mr-2"
+            :placeholder="translations.menu.EmbedUrl || '-'"
+            @keyup.enter="addIframe"
+          />
+          <v-remixicon
+            name="riSave3Line"
+            class="mr-2 cursor-pointer"
+            @click="addIframe"
+          />
+        </ui-popover>
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.video"
