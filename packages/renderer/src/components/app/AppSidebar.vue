@@ -311,6 +311,8 @@ export default {
         const keys = [
           { key: 'notes', dfData: {} },
           { key: 'labels', dfData: [] },
+          { key: 'lockStatus', dfData: {} },
+          { key: 'isLocked', dfData: {} }, // Add isLocked to handle imported locked status
         ];
 
         for (const { key, dfData } of keys) {
@@ -320,8 +322,9 @@ export default {
 
           if (key === 'labels') {
             const mergedArr = [...currentData, ...importedData];
-
             mergedData = [...new Set(mergedArr)];
+          } else if (key === 'lockStatus' || key === 'isLocked') {
+            mergedData = { ...currentData, ...importedData };
           } else {
             mergedData = { ...currentData, ...importedData };
           }
@@ -329,7 +332,7 @@ export default {
           await storage.set(key, mergedData);
         }
       } catch (error) {
-        console.error(error);
+        console.error('Error merging imported data:', error);
       }
     }
 
@@ -361,10 +364,12 @@ export default {
                   const resultObj = JSON.parse(result);
 
                   await mergeImportedData(resultObj); // Wait for merge operation to finish
+
                   const dataDir = await storage.get('dataDir', '', 'settings');
-                  const importedDefaultPath = data['dataDir'];
-                  const importedLockedStatus = data['lockStatus'];
-                  const importedLockedNotes = data['lockedNotes'];
+                  const importedDefaultPath = resultObj['dataDir'];
+                  const importedLockedStatus = resultObj['lockStatus'];
+                  const importedIsLocked = resultObj['isLocked'];
+
                   localStorage.setItem('dataDir', importedDefaultPath);
                   if (
                     importedLockedStatus !== null &&
@@ -377,18 +382,20 @@ export default {
                   }
 
                   if (
-                    importedLockedNotes !== null &&
-                    importedLockedNotes !== undefined
+                    importedIsLocked !== null &&
+                    importedIsLocked !== undefined
                   ) {
                     localStorage.setItem(
-                      'lockedNotes',
-                      JSON.stringify(importedLockedNotes)
+                      'isLocked',
+                      JSON.stringify(importedIsLocked)
                     );
                   }
+
                   await ipcRenderer.callMain('fs:copy', {
                     path: path.join(dirPath, 'assets'),
                     dest: path.join(dataDir, 'notes-assets'),
                   });
+
                   await ipcRenderer.callMain('fs:copy', {
                     path: path.join(dirPath, 'file-assets'),
                     dest: path.join(dataDir, 'file-assets'),
@@ -417,6 +424,7 @@ export default {
             return;
           }
         }
+
         notification({
           title: translations.sidebar.notification,
           body: translations.sidebar.importSuccess,
@@ -594,9 +602,10 @@ export default {
 
                   await mergeImportedData(resultObj); // Wait for merge operation to finish
                   const dataDir = await storage.get('dataDir', '', 'settings');
-                  const importedDefaultPath = data['dataDir'];
-                  const importedLockedStatus = data['lockStatus'];
-                  const importedLockedNotes = data['lockedNotes'];
+                  const importedDefaultPath = resultObj['dataDir'];
+                  const importedLockedStatus = resultObj['lockStatus'];
+                  const importedIsLocked = resultObj['isLocked'];
+
                   localStorage.setItem('dataDir', importedDefaultPath);
                   if (
                     importedLockedStatus !== null &&
@@ -609,14 +618,15 @@ export default {
                   }
 
                   if (
-                    importedLockedNotes !== null &&
-                    importedLockedNotes !== undefined
+                    importedIsLocked !== null &&
+                    importedIsLocked !== undefined
                   ) {
                     localStorage.setItem(
-                      'lockedNotes',
-                      JSON.stringify(importedLockedNotes)
+                      'isLocked',
+                      JSON.stringify(importedIsLocked)
                     );
                   }
+
                   await ipcRenderer.callMain('fs:copy', {
                     path: path.join(dirPath, 'assets'),
                     dest: path.join(dataDir, 'notes-assets'),

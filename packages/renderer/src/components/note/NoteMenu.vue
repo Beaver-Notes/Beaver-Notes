@@ -50,6 +50,33 @@
       >
         <v-remixicon :name="action.icon" />
       </button>
+      <ui-popover padding="p-2 flex items-center">
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.highlight"
+            :class="{ 'is-active': editor.isActive('highlight') }"
+            class="transition hoverable h-8 px-1 rounded-lg"
+          >
+            <v-remixicon name="riMarkPenLine" />
+          </button>
+        </template>
+        <div class="grid grid-cols-4 gap-2 p-2">
+          <button
+            v-tooltip.group="translations.menu.highlight"
+            :class="{ 'is-active': editor.isActive('highlight') }"
+            class="transition hoverable w-8 h-8 px-1 rounded-lg cursor-pointer"
+            @click="editor.commands.unsetHighlight()"
+          >
+            <v-remixicon name="riCloseLine" />
+          </button>
+          <div
+            v-for="color in colors"
+            :key="color"
+            :class="['w-8 h-8 cursor-pointer', color]"
+            @click="setHighlightColor(color)"
+          ></div>
+        </div>
+      </ui-popover>
       <hr class="border-r mx-2 h-6" />
       <button
         v-for="action in lists"
@@ -88,27 +115,6 @@
           @click="insertImage"
         />
       </ui-popover>
-      <ui-popover padding="p-2 flex items-center">
-        <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.Embed"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
-            <v-remixicon name="riPagesLine" />
-          </button>
-        </template>
-        <input
-          v-model="EmbedUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.EmbedUrl || '-'"
-          @keyup.enter="addIframe"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="addIframe"
-        />
-      </ui-popover>
       <div class="flex items-center">
         <button
           v-tooltip.group="translations.menu.record"
@@ -117,7 +123,7 @@
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-amber-400 font-semibold pr-1">{{
+        <span v-if="isRecording" class="font-amber-100 font-semibold pr-1">{{
           formattedTime
         }}</span>
       </div>
@@ -162,46 +168,6 @@
           @click="insertFile"
         />
       </ui-popover>
-      <ui-popover padding="p-2 flex items-center">
-        <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.video"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
-            <v-remixicon name="riMovieLine" />
-          </button>
-        </template>
-        <input
-          v-model="VideoUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.videoUrl || '-'"
-          @keyup.enter="insertVideo"
-        />
-        <v-remixicon
-          name="riFolderOpenLine"
-          class="mr-2 cursor-pointer"
-          @click="$refs.videoInput.click()"
-        />
-        <input
-          ref="videoInput"
-          type="file"
-          class="hidden"
-          multiple
-          @change="handleVideoSelect"
-        />
-        <input
-          ref="fileInput"
-          type="file"
-          class="hidden"
-          multiple
-          @change="handleFileSelect"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="insertVideo"
-        />
-      </ui-popover>
       <button
         v-tooltip.group="translations.menu.tableInsert"
         class="transition hoverable h-8 px-1 rounded-lg"
@@ -215,6 +181,84 @@
       >
         <v-remixicon name="riTableLine" />
       </button>
+      <ui-popover padding="p-2 flex items-center">
+        <ui-popover padding="p-2 flex items-center">
+          <template #trigger>
+            <button
+              v-tooltip.group="translations.menu.Embed"
+              class="transition hoverable h-8 px-1 rounded-lg"
+            >
+              <v-remixicon name="riPagesLine" />
+            </button>
+          </template>
+          <input
+            v-model="EmbedUrl"
+            class="bg-transparent mr-2"
+            :placeholder="translations.menu.EmbedUrl || '-'"
+            @keyup.enter="addIframe"
+          />
+          <v-remixicon
+            name="riSave3Line"
+            class="mr-2 cursor-pointer"
+            @click="addIframe"
+          />
+        </ui-popover>
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.video"
+            class="transition hoverable h-8 px-1 rounded-lg"
+          >
+            <v-remixicon name="riMoreFill" />
+          </button>
+        </template>
+        <button
+          v-tooltip.group="translations.menu.draw"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.commands.insertPaper"
+        >
+          <v-remixicon name="riBrushLine" />
+        </button>
+        <ui-popover padding="p-2 flex items-center">
+          <template #trigger>
+            <button
+              v-tooltip.group="translations.menu.video"
+              class="transition hoverable h-8 px-1 rounded-lg"
+            >
+              <v-remixicon name="riMovieLine" />
+            </button>
+          </template>
+          <input
+            v-model="VideoUrl"
+            class="bg-transparent mr-2"
+            :placeholder="translations.menu.videoUrl || '-'"
+            @keyup.enter="insertVideo"
+          />
+          <v-remixicon
+            name="riFolderOpenLine"
+            class="mr-2 cursor-pointer"
+            @click="$refs.videoInput.click()"
+          />
+          <input
+            ref="videoInput"
+            type="file"
+            class="hidden"
+            multiple
+            @change="handleVideoSelect"
+          />
+          <input
+            ref="fileInput"
+            type="file"
+            class="hidden"
+            multiple
+            @change="handleFileSelect"
+          />
+          <v-remixicon
+            name="riSave3Line"
+            class="mr-2 cursor-pointer"
+            @click="insertVideo"
+          />
+        </ui-popover>
+      </ui-popover>
       <hr class="border-r mx-2 h-6" />
       <button
         v-tooltip.group="translations.menu.Print"
@@ -401,13 +445,6 @@ export default {
           activeState: 'code',
           handler: () => props.editor.chain().focus().toggleCode().run(),
         },
-        {
-          name: 'highlight',
-          title: translations.menu.highlight,
-          icon: 'riMarkPenLine',
-          activeState: 'highlight',
-          handler: () => props.editor.chain().focus().toggleHighlight().run(),
-        },
       ];
     });
 
@@ -453,29 +490,28 @@ export default {
 
     function addIframe() {
       if (EmbedUrl.value.trim() === '') {
-        // Prevent adding iframe if EmbedUrl is empty or only contains whitespace
         return;
       }
 
-      let EmbedUrl = EmbedUrl.value.trim();
+      let trimmedEmbedUrl = EmbedUrl.value.trim(); // Renamed local variable
 
       // Check if the URL is a YouTube Embed URL in the regular format
-      if (EmbedUrl.includes('youtube.com/watch?v=')) {
-        let EmbedId = EmbedUrl.split('v=')[1];
+      if (trimmedEmbedUrl.includes('youtube.com/watch?v=')) {
+        let EmbedId = trimmedEmbedUrl.split('v=')[1];
         const ampersandPosition = EmbedId.indexOf('&');
         if (ampersandPosition !== -1) {
           EmbedId = EmbedId.substring(0, ampersandPosition);
         }
         // Convert to the embed format
-        EmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
+        trimmedEmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
       }
 
-      // Use the value of EmbedUrl to set the iframe source
+      // Use the value of trimmedEmbedUrl to set the iframe source
       props.editor
         .chain()
         .focus()
         .setIframe({
-          src: EmbedUrl,
+          src: trimmedEmbedUrl,
         })
         .run();
 
@@ -825,8 +861,24 @@ export default {
       }
     });
 
+    const colors = [
+      'bg-orange-200 dark:bg-orange-40',
+      'bg-yellow-200 dark:bg-yellow-100',
+      'bg-green-200 dark:bg-green-100',
+      'bg-blue-200 dark:bg-blue-100',
+      'bg-purple-200 dark:bg-purple-100',
+      'bg-pink-200 dark:bg-pink-100',
+      'bg-red-200 dark:bg-red-100',
+    ];
+
+    function setHighlightColor(color) {
+      props.editor.commands.setHighlight({ color });
+    }
+
     return {
       store,
+      colors,
+      setHighlightColor,
       lists,
       imgUrl,
       EmbedUrl,

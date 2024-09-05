@@ -122,6 +122,29 @@
       </div>
     </section>
     <section>
+      <p class="mb-2">{{ translations.settings.Editor || '-' }}</p>
+      <div class="space-y-1">
+        <div class="flex items-center py-2 justify-between">
+          <div>
+            <span class="block text-lg align-left"
+              >{{ translations.settings.CollapsibleHeading || '-' }}
+            </span>
+          </div>
+          <label class="relative inline-flex cursor-pointer items-center">
+            <input
+              id="switch"
+              v-model="collapsibleHeading"
+              type="checkbox"
+              class="peer sr-only"
+            />
+            <div
+              class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+            ></div>
+          </label>
+        </div>
+      </div>
+    </section>
+    <section>
       <p class="mb-2">{{ translations.settings.iedata || '-' }}</p>
       <div class="flex ltr:space-x-4">
         <div class="bg-input rtl:ml-4 transition w-6/12 rounded-lg p-4">
@@ -196,7 +219,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, ref, watch } from 'vue';
+import { shallowReactive, onMounted, ref, watch, computed } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -221,6 +244,9 @@ const itTranslations = import('../../pages/settings/locales/it.json');
 const nlTranslations = import('../../pages/settings/locales/nl.json');
 const zhTranslations = import('../../pages/settings/locales/zh.json');
 const ukTranslations = import('../../pages/settings/locales/uk.json');
+const trTranslations = import('../../pages/settings/locales/tr.json');
+const ruTranslations = import('../../pages/settings/locales/ru.json');
+const frTranslations = import('../../pages/settings/locales/fr.json');
 
 export const state = shallowReactive({
   dataDir: '',
@@ -365,6 +391,8 @@ export default {
         const keys = [
           { key: 'notes', dfData: {} },
           { key: 'labels', dfData: [] },
+          { key: 'lockStatus', dfData: {} },
+          { key: 'isLocked', dfData: {} },
         ];
 
         for (const { key, dfData } of keys) {
@@ -374,7 +402,6 @@ export default {
 
           if (key === 'labels') {
             const mergedArr = [...currentData, ...importedData];
-
             mergedData = [...new Set(mergedArr)];
           } else {
             mergedData = { ...currentData, ...importedData };
@@ -386,6 +413,7 @@ export default {
         console.error(error);
       }
     }
+
     async function importData() {
       try {
         const {
@@ -418,12 +446,16 @@ export default {
                 const result = bytes.toString(Utf8);
                 const resultObj = JSON.parse(result);
 
+                // Merge imported data
                 await mergeImportedData(resultObj); // Wait for merge operation to finish
+
                 const dataDir = await storage.get('dataDir', '', 'settings');
-                const importedDefaultPath = data['dataDir'];
-                const importedLockedStatus = data['lockStatus'];
-                const importedLockedNotes = data['lockedNotes'];
+                const importedDefaultPath = resultObj['dataDir'];
+                const importedLockedStatus = resultObj['lockStatus'];
+                const importedIsLocked = resultObj['isLocked'];
+
                 localStorage.setItem('dataDir', importedDefaultPath);
+
                 if (
                   importedLockedStatus !== null &&
                   importedLockedStatus !== undefined
@@ -435,18 +467,20 @@ export default {
                 }
 
                 if (
-                  importedLockedNotes !== null &&
-                  importedLockedNotes !== undefined
+                  importedIsLocked !== null &&
+                  importedIsLocked !== undefined
                 ) {
                   localStorage.setItem(
-                    'lockedNotes',
-                    JSON.stringify(importedLockedNotes)
+                    'isLocked',
+                    JSON.stringify(importedIsLocked)
                   );
                 }
+
                 await ipcRenderer.callMain('fs:copy', {
                   path: path.join(dirPath, 'assets'),
                   dest: path.join(dataDir, 'notes-assets'),
                 });
+
                 await ipcRenderer.callMain('fs:copy', {
                   path: path.join(dirPath, 'file-assets'),
                   dest: path.join(dataDir, 'file-assets'),
@@ -461,12 +495,16 @@ export default {
             },
           });
         } else {
+          // Merge imported data
           await mergeImportedData(data); // Wait for merge operation to finish
+
           const dataDir = await storage.get('dataDir', '', 'settings');
           const importedDefaultPath = data['dataDir'];
           const importedLockedStatus = data['lockStatus'];
-          const importedLockedNotes = data['lockedNotes'];
+          const importedIsLocked = data['isLocked'];
+
           localStorage.setItem('dataDir', importedDefaultPath);
+
           if (
             importedLockedStatus !== null &&
             importedLockedStatus !== undefined
@@ -477,19 +515,15 @@ export default {
             );
           }
 
-          if (
-            importedLockedNotes !== null &&
-            importedLockedNotes !== undefined
-          ) {
-            localStorage.setItem(
-              'lockedNotes',
-              JSON.stringify(importedLockedNotes)
-            );
+          if (importedIsLocked !== null && importedIsLocked !== undefined) {
+            localStorage.setItem('isLocked', JSON.stringify(importedIsLocked));
           }
+
           await ipcRenderer.callMain('fs:copy', {
             path: path.join(dirPath, 'assets'),
             dest: path.join(dataDir, 'notes-assets'),
           });
+
           await ipcRenderer.callMain('fs:copy', {
             path: path.join(dirPath, 'file-assets'),
             dest: path.join(dataDir, 'file-assets'),
@@ -621,6 +655,8 @@ export default {
         password: 'settings.password',
         Inputpassword: 'settings.Inputpassword',
         body: 'settings.body',
+        Editor: 'settings.Editor',
+        CollapsibleHeading: 'settings.CollapsibleHeading',
         Import: 'settings.Import',
         Cancel: 'settings.Cancel',
         Password: 'settings.password',
@@ -747,6 +783,15 @@ export default {
       }
     };
 
+    const collapsibleHeading = computed({
+      get() {
+        return appStore.setting.collapsibleHeading;
+      },
+      set(v) {
+        appStore.setSettingStorage('collapsibleHeading', v);
+      },
+    });
+
     return {
       state,
       theme,
@@ -767,6 +812,7 @@ export default {
       toggleAuth,
       authorizatedApps,
       t,
+      collapsibleHeading,
     };
   },
   data() {
@@ -784,10 +830,13 @@ export default {
         { code: 'de', name: 'Deutsch', translations: deTranslations },
         { code: 'en', name: 'English', translations: enTranslations },
         { code: 'es', name: 'Español', translations: esTranslations },
+        { code: 'fr', name: 'Français', translations: frTranslations },
         { code: 'it', name: 'Italiano', translations: itTranslations },
         { code: 'nl', name: 'Nederlands', translations: nlTranslations },
-        { code: 'zh', name: '简体中文', translations: zhTranslations },
+        { code: 'ru', name: 'Русский', translations: ruTranslations },
+        { code: 'tr', name: 'Türkçe', translations: trTranslations },
         { code: 'uk', name: 'Українська', translations: ukTranslations },
+        { code: 'zh', name: '简体中文', translations: zhTranslations },
       ],
     };
   },

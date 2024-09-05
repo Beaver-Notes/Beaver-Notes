@@ -24,7 +24,7 @@
                 </span>
                 <v-remixicon
                   v-show="!persist"
-                  class="text-gray-600 cursor-pointer"
+                  class="text-neutral-600 cursor-pointer"
                   name="riCloseLine"
                   size="20"
                   @click="closeModal"

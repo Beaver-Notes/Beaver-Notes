@@ -99,6 +99,7 @@ import Mousetrap from '@/lib/mousetrap';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
+import { useAppStore } from '../../store/app';
 
 export default {
   components: { NoteEditor, NoteMenu, NoteSearch },
@@ -109,6 +110,7 @@ export default {
     const storage = useStorage();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
+    const appStore = useAppStore();
     const dialog = useDialog();
     const userPassword = ref('');
 
@@ -119,6 +121,18 @@ export default {
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
     const isLocked = computed(() => note.value && note.value.isLocked);
+
+    watch(
+      id,
+      (n) => {
+        if (!appStore.setting.collapsibleHeading && !isLocked.value) {
+          noteStore.convertNote(n);
+        }
+      },
+      {
+        immediate: true,
+      }
+    );
 
     const autoScroll = debounce(() => {
       if (!noteEditor.value) {

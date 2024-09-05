@@ -14,11 +14,12 @@
 import { onMounted, watch, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
-import { extensions } from '@/lib/tiptap';
+import { extensions, CollapseHeading } from '@/lib/tiptap';
 import NoteBubbleMenuTable from './NoteBubbleMenuTable.vue';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
+import { useAppStore } from '../../store/app';
 
 export default {
   components: {
@@ -43,13 +44,18 @@ export default {
   emits: ['init', 'update', 'update:modelValue'],
   setup(props, { emit }) {
     const router = useRouter();
+    const appStore = useAppStore();
+    const exts = [...extensions];
+    if (appStore.setting.collapsibleHeading) {
+      exts.push(CollapseHeading);
+    }
     const editor = useEditor({
       content: props.modelValue,
       autofocus: props.cursorPosition,
       editorProps: {
         handleClick,
       },
-      extensions,
+      extensions: exts,
     });
 
     const selectedDarkText =

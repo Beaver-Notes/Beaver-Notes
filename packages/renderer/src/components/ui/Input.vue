@@ -3,7 +3,7 @@
     <label class="relative">
       <span
         v-if="label"
-        class="text-sm dark:text-gray-200 text-gray-600 mb-1 ml-1"
+        class="text-sm dark:text-neutral-200 text-neutral-600 mb-1 ml-1"
       >
         {{ label }}
       </span>
@@ -11,7 +11,7 @@
         <slot name="prepend">
           <v-remixicon
             v-if="prependIcon"
-            class="ml-2 dark:text-gray-200 text-gray-600 absolute left-0"
+            class="ml-2 dark:text-neutral-200 text-neutral-600 absolute left-0"
             :name="prependIcon"
           ></v-remixicon>
         </slot>

@@ -22,3 +22,38 @@ export function useStorage(name = 'data') {
     store: (storeName) => invokeEvent('store', storeName || name),
   };
 }
+
+export function useLocalStorage(key, options) {
+  const { defaultValue, parse, stringify } = options || {};
+  function get(key, defaultValue, parse) {
+    let value = localStorage.getItem(key);
+    if (defaultValue != null && value == null) {
+      value =
+        typeof defaultValue === 'function' ? defaultValue(value) : defaultValue;
+      set(key, value, stringify || ((v) => JSON.stringify(v)));
+    }
+    if (typeof value !== 'string') {
+      return value;
+    }
+    return parse(value);
+  }
+  function set(key, value, stringify) {
+    if (typeof value !== 'object') {
+      localStorage.setItem(key, value);
+      return;
+    }
+    if (value == null) {
+      localStorage.removeItem(key);
+      return;
+    }
+    localStorage.setItem(key, stringify(value));
+  }
+  return {
+    get() {
+      return get(key, defaultValue, parse || ((v) => v));
+    },
+    set(value) {
+      return set(key, value, stringify || ((v) => JSON.stringify(v)));
+    },
+  };
+}
