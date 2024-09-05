@@ -40,6 +40,21 @@
     <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
     <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
     <releases>
+          <release version="3.6.0" date="2024-09-05">
+        <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.6.0</url>
+        <description>
+          <p>Release description</p>
+            <ul>
+              <li>Drawing Block</li>
+              <li>Highlighter colors</li>
+              <li>Support for Ctrl + to zoom in</li>
+              <li>Improved Collapsible headings</li>
+              <li>Improved markdown support</li>
+              <li>Fixed import issue</li>
+              <li>Added French, Turkish and Russian</li>
+            </ul>
+        </description>
+      </release>
       <release version="3.5.0" date="2024-07-29">
         <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.5.0</url>
         <description>
