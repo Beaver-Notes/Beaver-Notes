@@ -12,7 +12,13 @@
             v-if="item.id !== id"
             :id="`id-${item.id}`"
             :d="item.path"
-            :stroke="item.color"
+            :stroke="
+              isDarkMode
+                ? item.color === '#000000'
+                  ? '#FFFFFF'
+                  : item.color
+                : item.color
+            "
             :stroke-width="item.size"
             :opacity="item.tool === 'highlighter' ? 0.3 : 1"
             fill="none"
@@ -435,15 +441,34 @@ export default {
       @apply bg-neutral-100 dark:bg-neutral-800 rounded-t-xl;
       cursor: crosshair;
       overflow: hidden;
+
       &.grid {
+        /* Light mode grid */
         background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"%3E%3Cpath fill="none" stroke="%23ccc" stroke-width="0.5" d="M20 0v20H0"%3E%3C/path%3E%3C/svg%3E');
       }
+
       &.ruled {
         background-image: linear-gradient(transparent 95%, #ccc 5%);
         background-size: 100% 20px;
       }
+
       &.dotted {
         background-image: radial-gradient(#ccc 1px, transparent 1px);
+        background-size: 20px 20px;
+      }
+
+      /* Dark mode grid using Tailwind's `dark:` variant */
+      .dark &.grid {
+        background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 20 20"%3E%3Cpath fill="none" stroke="%23666" stroke-width="0.5" d="M20 0v20H0"%3E%3C/path%3E%3C/svg%3E');
+      }
+
+      .dark &.ruled {
+        background-image: linear-gradient(transparent 95%, #666 5%);
+        background-size: 100% 20px;
+      }
+
+      .dark &.dotted {
+        background-image: radial-gradient(#666 1px, transparent 1px);
         background-size: 20px 20px;
       }
     }
