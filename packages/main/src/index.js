@@ -366,8 +366,21 @@ function initializeMenu() {
     translations = zhTranslations;
   }
 
-  // Function to set the application menu
-
+  import('electron-context-menu').then((contextMenuModule) => {
+    const contextMenu = contextMenuModule.default;
+  
+    contextMenu({
+      showLookUpSelection: true,
+      showSearchWithGoogle: true,
+      showCopyImage: true,
+      showSaveImageAs: true,
+      showCopyLink: true,
+      showInspectElement: true,
+    });
+  }).catch((error) => {
+    console.error('Failed to load context menu:', error);
+  });
+  
   const template = [
     // { role: 'appMenu' }
     ...(isMac

@@ -204,10 +204,7 @@
           />
         </ui-popover>
         <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.video"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
+          <button class="transition hoverable h-8 px-1 rounded-lg">
             <v-remixicon name="riMoreFill" />
           </button>
         </template>

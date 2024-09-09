@@ -224,7 +224,7 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
                 .filter((child) => child.tagName === 'LI')
                 .map(async (li) => {
                   const checkbox = li.querySelector('input[type="checkbox"]');
-                  const checked = checkbox.checked;
+                  const checked = checkbox ? checkbox.checked : false;
                   return {
                     type: 'taskItem',
                     attrs: { checked },

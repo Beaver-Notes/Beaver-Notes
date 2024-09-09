@@ -3,9 +3,10 @@
     <div class="relative drawing-container">
       <svg
         ref="canvas"
-        :height="svgHeight"
         :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
-        :class="['border border-gray-300', paperType]"
+        preserveAspectRatio="xMidYMid meet"
+        class="w-full h-auto border border-gray-300"
+        :class="paperType"
       >
         <template v-for="item in node.attrs.lines" :key="item.id">
           <path
@@ -33,30 +34,45 @@
       </div>
     </div>
     <div
-      class="p-4 flex justify-between items-center bg-gray-100 border border-gray-300 rounded-b-xl"
+      class="p-4 flex flex-wrap justify-between items-center bg-gray-100 border border-gray-300 rounded-b-xl"
       :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
     >
-      <div class="tool-buttons flex gap-2">
+      <div class="tool-buttons flex flex-wrap gap-2">
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': tool === 'pencil',
+            'bg-neutral-100 dark:bg-neutral-800 border-gray-300':
+              tool !== 'pencil',
+          }"
           @click="setTool('pencil')"
         >
           <v-remixicon name="riBallPenLine" />
         </button>
+
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
-          @click="setTool('eraser')"
-        >
-          <v-remixicon name="riEraserLine" />
-        </button>
-        <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': tool === 'highlighter',
+            'bg-neutral-100 dark:bg-neutral-800 border-gray-300':
+              tool !== 'highlighter',
+          }"
           @click="setTool('highlighter')"
         >
           <v-remixicon name="riMarkPenLine" />
+        </button>
+
+        <button
+          class="flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'bg-amber-100 dark:bg-amber-700 border-amber-400':
+              tool === 'eraser',
+            'bg-neutral-100 dark:bg-neutral-800 border-gray-300':
+              tool !== 'eraser',
+          }"
+          @click="setTool('eraser')"
+        >
+          <v-remixicon name="riEraserLine" />
         </button>
         <!-- Dropdown for Paper Type -->
         <select
@@ -64,13 +80,14 @@
           class="border border-gray-300 rounded p-2 bg-neutral-100 dark:bg-neutral-800"
           @change="changePaperType"
         >
-          <option value="plain">Plain</option>
-          <option value="grid">Grid</option>
-          <option value="ruled">Ruled</option>
-          <option value="dotted">Dotted</option>
+          <option value="plain">{{ translations.paper.plain || '-' }}</option>
+          <option value="grid">{{ translations.paper.grid || '-' }}</option>
+          <option value="ruled">{{ translations.paper.ruled || '-' }}</option>
+          <option value="dotted">{{ translations.paper.dotted || '-' }}</option>
         </select>
       </div>
-      <div class="right-controls flex gap-2">
+
+      <div class="right-controls flex flex-wrap gap-2 mt-4 lg:mt-0">
         <button
           class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
           :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
@@ -88,8 +105,11 @@
           <v-remixicon name="riArrowGoForwardLine" />
         </button>
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': size === 2,
+            'border-gray-300': size !== 2,
+          }"
           @click="setSize('thin')"
         >
           <svg
@@ -107,9 +127,13 @@
             <rect x="2" y="11" width="20" height="2" rx="1" />
           </svg>
         </button>
+
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': size === 5,
+            'border-gray-300': size !== 5,
+          }"
           @click="setSize('small')"
         >
           <svg
@@ -127,9 +151,13 @@
             <rect x="2" y="10" width="20" height="5" rx="2.5" />
           </svg>
         </button>
+
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center bg-neutral-100 dark:bg-neutral-800 justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': size === 8,
+            'border-gray-300': size !== 8,
+          }"
           @click="setSize('thick')"
         >
           <svg
@@ -167,6 +195,7 @@
 </template>
 
 <script>
+import { shallowReactive, onMounted } from 'vue';
 import { nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3';
 import * as d3 from 'd3';
 import { useTheme } from '@/composable/theme';
@@ -179,6 +208,41 @@ export default {
   name: 'Paper',
   components: { NodeViewWrapper },
   props: nodeViewProps,
+  setup() {
+    const translations = shallowReactive({
+      paper: {
+        plain: 'paper.plain',
+        grid: 'paper.grid',
+        ruled: 'paper.ruled',
+        dotted: 'paper.dotted',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
+    return {
+      translations,
+    };
+  },
   data() {
     return {
       color: '#000000',
@@ -210,7 +274,10 @@ export default {
       return this.redoStack.length > 0;
     },
     isDarkMode() {
-      return currentTheme.value === 'dark';
+      const prefersDarkScheme = window.matchMedia(
+        '(prefers-color-scheme: dark)'
+      ).matches;
+      return prefersDarkScheme || currentTheme.value === 'dark';
     },
   },
   mounted() {
@@ -255,26 +322,54 @@ export default {
     onStartDrawing(event) {
       this.drawing = true;
       this.points = [];
-      this.path = this.svg
-        .append('path')
-        .data([this.points])
-        .attr('id', `id-${this.id}`)
-        .attr('stroke', this.color)
-        .attr('stroke-width', this.size)
-        .attr('fill', this.tool === 'highlighter' ? this.color : 'none')
-        .attr('opacity', this.tool === 'highlighter' ? 0.3 : 1);
+      this.path = null;
 
       if (this.tool === 'eraser') {
-        this.showSelectionRect = true;
         const [x, y] = d3.pointers(event)[0];
-        this.selectionRect.x = x;
-        this.selectionRect.y = y;
-        this.selectionRect.width = 0;
-        this.selectionRect.height = 0;
-      }
+        const pathElement = d3
+          .select(document.elementFromPoint(x, y))
+          .closest('path');
 
-      const moveEvent = event.type === 'mousedown' ? 'mousemove' : 'touchmove';
-      this.svg.on(moveEvent, this.onMove);
+        if (pathElement) {
+          const pathId = pathElement.getAttribute('id');
+          if (pathId) {
+            this.eraseSinglePath(pathId);
+          }
+        }
+
+        this.svg.on('mousemove touchmove', null); // Disable move event for direct click erasing
+      } else {
+        this.path = this.svg
+          .append('path')
+          .data([this.points])
+          .attr('id', `id-${this.id}`)
+          .attr('stroke', this.color)
+          .attr('stroke-width', this.size)
+          .attr('fill', this.tool === 'highlighter' ? this.color : 'none')
+          .attr('opacity', this.tool === 'highlighter' ? 0.3 : 1);
+
+        this.svg.on(
+          event.type === 'mousedown' ? 'mousemove' : 'touchmove',
+          this.onMove
+        );
+      }
+    },
+    eraseSinglePath(pathId) {
+      this.node.attrs.lines = this.node.attrs.lines.filter(
+        (line) => line.id !== pathId.replace('id-', '')
+      );
+      this.updateAttributes({
+        lines: this.node.attrs.lines,
+        height: this.svgHeight,
+      });
+    },
+    isPointOnPath(x, y, pathElement) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      context.fillStyle = 'rgba(0,0,0,0)';
+      context.fill(new Path2D(pathElement.getAttribute('d')));
+
+      return context.isPointInPath(x, y);
     },
     onMove(event) {
       event.preventDefault();
@@ -294,10 +389,7 @@ export default {
       this.drawing = false;
 
       if (this.tool === 'eraser') {
-        // Save the current state before erasing
-        this.history.push({ lines: [...this.node.attrs.lines] });
-        this.erasePathsWithinSelection();
-        this.showSelectionRect = false;
+        // No need to handle undo/redo for single path erase directly
       } else {
         // Save the current state for undo
         this.history.push({ lines: [...this.node.attrs.lines] });
@@ -323,11 +415,11 @@ export default {
           ],
           height: this.svgHeight,
         });
-      }
 
-      // Clear the temporary path and reset ID for the next action
-      this.svg.select(`#id-${this.id}`).remove();
-      this.id = uuid();
+        // Clear the temporary path and reset ID for the next action
+        this.svg.select(`#id-${this.id}`).remove();
+        this.id = uuid();
+      }
 
       this.svg.on('mousemove touchmove', null);
       this.selectedPaths.clear();

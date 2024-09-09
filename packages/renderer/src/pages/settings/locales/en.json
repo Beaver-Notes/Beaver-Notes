@@ -139,6 +139,12 @@
     "searchplaceholder": "Search...",
     "useRegex": "Use regex (Alt+R)"
   },
+  "paper": {
+    "plain": "Plain",
+    "grid": "Grid",
+    "ruled": "Ruled",
+    "dotted": "Dotted"
+  },
   "settings": {
     "About": "About",
     "Appearance": "Appearance",
