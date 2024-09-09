@@ -65,24 +65,28 @@ export default {
       selectedDarkText
     );
 
-    function handleClick(view, pos, { target, ctrlKey, cmdKey }) {
+    function handleClick(view, pos, { target, altKey }) {
       const closestAnchor = target.closest('a');
-      const isTiptapURL = closestAnchor?.hasAttribute('tiptap-url');
 
+      // Check if the anchor has the specific attribute or is a mention
+      const isTiptapURL = closestAnchor?.hasAttribute('tiptap-url');
       const isMentionURL = target.hasAttribute('data-mention');
 
-      if (isTiptapURL && (ctrlKey || cmdKey)) {
+      // If it's a Tiptap URL and Alt key is held
+      if (isTiptapURL && altKey) {
         if (closestAnchor.href.startsWith('note://')) {
+          // Handle internal navigation
           const noteId = closestAnchor.href.slice(7);
-
           router.push({
             params: { id: noteId },
             query: { linked: true },
           });
         } else {
-          window.open(target.href, '_blank', 'noopener');
+          // Open external links in a new tab
+          window.open(closestAnchor.href, '_blank', 'noopener');
         }
       } else if (isMentionURL) {
+        // Handle mention links
         router.push(`/?label=${encodeURIComponent(target.dataset.id)}`);
       }
     }

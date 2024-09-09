@@ -5,35 +5,6 @@ const markdownEngine = Extension.create({
 
   addInputRules() {
     return [
-      // Handle subscript
-      {
-        find: /~([^~]+)~/,
-        handler: ({ state, range, match }) => {
-          const { tr, selection } = state;
-          const { from, to } = range;
-          const subscriptText = match[1];
-
-          // Delete the entire matched text
-          tr.delete(from, to);
-
-          // Insert the text with a subscript mark
-          const subscriptMark = state.schema.marks.subscript.create();
-          tr.insert(from, state.schema.text(subscriptText, [subscriptMark]));
-
-          // Move the selection after the inserted subscript text
-          tr.setSelection(
-            selection.constructor.near(
-              tr.doc.resolve(from + subscriptText.length)
-            )
-          );
-
-          if (tr.docChanged && this.editor.view.state === state) {
-            this.editor.view.dispatch(tr);
-          }
-
-          return true;
-        },
-      },
       // Handle Markdown images first
       {
         find: /!\[([^\]]*)\]\(([^)]+)\)/,
@@ -198,35 +169,6 @@ const markdownEngine = Extension.create({
 
           // Move the selection after the inserted image
           tr.setSelection(selection.constructor.near(tr.doc.resolve(from + 1)));
-
-          if (tr.docChanged && this.editor.view.state === state) {
-            this.editor.view.dispatch(tr);
-          }
-
-          return true;
-        },
-      },
-      // Handle pasted subscript
-      {
-        match: /~([^~]+)~/,
-        handler: ({ state, range, match }) => {
-          const { tr, selection } = state;
-          const { from, to } = range;
-          const subscriptText = match[1];
-
-          // Delete the matched text
-          tr.delete(from, to);
-
-          // Insert the text with a subscript mark
-          const subscriptMark = state.schema.marks.subscript.create();
-          tr.insert(from, state.schema.text(subscriptText, [subscriptMark]));
-
-          // Move the selection after the inserted subscript text
-          tr.setSelection(
-            selection.constructor.near(
-              tr.doc.resolve(from + subscriptText.length)
-            )
-          );
 
           if (tr.docChanged && this.editor.view.state === state) {
             this.editor.view.dispatch(tr);
