@@ -6,7 +6,6 @@
       class="prose dark:text-gray-100 max-w-none prose-indigo"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
-    <note-bubble-menu-table v-if="editor" v-bind="{ editor, isTyping }" />
   </div>
 </template>
 
@@ -15,7 +14,6 @@ import { onMounted, watch, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
 import { extensions, CollapseHeading } from '@/lib/tiptap';
-import NoteBubbleMenuTable from './NoteBubbleMenuTable.vue';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
@@ -25,7 +23,6 @@ export default {
   components: {
     EditorContent,
     NoteBubbleMenu,
-    NoteBubbleMenuTable,
   },
   props: {
     modelValue: {

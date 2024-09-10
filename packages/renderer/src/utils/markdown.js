@@ -634,23 +634,42 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           type: 'table',
           content: (
             await Promise.all(
-              Array.from(element.querySelectorAll('tr')).map(async (row) => ({
-                type: 'tableRow',
-                content: (
-                  await Promise.all(
-                    Array.from(row.cells).map(async (cell) => ({
-                      type: 'tableCell',
-                      content: (
-                        await Promise.all(
-                          Array.from(cell.childNodes).map(
-                            convertElementToTiptap
-                          )
-                        )
-                      ).filter(Boolean),
-                    }))
-                  )
-                ).filter(Boolean),
-              }))
+              Array.from(element.querySelectorAll('tr')).map(
+                async (row, rowIndex) => {
+                  const isHeaderRow = rowIndex === 0;
+                  return {
+                    type: 'tableRow',
+                    content: (
+                      await Promise.all(
+                        Array.from(row.cells).map(async (cell) => {
+                          const cellType = isHeaderRow
+                            ? 'tableHeader'
+                            : 'tableCell';
+                          return {
+                            type: cellType,
+                            attrs: {
+                              colspan: cell.colSpan || 1,
+                              rowspan: cell.rowSpan || 1,
+                            },
+                            content: [
+                              {
+                                type: 'paragraph',
+                                content: (
+                                  await Promise.all(
+                                    Array.from(cell.childNodes).map(
+                                      convertElementToTiptap
+                                    )
+                                  )
+                                ).filter(Boolean),
+                              },
+                            ],
+                          };
+                        })
+                      )
+                    ).filter(Boolean),
+                  };
+                }
+              )
             )
           ).filter(Boolean),
         };
