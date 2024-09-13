@@ -17,9 +17,15 @@ export const useAppStore = defineStore('appStore', () => {
       defaultvalue: true,
       parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
     }),
+    openLastEdited: useLocalStorage('openLastEdited', {
+      defaultvalue: true,
+      parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
+    }),
   };
+
   const setting = ref({
     collapsibleHeading: settingStorage.collapsibleHeading.get(),
+    openLastEdited: settingStorage.openLastEdited.get(),
   });
 
   const loading = ref(false);

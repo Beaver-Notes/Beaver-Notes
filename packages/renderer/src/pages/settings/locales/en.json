@@ -2,7 +2,10 @@
   "_idvue": {
     "Previousnote": "Previous notes",
     "exit": "Press Ctrl + Enter to close",
-    "untitlednote": "Untitled note"
+    "untitlednote": "Untitled note",
+    "error": "Oops! There was an issue rendering the diagram. Please check the syntax.",
+    "MathPlaceholder": "Text here...",
+    "MermaidPlaceholder": "Enter Mermaid code here..."
   },
   "about": {
     "description": "Beaver Notes was developed with love ❤️ in a rainy cottage in Northern Italy.",

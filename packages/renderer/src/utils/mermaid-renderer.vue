@@ -8,7 +8,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch, onMounted } from 'vue';
+import { defineComponent, ref, watch, onMounted, shallowReactive } from 'vue';
 import mermaid from 'mermaid';
 import { useTheme } from '@/composable/theme'; // Adjust import path as per your actual setup
 
@@ -35,6 +35,7 @@ export default defineComponent({
     const elRef = ref(null);
     const mermaidString = ref('');
     const { currentTheme } = useTheme(); // Assuming useTheme provides currentTheme
+    const hasSyntaxError = ref(false);
 
     function genSvgId() {
       const max = 1000000;
@@ -47,8 +48,15 @@ export default defineComponent({
 
     async function updateGraph(graphDefinition) {
       const id = genSvgId();
-      const res = await mermaid.render(id, graphDefinition);
-      mermaidString.value = res.svg;
+      try {
+        const res = await mermaid.render(id, graphDefinition);
+        mermaidString.value = res.svg;
+        hasSyntaxError.value = false; // No syntax error
+      } catch (e) {
+        console.error('Error rendering Mermaid diagram:', e);
+        mermaidString.value = `<div class="text-red-500 text-center">${translations._idvue.error}</div>`;
+        hasSyntaxError.value = true; // Syntax error
+      }
     }
 
     function initializeMermaid() {
@@ -58,7 +66,8 @@ export default defineComponent({
       const theme = isDarkMode ? 'dark' : 'default';
 
       mermaid.initialize({
-        startOnLoad: false,
+        startOnLoad: true,
+        suppressErrorRendering: true,
         theme,
         ...props.config,
       });
@@ -101,11 +110,39 @@ export default defineComponent({
       }
     );
 
+    const translations = shallowReactive({
+      _idvue: {
+        error: '_idvue.error',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
     return {
       elRef,
       mermaidString,
       updateGraph,
       initializeMermaid,
+      hasSyntaxError,
     };
   },
 });

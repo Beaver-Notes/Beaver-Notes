@@ -11,10 +11,11 @@
           ref="inputRef"
           :value="mermaidContent"
           type="textarea"
-          placeholder="Enter Mermaid code here..."
+          placeholder="translations._idvue.MermaidPlaceholder || '-'"
           class="bg-transparent min-h-24 w-full"
           @input="updateContent($event)"
           @keydown.ctrl.enter="closeTextarea"
+          @keydown.exact="handleKeydown"
         ></textarea>
         <div class="border-t-2 p-2">
           <p style="margin: 0">
@@ -63,6 +64,38 @@ export default {
       showTextarea.value = false;
     }
 
+    function handleKeydown(event) {
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        insertTabAtCursor();
+      }
+    }
+
+    function insertTabAtCursor() {
+      const textarea = inputRef.value;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+
+      // Insert a tab character at the cursor's current position
+      const newValue = `${mermaidContent.value.substring(
+        0,
+        start
+      )}\t${mermaidContent.value.substring(end)}`;
+      mermaidContent.value = newValue;
+
+      // Update the attributes so that the content reflects the changes
+      props.updateAttributes({ content: newValue });
+
+      // Force the textarea to display the updated value
+      textarea.value = newValue;
+
+      // Set the cursor position after the inserted tab
+      textarea.setSelectionRange(start + 1, start + 1);
+
+      // Focus the textarea to ensure the cursor is visible
+      textarea.focus();
+    }
+
     onMounted(() => {
       renderContent();
     });
@@ -78,6 +111,7 @@ export default {
     const translations = shallowReactive({
       sidebar: {
         exit: '_idvue.exit',
+        MermaidPlaceholder: '_idvue.MermaidPlaceholder',
       },
     });
 
@@ -110,6 +144,7 @@ export default {
       translations,
       openTextarea,
       closeTextarea,
+      handleKeydown,
     };
   },
 };
