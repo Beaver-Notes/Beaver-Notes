@@ -1,6 +1,9 @@
 {
   "_idvue": {
+    "MathPlaceholder": "在此输入……",
+    "MermaidPlaceholder": "在此输入 Mermaid 代码……",
     "Previousnote": "之前的笔记",
+    "error": "哎呀！渲染图表时出现问题。请检查语法。",
     "exit": "按 Ctrl + Enter 关闭",
     "untitlednote": "无标题笔记"
   },
@@ -107,7 +110,7 @@
     "deleteColumn": "删除当前列",
     "deleteRow": "删除当前行",
     "deleteTable": "删除表格",
-    "draw": "",
+    "draw": "画图",
     "fileUrl": "文件链接",
     "heading": "标题",
     "headingsTree": "标题搜索",
@@ -130,6 +133,12 @@
     "video": "视频",
     "videoUrl": "视频链接"
   },
+  "paper": {
+    "dotted": "点状",
+    "grid": "网格",
+    "plain": "空白",
+    "ruled": "横线"
+  },
   "search": {
     "clear": "清除",
     "find": "查找",
@@ -150,6 +159,7 @@
     "Inputpassword": "请输入密码",
     "Invalidpassword": "无效密码",
     "LTR": "从左到右",
+    "OpenLastEdited": "启动后打开上次编辑的笔记",
     "Password": "密码",
     "RTL": "从右到左",
     "Shortcuts": "快捷键",
