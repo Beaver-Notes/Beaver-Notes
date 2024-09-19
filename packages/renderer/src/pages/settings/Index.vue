@@ -122,7 +122,7 @@
           <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left"
-                >{{ translations.settings.openLastEdited || '-' }}
+                >{{ translations.settings.OpenLastEdited || '-' }}
               </span>
             </div>
             <label class="relative inline-flex cursor-pointer items-center">
@@ -676,7 +676,7 @@ export default {
         body: 'settings.body',
         Editor: 'settings.Editor',
         CollapsibleHeading: 'settings.CollapsibleHeading',
-        OpenLastEdited: 'settings.openLastEdited',
+        OpenLastEdited: 'settings.OpenLastEdited',
         Import: 'settings.Import',
         Cancel: 'settings.Cancel',
         Password: 'settings.password',
