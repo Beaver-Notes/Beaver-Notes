@@ -322,36 +322,38 @@ export default {
     onStartDrawing(event) {
       this.drawing = true;
       this.points = [];
-      this.path = null;
+      this.path = this.svg
+        .append('path')
+        .data([this.points])
+        .attr('id', `id-${this.id}`)
+        .attr('stroke', this.color)
+        .attr('stroke-width', this.size)
+        .attr('fill', this.tool === 'highlighter' ? this.color : 'none')
+        .attr('opacity', this.tool === 'highlighter' ? 0.3 : 1);
 
       if (this.tool === 'eraser') {
+        this.showSelectionRect = true;
         const [x, y] = d3.pointers(event)[0];
-        const pathElement = d3
-          .select(document.elementFromPoint(x, y))
-          .closest('path');
+        this.selectionRect.x = x;
+        this.selectionRect.y = y;
+        this.selectionRect.width = 0;
+        this.selectionRect.height = 0;
+      }
 
-        if (pathElement) {
-          const pathId = pathElement.getAttribute('id');
-          if (pathId) {
-            this.eraseSinglePath(pathId);
-          }
+      const moveEvent = event.type === 'mousedown' ? 'mousemove' : 'touchmove';
+      this.svg.on(moveEvent, this.onMove);
+    },
+    onMove(event) {
+      event.preventDefault();
+      if (this.tool === 'eraser') {
+        if (this.showSelectionRect) {
+          const [x, y] = d3.pointers(event)[0];
+          this.selectionRect.width = x - this.selectionRect.x;
+          this.selectionRect.height = y - this.selectionRect.y;
         }
-
-        this.svg.on('mousemove touchmove', null); // Disable move event for direct click erasing
       } else {
-        this.path = this.svg
-          .append('path')
-          .data([this.points])
-          .attr('id', `id-${this.id}`)
-          .attr('stroke', this.color)
-          .attr('stroke-width', this.size)
-          .attr('fill', this.tool === 'highlighter' ? this.color : 'none')
-          .attr('opacity', this.tool === 'highlighter' ? 0.3 : 1);
-
-        this.svg.on(
-          event.type === 'mousedown' ? 'mousemove' : 'touchmove',
-          this.onMove
-        );
+        this.points.push(d3.pointers(event)[0]);
+        this.tick();
       }
     },
     eraseSinglePath(pathId) {
@@ -371,25 +373,15 @@ export default {
 
       return context.isPointInPath(x, y);
     },
-    onMove(event) {
-      event.preventDefault();
-      if (this.tool === 'eraser') {
-        if (this.showSelectionRect) {
-          const [x, y] = d3.pointers(event)[0];
-          this.selectionRect.width = x - this.selectionRect.x;
-          this.selectionRect.height = y - this.selectionRect.y;
-        }
-      } else {
-        this.points.push(d3.pointers(event)[0]);
-        this.tick();
-      }
-    },
     onEndDrawing() {
       if (!this.drawing) return;
       this.drawing = false;
 
       if (this.tool === 'eraser') {
-        // No need to handle undo/redo for single path erase directly
+        // Save the current state before erasing
+        this.history.push({ lines: [...this.node.attrs.lines] });
+        this.erasePathsWithinSelection();
+        this.showSelectionRect = false;
       } else {
         // Save the current state for undo
         this.history.push({ lines: [...this.node.attrs.lines] });
@@ -415,35 +407,38 @@ export default {
           ],
           height: this.svgHeight,
         });
-
-        // Clear the temporary path and reset ID for the next action
-        this.svg.select(`#id-${this.id}`).remove();
-        this.id = uuid();
       }
+
+      // Clear the temporary path and reset ID for the next action
+      this.svg.select(`#id-${this.id}`).remove();
+      this.id = uuid();
 
       this.svg.on('mousemove touchmove', null);
       this.selectedPaths.clear();
     },
     erasePathsWithinSelection() {
       const remainingLines = [];
+      const selectionRect = this.selectionRect;
+
       this.node.attrs.lines.forEach((line) => {
         const pathElement = this.svg.select(`#id-${line.id}`).node();
-        const pathBounds = pathElement.getBBox();
-        const rectBounds = this.selectionRect;
+        const pathBBox = pathElement.getBBox();
 
+        // Check if the path's bounding box intersects with the selection rectangle
         if (
-          !(
-            pathBounds.x < rectBounds.x + rectBounds.width &&
-            pathBounds.x + pathBounds.width > rectBounds.x &&
-            pathBounds.y < rectBounds.y + rectBounds.height &&
-            pathBounds.y + pathBounds.height > rectBounds.y
-          )
+          pathBBox.x + pathBBox.width >= selectionRect.x &&
+          pathBBox.x <= selectionRect.x + selectionRect.width &&
+          pathBBox.y + pathBBox.height >= selectionRect.y &&
+          pathBBox.y <= selectionRect.y + selectionRect.height
         ) {
-          remainingLines.push(line);
-        } else {
+          // Path intersects with the selection rectangle
           this.selectedPaths.add(`id-${line.id}`);
+        } else {
+          // Path does not intersect with the selection rectangle
+          remainingLines.push(line);
         }
       });
+
       this.updateAttributes({ lines: remainingLines, height: this.svgHeight });
     },
     tick() {

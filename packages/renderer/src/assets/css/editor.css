@@ -246,3 +246,7 @@ li[data-checked="true"] {
   cursor: pointer;
   transition: transform 0.3s;
 }
+
+mark {
+  @apply bg-yellow-200 dark:bg-yellow-100;
+}
