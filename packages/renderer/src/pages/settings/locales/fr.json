@@ -1,6 +1,9 @@
 {
   "_idvue": {
+    "MathPlaceholder": "Texte ici...",
+    "MermaidPlaceholder": "Entrez le code Mermaid ici...",
     "Previousnote": "Notes précédente",
+    "error": "Oups ! Il y a eu un problème lors du rendu du diagramme. Veuillez vérifier la syntaxe.",
     "exit": "Appuyer sur Ctrl + Entrer pour fermer",
     "untitlednote": "Note sans titre"
   },
@@ -130,6 +133,12 @@
     "video": "Vidéo",
     "videoUrl": "Lien vers la vidéo"
   },
+  "paper": {
+    "dotted": "Pointillé",
+    "grid": "Quadrillé",
+    "plain": "Uni",
+    "ruled": "Ligné"
+  },
   "search": {
     "clear": "Effacer",
     "find": "Trouver",
@@ -150,6 +159,7 @@
     "Inputpassword": "Saisie du mot de passe",
     "Invalidpassword": "Mot de passe incorrect",
     "LTR": "LTR",
+    "OpenLastEdited": "Ouvrir la dernière note modifiée au démarrage",
     "Password": "Mot de passe",
     "RTL": "RTL",
     "Shortcuts": "Raccourcis",

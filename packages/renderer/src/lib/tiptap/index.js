@@ -116,7 +116,9 @@ const extensions = [
   }),
   TableCell,
   TableHeader,
-  TableRow,
+  TableRow.extend({
+    allowGapCursor: false,
+  }),
   TaskItem.configure({
     nested: true,
   }),

@@ -184,10 +184,12 @@ export default {
     } else {
       store.retrieve().then(() => (retrieved.value = true));
 
-      const lastNoteEdit = localStorage.getItem('lastNoteEdit');
+      if (appStore.setting.openLastEdited) {
+        const lastNoteEdit = localStorage.getItem('lastNoteEdit');
 
-      if (lastNoteEdit) {
-        router.push(`/note/${lastNoteEdit}`);
+        if (lastNoteEdit) {
+          router.push(`/note/${lastNoteEdit}`);
+        }
       }
     }
     theme.loadTheme();

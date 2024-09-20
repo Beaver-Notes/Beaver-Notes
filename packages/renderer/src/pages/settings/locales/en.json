@@ -1,6 +1,9 @@
 {
   "_idvue": {
+    "MathPlaceholder": "Text here...",
+    "MermaidPlaceholder": "Enter Mermaid code here...",
     "Previousnote": "Previous notes",
+    "error": "Oops! There was an issue rendering the diagram. Please check the syntax.",
     "exit": "Press Ctrl + Enter to close",
     "untitlednote": "Untitled note"
   },
@@ -130,6 +133,12 @@
     "video": "Video",
     "videoUrl": "Video url"
   },
+  "paper": {
+    "dotted": "Dotted",
+    "grid": "Grid",
+    "plain": "Plain",
+    "ruled": "Ruled"
+  },
   "search": {
     "clear": "Clear",
     "find": "Find",
@@ -150,6 +159,7 @@
     "Inputpassword": "Input password",
     "Invalidpassword": "Invalid password",
     "LTR": "LTR",
+    "OpenLastEdited": "Open the last edited note at startup",
     "Password": "Password",
     "RTL": "RTL",
     "Shortcuts": "Shortcuts",

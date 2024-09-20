@@ -680,18 +680,32 @@ export default {
     );
   },
   methods: {
+    async loadTranslations() {
+      const loadedTranslations = await this.fetchTranslations();
+      if (loadedTranslations) {
+        Object.assign(this.translations, loadedTranslations);
+      }
+    },
+    async fetchTranslations() {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    },
     toggledirectionPreference() {
-      // Update the directionPreference value based on checkbox state
       this.directionPreference =
         this.directionPreference === 'rtl' ? 'ltr' : 'rtl';
-      // Set the updated value in localStorage
       localStorage.setItem('directionPreference', this.directionPreference);
-      // Apply the direction preference immediately without reloading the page
       document.documentElement.dir = this.directionPreference;
     },
     updateFont() {
       localStorage.setItem('selected-font', this.selectedFont);
-
       document.documentElement.style.setProperty(
         '--selected-font',
         this.selectedFont
@@ -699,7 +713,6 @@ export default {
     },
     updateCodeFont() {
       localStorage.setItem('selected-font-code', this.selectedCodeFont);
-
       document.documentElement.style.setProperty(
         '--selected-font-code',
         this.selectedCodeFont

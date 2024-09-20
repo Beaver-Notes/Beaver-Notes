@@ -3,9 +3,10 @@
     <div class="relative drawing-container">
       <svg
         ref="canvas"
-        :height="svgHeight"
         :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
-        :class="['border border-gray-300', paperType]"
+        preserveAspectRatio="xMidYMid meet"
+        class="w-full h-auto border border-gray-300"
+        :class="paperType"
       >
         <template v-for="item in node.attrs.lines" :key="item.id">
           <path
@@ -33,30 +34,45 @@
       </div>
     </div>
     <div
-      class="p-4 flex justify-between items-center bg-gray-100 border border-gray-300 rounded-b-xl"
+      class="p-4 flex flex-wrap justify-between items-center bg-gray-100 border border-gray-300 rounded-b-xl"
       :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
     >
-      <div class="tool-buttons flex gap-2">
+      <div class="tool-buttons flex flex-wrap gap-2">
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': tool === 'pencil',
+            'bg-neutral-100 dark:bg-neutral-800 border-gray-300':
+              tool !== 'pencil',
+          }"
           @click="setTool('pencil')"
         >
           <v-remixicon name="riBallPenLine" />
         </button>
+
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
-          @click="setTool('eraser')"
-        >
-          <v-remixicon name="riEraserLine" />
-        </button>
-        <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': tool === 'highlighter',
+            'bg-neutral-100 dark:bg-neutral-800 border-gray-300':
+              tool !== 'highlighter',
+          }"
           @click="setTool('highlighter')"
         >
           <v-remixicon name="riMarkPenLine" />
+        </button>
+
+        <button
+          class="flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'bg-amber-100 dark:bg-amber-700 border-amber-400':
+              tool === 'eraser',
+            'bg-neutral-100 dark:bg-neutral-800 border-gray-300':
+              tool !== 'eraser',
+          }"
+          @click="setTool('eraser')"
+        >
+          <v-remixicon name="riEraserLine" />
         </button>
         <!-- Dropdown for Paper Type -->
         <select
@@ -64,13 +80,14 @@
           class="border border-gray-300 rounded p-2 bg-neutral-100 dark:bg-neutral-800"
           @change="changePaperType"
         >
-          <option value="plain">Plain</option>
-          <option value="grid">Grid</option>
-          <option value="ruled">Ruled</option>
-          <option value="dotted">Dotted</option>
+          <option value="plain">{{ translations.paper.plain || '-' }}</option>
+          <option value="grid">{{ translations.paper.grid || '-' }}</option>
+          <option value="ruled">{{ translations.paper.ruled || '-' }}</option>
+          <option value="dotted">{{ translations.paper.dotted || '-' }}</option>
         </select>
       </div>
-      <div class="right-controls flex gap-2">
+
+      <div class="right-controls flex flex-wrap gap-2 mt-4 lg:mt-0">
         <button
           class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:opacity-50"
           :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
@@ -88,8 +105,11 @@
           <v-remixicon name="riArrowGoForwardLine" />
         </button>
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': size === 2,
+            'border-gray-300': size !== 2,
+          }"
           @click="setSize('thin')"
         >
           <svg
@@ -107,9 +127,13 @@
             <rect x="2" y="11" width="20" height="2" rx="1" />
           </svg>
         </button>
+
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center justify-center bg-neutral-100 dark:bg-neutral-800 p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': size === 5,
+            'border-gray-300': size !== 5,
+          }"
           @click="setSize('small')"
         >
           <svg
@@ -127,9 +151,13 @@
             <rect x="2" y="10" width="20" height="5" rx="2.5" />
           </svg>
         </button>
+
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
-          :class="{ 'bg-neutral-100 dark:bg-neutral-800': true }"
+          class="flex items-center bg-neutral-100 dark:bg-neutral-800 justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+          :class="{
+            'border-amber-400': size === 8,
+            'border-gray-300': size !== 8,
+          }"
           @click="setSize('thick')"
         >
           <svg
@@ -167,6 +195,7 @@
 </template>
 
 <script>
+import { shallowReactive, onMounted } from 'vue';
 import { nodeViewProps, NodeViewWrapper } from '@tiptap/vue-3';
 import * as d3 from 'd3';
 import { useTheme } from '@/composable/theme';
@@ -179,6 +208,41 @@ export default {
   name: 'Paper',
   components: { NodeViewWrapper },
   props: nodeViewProps,
+  setup() {
+    const translations = shallowReactive({
+      paper: {
+        plain: 'paper.plain',
+        grid: 'paper.grid',
+        ruled: 'paper.ruled',
+        dotted: 'paper.dotted',
+      },
+    });
+
+    onMounted(async () => {
+      // Load translations
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
+
+    const loadTranslations = async () => {
+      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+      try {
+        const translationModule = await import(
+          `../../../../pages/settings/locales/${selectedLanguage}.json`
+        );
+        return translationModule.default;
+      } catch (error) {
+        console.error('Error loading translations:', error);
+        return null;
+      }
+    };
+
+    return {
+      translations,
+    };
+  },
   data() {
     return {
       color: '#000000',
@@ -210,7 +274,10 @@ export default {
       return this.redoStack.length > 0;
     },
     isDarkMode() {
-      return currentTheme.value === 'dark';
+      const prefersDarkScheme = window.matchMedia(
+        '(prefers-color-scheme: dark)'
+      ).matches;
+      return prefersDarkScheme || currentTheme.value === 'dark';
     },
   },
   mounted() {
@@ -289,6 +356,23 @@ export default {
         this.tick();
       }
     },
+    eraseSinglePath(pathId) {
+      this.node.attrs.lines = this.node.attrs.lines.filter(
+        (line) => line.id !== pathId.replace('id-', '')
+      );
+      this.updateAttributes({
+        lines: this.node.attrs.lines,
+        height: this.svgHeight,
+      });
+    },
+    isPointOnPath(x, y, pathElement) {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      context.fillStyle = 'rgba(0,0,0,0)';
+      context.fill(new Path2D(pathElement.getAttribute('d')));
+
+      return context.isPointInPath(x, y);
+    },
     onEndDrawing() {
       if (!this.drawing) return;
       this.drawing = false;
@@ -334,24 +418,27 @@ export default {
     },
     erasePathsWithinSelection() {
       const remainingLines = [];
+      const selectionRect = this.selectionRect;
+
       this.node.attrs.lines.forEach((line) => {
         const pathElement = this.svg.select(`#id-${line.id}`).node();
-        const pathBounds = pathElement.getBBox();
-        const rectBounds = this.selectionRect;
+        const pathBBox = pathElement.getBBox();
 
+        // Check if the path's bounding box intersects with the selection rectangle
         if (
-          !(
-            pathBounds.x < rectBounds.x + rectBounds.width &&
-            pathBounds.x + pathBounds.width > rectBounds.x &&
-            pathBounds.y < rectBounds.y + rectBounds.height &&
-            pathBounds.y + pathBounds.height > rectBounds.y
-          )
+          pathBBox.x + pathBBox.width >= selectionRect.x &&
+          pathBBox.x <= selectionRect.x + selectionRect.width &&
+          pathBBox.y + pathBBox.height >= selectionRect.y &&
+          pathBBox.y <= selectionRect.y + selectionRect.height
         ) {
-          remainingLines.push(line);
-        } else {
+          // Path intersects with the selection rectangle
           this.selectedPaths.add(`id-${line.id}`);
+        } else {
+          // Path does not intersect with the selection rectangle
+          remainingLines.push(line);
         }
       });
+
       this.updateAttributes({ lines: remainingLines, height: this.svgHeight });
     },
     tick() {

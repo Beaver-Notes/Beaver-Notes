@@ -226,10 +226,6 @@ li[data-checked="true"] {
     }
   }
 }
-.tableWrapper {
-  padding: 1rem 0;
-  overflow-x: hidden;
-}
 
 .resize-cursor {
   cursor: ew-resize;
@@ -249,4 +245,8 @@ li[data-checked="true"] {
   transform: translateY(-50%);
   cursor: pointer;
   transition: transform 0.3s;
+}
+
+mark {
+  @apply bg-yellow-200 dark:bg-yellow-100;
 }

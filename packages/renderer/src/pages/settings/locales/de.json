@@ -1,6 +1,9 @@
 {
   "_idvue": {
+    "MathPlaceholder": "Text hier einfügen...",
+    "MermaidPlaceholder": "Mermaid-Code hier eingeben...",
     "Previousnote": "Vorherige Notizen",
+    "error": "Ups! Es gab ein Problem beim Rendern des Diagramms. Bitte überprüfe die Syntax.",
     "exit": "Drücken Sie Strg + Enter, um zu schließen",
     "untitlednote": "Unbenannte Notiz"
   },
@@ -130,6 +133,12 @@
     "video": "Video",
     "videoUrl": "Videopfad"
   },
+  "paper": {
+    "dotted": "Gepunktet",
+    "grid": "Kariert",
+    "plain": "Einfach",
+    "ruled": "Liniert"
+  },
   "search": {
     "clear": "Löschen",
     "find": "Suchen",
@@ -150,6 +159,7 @@
     "Inputpassword": "Passwort eingeben",
     "Invalidpassword": "Ungültiges Passwort",
     "LTR": "Linksbündig",
+    "OpenLastEdited": "Die zuletzt bearbeitete Notiz beim Start öffnen",
     "Password": "Passwort",
     "RTL": "Rechtsbündig",
     "Shortcuts": "Tastaturkürzel",

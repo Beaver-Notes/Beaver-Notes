@@ -224,7 +224,7 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
                 .filter((child) => child.tagName === 'LI')
                 .map(async (li) => {
                   const checkbox = li.querySelector('input[type="checkbox"]');
-                  const checked = checkbox.checked;
+                  const checked = checkbox ? checkbox.checked : false;
                   return {
                     type: 'taskItem',
                     attrs: { checked },
@@ -406,31 +406,58 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         if (href.startsWith('http://') || href.startsWith('https://')) {
           return {
             type: 'text',
-            marks: [{ type: 'link', attrs: { href } }],
+            marks: [
+              {
+                type: 'link',
+                attrs: {
+                  href,
+                  target: '_blank',
+                  rel: 'noopener noreferrer nofollow',
+                },
+              },
+            ],
             text: element.textContent,
           };
-        } else {
-          // Handle file links
-          const dataDir = await storage.get('dataDir');
-          const fileName = href.split('/').pop();
-          const file = path.join(directoryPath, 'file-assets', fileName);
-          const assetsPath = path.join(dataDir, 'file-assets', id);
-          try {
-            await ipcRenderer.callMain('fs:copy', {
-              path: file,
-              dest: path.join(assetsPath, fileName),
-            });
-            return {
-              type: 'fileEmbed',
-              attrs: {
-                src: `file-assets/${id}/${fileName}`,
-                fileName,
+        }
+
+        if (href.startsWith('mailto:')) {
+          return {
+            type: 'text',
+            marks: [
+              {
+                type: 'link',
+                attrs: {
+                  href,
+                  target: '_blank',
+                  rel: 'noopener noreferrer nofollow',
+                  class: null,
+                },
               },
-            };
-          } catch (error) {
-            console.error(`Error processing file ${fileName}:`, error);
-            return null;
-          }
+            ],
+            text: element.textContent,
+          };
+        }
+
+        // Handle file links
+        const dataDir = await storage.get('dataDir');
+        const fileName = href.split('/').pop();
+        const file = path.join(directoryPath, 'file-assets', fileName);
+        const assetsPath = path.join(dataDir, 'file-assets', id);
+        try {
+          await ipcRenderer.callMain('fs:copy', {
+            path: file,
+            dest: path.join(assetsPath, fileName),
+          });
+          return {
+            type: 'fileEmbed',
+            attrs: {
+              src: `file-assets/${id}/${fileName}`,
+              fileName,
+            },
+          };
+        } catch (error) {
+          console.error(`Error processing file ${fileName}:`, error);
+          return null;
         }
       }
       case 'SUP':
@@ -607,23 +634,42 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           type: 'table',
           content: (
             await Promise.all(
-              Array.from(element.querySelectorAll('tr')).map(async (row) => ({
-                type: 'tableRow',
-                content: (
-                  await Promise.all(
-                    Array.from(row.cells).map(async (cell) => ({
-                      type: 'tableCell',
-                      content: (
-                        await Promise.all(
-                          Array.from(cell.childNodes).map(
-                            convertElementToTiptap
-                          )
-                        )
-                      ).filter(Boolean),
-                    }))
-                  )
-                ).filter(Boolean),
-              }))
+              Array.from(element.querySelectorAll('tr')).map(
+                async (row, rowIndex) => {
+                  const isHeaderRow = rowIndex === 0;
+                  return {
+                    type: 'tableRow',
+                    content: (
+                      await Promise.all(
+                        Array.from(row.cells).map(async (cell) => {
+                          const cellType = isHeaderRow
+                            ? 'tableHeader'
+                            : 'tableCell';
+                          return {
+                            type: cellType,
+                            attrs: {
+                              colspan: cell.colSpan || 1,
+                              rowspan: cell.rowSpan || 1,
+                            },
+                            content: [
+                              {
+                                type: 'paragraph',
+                                content: (
+                                  await Promise.all(
+                                    Array.from(cell.childNodes).map(
+                                      convertElementToTiptap
+                                    )
+                                  )
+                                ).filter(Boolean),
+                              },
+                            ],
+                          };
+                        })
+                      )
+                    ).filter(Boolean),
+                  };
+                }
+              )
             )
           ).filter(Boolean),
         };
@@ -672,53 +718,66 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
 export const processDirectory = async (directoryPath) => {
   notes.value = [];
   const noteStore = useNoteStore();
+  const errorLog = []; // Array to collect error messages
 
   try {
     const files = await ipcRenderer.callMain('fs:readdir', directoryPath);
 
-    for (const fileName of files) {
+    const processingPromises = files.map(async (fileName) => {
       if (fileName === '.DS_Store') {
         console.log(`Skipping .DS_Store file`);
-        continue; // Skip processing .DS_Store file
+        return; // Skip processing .DS_Store file
       }
 
       const filePath = path.join(directoryPath, fileName);
 
       if (fileName.toLowerCase().endsWith('.md')) {
-        const markdown = await readMarkdownFile(filePath);
-        console.log('Markdown:', markdown);
-
-        const id = uuidv4();
-        const { title, content } = await convertMarkdownToTiptap(
-          markdown,
-          id,
-          directoryPath
-        );
-
-        // Automatically add notes
-        const labelArray = labels.value.split(',').map((label) => label.trim());
-        const newNote = {
-          id,
-          title: title || fileName.replace('.md', ''),
-          content,
-          labels: labelArray,
-          isBookmarked: isBookmarked.value,
-          isArchived: isArchived.value,
-        };
-
         try {
+          const markdown = await readMarkdownFile(filePath);
+          console.log('Markdown:', markdown);
+
+          const id = uuidv4();
+          const { title, content } = await convertMarkdownToTiptap(
+            markdown,
+            id,
+            directoryPath
+          );
+
+          // Automatically add notes
+          const labelArray = labels.value
+            .split(',')
+            .map((label) => label.trim());
+          const newNote = {
+            id,
+            title: title || fileName.replace('.md', ''),
+            content,
+            labels: labelArray,
+            isBookmarked: isBookmarked.value,
+            isArchived: isArchived.value,
+          };
+
           await noteStore.add(newNote);
           console.log('Note added:', newNote);
+          notes.value.push(newNote);
         } catch (error) {
-          console.error('Error adding note to store:', error);
+          // Log errors related to individual file processing
+          errorLog.push(`Error processing file ${fileName}: ${error.message}`);
         }
-
-        notes.value.push(newNote);
       } else {
         console.log(`Skipping file: ${filePath}`);
       }
-    }
+    });
+
+    await Promise.all(processingPromises);
   } catch (error) {
-    console.error('Error listing directory:', error);
+    errorLog.push(`Error listing directory: ${error.message}`);
+  }
+
+  // Log all collected errors
+  if (errorLog.length > 0) {
+    console.error('Processing completed with errors:');
+    errorLog.forEach((error) => console.error(error));
+  } else {
+    console.log('All files processed successfully.');
   }
 };
