@@ -1,6 +1,9 @@
 {
   "_idvue": {
+    "MathPlaceholder": "Metin burada...",
+    "MermaidPlaceholder": "Mermaid kodunu buraya girin...",
     "Previousnote": "Önceki notlar",
+    "error": "Aman! Diyagramın render edilmesinde bir sorun oluştu. Lütfen sözdizimini kontrol edin.",
     "exit": "Ctrl + Enter kombinasyonu ile kapatabilirsiniz",
     "untitlednote": "İsimsiz not"
   },
@@ -130,6 +133,12 @@
     "video": "Video",
     "videoUrl": "Video adresi(url)"
   },
+  "paper": {
+    "dotted": "Noktalı",
+    "grid": "Kareli",
+    "plain": "Düz",
+    "ruled": "Çizgili"
+  },
   "search": {
     "clear": "Temizle",
     "find": "Bul",
@@ -150,6 +159,7 @@
     "Inputpassword": "Şifreni gir",
     "Invalidpassword": "Geçersiz şifre",
     "LTR": "Soldan Sağa",
+    "OpenLastEdited": "Başlangıçta son düzenlenen notu aç",
     "Password": "Şifre",
     "RTL": "Sağdan Sola",
     "Shortcuts": "Kısayollar",

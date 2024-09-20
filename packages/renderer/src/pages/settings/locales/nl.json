@@ -1,6 +1,9 @@
 {
   "_idvue": {
+    "MathPlaceholder": "Tekst hier...",
+    "MermaidPlaceholder": "Voer hier de Mermaid-code in...",
     "Previousnote": "Vorige notitie",
+    "error": "Oeps! Er was een probleem bij het weergeven van het diagram. Controleer de syntaxis.",
     "exit": "Druk op Ctrl + Enter om te sluiten",
     "untitlednote": "lege notitie"
   },
@@ -130,6 +133,12 @@
     "video": "Video",
     "videoUrl": "Video-URL"
   },
+  "paper": {
+    "dotted": "Gestippeld",
+    "grid": "Geruit",
+    "plain": "Effen",
+    "ruled": "Gelijnd"
+  },
   "search": {
     "clear": "Legen",
     "find": "Zoeken",
@@ -150,6 +159,7 @@
     "Inputpassword": "Vul wachtwoord in",
     "Invalidpassword": "ongeldig wachtwoord",
     "LTR": "links naar rechts",
+    "OpenLastEdited": "Open de laatst bewerkte notitie bij het opstarten",
     "Password": "Wachtwoord",
     "RTL": "rechts naar links",
     "Shortcuts": "Snelkoppelingen",

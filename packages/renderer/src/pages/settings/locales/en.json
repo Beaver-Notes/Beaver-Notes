@@ -1,11 +1,11 @@
 {
   "_idvue": {
-    "Previousnote": "Previous notes",
-    "exit": "Press Ctrl + Enter to close",
-    "untitlednote": "Untitled note",
-    "error": "Oops! There was an issue rendering the diagram. Please check the syntax.",
     "MathPlaceholder": "Text here...",
-    "MermaidPlaceholder": "Enter Mermaid code here..."
+    "MermaidPlaceholder": "Enter Mermaid code here...",
+    "Previousnote": "Previous notes",
+    "error": "Oops! There was an issue rendering the diagram. Please check the syntax.",
+    "exit": "Press Ctrl + Enter to close",
+    "untitlednote": "Untitled note"
   },
   "about": {
     "description": "Beaver Notes was developed with love ❤️ in a rainy cottage in Northern Italy.",
@@ -133,6 +133,12 @@
     "video": "Video",
     "videoUrl": "Video url"
   },
+  "paper": {
+    "dotted": "Dotted",
+    "grid": "Grid",
+    "plain": "Plain",
+    "ruled": "Ruled"
+  },
   "search": {
     "clear": "Clear",
     "find": "Find",
@@ -141,12 +147,6 @@
     "replaceplaceholder": "Replace...",
     "searchplaceholder": "Search...",
     "useRegex": "Use regex (Alt+R)"
-  },
-  "paper": {
-    "plain": "Plain",
-    "grid": "Grid",
-    "ruled": "Ruled",
-    "dotted": "Dotted"
   },
   "settings": {
     "About": "About",
@@ -159,6 +159,7 @@
     "Inputpassword": "Input password",
     "Invalidpassword": "Invalid password",
     "LTR": "LTR",
+    "OpenLastEdited": "Open the last edited note at startup",
     "Password": "Password",
     "RTL": "RTL",
     "Shortcuts": "Shortcuts",
@@ -224,8 +225,7 @@
     "title": "Settings",
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
-    "wrongCurrentPassword": "Wrong password, please try again",
-    "OpenLastEdited": "Open the last edited note at startup"
+    "wrongCurrentPassword": "Wrong password, please try again"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",
