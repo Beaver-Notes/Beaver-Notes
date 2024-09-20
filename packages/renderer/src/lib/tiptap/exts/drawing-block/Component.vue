@@ -263,7 +263,7 @@ export default {
       selectedPaths: new Set(),
       selectionRect: { x: 0, y: 0, width: 0, height: 0 },
       showSelectionRect: false,
-      paperType: this.node.attrs.paperType || 'plain', // Load saved paper type
+      paperType: this.node.attrs.paperType || 'plain',
     };
   },
   computed: {

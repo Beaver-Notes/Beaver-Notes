@@ -14,7 +14,7 @@ export default Node.create({
         default: [],
       },
       height: {
-        default: 400, // Default height
+        default: 400,
       },
       paperType: {
         default: 'plain',
