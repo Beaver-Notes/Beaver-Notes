@@ -94,6 +94,8 @@ export default defineComponent({
         if (newContent) {
           const themedContent = addThemeToContent(newContent);
           updateGraph(themedContent);
+        } else {
+          mermaidString.value = '';
         }
       },
       { immediate: true }

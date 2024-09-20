@@ -11,7 +11,7 @@
           ref="inputRef"
           :value="mermaidContent"
           type="textarea"
-          placeholder="translations._idvue.MermaidPlaceholder || '-'"
+          :placeholder="translations._idvue.MermaidPlaceholder || '-'"
           class="bg-transparent min-h-24 w-full"
           @input="updateContent($event)"
           @keydown.ctrl.enter="closeTextarea"
