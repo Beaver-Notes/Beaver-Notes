@@ -460,6 +460,10 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           return null;
         }
       }
+      case 'HR':
+        return {
+          type: 'horizontalRule',
+        };
       case 'SUP':
         return {
           type: 'text',
