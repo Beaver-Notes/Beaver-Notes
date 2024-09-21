@@ -746,7 +746,8 @@ export const processDirectory = async (directoryPath) => {
           // Automatically add notes
           const labelArray = labels.value
             .split(',')
-            .map((label) => label.trim());
+            .map((label) => label.trim())
+            .filter((label) => label !== '');
           const newNote = {
             id,
             title: title || fileName.replace('.md', ''),
