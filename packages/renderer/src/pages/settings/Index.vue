@@ -275,7 +275,7 @@ export const dataDir = state.dataDir;
 
 export default {
   setup() {
-    const { ipcRenderer, path } = window.electron;
+    const { ipcRenderer, path, notification } = window.electron;
     const themes = [
       { name: 'light', img: lightImg },
       { name: 'dark', img: darkImg },
@@ -573,8 +573,24 @@ export default {
         await processDirectory(state.importDir);
 
         await storage.set('importDir', state.importDir);
+
+        // Success notification
+        notification({
+          title: translations.settings.notification,
+          body:
+            translations.settings.importSuccess ||
+            'Directory processed successfully!',
+        });
       } catch (error) {
-        console.error('Error selecting directory:', error);
+        console.error('Error selecting or processing directory:', error);
+
+        // Failure notification
+        notification({
+          title: translations.settings.notification,
+          body:
+            translations.settings.importFail ||
+            'Failed to process the directory.',
+        });
       }
     };
 
@@ -717,6 +733,9 @@ export default {
         confirmDelete: 'settings.confirmDelete',
         createdAt: 'settings.createdAt',
         authorizedApplications: 'settings.authorizedApplications',
+        exportSuccess: 'settings.exportSuccess',
+        importFail: 'settings.importFail',
+        notification: 'settings.notification',
       },
     });
 
