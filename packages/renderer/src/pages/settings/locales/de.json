@@ -83,7 +83,7 @@
   },
   "link": {
     "placeholder": "URL oder @ eingeben, um eine Notiz zu verlinken",
-    "shortcut": "Drücken Sie Strg + Klick, um den Link zu öffnen",
+    "shortcut": "Drücken Sie Alt + Klick, um den Link zu öffnen",
     "untitlednote": "Unbenannte Notiz"
   },
   "menu": {
@@ -186,7 +186,9 @@
     "gvfswarn": "Die automatische Synchronisierung über GVFS wird nicht unterstützt. Bitte verwenden Sie stattdessen die manuelle Synchronisierung.",
     "id": "ID",
     "iedata": "Daten importieren/exportieren",
+    "importFail": "Import fehlgeschlagen!",
     "importMarkdown": "Markdown importieren",
+    "importSuccess": "Daten erfolgreich importiert",
     "importdata": "Daten importieren",
     "importsuccess": "Daten erfolgreich importiert",
     "interfaceDirection": "Anzeigerichtung",
@@ -201,6 +203,7 @@
     "newpassword": "Neues Passwort eingeben",
     "next": "Weiter",
     "noAuthorizedApplicaitons": "Nicht berechtigte Anwendungen",
+    "notification": "Benachrichtigung",
     "password": "Passwort",
     "passwordResetError": "Beim Zurücksetzen Ihres Passworts ist etwas schief gelaufen",
     "passwordResetSuccess": "Das Passwort wurde erfolgreich zurückgesetzt",

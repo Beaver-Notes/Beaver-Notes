@@ -83,7 +83,7 @@
   },
   "link": {
     "placeholder": "输入 URL 或者键入 @ 进行笔记链接",
-    "shortcut": "按 Ctrl + 单击以打开链接",
+    "shortcut": "按 Alt + 单击以打开链接",
     "untitlednote": "无标题笔记"
   },
   "menu": {
@@ -186,7 +186,9 @@
     "gvfswarn": "不支持 GVFS 下的自动同步，请手动完成同步。",
     "id": "ID",
     "iedata": "导入/导出数据",
+    "importFail": "导入失败！",
     "importMarkdown": "导入 Markdown",
+    "importSuccess": "导入成功！",
     "importdata": "导入数据",
     "importsuccess": "数据已成功导入",
     "interfaceDirection": "界面方向",
@@ -201,6 +203,7 @@
     "newpassword": "设置新密码",
     "next": "下一步",
     "noAuthorizedApplicaitons": "无已授权应用",
+    "notification": "通知",
     "password": "密码",
     "passwordResetError": "重置密码时出了问题",
     "passwordResetSuccess": "密码已重置成功",
