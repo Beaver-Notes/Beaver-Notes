@@ -83,7 +83,7 @@
   },
   "link": {
     "placeholder": "URL ou tapez @ pour lier une note à un lien",
-    "shortcut": "Appuyez sur Ctrl + Clic pour ouvrir le lien",
+    "shortcut": "Appuyez sur Alt + Clic pour ouvrir le lien",
     "untitlednote": "Note sans titre"
   },
   "menu": {
@@ -186,7 +186,9 @@
     "gvfswarn": "La synchronisation automatique via GVFS n'est pas prise en charge. Veuillez utiliser la synchronisation manuelle à la place.",
     "id": " ID",
     "iedata": "Importer / Exporter des données",
+    "importFail": "L'importation a échoué !",
     "importMarkdown": "Importer du Markdown",
+    "importSuccess": "L'importation a réussi !",
     "importdata": "Importer des données",
     "importsuccess": "Les données ont été importées avec succès",
     "interfaceDirection": "Direction",
@@ -201,6 +203,7 @@
     "newpassword": "Insérer un nouveau mot de passe",
     "next": "Prochain",
     "noAuthorizedApplicaitons": "Aucune application autorisée",
+    "notification": "Notification",
     "password": "Mot de passe",
     "passwordResetError": "Un problème s'est produit lors de la réinitialisation de votre mot de passe",
     "passwordResetSuccess": "Le mot de passe a été réinitialisé avec succès",

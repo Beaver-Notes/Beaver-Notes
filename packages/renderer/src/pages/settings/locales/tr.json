@@ -83,7 +83,7 @@
   },
   "link": {
     "placeholder": "Adres(url) ya da @ tuşu ile notu bağla",
-    "shortcut": "Bağlantıyı açmak için Ctrl tuşuna basarak bağlantıya tıkla",
+    "shortcut": "Bağlantıyı açmak için Alt tuşuna basarak bağlantıya tıkla",
     "untitlednote": "İsimlendirimemiş not"
   },
   "menu": {
@@ -186,7 +186,9 @@
     "gvfswarn": "GVFS ile otomatik eşitleme desteklenmiyor. Lütfen manuel olarak eşitleyin.",
     "id": "Kimlik",
     "iedata": "İçe / Dışa Aktar",
+    "importFail": "İçe aktarma başarısız !",
     "importMarkdown": "İçe Markdown Aktar",
+    "importSuccess": "İçe aktarma başarılı !",
     "importdata": "İçe Aktar",
     "importsuccess": "Veri başarıyla dahil edildi",
     "interfaceDirection": "Arayüz Yönü",
@@ -201,6 +203,7 @@
     "newpassword": "Yeni şifre girin",
     "next": "İleri",
     "noAuthorizedApplicaitons": "Yetkilendirilmiş uygulama yok",
+    "notification": "Bildirim",
     "password": "Şifre",
     "passwordResetError": "Şifrenizi sıfırlarken bir şeyler yanlış gitti",
     "passwordResetSuccess": "Şifre başarılı bir şekilde sıfırlandı",

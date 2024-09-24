@@ -83,7 +83,7 @@
   },
   "link": {
     "placeholder": "URL of typ @ om een notitie te linken",
-    "shortcut": "Druk Ctrl + Klik om de link te openen",
+    "shortcut": "Druk Alt + Klik om de link te openen",
     "untitlednote": "lege notitie"
   },
   "menu": {
@@ -186,7 +186,9 @@
     "gvfswarn": "Automatische synchronisatie via GVFS wordt niet ondersteund. Gebruik in plaats daarvan handmatige synchronisatie.",
     "id": "ID",
     "iedata": "Importeer / Exporteer data",
+    "importFail": "Importeren mislukt!",
     "importMarkdown": "Markdown importeren",
+    "importSuccess": "Import geslaagd!",
     "importdata": "Importeer data",
     "importsuccess": "Data succesvol geïmporteerd",
     "interfaceDirection": "Interface Richting",
@@ -201,6 +203,7 @@
     "newpassword": "Voer nieuw wachtwoord in",
     "next": "Volgende",
     "noAuthorizedApplicaitons": "Geen geautoriseerde applicaties",
+    "notification": "Melding",
     "password": "Wachtwoord",
     "passwordResetError": "Er is iets misgegaan bij het opnieuw instellen van je wachtwoord",
     "passwordResetSuccess": "Het wachtwoord is succesvol opnieuw ingesteld",

@@ -83,7 +83,7 @@
   },
   "link": {
     "placeholder": "URL or type @ to link a note",
-    "shortcut": "Press Ctrl + Click to open the link",
+    "shortcut": "Press Alt + Click to open the link",
     "untitlednote": "Untitled note"
   },
   "menu": {
@@ -186,7 +186,9 @@
     "gvfswarn": "Automatic sync through GVFS is not supported. Please use manual sync instead.",
     "id": " ID",
     "iedata": "Import / Export data",
+    "importFail": "Import failed!",
     "importMarkdown": "Import Markdown",
+    "importSuccess": "Import successful!",
     "importdata": "Import data",
     "importsuccess": "Data imported successfully",
     "interfaceDirection": "Interface Direction",
@@ -201,6 +203,7 @@
     "newpassword": "Insert new password",
     "next": "Next",
     "noAuthorizedApplicaitons": "No authorized applications",
+    "notification": "Notification",
     "password": "Password",
     "passwordResetError": "Something went wrong while resetting your password",
     "passwordResetSuccess": "The password has been reset successfully",
@@ -225,10 +228,7 @@
     "title": "Settings",
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
-    "wrongCurrentPassword": "Wrong password, please try again",
-    "importSuccess": "Import successful!",
-    "importFail": "Import failed!",
-    "notification": "Notification"
+    "wrongCurrentPassword": "Wrong password, please try again"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",
