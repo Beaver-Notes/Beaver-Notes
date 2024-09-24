@@ -10,7 +10,7 @@
           v-focus="!useKatexMacros"
           :value="node.attrs.content"
           type="textarea"
-          placeholder="translations._idvue.MathPlaceholder || '-'"
+          :placeholder="translations._idvue.MathPlaceholder || '-'"
           class="bg-transparent flex-1"
           style="direction: ltr"
           @input="updateContent($event, 'content', true)"
