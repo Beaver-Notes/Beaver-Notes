@@ -1,9 +1,5 @@
 <template>
   <node-view-wrapper>
-    <p
-      ref="contentRef"
-      :class="{ 'dark:text-purple-400 text-purple-500': selected }"
-    ></p>
     <div v-if="selected" class="bg-input transition rounded-lg p-2">
       <div class="flex mb-2">
         <textarea
@@ -43,6 +39,10 @@
         />
       </div>
     </div>
+    <p
+      ref="contentRef"
+      :class="{ 'dark:text-purple-400 text-purple-500': selected }"
+    ></p>
   </node-view-wrapper>
 </template>
 <script>

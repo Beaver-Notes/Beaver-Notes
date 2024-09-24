@@ -1,11 +1,6 @@
 <template>
   <NodeViewWrapper>
     <div>
-      <MermaidComponent
-        :class="{ 'dark:text-purple-400 text-purple-500': selected }"
-        :content="mermaidContent"
-        @click="openTextarea"
-      />
       <div v-if="showTextarea" class="bg-input transition rounded-lg p-2">
         <textarea
           ref="inputRef"
@@ -17,12 +12,22 @@
           @keydown.ctrl.enter="closeTextarea"
           @keydown.exact="handleKeydown"
         ></textarea>
-        <div class="border-t-2 p-2">
+        <div class="border-t-2 p-2 flex justify-between">
           <p style="margin: 0">
             <strong>{{ translations._idvue.exit }}</strong>
           </p>
+          <v-remixicon
+            class="cursor-pointer"
+            name="riCloseLine"
+            @click="() => (showTextarea = false)"
+          />
         </div>
       </div>
+      <MermaidComponent
+        :class="{ 'dark:text-purple-400 text-purple-500': selected }"
+        :content="mermaidContent"
+        @click="openTextarea"
+      />
     </div>
   </NodeViewWrapper>
 </template>
