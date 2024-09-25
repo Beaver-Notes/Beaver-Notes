@@ -8,7 +8,6 @@
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
 ![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat&logo=archlinux&color=blue)
 ![Scoop Version](https://img.shields.io/scoop/v/beaver-notes?bucket=extras&style=flat&color=orange)
-
 ![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat)
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat)
 [![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat&color=6364FF)](https://mastodon.social/@Beavernotes)
