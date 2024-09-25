@@ -5,6 +5,13 @@
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
+![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
+![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat-square&logo=archlinux&color=blue)
+![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat-square)
+![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat-square)
+[![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)](https://mastodon.social/@Beavernotes)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=license)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=security)
 <div align="center">
 <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
