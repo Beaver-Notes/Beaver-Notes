@@ -3,13 +3,15 @@
 [![Flags](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/7cba8f22-e0dd-4e6f-a41c-0b78d8e89c0b)](https://beaver-notes.github.io/Beaver-Docs/docs/dev-docs/Beaver%20Notes/Localization)
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
-![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat-square&color=orange)
-![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat-square&logo=archlinux&color=blue)
-![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat-square)
-![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat-square)
-[![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat-square&color=6364FF)](https://mastodon.social/@Beavernotes)
+![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
+![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat&logo=archlinux&color=blue)
+![Scoop Version](https://img.shields.io/scoop/v/beaver-notes?bucket=extras&style=flat&color=orange)
+
+![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat)
+![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat)
+[![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat&color=6364FF)](https://mastodon.social/@Beavernotes)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=license)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=security)
 <div align="center">
