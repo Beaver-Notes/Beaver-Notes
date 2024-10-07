@@ -36,17 +36,23 @@ const handleImagePaste = new Plugin({
   props: {
     handleDOMEvents: {
       paste: async (view, event) => {
-        const items = (event.clipboardData || event.originalEvent.clipboardData)
-          .items;
+        const clipboardData =
+          event.clipboardData || event.originalEvent.clipboardData;
+        const items = clipboardData.items;
         const files = Array.from(items)
           .filter((item) => item.kind === 'file')
           .map((item) => item.getAsFile());
-        const urls = Array.from(items)
-          .filter(
-            (item) => item.kind === 'string' && item.type.startsWith('image/')
-          )
-          .map((item) => item.getAsString());
+        const urls = Array.from(items).filter(
+          (item) => item.kind === 'string' && item.type === 'text/plain'
+        );
 
+        // Check if both files and URLs are present
+        if (files.length > 0 && urls.length > 0) {
+          // Prioritize files, ignore URLs
+          event.preventDefault(); // Stop default behavior to prevent URL insertion
+        }
+
+        // Handle image files
         if (files.length > 0) {
           insertImages(files, (src, alt) => {
             if (view.state.selection.$cursor) {
@@ -56,22 +62,25 @@ const handleImagePaste = new Plugin({
               view.dispatch(transaction);
             }
           });
+          return;
         }
 
+        // Handle URLs only if no files are present
         if (urls.length > 0) {
-          // Handle pasting URLs here, for example, just insert them as text
-          const text = urls.join('\n');
-          const transaction = view.state.tr.insertText(
-            text,
-            view.state.selection.from
-          );
-          view.dispatch(transaction);
+          urls[0].getAsString((url) => {
+            if (url.match(/\.(jpeg|jpg|gif|png)$/)) {
+              const transaction = view.state.tr.insertText(
+                url,
+                view.state.selection.from
+              );
+              view.dispatch(transaction);
+            }
+          });
         }
       },
     },
 
     handleDrop: (view, event) => {
-      // Filter image files
       const imageFiles = Array.from(event.dataTransfer.files).filter((file) =>
         file.type.startsWith('image/')
       );
