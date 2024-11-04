@@ -38,10 +38,10 @@ import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
 import trTranslation from '../../renderer/src/pages/settings/locales/tr.json';
 import ruTranslations from '../../renderer/src/pages/settings/locales/ru.json';
 import frTranslations from '../../renderer/src/pages/settings/locales/fr.json';
-import api from './server';
-import { generateToken } from './token';
 
 const { localStorage } = browserStorage;
+
+let pendingFilePath = null;
 
 const isMac = process.platform === 'darwin';
 
@@ -98,6 +98,11 @@ const createWindow = async () => {
     if (env.MODE === 'development') {
       mainWindow?.webContents.openDevTools();
     }
+
+    if (pendingFilePath) {
+      mainWindow.webContents.send('open-file-path', pendingFilePath);
+      pendingFilePath = null;
+    }
   });
 
   let canClosed = false;
@@ -133,6 +138,20 @@ const createWindow = async () => {
 
 app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
   return true;
+});
+
+app.on('open-file', (event, path) => {
+  event.preventDefault();
+  pendingFilePath = path;
+  if (mainWindow) {
+    if (mainWindow.webContents.isLoading()) {
+      mainWindow.webContents.once('did-finish-load', () => {
+        localStorage.setItem('openFilePath', `${path}`);
+      });
+    } else {
+      localStorage.setItem('openFilePath', `${path}`);
+    }
+  }
 });
 
 async function windowCloseHandler(win) {
@@ -180,7 +199,12 @@ app
       ensureDir(join(app.getPath('userData'), 'file-assets')),
     ]);
     createWindow();
-    api(ipcMain, mainWindow);
+    if (process.argv.length >= 2) {
+      const filePath = process.argv[1];
+      if (path.extname(filePath).toLowerCase() === '.bea') {
+        localStorage.setItem('openFilePath', `${filePath}`);
+      }
+    }
     initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
@@ -312,26 +336,6 @@ ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
-ipcMain.answerRenderer('auth:create-token', (data) => {
-  const { token, id, createdAt, expiredTime } = generateToken(data, {
-    expiredTime: 0,
-  });
-  const auths = store.settings.get('authRecords') || [];
-  console.log(auths);
-  auths.push({
-    id,
-    clientId: data.id,
-    platform: data.platform,
-    name: data.name,
-    auth: data.auth.sort().join(','), // Store as a sorted, comma-separated string
-    status: 1,
-    createdAt,
-    expiredTime,
-  });
-  store.settings.set('authRecords', auths);
-  console.log('auth:', token);
-  return token;
-});
 
 function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');

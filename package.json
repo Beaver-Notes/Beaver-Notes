@@ -2,7 +2,7 @@
   "name": "Beaver-notes",
   "type": "module",
   "private": false,
-  "version": "3.7.0",
+  "version": "3.8.0",
   "author": "Daniele Rolli",
   "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
   "license": "MIT",
@@ -115,11 +115,9 @@
     "add": "^2.0.6",
     "cross-env": "^7.0.3",
     "electron-context-menu": "^4.0.4",
-    "express": "^4.19.2",
     "marked": "^13.0.2",
     "recordrtc": "^5.6.2",
     "remove": "^0.1.5",
-    "socket.io": "^4.7.5",
     "yarn": "^1.22.22"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"

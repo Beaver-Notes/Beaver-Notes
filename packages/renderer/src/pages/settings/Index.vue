@@ -238,7 +238,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, ref, watch, computed } from 'vue';
+import { shallowReactive, onMounted, computed } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -765,17 +765,6 @@ export default {
     });
 
     const appStore = useAppStore();
-    appStore.updateFromStorage();
-    const authorizatedApps = ref(
-      appStore.authRecords.map((a) => a.status === 1)
-    );
-
-    watch(
-      () => appStore.authRecords,
-      (records) => {
-        authorizatedApps.value = records.map((a) => a.status === 1);
-      }
-    );
 
     function deleteAuth(auth) {
       dialog.confirm({
@@ -858,7 +847,6 @@ export default {
       formatTime,
       deleteAuth,
       toggleAuth,
-      authorizatedApps,
       t,
       collapsibleHeading,
       openLastEdited,

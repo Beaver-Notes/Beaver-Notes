@@ -90,6 +90,7 @@ import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
 import { onClose } from '../../composable/onClose';
+import { syncimportData } from '../../utils/sync';
 
 export default {
   setup() {
@@ -153,7 +154,7 @@ export default {
       'mod+shift+n': () => router.push('/'),
       'mod+shift+a': () => router.push('/?archived=true'),
       'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
-      'mod+shift+u': importData,
+      'mod+shift+y': importData,
       'mod+shift+e': exportData,
     };
 
@@ -574,123 +575,6 @@ export default {
 
       if (autoSync === 'true') {
         await syncexportData();
-      }
-    }
-
-    async function syncimportData() {
-      try {
-        let today = dayjs();
-        let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-        if (!defaultPath) {
-          return;
-        }
-        let dirPath = path.join(defaultPath, folderName);
-
-        const importData = async (data) => {
-          if (typeof data === 'string') {
-            dialog.prompt({
-              title: translations.settings.Inputpassword,
-              body: translations.settings.body,
-              okText: translations.settings.Import,
-              cancelText: translations.settings.Cancel,
-              placeholder: translations.settings.Password,
-              onConfirm: async (pass) => {
-                try {
-                  const bytes = AES.decrypt(data, pass);
-                  const result = bytes.toString(Utf8);
-                  const resultObj = JSON.parse(result);
-
-                  await mergeImportedData(resultObj); // Wait for merge operation to finish
-                  const dataDir = await storage.get('dataDir', '', 'settings');
-                  const importedDefaultPath = resultObj['dataDir'];
-                  const importedLockedStatus = resultObj['lockStatus'];
-                  const importedIsLocked = resultObj['isLocked'];
-
-                  localStorage.setItem('dataDir', importedDefaultPath);
-                  if (
-                    importedLockedStatus !== null &&
-                    importedLockedStatus !== undefined
-                  ) {
-                    localStorage.setItem(
-                      'lockStatus',
-                      JSON.stringify(importedLockedStatus)
-                    );
-                  }
-
-                  if (
-                    importedIsLocked !== null &&
-                    importedIsLocked !== undefined
-                  ) {
-                    localStorage.setItem(
-                      'isLocked',
-                      JSON.stringify(importedIsLocked)
-                    );
-                  }
-
-                  await ipcRenderer.callMain('fs:copy', {
-                    path: path.join(dirPath, 'assets'),
-                    dest: path.join(dataDir, 'notes-assets'),
-                  });
-                  await ipcRenderer.callMain('fs:copy', {
-                    path: path.join(dirPath, 'file-assets'),
-                    dest: path.join(dataDir, 'file-assets'),
-                  });
-
-                  console.log('Assets copied successfully.');
-                } catch (error) {
-                  showAlert(translations.settings.Invalidpassword);
-                  return false;
-                }
-              },
-            });
-          } else {
-            await mergeImportedData(data); // Wait for merge operation to finish
-            console.log('Data merged successfully.');
-          }
-        };
-
-        try {
-          let { data } = await ipcRenderer.callMain(
-            'fs:read-json',
-            path.join(dirPath, 'data.json')
-          );
-
-          if (!data) return showAlert(translations.settings.invaliddata);
-
-          await importData(data);
-        } catch (error) {
-          today = today.subtract(1, 'day');
-          folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-          dirPath = path.join(defaultPath, folderName);
-
-          if (today.isBefore('YYYY-MM-DD')) {
-            console.error('No data available for syncing.');
-            return;
-          }
-
-          try {
-            let { data } = await ipcRenderer.callMain(
-              'fs:read-json',
-              path.join(dirPath, 'data.json')
-            );
-
-            if (!data) return showAlert(translations.settings.invaliddata);
-
-            await importData(data);
-          } catch (error) {
-            notification({
-              title: translations.sidebar.notification,
-              body: translations.sidebar.importFail,
-            });
-            console.error('Error while importing data:', error);
-          }
-        }
-      } catch (error) {
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.importFail,
-        });
-        console.error('Error while importing data:', error);
       }
     }
 

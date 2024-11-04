@@ -93,7 +93,7 @@ const shortcuts = [
         keys: getFormattedKeys(['Ctrl', 'Shift', 'L']),
       },
       { name: 'Toggleexport', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
-      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'U']) },
+      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
     ],
   },
   {

@@ -18,31 +18,33 @@
 </template>
 <script>
 import { ref, onMounted, onUnmounted, reactive } from 'vue';
+const { ipcRenderer, path } = window.electron;
+import { useDialog } from '@/composable/dialog';
+import { AES } from 'crypto-es/lib/aes';
+import { Utf8 } from 'crypto-es/lib/core';
+import { useStorage } from '@/composable/storage';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
 import { useNoteStore } from './store/note';
 import { useLabelStore } from './store/label';
-import { io } from 'socket.io-client';
 import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
-import { useDialog } from './composable/dialog';
 import Mousetrap from '@/lib/mousetrap';
-import { useClipboard } from './composable/clipboard';
 import { useAppStore } from './store/app';
 import { useTranslation } from './composable/translations';
-import { t } from './utils/translations';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
   setup() {
     const theme = useTheme();
     const store = useStore();
+    const storage = useStorage();
     const router = useRouter();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
-
+    const dialog = useDialog();
     const retrieved = ref(false);
 
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
@@ -75,70 +77,140 @@ export default {
       }
     };
 
-    const setupSocket = () => {
-      const socket = io('http://localhost:3000');
-      const noteStore = useNoteStore();
-
-      socket.on('newNote', (note) => {
-        noteStore.add(note).then((newNote) => {
-          console.log('Note received and added:', newNote);
-        });
-      });
-
-      socket.on('deleteNote', async (id) => {
-        try {
-          const deletedNoteId = await noteStore.delete(id);
-          console.log('Note deleted:', deletedNoteId);
-        } catch (error) {
-          console.error(error);
-        }
-      });
-
-      socket.on('addLabel', async ({ id, labelId }) => {
-        try {
-          const addedLabelId = await noteStore.addLabel(id, labelId);
-          console.log('Label added to note:', addedLabelId);
-        } catch (error) {
-          console.error(error);
-        }
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('Socket.IO Error:', error);
-      });
-    };
-
     const appStore = useAppStore();
     const translations = ref({ dialog: {} });
-    const requestAuth = (data) => {
-      const dialog = useDialog();
-      const trans = translations.value;
-      dialog.auth({
-        body: t(trans.dialog.confirmGrantPermission, {
-          platform: data.platform,
-        }),
-        auth: data.auth || [],
-        label: t(trans.dialog.tokenName),
-        allowedEmpty: false,
-        onConfirm: async ({ name, auths }) => {
-          const token = await window.electron.createToken({
-            id: data.id,
-            platform: data.platform,
-            name,
-            auth: auths,
+
+    async function importNoteFromBea(filePath) {
+      try {
+        // Read the .bea file
+        const fileContent = await ipcRenderer.callMain(
+          'fs:read-json',
+          filePath
+        );
+        if (!fileContent || !fileContent.data) {
+          throw new Error('Invalid file format');
+        }
+
+        let noteData;
+        // Try parsing the data field directly first
+        try {
+          noteData = JSON.parse(fileContent.data);
+        } catch (e) {
+          // If parsing fails, it might be encrypted
+          return new Promise((resolve, reject) => {
+            dialog.prompt({
+              title: 'Import Protected Note',
+              body: 'This note is password protected. Please enter the password to import.',
+              okText: 'Import',
+              cancelText: 'Cancel',
+              placeholder: 'Password',
+              onConfirm: async (password) => {
+                try {
+                  // Decrypt the data
+                  const bytes = AES.decrypt(fileContent.data, password);
+                  const decrypted = bytes.toString(Utf8);
+                  noteData = JSON.parse(decrypted);
+                  await processImportedNote(noteData);
+                  resolve(true);
+                  return true;
+                } catch (error) {
+                  alert('Invalid password or corrupted file.');
+                  reject(error);
+                  return false;
+                }
+              },
+              onCancel: () => {
+                resolve(false);
+              },
+            });
           });
-          appStore.updateFromStorage();
-          dialog.confirm({
-            body: `Token: ${token}`,
-            okText: t(trans.dialog.copy),
-            onConfirm: () => {
-              const { copyToClipboard } = useClipboard();
-              copyToClipboard(token);
-            },
-          });
-        },
-      });
-    };
+        }
+
+        processImportedNote(noteData);
+        localStorage.removeItem('openFilePath');
+        window.location.reload();
+      } catch (error) {
+        console.error('Error importing note:', error);
+        alert(
+          'Failed to import note. The file may be corrupted or in an invalid format.'
+        );
+      }
+    }
+
+    async function processImportedNote(noteData) {
+      try {
+        // Get current storage data
+        const currentNotes = await storage.get('notes', {});
+        const dataDir = await storage.get('dataDir', '', 'settings');
+
+        // Update notes storage
+        const updatedNotes = {
+          ...currentNotes,
+          [noteData.id]: {
+            id: noteData.id,
+            title: noteData.title,
+            content: noteData.content,
+          },
+        };
+        await storage.set('notes', updatedNotes);
+
+        // Update locked notes if present and not null
+        if (noteData.lockedNotes) {
+          localStorage.setItem(
+            'lockedNotes',
+            JSON.stringify(noteData.lockedNotes)
+          );
+        }
+
+        // Process assets if present
+        if (noteData.assets) {
+          // Create directories if they don't exist
+          await ipcRenderer.callMain(
+            'fs:mkdir',
+            path.join(dataDir, 'notes-assets', noteData.id)
+          );
+          await ipcRenderer.callMain(
+            'fs:mkdir',
+            path.join(dataDir, 'file-assets', noteData.id)
+          );
+
+          // Process notes assets
+          for (const [filename, base64Data] of Object.entries(
+            noteData.assets.notesAssets || {}
+          )) {
+            const binaryString = atob(base64Data);
+            const byteArray = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              byteArray[i] = binaryString.charCodeAt(i);
+            }
+            await ipcRenderer.callMain('fs:writeFile', {
+              path: path.join(dataDir, 'notes-assets', noteData.id, filename),
+              data: byteArray.buffer,
+            });
+          }
+
+          // Process file assets
+          for (const [filename, base64Data] of Object.entries(
+            noteData.assets.fileAssets || {}
+          )) {
+            const binaryString = atob(base64Data);
+            const byteArray = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              byteArray[i] = binaryString.charCodeAt(i);
+            }
+            await ipcRenderer.callMain('fs:writeFile', {
+              path: path.join(dataDir, 'file-assets', noteData.id, filename),
+              data: byteArray.buffer,
+            });
+          }
+        }
+
+        alert(`Note "${noteData.title}" imported successfully.`);
+      } catch (error) {
+        console.error('Error processing imported note:', error);
+        throw error;
+      }
+    }
 
     onMounted(async () => {
       await useTranslation().then((trans) => {
@@ -146,12 +218,32 @@ export default {
           translations.value = trans;
         }
       });
-    });
+      const filePath = localStorage.getItem('openFilePath');
+      if (filePath) {
+        console.log(filePath);
+        await importNoteFromBea(filePath);
+      }
+      // Apply the stored zoom level on mount
+      document.body.style.zoom = state.zoomLevel;
 
-    onMounted(async () => {
-      setupSocket();
-      await appStore.updateFromStorage();
-      window.electron.setRequestAuthConfirm(requestAuth);
+      // Detect platform and apply shortcuts for Windows and Linux only
+      const platform = navigator.userAgent.toLowerCase();
+      const isWindowsOrLinux =
+        platform.includes('win') || platform.includes('linux');
+
+      if (isWindowsOrLinux) {
+        Mousetrap.bind(['ctrl+=', 'ctrl+plus'], () => {
+          setZoom(Math.min(parseFloat(state.zoomLevel) + 0.1, 3.0));
+        });
+
+        Mousetrap.bind('ctrl+-', () => {
+          setZoom(Math.max(parseFloat(state.zoomLevel) - 0.1, 0.5));
+        });
+
+        Mousetrap.bind('ctrl+0', () => {
+          setZoom(1.0);
+        });
+      }
     });
 
     onUnmounted(() => {
@@ -213,30 +305,6 @@ export default {
       // Apply the zoom level to the document body (or specific container)
       document.body.style.zoom = state.zoomLevel;
     };
-
-    onMounted(() => {
-      // Apply the stored zoom level on mount
-      document.body.style.zoom = state.zoomLevel;
-
-      // Detect platform and apply shortcuts for Windows and Linux only
-      const platform = navigator.userAgent.toLowerCase();
-      const isWindowsOrLinux =
-        platform.includes('win') || platform.includes('linux');
-
-      if (isWindowsOrLinux) {
-        Mousetrap.bind(['ctrl+=', 'ctrl+plus'], () => {
-          setZoom(Math.min(parseFloat(state.zoomLevel) + 0.1, 3.0));
-        });
-
-        Mousetrap.bind('ctrl+-', () => {
-          setZoom(Math.max(parseFloat(state.zoomLevel) - 0.1, 0.5));
-        });
-
-        Mousetrap.bind('ctrl+0', () => {
-          setZoom(1.0);
-        });
-      }
-    });
 
     return {
       state,

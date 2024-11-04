@@ -46,6 +46,14 @@ const electronBuilderConfig = {
     license: 'LICENSE',
     allowToChangeInstallationDirectory: false,
   },
+  fileAssociations: [
+    {
+      ext: 'bea',
+      name: 'Beaver Notes',
+      description: 'Beaver Notes File',
+      icon: 'buildResources/icon.ico',
+    },
+  ],
 };
 
 module.exports = (args, arch) => {
