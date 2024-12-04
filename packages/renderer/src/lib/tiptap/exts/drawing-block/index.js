@@ -1,5 +1,5 @@
 import { Node, mergeAttributes, VueNodeViewRenderer } from '@tiptap/vue-3';
-import Component from './Component.vue';
+import Component from './Paper.vue';
 
 export default Node.create({
   name: 'paper',
@@ -14,7 +14,7 @@ export default Node.create({
         default: [],
       },
       height: {
-        default: 400,
+        default: 400, // Default height
       },
       paperType: {
         default: 'plain',
@@ -51,7 +51,7 @@ export default Node.create({
         ({ commands }) => {
           return commands.insertContent({
             type: 'paper',
-            attrs: { lines: [], height: 400 }, // Ensure default height is set
+            attrs: { lines: [], height: 800 }, // Ensure default height is set
           });
         },
     };

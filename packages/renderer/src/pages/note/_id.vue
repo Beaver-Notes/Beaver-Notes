@@ -349,7 +349,7 @@ export default {
 }
 
 :root {
-  --selected-width: '48rem';
+  --selected-width: '54rem';
 }
 
 .editor {

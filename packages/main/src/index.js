@@ -270,6 +270,7 @@ ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data)
 );
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
+ipcMain.answerRenderer('fs:readData', (path) => fs.readFileSync(path, 'base64'));
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
 });

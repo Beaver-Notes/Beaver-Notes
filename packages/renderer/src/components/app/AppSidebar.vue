@@ -90,7 +90,7 @@ import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
 import { onClose } from '../../composable/onClose';
-import { syncimportData } from '../../utils/sync';
+import { syncimportData, syncexportData } from '../../utils/sync';
 
 export default {
   setup() {
@@ -449,124 +449,6 @@ export default {
       }
       router.push(nav.path);
     };
-
-    async function syncexportData() {
-      try {
-        let data = await storage.store();
-
-        if (state.withPassword) {
-          data = AES.encrypt(JSON.stringify(data), state.password).toString();
-        }
-
-        const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
-        const dataDir = await storage.get('dataDir', '', 'settings');
-        const exportPath = defaultPath; // Use the selected default path
-        const folderPath = path.join(exportPath, folderName);
-
-        const containsGvfs = exportPath.includes('gvfs');
-
-        if (containsGvfs) {
-          // Ensure the directory exists
-          await ipcRenderer.callMain('fs:ensureDir', folderPath);
-
-          // Save main data.json
-          await ipcRenderer.callMain('fs:output-json', {
-            path: path.join(folderPath, 'data.json'),
-            data: { data },
-          });
-
-          // Copy notes-assets
-          const notesAssetsSource = path.join(dataDir, 'notes-assets');
-          const notesAssetsDest = path.join(folderPath, 'assets');
-          await ipcRenderer.callMain('gvfs:copy', {
-            path: notesAssetsSource,
-            dest: notesAssetsDest,
-          });
-
-          // Copy file-assets
-          const fileAssetsSource = path.join(dataDir, 'file-assets');
-          const fileAssetsDest = path.join(folderPath, 'file-assets');
-          await ipcRenderer.callMain('gvfs:copy', {
-            path: fileAssetsSource,
-            dest: fileAssetsDest,
-          });
-        } else {
-          // Ensure the directory exists
-          await ipcRenderer.callMain('fs:ensureDir', folderPath);
-
-          // Save main data.json
-          await ipcRenderer.callMain('fs:output-json', {
-            path: path.join(folderPath, 'data.json'),
-            data: { data },
-          });
-
-          const backupFileName = `data_${dayjs().format(
-            'YYYYMMDD_HHmmss'
-          )}.json.bak`;
-          const backupFilePath = path.join(folderPath, backupFileName);
-
-          await ipcRenderer.callMain('fs:copy', {
-            path: path.join(folderPath, 'data.json'),
-            dest: backupFilePath,
-          });
-
-          // Limit the number of backup files to 4
-          const files = await ipcRenderer.callMain('fs:readdir', folderPath);
-          const backupFiles = files.filter((file) =>
-            file.endsWith('.json.bak')
-          );
-
-          if (backupFiles.length > 4) {
-            // Sort backup files by creation time
-            const sortedBackupFiles = await Promise.all(
-              backupFiles.map(async (file) => {
-                const backupFilesPath = path.join(folderPath, file);
-                const stats = await ipcRenderer.callMain(
-                  'fs:stat',
-                  backupFilesPath
-                );
-                return { file, time: stats.birthtime };
-              })
-            ).then((files) => files.sort((a, b) => a.time - b.time));
-
-            // Delete oldest files
-            for (let i = 0; i < sortedBackupFiles.length - 4; i++) {
-              const oldFilesPath = path.join(
-                folderPath,
-                sortedBackupFiles[i].file
-              );
-              await ipcRenderer.callMain('fs:unlink', oldFilesPath);
-            }
-          }
-
-          // Copy notes-assets
-          const notesAssetsSource = path.join(dataDir, 'notes-assets');
-          const notesAssetsDest = path.join(folderPath, 'assets');
-          await ipcRenderer.callMain('fs:copy', {
-            path: notesAssetsSource,
-            dest: notesAssetsDest,
-          });
-
-          // Copy file-assets
-          const fileAssetsSource = path.join(dataDir, 'file-assets');
-          const fileAssetsDest = path.join(folderPath, 'file-assets');
-          await ipcRenderer.callMain('fs:copy', {
-            path: fileAssetsSource,
-            dest: fileAssetsDest,
-          });
-        }
-
-        state.withPassword = false;
-        state.password = '';
-      } catch (error) {
-        // Error notification
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.exportFail,
-        });
-        console.error('Error during syncexportData:', error);
-      }
-    }
 
     onClose(exportAndQuit);
 

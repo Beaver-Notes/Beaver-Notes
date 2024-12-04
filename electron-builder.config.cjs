@@ -9,9 +9,7 @@ const electronBuilderConfig = {
     output: 'dist',
     buildResources: 'buildResources',
   },
-  files: [
-    'packages/**/dist/**',
-  ],
+  files: ['packages/**/dist/**'],
   extraMetadata: {
     version: packageJSON.version,
   },
@@ -23,10 +21,14 @@ const electronBuilderConfig = {
     hardenedRuntime: true,
     entitlements: 'buildResources/entitlements.mac.plist',
     entitlementsInherit: 'buildResources/entitlements.mac.plist',
-    gatekeeperAssess: false,
+    gatekeeperAssess: true,
     category: 'public.app-category.productivity',
+    extendInfo: {
+      NSMicrophoneUsageDescription: 'Please give us access to your microphone',
+      'com.apple.security.device.audio-input': true,
+    },
   },
-   linux: {
+  linux: {
     icon: 'buildResources/icon-linux.icns',
     target: ['AppImage', 'rpm', 'deb'],
     publish: ['github'],
@@ -45,13 +47,15 @@ const electronBuilderConfig = {
     uninstallDisplayName: 'Beaver-Notes',
     license: 'LICENSE',
     allowToChangeInstallationDirectory: false,
+    perMachine: true, // Required for file associations
   },
   fileAssociations: [
     {
       ext: 'bea',
       name: 'Beaver Notes',
       description: 'Beaver Notes File',
-      icon: 'buildResources/icon.ico',
+      icon: 'buildResources/icon.ico', // Icon for Windows
+      mimeType: 'application/x-beaver-notes', // Linux-specific MIME type
     },
   ],
 };

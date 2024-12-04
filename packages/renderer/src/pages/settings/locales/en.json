@@ -125,13 +125,14 @@
     "record": "Record",
     "searchHeadings": "Search headings",
     "strikethrough": "Strikethrough",
-    "tableInsert": "Insert table",
+    "table": "Table",
     "tableOptions": "Table options",
     "toggleHeader": "Toggle header cell",
     "underline": "Underline",
     "vidUrl": "Video url",
     "video": "Video",
-    "videoUrl": "Video url"
+    "videoUrl": "Video url",
+    "mathblock": "Math block"
   },
   "paper": {
     "dotted": "Dotted",
@@ -182,7 +183,10 @@
     "enterNewPassword": "Enter new password",
     "exportdata": "Export data",
     "exportmessage": "Notes is exported in",
-    "fullWidth": "Expand page",
+    "editorSpacing": "Editor Spacing",
+    "normal": "Normal",
+    "wide": "Wide",
+    "enterWidth": "Enter width",
     "gvfswarn": "Automatic sync through GVFS is not supported. Please use manual sync instead.",
     "id": " ID",
     "iedata": "Import / Export data",

@@ -196,7 +196,7 @@
         />
       </ui-popover>
       <button
-        v-tooltip.group="translations.menu.tableInsert"
+        v-tooltip.group="translations.menu.table"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="insertTableWithEmptyParagraph"
       >
@@ -467,7 +467,7 @@
         />
       </ui-popover>
       <button
-        v-tooltip.group="translations.menu.tableInsert"
+        v-tooltip.group="translations.menu.table"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="insertTableWithEmptyParagraph"
       >
@@ -917,7 +917,7 @@ export default {
         highlight: 'menu.highlight',
         delete: 'menu.delete',
         tableOptions: 'menu.tableOptions',
-        tableInsert: 'menu.tableInsert',
+        table: 'menu.table',
         addRowAbove: 'menu.addRowAbove',
         addRowBelow: 'menu.addRowBelow',
         addColumnLeft: 'menu.addColumnLeft',

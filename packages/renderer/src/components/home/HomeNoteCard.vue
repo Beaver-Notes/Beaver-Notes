@@ -103,6 +103,13 @@
       >
         <v-remixicon name="riDeleteBin6Line" />
       </button>
+      <button
+        v-tooltip.group="translations.card.delete"
+        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
+        @click="exportNoteById(note.id, note.title)"
+      >
+        <v-remixicon name="riShareForwardLine" />
+      </button>
       <div class="flex-grow"></div>
       <p class="text-overflow">
         {{
@@ -115,14 +122,16 @@
   </ui-card>
 </template>
 <script setup>
+/* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
-import { syncexportData } from '../../utils/sync';
 import '../../assets/css/passwd.css';
 import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, ref, shallowReactive } from 'vue';
+import { syncexportData } from '@/utils/sync';
+import { exportNoteById, importNoteFromBea } from '@/utils/share';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
@@ -143,6 +152,7 @@ defineProps({
 const emit = defineEmits(['update', 'update:label']);
 
 const dialog = useDialog();
+const fileData = ref(null);
 
 useGroupTooltip();
 
@@ -324,6 +334,49 @@ const loadTranslations = async () => {
     return null;
   }
 };
+
+const loadFile = async (filePath) => {
+  if (!filePath) {
+    console.warn('No file path provided. Ignoring loadFile request.');
+    return;
+  }
+
+  try {
+    // Fetch file content using the provided file path
+    const response = await fetch(`file://${filePath}`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file. Status: ${response.statusText}`);
+    }
+
+    // Read and process the file content
+    const text = await response.text(); // Assuming .bea files are text-based
+    console.log(`Contents of the file (${filePath}):`, text);
+
+    // Process the file content (e.g., import a note)
+    importNoteFromBea(filePath);
+
+    // Optionally bind content to your Vue component
+    fileData.value = text;
+  } catch (error) {
+    console.error(`Error loading file (${filePath}):`, error);
+  } finally {
+    // Remove file path from localStorage after processing
+    localStorage.removeItem('openFilePath');
+  }
+};
+
+onMounted(() => {
+  // Retrieve any file path from localStorage on mount
+  const storedFilePath = localStorage.getItem('openFilePath');
+
+  if (storedFilePath) {
+    console.log(
+      `Found stored file path: ${storedFilePath}. Attempting to load.`
+    );
+    loadFile(storedFilePath);
+  }
+});
 
 async function emitUpdate(payload) {
   emit('update', payload);

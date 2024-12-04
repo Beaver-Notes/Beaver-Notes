@@ -31,6 +31,8 @@ export async function syncexportData() {
   const storage = useStorage();
 
   try {
+    const changelogPath = path.join(defaultPath, 'changelog.json');
+
     let data = await storage.store();
 
     if (state.withPassword) {
@@ -39,96 +41,92 @@ export async function syncexportData() {
 
     const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
     const dataDir = await storage.get('dataDir', '', 'settings');
-    const exportPath = defaultPath; // Use the selected default path
+    const exportPath = defaultPath;
     const folderPath = path.join(exportPath, folderName);
 
-    const containsGvfs = exportPath.includes('gvfs');
-
-    if (containsGvfs) {
-      // Ensure the directory exists
-      await ipcRenderer.callMain('fs:ensureDir', folderPath);
-
-      // Save main data.json
-      await ipcRenderer.callMain('fs:output-json', {
-        path: path.join(folderPath, 'data.json'),
-        data: { data },
-      });
-
-      // Copy notes-assets
-      const notesAssetsSource = path.join(dataDir, 'notes-assets');
-      const notesAssetsDest = path.join(folderPath, 'assets');
-      await ipcRenderer.callMain('gvfs:copy', {
-        path: notesAssetsSource,
-        dest: notesAssetsDest,
-      });
-
-      // Copy file-assets
-      const fileAssetsSource = path.join(dataDir, 'file-assets');
-      const fileAssetsDest = path.join(folderPath, 'file-assets');
-      await ipcRenderer.callMain('gvfs:copy', {
-        path: fileAssetsSource,
-        dest: fileAssetsDest,
-      });
-    } else {
-      // Ensure the directory exists
-      await ipcRenderer.callMain('fs:ensureDir', folderPath);
-
-      // Save main data.json
-      await ipcRenderer.callMain('fs:output-json', {
-        path: path.join(folderPath, 'data.json'),
-        data: { data },
-      });
-
-      const backupFileName = `data_${dayjs().format(
-        'YYYYMMDD_HHmmss'
-      )}.json.bak`;
-      const backupFilePath = path.join(folderPath, backupFileName);
-
-      await ipcRenderer.callMain('fs:copy', {
-        path: path.join(folderPath, 'data.json'),
-        dest: backupFilePath,
-      });
-
-      // Limit the number of backup files to 4
-      const files = await ipcRenderer.callMain('fs:readdir', folderPath);
-      const backupFiles = files.filter((file) => file.endsWith('.json.bak'));
-
-      if (backupFiles.length > 4) {
-        // Sort backup files by creation time
-        const sortedBackupFiles = await Promise.all(
-          backupFiles.map(async (file) => {
-            const backupFilesPath = path.join(folderPath, file);
-            const stats = await ipcRenderer.callMain(
-              'fs:stat',
-              backupFilesPath
-            );
-            return { file, time: stats.birthtime };
-          })
-        ).then((files) => files.sort((a, b) => a.time - b.time));
-
-        // Delete oldest files
-        for (let i = 0; i < sortedBackupFiles.length - 4; i++) {
-          const oldFilesPath = path.join(folderPath, sortedBackupFiles[i].file);
-          await ipcRenderer.callMain('fs:unlink', oldFilesPath);
-        }
-      }
-
-      // Copy notes-assets
-      const notesAssetsSource = path.join(dataDir, 'notes-assets');
-      const notesAssetsDest = path.join(folderPath, 'assets');
-      await ipcRenderer.callMain('fs:copy', {
-        path: notesAssetsSource,
-        dest: notesAssetsDest,
-      });
-
-      // Copy file-assets
-      const fileAssetsSource = path.join(dataDir, 'file-assets');
-      const fileAssetsDest = path.join(folderPath, 'file-assets');
-      await ipcRenderer.callMain('fs:copy', {
-        path: fileAssetsSource,
-        dest: fileAssetsDest,
-      });
+    // Load or initialize the changelog
+    let changelog = {};
+    try {
+      changelog = await ipcRenderer.callMain('fs:read-json', changelogPath);
+    } catch {
+      changelog = { changes: [] }; // Initialize with empty changes if not found
     }
+
+    const lastExportDate = changelog.changes.length
+      ? new Date(changelog.changes[changelog.changes.length - 1].date)
+      : null;
+    const newExportDate = new Date().toISOString();
+    let exportedFiles = [];
+
+    // Ensure the directory exists
+    await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+    // Save main data.json
+    const dataPath = path.join(folderPath, 'data.json');
+    await ipcRenderer.callMain('fs:output-json', {
+      path: dataPath,
+      data: { data },
+    });
+    exportedFiles.push('data.json');
+
+    // Incremental export of notes-assets
+    const notesAssetsSource = path.join(dataDir, 'notes-assets');
+    const notesAssetsDest = path.join(folderPath, 'assets');
+    const notesFiles = await ipcRenderer.callMain(
+      'fs:readdir',
+      notesAssetsSource
+    );
+
+    for (const file of notesFiles) {
+      const sourceFilePath = path.join(notesAssetsSource, file);
+      const destFilePath = path.join(notesAssetsDest, file);
+
+      const stats = await ipcRenderer.callMain('fs:stat', sourceFilePath);
+      if (!lastExportDate || new Date(stats.mtime) > lastExportDate) {
+        await ipcRenderer.callMain('fs:copy', {
+          path: sourceFilePath,
+          dest: destFilePath,
+        });
+        exportedFiles.push(`notes-assets/${file}`);
+      }
+    }
+
+    // Incremental export of file-assets
+    const fileAssetsSource = path.join(dataDir, 'file-assets');
+    const fileAssetsDest = path.join(folderPath, 'file-assets');
+    const fileFiles = await ipcRenderer.callMain(
+      'fs:readdir',
+      fileAssetsSource
+    );
+
+    for (const file of fileFiles) {
+      const sourceFilePath = path.join(fileAssetsSource, file);
+      const destFilePath = path.join(fileAssetsDest, file);
+
+      const stats = await ipcRenderer.callMain('fs:stat', sourceFilePath);
+      if (!lastExportDate || new Date(stats.mtime) > lastExportDate) {
+        await ipcRenderer.callMain('fs:copy', {
+          path: sourceFilePath,
+          dest: destFilePath,
+        });
+        exportedFiles.push(`file-assets/${file}`);
+      }
+    }
+
+    // Add the new export entry to the changelog
+    changelog.changes.push({ date: newExportDate, files: exportedFiles });
+
+    // Trim changelog to retain only the past month
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    changelog.changes = changelog.changes.filter(
+      (entry) => new Date(entry.date) >= oneMonthAgo
+    );
+
+    await ipcRenderer.callMain('fs:output-json', {
+      path: changelogPath,
+      data: changelog,
+    });
 
     state.withPassword = false;
     state.password = '';
@@ -147,12 +145,12 @@ export async function syncimportData() {
   const storage = useStorage();
 
   try {
-    let today = dayjs();
-    let folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-    if (!defaultPath) {
-      return;
-    }
-    let dirPath = path.join(defaultPath, folderName);
+    const today = dayjs();
+    const folderName = today.format('[Beaver Notes] YYYY-MM-DD');
+    const dataDir = await storage.get('dataDir', '', 'settings');
+    const dirPath = path.join(defaultPath, folderName);
+
+    if (!defaultPath) return;
 
     const importData = async (data) => {
       if (typeof data === 'string') {
@@ -167,55 +165,34 @@ export async function syncimportData() {
               const bytes = AES.decrypt(data, pass);
               const result = bytes.toString(Utf8);
               const resultObj = JSON.parse(result);
-
-              await mergeImportedData(resultObj); // Wait for merge operation to finish
-              const dataDir = await storage.get('dataDir', '', 'settings');
-              const importedDefaultPath = resultObj['dataDir'];
-              const importedLockedStatus = resultObj['lockStatus'];
-              const importedIsLocked = resultObj['isLocked'];
-
-              localStorage.setItem('dataDir', importedDefaultPath);
-              if (
-                importedLockedStatus !== null &&
-                importedLockedStatus !== undefined
-              ) {
-                localStorage.setItem(
-                  'lockStatus',
-                  JSON.stringify(importedLockedStatus)
-                );
-              }
-
-              if (importedIsLocked !== null && importedIsLocked !== undefined) {
-                localStorage.setItem(
-                  'isLocked',
-                  JSON.stringify(importedIsLocked)
-                );
-              }
-
-              await ipcRenderer.callMain('fs:copy', {
-                path: path.join(dirPath, 'assets'),
-                dest: path.join(dataDir, 'notes-assets'),
-              });
-              await ipcRenderer.callMain('fs:copy', {
-                path: path.join(dirPath, 'file-assets'),
-                dest: path.join(dataDir, 'file-assets'),
-              });
-
-              console.log('Assets copied successfully.');
+              await handleChanges(dirPath, dataDir, resultObj, storage);
             } catch (error) {
               showAlert(translations.settings.Invalidpassword);
-              return false;
             }
           },
         });
       } else {
-        await mergeImportedData(data); // Wait for merge operation to finish
-        console.log('Data merged successfully.');
+        await handleChanges(dirPath, dataDir, data, storage);
       }
     };
 
+    const changelogPath = path.join(defaultPath, 'changelog.json');
+    let changelog = { changes: [] };
+
     try {
-      let { data } = await ipcRenderer.callMain(
+      // Load the changelog
+      changelog = await ipcRenderer.callMain('fs:read-json', changelogPath);
+    } catch {
+      console.error('No changelog file found. Starting fresh.');
+    }
+
+    const lastExportDate = changelog.changes.length
+      ? new Date(changelog.changes[changelog.changes.length - 1].date)
+      : null;
+
+    // Read today's data.json
+    try {
+      const { data } = await ipcRenderer.callMain(
         'fs:read-json',
         path.join(dirPath, 'data.json')
       );
@@ -223,32 +200,36 @@ export async function syncimportData() {
       if (!data) return showAlert(translations.settings.invaliddata);
 
       await importData(data);
+
+      // Handle incremental changes based on the changelog
+      if (lastExportDate) {
+        const changedFiles = changelog.changes
+          .filter((entry) => new Date(entry.date) > lastExportDate)
+          .flatMap((entry) => entry.files);
+
+        for (const file of new Set(changedFiles)) {
+          const sourceFilePath = path.join(dirPath, file); // Get today's folder
+          const destPath = file.includes('notes-assets')
+            ? path.join(dataDir, 'notes-assets', path.basename(file))
+            : file.includes('file-assets')
+            ? path.join(dataDir, 'file-assets', path.basename(file))
+            : null;
+
+          if (destPath) {
+            await ipcRenderer.callMain('fs:copy', {
+              path: sourceFilePath,
+              dest: destPath,
+            });
+            console.log(`Imported file: ${file}`);
+          }
+        }
+      }
     } catch (error) {
-      today = today.subtract(1, 'day');
-      folderName = today.format('[Beaver Notes] YYYY-MM-DD');
-      dirPath = path.join(defaultPath, folderName);
-
-      if (today.isBefore('YYYY-MM-DD')) {
-        console.error('No data available for syncing.');
-        return;
-      }
-
-      try {
-        let { data } = await ipcRenderer.callMain(
-          'fs:read-json',
-          path.join(dirPath, 'data.json')
-        );
-
-        if (!data) return showAlert(translations.settings.invaliddata);
-
-        await importData(data);
-      } catch (error) {
-        notification({
-          title: translations.sidebar.notification,
-          body: translations.sidebar.importFail,
-        });
-        console.error('Error while importing data:', error);
-      }
+      notification({
+        title: translations.sidebar.notification,
+        body: translations.sidebar.importFail,
+      });
+      console.error('Error while importing data:', error);
     }
   } catch (error) {
     notification({
@@ -259,32 +240,48 @@ export async function syncimportData() {
   }
 }
 
-async function mergeImportedData(data) {
-  const storage = useStorage();
+// Helper function to handle the changes
+async function handleChanges(dirPath, dataDir, resultObj, storage) {
   try {
+    const importedLockedStatus = resultObj['lockStatus'];
+    const importedIsLocked = resultObj['isLocked'];
+
+    if (importedLockedStatus !== null && importedLockedStatus !== undefined) {
+      localStorage.setItem('lockStatus', JSON.stringify(importedLockedStatus));
+    }
+
+    if (importedIsLocked !== null && importedIsLocked !== undefined) {
+      localStorage.setItem('isLocked', JSON.stringify(importedIsLocked));
+    }
+
+    await ipcRenderer.callMain('fs:copy', {
+      path: path.join(dirPath, 'assets'),
+      dest: path.join(dataDir, 'notes-assets'),
+    });
+    await ipcRenderer.callMain('fs:copy', {
+      path: path.join(dirPath, 'file-assets'),
+      dest: path.join(dataDir, 'file-assets'),
+    });
+
+    console.log('Assets copied successfully.');
+
     const keys = [
       { key: 'notes', dfData: {} },
       { key: 'labels', dfData: [] },
-      { key: 'lockStatus', dfData: {} },
-      { key: 'isLocked', dfData: {} }, // Add isLocked to handle imported locked status
     ];
 
     for (const { key, dfData } of keys) {
       const currentData = await storage.get(key, dfData);
-      const importedData = data[key] ?? dfData;
-      let mergedData;
-
-      if (key === 'labels') {
-        const mergedArr = [...currentData, ...importedData];
-        mergedData = [...new Set(mergedArr)];
-      } else if (key === 'lockStatus' || key === 'isLocked') {
-        mergedData = { ...currentData, ...importedData };
-      } else {
-        mergedData = { ...currentData, ...importedData };
-      }
+      const importedData = resultObj[key] ?? dfData;
+      const mergedData =
+        Array.isArray(currentData) && Array.isArray(importedData)
+          ? [...new Set([...currentData, ...importedData])]
+          : { ...currentData, ...importedData };
 
       await storage.set(key, mergedData);
     }
+
+    console.log('Data merged successfully.');
   } catch (error) {
     console.error('Error merging imported data:', error);
   }

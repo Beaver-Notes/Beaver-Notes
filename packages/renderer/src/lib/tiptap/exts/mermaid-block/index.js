@@ -34,4 +34,13 @@ export default Node.create({
   addInputRules() {
     return [nodeInputRule({ find: inputRegex, type: this.type })];
   },
+  addCommands() {
+    return {
+      setMermaidDiagram:
+        () =>
+        ({ commands }) => {
+          return commands.insertContent({ type: this.name });
+        },
+    };
+  },
 });
