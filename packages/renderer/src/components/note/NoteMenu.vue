@@ -1,7 +1,7 @@
 <template>
   <div
     ref="container"
-    class="text-gray-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-gray-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
+    class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-neutral-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
     @wheel="changeWheelDirection"
   >
@@ -107,6 +107,13 @@
         @click="editor.chain().focus().deleteColumn().run()"
       >
         <v-remixicon name="riDeleteColumn" />
+      </button>
+      <button
+        v-tooltip.group="translations.menu.mergeorSplit"
+        class="transition hoverable h-8 px-1 rounded-lg"
+        @click="editor.chain().focus().mergeOrSplit().run()"
+      >
+        <v-remixicon name="riSplitCellsHorizontal" />
       </button>
       <button
         v-tooltip.group="translations.menu.toggleHeader"
@@ -473,7 +480,6 @@
       >
         <v-remixicon name="riTableLine" />
       </button>
-
       <ui-popover padding="p-2 flex items-center">
         <ui-popover padding="p-2 flex items-center">
           <template #trigger>
@@ -550,13 +556,49 @@
         </ui-popover>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
-      <button
-        v-tooltip.group="translations.menu.Print"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="printContent"
-      >
-        <v-remixicon name="riPrinterLine" />
-      </button>
+      <ui-popover padding="p-2 flex-col items-center print:hidden">
+        <template #trigger>
+          <button class="transition hoverable h-8 px-1 rounded-lg">
+            <v-remixicon name="riShare2Line" />
+          </button>
+        </template>
+        <button
+          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+          @click="printContent"
+        >
+          <v-remixicon
+            name="riArticleLine"
+            class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
+          />
+          <div
+            class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+          >
+            <p
+              class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
+            >
+              {{ translations.menu.pdf || '-' }}
+            </p>
+          </div>
+        </button>
+        <button
+          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+          @click="shareNote"
+        >
+          <v-remixicon
+            name="riFileTextFill"
+            class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
+          />
+          <div
+            class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+          >
+            <p
+              class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
+            >
+              {{ translations.menu.bea || '-' }}
+            </p>
+          </div>
+        </button>
+      </ui-popover>
       <hr class="border-r mx-2 h-6" />
       <button
         v-if="showAdavancedSettings"
@@ -572,7 +614,7 @@
         class="hoverable h-8 px-1 rounded-lg h-full"
         @click="toggleFocusMode"
       >
-        <v-remixicon name="riFocus3Line" />
+        <v-remixicon name="riArticleLine" />
       </button>
       <button
         v-tooltip.group="translations.menu.headingsTree"
@@ -613,6 +655,7 @@ import {
   ref,
 } from 'vue';
 import { useGroupTooltip } from '@/composable/groupTooltip';
+import { importNoteFromBea } from '@/utils/share';
 import { useStore } from '@/store';
 import { saveFile } from '../../utils/copy-doc';
 import { useEditorImage } from '@/composable/editorImage';
@@ -622,11 +665,15 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import RecordRTC from 'recordrtc';
-const { path, ipcRenderer } = window.electron;
+import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
+import { exportNoteById } from '@/utils/share';
+import { useTranslation } from '@/composable/translations';
 
+const { path, ipcRenderer } = window.electron;
+const filePath = '';
 const storage = useStorage('settings');
-
+const { currentTheme } = useTheme();
 const state = shallowReactive({
   zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
 });
@@ -646,6 +693,10 @@ export default {
       type: String,
       default: '',
     },
+    note: {
+      type: Object,
+      required: true, // Set to true if this prop is essential
+    },
   },
   emits: ['update:tree'],
   setup(props) {
@@ -663,35 +714,35 @@ export default {
       return [
         {
           name: 'ordered-list',
-          title: translations.menu.orderedlist,
+          title: translations.value.menu.orderedlist,
           icon: 'riListOrdered',
           activeState: 'orderedList',
           handler: () => props.editor.chain().focus().toggleOrderedList().run(),
         },
         {
           name: 'bullet-list',
-          title: translations.menu.bulletlist,
+          title: translations.value.menu.bulletlist,
           icon: 'riListUnordered',
           activeState: 'bulletList',
           handler: () => props.editor.chain().focus().toggleBulletList().run(),
         },
         {
           name: 'check-list',
-          title: translations.menu.checklist,
+          title: translations.value.menu.checklist,
           icon: 'riListCheck2',
           activeState: 'taskList',
           handler: () => props.editor.chain().focus().toggleTaskList().run(),
         },
         {
           name: 'blockquote',
-          title: translations.menu.blockquote,
+          title: translations.value.menu.blockquote,
           icon: 'riDoubleQuotesR',
           activeState: 'blockquote',
           handler: () => props.editor.chain().focus().toggleBlockquote().run(),
         },
         {
           name: 'code-block',
-          title: translations.menu.codeblock,
+          title: translations.value.menu.codeblock,
           icon: 'riCodeBoxLine',
           activeState: 'codeBlock',
           handler: () => props.editor.chain().focus().toggleCodeBlock().run(),
@@ -708,35 +759,35 @@ export default {
       return [
         {
           name: 'bold',
-          title: translations.menu.bold,
+          title: translations.value.menu.bold,
           icon: 'riBold',
           activeState: 'bold',
           handler: () => props.editor.chain().focus().toggleBold().run(),
         },
         {
           name: 'italic',
-          title: translations.menu.italic,
+          title: translations.value.menu.italic,
           icon: 'riItalic',
           activeState: 'italic',
           handler: () => props.editor.chain().focus().toggleItalic().run(),
         },
         {
           name: 'underline',
-          title: translations.menu.underline,
+          title: translations.value.menu.underline,
           icon: 'riUnderline',
           activeState: 'underline',
           handler: () => props.editor.chain().focus().toggleUnderline().run(),
         },
         {
           name: 'strikethrough',
-          title: translations.menu.strikethrough,
+          title: translations.value.menu.strikethrough,
           icon: 'riStrikethrough',
           activeState: 'strike',
           handler: () => props.editor.chain().focus().toggleStrike().run(),
         },
         {
           name: 'inline-code',
-          title: translations.menu.inlinecode,
+          title: translations.value.menu.inlinecode,
           icon: 'riCodeLine',
           activeState: 'code',
           handler: () => props.editor.chain().focus().toggleCode().run(),
@@ -749,6 +800,7 @@ export default {
     const router = useRouter();
     const editorImage = useEditorImage(props.editor);
     const dialog = useDialog();
+    const translations = ref({ menu: {} });
 
     useGroupTooltip();
 
@@ -760,6 +812,10 @@ export default {
     const showHeadingsTree = shallowRef(false);
     function normalizePath(path) {
       return path.replace(/\\/g, '');
+    }
+
+    function shareNote() {
+      exportNoteById(props.id, props.note.title);
     }
 
     function insertImage() {
@@ -849,22 +905,29 @@ export default {
     };
 
     function toggleFocusMode() {
+      // Zoom and toggle inFocusMode state
       handleZoomButtonClick();
       store.inFocusMode = !store.inFocusMode;
 
       if (store.inFocusMode) {
+        // Enter Focus Mode
         document.documentElement.requestFullscreen();
-        props.editor.commands.focus();
+        props.editor.commands.focus(); // Ensure editor is focused
+        props.editor.setOptions({ editable: false }); // Make the editor editable
+        props.editor.view.update(this.editor.view.props); // Ensure the view updates
       } else {
+        // Exit Focus Mode (to Reading Mode)
         document.exitFullscreen();
+        props.editor.setOptions({ editable: true }); // Make the editor read-only
+        props.editor.view.update(this.editor.view.props); // Ensure the view updates
       }
     }
 
     function deleteNode() {
       dialog.confirm({
-        title: translations.card.confirmPrompt,
-        okText: translations.card.confirm,
-        cancelText: translations.card.Cancel,
+        title: translations.value.card.confirmPrompt,
+        okText: translations.value.card.confirm,
+        cancelText: translations.value.card.Cancel,
         onConfirm: async () => {
           await noteStore.delete(props.id);
           router.push('/');
@@ -886,70 +949,24 @@ export default {
       Mousetrap.unbind(Object.keys(shortcuts));
     });
 
+    const isDarkMode = currentTheme.value === 'dark';
+
     function printContent() {
-      window.print();
+      console.log(`${props.note.title}.pdf`);
+      ipcRenderer.callMain('print-pdf', {
+        backgroundColor: isDarkMode ? '#232222' : '#ffffff',
+        pdfName: `${props.note.title}.pdf`,
+      });
     }
 
-    const translations = shallowReactive({
-      menu: {
-        paragraph: 'menu.paragraph',
-        heading: 'menu.heading',
-        image: 'menu.image',
-        imgurl: 'menu.imgurl',
-        Embed: 'menu.embed',
-        EmbedUrl: 'menu.EmbedUrl',
-        record: 'menu.record',
-        Link: 'menu.Link',
-        File: 'menu.File',
-        Print: 'menu.Print',
-        Focusmode: 'menu.Focusmode',
-        headingsTree: 'menu.headingsTree',
-        orderedlist: 'menu.orderedlist',
-        bulletlist: 'menu.bulletlist',
-        checklist: 'menu.checklist',
-        blockquote: 'menu.blockquote',
-        codeblock: 'menu.codeblock',
-        bold: 'menu.bold',
-        italic: 'menu.italic',
-        underline: 'menu.underline',
-        strikethrough: 'menu.strikethrough',
-        inlinecode: 'menu.inlinecode',
-        highlight: 'menu.highlight',
-        delete: 'menu.delete',
-        tableOptions: 'menu.tableOptions',
-        table: 'menu.table',
-        addRowAbove: 'menu.addRowAbove',
-        addRowBelow: 'menu.addRowBelow',
-        addColumnLeft: 'menu.addColumnLeft',
-        addColumnRight: 'menu.addColumnRight',
-        deleteRow: 'menu.deleteRow',
-        deleteColumn: 'menu.deleteColumn',
-        toggleHeader: 'menu.toggleHeader',
-        deleteTable: 'menu.deleteTable',
-      },
-    });
-
     onMounted(async () => {
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
-      // Add event listeners for drag and drop
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
       document.addEventListener('drop', handleDrop);
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const showAdavancedSettings = computed(() => {
       return localStorage.getItem('advanced-settings') === 'true';
@@ -985,14 +1002,20 @@ export default {
       }
     };
 
-    // Function to handle drop event
     async function handleDrop(event) {
-      // Alt/Opt key is pressed
       event.preventDefault();
       event.stopPropagation();
 
-      // Access dropped files
-      const files = event.dataTransfer.files;
+      // Check if files are being dropped
+      const files = event.dataTransfer?.files;
+
+      // If no files are present, ignore the drop event
+      if (!files || files.length === 0) {
+        console.log('Ignoring non-file drop event');
+        return;
+      }
+
+      console.log('Files detected, processing drop event:', event);
 
       try {
         for (const file of files) {
@@ -1183,6 +1206,7 @@ export default {
       translations,
       headings,
       insertImage,
+      filePath,
       addIframe,
       editorImage,
       headingsTree,
@@ -1203,6 +1227,8 @@ export default {
       printContent,
       container,
       changeWheelDirection,
+      importNoteFromBea,
+      shareNote,
     };
   },
   methods: {
@@ -1240,7 +1266,7 @@ export default {
 }
 
 button {
-  @apply hover:text-gray-800 dark:hover:text-[color:var(--selected-dark-text)];
+  @apply hover:text-neutral-800 dark:hover:text-[color:var(--selected-dark-text)];
 }
 
 button.is-active {

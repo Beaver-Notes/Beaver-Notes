@@ -140,6 +140,80 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
   return true;
 });
 
+ipcMain.answerRenderer('print-pdf', async (options) => {
+  console.log('printing');
+  const { backgroundColor = '#000000', pdfName } = options; // Default to black if not specified
+  console.log(options);
+
+  const focusedWindow = BrowserWindow.getFocusedWindow(); // Get the current window
+  if (!focusedWindow) return;
+
+  const { canceled, filePath } = await dialog.showSaveDialog(focusedWindow, {
+    title: 'Save PDF',
+    defaultPath: path.join(
+      app.getPath('desktop'),
+      pdfName || 'editor-output.pdf'
+    ),
+    filters: [
+      { name: 'PDF Files', extensions: ['pdf'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+
+  if (canceled || !filePath) {
+    console.log('Save operation canceled by the user.');
+    return;
+  }
+
+  try {
+    // Apply the custom background color and remove margins/padding
+    await focusedWindow.webContents.executeJavaScript(`
+      // Check if style already exists and remove it
+      (() => {
+        // Create a new style element
+        const style = document.createElement('style');
+        style.id = 'print-style'; // Unique ID to prevent conflicts
+        style.innerHTML = \`
+          @page {
+            margin: 0;
+          }
+          html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: ${backgroundColor};
+          }
+          * {
+            box-sizing: border-box;
+          }
+        \`;
+        document.head.appendChild(style);
+    
+        // Apply background color directly
+        document.body.style.backgroundColor = '${backgroundColor}';
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        document.documentElement.style.backgroundColor = '${backgroundColor}';
+        document.documentElement.style.margin = '0';
+        document.documentElement.style.padding = '0';
+      })();
+    `);
+
+    // Generate the PDF with no margins
+    const pdfData = await focusedWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'A4',
+      marginsType: 0,
+    });
+
+    // Save the PDF to the selected path
+    fs.writeFileSync(filePath, pdfData);
+  } catch (error) {
+    console.error(error);
+  }
+});
+
 app.on('open-file', (event, path) => {
   event.preventDefault();
   pendingFilePath = path;
@@ -200,11 +274,14 @@ app
     ]);
     createWindow();
     if (process.argv.length >= 2) {
-      const filePath = process.argv[1];
+      let filePath = process.argv[1];
+      filePath = path.resolve(filePath).replace(/\\/g, '/'); // Ensure proper formatting
+
       if (path.extname(filePath).toLowerCase() === '.bea') {
-        localStorage.setItem('openFilePath', `${filePath}`);
+        localStorage.setItem('openFilePath', filePath);
       }
     }
+
     initializeMenu();
   })
   .catch((e) => console.error('Failed create window:', e));
@@ -270,7 +347,9 @@ ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data)
 );
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
-ipcMain.answerRenderer('fs:readData', (path) => fs.readFileSync(path, 'base64'));
+ipcMain.answerRenderer('fs:readData', (path) =>
+  fs.readFileSync(path, 'base64')
+);
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
 });
@@ -371,21 +450,23 @@ function initializeMenu() {
     translations = zhTranslations;
   }
 
-  import('electron-context-menu').then((contextMenuModule) => {
-    const contextMenu = contextMenuModule.default;
-  
-    contextMenu({
-      showLookUpSelection: true,
-      showSearchWithGoogle: true,
-      showCopyImage: true,
-      showSaveImageAs: true,
-      showCopyLink: true,
-      showInspectElement: true,
+  import('electron-context-menu')
+    .then((contextMenuModule) => {
+      const contextMenu = contextMenuModule.default;
+
+      contextMenu({
+        showLookUpSelection: true,
+        showSearchWithGoogle: true,
+        showCopyImage: true,
+        showSaveImageAs: true,
+        showCopyLink: true,
+        showInspectElement: true,
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to load context menu:', error);
     });
-  }).catch((error) => {
-    console.error('Failed to load context menu:', error);
-  });
-  
+
   const template = [
     // { role: 'appMenu' }
     ...(isMac

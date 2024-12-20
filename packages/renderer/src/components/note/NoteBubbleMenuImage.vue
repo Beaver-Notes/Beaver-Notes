@@ -13,12 +13,12 @@
       <v-remixicon
         name="riFolderOpenLine"
         title="Open image"
-        class="dark:text-gray-200 text-gray-600 mr-3 cursor-pointer"
+        class="dark:text-neutral-200 text-neutral-600 mr-3 cursor-pointer"
         @click="editorImage.select()"
       />
       <v-remixicon
         name="riSave3Line"
-        class="dark:text-gray-200 text-gray-600 cursor-pointer"
+        class="dark:text-neutral-200 text-neutral-600 cursor-pointer"
         @click="editorImage.set(currentImage)"
       />
     </div>

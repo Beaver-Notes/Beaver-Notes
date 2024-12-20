@@ -19,7 +19,7 @@
       </span>
     </button>
     <template v-if="editor && !note.isLocked">
-      <note-menu v-bind="{ editor, id }" class="mb-6" />
+      <note-menu v-bind="{ editor, id, note }" class="mb-6" />
       <note-search
         v-if="showSearch"
         v-bind="{ editor }"

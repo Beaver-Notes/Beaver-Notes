@@ -132,7 +132,10 @@
     "vidUrl": "Video url",
     "video": "Video",
     "videoUrl": "Video url",
-    "mathblock": "Math block"
+    "mathblock": "Math block",
+    "pdf": "PDF",
+    "bea": "BEA",
+    "mergeorSplit": "Merge or Split"
   },
   "paper": {
     "dotted": "Dotted",

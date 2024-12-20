@@ -1,18 +1,22 @@
 <template>
   <div class="flex items-start mb-6 space-x-4">
     <div class="flex-1 rtl:ml-4">
-      <ui-input
-        :model-value="query"
-        class="w-full note-search-input"
-        prepend-icon="riSearch2Line"
-        :placeholder="translations.filter.searchplaceholder || '-'"
-        @keydown.esc="$event.target.blur()"
-        @change="$emit('update:query', $event.toLocaleLowerCase())"
-      />
+      <div class="flex items-center divide-x btn-group">
+        <ui-input
+          :model-value="query"
+          class="w-full note-search-input"
+          prepend-icon="riSearch2Line"
+          :clearable="true"
+          :placeholder="translations.filter.searchplaceholder || '-'"
+          @keydown.esc="$event.target.blur()"
+          @change="$emit('update:query', $event.toLocaleLowerCase())"
+        ></ui-input>
+      </div>
       <span class="text-sm text-gray-600 dark:text-gray-300 ml-2">
         {{ keyBinding }} {{ translations.filter.search || '-' }}
       </span>
     </div>
+
     <div class="flex items-center divide-x btn-group">
       <ui-button
         v-tooltip="
@@ -116,6 +120,7 @@ export default {
         deletelabel: 'filter.deletelabel',
         ascending: 'filter.ascending',
         descending: 'filter.descending',
+        clearSearch: 'Clear Search',
       },
     });
 
@@ -156,12 +161,17 @@ export default {
       }
     };
 
+    const clearSearch = () => {
+      emit('update:query', '');
+    };
+
     watch(
       () => props.label,
       (newLabelValue) => {
         newLabel.value = newLabelValue;
       }
     );
+
     const deleteLabel = async () => {
       emit('delete:label', props.label);
       newLabel.value = '';
@@ -173,6 +183,7 @@ export default {
       translations,
       newLabel,
       deleteLabel,
+      clearSearch,
     };
   },
 };

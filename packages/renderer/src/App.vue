@@ -5,7 +5,7 @@
     v-if="store.inFocusMode"
     class="fixed top-0 left-0 w-full h-full border-8 pointer-events-none z-50"
   ></div>
-  <main v-if="retrieved" :class="{ 'pl-16': !store.inFocusMode }">
+  <main v-if="retrieved" :class="{ 'pl-16 print:p-2': !store.inFocusMode }">
     <router-view />
   </main>
   <div
@@ -18,11 +18,7 @@
 </template>
 <script>
 import { ref, onMounted, onUnmounted, reactive } from 'vue';
-const { ipcRenderer, path } = window.electron;
-import { useDialog } from '@/composable/dialog';
-import { AES } from 'crypto-es/lib/aes';
-import { Utf8 } from 'crypto-es/lib/core';
-import { useStorage } from '@/composable/storage';
+import { importNoteFromBea } from '@/utils/share';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
@@ -40,12 +36,11 @@ export default {
   setup() {
     const theme = useTheme();
     const store = useStore();
-    const storage = useStorage();
     const router = useRouter();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
-    const dialog = useDialog();
     const retrieved = ref(false);
+    const fileData = ref(null);
 
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
     const selectedCodeFont =
@@ -80,149 +75,20 @@ export default {
     const appStore = useAppStore();
     const translations = ref({ dialog: {} });
 
-    async function importNoteFromBea(filePath) {
-      try {
-        // Read the .bea file
-        const fileContent = await ipcRenderer.callMain(
-          'fs:read-json',
-          filePath
-        );
-        if (!fileContent || !fileContent.data) {
-          throw new Error('Invalid file format');
-        }
-
-        let noteData;
-        // Try parsing the data field directly first
-        try {
-          noteData = JSON.parse(fileContent.data);
-        } catch (e) {
-          // If parsing fails, it might be encrypted
-          return new Promise((resolve, reject) => {
-            dialog.prompt({
-              title: 'Import Protected Note',
-              body: 'This note is password protected. Please enter the password to import.',
-              okText: 'Import',
-              cancelText: 'Cancel',
-              placeholder: 'Password',
-              onConfirm: async (password) => {
-                try {
-                  // Decrypt the data
-                  const bytes = AES.decrypt(fileContent.data, password);
-                  const decrypted = bytes.toString(Utf8);
-                  noteData = JSON.parse(decrypted);
-                  await processImportedNote(noteData);
-                  resolve(true);
-                  return true;
-                } catch (error) {
-                  alert('Invalid password or corrupted file.');
-                  reject(error);
-                  return false;
-                }
-              },
-              onCancel: () => {
-                resolve(false);
-              },
-            });
-          });
-        }
-
-        processImportedNote(noteData);
-        localStorage.removeItem('openFilePath');
-        window.location.reload();
-      } catch (error) {
-        console.error('Error importing note:', error);
-        alert(
-          'Failed to import note. The file may be corrupted or in an invalid format.'
-        );
-      }
-    }
-
-    async function processImportedNote(noteData) {
-      try {
-        // Get current storage data
-        const currentNotes = await storage.get('notes', {});
-        const dataDir = await storage.get('dataDir', '', 'settings');
-
-        // Update notes storage
-        const updatedNotes = {
-          ...currentNotes,
-          [noteData.id]: {
-            id: noteData.id,
-            title: noteData.title,
-            content: noteData.content,
-          },
-        };
-        await storage.set('notes', updatedNotes);
-
-        // Update locked notes if present and not null
-        if (noteData.lockedNotes) {
-          localStorage.setItem(
-            'lockedNotes',
-            JSON.stringify(noteData.lockedNotes)
-          );
-        }
-
-        // Process assets if present
-        if (noteData.assets) {
-          // Create directories if they don't exist
-          await ipcRenderer.callMain(
-            'fs:mkdir',
-            path.join(dataDir, 'notes-assets', noteData.id)
-          );
-          await ipcRenderer.callMain(
-            'fs:mkdir',
-            path.join(dataDir, 'file-assets', noteData.id)
-          );
-
-          // Process notes assets
-          for (const [filename, base64Data] of Object.entries(
-            noteData.assets.notesAssets || {}
-          )) {
-            const binaryString = atob(base64Data);
-            const byteArray = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              byteArray[i] = binaryString.charCodeAt(i);
-            }
-            await ipcRenderer.callMain('fs:writeFile', {
-              path: path.join(dataDir, 'notes-assets', noteData.id, filename),
-              data: byteArray.buffer,
-            });
-          }
-
-          // Process file assets
-          for (const [filename, base64Data] of Object.entries(
-            noteData.assets.fileAssets || {}
-          )) {
-            const binaryString = atob(base64Data);
-            const byteArray = new Uint8Array(binaryString.length);
-            for (let i = 0; i < binaryString.length; i++) {
-              byteArray[i] = binaryString.charCodeAt(i);
-            }
-            await ipcRenderer.callMain('fs:writeFile', {
-              path: path.join(dataDir, 'file-assets', noteData.id, filename),
-              data: byteArray.buffer,
-            });
-          }
-        }
-
-        alert(`Note "${noteData.title}" imported successfully.`);
-      } catch (error) {
-        console.error('Error processing imported note:', error);
-        throw error;
-      }
-    }
-
     onMounted(async () => {
       await useTranslation().then((trans) => {
         if (trans) {
           translations.value = trans;
         }
+        const storedFilePath =
+          typeof localStorage !== 'undefined'
+            ? localStorage.getItem('openFilePath')
+            : null;
+        if (storedFilePath) {
+          loadFile(storedFilePath);
+        }
       });
-      const filePath = localStorage.getItem('openFilePath');
-      if (filePath) {
-        console.log(filePath);
-        await importNoteFromBea(filePath);
-      }
+
       // Apply the stored zoom level on mount
       document.body.style.zoom = state.zoomLevel;
 
@@ -245,6 +111,39 @@ export default {
         });
       }
     });
+
+    const loadFile = async (filePath) => {
+      if (!filePath) {
+        console.warn('No file path provided. Ignoring loadFile request.');
+        return;
+      }
+
+      try {
+        // Fetch file content using the provided file path
+        const response = await fetch(`file://${filePath}`);
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to fetch file. Status: ${response.statusText}`
+          );
+        }
+
+        // Read and process the file content
+        const text = await response.text(); // Assuming .bea files are text-based
+        console.log(`Contents of the file (${filePath}):`, text);
+
+        // Process the file content (e.g., import a note)
+        importNoteFromBea(filePath);
+
+        // Optionally bind content to your Vue component
+        fileData.value = text;
+      } catch (error) {
+        console.error(`Error loading file (${filePath}):`, error);
+      } finally {
+        // Remove file path from localStorage after processing
+        localStorage.removeItem('openFilePath');
+      }
+    };
 
     onUnmounted(() => {
       appStore.updateToStorage();

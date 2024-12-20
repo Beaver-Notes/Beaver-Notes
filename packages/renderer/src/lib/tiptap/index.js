@@ -20,6 +20,7 @@ import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
+import Dropcursor from '@tiptap/extension-dropcursor';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
@@ -165,6 +166,7 @@ const extensions = [
     },
   }),
   Iframe,
+  Dropcursor,
 ];
 
 export { extensions, CollapseHeading };

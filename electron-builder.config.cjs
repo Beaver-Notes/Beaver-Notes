@@ -24,7 +24,7 @@ const electronBuilderConfig = {
     gatekeeperAssess: true,
     category: 'public.app-category.productivity',
     extendInfo: {
-      NSMicrophoneUsageDescription: 'Please give us access to your microphone',
+      NSMicrophoneUsageDescription: 'Use microphone to record audio notes',
       'com.apple.security.device.audio-input': true,
     },
   },

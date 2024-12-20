@@ -169,18 +169,32 @@ export default {
       };
 
       notes.forEach((note) => {
-        const { title, content, isArchived, isBookmarked, labels } = note;
+        let { title, content, isArchived, isBookmarked, labels } = note;
+
+        // Sort labels alphabetically
+        labels = labels.sort((a, b) => a.localeCompare(b));
+
+        // Check if an active label filter is applied
         const labelFilter = state.activeLabel
           ? labels.includes(state.activeLabel)
           : true;
 
-        const isMatch = state.query.startsWith('#')
-          ? labels.some((label) =>
-              label.toLocaleLowerCase().includes(state.query.substr(1))
-            )
-          : title.toLocaleLowerCase().includes(state.query) ||
-            content.includes(state.query);
+        // Check if the query matches labels, title, or content
+        const queryLower = state.query.toLocaleLowerCase();
+        const isMatch =
+          // Label match (supports `#` prefix and plain text)
+          queryLower.startsWith('#')
+            ? labels.some((label) =>
+                label.toLocaleLowerCase().includes(queryLower.substr(1))
+              )
+            : labels.some((label) =>
+                label.toLocaleLowerCase().includes(queryLower)
+              ) ||
+              // Title and content match
+              title.toLocaleLowerCase().includes(queryLower) ||
+              content.toLocaleLowerCase().includes(queryLower);
 
+        // Add notes to appropriate categories if all conditions are met
         if (isMatch && labelFilter) {
           if (isArchived) return filteredNotes.archived.push(note);
 

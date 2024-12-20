@@ -1,13 +1,13 @@
 <template>
   <div class="inline-block input-ui">
-    <label class="relative">
+    <label class="relative w-full">
       <span
         v-if="label"
         class="text-sm dark:text-neutral-200 text-neutral-600 mb-1 ml-1"
       >
         {{ label }}
       </span>
-      <div class="flex items-center">
+      <div class="flex items-center relative">
         <slot name="prepend">
           <v-remixicon
             v-if="prependIcon"
@@ -22,18 +22,28 @@
           :class="{
             'opacity-75 pointer-events-none': disabled,
             'pl-10': prependIcon || $slots.prepend,
+            'pr-10': clearable, // Add padding if clear button is visible
           }"
           :value="modelValue"
           @keydown="$emit('keydown', $event)"
           @input="emitValue"
         />
+        <button
+          v-if="clearable && modelValue"
+          class="absolute right-2 text-neutral-600 dark:text-neutral-200"
+          @click="clearInput"
+        >
+          <v-remixicon name="riDeleteBackLine" />
+        </button>
       </div>
     </label>
   </div>
 </template>
+
 <script>
 export default {
   props: {
+    // eslint-disable-next-line vue/require-prop-types
     modelModifiers: {
       default: () => ({}),
     },
@@ -69,6 +79,10 @@ export default {
       type: String,
       default: '',
     },
+    clearable: {
+      type: Boolean,
+      default: false, // Add clearable prop
+    },
   },
   emits: ['update:modelValue', 'change', 'keydown'],
   setup(props, { emit }) {
@@ -83,8 +97,14 @@ export default {
       emit('change', value);
     }
 
+    function clearInput() {
+      emit('update:modelValue', '');
+      emit('change', '');
+    }
+
     return {
       emitValue,
+      clearInput,
     };
   },
 };

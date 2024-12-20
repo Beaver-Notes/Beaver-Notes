@@ -76,7 +76,7 @@ img.ProseMirror-selectednode {
     @apply dark:text-[color:var(--selected-dark-text)];
   }
   li[data-checked='true'] {
-    @apply text-neutral-500 line-through dark:text-[color:var(--selected-dark-text)];;
+    @apply text-neutral-500 line-through dark:text-[color:var(--selected-dark-text)];
   }
   ul li {
     margin-top: 0 !important;
@@ -186,7 +186,7 @@ img.ProseMirror-selectednode {
 
     td,
     th {
-      @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
+      @apply min-w-[1em] border-2 border-solid dark:border-neutral-600 p-3 box-border relative;
       word-wrap: break-word;
       max-width: 10px;
       text-align: initial; /* Reset text alignment */
@@ -195,6 +195,10 @@ img.ProseMirror-selectednode {
     th {
       @apply bg-neutral-700 bg-opacity-10 dark:bg-neutral-600 dark:bg-opacity-30 !important;
       text-align: initial; /* Reset text alignment */
+    }
+
+    .selectedCell:after {
+      @apply bg-neutral-300 bg-opacity-20 content-[''] left-0 right-0 top-0 bottom-0 pointer-events-none absolute z-20;
     }
 
     /* Adjust padding for first child based on direction */
