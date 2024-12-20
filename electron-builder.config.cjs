@@ -36,9 +36,19 @@ const electronBuilderConfig = {
     category: 'Productivity',
   },
   win: {
+    artifactName: '${productName}.Setup.${version}.${arch}.exe',
     icon: 'buildResources/icon.ico',
-    target: ['nsis', 'portable'],
     publish: ['github'],
+    target: [
+      {
+        target: 'nsis',
+        arch: ['x64', 'arm64'],
+      },
+      {
+        target: 'portable',
+        arch: ['x64', 'arm64'],
+      },
+    ],
   },
   nsis: {
     oneClick: true,

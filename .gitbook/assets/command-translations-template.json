@@ -1,8 +1,0 @@
-{
-  "commands": {
-    "new-note": "Create new note",
-    "settings": "Settings",
-    "dark-theme": "Apply dark theme",
-    "light-theme": "Apply light theme"
-  }
-}
