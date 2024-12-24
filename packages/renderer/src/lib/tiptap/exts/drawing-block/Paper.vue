@@ -1,5 +1,5 @@
 <template>
-  <NodeViewWrapper class="draw select-none" :style="{ touchAction: 'none' }">
+  <NodeViewWrapper class="draw select-none relative">
     <OverlayPortal v-if="isDrawMode">
       <DrawMode
         :update-attributes="updateAttributes"
@@ -48,6 +48,7 @@ import DrawMode from './DrawMode.vue';
 const PREVIEW_HEIGHT = 500;
 
 export default {
+  name: 'DrawingPaper',
   components: {
     NodeViewWrapper,
     OverlayPortal,
@@ -59,10 +60,12 @@ export default {
     const lines = ref(props.node.attrs.lines || []);
 
     const toggleDrawMode = () => {
+      console.log('Toggling Draw Mode');
       isDrawMode.value = !isDrawMode.value;
     };
 
     const closeDrawMode = () => {
+      console.log('Closing Draw Mode');
       isDrawMode.value = false;
     };
 

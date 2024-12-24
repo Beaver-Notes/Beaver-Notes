@@ -36,7 +36,6 @@ const electronBuilderConfig = {
     category: 'Productivity',
   },
   win: {
-    artifactName: '${productName}.Setup.${version}.${arch}.exe',
     icon: 'buildResources/icon.ico',
     publish: ['github'],
     target: [

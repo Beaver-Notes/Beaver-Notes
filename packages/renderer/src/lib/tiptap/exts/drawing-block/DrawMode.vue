@@ -1,35 +1,35 @@
 <template>
-  <div class="flex flex-col w-full h-screen">
+  <div class="w-full h-screen">
     <!-- Toolbar -->
     <div
       class="flex justify-start items-center p-4 bg-gray-100 border-b border-gray-300"
     >
       <button
         class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-        @click="setTool('pencil')"
         :class="{ 'ring-2 ring-blue-300': tool === 'pencil' }"
+        @click="setTool('pencil')"
       >
         Pencil
       </button>
       <button
         class="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 ml-2"
-        @click="setTool('eraser')"
         :class="{ 'ring-2 ring-red-300': tool === 'eraser' }"
+        @click="setTool('eraser')"
       >
         Eraser
       </button>
       <button
         class="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 ml-2"
-        @click="setTool('highlighter')"
         :class="{ 'ring-2 ring-yellow-300': tool === 'highlighter' }"
+        @click="setTool('highlighter')"
       >
         Highlighter
       </button>
 
       <!-- Color Picker -->
       <input
-        type="color"
         v-model="color"
+        type="color"
         class="ml-4 w-10 h-10 p-0 border border-gray-300 rounded-md"
         :disabled="tool === 'eraser'"
       />
@@ -49,14 +49,12 @@
       <button
         class="ml-4 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50"
         @click="undo"
-        :disabled="history.length === 0"
       >
         Undo
       </button>
       <button
         class="ml-2 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:opacity-50"
         @click="redo"
-        :disabled="redoStack.length === 0"
       >
         Redo
       </button>
@@ -64,9 +62,9 @@
       <!-- Clear Canvas Button -->
       <button
         class="ml-2 px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600"
-        @click="clearCanvas"
+        @click="onClose"
       >
-        Clear
+        Close
       </button>
     </div>
 
@@ -76,10 +74,10 @@
         ref="svgRef"
         :viewBox="`0 0 ${svgWidth} ${svgHeight}`"
         class="w-full h-full touch-none"
-        @pointerdown="startDrawing"
-        @pointermove="draw"
-        @pointerup="stopDrawing"
-        @pointerleave="stopDrawing"
+        @pointerdown="handlePointerEvent"
+        @pointermove="handlePointerEvent"
+        @pointerup="handlePointerEvent"
+        @pointerleave="handlePointerEvent"
       >
         <g>
           <!-- Render saved lines -->
@@ -112,248 +110,203 @@
 </template>
 
 <script>
-import { ref, reactive, onMounted, onUnmounted } from 'vue';
-import * as d3 from 'd3';
+import { ref, watch } from 'vue';
+import {
+  useSmoothPoints,
+  useChunkedLines,
+  useEraseOverlappingPaths,
+  useGetPointerCoordinates,
+  useSaveDrawing,
+  useLineGenerator,
+  useRedo,
+  useUndo,
+  thicknessOptions,
+} from './DrawingUtil';
 
 export default {
-  setup() {
-    // SVG Dimensions
-    const svgWidth = window.innerWidth;
-    const svgHeight = window.innerHeight;
-
-    // Drawing State
+  name: 'DrawMode',
+  props: {
+    onClose: {
+      type: Function,
+      default: () => {},
+    },
+    updateAttributes: {
+      type: Function,
+      default: () => {},
+    },
+    node: {
+      type: Object,
+      default: () => ({}),
+    },
+  },
+  setup(props) {
     const svgRef = ref(null);
-    const tool = ref('pencil');
+    const svgWidth = 500;
+    const svgHeight = ref(props.node.attrs.height || 400);
     const color = ref('#000000');
-    const size = ref(2);
-    const isDrawing = ref(false);
-    const points = ref([]);
-    const lines = reactive([]);
-    const currentPath = ref('');
+    const size = ref(thicknessOptions.medium);
+    const tool = ref('pencil');
+    const lines = ref(props.node.attrs.lines || []);
+    const currentPath = ref(''); // Current drawing path
+    const history = ref([]); // Action history
+    const redoStack = ref([]); // Redo stack
+    const drawing = ref(false); // Drawing state
+    const points = ref([]); // Current drawing points
+    const penActive = ref(false);
+    const isErasing = ref(false);
+    const PEN_TIMEOUT_DURATION = 500;
+    let penTimeout;
 
-    // History Management
-    const history = ref([]);
-    const redoStack = ref([]);
+    // Import utility functions
+    const { smoothPoints } = useSmoothPoints();
+    const { chunkedLines } = useChunkedLines(ref(lines));
+    const { getPointerCoordinates } = useGetPointerCoordinates(svgRef);
+    const { saveDrawing } = useSaveDrawing(
+      ref(lines),
+      (newHistory) => {
+        history.value = Array.isArray(newHistory) ? [...newHistory] : [];
+      },
+      props.updateAttributes,
+      currentPath,
+      color,
+      size,
+      tool,
+      (newRedoStack) => {
+        redoStack.value = Array.isArray(newRedoStack) ? [...newRedoStack] : [];
+      }
+    );
+    const { eraseOverlappingPaths } = useEraseOverlappingPaths(
+      svgRef,
+      ref(lines),
+      (newHistory) => {
+        history.value = Array.isArray(newHistory) ? [...newHistory] : [];
+      },
+      props.updateAttributes
+    );
+    const { lineGenerator } = useLineGenerator();
 
-    // Eraser Configuration
-    const eraseRadius = 20;
-
-    // D3 Line Generator
-    const lineGenerator = d3
-      .line()
-      .x((d) => d.x)
-      .y((d) => d.y)
-      .curve(d3.curveBasis);
-
-    // Get Pointer Coordinates
-    const getPointerCoordinates = (event) => {
-      const svg = svgRef.value;
-      const rect = svg.getBoundingClientRect();
-
-      const clientX =
-        event.clientX || (event.touches && event.touches[0].clientX);
-      const clientY =
-        event.clientY || (event.touches && event.touches[0].clientY);
-
-      const scaleX = svg.viewBox.baseVal.width / rect.width;
-      const scaleY = svg.viewBox.baseVal.height / rect.height;
-
-      return [(clientX - rect.left) * scaleX, (clientY - rect.top) * scaleY];
+    // Set tool (pencil, eraser, etc.)
+    const setTool = (newTool) => {
+      tool.value = newTool;
     };
 
-    // Start Drawing
-    const startDrawing = (event) => {
-      const [x, y] = getPointerCoordinates(event);
-      isDrawing.value = true;
+    // Handle pointer events
+    const handlePointerEvent = (event) => {
+      if ((event.pointerType === 'pen', event.pointerType === 'mouse')) {
+        penActive.value = true;
+        clearTimeout(penTimeout);
+        event.preventDefault(); // Prevent touch interaction when pen is active
+        event.stopPropagation();
+
+        const [x, y] = getPointerCoordinates(event);
+
+        if (event.type === 'pointerdown') {
+          if (tool.value === 'eraser') {
+            isErasing.value = true;
+            eraseOverlappingPaths(x, y);
+          } else {
+            startDrawing(x, y);
+          }
+        } else if (event.type === 'pointermove') {
+          if (tool.value === 'eraser' && isErasing.value) {
+            eraseOverlappingPaths(x, y);
+          } else if (tool.value !== 'eraser') {
+            draw(x, y);
+          }
+        } else if (event.type === 'pointerup') {
+          if (tool.value === 'eraser') {
+            isErasing.value = false;
+          } else {
+            stopDrawing();
+          }
+
+          penTimeout = setTimeout(() => {
+            penActive.value = false;
+          }, PEN_TIMEOUT_DURATION);
+        }
+      }
+    };
+
+    // Start drawing (pointer down)
+    const startDrawing = (x, y) => {
+      drawing.value = true;
       points.value = [{ x, y }];
-
-      // Handle eraser immediately
-      if (tool.value === 'eraser') {
-        eraseOverlappingPaths(x, y);
-      }
     };
 
-    // Drawing Process
-    const draw = (event) => {
-      if (!isDrawing.value) return;
-
-      const [x, y] = getPointerCoordinates(event);
+    // Continue drawing (pointer move)
+    const draw = (x, y) => {
+      if (!drawing.value) return;
       points.value.push({ x, y });
-
-      if (tool.value === 'eraser') {
-        eraseOverlappingPaths(x, y);
-      }
-
-      currentPath.value = lineGenerator(points.value);
+      const smoothedPoints = smoothPoints(points.value);
+      currentPath.value = lineGenerator.value(smoothedPoints);
     };
 
-    // Stop Drawing
+    // Stop drawing (pointer up)
     const stopDrawing = () => {
-      if (!isDrawing.value) return;
+      if (!drawing.value) return;
+      drawing.value = false;
 
-      isDrawing.value = false;
-
-      // Only add path if it's not an empty line
-      if (points.value.length > 1) {
-        const newLine = {
+      if (currentPath.value) {
+        // Save the current path to the lines array
+        lines.value.push({
           path: currentPath.value,
           color: color.value,
           size: size.value,
           tool: tool.value,
-        };
-
-        lines.push(newLine);
-        history.value.push({ action: 'add', line: newLine });
-        redoStack.value = []; // Clear redo stack
+        });
+        saveDrawing();
       }
 
+      // Clear currentPath and points
       currentPath.value = '';
       points.value = [];
     };
 
-    // Eraser Logic
-    const eraseOverlappingPaths = (x, y) => {
-      const eraserArea = {
-        x: x - eraseRadius,
-        y: y - eraseRadius,
-        width: eraseRadius * 2,
-        height: eraseRadius * 2,
-      };
+    // Undo action
+    const { undo } = useUndo(
+      history,
+      redoStack,
+      props.updateAttributes,
+      ref(lines)
+    );
 
-      // Iterate over paths in reverse to handle deletion safely
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const pathNode = svgRef.value.querySelectorAll('path')[i];
+    // Redo action
+    const { redo } = useRedo(
+      redoStack,
+      history,
+      props.updateAttributes,
+      ref(lines)
+    );
 
-        if (!pathNode) continue;
-
-        const pathBBox = pathNode.getBBox();
-
-        if (
-          pathBBox.x < eraserArea.x + eraserArea.width &&
-          pathBBox.x + pathBBox.width > eraserArea.x &&
-          pathBBox.y < eraserArea.y + eraserArea.height &&
-          pathBBox.y + pathBBox.height > eraserArea.y
-        ) {
-          deletePath(i);
-        }
+    // Watch for changes in SVG height and update attributes
+    watch(
+      () => svgHeight.value,
+      (newHeight) => {
+        props.updateAttributes({ height: newHeight });
       }
-    };
+    );
 
-    // Delete Path
-    const deletePath = (index) => {
-      const removedLine = lines[index];
-      lines.splice(index, 1);
-      history.value.push({ action: 'delete', line: removedLine });
-    };
-
-    // Handle Path Click (optional interaction)
-    const handlePathClick = (line) => {
-      if (tool.value === 'eraser') {
-        const index = lines.findIndex((l) => l.path === line.path);
-        if (index !== -1) {
-          deletePath(index);
-        }
-      }
-    };
-
-    // Undo
-    const undo = () => {
-      if (history.value.length === 0) return;
-
-      const lastAction = history.value.pop();
-      redoStack.value.push(lastAction);
-
-      if (lastAction.action === 'add') {
-        lines.pop();
-      } else if (lastAction.action === 'delete') {
-        const deletedLine = lastAction.line;
-        const index = lines.findIndex((l) => l.path === deletedLine.path);
-        if (index === -1) {
-          lines.push(deletedLine);
-        }
-      }
-    };
-
-    // Redo
-    const redo = () => {
-      if (redoStack.value.length === 0) return;
-
-      const lastRedo = redoStack.value.pop();
-      history.value.push(lastRedo);
-
-      if (lastRedo.action === 'add') {
-        lines.push(lastRedo.line);
-      } else if (lastRedo.action === 'delete') {
-        const index = lines.findIndex((l) => l.path === lastRedo.line.path);
-        if (index !== -1) {
-          lines.splice(index, 1);
-        }
-      }
-    };
-
-    // Set Tool
-    const setTool = (selectedTool) => {
-      tool.value = selectedTool;
-    };
-
-    // Clear Canvas
-    const clearCanvas = () => {
-      if (lines.length > 0) {
-        history.value.push({ action: 'clear', lines: [...lines] });
-        lines.splice(0, lines.length);
-        redoStack.value = [];
-      }
-    };
-
-    // Prevent Default Touch Behaviors
-    const preventDefault = (e) => {
-      e.preventDefault();
-    };
-
-    // Mounted Hook for Event Listeners
-    onMounted(() => {
-      const svg = svgRef.value;
-      svg.addEventListener('touchstart', preventDefault, { passive: false });
-      svg.addEventListener('touchmove', preventDefault, { passive: false });
-    });
-
-    // Unmounted Hook for Cleanup
-    onUnmounted(() => {
-      const svg = svgRef.value;
-      svg.removeEventListener('touchstart', preventDefault);
-      svg.removeEventListener('touchmove', preventDefault);
-    });
-
+    // Expose variables and functions to the template
     return {
       svgRef,
       svgWidth,
       svgHeight,
-      tool,
       color,
       size,
+      tool,
       lines,
+      chunkedLines,
       currentPath,
       history,
       redoStack,
+      setTool,
+      handlePointerEvent,
       startDrawing,
       draw,
       stopDrawing,
       undo,
       redo,
-      setTool,
-      clearCanvas,
-      handlePathClick,
     };
   },
 };
 </script>
-
-<style scoped>
-svg {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  touch-action: none;
-  user-select: none;
-}
-</style>
