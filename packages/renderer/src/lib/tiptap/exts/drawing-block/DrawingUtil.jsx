@@ -54,7 +54,7 @@ export function useChunkedLines(linesRef) {
 export function useEraseOverlappingPaths(
   svgRef,
   linesRef,
-  setHistory,
+  history,
   updateAttributes
 ) {
   const eraseRadius = 5;
@@ -92,11 +92,10 @@ export function useEraseOverlappingPaths(
 
     if (pathIndex !== -1) {
       const removedLine = linesRef.value[pathIndex];
-      setHistory((prevHistory) =>
-        Array.isArray(prevHistory)
-          ? [...prevHistory, { action: 'delete', line: removedLine }]
-          : []
-      );
+      history.value.push({
+        action: 'delete',
+        line: removedLine,
+      });
       linesRef.value.splice(pathIndex, 1);
       updateAttributes({ lines: linesRef.value });
     }
@@ -122,7 +121,7 @@ export function useGetPointerCoordinates(svgRef) {
 // Save Drawing: Saves the current drawing state and updates history.
 export function useSaveDrawing(
   linesRef,
-  setHistory,
+  history,
   updateAttributes,
   path,
   color,
@@ -144,11 +143,10 @@ export function useSaveDrawing(
     linesRef.value = Array.isArray(linesRef.value)
       ? [...linesRef.value, newLine]
       : [newLine];
-    setHistory((prevHistory) =>
-      Array.isArray(prevHistory)
-        ? [...prevHistory, { action: 'add', line: newLine }]
-        : []
-    );
+    history.value.push({
+      action: 'add',
+      line: newLine,
+    });
     setRedoStack([]);
     batchUpdatePaths();
   };
@@ -204,30 +202,36 @@ export function useLineGenerator() {
   return { lineGenerator };
 }
 
-// Undo: Reverts the last action.
 export function useUndo(history, redoStack, updateAttributes, linesRef) {
   const undo = () => {
-    if (!Array.isArray(history.value) || history.value.length === 0) return;
+    if (!Array.isArray(history.value) || history.value.length === 0) {
+      return;
+    }
+
     const lastAction = history.value.pop();
+
     redoStack.value = Array.isArray(redoStack.value)
       ? [...redoStack.value, lastAction]
       : [lastAction];
+
     if (lastAction.action === 'add') {
       linesRef.value = linesRef.value.filter(
-        (line) => line.id !== lastAction.line.id
+        (line) => String(line.id) !== String(lastAction.line.id)
       );
     } else if (lastAction.action === 'delete') {
       linesRef.value = [...linesRef.value, lastAction.line];
     }
+
     updateAttributes({ lines: linesRef.value });
   };
   return { undo };
 }
 
-// Redo: Reapplies the last undone action.
 export function useRedo(redoStack, history, updateAttributes, linesRef) {
   const redo = () => {
-    if (!Array.isArray(redoStack.value) || redoStack.value.length === 0) return;
+    if (!Array.isArray(redoStack.value) || redoStack.value.length === 0) {
+      return;
+    }
     const lastRedo = redoStack.value.pop();
     history.value = Array.isArray(history.value)
       ? [...history.value, lastRedo]

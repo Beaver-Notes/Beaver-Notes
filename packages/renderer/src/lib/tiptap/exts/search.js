@@ -150,13 +150,15 @@ const search = new Search();
 
 export default Extension.create({
   name: 'search',
-  defaultOptions: {
-    autoSelectNext: true,
-    findClass: 'find',
-    searching: false,
-    caseSensitive: false,
-    disableRegex: true,
-    alwaysSearch: false,
+  addOptions() {
+    return {
+      autoSelectNext: true,
+      findClass: 'find',
+      searching: false,
+      caseSensitive: false,
+      disableRegex: true,
+      alwaysSearch: false,
+    };
   },
   addCommands() {
     search.options = this.options;

@@ -9,20 +9,20 @@
     </OverlayPortal>
     <div
       v-else
-      class="cursor-pointer hover:opacity-80 transition-opacity"
+      class="draw drawing-container cursor-pointer hover:opacity-80 transition-opacity"
       @click="toggleDrawMode"
     >
-      <div class="relative drawing-container">
+      <div class="relative drawing-container rounded-xl">
         <svg
           :viewBox="`0 0 500 ${PREVIEW_HEIGHT}`"
           :style="{ height: PREVIEW_HEIGHT + 'px' }"
-          class="w-full border border-gray-300 dark:border-neutral-600"
+          :class="`w-full ${background} dark:border-neutral-600`"
         >
           <path
             v-for="line in lines"
             :key="line.id"
             :d="line.path"
-            :stroke="line.color"
+            :stroke="adjustColorForMode(line.color)"
             :stroke-width="line.size"
             fill="none"
             stroke-linecap="round"
@@ -30,9 +30,11 @@
           />
         </svg>
         <div
-          class="rounded absolute inset-0 flex items-center justify-center bg-black bg-opacity-20"
+          class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20"
         >
-          <span class="text-white text-lg font-medium"> Click to Draw </span>
+          <span class="text-white text-lg font-medium">
+            {{ translations.paperBlock.clicktoDraw }}
+          </span>
         </div>
       </div>
     </div>
@@ -40,10 +42,12 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import OverlayPortal from '@/components/ui/OverlayPortal.vue';
 import DrawMode from './DrawMode.vue';
+import { useTranslation } from '@/composable/translations';
+import '@/assets/css/paper.scss';
 
 const PREVIEW_HEIGHT = 500;
 
@@ -56,25 +60,49 @@ export default {
   },
   props: nodeViewProps,
   setup(props) {
+    const translations = ref({ paperBlock: {} });
     const isDrawMode = ref(false);
     const lines = ref(props.node.attrs.lines || []);
+    const background = ref(props.node.attrs.paperType);
 
     const toggleDrawMode = () => {
-      console.log('Toggling Draw Mode');
       isDrawMode.value = !isDrawMode.value;
     };
 
     const closeDrawMode = () => {
-      console.log('Closing Draw Mode');
       isDrawMode.value = false;
+      lines.value = props.node.attrs.lines || [];
+      background.value = props.node.attrs.paperType || [];
     };
+
+    const adjustColorForMode = (color) => {
+      const isDarkMode = document.documentElement.classList.contains('dark');
+      if (isDarkMode) {
+        // Dark mode: Black turns to white; other colors unchanged
+        return color === '#000000' ? '#FFFFFF' : color;
+      } else {
+        // Light mode: White turns to black; other colors unchanged
+        return color === '#FFFFFF' ? '#000000' : color;
+      }
+    };
+
+    onMounted(async () => {
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+    });
 
     return {
       isDrawMode,
       lines,
       toggleDrawMode,
       closeDrawMode,
+      adjustColorForMode,
       PREVIEW_HEIGHT,
+      background,
+      translations,
     };
   },
 };

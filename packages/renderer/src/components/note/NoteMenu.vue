@@ -3,7 +3,7 @@
     ref="container"
     class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-neutral-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
-    @wheel="changeWheelDirection"
+    @wheel.passive="changeWheelDirection"
   >
     <div
       v-if="isTableActive"

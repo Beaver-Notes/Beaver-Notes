@@ -104,6 +104,7 @@ import {
   riPieChart2Line,
   riFileTextFill,
   riSplitCellsHorizontal,
+  riArrowDownSLine,
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
@@ -191,6 +192,7 @@ VRemixIcon.add({
   riPlayFill,
   riPauseFill,
   riGithubFill,
+  riArrowDownSLine,
   riDeleteBackLine,
   riTableLine,
   riSunLine,

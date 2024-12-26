@@ -278,5 +278,22 @@
   },
   "tiptap": {
     "placeholder": "Escribe algo..."
+  },
+  "paperBlock": {
+    "thin": "Delgado",
+    "medium": "Medio",
+    "thick": "Grueso",
+    "thicker": "Más grueso",
+    "none": "Ninguno",
+    "grid": "Cuadrícula",
+    "ruled": "Rayado",
+    "dotted": "Punteado",
+    "pencil": "Lápiz",
+    "highlighter": "Marcador",
+    "eraser": "Borrador",
+    "undo": "Deshacer",
+    "redo": "Rehacer",
+    "close": "Cerrar",
+    "clicktoDraw": "Haz clic para dibujar"
   }
 }

@@ -24,7 +24,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@/': join(PACKAGE_ROOT, 'src') + '/',
-      buffer: 'buffer',
+      crypto: 'crypto-browserify',
+      events: 'events',
+      util: 'Util',
+      buffer: 'Buffer',
+      stream: 'stream-browserify',
     },
   },
   plugins: [vue()],

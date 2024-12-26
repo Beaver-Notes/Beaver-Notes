@@ -6,10 +6,8 @@ import Highlight from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
-import HardBreak from '@tiptap/extension-hard-break';
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
-import Gapcursor from '@tiptap/extension-gapcursor';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -20,7 +18,6 @@ import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import Dropcursor from '@tiptap/extension-dropcursor';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
@@ -111,8 +108,6 @@ const extensions = [
   FootnoteReference,
   Footnote,
   TaskList,
-  Gapcursor,
-  HardBreak,
   Table.configure({
     resizable: true,
   }),
@@ -166,7 +161,6 @@ const extensions = [
     },
   }),
   Iframe,
-  Dropcursor,
 ];
 
 export { extensions, CollapseHeading };

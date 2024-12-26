@@ -1,11 +1,13 @@
 <template>
   <div
-    class="fixed inset-0 bg-black bg-opacity-50 items-center justify-center z-50"
-    @click.self="$emit('close')"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
     role="dialog"
     aria-modal="true"
+    @click.self="$emit('close')"
   >
-    <div class="bg-white dark:bg-neutral-800 rounded-lg">
+    <div
+      class="bg-white dark:bg-neutral-800 rounded-lg overflow-auto h-full w-full"
+    >
       <slot></slot>
     </div>
   </div>

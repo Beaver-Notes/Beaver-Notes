@@ -9,8 +9,8 @@
 
 <script>
 import { defineComponent, ref, watch, onMounted, shallowReactive } from 'vue';
+import { useTheme } from '@/composable/theme';
 import mermaid from 'mermaid';
-import { useTheme } from '@/composable/theme'; // Adjust import path as per your actual setup
 
 export default defineComponent({
   props: {

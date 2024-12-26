@@ -285,5 +285,22 @@
   },
   "tiptap": {
     "placeholder": "Write something..."
+  },
+  "paperBlock": {
+    "thin": "Thin",
+    "medium": "Medium",
+    "thick": "Thick",
+    "thicker": "Thicker",
+    "none": "None",
+    "grid": "Grid",
+    "ruled": "Ruled",
+    "dotted": "Dotted",
+    "pencil": "Pencil",
+    "highlighter": "Highlighter",
+    "eraser": "Eraser",
+    "undo": "Undo",
+    "redo": "Redo",
+    "close": "Close",
+    "clicktoDraw": "Click to draw"
   }
 }
