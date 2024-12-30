@@ -220,17 +220,13 @@
     </section>
     <!-- Import data from other apps -->
     <section>
-      <p class="mb-2">{{ translations.settings.importMarkdown || '-' }}</p>
+      <p class="mb-2">{{ translations.settings.importFile || '-' }}</p>
       <div class="flex items-center ltr:space-x-2">
-        <ui-input
-          v-model="state.importDir"
-          readonly
-          :placeholder="translations.settings.pathplaceholder || '-'"
-          class="w-full"
-          @click="selectDirectory"
-        />
-        <ui-button class="w-full rtl:mx-2" @click="selectDirectory">
-          {{ translations.settings.selectpath || '-' }}
+        <ui-button class="w-full rtl:mx-2" @click="selectMarkdown">
+          {{ translations.settings.markdown || '-' }}
+        </ui-button>
+        <ui-button class="w-full rtl:mx-2" @click="selectBea">
+          {{ translations.menu.bea || '-' }}
         </ui-button>
       </div>
     </section>
@@ -239,6 +235,7 @@
 
 <script>
 import { shallowReactive, onMounted, computed } from 'vue';
+import { importNoteFromBea } from '@/utils/share';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -556,7 +553,7 @@ export default {
       }
     }
 
-    const selectDirectory = async () => {
+    const selectMarkdown = async () => {
       try {
         const {
           canceled,
@@ -590,6 +587,40 @@ export default {
           body:
             translations.settings.importFail ||
             'Failed to process the directory.',
+        });
+      }
+    };
+
+    const selectBea = async () => {
+      try {
+        const {
+          canceled,
+          filePaths: [file],
+        } = await ipcRenderer.callMain('dialog:open', {
+          title: 'Select file',
+          properties: ['openFile'],
+        });
+
+        if (canceled) return;
+
+        state.importFile = file;
+
+        await importNoteFromBea(state.importFile);
+
+        notification({
+          title: translations.settings.notification,
+          body:
+            translations.settings.importSuccess ||
+            'File processed successfully!',
+        });
+      } catch (error) {
+        console.error('Error selecting or processing file:', error);
+
+        // Failure notification
+        notification({
+          title: translations.settings.notification,
+          body:
+            translations.settings.importFail || 'Failed to process the file.',
         });
       }
     };
@@ -737,6 +768,9 @@ export default {
         importFail: 'settings.importFail',
         notification: 'settings.notification',
       },
+      menu: {
+        bea: 'menu.bea',
+      },
     });
 
     onMounted(async () => {
@@ -843,7 +877,8 @@ export default {
       chooseDefaultPath,
       defaultPath,
       appStore,
-      selectDirectory,
+      selectMarkdown,
+      selectBea,
       formatTime,
       deleteAuth,
       toggleAuth,

@@ -25,6 +25,7 @@ const api = {
   access: (dir) => access(dir, constants.R_OK | constants.W_OK),
   versions: process.versions,
   addCloseFn: (fn) => closeFnList.every(f => f !== fn) && closeFnList.push(fn),
+  onFileOpened: (callback) => ipcRenderer.on('file-opened', (event, path) => callback(path)),
 };
 
 // Expose API to the main world

@@ -655,7 +655,6 @@ import {
   ref,
 } from 'vue';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { importNoteFromBea } from '@/utils/share';
 import { useStore } from '@/store';
 import { saveFile } from '../../utils/copy-doc';
 import { useEditorImage } from '@/composable/editorImage';
@@ -1227,7 +1226,6 @@ export default {
       printContent,
       container,
       changeWheelDirection,
-      importNoteFromBea,
       shareNote,
     };
   },

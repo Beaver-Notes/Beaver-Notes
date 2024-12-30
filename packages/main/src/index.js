@@ -40,11 +40,7 @@ import ruTranslations from '../../renderer/src/pages/settings/locales/ru.json';
 import frTranslations from '../../renderer/src/pages/settings/locales/fr.json';
 
 const { localStorage } = browserStorage;
-
-let pendingFilePath = null;
-
 const isMac = process.platform === 'darwin';
-
 const isSingleInstance = app.requestSingleInstanceLock();
 
 if (!isSingleInstance) {
@@ -65,6 +61,7 @@ if (process.env.PORTABLE_EXECUTABLE_DIR)
 const env = import.meta.env;
 
 let mainWindow = null;
+let queuedPath = null;
 
 const createWindow = async () => {
   // Load the previous window state or fallback to defaults
@@ -97,11 +94,6 @@ const createWindow = async () => {
 
     if (env.MODE === 'development') {
       mainWindow?.webContents.openDevTools();
-    }
-
-    if (pendingFilePath) {
-      mainWindow.webContents.send('open-file-path', pendingFilePath);
-      pendingFilePath = null;
     }
   });
 
@@ -216,14 +208,13 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
 
 app.on('open-file', (event, path) => {
   event.preventDefault();
-  pendingFilePath = path;
-  if (mainWindow) {
+  if (mainWindow && mainWindow.webContents) {
     if (mainWindow.webContents.isLoading()) {
-      mainWindow.webContents.once('did-finish-load', () => {
-        localStorage.setItem('openFilePath', `${path}`);
-      });
+      // If the frontend isn't ready, queue the file path
+      queuedPath = path;
     } else {
-      localStorage.setItem('openFilePath', `${path}`);
+      // If the frontend is ready, send the file path immediately
+      mainWindow.webContents.send('file-opened', path);
     }
   }
 });
@@ -277,12 +268,24 @@ app
       let filePath = process.argv[1];
       filePath = path.resolve(filePath).replace(/\\/g, '/'); // Ensure proper formatting
 
-      if (path.extname(filePath).toLowerCase() === '.bea') {
-        localStorage.setItem('openFilePath', filePath);
+      if (mainWindow && mainWindow.webContents) {
+        if (mainWindow.webContents.isLoading()) {
+          // If the frontend isn't ready, queue the file path
+          queuedPath = filePath;
+        } else {
+          // If the frontend is ready, send the file path immediately
+          mainWindow.webContents.send('file-opened', filePath);
+        }
       }
     }
 
     initializeMenu();
+    mainWindow.webContents.on('did-finish-load', () => {
+      if (queuedPath) {
+        mainWindow.webContents.send('file-opened', queuedPath);
+        queuedPath = null;
+      }
+    });
   })
   .catch((e) => console.error('Failed create window:', e));
 

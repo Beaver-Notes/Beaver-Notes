@@ -34,13 +34,13 @@ import { useTranslation } from './composable/translations';
 export default {
   components: { AppSidebar, AppCommandPrompt },
   setup() {
+    const { onFileOpened } = window.electron;
     const theme = useTheme();
     const store = useStore();
     const router = useRouter();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const retrieved = ref(false);
-    const fileData = ref(null);
 
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
     const selectedCodeFont =
@@ -80,13 +80,6 @@ export default {
         if (trans) {
           translations.value = trans;
         }
-        const storedFilePath =
-          typeof localStorage !== 'undefined'
-            ? localStorage.getItem('openFilePath')
-            : null;
-        if (storedFilePath) {
-          loadFile(storedFilePath);
-        }
       });
 
       // Apply the stored zoom level on mount
@@ -111,39 +104,6 @@ export default {
         });
       }
     });
-
-    const loadFile = async (filePath) => {
-      if (!filePath) {
-        console.warn('No file path provided. Ignoring loadFile request.');
-        return;
-      }
-
-      try {
-        // Fetch file content using the provided file path
-        const response = await fetch(`file://${filePath}`);
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch file. Status: ${response.statusText}`
-          );
-        }
-
-        // Read and process the file content
-        const text = await response.text(); // Assuming .bea files are text-based
-        console.log(`Contents of the file (${filePath}):`, text);
-
-        // Process the file content (e.g., import a note)
-        importNoteFromBea(filePath);
-
-        // Optionally bind content to your Vue component
-        fileData.value = text;
-      } catch (error) {
-        console.error(`Error loading file (${filePath}):`, error);
-      } finally {
-        // Remove file path from localStorage after processing
-        localStorage.removeItem('openFilePath');
-      }
-    };
 
     onUnmounted(() => {
       appStore.updateToStorage();
@@ -184,6 +144,10 @@ export default {
       }
     }
     theme.loadTheme();
+    onFileOpened((path) => {
+      console.log('File opened:', path);
+      importNoteFromBea(path);
+    });
     window.electron.ipcRenderer.callMain(
       'app:set-zoom',
       +localStorage.getItem('zoomLevel') || 1

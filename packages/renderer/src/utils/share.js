@@ -116,7 +116,6 @@ export async function importNoteFromBea(filePath) {
     // Directly process the imported note
     await processImportedNote(fileData);
 
-    alert(`Note "${fileData.title}" imported successfully.`);
     return true;
   } catch (error) {
     console.error('Error importing note:', error);
@@ -191,6 +190,8 @@ async function processImportedNote(noteData) {
     }
 
     alert(`Note "${noteData.title}" processed and stored successfully.`);
+
+    window.location.reload();
   } catch (error) {
     console.error('Error processing imported note:', error);
     throw error;
