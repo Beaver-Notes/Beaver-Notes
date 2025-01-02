@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -112,22 +112,36 @@ function cleanup() {
 // Main function to handle build process
 function main() {
   console.log('Starting build process...');
-  exec(
-    'yarn electron-builder build --config electron-builder.config.cjs --win --mac --linux --publish always',
-    async (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Build failed: ${error.message}`);
-        return;
-      }
 
-      if (stderr) console.error(`Build warnings: ${stderr}`);
-      console.log(`Build output:\n${stdout}`);
+  // Use spawn instead of exec to capture real-time logs
+  const builder = spawn('yarn', ['electron-builder', 'build', '--config', 'electron-builder.config.cjs', '--win', '--mac', '--linux', '--publish', 'always']);
 
-      createChecksumsFile();
-      await processLinuxFolders();
-      cleanup();
-    },
-  );
+  // Pipe stdout to the console in real-time
+  builder.stdout.on('data', (data) => {
+    console.log(data.toString());
+  });
+
+  // Pipe stderr to the console in real-time
+  builder.stderr.on('data', (data) => {
+    console.error(data.toString());
+  });
+
+  // Handle build completion
+  builder.on('close', async (code) => {
+    if (code !== 0) {
+      console.error(`Build failed with exit code ${code}`);
+      return;
+    }
+
+    console.log('Build process completed successfully.');
+    createChecksumsFile();
+    await processLinuxFolders();
+    cleanup();
+  });
+
+  builder.on('error', (error) => {
+    console.error(`Error executing the build command: ${error.message}`);
+  });
 }
 
 main();
