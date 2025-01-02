@@ -223,7 +223,7 @@
       <p class="mb-2">{{ translations.settings.importFile || '-' }}</p>
       <div class="flex items-center ltr:space-x-2">
         <ui-button class="w-full rtl:mx-2" @click="selectMarkdown">
-          {{ translations.settings.markdown || '-' }}
+          {{ translations.settings.markdownArchive || '-' }}
         </ui-button>
         <ui-button class="w-full rtl:mx-2" @click="selectBea">
           {{ translations.menu.bea || '-' }}
@@ -767,6 +767,7 @@ export default {
         exportSuccess: 'settings.exportSuccess',
         importFail: 'settings.importFail',
         notification: 'settings.notification',
+        markdownArchive: 'settings.markdownArchive',
       },
       menu: {
         bea: 'menu.bea',
