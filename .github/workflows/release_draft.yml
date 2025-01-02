@@ -54,6 +54,20 @@ jobs:
             brew tap homebrew/core
             brew tap-new ${{ github.actor }}/custom-tap
             brew extract --version=4.18.1 rpm ${{ github.actor }}/custom-tap
+            
+            # Locate the formula file
+            FORMULA_PATH=$(brew --repo ${{ github.actor }}/custom-tap)/Formula/rpm@4.18.1.rb
+            
+            # Insert the flags at the correct location in the file
+            awk '{
+            print;
+            if (/^ *def install/) {
+                print "    ENV.append \\\"LDFLAGS\\\", \\\"-lomp\\\" if OS.mac?";
+                print "    ENV.append_to_cflags \\\"-Wno-implicit-function-declaration\\\" if DevelopmentTools.installed?";
+            }
+            }' "$FORMULA_PATH" > temp && mv temp "$FORMULA_PATH"
+            
+            # Install the formula
             brew install ${{ github.actor }}/custom-tap/rpm@4.18.1
 
       # Step 7: Install dependencies and build Electron app
