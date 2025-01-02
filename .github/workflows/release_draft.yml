@@ -47,13 +47,21 @@ jobs:
           NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
           eval "$(/opt/homebrew/bin/brew shellenv)"
-
+          
       # Step 6: Install RPM via Homebrew
       - name: Install RPM
         run: |
-          brew tap-new ${{ github.actor }}/custom-tap
-          brew extract --version=4.18.1 rpm ${{ github.actor }}/custom-tap
-          brew install ${{ github.actor }}/custom-tap/rpm@4.18.1
+            brew tap homebrew/core
+            brew tap-new ${{ github.actor }}/custom-tap
+            brew extract --version=4.18.1 rpm ${{ github.actor }}/custom-tap
+
+            # Edit the formula to include the compiler flag
+            brew edit ${{ github.actor }}/custom-tap/rpm@4.18.1 <<EOF
+            ENV.append_to_cflags "-Wno-implicit-function-declaration" if DevelopmentTools.clang_build_version >= 1403
+            EOF
+
+            # Install the RPM package
+            brew install ${{ github.actor }}/custom-tap/rpm@4.18.1
 
       # Step 7: Install dependencies and build Electron app
       - name: Install dependencies
