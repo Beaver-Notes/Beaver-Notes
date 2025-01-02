@@ -157,7 +157,6 @@ export default {
         Link: 'menu.Link',
         File: 'menu.File',
         Print: 'menu.Print',
-        Focusmode: 'menu.Focusmode',
         headingsTree: 'menu.headingsTree',
         orderedlist: 'menu.orderedlist',
         bulletlist: 'menu.bulletlist',

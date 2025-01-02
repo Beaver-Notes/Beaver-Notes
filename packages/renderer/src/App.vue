@@ -1,11 +1,11 @@
 <template>
   <app-command-prompt />
-  <app-sidebar v-if="!store.inFocusMode" />
+  <app-sidebar v-if="!store.inReaderMode" />
   <div
-    v-if="store.inFocusMode"
+    v-if="store.inReaderMode"
     class="fixed top-0 left-0 w-full h-full border-8 pointer-events-none z-50"
   ></div>
-  <main v-if="retrieved" :class="{ 'pl-16 print:p-2': !store.inFocusMode }">
+  <main v-if="retrieved" :class="{ 'pl-16 print:p-2': !store.inReaderMode }">
     <router-view />
   </main>
   <div

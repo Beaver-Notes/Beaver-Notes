@@ -2,7 +2,7 @@
   <div
     ref="container"
     class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-[#FFFFFF] dark:bg-[#232222] dark:text-neutral-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
-    :class="{ 'opacity-0 hover:opacity-100 transition': store.inFocusMode }"
+    :class="{ 'opacity-0 hover:opacity-100 transition': store.inReaderMode }"
     @wheel.passive="changeWheelDirection"
   >
     <div
@@ -609,10 +609,10 @@
         <v-remixicon name="riDeleteBin6Line" />
       </button>
       <button
-        v-tooltip.group="translations.menu.Focusmode"
-        :class="{ 'is-active': store.inFocusMode }"
+        v-tooltip.group="translations.menu.readerMode"
+        :class="{ 'is-active': store.inReaderMode }"
         class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="toggleFocusMode"
+        @click="toggleReaderMode"
       >
         <v-remixicon name="riArticleLine" />
       </button>
@@ -903,22 +903,18 @@ export default {
       }
     };
 
-    function toggleFocusMode() {
-      // Zoom and toggle inFocusMode state
+    function toggleReaderMode() {
+      // Zoom and toggle inReaderMode state
       handleZoomButtonClick();
-      store.inFocusMode = !store.inFocusMode;
+      store.inReaderMode = !store.inReaderMode;
 
-      if (store.inFocusMode) {
-        // Enter Focus Mode
+      if (store.inReaderMode) {
         document.documentElement.requestFullscreen();
-        props.editor.commands.focus(); // Ensure editor is focused
-        props.editor.setOptions({ editable: false }); // Make the editor editable
-        props.editor.view.update(this.editor.view.props); // Ensure the view updates
+        props.editor.commands.focus();
+        props.editor.setOptions({ editable: false });
       } else {
-        // Exit Focus Mode (to Reading Mode)
         document.exitFullscreen();
-        props.editor.setOptions({ editable: true }); // Make the editor read-only
-        props.editor.view.update(this.editor.view.props); // Ensure the view updates
+        props.editor.setOptions({ editable: true });
       }
     }
 
@@ -937,7 +933,7 @@ export default {
     const shortcuts = {
       'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
       'mod+shift+d': deleteNode,
-      'mod+shift+f': toggleFocusMode,
+      'mod+shift+f': toggleReaderMode,
       'mod+p': printContent,
     };
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
@@ -1211,7 +1207,7 @@ export default {
       headingsTree,
       textFormatting,
       getHeadingsTree,
-      toggleFocusMode,
+      toggleReaderMode,
       toggleRecording,
       handleVideoSelect,
       isRecording,

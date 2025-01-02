@@ -13,7 +13,7 @@
   "homepage": "https://beavernotes.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Daniele-rolli/Beaver-Notes.git"
+    "url": "https://github.com/Beaver-Notes/Beaver-Notes"
   },
   "main": "packages/main/dist/index.cjs",
   "scripts": {
@@ -72,10 +72,10 @@
     "electron": "^31.2.1",
     "electron-better-ipc": "^2.0.1",
     "electron-browser-storage": "^1.0.7",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "24.10.0",
     "electron-fetch": "^1.9.1",
     "electron-store": "^8.0.0",
-    "electron-updater": "^6.1.1",
+    "electron-updater": "^6.3.9",
     "electron-window-state": "^5.0.3",
     "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.3.0",
@@ -126,6 +126,7 @@
     "remove": "^0.1.5",
     "stream-browserify": "^3.0.0",
     "util": "^0.12.5",
+    "yaml": "^2.7.0",
     "yarn": "^1.22.22"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"

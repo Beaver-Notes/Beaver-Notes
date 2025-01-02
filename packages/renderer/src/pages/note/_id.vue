@@ -5,7 +5,7 @@
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
-      v-if="$route.query.linked && !store.inFocusMode"
+      v-if="$route.query.linked && !store.inReaderMode"
       class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group"
       title="Alt+Arrow left"
       @click="$router.back()"

@@ -158,11 +158,11 @@
             <input
               v-model="customWidthInput"
               type="text"
-              class="w-full p-2 rounded-lg border text-center"
+              class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-2 ring-amber-300"
               placeholder="translations.settings.enterWidth"
+              style="appearance: none"
               @blur="applyCustomWidth"
               @keydown.enter="applyCustomWidth"
-              style="appearance: none"
             />
             <span class="absolute top-2 right-2 text-gray-500">rem</span>
           </div>

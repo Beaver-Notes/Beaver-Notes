@@ -10,6 +10,7 @@ import {
 } from 'electron';
 import windowStateKeeper from 'electron-window-state';
 import * as browserStorage from 'electron-browser-storage';
+import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
 const { exec } = require('child_process');
 import path, { join, normalize } from 'path';
@@ -62,6 +63,7 @@ const env = import.meta.env;
 
 let mainWindow = null;
 let queuedPath = null;
+let autoUpdateEnabled = true;
 
 const createWindow = async () => {
   // Load the previous window state or fallback to defaults
@@ -288,6 +290,49 @@ app
     });
   })
   .catch((e) => console.error('Failed create window:', e));
+
+autoUpdater.on('checking-for-update', () => {
+  ipcMain.callFocusedRenderer('update-status', 'Checking for updates...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  ipcMain.callFocusedRenderer(
+    'update-status',
+    `Update available: ${info.version}`
+  );
+});
+
+autoUpdater.on('update-not-available', () => {
+  ipcMain.callFocusedRenderer('update-status', 'No updates available.');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  ipcMain.callFocusedRenderer('update-progress', progress);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  ipcMain.callFocusedRenderer('update-status', `Update ready: ${info.version}`);
+});
+
+ipcMain.answerRenderer('check-for-updates', async () => {
+  if (autoUpdateEnabled) {
+    autoUpdater.checkForUpdates();
+  }
+});
+
+ipcMain.answerRenderer('download-update', () => {
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.answerRenderer('install-update', () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.answerRenderer('toggle-auto-update', (_, enabled) => {
+  autoUpdateEnabled = enabled;
+});
+
+ipcMain.answerRenderer('get-auto-update-status', () => autoUpdateEnabled);
 
 ipcMain.answerRenderer('app:info', () => ({
   name: app.getName(),
