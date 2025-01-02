@@ -54,13 +54,6 @@ jobs:
             brew tap homebrew/core
             brew tap-new ${{ github.actor }}/custom-tap
             brew extract --version=4.18.1 rpm ${{ github.actor }}/custom-tap
-            
-            # Add the required compiler flag using echo
-            formula_path="/opt/homebrew/Library/Taps/${{ github.actor }}/homebrew-custom-tap/Formula/rpm@4.18.1.rb"
-            echo 'ENV.append_to_cflags "-Wno-implicit-function-declaration" if DevelopmentTools.clang_build_version >= 1403' \
-            | tee -a $formula_path
-
-            # Install the RPM package
             brew install ${{ github.actor }}/custom-tap/rpm@4.18.1
 
       # Step 7: Install dependencies and build Electron app
