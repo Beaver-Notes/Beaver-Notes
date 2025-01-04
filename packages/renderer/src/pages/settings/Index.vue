@@ -32,6 +32,9 @@
         <ui-button class="w-full rtl:mx-2" @click="chooseDefaultPath">
           {{ translations.settings.selectpath || '-' }}
         </ui-button>
+        <ui-button @click="clearPath">
+          <v-remixicon name="riDeleteBin6Line" />
+        </ui-button>
       </div>
     </section>
     <section>
@@ -645,6 +648,10 @@ export default {
       }
     }
 
+    async function clearPath() {
+      state.dataDir = '';
+    }
+
     onMounted(() => {
       defaultPath = localStorage.getItem('default-path') || ''; // Set defaultPath here
       state.dataDir = defaultPath;
@@ -876,6 +883,7 @@ export default {
       changeDataDir,
       handleAutoSyncChange,
       chooseDefaultPath,
+      clearPath,
       defaultPath,
       appStore,
       selectMarkdown,
