@@ -650,6 +650,7 @@ export default {
 
     async function clearPath() {
       state.dataDir = '';
+      localStorage.removeItem('default-path');
     }
 
     onMounted(() => {
