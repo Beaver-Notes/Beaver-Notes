@@ -267,17 +267,37 @@ app
     ]);
     createWindow();
     if (process.argv.length >= 2) {
-      let filePath = process.argv[1];
-      filePath = path.resolve(filePath).replace(/\\/g, '/'); // Ensure proper formatting
-
-      if (mainWindow && mainWindow.webContents) {
-        if (mainWindow.webContents.isLoading()) {
-          // If the frontend isn't ready, queue the file path
-          queuedPath = filePath;
-        } else {
-          // If the frontend is ready, send the file path immediately
-          mainWindow.webContents.send('file-opened', filePath);
+      let filePath = null;
+    
+      // Iterate through argv to find the first argument that ends with .bea
+      for (let i = 1; i < process.argv.length; i++) {
+        const arg = process.argv[i];
+        
+        // Check if the argument ends with .bea
+        if (arg.endsWith('.bea')) {
+          filePath = path.resolve(arg).replace(/\\/g, '/');
+          break; // Stop at the first .bea file
         }
+      }
+    
+      if (filePath) {
+        if (mainWindow && mainWindow.webContents) {
+          if (mainWindow.webContents.isLoading()) {
+            // If the frontend isn't ready, queue the file path
+            queuedPath = filePath;
+          } else {
+            // If the frontend is ready, send the file path immediately
+            mainWindow.webContents.send('file-opened', filePath);
+          }
+        }
+      } else {
+        // No .bea file found, just print and let the app handle the other arguments
+        console.log('No valid .bea file found. Continuing with other arguments.');
+        
+        // Process runtime arguments (like --ozone-platform-hint=auto)
+        process.argv.forEach(arg => {
+          console.log(`Received argument: ${arg}`);
+        });
       }
     }
 
