@@ -10,6 +10,7 @@ import {
 } from 'electron';
 import windowStateKeeper from 'electron-window-state';
 import * as browserStorage from 'electron-browser-storage';
+import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
 const { exec } = require('child_process');
 import path, { join, normalize } from 'path';
@@ -38,13 +39,9 @@ import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
 import trTranslation from '../../renderer/src/pages/settings/locales/tr.json';
 import ruTranslations from '../../renderer/src/pages/settings/locales/ru.json';
 import frTranslations from '../../renderer/src/pages/settings/locales/fr.json';
-import api from './server';
-import { generateToken } from './token';
 
 const { localStorage } = browserStorage;
-
 const isMac = process.platform === 'darwin';
-
 const isSingleInstance = app.requestSingleInstanceLock();
 
 if (!isSingleInstance) {
@@ -65,6 +62,8 @@ if (process.env.PORTABLE_EXECUTABLE_DIR)
 const env = import.meta.env;
 
 let mainWindow = null;
+let queuedPath = null;
+let autoUpdateEnabled = true;
 
 const createWindow = async () => {
   // Load the previous window state or fallback to defaults
@@ -135,6 +134,93 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
   return true;
 });
 
+ipcMain.answerRenderer('print-pdf', async (options) => {
+  console.log('printing');
+  const { backgroundColor = '#000000', pdfName } = options; // Default to black if not specified
+  console.log(options);
+
+  const focusedWindow = BrowserWindow.getFocusedWindow(); // Get the current window
+  if (!focusedWindow) return;
+
+  const { canceled, filePath } = await dialog.showSaveDialog(focusedWindow, {
+    title: 'Save PDF',
+    defaultPath: path.join(
+      app.getPath('desktop'),
+      pdfName || 'editor-output.pdf'
+    ),
+    filters: [
+      { name: 'PDF Files', extensions: ['pdf'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+
+  if (canceled || !filePath) {
+    console.log('Save operation canceled by the user.');
+    return;
+  }
+
+  try {
+    // Apply the custom background color and remove margins/padding
+    await focusedWindow.webContents.executeJavaScript(`
+      // Check if style already exists and remove it
+      (() => {
+        // Create a new style element
+        const style = document.createElement('style');
+        style.id = 'print-style'; // Unique ID to prevent conflicts
+        style.innerHTML = \`
+          @page {
+            margin: 0;
+          }
+          html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: ${backgroundColor};
+          }
+          * {
+            box-sizing: border-box;
+          }
+        \`;
+        document.head.appendChild(style);
+    
+        // Apply background color directly
+        document.body.style.backgroundColor = '${backgroundColor}';
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+        document.documentElement.style.backgroundColor = '${backgroundColor}';
+        document.documentElement.style.margin = '0';
+        document.documentElement.style.padding = '0';
+      })();
+    `);
+
+    // Generate the PDF with no margins
+    const pdfData = await focusedWindow.webContents.printToPDF({
+      printBackground: true,
+      pageSize: 'A4',
+      marginsType: 0,
+    });
+
+    // Save the PDF to the selected path
+    fs.writeFileSync(filePath, pdfData);
+  } catch (error) {
+    console.error(error);
+  }
+});
+
+app.on('open-file', (event, path) => {
+  event.preventDefault();
+  if (mainWindow && mainWindow.webContents) {
+    if (mainWindow.webContents.isLoading()) {
+      // If the frontend isn't ready, queue the file path
+      queuedPath = path;
+    } else {
+      // If the frontend is ready, send the file path immediately
+      mainWindow.webContents.send('file-opened', path);
+    }
+  }
+});
+
 async function windowCloseHandler(win) {
   try {
     await ipcMain.callRenderer(win, 'win:close');
@@ -180,10 +266,73 @@ app
       ensureDir(join(app.getPath('userData'), 'file-assets')),
     ]);
     createWindow();
-    api(ipcMain, mainWindow);
+    if (process.argv.length >= 2) {
+      let filePath = process.argv[1];
+      filePath = path.resolve(filePath).replace(/\\/g, '/'); // Ensure proper formatting
+
+      if (mainWindow && mainWindow.webContents) {
+        if (mainWindow.webContents.isLoading()) {
+          // If the frontend isn't ready, queue the file path
+          queuedPath = filePath;
+        } else {
+          // If the frontend is ready, send the file path immediately
+          mainWindow.webContents.send('file-opened', filePath);
+        }
+      }
+    }
+
     initializeMenu();
+    mainWindow.webContents.on('did-finish-load', () => {
+      if (queuedPath) {
+        mainWindow.webContents.send('file-opened', queuedPath);
+        queuedPath = null;
+      }
+    });
   })
   .catch((e) => console.error('Failed create window:', e));
+
+autoUpdater.on('checking-for-update', () => {
+  ipcMain.callFocusedRenderer('update-status', 'Checking for updates...');
+});
+
+autoUpdater.on('update-available', (info) => {
+  ipcMain.callFocusedRenderer(
+    'update-status',
+    `Update available: ${info.version}`
+  );
+});
+
+autoUpdater.on('update-not-available', () => {
+  ipcMain.callFocusedRenderer('update-status', 'No updates available.');
+});
+
+autoUpdater.on('download-progress', (progress) => {
+  ipcMain.callFocusedRenderer('update-progress', progress);
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  ipcMain.callFocusedRenderer('update-status', `Update ready: ${info.version}`);
+});
+
+ipcMain.answerRenderer('check-for-updates', async () => {
+  if (autoUpdateEnabled) {
+    autoUpdater.checkForUpdates();
+  }
+});
+
+ipcMain.answerRenderer('download-update', () => {
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.answerRenderer('install-update', () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.answerRenderer('toggle-auto-update', (_, enabled) => {
+  autoUpdateEnabled = enabled;
+});
+
+ipcMain.answerRenderer('get-auto-update-status', () => autoUpdateEnabled);
 
 ipcMain.answerRenderer('app:info', () => ({
   name: app.getName(),
@@ -246,6 +395,9 @@ ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data)
 );
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
+ipcMain.answerRenderer('fs:readData', (path) =>
+  fs.readFileSync(path, 'base64')
+);
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
 });
@@ -312,26 +464,6 @@ ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
-ipcMain.answerRenderer('auth:create-token', (data) => {
-  const { token, id, createdAt, expiredTime } = generateToken(data, {
-    expiredTime: 0,
-  });
-  const auths = store.settings.get('authRecords') || [];
-  console.log(auths);
-  auths.push({
-    id,
-    clientId: data.id,
-    platform: data.platform,
-    name: data.name,
-    auth: data.auth.sort().join(','), // Store as a sorted, comma-separated string
-    status: 1,
-    createdAt,
-    expiredTime,
-  });
-  store.settings.set('authRecords', auths);
-  console.log('auth:', token);
-  return token;
-});
 
 function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');
@@ -366,21 +498,23 @@ function initializeMenu() {
     translations = zhTranslations;
   }
 
-  import('electron-context-menu').then((contextMenuModule) => {
-    const contextMenu = contextMenuModule.default;
-  
-    contextMenu({
-      showLookUpSelection: true,
-      showSearchWithGoogle: true,
-      showCopyImage: true,
-      showSaveImageAs: true,
-      showCopyLink: true,
-      showInspectElement: true,
+  import('electron-context-menu')
+    .then((contextMenuModule) => {
+      const contextMenu = contextMenuModule.default;
+
+      contextMenu({
+        showLookUpSelection: true,
+        showSearchWithGoogle: true,
+        showCopyImage: true,
+        showSaveImageAs: true,
+        showCopyLink: true,
+        showInspectElement: true,
+      });
+    })
+    .catch((error) => {
+      console.error('Failed to load context menu:', error);
     });
-  }).catch((error) => {
-    console.error('Failed to load context menu:', error);
-  });
-  
+
   const template = [
     // { role: 'appMenu' }
     ...(isMac

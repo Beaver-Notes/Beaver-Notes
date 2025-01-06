@@ -5,28 +5,18 @@ import { access } from 'fs/promises';
 import path from 'path';
 
 const apiKey = 'electron';
-/**
- * @typedef {object} NotificationProps
- * @property {string} title 消息标题
- * @property {body} body 消息主体
- */
-/**
- * @param {NotificationProps} props
- */
+
+// Function to send notification
 function notification(props) {
   return ipcRenderer.callMain('app:notification', props);
 }
+
 let closeFnList = [];
-let requestAuthConfirm;
 ipcRenderer.answerMain('win:close', async () => {
   await Promise.allSettled(closeFnList.map((fn) => fn()));
 });
-ipcRenderer.answerMain('auth:request-auth', (data) => {
-  requestAuthConfirm && requestAuthConfirm(data);
-});
-/**
- * @see https://github.com/electron/electron/issues/21437#issuecomment-573522360
- */
+
+// API object for context bridge
 const api = {
   path,
   clipboard,
@@ -35,25 +25,13 @@ const api = {
   access: (dir) => access(dir, constants.R_OK | constants.W_OK),
   versions: process.versions,
   addCloseFn: (fn) => closeFnList.every(f => f !== fn) && closeFnList.push(fn),
-  setRequestAuthConfirm: (fn) => requestAuthConfirm = fn,
-  createToken: (data) => ipcRenderer.callMain('auth:create-token', data),
+  onFileOpened: (callback) => ipcRenderer.on('file-opened', (event, path) => callback(path)),
 };
 
+// Expose API to the main world
 if (import.meta.env.MODE !== 'test') {
-  /**
-   * The "Main World" is the JavaScript context that your main renderer code runs in.
-   * By default, the page you load in your renderer executes code in this world.
-   *
-   * @see https://www.electronjs.org/docs/api/context-bridge
-   */
   contextBridge.exposeInMainWorld(apiKey, api);
 } else {
-
-  /**
-   * Recursively Object.freeze() on objects and functions
-   * @see https://github.com/substack/deep-freeze
-   * @param obj Object on which to lock the attributes
-   */
   const deepFreeze = (obj) => {
     if (typeof obj === 'object' && obj !== null) {
       Object.keys(obj).forEach((prop) => {
@@ -63,14 +41,9 @@ if (import.meta.env.MODE !== 'test') {
         }
       });
     }
-
     return Object.freeze(obj);
   };
-
+  
   deepFreeze(api);
-
   window[apiKey] = api;
-
-  // Need for Spectron tests
-  window.electronRequire = require;
 }

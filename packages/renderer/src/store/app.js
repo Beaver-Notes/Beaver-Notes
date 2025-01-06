@@ -1,17 +1,8 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { useStorage, useLocalStorage } from '../composable/storage';
-
-const storage = useStorage('settings');
+import { useLocalStorage } from '../composable/storage';
 
 export const useAppStore = defineStore('appStore', () => {
-  const authRecords = ref([]);
-  const updateFromStorage = async () => {
-    authRecords.value = await storage.get('authRecords', []);
-  };
-  const updateToStorage = async () => {
-    await storage.set('authRecords', authRecords.value);
-  };
   const settingStorage = {
     collapsibleHeading: useLocalStorage('collapsibleHeading', {
       defaultValue: true,
@@ -30,9 +21,6 @@ export const useAppStore = defineStore('appStore', () => {
 
   const loading = ref(false);
   return {
-    authRecords,
-    updateFromStorage,
-    updateToStorage,
     setting,
     setSettingStorage: (key, value) => {
       settingStorage[key]?.set(value);

@@ -1,6 +1,7 @@
 import VRemixIcon from 'v-remixicon';
 import {
   riMoreFill,
+  riCalculatorLine,
   riArrowGoBackLine,
   riArrowGoForwardLine,
   riBallPenLine,
@@ -50,6 +51,10 @@ import {
   riParagraph,
   riH1,
   riH2,
+  riH3,
+  riH4,
+  riH5,
+  riH6,
   riListUnordered,
   riListOrdered,
   riDoubleQuotesR,
@@ -72,7 +77,7 @@ import {
   riBookmarkFill,
   riFileEditLine,
   riArrowDownLine,
-  riFocus3Line,
+  riArticleLine,
   riInboxUnarchiveLine,
   riBrushLine,
   riSortAsc,
@@ -94,6 +99,12 @@ import {
   riClipboardLine,
   riCheckFill,
   riErrorWarningLine,
+  riShareForwardLine,
+  riSingleQuotesR,
+  riPieChart2Line,
+  riFileTextFill,
+  riSplitCellsHorizontal,
+  riArrowDownSLine,
 } from 'v-remixicon/icons';
 
 VRemixIcon.add({
@@ -135,6 +146,10 @@ VRemixIcon.add({
   riParagraph,
   riH1,
   riH2,
+  riH3,
+  riH4,
+  riH5,
+  riH6,
   riListUnordered,
   riListOrdered,
   riDoubleQuotesR,
@@ -157,7 +172,7 @@ VRemixIcon.add({
   riBookmarkFill,
   riFileEditLine,
   riArrowDownLine,
-  riFocus3Line,
+  riArticleLine,
   riInboxUnarchiveLine,
   riBrushLine,
   riSortAsc,
@@ -177,11 +192,13 @@ VRemixIcon.add({
   riPlayFill,
   riPauseFill,
   riGithubFill,
+  riArrowDownSLine,
   riDeleteBackLine,
   riTableLine,
   riSunLine,
   riStopCircleLine,
   riMicLine,
+  riCalculatorLine,
   riVolumeDownFill,
   riVolumeMuteFill,
   riFile2Line,
@@ -191,6 +208,10 @@ VRemixIcon.add({
   riDownloadLine,
   riErrorWarningLine,
   riBallPenLine,
+  riShareForwardLine,
+  riSingleQuotesR,
+  riPieChart2Line,
+  riFileTextFill,
   riSpeedDial:
     'M20 13C20 15.2091 19.1046 17.2091 17.6569 18.6569L19.0711 20.0711C20.8807 18.2614 22 15.7614 22 13 22 7.47715 17.5228 3 12 3 6.47715 3 2 7.47715 2 13 2 15.7614 3.11929 18.2614 4.92893 20.0711L6.34315 18.6569C4.89543 17.2091 4 15.2091 4 13 4 8.58172 7.58172 5 12 5 16.4183 5 20 8.58172 20 13ZM15.293 8.29297 10.793 12.793 12.2072 14.2072 16.7072 9.70718 15.293 8.29297Z',
   riBack5:
@@ -199,6 +220,9 @@ VRemixIcon.add({
     'M12 2C6.47715 2 2 6.47715 2 12 2 17.5228 6.47715 22 12 22 17.5228 22 22 17.5228 22 12H20C20 16.4183 16.4183 20 12 20 7.58172 20 4 16.4183 4 12 4 7.58172 7.58172 4 12 4 14.7498 4 17.1755 5.38734 18.6155 7.50024L16 7.5V9.5H22V3.5H20L20.0001 5.99918C18.1757 3.57075 15.2713 2 12 2ZM9.5 8.5H14.5V10H11V11.25H12.625C13.7986 11.25 14.75 12.2014 14.75 13.375 14.75 14.5486 13.7986 15.5 12.625 15.5H9.5V14H12.625C12.9702 14 13.25 13.7202 13.25 13.375 13.25 13.0298 12.9702 12.75 12.625 12.75H9.5V8.5Z',
   mdiRegex:
     'M16,16.92C15.67,16.97 15.34,17 15,17C14.66,17 14.33,16.97 14,16.92V13.41L11.5,15.89C11,15.5 10.5,15 10.11,14.5L12.59,12H9.08C9.03,11.67 9,11.34 9,11C9,10.66 9.03,10.33 9.08,10H12.59L10.11,7.5C10.3,7.25 10.5,7 10.76,6.76V6.76C11,6.5 11.25,6.3 11.5,6.11L14,8.59V5.08C14.33,5.03 14.66,5 15,5C15.34,5 15.67,5.03 16,5.08V8.59L18.5,6.11C19,6.5 19.5,7 19.89,7.5L17.41,10H20.92C20.97,10.33 21,10.66 21,11C21,11.34 20.97,11.67 20.92,12H17.41L19.89,14.5C19.7,14.75 19.5,15 19.24,15.24V15.24C19,15.5 18.75,15.7 18.5,15.89L16,13.41V16.92H16V16.92M5,19A2,2 0 0,1 7,17A2,2 0 0,1 9,19A2,2 0 0,1 7,21A2,2 0 0,1 5,19H5Z',
+  riShare2Line:
+    'M12 2.58582L18.2071 8.79292L16.7929 10.2071L13 6.41424V16H11V6.41424L7.20711 10.2071L5.79289 8.79292L12 2.58582ZM3 18V14H5V18C5 18.5523 5.44772 19 6 19H18C18.5523 19 19 18.5523 19 18V14H21V18C21 19.6569 19.6569 21 18 21H6C4.34315 21 3 19.6569 3 18Z',
+  riSplitCellsHorizontal,
 });
 
 export default VRemixIcon;

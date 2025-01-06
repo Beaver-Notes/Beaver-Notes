@@ -5,7 +5,7 @@ import { usePasswordStore } from './passwd';
 
 export const useStore = defineStore('main', {
   state: () => ({
-    inFocusMode: false,
+    inReaderMode: false,
     activeNoteId: '',
     showPrompt: false,
   }),

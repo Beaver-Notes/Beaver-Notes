@@ -8,6 +8,7 @@ export default Node.create({
   name: 'mathBlock',
   group: 'block',
   atom: true,
+
   addAttributes() {
     return {
       content: {
@@ -21,6 +22,7 @@ export default Node.create({
       },
     };
   },
+
   parseHTML() {
     return [
       {
@@ -28,13 +30,33 @@ export default Node.create({
       },
     ];
   },
+
   renderHTML({ HTMLAttributes }) {
     return ['math-block', mergeAttributes(HTMLAttributes)];
   },
+
   addNodeView() {
     return VueNodeViewRenderer(MathBlock);
   },
+
   addInputRules() {
     return [nodeInputRule({ find: inputRegex, type: this.type })];
+  },
+
+  // Add the custom command
+  addCommands() {
+    return {
+      insertMathBlock:
+        (options = {}) =>
+        ({ chain }) => {
+          return chain()
+            .insertContent({
+              type: this.name,
+              attrs: options,
+            })
+            .focus()
+            .run();
+        },
+    };
   },
 });

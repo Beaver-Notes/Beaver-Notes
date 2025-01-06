@@ -1,16 +1,12 @@
 <template>
   <node-view-wrapper>
-    <p
-      ref="contentRef"
-      :class="{ 'dark:text-purple-400 text-purple-500': selected }"
-    ></p>
     <div v-if="selected" class="bg-input transition rounded-lg p-2">
       <div class="flex mb-2">
         <textarea
           v-focus="!useKatexMacros"
           :value="node.attrs.content"
           type="textarea"
-          placeholder="translations._idvue.MathPlaceholder || '-'"
+          :placeholder="translations._idvue.MathPlaceholder || '-'"
           class="bg-transparent flex-1"
           style="direction: ltr"
           @input="updateContent($event, 'content', true)"
@@ -43,6 +39,10 @@
         />
       </div>
     </div>
+    <p
+      ref="contentRef"
+      :class="{ 'dark:text-purple-400 text-purple-500': selected }"
+    ></p>
   </node-view-wrapper>
 </template>
 <script>

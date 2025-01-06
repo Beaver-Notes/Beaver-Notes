@@ -2,7 +2,7 @@
   <bubble-menu
     v-show="editor.isActive('image') || editor.isActive('link')"
     v-bind="{ editor, shouldShow: () => true }"
-    class="bg-white dark:bg-gray-800 rounded-lg max-w-xs border shadow-xl"
+    class="bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl"
   >
     <component
       :is="

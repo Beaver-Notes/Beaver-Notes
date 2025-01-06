@@ -114,6 +114,62 @@
         </button>
       </div>
     </section>
+    <!-- Page width -->
+    <section>
+      <p class="mb-2">
+        {{ translations.settings.editorSpacing || '-' }}
+      </p>
+      <div class="grid grid-cols-3 gap-4">
+        <!-- Normal Button -->
+        <button
+          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-gray-200"
+          :class="{
+            'outline-none ring-2 ring-primary': selectedWidth === '54rem',
+          }"
+          @click="setWidth('54rem')"
+        >
+          {{ translations.settings.normal || '-' }}
+        </button>
+        <!-- Wide Button -->
+        <button
+          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-gray-200"
+          :class="{
+            'outline-none ring-2 ring-primary': selectedWidth === '68rem',
+          }"
+          @click="setWidth('68rem')"
+        >
+          {{ translations.settings.wide || '-' }}
+        </button>
+        <!-- Custom Width (takes up the remaining space) -->
+        <div class="relative col-span-1">
+          <!-- Button (shown when not editing) -->
+          <button
+            v-if="!isEditingCustomWidth"
+            class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-gray-200"
+            :class="{
+              'outline-none ring-2 ring-primary': selectedWidth === customWidth,
+            }"
+            @click="isEditingCustomWidth = true"
+          >
+            {{ customWidth }}
+          </button>
+          <!-- Input (shown when editing) -->
+          <div v-else class="relative">
+            <input
+              v-model="customWidthInput"
+              type="text"
+              class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-2 ring-amber-300"
+              placeholder="translations.settings.enterWidth"
+              style="appearance: none"
+              @blur="applyCustomWidth"
+              @keydown.enter="applyCustomWidth"
+            />
+            <span class="absolute top-2 right-2 text-gray-500">rem</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Font -->
     <section>
       <p class="mb-2">{{ translations.settings.selectfont || '-' }}</p>
@@ -165,26 +221,6 @@
       <p class="mb-2">{{ translations.settings.interfaceOptions || '-' }}</p>
       <div>
         <div class="space-y-1">
-          <!-- Expan Page -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left">
-                {{ translations.settings.fullWidth || '-' }}
-              </span>
-            </div>
-            <label class="relative inline-flex cursor-pointer items-center">
-              <input
-                id="switch"
-                v-model="editorWidthChecked"
-                type="checkbox"
-                class="peer sr-only"
-                @change="toggleEditorWidth"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-amber-400 peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
-          </div>
           <!-- Clear Text - OLED -->
           <div class="flex items-center py-2 justify-between">
             <div>
@@ -232,7 +268,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, computed } from 'vue';
+import { shallowReactive, onMounted, computed, ref } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -524,7 +560,10 @@ export default {
         invaliddata: 'settings.invaliddata',
         syncreminder: 'settings.syncreminder',
         spellcheck: 'settings.spellcheck',
-        fullWidth: 'settings.fullwidth',
+        editorSpacing: 'settings.editorSpacing',
+        normal: 'settings.normal',
+        wide: 'settings.wide',
+        enterWidth: 'settings.enterwidth',
         interfacesize: 'settings.interfacesize',
         large: 'settings.large',
         medium: 'settings.medium',
@@ -577,22 +616,6 @@ export default {
       shortcuts[combo]();
     });
 
-    const editorWidthChecked = computed({
-      get: () => localStorage.getItem('editorWidth') === '68rem',
-      set: (value) => {
-        localStorage.setItem('editorWidth', value ? '68rem' : '54rem');
-        document.documentElement.style.setProperty(
-          '--selected-width',
-          value ? '68rem' : '54rem'
-        );
-        window.location.reload();
-      },
-    });
-
-    const toggleEditorWidth = () => {
-      editorWidthChecked.value = !editorWidthChecked.value;
-    };
-
     const ClearFontChecked = computed({
       get: () => localStorage.getItem('selected-dark-text') === '#CCCCCC',
       set: (value) => {
@@ -631,6 +654,35 @@ export default {
       window.location.reload();
     };
 
+    // Reactive variables for width management
+    const selectedWidth = ref(localStorage.getItem('editorWidth') || '54rem');
+    const customWidth = ref(
+      localStorage.getItem('customEditorWidth') || '60rem'
+    );
+    const customWidthInput = ref(customWidth.value.replace('rem', ''));
+    const isEditingCustomWidth = ref(false);
+
+    // Set selected width
+    const setWidth = (width) => {
+      selectedWidth.value = width;
+      localStorage.setItem('editorWidth', width);
+      document.documentElement.style.setProperty('--selected-width', width);
+    };
+
+    // Apply custom width when user finishes input
+    const applyCustomWidth = () => {
+      if (customWidthInput.value) {
+        customWidth.value = `${customWidthInput.value}rem`;
+        selectedWidth.value = customWidth.value;
+        localStorage.setItem('customEditorWidth', customWidth.value);
+        localStorage.setItem('editorWidth', customWidth.value);
+        document.documentElement.style.setProperty(
+          '--selected-width',
+          customWidth.value
+        );
+      }
+      isEditingCustomWidth.value = false;
+    };
     return {
       state,
       theme,
@@ -639,12 +691,16 @@ export default {
       translations,
       toggleRtl,
       toggleLtr,
-      editorWidthChecked,
       toggleClearFont,
       ClearFontChecked,
-      toggleEditorWidth,
       visibilityMenubar,
       toggleVisibilityOfMenubar,
+      selectedWidth,
+      customWidth,
+      customWidthInput,
+      isEditingCustomWidth,
+      setWidth,
+      applyCustomWidth,
       LTRImg,
       LTRImgDark,
       RTLImg,

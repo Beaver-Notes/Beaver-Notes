@@ -5,7 +5,7 @@
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
-      v-if="$route.query.linked && !store.inFocusMode"
+      v-if="$route.query.linked && !store.inReaderMode"
       class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group"
       title="Alt+Arrow left"
       @click="$router.back()"
@@ -19,7 +19,7 @@
       </span>
     </button>
     <template v-if="editor && !note.isLocked">
-      <note-menu v-bind="{ editor, id }" class="mb-6" />
+      <note-menu v-bind="{ editor, id, note }" class="mb-6" />
       <note-search
         v-if="showSearch"
         v-bind="{ editor }"
@@ -349,7 +349,7 @@ export default {
 }
 
 :root {
-  --selected-width: '48rem';
+  --selected-width: '54rem';
 }
 
 .editor {

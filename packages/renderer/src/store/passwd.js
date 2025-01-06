@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage';
-import bcrypt from 'bcryptjs';
+import bcryptjs from 'bcryptjs';
 
 const storage = useStorage();
 
@@ -21,7 +21,7 @@ export const usePasswordStore = defineStore('password', {
     },
     async setsharedKey(password) {
       try {
-        const hashedPassword = await bcrypt.hash(password, 10); // Hash the password
+        const hashedPassword = await bcryptjs.hash(password, 10); // Hash the password
         this.sharedKey = hashedPassword;
         await storage.set('sharedKey', hashedPassword); // Store the hashed password
       } catch (error) {
@@ -31,7 +31,7 @@ export const usePasswordStore = defineStore('password', {
     },
     async isValidPassword(enteredPassword) {
       try {
-        return await bcrypt.compare(enteredPassword, this.sharedKey); // Compare with hashed global password
+        return await bcryptjs.compare(enteredPassword, this.sharedKey); // Compare with hashed global password
       } catch (error) {
         console.error('Error validating password:', error);
         throw error;
@@ -48,7 +48,7 @@ export const usePasswordStore = defineStore('password', {
         }
 
         // Hash the new password
-        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        const hashedNewPassword = await bcryptjs.hash(newPassword, 10);
 
         // Update the sharedKey with the new hashed password
         this.sharedKey = hashedNewPassword;

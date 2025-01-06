@@ -7,93 +7,11 @@
         translations.settings.resetPassword
       }}</ui-button>
     </section>
-    <section>
-      <p class="mb-2">{{ t(translations.settings.authorizedApplications) }}</p>
-      <div
-        v-if="appStore.authRecords.length === 0"
-        class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl"
-      >
-        <div class="space-y-0 py-2">
-          {{ translations.settings.noAuthorizedApplicaitons || '-' }}
-        </div>
-      </div>
-      <div v-else class="bg-[#F2F2F2] dark:bg-[#2D2D2D] px-2 rounded-xl">
-        <div
-          v-for="(auth, index) in appStore.authRecords"
-          :key="auth.id"
-          class="space-y-1"
-        >
-          <div
-            class="items-center py-2 justify-between"
-            :class="{ 'border-b-2': index !== appStore.authRecords.length - 1 }"
-          >
-            <div class="flex flex-col">
-              <div class="text-lg gap-1">
-                <div>{{ auth.name }}</div>
-                <div
-                  v-if="auth.auth !== '' && auth.auth != null"
-                  class="text-sm"
-                >
-                  <p class="mb-1">
-                    {{ t(translations.settings.permissions) }}:
-                  </p>
-                  <div class="flex flex-wrap gap-1">
-                    <span
-                      v-for="p in auth.auth.split(',')"
-                      :key="p"
-                      class="py-0.5 px-1 rounded-md bg-primary text-amber-500 bg-opacity-10 dark:text-amber-400"
-                    >
-                      {{ p }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div class="text-sm">
-                <span>{{ t(translations.settings.id) }}: {{ auth.id }}</span>
-              </div>
-              <div class="flex flex-col">
-                <div class="text-sm gap-1">
-                  <div>
-                    {{ t(translations.settings.platform) }}: {{ auth.platform }}
-                  </div>
-                  <div>
-                    {{ t(translations.settings.createdAt) }}:
-                    {{ formatTime(auth.createdAt) }}
-                  </div>
-                </div>
-              </div>
-              <div class="w-full pt-2">
-                <div class="flex flex-col-2 gap-2">
-                  <ui-button
-                    class="w-full"
-                    @click="
-                      toggleAuth(auth, !authorizatedApps[index]);
-                      authorizatedApps[index] = !authorizatedApps[index];
-                    "
-                  >
-                    <span v-if="authorizatedApps[index]">{{
-                      t(translations.settings.disable)
-                    }}</span>
-                    <span v-else>{{ t(translations.settings.enable) }}</span>
-                  </ui-button>
-                  <button
-                    class="w-full ui-button h-10 relative transition focus:ring-2 ring-amber-300 bg-primary text-white dark:bg-secondary dark:hover:bg-primary hover:bg-secondary rounded-lg"
-                    @click="() => deleteAuth(auth)"
-                  >
-                    {{ t(translations.settings.revoke) }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
   </div>
 </template>
 
 <script>
-import { shallowReactive, onMounted, ref, watch } from 'vue';
+import { shallowReactive, onMounted } from 'vue';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { usePasswordStore } from '@/store/passwd';
@@ -229,11 +147,9 @@ export default {
         autosync: 'settings.autosync',
         clearfont: 'settings.clearfont',
         platform: 'settings.platform',
-        noAuthorizedApplicaitons: 'settings.noAuthorizedApplicaitons',
         id: 'settings.id',
         confirmDelete: 'settings.confirmDelete',
         createdAt: 'settings.createdAt',
-        authorizedApplications: 'settings.authorizedApplications',
       },
     });
 
@@ -259,37 +175,6 @@ export default {
     };
 
     const appStore = useAppStore();
-    appStore.updateFromStorage();
-    const authorizatedApps = ref(
-      appStore.authRecords.map((a) => a.status === 1)
-    );
-
-    watch(
-      () => appStore.authRecords,
-      (records) => {
-        authorizatedApps.value = records.map((a) => a.status === 1);
-      }
-    );
-
-    function deleteAuth(auth) {
-      dialog.confirm({
-        body: t(translations.settings.confirmDelete, {
-          name: auth.name,
-          id: auth.id,
-        }),
-        onConfirm: async () => {
-          appStore.authRecords = appStore.authRecords.filter(
-            (a) => a.id !== auth.id
-          );
-          await appStore.updateToStorage();
-        },
-      });
-    }
-
-    async function toggleAuth(auth, v) {
-      auth.status = v ? 1 : 0;
-      await appStore.updateToStorage();
-    }
 
     return {
       state,
@@ -299,9 +184,6 @@ export default {
       defaultPath,
       appStore,
       formatTime,
-      deleteAuth,
-      toggleAuth,
-      authorizatedApps,
       t,
     };
   },

@@ -3,7 +3,7 @@
     <slot v-bind="{ editor }" />
     <editor-content
       :editor="editor"
-      class="prose dark:text-gray-100 max-w-none prose-indigo"
+      class="prose dark:text-neutral-100 max-w-none prose-indigo"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
   </div>
@@ -65,25 +65,20 @@ export default {
     function handleClick(view, pos, { target, altKey }) {
       const closestAnchor = target.closest('a');
 
-      // Check if the anchor has the specific attribute or is a mention
       const isTiptapURL = closestAnchor?.hasAttribute('tiptap-url');
       const isMentionURL = target.hasAttribute('data-mention');
 
-      // If it's a Tiptap URL and Alt key is held
       if (isTiptapURL && altKey) {
         if (closestAnchor.href.startsWith('note://')) {
-          // Handle internal navigation
           const noteId = closestAnchor.href.slice(7);
           router.push({
             params: { id: noteId },
             query: { linked: true },
           });
         } else {
-          // Open external links in a new tab
           window.open(closestAnchor.href, '_blank', 'noopener');
         }
       } else if (isMentionURL) {
-        // Handle mention links
         router.push(`/?label=${encodeURIComponent(target.dataset.id)}`);
       }
     }
@@ -126,4 +121,5 @@ export default {
   },
 };
 </script>
+
 <style src="@/assets/css/editor.css"></style>

@@ -29,20 +29,10 @@ export const redCallout = Node.create({
 
   addCommands() {
     return {
-      setCallout:
-        (attrs) =>
-        ({ commands }) => {
-          return commands.wrapIn(this.name, attrs);
-        },
-      toggleCallout:
-        (attrs) =>
-        ({ commands }) => {
-          return commands.toggleWrap(this.name, attrs);
-        },
-      unsetCallout:
+      setRedCallout:
         () =>
         ({ commands }) => {
-          return commands.lift(this.name);
+          return commands.wrapIn(this.name);
         },
     };
   },

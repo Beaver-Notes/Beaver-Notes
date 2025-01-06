@@ -93,7 +93,7 @@ const shortcuts = [
         keys: getFormattedKeys(['Ctrl', 'Shift', 'L']),
       },
       { name: 'Toggleexport', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
-      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'U']) },
+      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
     ],
   },
   {
@@ -119,7 +119,7 @@ const shortcuts = [
       { name: 'Underline', keys: getFormattedKeys(['Ctrl', 'U']) },
       { name: 'Link', keys: getFormattedKeys(['Ctrl', 'K']) },
       { name: 'Strikethrough', keys: getFormattedKeys(['Ctrl', 'Shift', 'X']) },
-      { name: 'Highlight', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
+      { name: 'Highlight', keys: getFormattedKeys(['Ctrl', 'Shift', 'H']) },
       { name: 'SuperScript', keys: getFormattedKeys(['Ctrl', '.']) },
       { name: 'SubScript', keys: getFormattedKeys(['Alt', ',']) },
       { name: 'Inlinecode', keys: getFormattedKeys(['Ctrl', 'E']) },

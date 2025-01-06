@@ -1,12 +1,12 @@
 .collapse-indicator {
-    transform: rotate(90deg);
+  transform: rotate(90deg);
 }
 .collapse-indicator {
-    @apply absolute -left-6 top-2 cursor-pointer opacity-0 hover:opacity-100 h-5 w-6;
+  @apply absolute -left-6 top-2 cursor-pointer opacity-0 hover:opacity-100 h-5 w-6;
 }
 .collapse-indicator[data-hide] {
-    transform: none;
-    @apply opacity-100;
+  transform: none;
+  @apply opacity-100;
 }
 
 .ProseMirror pre,
@@ -17,8 +17,8 @@
   font-variant-ligatures: normal;
 }
 .ProseMirror {
-    font-size: 1.065rem;
-    line-height: 1.5;
+  font-size: 1.065rem;
+  line-height: 1.5;
 }
 .ProseMirror a {
   @apply text-primary dark:text-amber-400 !important;
@@ -37,11 +37,11 @@
 .ProseMirror h6 {
   @apply dark:text-[color:var(--selected-dark-text)];
   margin-top: 1em !important;
-  margin-bottom: 1em !important; 
+  margin-bottom: 1em !important;
 }
 .ProseMirror p {
   margin-top: 0 !important;
-  margin-bottom: 0 !important; 
+  margin-bottom: 0 !important;
   @apply dark:text-[color:var(--selected-dark-text)];
 }
 .ProseMirror .mention {
@@ -49,7 +49,7 @@
   cursor: pointer;
 }
 
-[dir="rtl"] .mention {
+[dir='rtl'] .mention {
   display: inline-block;
   margin-left: 2px;
 }
@@ -65,36 +65,36 @@ img.ProseMirror-selectednode {
 }
 
 .ProseMirror {
-  min-height:  400px;
+  min-height: 400px;
   & > :first-child {
     margin-top: 0;
   }
   &:focus {
     outline: none;
   }
-  li[data-checked="false"] {
-  @apply dark:text-[color:var(--selected-dark-text)]
-}
-li[data-checked="true"] {
-  @apply text-neutral-500 line-through
-}
+  li[data-checked='false'] {
+    @apply dark:text-[color:var(--selected-dark-text)];
+  }
+  li[data-checked='true'] {
+    @apply text-neutral-500 line-through dark:text-[color:var(--selected-dark-text)];
+  }
   ul li {
-      margin-top: 0 !important;
-      margin-bottom: 0 !important;
-      @apply pr-[1.25em] rtl:pr-[1.25em] !important;
-      &::before {
-          top: 0.45em !important;
-      }
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    @apply pr-[1.25em] rtl:pr-[1.25em] !important;
+    &::before {
+      top: 0.45em !important;
+    }
   }
   ol li {
     margin-top: 0 !important;
     margin-bottom: 0 !important;
     @apply pr-[1.25em] rtl:pr-[1.25em] !important;
-}
-  li ul {
-      margin-top: 0 !important;
   }
-  ul[data-type="taskList"] {
+  li ul {
+    margin-top: 0 !important;
+  }
+  ul[data-type='taskList'] {
     list-style: none;
     padding: 0;
     li {
@@ -110,7 +110,7 @@ li[data-checked="true"] {
       p {
         margin: 0;
       }
-      input[type="checkbox"] {
+      input[type='checkbox'] {
         appearance: none;
         -webkit-appearance: none;
         width: 20px;
@@ -122,13 +122,13 @@ li[data-checked="true"] {
         transition: border-color 0.3s;
       }
 
-      input[type="checkbox"]:checked {
+      input[type='checkbox']:checked {
         border-color: #fbbf24;
         background-color: #fbbf24;
       }
 
       /* Optional: You can add a custom background or other styles for the checked state */
-      input[type="checkbox"]:checked::before {
+      input[type='checkbox']:checked::before {
         content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='rgba(255, 255, 255, 0.8)'%3E%3C/path%3E%3C/svg%3E");
         display: block;
         width: 100%;
@@ -186,34 +186,38 @@ li[data-checked="true"] {
 
     td,
     th {
-        @apply min-w-[1em] border-2 border-solid dark:border-[#353344] p-3 box-border relative;
-        word-wrap: break-word;
-        max-width: 10px;
-        text-align: initial; /* Reset text alignment */
+      @apply min-w-[1em] border-2 border-solid dark:border-neutral-600 p-3 box-border relative;
+      word-wrap: break-word;
+      max-width: 10px;
+      text-align: initial; /* Reset text alignment */
     }
 
     th {
-        @apply bg-neutral-700 bg-opacity-10 dark:bg-neutral-600 dark:bg-opacity-30 !important;
-        text-align: initial; /* Reset text alignment */
+      @apply bg-neutral-700 bg-opacity-10 dark:bg-neutral-600 dark:bg-opacity-30 !important;
+      text-align: initial; /* Reset text alignment */
+    }
+
+    .selectedCell:after {
+      @apply bg-neutral-300 bg-opacity-20 content-[''] left-0 right-0 top-0 bottom-0 pointer-events-none absolute z-20;
     }
 
     /* Adjust padding for first child based on direction */
     td:first-child {
-        @apply left-2 rtl:left-auto rtl:right-2; /* Adjust left and right properties for RTL */
+      @apply left-2 rtl:left-auto rtl:right-2; /* Adjust left and right properties for RTL */
     }
 
     .selectedCell:after {
-        @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
+      @apply absolute left-0 right-0 top-0 bottom-0 pointer-events-none;
     }
 
     .column-resize-handle {
-        @apply absolute top-0 w-1 pointer-events-none;
+      @apply absolute top-0 w-1 pointer-events-none;
     }
-}
+  }
 
   pre {
-    background: #0D0D0D;
-    color: #FFF;
+    background: #0d0d0d;
+    color: #fff;
     font-family: var(--selected-font-code);
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;

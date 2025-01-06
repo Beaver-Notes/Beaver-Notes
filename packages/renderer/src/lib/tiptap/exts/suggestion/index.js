@@ -8,86 +8,91 @@ import SuggestionComponent from './SuggestionComponent.vue';
 export default function ({ name, props: customProps = {}, configure = {} }) {
   return Node.create({
     name,
-    defaultOptions: {
-      HTMLAttributes: {},
-      renderLabel({ options, node }) {
-        return `${options.suggestion.char}${node.attrs.label ?? node.attrs.id}`;
-      },
-      suggestion: {
-        char: '@',
-        pluginKey: new PluginKey(name),
-        render: () => {
-          let component;
-          let popup;
 
-          return {
-            onStart: (props) => {
-              component = new VueRenderer(SuggestionComponent, {
-                props: { ...props, ...customProps },
-                editor: props.editor,
-              });
-
-              popup = tippy('body', {
-                getReferenceClientRect: props.clientRect,
-                appendTo: () => document.body,
-                content: component.element,
-                showOnCreate: true,
-                interactive: true,
-                trigger: 'manual',
-                placement: 'bottom-start',
-              });
-            },
-            onUpdate(props) {
-              component.updateProps({ ...props, ...customProps });
-
-              popup[0].setProps({
-                getReferenceClientRect: props.clientRect,
-              });
-            },
-            onKeyDown(props) {
-              if (props.event.key === 'Escape') {
-                popup[0].hide();
-
-                return true;
-              }
-
-              return component.ref?.onKeyDown(props);
-            },
-            onExit() {
-              popup[0].destroy();
-              component.destroy();
-            },
-          };
+    addOptions() {
+      return {
+        HTMLAttributes: {},
+        renderLabel({ options, node }) {
+          return `${options.suggestion.char}${
+            node.attrs.label ?? node.attrs.id
+          }`;
         },
-        command: ({ editor, range, props }) => {
-          // increase range.to by one when the next node is of type "text"
-          // and starts with a space character
-          const nodeAfter = editor.view.state.selection.$to.nodeAfter;
-          const overrideSpace = nodeAfter?.text?.startsWith(' ');
+        suggestion: {
+          char: '@',
+          pluginKey: new PluginKey(name),
+          render: () => {
+            let component;
+            let popup;
 
-          if (overrideSpace) {
-            range.to += 1;
-          }
+            return {
+              onStart: (props) => {
+                component = new VueRenderer(SuggestionComponent, {
+                  props: { ...props, ...customProps },
+                  editor: props.editor,
+                });
 
-          editor
-            .chain()
-            .focus()
-            .insertContentAt(range, [
-              {
-                type: name,
-                attrs: props,
+                popup = tippy('body', {
+                  getReferenceClientRect: props.clientRect,
+                  appendTo: () => document.body,
+                  content: component.element,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: 'manual',
+                  placement: 'bottom-start',
+                });
               },
-              {
-                type: 'text',
-                text: ' ',
+              onUpdate(props) {
+                component.updateProps({ ...props, ...customProps });
+
+                popup[0].setProps({
+                  getReferenceClientRect: props.clientRect,
+                });
               },
-            ])
-            .run();
+              onKeyDown(props) {
+                if (props.event.key === 'Escape') {
+                  popup[0].hide();
+
+                  return true;
+                }
+
+                return component.ref?.onKeyDown(props);
+              },
+              onExit() {
+                popup[0].destroy();
+                component.destroy();
+              },
+            };
+          },
+          command: ({ editor, range, props }) => {
+            // increase range.to by one when the next node is of type "text"
+            // and starts with a space character
+            const nodeAfter = editor.view.state.selection.$to.nodeAfter;
+            const overrideSpace = nodeAfter?.text?.startsWith(' ');
+
+            if (overrideSpace) {
+              range.to += 1;
+            }
+
+            editor
+              .chain()
+              .focus()
+              .insertContentAt(range, [
+                {
+                  type: name,
+                  attrs: props,
+                },
+                {
+                  type: 'text',
+                  text: ' ',
+                },
+              ])
+              .run();
+          },
+          allow: ({ editor, range }) => {
+            return editor.can().insertContentAt(range, { type: name });
+          },
         },
-        allow: ({ editor, range }) => {
-          return editor.can().insertContentAt(range, { type: name });
-        },
-      },
+      };
     },
 
     group: 'inline',

@@ -31,7 +31,7 @@
       />
       <button
         icon
-        class="text-gray-600 dark:text-gray-200"
+        class="text-neutral-600 dark:text-neutral-200"
         title="Remove link"
         @click="editor.chain().focus().unsetLink().run()"
       >
@@ -39,13 +39,13 @@
       </button>
       <button
         icon
-        class="text-gray-600 -mr-1 dark:text-gray-200"
+        class="text-neutral-600 -mr-1 dark:text-neutral-200"
         @click="updateCurrentLink"
       >
         <v-remixicon name="riSave3Line" />
       </button>
     </div>
-    <span class="text-xs text-gray-600 dark:text-gray-300 leading-none">{{
+    <span class="text-xs text-neutral-600 dark:text-neutral-300 leading-none">{{
       translations.link.shortcut || '-'
     }}</span>
   </div>
