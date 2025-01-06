@@ -49,7 +49,7 @@ const electronBuilderConfig = {
       'com.apple.security.device.audio-input': true,
     },
     notarize: {
-      teamId: process.env.APPLE_TEAM_ID,
+      teamId: process.env.APPLE_TEAM_ID || 'none',
     },
   },
   linux: {
