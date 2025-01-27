@@ -68,8 +68,8 @@
         </button>
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '0.8' }"
-          @click="setZoom(0.8)"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '0.9' }"
+          @click="setZoom(0.9)"
         >
           <img
             src="/src/assets/images/More Space.png"
@@ -775,9 +775,11 @@ export default {
       );
     },
     setZoom(newZoomLevel) {
+      console.log('Setting zoom level to:', newZoomLevel);
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
       this.state.zoomLevel = newZoomLevel.toFixed(1);
       localStorage.setItem('zoomLevel', this.state.zoomLevel);
+      window.location.reload();
     },
   },
 };

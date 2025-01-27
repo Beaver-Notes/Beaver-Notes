@@ -203,7 +203,7 @@ img.ProseMirror-selectednode {
 
     /* Adjust padding for first child based on direction */
     td:first-child {
-      @apply left-2 rtl:left-auto rtl:right-2; /* Adjust left and right properties for RTL */
+      @apply rtl:left-auto rtl:right-2; /* Adjust left and right properties for RTL */
     }
 
     .selectedCell:after {
@@ -252,5 +252,5 @@ img.ProseMirror-selectednode {
 }
 
 mark {
-  @apply bg-yellow-200 dark:bg-yellow-100;
+  @apply bg-yellow-200 dark:bg-yellow-100 rounded;
 }

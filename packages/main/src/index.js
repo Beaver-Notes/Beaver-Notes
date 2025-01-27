@@ -268,18 +268,18 @@ app
     createWindow();
     if (process.argv.length >= 2) {
       let filePath = null;
-    
+
       // Iterate through argv to find the first argument that ends with .bea
       for (let i = 1; i < process.argv.length; i++) {
         const arg = process.argv[i];
-        
+
         // Check if the argument ends with .bea
         if (arg.endsWith('.bea')) {
           filePath = path.resolve(arg).replace(/\\/g, '/');
           break; // Stop at the first .bea file
         }
       }
-    
+
       if (filePath) {
         if (mainWindow && mainWindow.webContents) {
           if (mainWindow.webContents.isLoading()) {
@@ -292,10 +292,12 @@ app
         }
       } else {
         // No .bea file found, just print and let the app handle the other arguments
-        console.log('No valid .bea file found. Continuing with other arguments.');
-        
+        console.log(
+          'No valid .bea file found. Continuing with other arguments.'
+        );
+
         // Process runtime arguments (like --ozone-platform-hint=auto)
-        process.argv.forEach(arg => {
+        process.argv.forEach((arg) => {
           console.log(`Received argument: ${arg}`);
         });
       }
@@ -387,8 +389,10 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
   }
 });
 
-ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
-  mainWindow.webContents.zoomFactor = newZoomLevel;
+ipcMain.handle('app:set-zoom', (newZoomLevel) => {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.setZoomFactor(newZoomLevel);
+  }
 });
 
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
