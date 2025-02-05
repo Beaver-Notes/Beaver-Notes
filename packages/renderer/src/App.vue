@@ -47,6 +47,7 @@ export default {
       localStorage.getItem('selected-font-code') || 'JetBrains Mono';
     const selectedDarkText =
       localStorage.getItem('selected-dark-text') || 'white';
+    const colorScheme = localStorage.getItem('color-scheme') || 'light';
     const editorWidth = localStorage.getItem('editorWidth') || '54rem';
     document.documentElement.style.setProperty('--selected-font', selectedFont);
     document.documentElement.style.setProperty(
@@ -57,6 +58,7 @@ export default {
       '--selected-dark-text',
       selectedDarkText
     );
+    document.documentElement.classList.add(colorScheme);
     document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const zoom = async () => {

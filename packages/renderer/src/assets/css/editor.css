@@ -21,7 +21,7 @@
   line-height: 1.5;
 }
 .ProseMirror a {
-  @apply text-primary dark:text-amber-400 !important;
+  @apply text-primary dark:text-primary !important;
 }
 .ProseMirror strong {
   @apply dark:text-[color:var(--selected-dark-text)];
@@ -45,7 +45,7 @@
   @apply dark:text-[color:var(--selected-dark-text)];
 }
 .ProseMirror .mention {
-  @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-amber-400 hover:underline;
+  @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-primary hover:underline;
   cursor: pointer;
 }
 

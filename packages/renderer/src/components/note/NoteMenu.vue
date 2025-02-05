@@ -157,7 +157,7 @@
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-amber-100 font-semibold pr-1">{{
+        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
           formattedTime
         }}</span>
       </div>
@@ -428,7 +428,7 @@
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-amber-100 font-semibold pr-1">{{
+        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
           formattedTime
         }}</span>
       </div>

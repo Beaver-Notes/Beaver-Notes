@@ -1,6 +1,6 @@
 <template>
   <ui-card
-    class="hover:ring-2 ring-amber-300 group note-card transition flex flex-col"
+    class="hover:ring-2 ring-secondary group note-card transition flex flex-col"
     padding="p-5"
   >
     <!-- Display title and labels -->
@@ -10,7 +10,7 @@
       </div>
       <div
         v-if="note.labels.length !== 0"
-        class="text-primary dark:text-amber-400 mt-2 mb-1 line-clamp w-full"
+        class="text-primary dark:text-primary mt-2 mb-1 line-clamp w-full"
       >
         <span
           v-for="label in note.labels"

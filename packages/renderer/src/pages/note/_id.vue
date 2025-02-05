@@ -47,14 +47,14 @@
       </p>
       <div class="pb-2">
         <button
-          class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-amber-300 bg-input py-2 px-3 rounded-lg w-64"
+          class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
           @click="unlockNote(note.id)"
         >
           {{ translations.card.unlock }}
         </button>
       </div>
       <router-link
-        class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-amber-300 bg-input py-2 px-3 rounded-lg w-64"
+        class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
         :to="`/`"
       >
         {{ translations.index.close }}

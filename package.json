@@ -125,6 +125,7 @@
     "recordrtc": "^5.6.2",
     "remove": "^0.1.5",
     "stream-browserify": "^3.0.0",
+    "tw-colors": "^3.3.2",
     "util": "^0.12.5",
     "yaml": "^2.7.0",
     "yarn": "^1.22.22"

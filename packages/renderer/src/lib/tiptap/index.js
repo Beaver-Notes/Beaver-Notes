@@ -8,6 +8,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
+import { Paste } from './exts/markdown-engine/paste';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -138,6 +139,7 @@ const extensions = [
   Image,
   slashCommand,
   Audio,
+  Paste,
   Search,
   drawingCanvas,
   markdownEngine,

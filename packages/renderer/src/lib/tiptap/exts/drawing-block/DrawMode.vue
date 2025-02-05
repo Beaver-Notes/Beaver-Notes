@@ -9,9 +9,9 @@
         <button
           v-tooltip.group="translations.paperBlock.pencil"
           :class="[
-            'flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-neutral-100 dark:bg-neutral-800',
+            'flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary bg-neutral-100 dark:bg-neutral-800',
             tool === 'pencil'
-              ? 'border-amber-400 bg-amber-100 dark:bg-amber-700'
+              ? 'border-primary bg-primary'
               : 'border-gray-300 dark:border-neutral-600',
           ]"
           @click="
@@ -26,9 +26,9 @@
         <button
           v-tooltip.group="translations.paperBlock.highighter"
           :class="[
-            'flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-neutral-100 dark:bg-neutral-800',
+            'flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary bg-neutral-100 dark:bg-neutral-800',
             tool === 'highlighter'
-              ? 'border-amber-400 bg-amber-100 dark:bg-amber-700'
+              ? 'border-primary bg-primary'
               : 'border-gray-300 dark:border-neutral-600',
           ]"
           @click="
@@ -43,9 +43,9 @@
         <button
           v-tooltip.group="translations.paperBlock.eraser"
           :class="[
-            'flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-neutral-100 dark:bg-neutral-800',
+            'flex items-center justify-center p-2 border rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary bg-neutral-100 dark:bg-neutral-800',
             tool === 'eraser'
-              ? 'border-amber-400 bg-amber-100 dark:bg-amber-700'
+              ? 'border-primary bg-primary'
               : 'border-gray-300 dark:border-neutral-600',
           ]"
           @click="setTool('eraser')"
@@ -128,14 +128,14 @@
           />
         </div>
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 dark:border-neutral-600 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-neutral-100 dark:bg-neutral-800"
+          class="flex items-center justify-center p-2 border border-gray-300 dark:border-neutral-600 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary bg-neutral-100 dark:bg-neutral-800"
           @click="undo"
           @mousedown.prevent
         >
           <v-remixicon name="riArrowGoBackLine" class="w-6 h-6" />
         </button>
         <button
-          class="flex items-center justify-center p-2 border border-gray-300 dark:border-neutral-600 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-neutral-100 dark:bg-neutral-800"
+          class="flex items-center justify-center p-2 border border-gray-300 dark:border-neutral-600 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary bg-neutral-100 dark:bg-neutral-800"
           @click="redo"
           @mousedown.prevent
         >

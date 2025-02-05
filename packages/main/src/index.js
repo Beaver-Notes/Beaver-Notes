@@ -261,9 +261,16 @@ app
       const filePath = `${dir}/file-assets/${url}`;
       callback({ path: normalize(filePath) });
     });
+    protocol.registerFileProtocol('fonts', (request, callback) => {
+      const url = request.url.substr(8);
+      const dir = store.settings.get('dataDir');
+      const fontPath = `${dir}/fonts/${url}`;
+      callback({ path: normalize(fontPath) });
+    });
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
+      ensureDir(join(app.getPath('userData'), 'fonts')),
     ]);
     createWindow();
     if (process.argv.length >= 2) {

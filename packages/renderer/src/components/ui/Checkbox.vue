@@ -2,7 +2,7 @@
 <template>
   <label class="checkbox-ui inline-flex items-center">
     <div
-      class="relative h-5 w-5 inline-block focus-within:ring-2 ring-amber-300 rounded"
+      class="relative h-5 w-5 inline-block focus-within:ring-2 ring-secondary rounded"
     >
       <input
         type="checkbox"
