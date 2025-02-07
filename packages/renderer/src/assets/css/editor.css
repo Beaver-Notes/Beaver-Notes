@@ -144,8 +144,12 @@ img.ProseMirror-selectednode {
       padding-left: 0 !important;
     }
   }
-  .find {
-    @apply bg-yellow-400;
+  .search-result {
+    @apply bg-primary bg-opacity-20;
+
+    &-current {
+      @apply bg-secondary bg-opacity-50;
+    }
   }
   .inline-code {
     @apply p-0.5 px-1 !important;

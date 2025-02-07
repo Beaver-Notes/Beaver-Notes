@@ -1,5 +1,6 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riFontSize,
   riMoreFill,
   riCalculatorLine,
   riArrowGoBackLine,
@@ -77,6 +78,7 @@ import {
   riBookmarkLine,
   riBookmarkFill,
   riFileEditLine,
+  riArrowUpLine,
   riArrowDownLine,
   riArticleLine,
   riInboxUnarchiveLine,
@@ -193,6 +195,7 @@ VRemixIcon.add({
   riPlayFill,
   riPauseFill,
   riGithubFill,
+  riArrowUpLine,
   riArrowDownSLine,
   riDeleteBackLine,
   riTableLine,
@@ -200,6 +203,7 @@ VRemixIcon.add({
   riStopCircleLine,
   riMicLine,
   riCalculatorLine,
+  riFontSize,
   riVolumeDownFill,
   riVolumeMuteFill,
   riFile2Line,

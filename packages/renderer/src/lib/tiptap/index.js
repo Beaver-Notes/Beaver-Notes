@@ -25,9 +25,9 @@ import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import drawingCanvas from './exts/drawing-block';
-import Search from './exts/search';
 import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
+import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
 import {
   blueCallout,
   yellowCallout,
@@ -140,7 +140,7 @@ const extensions = [
   slashCommand,
   Audio,
   Paste,
-  Search,
+  SearchAndReplace.configure(),
   drawingCanvas,
   markdownEngine,
   Placeholder.configure({

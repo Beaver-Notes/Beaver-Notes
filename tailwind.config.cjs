@@ -42,20 +42,20 @@ module.exports = {
         secondary: colors.pink['300'],
       },
       red: {
-        primary: colors.rose['400'],
-        secondary: colors.rose['300'],
+        primary: colors.red['500'],
+        secondary: colors.red['400'],
       },
-      yellow: {
-        primary: colors.yellow['400'],
-        secondary: colors.yellow['300'],
+      blue: {
+        primary: colors.blue['400'],
+        secondary: colors.blue['300'],
       },
       neutral: {
         primary: colors.neutral['400'],
         secondary: colors.neutral['300'],
       },
       green: {
-        primary: colors.emerald['400'],
-        secondary: colors.emerald['300'],
+        primary: colors.emerald['500'],
+        secondary: colors.emerald['400'],
       },
     }),
   ],

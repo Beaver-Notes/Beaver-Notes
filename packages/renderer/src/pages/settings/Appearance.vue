@@ -25,12 +25,27 @@
     </section>
     <!-- Accent Color -->
     <section>
-      <p class="mb-2">{{ translations.settings.interfacesize || '-' }}</p>
+      <p class="mb-2">{{ translations.settings.colorScheme || '-' }}</p>
       <div class="w-full items-center justify-center flex gap-4">
+        <button
+          class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          @click="setColor('red')"
+        ></button>
         <button
           class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
           :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
           @click="setColor('light')"
+        ></button>
+        <button
+          class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          @click="setColor('green')"
+        ></button>
+        <button
+          class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
+          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          @click="setColor('blue')"
         ></button>
         <button
           class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
@@ -41,21 +56,6 @@
           class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
           :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
           @click="setColor('pink')"
-        ></button>
-        <button
-          class="bg-red-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
-          @click="setColor('red')"
-        ></button>
-        <button
-          class="bg-yellow-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
-          @click="setColor('yellow')"
-        ></button>
-        <button
-          class="bg-green-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
-          @click="setColor('green')"
         ></button>
         <button
           class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
