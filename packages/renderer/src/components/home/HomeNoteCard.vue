@@ -60,7 +60,11 @@
             ? translations.card.removebookmark
             : translations.card.bookmark
         "
-        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition"
+        :class="[
+          note.isBookmarked
+            ? 'text-primary opacity-90 hover:opacity-100'
+            : 'hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition',
+        ]"
         @click="toggleBookmark(note)"
       >
         <v-remixicon

@@ -664,7 +664,6 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import RecordRTC from 'recordrtc';
-import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { exportNoteById } from '@/utils/share';
 import { useTranslation } from '@/composable/translations';
@@ -672,7 +671,6 @@ import { useTranslation } from '@/composable/translations';
 const { path, ipcRenderer } = window.electron;
 const filePath = '';
 const storage = useStorage('settings');
-const { currentTheme } = useTheme();
 const state = shallowReactive({
   zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
 });
@@ -944,12 +942,8 @@ export default {
       Mousetrap.unbind(Object.keys(shortcuts));
     });
 
-    const isDarkMode = currentTheme.value === 'dark';
-
     function printContent() {
-      console.log(`${props.note.title}.pdf`);
       ipcRenderer.callMain('print-pdf', {
-        backgroundColor: isDarkMode ? '#232222' : '#ffffff',
         pdfName: `${props.note.title}.pdf`,
       });
     }
@@ -1006,11 +1000,8 @@ export default {
 
       // If no files are present, ignore the drop event
       if (!files || files.length === 0) {
-        console.log('Ignoring non-file drop event');
         return;
       }
-
-      console.log('Files detected, processing drop event:', event);
 
       try {
         for (const file of files) {

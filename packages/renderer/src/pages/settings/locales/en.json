@@ -259,7 +259,8 @@
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wide": "Wide",
-    "wrongCurrentPassword": "Wrong password, please try again"
+    "wrongCurrentPassword": "Wrong password, please try again",
+    "colorScheme": "Color Scheme"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",

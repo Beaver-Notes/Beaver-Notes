@@ -135,14 +135,12 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
 });
 
 ipcMain.answerRenderer('print-pdf', async (options) => {
-  console.log('printing');
-  const { backgroundColor = '#000000', pdfName } = options; // Default to black if not specified
-  console.log(options);
+  const { pdfName } = options; // Default to black if not specified
 
   const focusedWindow = BrowserWindow.getFocusedWindow(); // Get the current window
   if (!focusedWindow) return;
 
-  const { canceled, filePath } = await dialog.showSaveDialog(focusedWindow, {
+  const { filePath } = await dialog.showSaveDialog(focusedWindow, {
     title: 'Save PDF',
     defaultPath: path.join(
       app.getPath('desktop'),
@@ -153,11 +151,6 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
       { name: 'All Files', extensions: ['*'] },
     ],
   });
-
-  if (canceled || !filePath) {
-    console.log('Save operation canceled by the user.');
-    return;
-  }
 
   try {
     // Apply the custom background color and remove margins/padding
@@ -176,7 +169,6 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
             height: 100%;
             margin: 0;
             padding: 0;
-            background-color: ${backgroundColor};
           }
           * {
             box-sizing: border-box;
@@ -185,10 +177,8 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
         document.head.appendChild(style);
     
         // Apply background color directly
-        document.body.style.backgroundColor = '${backgroundColor}';
         document.body.style.margin = '0';
         document.body.style.padding = '0';
-        document.documentElement.style.backgroundColor = '${backgroundColor}';
         document.documentElement.style.margin = '0';
         document.documentElement.style.padding = '0';
       })();
