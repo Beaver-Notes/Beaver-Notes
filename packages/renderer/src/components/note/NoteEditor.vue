@@ -17,6 +17,7 @@ import { extensions, CollapseHeading } from '@/lib/tiptap';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
+import { dropFile } from '@/lib/tiptap/exts/drop-file';
 import { useAppStore } from '../../store/app';
 
 export default {
@@ -42,7 +43,7 @@ export default {
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
-    const exts = [...extensions];
+    const exts = [...extensions, dropFile.configure({ id: props.id })];
     if (appStore.setting.collapsibleHeading) {
       exts.push(CollapseHeading);
     }

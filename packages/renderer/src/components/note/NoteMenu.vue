@@ -954,7 +954,6 @@ export default {
           translations.value = trans;
         }
       });
-      document.addEventListener('drop', handleDrop);
     });
 
     const showAdavancedSettings = computed(() => {
@@ -990,44 +989,6 @@ export default {
         console.error(error);
       }
     };
-
-    async function handleDrop(event) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Check if files are being dropped
-      const files = event.dataTransfer?.files;
-
-      // If no files are present, ignore the drop event
-      if (!files || files.length === 0) {
-        return;
-      }
-
-      try {
-        for (const file of files) {
-          // Determine the type of the file
-          const mimeType = file.type;
-
-          // Ignore image files
-          if (mimeType.startsWith('image/')) {
-            continue;
-          }
-
-          const { fileName, relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
-
-          if (mimeType.startsWith('audio/')) {
-            props.editor.commands.setAudio(src);
-          } else if (mimeType.startsWith('video/')) {
-            props.editor.commands.setVideo(src);
-          } else {
-            props.editor.commands.setFileEmbed(src, fileName);
-          }
-        }
-      } catch (error) {
-        console.error('Error saving and embedding files:', error);
-      }
-    }
 
     const container = ref();
     function changeWheelDirection(e) {
