@@ -21,14 +21,20 @@ export const Paste = Extension.create({
               const clipboardData = event.clipboardData;
               if (!clipboardData) return false;
 
+              // Check all items in clipboard for non-text content
               const hasNonTextContent = Array.from(clipboardData.items).some(
-                (item) => !item.type.startsWith('text/')
+                (item) => {
+                  const type = item.type.toLowerCase();
+                  return !type.startsWith('text/');
+                }
               );
 
+              // If there's any non-text content, let the default handler process it
               if (hasNonTextContent) {
                 return false;
               }
 
+              // If we only have text content, process it
               const text = clipboardData.getData('text/plain');
               if (!text) return false;
 
@@ -41,14 +47,13 @@ export const Paste = Extension.create({
                   Link.configure({ openOnClick: false }),
                 ]);
 
-                // Insert content at the current cursor position without replacing
-                editor
-                  .chain()
-                  .focus()
-                  .insertContent(json, {
-                    parseOptions: { preserveWhitespace: false },
-                  })
-                  .run();
+                editor.commands.insertContent('', {
+                  parseOptions: { preserveWhitespace: false },
+                });
+
+                editor.commands.insertContent(json, {
+                  parseOptions: { preserveWhitespace: false },
+                });
 
                 return true;
               } catch (error) {
