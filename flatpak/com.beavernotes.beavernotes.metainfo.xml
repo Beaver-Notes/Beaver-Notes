@@ -40,6 +40,25 @@
     <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
     <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
     <releases>
+              <release version="3.8.0" date="2025-01-06">
+        <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.8.0</url>
+        <description>
+          <p>Release description</p>
+          <ul>
+            <li>Fixed duplicate images</li>
+            <li>Fixed link shortcut</li>
+            <li>Deprecating Integrations</li>
+            <li>Custom editor width</li>
+            <li>Sharing Notes</li>
+            <li>Drawing Block (Beta)</li>
+            <li>UI improvements for math and mermaid blocks</li>
+            <li>Improved search functionality (use # to search labels)</li>
+            <li>Code quality improvements</li>
+            <li>Enhanced PDF export</li>
+            <li>Updated translations</li>
+        </ul>
+        </description>
+      </release>
           <release version="3.7.0" date="2024-09-21">
         <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.7.0</url>
         <description>

@@ -135,14 +135,12 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
 });
 
 ipcMain.answerRenderer('print-pdf', async (options) => {
-  console.log('printing');
-  const { backgroundColor = '#000000', pdfName } = options; // Default to black if not specified
-  console.log(options);
+  const { pdfName } = options; // Default to black if not specified
 
   const focusedWindow = BrowserWindow.getFocusedWindow(); // Get the current window
   if (!focusedWindow) return;
 
-  const { canceled, filePath } = await dialog.showSaveDialog(focusedWindow, {
+  const { filePath } = await dialog.showSaveDialog(focusedWindow, {
     title: 'Save PDF',
     defaultPath: path.join(
       app.getPath('desktop'),
@@ -153,11 +151,6 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
       { name: 'All Files', extensions: ['*'] },
     ],
   });
-
-  if (canceled || !filePath) {
-    console.log('Save operation canceled by the user.');
-    return;
-  }
 
   try {
     // Apply the custom background color and remove margins/padding
@@ -176,7 +169,6 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
             height: 100%;
             margin: 0;
             padding: 0;
-            background-color: ${backgroundColor};
           }
           * {
             box-sizing: border-box;
@@ -185,10 +177,8 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
         document.head.appendChild(style);
     
         // Apply background color directly
-        document.body.style.backgroundColor = '${backgroundColor}';
         document.body.style.margin = '0';
         document.body.style.padding = '0';
-        document.documentElement.style.backgroundColor = '${backgroundColor}';
         document.documentElement.style.margin = '0';
         document.documentElement.style.padding = '0';
       })();
@@ -261,23 +251,52 @@ app
       const filePath = `${dir}/file-assets/${url}`;
       callback({ path: normalize(filePath) });
     });
+    protocol.registerFileProtocol('fonts', (request, callback) => {
+      const url = request.url.substr(8);
+      const dir = store.settings.get('dataDir');
+      const fontPath = `${dir}/fonts/${url}`;
+      callback({ path: normalize(fontPath) });
+    });
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
+      ensureDir(join(app.getPath('userData'), 'fonts')),
     ]);
     createWindow();
     if (process.argv.length >= 2) {
-      let filePath = process.argv[1];
-      filePath = path.resolve(filePath).replace(/\\/g, '/'); // Ensure proper formatting
+      let filePath = null;
 
-      if (mainWindow && mainWindow.webContents) {
-        if (mainWindow.webContents.isLoading()) {
-          // If the frontend isn't ready, queue the file path
-          queuedPath = filePath;
-        } else {
-          // If the frontend is ready, send the file path immediately
-          mainWindow.webContents.send('file-opened', filePath);
+      // Iterate through argv to find the first argument that ends with .bea
+      for (let i = 1; i < process.argv.length; i++) {
+        const arg = process.argv[i];
+
+        // Check if the argument ends with .bea
+        if (arg.endsWith('.bea')) {
+          filePath = path.resolve(arg).replace(/\\/g, '/');
+          break; // Stop at the first .bea file
         }
+      }
+
+      if (filePath) {
+        if (mainWindow && mainWindow.webContents) {
+          if (mainWindow.webContents.isLoading()) {
+            // If the frontend isn't ready, queue the file path
+            queuedPath = filePath;
+          } else {
+            // If the frontend is ready, send the file path immediately
+            mainWindow.webContents.send('file-opened', filePath);
+          }
+        }
+      } else {
+        // No .bea file found, just print and let the app handle the other arguments
+        console.log(
+          'No valid .bea file found. Continuing with other arguments.'
+        );
+
+        // Process runtime arguments (like --ozone-platform-hint=auto)
+        process.argv.forEach((arg) => {
+          console.log(`Received argument: ${arg}`);
+        });
       }
     }
 
@@ -367,8 +386,10 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
   }
 });
 
-ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
-  mainWindow.webContents.zoomFactor = newZoomLevel;
+ipcMain.handle('app:set-zoom', (newZoomLevel) => {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.setZoomFactor(newZoomLevel);
+  }
 });
 
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);

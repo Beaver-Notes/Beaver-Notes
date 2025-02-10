@@ -8,6 +8,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
+import { Paste } from './exts/markdown-engine/paste';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -24,9 +25,9 @@ import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import drawingCanvas from './exts/drawing-block';
-import Search from './exts/search';
 import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
+import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
 import {
   blueCallout,
   yellowCallout,
@@ -138,7 +139,8 @@ const extensions = [
   Image,
   slashCommand,
   Audio,
-  Search,
+  Paste,
+  SearchAndReplace.configure(),
   drawingCanvas,
   markdownEngine,
   Placeholder.configure({

@@ -195,6 +195,7 @@
     "body": "This data is encrypted, you need to input the password to get access",
     "checkUpdates": "Check for updates",
     "clearfont": "Clear Font - OLED",
+    "colorScheme": "Accent Color",
     "confirmDelete": "Are you sure you want to delete {name} (id: {id}) ?",
     "createdAt": "Created At",
     "dark": "Dark",
