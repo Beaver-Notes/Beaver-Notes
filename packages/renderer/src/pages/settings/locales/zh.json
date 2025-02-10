@@ -195,7 +195,7 @@
     "body": "数据已经被加密，您需要输入密码才能访问",
     "checkUpdates": "检查升级",
     "clearfont": "清晰字体 - OLED",
-    "colorScheme": "强调色",
+    "colorScheme": "主题颜色",
     "confirmDelete": "你确定要删除 {name} (ID: {id}) 吗？",
     "createdAt": "创建于",
     "dark": "深色",
