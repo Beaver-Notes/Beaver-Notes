@@ -3,7 +3,7 @@
     <slot v-bind="{ editor }" />
     <editor-content
       :editor="editor"
-      class="prose dark:text-neutral-100 max-w-none prose-indigo"
+      class="prose dark:text-neutral-100 max-w-none prose-indigo print:cursor-none"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
   </div>
