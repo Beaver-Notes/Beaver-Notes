@@ -195,6 +195,7 @@
     "body": "This data is encrypted, you need to input the password to get access",
     "checkUpdates": "Check for updates",
     "clearfont": "Clear Font - OLED",
+    "colorScheme": "Accent Color",
     "confirmDelete": "Are you sure you want to delete {name} (id: {id}) ?",
     "createdAt": "Created At",
     "dark": "Dark",
@@ -259,8 +260,7 @@
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wide": "Wide",
-    "wrongCurrentPassword": "Wrong password, please try again",
-    "colorScheme": "Color Scheme"
+    "wrongCurrentPassword": "Wrong password, please try again"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",
