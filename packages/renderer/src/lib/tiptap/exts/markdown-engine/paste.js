@@ -28,34 +28,31 @@ export const Paste = Extension.create({
                 return false;
               }
 
+              if (clipboardData.getData('text/html')) {
+                return false;
+              }
               const text = clipboardData.getData('text/plain');
               if (!text) return false;
-
               try {
                 const md = new MarkdownIt();
                 const parsedHtml = md.render(text);
-                const isMarkdown = parsedHtml !== `<p>${text}</p>\n`;
 
-                if (isMarkdown) {
-                  event.preventDefault();
+                event.preventDefault();
 
-                  const json = generateJSON(parsedHtml, [
-                    StarterKit,
-                    Link.configure({ openOnClick: false }),
-                  ]);
+                const json = generateJSON(parsedHtml, [
+                  StarterKit,
+                  Link.configure({ openOnClick: false }),
+                ]);
 
-                  editor.commands.insertContent('', {
-                    parseOptions: { preserveWhitespace: false },
-                  });
+                editor.commands.insertContent('', {
+                  parseOptions: { preserveWhitespace: false },
+                });
 
-                  editor.commands.insertContent(json, {
-                    parseOptions: { preserveWhitespace: false },
-                  });
+                editor.commands.insertContent(json, {
+                  parseOptions: { preserveWhitespace: false },
+                });
 
-                  return true;
-                } else {
-                  return false;
-                }
+                return true;
               } catch (error) {
                 console.error('Error processing markdown:', error);
                 return false;
