@@ -14,14 +14,12 @@ export const Paste = Extension.create({
         props: {
           handleDOMEvents: {
             paste: (view, event) => {
-              event.preventDefault();
               const { editor } = this;
               if (!editor) return false;
 
               const clipboardData = event.clipboardData;
               if (!clipboardData) return false;
 
-              // Check all items in clipboard for non-text content
               const hasNonTextContent = Array.from(clipboardData.items).some(
                 (item) => !item.type.startsWith('text/')
               );
@@ -35,38 +33,29 @@ export const Paste = Extension.create({
 
               try {
                 const md = new MarkdownIt();
-
-                // Render MarkdownIt output
                 const parsedHtml = md.render(text);
-
-                // If MarkdownIt output is different from the input, it's likely Markdown
                 const isMarkdown = parsedHtml !== `<p>${text}</p>\n`;
 
                 if (isMarkdown) {
+                  event.preventDefault();
+
                   const json = generateJSON(parsedHtml, [
                     StarterKit,
                     Link.configure({ openOnClick: false }),
                   ]);
 
-                  editor.commands.insertContentAt(
-                    view.state.selection.from,
-                    json,
-                    {
-                      parseOptions: { preserveWhitespace: 'full' },
-                    }
-                  );
-                } else {
-                  // Insert as plain text without Markdown parsing
-                  editor.commands.insertContentAt(
-                    view.state.selection.from,
-                    text,
-                    {
-                      parseOptions: { preserveWhitespace: 'full' },
-                    }
-                  );
-                }
+                  editor.commands.insertContent('', {
+                    parseOptions: { preserveWhitespace: false },
+                  });
 
-                return true;
+                  editor.commands.insertContent(json, {
+                    parseOptions: { preserveWhitespace: false },
+                  });
+
+                  return true;
+                } else {
+                  return false;
+                }
               } catch (error) {
                 console.error('Error processing markdown:', error);
                 return false;
