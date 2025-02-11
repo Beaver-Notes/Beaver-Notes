@@ -23,37 +23,48 @@ export const Paste = Extension.create({
 
               // Check all items in clipboard for non-text content
               const hasNonTextContent = Array.from(clipboardData.items).some(
-                (item) => {
-                  const type = item.type.toLowerCase();
-                  return !type.startsWith('text/');
-                }
+                (item) => !item.type.startsWith('text/')
               );
 
-              // If there's any non-text content, let the default handler process it
               if (hasNonTextContent) {
                 return false;
               }
 
-              // If we only have text content, process it
               const text = clipboardData.getData('text/plain');
               if (!text) return false;
 
               try {
                 const md = new MarkdownIt();
+
+                // Render MarkdownIt output
                 const parsedHtml = md.render(text);
 
-                const json = generateJSON(parsedHtml, [
-                  StarterKit,
-                  Link.configure({ openOnClick: false }),
-                ]);
+                // If MarkdownIt output is different from the input, it's likely Markdown
+                const isMarkdown = parsedHtml !== `<p>${text}</p>\n`;
 
-                editor.commands.insertContent('', {
-                  parseOptions: { preserveWhitespace: false },
-                });
+                if (isMarkdown) {
+                  const json = generateJSON(parsedHtml, [
+                    StarterKit,
+                    Link.configure({ openOnClick: false }),
+                  ]);
 
-                editor.commands.insertContent(json, {
-                  parseOptions: { preserveWhitespace: false },
-                });
+                  editor.commands.insertContentAt(
+                    view.state.selection.from,
+                    json,
+                    {
+                      parseOptions: { preserveWhitespace: 'full' },
+                    }
+                  );
+                } else {
+                  // Insert as plain text without Markdown parsing
+                  editor.commands.insertContentAt(
+                    view.state.selection.from,
+                    text,
+                    {
+                      parseOptions: { preserveWhitespace: 'full' },
+                    }
+                  );
+                }
 
                 return true;
               } catch (error) {
