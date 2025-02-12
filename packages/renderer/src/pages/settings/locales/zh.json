@@ -102,7 +102,9 @@
     "addRowAbove": "向上添加一行",
     "addRowBelow": "向下添加一行",
     "bea": "bea 格式",
+    "blackCallout": "黑色标注",
     "blockquote": "引用",
+    "blueCallout": "蓝色标注",
     "bold": "粗体",
     "bulletlist": "无序列表",
     "checklist": "任务列表",
@@ -113,6 +115,7 @@
     "deleteTable": "删除表格",
     "draw": "绘画",
     "fileUrl": "文件链接",
+    "greenCallout": "绿色标注",
     "heading": "标题",
     "headingsTree": "标题搜索",
     "highlight": "高亮",
@@ -126,8 +129,10 @@
     "orderedlist": "有序列表",
     "paragraph": "段落",
     "pdf": "PDF",
+    "purpleCallout": "紫色标注",
     "readerMode": "阅读器模式",
     "record": "录音",
+    "redCallout": "红色标注",
     "searchHeadings": "标题搜索",
     "strikethrough": "删除线",
     "table": "表格",
@@ -137,7 +142,8 @@
     "underline": "下划线",
     "vidUrl": "视频链接",
     "video": "视频",
-    "videoUrl": "视频链接"
+    "videoUrl": "视频链接",
+    "yellowCallout": "黄色标注"
   },
   "paper": {
     "dotted": "点状",
