@@ -1,4 +1,5 @@
 :root {
+  --theme: 'light';
   --selected-font: 'Arimo', sans-serif;
   --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;

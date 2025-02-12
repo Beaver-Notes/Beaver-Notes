@@ -31,7 +31,7 @@
 
           <!-- Play/Pause Button -->
           <button
-            class="bg-amber-400 text-white p-2 ml-2 rounded-full"
+            class="bg-primary text-white p-2 ml-2 rounded-full"
             @click="togglePlay"
           >
             <v-remixicon :name="isPlaying ? 'riPauseFill' : 'riPlayFill'" />
@@ -61,11 +61,11 @@
           @click="seek"
         >
           <div
-            class="bg-amber-400 h-full rounded-full"
+            class="bg-primary h-full rounded-full"
             :style="{ width: progressBarWidth }"
           ></div>
           <div
-            class="absolute top-0 left-0 h-full w-4 bg-amber-500 rounded-full transform -translate-x-1/2"
+            class="absolute top-0 left-0 h-full w-4 bg-secondary rounded-full transform -translate-x-1/2"
             :style="{ left: progressBarWidth }"
             @mousedown="startDrag"
           ></div>
