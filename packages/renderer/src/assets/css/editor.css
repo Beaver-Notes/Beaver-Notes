@@ -256,5 +256,5 @@ img.ProseMirror-selectednode {
 }
 
 mark {
-  @apply bg-yellow-200 dark:bg-yellow-100 rounded;
+  @apply bg-yellow-200 dark:bg-yellow-100 rounded bg-opacity-50;
 }

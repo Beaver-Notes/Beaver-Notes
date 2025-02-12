@@ -45,7 +45,7 @@ import TableRow from '@tiptap/extension-table-row';
 import Footnote from './exts/footnote-block/footnote';
 import Footnotes from './exts/footnote-block/footnotes';
 import FootnoteReference from './exts/footnote-block/reference';
-import slashCommand from './exts/slash-menu';
+import Commands from './exts/commands';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -137,7 +137,7 @@ const extensions = [
     defaultDirection: defaultDirection,
   }),
   Image,
-  slashCommand,
+  Commands,
   Audio,
   Paste,
   SearchAndReplace.configure(),

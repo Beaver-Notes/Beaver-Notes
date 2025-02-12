@@ -659,7 +659,7 @@ export default {
     });
 
     const shortcuts = {
-      'mod+shift+u': importData,
+      'mod+s': importData,
       'mod+shift+e': exportData,
     };
 

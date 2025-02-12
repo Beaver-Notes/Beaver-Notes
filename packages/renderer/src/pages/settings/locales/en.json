@@ -137,7 +137,13 @@
     "underline": "Underline",
     "vidUrl": "Video url",
     "video": "Video",
-    "videoUrl": "Video url"
+    "videoUrl": "Video url",
+    "blackCallout": "Black Callout",
+    "blueCallout": "Blue Callout",
+    "greenCallout": "Green Callout",
+    "purpleCallout": "Purple Callout",
+    "redCallout": "Red Callout",
+    "yellowCallout": "Yellow Callout"
   },
   "paper": {
     "dotted": "Dotted",

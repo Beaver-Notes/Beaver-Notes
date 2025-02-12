@@ -1,5 +1,6 @@
 import { Extension } from '@tiptap/core';
 import { saveFile } from '@/utils/copy-doc';
+import { useStore } from '@/store';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { insertImages } from './image';
 
@@ -8,7 +9,7 @@ export const dropFile = Extension.create({
 
   addOptions() {
     return {
-      id: '', // Default empty ID
+      id: '',
     };
   },
 
@@ -65,7 +66,13 @@ export const dropFile = Extension.create({
                     return true;
                   }
 
-                  const { fileName, relativePath } = await saveFile(file, id);
+                  const store = useStore();
+                  const noteId = store.activeNoteId;
+
+                  const { fileName, relativePath } = await saveFile(
+                    file,
+                    noteId
+                  );
                   const src = `${relativePath}`;
 
                   if (mimeType.startsWith('audio/')) {
