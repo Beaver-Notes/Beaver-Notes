@@ -137,7 +137,13 @@
     "underline": "Підкреслений",
     "vidUrl": "відео url",
     "video": "Відео",
-    "videoUrl": "Video address"
+    "videoUrl": "Video address",
+    "blackCallout": "Чорний виділений блок",
+    "blueCallout": "Синій виділений блок",
+    "greenCallout": "Зелений виділений блок",
+    "purpleCallout": "Фіолетовий виділений блок",
+    "redCallout": "Червоний виділений блок",
+    "yellowCallout": "Жовтий виділений блок"
   },
   "paper": {
     "dotted": "Пунктирний папір",

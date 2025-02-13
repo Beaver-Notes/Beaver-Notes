@@ -137,7 +137,13 @@
     "underline": "Подчеркнутый",
     "vidUrl": "URL видео",
     "video": "Видео",
-    "videoUrl": "URL видео"
+    "videoUrl": "URL видео",
+    "blackCallout": "Черный выделенный блок",
+    "blueCallout": "Синий выделенный блок",
+    "greenCallout": "Зеленый выделенный блок",
+    "purpleCallout": "Фиолетовый выделенный блок",
+    "redCallout": "Красный выделенный блок",
+    "yellowCallout": "Желтый выделенный блок"
   },
   "paper": {
     "dotted": "Пунктирный",

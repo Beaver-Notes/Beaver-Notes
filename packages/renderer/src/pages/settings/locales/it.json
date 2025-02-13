@@ -137,7 +137,13 @@
     "underline": "Sottolinea",
     "vidUrl": "URL Video",
     "video": "Video",
-    "videoUrl": "Url Video"
+    "videoUrl": "Url Video",
+    "blackCallout": "Riquadro nero",
+    "blueCallout": "Riquadro blu",
+    "greenCallout": "Riquadro verde",
+    "purpleCallout": "Riquadro viola",
+    "redCallout": "Riquadro rosso",
+    "yellowCallout": "Riquadro giallo"
   },
   "paper": {
     "dotted": "Puntinato",

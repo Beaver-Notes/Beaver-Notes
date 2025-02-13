@@ -137,7 +137,13 @@
     "underline": "Subrayado",
     "vidUrl": "Url Vídeo",
     "video": "Vídeo",
-    "videoUrl": "URL del video"
+    "videoUrl": "URL del video",
+    "blackCallout": "Aviso negro",
+    "blueCallout": "Aviso azul",
+    "greenCallout": "Aviso verde",
+    "purpleCallout": "Aviso morado",
+    "redCallout": "Aviso rojo",
+    "yellowCallout": "Aviso amarillo"
   },
   "paper": {
     "dotted": "Punteado",

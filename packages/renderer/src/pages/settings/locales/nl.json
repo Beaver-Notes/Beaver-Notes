@@ -137,7 +137,13 @@
     "underline": "Onderstreept",
     "vidUrl": "Video url",
     "video": "Video",
-    "videoUrl": "Video-URL"
+    "videoUrl": "Video-URL",
+    "blackCallout": "Zwart kader",
+    "blueCallout": "Blauw kader",
+    "greenCallout": "Groen kader",
+    "purpleCallout": "Paars kader",
+    "redCallout": "Rood kader",
+    "yellowCallout": "Geel kader"
   },
   "paper": {
     "dotted": "Gestippeld",

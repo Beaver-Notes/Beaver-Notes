@@ -137,7 +137,13 @@
     "underline": "Unterstrichen",
     "vidUrl": "Video url",
     "video": "Video",
-    "videoUrl": "Videopfad"
+    "videoUrl": "Videopfad",
+    "blackCallout": "Schwarzer Hinweis",
+    "blueCallout": "Blauer Hinweis",
+    "greenCallout": "Grüner Hinweis",
+    "purpleCallout": "Lila Hinweis",
+    "redCallout": "Roter Hinweis",
+    "yellowCallout": "Gelber Hinweis"
   },
   "paper": {
     "dotted": "Gepunktet",

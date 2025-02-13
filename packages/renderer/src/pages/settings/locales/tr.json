@@ -137,7 +137,13 @@
     "underline": "Altı Çizili",
     "vidUrl": "Video adresi(url)",
     "video": "Video",
-    "videoUrl": "Video adresi(url)"
+    "videoUrl": "Video adresi(url)",
+    "blackCallout": "Siyah bilgilendirme kutusu",
+    "blueCallout": "Mavi bilgilendirme kutusu",
+    "greenCallout": "Yeşil bilgilendirme kutusu",
+    "purpleCallout": "Mor bilgilendirme kutusu",
+    "redCallout": "Kırmızı bilgilendirme kutusu",
+    "yellowCallout": "Sarı bilgilendirme kutusu"
   },
   "paper": {
     "dotted": "Noktalı",
