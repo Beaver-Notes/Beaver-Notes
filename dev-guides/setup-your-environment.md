@@ -10,11 +10,11 @@ description: >-
 {% hint style="warning" %}
 Please note that specific system-dependent packages might be required, such as rpm for building .rpm packages or different libraries to ensure compatibility. If you encounter any issues while setting up your environment, please open a GitHub issue with the following details:
 
-* Operating system and version
-* Architecture of your system
-* Description of the issue you are facing
-* Output of the command that triggered the issue
-{% endhint %}
+- Operating system and version
+- Architecture of your system
+- Description of the issue you are facing
+- Output of the command that triggered the issue
+  {% endhint %}
 
 ### Installing the dependencies
 
@@ -78,7 +78,6 @@ You're now all set up to start contributing to Beaver Notes! The next steps invo
 
 \
 \
-
 
 \
 \

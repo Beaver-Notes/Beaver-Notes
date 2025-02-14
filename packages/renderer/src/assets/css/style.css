@@ -67,5 +67,5 @@ option {
 }
 
 .no-security-text input {
-    -webkit-text-security: none !important;
+  -webkit-text-security: none !important;
 }

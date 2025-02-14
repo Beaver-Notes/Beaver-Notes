@@ -100,30 +100,39 @@ function askUserForLanguage(translations) {
     });
     console.log(`${translations.length + 1}. Download all languages`);
 
-    rl.question('Please select a language by number or type q to quit: ', (answer) => {
-      if (answer === 'q') {
+    rl.question(
+      'Please select a language by number or type q to quit: ',
+      (answer) => {
+        if (answer === 'q') {
+          rl.close();
+          console.log('quit');
+          return;
+        }
+        const indexes = answer
+          .replaceAll(' ', '')
+          .split(',')
+          .map((n) => parseInt(n, 10) - 1)
+          .filter((n) => !isNaN(n));
+        if (indexes.length === 0) {
+          console.log('No valid selection. Exiting.');
+          process.exit(1);
+        }
+        if (indexes.some((index) => index === translations.length)) {
+          resolve('all');
+          return;
+        }
+        const validIndexes = indexes
+          .filter((index) => index >= 0 && index < translations.length)
+          .map((i) => translations[i].locale.code);
+        if (validIndexes.length > 0) {
+          resolve(validIndexes);
+        } else {
+          console.log('Invalid selection. Exiting.');
+          process.exit(1);
+        }
         rl.close();
-        console.log('quit');
-        return;
-      }
-      const indexes = answer.replaceAll(' ', '').split(',').map((n) => parseInt(n, 10) - 1).filter((n) => !isNaN(n));
-      if (indexes.length === 0) {
-        console.log('No valid selection. Exiting.');
-        process.exit(1);
-      }
-      if (indexes.some((index) => index === translations.length)) {
-        resolve('all');
-        return;
-      }
-      const validIndexes = indexes.filter((index) => index >= 0 && index < translations.length).map((i) => translations[i].locale.code);
-      if (validIndexes.length > 0) {
-        resolve(validIndexes);
-      } else {
-        console.log('Invalid selection. Exiting.');
-        process.exit(1);
-      }
-      rl.close();
-    });
+      },
+    );
   });
 }
 
@@ -143,9 +152,18 @@ async function main() {
       }
       console.log('All translations downloaded and saved successfully.');
     } else {
-      const translations = await Promise.all(selectedLocales.map(async (selectedLocale) => ({ translation: await downloadTranslation(token, selectedLocale), selectedLocale })));
+      const translations = await Promise.all(
+        selectedLocales.map(async (selectedLocale) => ({
+          translation: await downloadTranslation(token, selectedLocale),
+          selectedLocale,
+        })),
+      );
       console.log('Translations downloaded successfully.');
-      await Promise.all(translations.map(({ selectedLocale, translation }) => saveTranslationFile(selectedLocale, translation)));
+      await Promise.all(
+        translations.map(({ selectedLocale, translation }) =>
+          saveTranslationFile(selectedLocale, translation),
+        ),
+      );
       console.log('Translations downloaded and saved successfully.');
     }
   } catch (error) {

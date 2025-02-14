@@ -114,7 +114,17 @@ function main() {
   console.log('Starting build process...');
 
   // Use spawn instead of exec to capture real-time logs
-  const builder = spawn('yarn', ['electron-builder', 'build', '--config', 'electron-builder.config.cjs', '--win', '--mac', '--linux', '--publish', 'always']);
+  const builder = spawn('yarn', [
+    'electron-builder',
+    'build',
+    '--config',
+    'electron-builder.config.cjs',
+    '--win',
+    '--mac',
+    '--linux',
+    '--publish',
+    'always',
+  ]);
 
   // Pipe stdout to the console in real-time
   builder.stdout.on('data', (data) => {

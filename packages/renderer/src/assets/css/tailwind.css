@@ -15,4 +15,3 @@ kbd {
   min-width: 28px;
   @apply p-1 text-center text-sm rounded-md text-neutral-600 ml-1 dark:text-[color:var(--selected-dark-text)] bg-neutral-100 dark:bg-neutral-600 border;
 }
-

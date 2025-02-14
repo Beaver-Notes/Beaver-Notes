@@ -24,8 +24,10 @@ const api = {
   notification,
   access: (dir) => access(dir, constants.R_OK | constants.W_OK),
   versions: process.versions,
-  addCloseFn: (fn) => closeFnList.every(f => f !== fn) && closeFnList.push(fn),
-  onFileOpened: (callback) => ipcRenderer.on('file-opened', (event, path) => callback(path)),
+  addCloseFn: (fn) =>
+    closeFnList.every((f) => f !== fn) && closeFnList.push(fn),
+  onFileOpened: (callback) =>
+    ipcRenderer.on('file-opened', (event, path) => callback(path)),
 };
 
 // Expose API to the main world
@@ -36,14 +38,17 @@ if (import.meta.env.MODE !== 'test') {
     if (typeof obj === 'object' && obj !== null) {
       Object.keys(obj).forEach((prop) => {
         const val = obj[prop];
-        if ((typeof val === 'object' || typeof val === 'function') && !Object.isFrozen(val)) {
+        if (
+          (typeof val === 'object' || typeof val === 'function') &&
+          !Object.isFrozen(val)
+        ) {
           deepFreeze(val);
         }
       });
     }
     return Object.freeze(obj);
   };
-  
+
   deepFreeze(api);
   window[apiKey] = api;
 }

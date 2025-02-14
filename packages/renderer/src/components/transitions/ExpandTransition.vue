@@ -7,7 +7,7 @@ export default {
     group: Boolean,
   },
   setup(props, { slots, attrs }) {
-    function enter (element) {
+    function enter(element) {
       const { width } = getComputedStyle(element);
 
       element.style.width = width;
@@ -28,10 +28,10 @@ export default {
         element.style.height = height;
       });
     }
-    function afterEnter (element) {
+    function afterEnter(element) {
       element.style.height = 'auto';
     }
-    function leave (element) {
+    function leave(element) {
       const { height } = getComputedStyle(element);
 
       element.style.height = height;
@@ -43,14 +43,19 @@ export default {
       });
     }
 
-    return () => h(props.group ? TransitionGroup : Transition, {
-      ...attrs,
-      name: 'expand',
-      onEnter: enter,
-      onAfterEnter: afterEnter,
-      onLeave: leave,
-    }, slots.default)
-  }
+    return () =>
+      h(
+        props.group ? TransitionGroup : Transition,
+        {
+          ...attrs,
+          name: 'expand',
+          onEnter: enter,
+          onAfterEnter: afterEnter,
+          onLeave: leave,
+        },
+        slots.default
+      );
+  },
 };
 </script>
 <style>

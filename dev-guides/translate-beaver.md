@@ -11,7 +11,7 @@ Disclaimer: Languages can be added to Beaver Notes regardless of territorial or 
 
 ## Getting Started
 
-Before you begin, ensure that you have [setup-your-environment.md](setup-your-environment.md "mention") and have a functioning GitHub account. If everything checks out you can start translating Beaver Notes right away. To begin with download the **'translations-template.json',** rename it using the **ISO 639-1** format. You can find your language code [here](https://en.wikipedia.org/wiki/List\_of\_ISO\_639-1\_codes). and place it in **'/packages/renderer/src/pages/settings/locales,'**
+Before you begin, ensure that you have [setup-your-environment.md](setup-your-environment.md 'mention') and have a functioning GitHub account. If everything checks out you can start translating Beaver Notes right away. To begin with download the **'translations-template.json',** rename it using the **ISO 639-1** format. You can find your language code [here](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes). and place it in **'/packages/renderer/src/pages/settings/locales,'**
 
 {% file src="../.gitbook/assets/translation-template (1).json" %}
 
@@ -32,7 +32,7 @@ The part you'll be editing is the text that appears after the colon within a val
 
 ## Editing the code
 
-Open the '/packages/renderer/src/utils/**commands.js**' file, locate the import section in the file and  add the following lines:
+Open the '/packages/renderer/src/utils/**commands.js**' file, locate the import section in the file and add the following lines:
 
 ```javascript
 import enTranslations from './locales/en.json';
@@ -107,4 +107,4 @@ Replace the 'en' code with the code of your own language, as previously done whe
 
 Kudos! You've successfully added support for a new language, making Beaver Notes more accessible to a ton of people. You can now check if everything appears to be correct, and if it is, then feel free to open a pull request on GitHub. It will be promptly reviewed, and unless further verification is needed, it will be added to a new release of the app.
 
-[^1]: 
+[^1]:

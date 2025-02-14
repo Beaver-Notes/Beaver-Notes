@@ -27,8 +27,8 @@ Let's suppose you are here to package Beaver Notes for your favorite package man
 
 Usually you'll need the following to package an app:
 
-* Knowledge of the Language used by the package manager
-* The SHA256 of the original package or source code
+- Knowledge of the Language used by the package manager
+- The SHA256 of the original package or source code
 
 You can get the SHA256 either from [Beaver Note's release page](https://github.com/Daniele-rolli/Beaver-Notes/releases) or by running the following command in your terminal or Powershell.
 
