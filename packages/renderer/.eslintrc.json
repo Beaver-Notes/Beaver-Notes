@@ -8,6 +8,7 @@
     "plugin:vue/vue3-recommended",
     "plugin:prettier-vue/recommended"
   ],
+  "ignorePatterns": ["**/*.ts", "**/*.tsx"],
   "parserOptions": {
     "parser": "babel-eslint",
     "ecmaVersion": 12,

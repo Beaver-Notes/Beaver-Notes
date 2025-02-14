@@ -7,8 +7,8 @@
     <home-note-filter
       v-model:query="state.query"
       v-model:label="state.activeLabel"
-      v-model:sortBy="state.sortBy"
-      v-model:sortOrder="state.sortOrder"
+      v-model:sort-by="state.sortBy"
+      v-model:sort-order="state.sortOrder"
       v-bind="{
         labels: labelStore.data,
       }"

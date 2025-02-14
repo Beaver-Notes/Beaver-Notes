@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
     class="z-50 fixed bg-white dark:bg-neutral-800 rounded-lg shadow-lg border shadow-xl dark:border-neutral-600 p-2"

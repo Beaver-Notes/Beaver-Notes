@@ -1,27 +1,27 @@
-import OrderedList from "@tiptap/extension-ordered-list";
-import FootnoteRules from "./rules";
+import OrderedList from '@tiptap/extension-ordered-list';
+import FootnoteRules from './rules';
 
 const Footnotes = OrderedList.extend({
-  name: "footnotes",
-  group: "", // removed the default group of the ordered list extension
+  name: 'footnotes',
+  group: '', // removed the default group of the ordered list extension
   isolating: true,
   defining: true,
   draggable: false,
 
   content() {
-    return "footnote*";
+    return 'footnote*';
   },
   addAttributes() {
     return {
       class: {
-        default: "footnotes",
+        default: 'footnotes',
       },
     };
   },
   parseHTML() {
     return [
       {
-        tag: "ol:has(.footnotes)",
+        tag: 'ol:has(.footnotes)',
         priority: 1000,
       },
     ];
@@ -31,7 +31,7 @@ const Footnotes = OrderedList.extend({
     return {
       // override the default behavior of Mod-a:
       // rather than selecting the whole text content of the editor, only select the text inside the current footnote
-      "Mod-a": ({ editor }) => {
+      'Mod-a': ({ editor }) => {
         try {
           const { selection } = editor.state;
           const { $from } = selection;
@@ -39,7 +39,7 @@ const Footnotes = OrderedList.extend({
           const start = $from.start(2);
           const startNode = editor.$pos(start);
 
-          if (startNode.node.type.name != "footnote") return false;
+          if (startNode.node.type.name != 'footnote') return false;
 
           const end = $from.end(2);
 
