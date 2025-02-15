@@ -84,6 +84,18 @@ export default {
         }
       });
 
+      try {
+        const autoUpdateEnabled = await window.electron.ipcRenderer.callMain(
+          'get-auto-update-status'
+        );
+
+        if (autoUpdateEnabled) {
+          await window.electron.ipcRenderer.callMain('check-for-updates');
+        }
+      } catch (error) {
+        console.error('Error checking auto-update status:', error);
+      }
+
       // Apply the stored zoom level on mount
       document.body.style.zoom = state.zoomLevel;
 

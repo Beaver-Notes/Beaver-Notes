@@ -311,26 +311,29 @@ app
   .catch((e) => console.error('Failed create window:', e));
 
 autoUpdater.on('checking-for-update', () => {
-  ipcMain.callFocusedRenderer('update-status', 'Checking for updates...');
+  mainWindow?.webContents.send('update-status', 'Checking for updates...');
 });
 
 autoUpdater.on('update-available', (info) => {
-  ipcMain.callFocusedRenderer(
+  mainWindow?.webContents.send(
     'update-status',
     `Update available: ${info.version}`,
   );
 });
 
 autoUpdater.on('update-not-available', () => {
-  ipcMain.callFocusedRenderer('update-status', 'No updates available.');
+  mainWindow?.webContents.send('update-status', 'No updates available.');
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  ipcMain.callFocusedRenderer('update-progress', progress);
+  mainWindow?.webContents.send('update-progress', progress);
 });
 
 autoUpdater.on('update-downloaded', (info) => {
-  ipcMain.callFocusedRenderer('update-status', `Update ready: ${info.version}`);
+  mainWindow?.webContents.send(
+    'update-status',
+    `Update ready: ${info.version}`,
+  );
 });
 
 ipcMain.answerRenderer('check-for-updates', async () => {

@@ -36,7 +36,7 @@ const electronBuilderConfig = {
     icon: 'buildResources/icon.icns',
     target: [
       {
-        target: 'dmg',
+        target: 'default',
         arch: ['universal'],
       },
     ],
