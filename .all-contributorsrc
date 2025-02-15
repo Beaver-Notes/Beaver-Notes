@@ -58,6 +58,24 @@
         "translation",
         "code"
       ]
+    },
+    {
+      "login": "o-l-a-v",
+      "name": "Olav Rønnestad Birkeland",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6450056?v=4",
+      "profile": "https://olavrb.no",
+      "contributions": [
+        "platform"
+      ]
+    },
+    {
+      "login": "Tahinli",
+      "name": "Ahmet Kaan GÜMÜŞ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/96421894?v=4",
+      "profile": "http://tahinli.com",
+      "contributions": [
+        "translation"
+      ]
     }
   ],
   "contributorsPerLine": 7,
@@ -65,5 +83,5 @@
   "repoType": "github",
   "repoHost": "https://github.com",
   "projectName": "Beaver-Notes",
-  "projectOwner": "Daniele-rolli"
+  "projectOwner": "Beaver-Notes"
 }
