@@ -157,7 +157,7 @@
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-amber-100 font-semibold pr-1">{{
+        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
           formattedTime
         }}</span>
       </div>
@@ -428,7 +428,7 @@
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-amber-100 font-semibold pr-1">{{
+        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
           formattedTime
         }}</span>
       </div>
@@ -664,7 +664,6 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import RecordRTC from 'recordrtc';
-import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { exportNoteById } from '@/utils/share';
 import { useTranslation } from '@/composable/translations';
@@ -672,7 +671,6 @@ import { useTranslation } from '@/composable/translations';
 const { path, ipcRenderer } = window.electron;
 const filePath = '';
 const storage = useStorage('settings');
-const { currentTheme } = useTheme();
 const state = shallowReactive({
   zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
 });
@@ -944,12 +942,8 @@ export default {
       Mousetrap.unbind(Object.keys(shortcuts));
     });
 
-    const isDarkMode = currentTheme.value === 'dark';
-
     function printContent() {
-      console.log(`${props.note.title}.pdf`);
       ipcRenderer.callMain('print-pdf', {
-        backgroundColor: isDarkMode ? '#232222' : '#ffffff',
         pdfName: `${props.note.title}.pdf`,
       });
     }
@@ -960,7 +954,6 @@ export default {
           translations.value = trans;
         }
       });
-      document.addEventListener('drop', handleDrop);
     });
 
     const showAdavancedSettings = computed(() => {
@@ -996,47 +989,6 @@ export default {
         console.error(error);
       }
     };
-
-    async function handleDrop(event) {
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Check if files are being dropped
-      const files = event.dataTransfer?.files;
-
-      // If no files are present, ignore the drop event
-      if (!files || files.length === 0) {
-        console.log('Ignoring non-file drop event');
-        return;
-      }
-
-      console.log('Files detected, processing drop event:', event);
-
-      try {
-        for (const file of files) {
-          // Determine the type of the file
-          const mimeType = file.type;
-
-          // Ignore image files
-          if (mimeType.startsWith('image/')) {
-            continue;
-          }
-
-          const { fileName, relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
-
-          if (mimeType.startsWith('audio/')) {
-            props.editor.commands.setAudio(src);
-          } else if (mimeType.startsWith('video/')) {
-            props.editor.commands.setVideo(src);
-          } else {
-            props.editor.commands.setFileEmbed(src, fileName);
-          }
-        }
-      } catch (error) {
-        console.error('Error saving and embedding files:', error);
-      }
-    }
 
     const container = ref();
     function changeWheelDirection(e) {

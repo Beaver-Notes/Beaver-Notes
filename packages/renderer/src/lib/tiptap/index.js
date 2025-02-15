@@ -8,6 +8,7 @@ import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
+import { Paste } from './exts/markdown-engine/paste';
 import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
@@ -24,9 +25,9 @@ import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import drawingCanvas from './exts/drawing-block';
-import Search from './exts/search';
 import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
+import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
 import {
   blueCallout,
   yellowCallout,
@@ -44,7 +45,7 @@ import TableRow from '@tiptap/extension-table-row';
 import Footnote from './exts/footnote-block/footnote';
 import Footnotes from './exts/footnote-block/footnotes';
 import FootnoteReference from './exts/footnote-block/reference';
-import slashCommand from './exts/slash-menu';
+import Commands from './exts/commands';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -136,9 +137,10 @@ const extensions = [
     defaultDirection: defaultDirection,
   }),
   Image,
-  slashCommand,
+  Commands,
   Audio,
-  Search,
+  Paste,
+  SearchAndReplace.configure(),
   drawingCanvas,
   markdownEngine,
   Placeholder.configure({

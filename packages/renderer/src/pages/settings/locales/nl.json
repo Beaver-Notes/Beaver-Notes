@@ -126,7 +126,7 @@
     "orderedlist": "Genummerde list",
     "paragraph": "Paragraaf",
     "pdf": "PDF",
-    "readerMode": "",
+    "readerMode": "leesmodus",
     "record": "Audio-opmerking",
     "searchHeadings": "Zoek titels",
     "strikethrough": "Doorgestreept",
@@ -137,7 +137,13 @@
     "underline": "Onderstreept",
     "vidUrl": "Video url",
     "video": "Video",
-    "videoUrl": "Video-URL"
+    "videoUrl": "Video-URL",
+    "blackCallout": "Zwart kader",
+    "blueCallout": "Blauw kader",
+    "greenCallout": "Groen kader",
+    "purpleCallout": "Paars kader",
+    "redCallout": "Rood kader",
+    "yellowCallout": "Geel kader"
   },
   "paper": {
     "dotted": "Gestippeld",
@@ -195,6 +201,7 @@
     "body": "Deze data is versleutelt, je moet het wachtwoord invullen om toegang te krijgen",
     "checkUpdates": "Zoeken naar updates",
     "clearfont": "Scherpe letters - OLED",
+    "colorScheme": "Accentkleur",
     "confirmDelete": "Ben je zeker dat je {name} (id: {id}) wilt verwijderen?",
     "createdAt": "Aangemaakt op",
     "dark": "Donker",

@@ -126,7 +126,7 @@
     "orderedlist": "Elenco numerico",
     "paragraph": "Paragrafo",
     "pdf": "PDF",
-    "readerMode": "",
+    "readerMode": "modalità lettura",
     "record": "Nota Audio",
     "searchHeadings": "Ricerca intestazioni",
     "strikethrough": "Barra",
@@ -137,7 +137,13 @@
     "underline": "Sottolinea",
     "vidUrl": "URL Video",
     "video": "Video",
-    "videoUrl": "Url Video"
+    "videoUrl": "Url Video",
+    "blackCallout": "Riquadro nero",
+    "blueCallout": "Riquadro blu",
+    "greenCallout": "Riquadro verde",
+    "purpleCallout": "Riquadro viola",
+    "redCallout": "Riquadro rosso",
+    "yellowCallout": "Riquadro giallo"
   },
   "paper": {
     "dotted": "Puntinato",
@@ -195,6 +201,7 @@
     "body": "Questi dati sono crittografati, inserisci la password per accedere",
     "checkUpdates": "Controlla gli aggiornamenti",
     "clearfont": "Carattere nitido - OLED",
+    "colorScheme": "Colore dettagli",
     "confirmDelete": "Sei sicuro di voler cancellare {name} (id: {id})?",
     "createdAt": "Creato il",
     "dark": "Scuro",

@@ -13,6 +13,7 @@
 [![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat&color=6364FF)](https://mastodon.social/@Beavernotes)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=license)
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=security)
+
 <div align="center">
 <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
@@ -29,16 +30,16 @@ Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, W
 
 ## Features 🛠️
 
-* **🛡️ Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
-* **👋 User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
-* **🖋️ Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
-* **🏷️ Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
-* **🔎 Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
-* **🔗 Note Linking:** Create a web of ideas and interconnected thoughts.
-* **⌨️ Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
-* **🔏 Locked Notes:** Your thoughts and ideas can be kept even more private, ensuring that only you can access them.
-* **🔄 Sync your Notes:** Share your notes across devices by simply setting the path of your favorite service and clicking a button whenever you need your notes to be shared with other devices or loaded on yours. It's that easy!
-* **Discover more exciting features on** [**our website**](https://beavernotes.com)
+- **🛡️ Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
+- **👋 User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
+- **🖋️ Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
+- **🏷️ Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
+- **🔎 Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
+- **🔗 Note Linking:** Create a web of ideas and interconnected thoughts.
+- **⌨️ Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
+- **🔏 Locked Notes:** Your thoughts and ideas can be kept even more private, ensuring that only you can access them.
+- **🔄 Sync your Notes:** Share your notes across devices by simply setting the path of your favorite service and clicking a button whenever you need your notes to be shared with other devices or loaded on yours. It's that easy!
+- **Discover more exciting features on** [**our website**](https://beavernotes.com)
 
 ## Installation 🚀
 

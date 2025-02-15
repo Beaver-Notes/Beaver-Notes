@@ -6,8 +6,6 @@ description: >-
 
 # 🔄 Set up the Sync
 
-
-
 {% hint style="info" %}
 Before we get started, ensure that you have a cloud provider such as Dropbox, OneDrive, iCloud, etc., installed on your PC. If you don't have a cloud provider installed on your PC, simply search <mark style="color:yellow;">'\[Your Cloud Provider Name] + Your Operating System'</mark> on Google. Alternatively, you can also explore services like Syncthing or utilize your own server if you happen to have one.
 {% endhint %}

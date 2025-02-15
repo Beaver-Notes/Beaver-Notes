@@ -20,10 +20,15 @@ This section of the docs doesn't cover the whole markdown syntax but only the sy
 
 ```markdown
 # Heading 1
+
 ## Heading 2
+
 ### Heading 3
+
 #### Heading 4
+
 ##### Heading 5
+
 ##### Heading 6
 ```
 
@@ -40,9 +45,10 @@ Highlited text is the ==dog's bark==
 
 ```markdown
 1. This is an ordered list
+
 - this is an unordered list
-[ ] This is a check list
-[x] This is a checked check list
+  [ ] This is a check list
+  [x] This is a checked check list
 ```
 
 #### Blocks

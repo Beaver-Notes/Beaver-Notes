@@ -1,11 +1,11 @@
-import { mergeAttributes, Node } from "@tiptap/core";
-import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
-import { v4 as uuid } from "uuid";
+import { mergeAttributes, Node } from '@tiptap/core';
+import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
+import { v4 as uuid } from 'uuid';
 
-const REFNUM_ATTR = "data-reference-number";
-const REF_CLASS = "footnote-ref";
+const REFNUM_ATTR = 'data-reference-number';
+const REF_CLASS = 'footnote-ref';
 
-declare module "@tiptap/core" {
+declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     footnoteReference: {
       /**
@@ -18,10 +18,10 @@ declare module "@tiptap/core" {
 }
 
 const FootnoteReference = Node.create({
-  name: "footnoteReference",
+  name: 'footnoteReference',
   inline: true,
-  content: "text*",
-  group: "inline",
+  content: 'text*',
+  group: 'inline',
   atom: true,
   draggable: true,
 
@@ -39,13 +39,13 @@ const FootnoteReference = Node.create({
       class: {
         default: REF_CLASS,
       },
-      "data-id": {
+      'data-id': {
         parseHTML(element) {
-          return element.getAttribute("data-id") || uuid();
+          return element.getAttribute('data-id') || uuid();
         },
         renderHTML(attributes) {
           return {
-            "data-id": attributes["data-id"] || uuid(),
+            'data-id': attributes['data-id'] || uuid(),
           };
         },
       },
@@ -57,7 +57,7 @@ const FootnoteReference = Node.create({
       href: {
         renderHTML(attributes) {
           return {
-            href: `#fn:${attributes["referenceNumber"]}`,
+            href: `#fn:${attributes['referenceNumber']}`,
           };
         },
       },
@@ -70,9 +70,9 @@ const FootnoteReference = Node.create({
     attrs[REFNUM_ATTR] = referenceNumber;
 
     return [
-      "sup",
+      'sup',
       { id: `fnref:${referenceNumber}` },
-      ["a", attrs, HTMLAttributes.referenceNumber],
+      ['a', attrs, HTMLAttributes.referenceNumber],
     ];
   },
 
@@ -80,34 +80,21 @@ const FootnoteReference = Node.create({
     const { editor } = this;
     return [
       new Plugin({
-        key: new PluginKey("footnoteRefClick"),
+        key: new PluginKey('footnoteRefClick'),
 
         props: {
-          // on double-click, focus on the footnote
-          handleDoubleClickOn(view, pos, node, nodePos, event) {
-            if (node.type.name != "footnoteReference") return false;
-            event.preventDefault();
-            const id = node.attrs["data-id"];
-            return editor.commands.focusFootnote(id);
-          },
           // click the footnote reference once to get focus, click twice to scroll to the footnote
           handleClickOn(view, pos, node, nodePos, event) {
-            if (node.type.name != "footnoteReference") return false;
+            if (node.type.name != 'footnoteReference') return false;
             event.preventDefault();
-            const { selection } = editor.state.tr;
-            if (selection instanceof NodeSelection && selection.node.eq(node)) {
-              const id = node.attrs["data-id"];
-              return editor.commands.focusFootnote(id);
-            } else {
-              editor.chain().setNodeSelection(nodePos).run();
-              return true;
-            }
+            const id = node.attrs['data-id'];
+            return editor.commands.focusFootnote(id);
           },
 
           // Handle paste events
           handlePaste(view, event, slice) {
             // Extract text from pasted content
-            const text = event.clipboardData?.getData("text/plain");
+            const text = event.clipboardData?.getData('text/plain');
             if (!text) return false;
 
             // Find all footnote reference patterns in the pasted text
@@ -127,7 +114,10 @@ const FootnoteReference = Node.create({
             let newText = text;
             footnoteRefs.forEach(({ number, index, length }) => {
               const refNode = `<sup id="fnref:${number}"><a class="${REF_CLASS}" href="#fn:${number}" data-reference-number="${number}">${number}</a></sup>`;
-              newText = newText.slice(0, index + offset) + refNode + newText.slice(index + offset + length);
+              newText =
+                newText.slice(0, index + offset) +
+                refNode +
+                newText.slice(index + offset + length);
               offset += refNode.length - length;
             });
 
@@ -146,13 +136,13 @@ const FootnoteReference = Node.create({
     return {
       addFootnote:
         () =>
-          ({ state, tr }) => {
-            const node = this.type.create({
-              "data-id": uuid(),
-            });
-            tr.insert(state.selection.anchor, node);
-            return true;
-          },
+        ({ state, tr }) => {
+          const node = this.type.create({
+            'data-id': uuid(),
+          });
+          tr.insert(state.selection.anchor, node);
+          return true;
+        },
     };
   },
 

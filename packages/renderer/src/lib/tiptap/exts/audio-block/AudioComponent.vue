@@ -18,7 +18,7 @@
           <v-remixicon name="riBack5" />
         </button>
         <button
-          class="bg-amber-400 text-white p-2 rounded-full hover:bg-amber-500 ml-2"
+          class="bg-primary text-white p-2 rounded-full hover:bg-secondary ml-2"
           @click="togglePlay"
         >
           <v-remixicon :name="isPlaying ? 'riPauseFill' : 'riPlayFill'" />
@@ -44,11 +44,11 @@
         @click="seek"
       >
         <div
-          class="flex flex-col justify-center rounded-full bg-amber-400 text-xs text-white text-center transition duration-500 dark:bg-amber-400"
+          class="flex flex-col justify-center rounded-full bg-primary text-xs text-white text-center transition duration-500 dark:bg-primary"
           :style="{ width: progressBarWidth }"
         ></div>
         <div
-          class="absolute top-0 left-0 h-full w-4 bg-amber-500 rounded-full transform -translate-x-1/2"
+          class="absolute top-0 left-0 h-full w-4 bg-secondary rounded-full transform -translate-x-1/2"
           :style="{ left: progressBarWidth }"
           @mousedown="startDrag"
         ></div>

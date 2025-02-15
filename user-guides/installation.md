@@ -2,8 +2,6 @@
 
 To get started with Beaver Notes, visit the website at [beavernotes.com](https://beavernotes.com/download) and navigate to the download section. Choose the installer that matches your operating system – whether it's macOS, Windows, or a Linux distribution. Once you've selected the right installer, you can either go on and follow on-screen instructions or keep reading this section of the docs for better guidance.
 
-
-
 {% hint style="info" %}
 **Not sure which installer to pick? No worries! We are here to help you, just click here**
 
@@ -13,7 +11,7 @@ To get started with Beaver Notes, visit the website at [beavernotes.com](https:/
 🍎 **macOS**: Click the Apple menu in the top-left corner, choose About This Mac, and look for the Processor information. It will specify whether it's an Intel (x64) or Apple Silicon (arm64) processor.
 
 \
-🐧 **Linux**: Open a terminal and use the command uname -m. If it returns x86\_64, it's x64 architecture. If it returns aarch64, it's arm64 architecture.
+🐧 **Linux**: Open a terminal and use the command uname -m. If it returns x86_64, it's x64 architecture. If it returns aarch64, it's arm64 architecture.
 {% endhint %}
 
 ## 🍎 **macOS**
@@ -182,11 +180,6 @@ Now that you've installed Beaver Notes successfully, check out the next page to 
 \
 \
 \
-
-
-
-
-
 
 \
 \

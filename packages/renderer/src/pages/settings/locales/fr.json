@@ -126,7 +126,7 @@
     "orderedlist": "Liste ordonnée",
     "paragraph": "Paragraphe",
     "pdf": "PDF",
-    "readerMode": "",
+    "readerMode": "Mode de lecture",
     "record": "Enregistrer",
     "searchHeadings": "Recherche de titres",
     "strikethrough": "Barré",
@@ -137,7 +137,13 @@
     "underline": "Souligné",
     "vidUrl": "Lien vers la vidéo",
     "video": "Vidéo",
-    "videoUrl": "Lien vers la vidéo"
+    "videoUrl": "Lien vers la vidéo",
+    "blackCallout": "Encadré noir",
+    "blueCallout": "Encadré bleu",
+    "greenCallout": "Encadré vert",
+    "purpleCallout": "Encadré violet",
+    "redCallout": "Encadré rouge",
+    "yellowCallout": "Encadré jaune"
   },
   "paper": {
     "dotted": "Pointillé",
@@ -195,6 +201,7 @@
     "body": "Ces données sont cryptées, vous devez saisir le mot de passe pour y accéder.",
     "checkUpdates": "Vérifier les mises à jour",
     "clearfont": "Clear Font - OLED",
+    "colorScheme": "Couleur d’accentuation",
     "confirmDelete": "Êtes-vous sûr de vouloir supprimer {name} (ID: {id}) ?",
     "createdAt": "Créée le",
     "dark": "Sombre",

@@ -34,11 +34,10 @@ To add a new locale, head to Translations and then click "New Locale" in the top
 
 ## Export and Import&#x20;
 
-To import a locale, simply select the file from your system, choose JSON as the format, and then select the locale you're importing. To export, select the desired locale and then choose JSON as the format. If you prefer to implement your translation into the app manually rather than contacting us, follow the [translate-beaver.md](translate-beaver.md "mention") to place the file and make the necessary modifications.&#x20;
+To import a locale, simply select the file from your system, choose JSON as the format, and then select the locale you're importing. To export, select the desired locale and then choose JSON as the format. If you prefer to implement your translation into the app manually rather than contacting us, follow the [translate-beaver.md](translate-beaver.md 'mention') to place the file and make the necessary modifications.&#x20;
 
 **Please note that the command-translation feature has been deprecated in Beaver Notes 3.0.0.**
 
 <figure><img src="../.gitbook/assets/Screenshot 2024-03-16 at 11.10.58 PM.png" alt=""><figcaption><p>Import Project Translation</p></figcaption></figure>
 
 <figure><img src="../.gitbook/assets/Screenshot 2024-03-16 at 11.11.42 PM.png" alt=""><figcaption><p><strong>Export Project Translation</strong></p></figcaption></figure>
-

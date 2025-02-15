@@ -3,7 +3,7 @@
     <slot v-bind="{ editor }" />
     <editor-content
       :editor="editor"
-      class="prose dark:text-neutral-100 max-w-none prose-indigo"
+      class="prose dark:text-neutral-100 max-w-none prose-indigo print:cursor-none"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
   </div>
@@ -17,6 +17,7 @@ import { extensions, CollapseHeading } from '@/lib/tiptap';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
+import { dropFile } from '@/lib/tiptap/exts/drop-file';
 import { useAppStore } from '../../store/app';
 
 export default {
@@ -42,7 +43,7 @@ export default {
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
-    const exts = [...extensions];
+    const exts = [...extensions, dropFile.configure({ id: props.id })];
     if (appStore.setting.collapsibleHeading) {
       exts.push(CollapseHeading);
     }

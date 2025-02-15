@@ -1,4 +1,4 @@
-import {loadEnv} from 'vite';
+import { loadEnv } from 'vite';
 
 /**
  * Load variables from `.env.[mode]` files in cwd

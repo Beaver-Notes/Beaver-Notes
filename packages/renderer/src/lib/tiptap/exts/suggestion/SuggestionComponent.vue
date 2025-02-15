@@ -41,7 +41,7 @@
 import { watch, ref, shallowReactive, onMounted } from 'vue';
 
 const props = defineProps({
-  onSelect: Function,
+  onSelect: { type: Function, required: true },
   labelKey: {
     type: String,
     default: '',

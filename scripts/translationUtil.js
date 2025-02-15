@@ -16,9 +16,13 @@ function highlightText(text) {
 async function showUnsynchronized(localePath) {
   const enPath = path.resolve(__dirname, `${localePath}/en.json`);
   const targetPath = path.resolve(__dirname, `${localePath}/${targetLng}.json`);
-  
+
   if (!fs.existsSync(enPath)) {
-    console.log(`\n${highlightText('Error:')} English translation file (${enPath}) not found.`);
+    console.log(
+      `\n${highlightText(
+        'Error:',
+      )} English translation file (${enPath}) not found.`,
+    );
     return;
   }
 
@@ -30,11 +34,13 @@ async function showUnsynchronized(localePath) {
 
   const enTranslation = JSON.parse(fs.readFileSync(enPath).toString());
   const targetTranslation = JSON.parse(fs.readFileSync(targetPath).toString());
-  
-  const [ diffObj] = diffObject(enTranslation, targetTranslation);
-  
+
+  const [diffObj] = diffObject(enTranslation, targetTranslation);
+
   if (Object.keys(diffObj).length > 0) {
-    console.log(`\n${highlightText(`Unsynchronized translations for ${targetLng}:`)}`);
+    console.log(
+      `\n${highlightText(`Unsynchronized translations for ${targetLng}:`)}`,
+    );
     console.log(diffObj);
     console.log(`Run ${highlightText('yarn run tran-update')} to update.`);
   } else {
@@ -45,7 +51,7 @@ async function showUnsynchronized(localePath) {
 function diffObject(source, target) {
   const obj = {};
   const diffObj = {};
-  for(const key in source) {
+  for (const key in source) {
     if (typeof source[key] !== typeof target[key]) {
       diffObj[key] = obj[key] = source[key];
       continue;

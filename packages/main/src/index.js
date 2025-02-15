@@ -52,7 +52,7 @@ if (!isSingleInstance) {
 if (process.env.PORTABLE_EXECUTABLE_DIR)
   app.setPath(
     'userData',
-    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
+    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data'),
   );
 
 /**
@@ -124,7 +124,7 @@ const createWindow = async () => {
       ? env.VITE_DEV_SERVER_URL
       : new URL(
           '../renderer/dist/index.html',
-          'file://' + __dirname
+          'file://' + __dirname,
         ).toString();
 
   await mainWindow.loadURL(pageUrl);
@@ -135,29 +135,22 @@ app.on('NSApplicationDelegate.applicationSupportsSecureRestorableState', () => {
 });
 
 ipcMain.answerRenderer('print-pdf', async (options) => {
-  console.log('printing');
-  const { backgroundColor = '#000000', pdfName } = options; // Default to black if not specified
-  console.log(options);
+  const { pdfName } = options; // Default to black if not specified
 
   const focusedWindow = BrowserWindow.getFocusedWindow(); // Get the current window
   if (!focusedWindow) return;
 
-  const { canceled, filePath } = await dialog.showSaveDialog(focusedWindow, {
+  const { filePath } = await dialog.showSaveDialog(focusedWindow, {
     title: 'Save PDF',
     defaultPath: path.join(
       app.getPath('desktop'),
-      pdfName || 'editor-output.pdf'
+      pdfName || 'editor-output.pdf',
     ),
     filters: [
       { name: 'PDF Files', extensions: ['pdf'] },
       { name: 'All Files', extensions: ['*'] },
     ],
   });
-
-  if (canceled || !filePath) {
-    console.log('Save operation canceled by the user.');
-    return;
-  }
 
   try {
     // Apply the custom background color and remove margins/padding
@@ -176,7 +169,6 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
             height: 100%;
             margin: 0;
             padding: 0;
-            background-color: ${backgroundColor};
           }
           * {
             box-sizing: border-box;
@@ -185,10 +177,8 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
         document.head.appendChild(style);
     
         // Apply background color directly
-        document.body.style.backgroundColor = '${backgroundColor}';
         document.body.style.margin = '0';
         document.body.style.padding = '0';
-        document.documentElement.style.backgroundColor = '${backgroundColor}';
         document.documentElement.style.margin = '0';
         document.documentElement.style.padding = '0';
       })();
@@ -261,23 +251,52 @@ app
       const filePath = `${dir}/file-assets/${url}`;
       callback({ path: normalize(filePath) });
     });
+    protocol.registerFileProtocol('fonts', (request, callback) => {
+      const url = request.url.substr(8);
+      const dir = store.settings.get('dataDir');
+      const fontPath = `${dir}/fonts/${url}`;
+      callback({ path: normalize(fontPath) });
+    });
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
+      ensureDir(join(app.getPath('userData'), 'fonts')),
     ]);
     createWindow();
     if (process.argv.length >= 2) {
-      let filePath = process.argv[1];
-      filePath = path.resolve(filePath).replace(/\\/g, '/'); // Ensure proper formatting
+      let filePath = null;
 
-      if (mainWindow && mainWindow.webContents) {
-        if (mainWindow.webContents.isLoading()) {
-          // If the frontend isn't ready, queue the file path
-          queuedPath = filePath;
-        } else {
-          // If the frontend is ready, send the file path immediately
-          mainWindow.webContents.send('file-opened', filePath);
+      // Iterate through argv to find the first argument that ends with .bea
+      for (let i = 1; i < process.argv.length; i++) {
+        const arg = process.argv[i];
+
+        // Check if the argument ends with .bea
+        if (arg.endsWith('.bea')) {
+          filePath = path.resolve(arg).replace(/\\/g, '/');
+          break; // Stop at the first .bea file
         }
+      }
+
+      if (filePath) {
+        if (mainWindow && mainWindow.webContents) {
+          if (mainWindow.webContents.isLoading()) {
+            // If the frontend isn't ready, queue the file path
+            queuedPath = filePath;
+          } else {
+            // If the frontend is ready, send the file path immediately
+            mainWindow.webContents.send('file-opened', filePath);
+          }
+        }
+      } else {
+        // No .bea file found, just print and let the app handle the other arguments
+        console.log(
+          'No valid .bea file found. Continuing with other arguments.',
+        );
+
+        // Process runtime arguments (like --ozone-platform-hint=auto)
+        process.argv.forEach((arg) => {
+          console.log(`Received argument: ${arg}`);
+        });
       }
     }
 
@@ -298,7 +317,7 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
   ipcMain.callFocusedRenderer(
     'update-status',
-    `Update available: ${info.version}`
+    `Update available: ${info.version}`,
   );
 });
 
@@ -367,36 +386,38 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
   }
 });
 
-ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
-  mainWindow.webContents.zoomFactor = newZoomLevel;
+ipcMain.handle('app:set-zoom', (newZoomLevel) => {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.setZoomFactor(newZoomLevel);
+  }
 });
 
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
 
 ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) =>
-  win.setMenuBarVisibility(visibility)
+  win.setMenuBarVisibility(visibility),
 );
 
 ipcMain.answerRenderer('dialog:open', (props) => dialog.showOpenDialog(props));
 ipcMain.answerRenderer('dialog:message', (props) =>
-  dialog.showMessageBox(props)
+  dialog.showMessageBox(props),
 );
 ipcMain.answerRenderer('dialog:save', (props) => dialog.showSaveDialog(props));
 
 ipcMain.answerRenderer('fs:copy', ({ path, dest }) => copy(path, dest));
 ipcMain.answerRenderer('fs:output-json', ({ path, data }) =>
-  outputJson(path, data)
+  outputJson(path, data),
 );
 ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
 ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
 ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
 ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-  writeFileSync(path, data)
+  writeFileSync(path, data),
 );
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
 ipcMain.answerRenderer('fs:readData', (path) =>
-  fs.readFileSync(path, 'base64')
+  fs.readFileSync(path, 'base64'),
 );
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
@@ -445,22 +466,22 @@ ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
 ipcMain.answerRenderer('helper:get-path', (name) => app.getPath(name));
 ipcMain.answerRenderer(
   'helper:is-dark-theme',
-  () => nativeTheme.shouldUseDarkColors
+  () => nativeTheme.shouldUseDarkColors,
 );
 
 ipcMain.answerRenderer('storage:store', (name) => store[name]?.store);
 ipcMain.answerRenderer(
   'storage:replace',
-  ({ name, data }) => (store[name].store = data)
+  ({ name, data }) => (store[name].store = data),
 );
 ipcMain.answerRenderer('storage:get', ({ name, key, def }) =>
-  store[name]?.get(key, def)
+  store[name]?.get(key, def),
 );
 ipcMain.answerRenderer('storage:set', ({ name, key, value }) =>
-  store[name]?.set(key, value)
+  store[name]?.set(key, value),
 );
 ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
-  store[name]?.delete(key)
+  store[name]?.delete(key),
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
@@ -609,7 +630,7 @@ function initializeMenu() {
           click: async () => {
             const { shell } = require('electron');
             await shell.openExternal(
-              'https://danieles-organization.gitbook.io/beaver-notes'
+              'https://danieles-organization.gitbook.io/beaver-notes',
             );
           },
         },

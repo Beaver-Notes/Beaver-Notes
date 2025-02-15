@@ -1,3 +1,4 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="inline-block input-ui">
     <label class="relative w-full">
@@ -18,7 +19,7 @@
         <input
           v-autofocus="autofocus"
           v-bind="{ readonly: disabled || readonly || null, placeholder, type }"
-          class="py-2 px-4 rounded-lg w-full bg-input bg-transparent transition ring-2 ring-amber-300"
+          class="py-2 px-4 rounded-lg w-full bg-input bg-transparent transition ring-2 ring-secondary"
           :class="{
             'opacity-75 pointer-events-none': disabled,
             'pl-10': prependIcon || $slots.prepend,

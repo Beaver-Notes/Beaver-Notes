@@ -1,8 +1,9 @@
+<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <component
     :is="tag"
     role="button"
-    class="ui-button h-10 relative transition focus:ring-2 ring-amber-300"
+    class="ui-button h-10 relative transition focus:ring-2 ring-secondary"
     :class="[
       color ? color : variants[variant],
       icon ? 'p-2' : 'py-2 px-4',

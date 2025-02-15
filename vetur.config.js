@@ -8,9 +8,7 @@ module.exports = {
     {
       root: './packages/renderer',
       snippetFolder: './.vscode/vetur/snippets',
-      globalComponents: [
-        './src/components/**/*.vue',
-      ],
+      globalComponents: ['./src/components/**/*.vue'],
     },
     {
       root: './packages/main',

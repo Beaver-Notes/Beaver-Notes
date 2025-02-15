@@ -126,7 +126,7 @@
     "orderedlist": "Нумерований список",
     "paragraph": "Абзац",
     "pdf": "PDF",
-    "readerMode": "",
+    "readerMode": "режим читання",
     "record": "аудіозапис",
     "searchHeadings": "Заголовки пошуку",
     "strikethrough": "Викреслено",
@@ -137,7 +137,13 @@
     "underline": "Підкреслений",
     "vidUrl": "відео url",
     "video": "Відео",
-    "videoUrl": "Video address"
+    "videoUrl": "Video address",
+    "blackCallout": "Чорний виділений блок",
+    "blueCallout": "Синій виділений блок",
+    "greenCallout": "Зелений виділений блок",
+    "purpleCallout": "Фіолетовий виділений блок",
+    "redCallout": "Червоний виділений блок",
+    "yellowCallout": "Жовтий виділений блок"
   },
   "paper": {
     "dotted": "Пунктирний папір",
@@ -195,6 +201,7 @@
     "body": "Ці дані зашифровані, для доступу до них необхідно ввести пароль.",
     "checkUpdates": "Перевірити оновлення",
     "clearfont": "Чіткий набір символів - OLED",
+    "colorScheme": "Колір акценту",
     "confirmDelete": "Ви впевнені, що хочете видалити {name} (ідентифікатор: {id})?",
     "createdAt": "Створено о",
     "dark": "Темнота",
