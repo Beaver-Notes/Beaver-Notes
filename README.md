@@ -1,7 +1,5 @@
 <h1 align="center">Beaver Notes</h1>
 
-[![Flags](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/7cba8f22-e0dd-4e6f-a41c-0b78d8e89c0b)](https://beaver-notes.github.io/Beaver-Docs/docs/dev-docs/Beaver%20Notes/Localization)
-
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
@@ -18,46 +16,58 @@
 <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
 <p><b>Build your knowledge one log at a time</b></p>
-<p>Developed with love ❤️ in a rainy cottage in Northern Italy.</p>
+<p>Developed with love ❤️ in a 🇪🇺</p>
 
-[Website](https://beavernotes.com) | [Blog](https://beaver-notes.github.io/Beaver-Blog/) | [Docs](https://beaver-notes.github.io/Beaver-Docs/docs/category/user-guides) | [Downloads](https://beavernotes.com/#/Download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/) | [Bluesky](https://bsky.app/profile/beavernotes.bsky.social)
+[Website](https://beavernotes.com) | [Blog](https://blog.beavernotes.com) | [Docs](https://docs.beavernotes.com) | [Downloads](https://beavernotes.com/#/Download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/) | [Bluesky](https://bsky.app/profile/beavernotes.com)
 
 </div>
 
-Welcome to Beaver Notes, a privacy-focused note-taking application for Mac OS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
+Beaver Notes is a privacy-focused note-taking application for macOS, Windows and GNU/Linux. With Beaver Notes, **your notes** are securely stored **on your device**, ensuring complete privacy and **control over your data**.
 
 ![Beaver Notes demo](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/a7b38689-0363-49f0-8ed8-60e7358b1df6)
 
-## Features 🛠️
+Here's the proofread version with proper Markdown formatting:  
 
-- **🛡️ Privacy First:** Your notes stay on your device, not in the cloud. Enjoy peace of mind knowing your personal information remains private.
-- **👋 User-Friendly Interface:** Beaver Notes offers a simple and intuitive interface, making note-taking a delightful experience.
-- **🖋️ Markdown Support:** Elevate your notes with Markdown formatting. Organize, style, and structure your ideas effortlessly.
-- **🏷️ Tags:** Stay organized by using tags to group related notes. Quickly find what you need when you need it.
-- **🔎 Efficient Search:** The powerful search functionality helps you locate notes instantly, saving you time and effort.
-- **🔗 Note Linking:** Create a web of ideas and interconnected thoughts.
-- **⌨️ Command Prompt:** Streamline your workflow and save time by using the command prompt to navigate through the app.
-- **🔏 Locked Notes:** Your thoughts and ideas can be kept even more private, ensuring that only you can access them.
-- **🔄 Sync your Notes:** Share your notes across devices by simply setting the path of your favorite service and clicking a button whenever you need your notes to be shared with other devices or loaded on yours. It's that easy!
-- **Discover more exciting features on** [**our website**](https://beavernotes.com)
+## 🎯 Goals  
 
-## Installation 🚀
+- **Privacy Respecting:** All your data is stored on your device.  
+- **User-Friendly:** A simple and intuitive interface makes note-taking a delightful experience.  
+- **Markdown Support:** Format without lifting your hands from the keyboard.
+- **Tags:** Organize by using tags to group related notes.  
+- **Note Linking:** Create a web of interconnected ideas and notes.  
+- **Locked Notes:** Keep your thoughts and ideas private, ensuring only you can access them.  
+- **Sync Your Notes:** Sync your notes across devices using the sync provider you trust most.  
+- **Community-Driven:** Made for the community, by the community.  
+- **Discover more on** [**our website**](https://beavernotes.com).  
 
-Getting started with Beaver Notes is quick and easy! Visit our official website and download the installer for your operating system. Follow a few simple steps, and you're all set to take notes with confidence. If you happen to prefer package managers, check out the [package manager section ](https://beavernotes.com/#/Packages)on the website. Thanks for joining our community.
+## 💖 Your contribution matters
 
-## Need Help? 🤔
+Beaver wouldn’t be possible without our incredible community from maintainers, to users, to reviewers. We’re truly grateful to all of you for your contributions! If you’d like to help improve Beaver by translating, coding, reporting bugs, or donating, now’s the perfect time to [get involved](https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html).
 
-I and the community are here to help you! For any questions or support, reach out at [danielerolli@proton.me](mailto:danielerolli@proton.me) or get in touch using our social channels like [Mastodon](https://mastodon.social/@Beavernotes) and [Reddit](https://www.reddit.com/r/BeaverNotes/). Additionally, you can check out the [docs](https://beaver-notes.github.io/Beaver-Docs/docs/category/user-guides) for a more immediate solution.
+## 📱 Looking for a mobile version
 
-## Join the Community 🦫
+Beaver Notes isn’t just for desktops, it also has a mobile version called [**Beaver Pocket**](https://beavernotes.com/#/Pocket)! It brings all the amazing features of Beaver Notes packed into the perfect note-taking app for you on the go, Beaver Pocket is currently in its **release candidate** stage.  
 
-Collaborating is one of the best ways to support your favorite piece of software. If you're interested in contributing through coding, translating, sharing ideas, providing feedback, opening issues, helping promote, and more to enhance Beaver Notes, you are welcome to join the community. For more details, please check out the [Docs](https://beaver-notes.github.io/Beaver-Docs/docs/dev-docs/Beaver%20Notes/How%20to%20contribure).
+📥 **Try it now:**  
+- **iOS:** Get it on [TestFlight](https://testflight.apple.com/join/dSsmsGLY).  
+- **Android:** Download it from [GitHub](https://github.com/Beaver-Notes/Beaver-pocket/releases).  
 
-## License 📜
+We’re actively working on bringing a **beta version to the Play Store** ASAP.
 
-Beaver Notes is proudly open-source and distributed under the [MIT License](https://github.com/Daniele-rolli/Beaver-Notes/blob/main/LICENSE).
+## 💻 Installation
 
-Take control of your notes with Beaver Notes! 🚀
+To install Beaver visit our official website and download the installer for your operating system. Follow a few simple steps, and you're all set to take notes with confidence. If you happen to prefer package managers, check out the [package manager section](https://beavernotes.com/#/Packages) on the website. Thanks for joining our community.
+
+## 🔎 Need Help?
+
+We and the community are here to help! For any questions or support, feel free to reach out at [danielerolli@proton.me](mailto:danielerolli@proton.me) or connect with us on social media:  
+
+- [**Mastodon**](https://mastodon.social/@Beavernotes)  
+- [**Reddit**](https://www.reddit.com/r/BeaverNotes/)  
+- [**Bluesky**](https://bsky.app/profile/beavernotes.com)  
+
+Additionally, check out the [**docs**](https://docs.beavernotes.com) for quick answers and solutions.
+
 
 ## Contributors ✨
 
@@ -115,7 +125,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
 
-💖 Support the Project
+## 💖 Support the Project
 
 <div align="center">
     <p>
