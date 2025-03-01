@@ -127,7 +127,6 @@ import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { onMounted, shallowReactive } from 'vue';
-import { syncexportData } from '@/utils/sync';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
@@ -173,10 +172,6 @@ async function lockNote(note) {
               // Lock the note using the global password
               await noteStore.lockNote(note, newKey);
               console.log(`Note (ID: ${note}) is locked`);
-              const autoSync = localStorage.getItem('autoSync');
-              if (autoSync === 'true') {
-                await syncexportData();
-              }
             } catch (error) {
               console.error('Error setting up key:', error);
               alert(translations.card.keyfail);
@@ -202,10 +197,6 @@ async function lockNote(note) {
             // If the entered password matches the stored one, lock the note
             await noteStore.lockNote(note, enteredPassword);
             console.log(`Note (ID: ${note}) is locked`);
-            const autoSync = localStorage.getItem('autoSync');
-            if (autoSync === 'true') {
-              await syncexportData();
-            }
           } else {
             // If the entered password does not match, show an error message
             alert(translations.card.wrongpasswd);
@@ -238,10 +229,6 @@ async function unlockNote(note) {
           // Note unlocked using the global password
           await noteStore.unlockNote(note, enteredPassword);
           console.log(`Note (ID: ${note}) is unlocked`);
-          const autoSync = localStorage.getItem('autoSync');
-          if (autoSync === 'true') {
-            await syncexportData();
-          }
         } else {
           alert(translations.card.wrongpasswd);
         }
@@ -263,12 +250,6 @@ async function deleteNote(note) {
     onConfirm: async () => {
       // Delete the note locally
       await noteStore.delete(note);
-
-      // Trigger export if auto sync is on
-      const autoSync = localStorage.getItem('autoSync');
-      if (autoSync === 'true') {
-        await syncexportData();
-      }
     },
   });
 }
@@ -314,6 +295,11 @@ onMounted(async () => {
   if (loadedTranslations) {
     Object.assign(translations, loadedTranslations);
   }
+  const autoSync = localStorage.getItem('autoSync');
+  if (autoSync === 'true') {
+    const status = getSyncStatus();
+    console.log('Sync status:', status);
+  }
 });
 
 const loadTranslations = async () => {
@@ -331,10 +317,6 @@ const loadTranslations = async () => {
 
 async function emitUpdate(payload) {
   emit('update', payload);
-  const autoSync = localStorage.getItem('autoSync');
-  if (autoSync === 'true') {
-    await syncexportData();
-  }
 }
 
 async function toggleBookmark(note) {

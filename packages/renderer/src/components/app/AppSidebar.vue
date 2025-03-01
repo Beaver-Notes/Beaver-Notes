@@ -40,24 +40,6 @@
     <div class="flex-grow"></div>
     <button
       v-tooltip:right="
-        translations.sidebar.toggleexport + ' (' + keyBinding + '+Shift+E)'
-      "
-      class="transition p-2 mb-4"
-      @click="exportData"
-    >
-      <v-remixicon name="riUpload2Line" />
-    </button>
-    <button
-      v-tooltip:right="
-        translations.sidebar.toggleimport + ' (' + keyBinding + '+Shift+I)'
-      "
-      class="transition p-2 mb-4"
-      @click="importData"
-    >
-      <v-remixicon name="riDownload2Line" />
-    </button>
-    <button
-      v-tooltip:right="
         translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
       "
       :class="[theme.isDark() ? 'text-primary' : '']"
@@ -89,8 +71,7 @@ import { useDialog } from '@/composable/dialog';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
-import { onClose } from '../../composable/onClose';
-import { syncimportData, syncexportData } from '../../utils/sync';
+import { getSyncStatus } from '@/utils/sync.js';
 
 export default {
   setup() {
@@ -439,29 +420,6 @@ export default {
       }
     }
 
-    // auto sync
-
-    const autoSync = localStorage.getItem('autoSync');
-
-    const handleNavigation = async (nav) => {
-      if (autoSync === 'true') {
-        await syncexportData(); // Wait for syncexportData() to complete if autoSync is true
-      }
-      router.push(nav.path);
-    };
-
-    onClose(exportAndQuit);
-
-    async function exportAndQuit() {
-      const autoSync = localStorage.getItem('autoSync');
-
-      if (autoSync === 'true') {
-        await syncexportData();
-      }
-    }
-
-    console.log('Default path from local storage:', defaultPath);
-
     onUnmounted(() => {
       emitter.off('new-note', addNote);
       emitter.off('open-settings', openSettings);
@@ -504,7 +462,8 @@ export default {
       const autoSync = localStorage.getItem('autoSync');
 
       if (autoSync === 'true') {
-        await syncimportData();
+        const status = getSyncStatus();
+        console.log('Sync status:', status);
       }
     });
 
@@ -521,18 +480,20 @@ export default {
       }
     };
 
+    const handleNavigation = async (nav) => {
+      router.push(nav.path);
+    };
+
     return {
       navs,
       translations,
       theme,
       addNote,
       noteStore,
-      syncimportData,
-      syncexportData,
       openLastEdited,
       keyBinding,
-      handleNavigation,
       exportData,
+      handleNavigation,
       importData,
     };
   },

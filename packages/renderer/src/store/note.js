@@ -4,6 +4,7 @@ import { useAppStore } from './app';
 import { AES } from 'crypto-es/lib/aes.js';
 import { useStorage } from '../composable/storage.js';
 import { Utf8 } from 'crypto-es/lib/core.js';
+import { trackChange } from '@/utils/sync.js'; // Import the trackChange function
 
 const storage = useStorage();
 
@@ -12,47 +13,48 @@ export const useNoteStore = defineStore('note', {
     data: {},
     lockStatus: {},
     isLocked: {},
+    syncInProgress: false,
   }),
   getters: {
     notes: (state) => Object.values(state.data).filter(({ id }) => id),
     getById: (state) => (id) => state.data[id],
   },
   actions: {
-    retrieve() {
-      return new Promise((resolve) => {
+    async retrieve() {
+      try {
         const piniaData = this.data;
         const piniaLockStatus = this.lockStatus;
 
-        storage.get('notes', {}).then((localStorageData) => {
-          this.data = { ...piniaData, ...localStorageData };
+        const localStorageData = await storage.get('notes', {});
+        this.data = { ...piniaData, ...localStorageData };
 
-          storage.get('lockStatus', {}).then((lockStatusData) => {
-            this.lockStatus = { ...piniaLockStatus, ...lockStatusData };
+        const lockStatusData = await storage.get('lockStatus', {});
+        this.lockStatus = { ...piniaLockStatus, ...lockStatusData };
 
-            for (const noteId in this.data) {
-              if (this.lockStatus[noteId]) {
-                this.lockStatus[noteId] = lockStatusData[noteId];
-              } else {
-                this.lockStatus[noteId] = 'unlocked';
-              }
-            }
+        for (const noteId in this.data) {
+          if (this.lockStatus[noteId]) {
+            this.lockStatus[noteId] = lockStatusData[noteId];
+          } else {
+            this.lockStatus[noteId] = 'unlocked';
+          }
+        }
 
-            storage.get('isLocked', {}).then((isLockedData) => {
-              this.isLocked = { ...isLockedData };
+        const isLockedData = await storage.get('isLocked', {});
+        this.isLocked = { ...isLockedData };
 
-              for (const noteId in this.data) {
-                if (this.isLocked[noteId]) {
-                  this.data[noteId].isLocked = true;
-                } else {
-                  this.data[noteId].isLocked = false;
-                }
-              }
+        for (const noteId in this.data) {
+          if (this.isLocked[noteId]) {
+            this.data[noteId].isLocked = true;
+          } else {
+            this.data[noteId].isLocked = false;
+          }
+        }
 
-              resolve(this.data);
-            });
-          });
-        });
-      });
+        return this.data;
+      } catch (error) {
+        console.error('Error retrieving notes:', error);
+        throw error;
+      }
     },
 
     convertNote(id) {
@@ -91,10 +93,10 @@ export const useNoteStore = defineStore('note', {
       return newContents;
     },
 
-    add(note = {}) {
-      return new Promise((resolve) => {
+    async add(note = {}) {
+      try {
         const id = note.id || nanoid();
-        this.data[id] = {
+        const newNote = {
           id,
           title: '',
           content: { type: 'doc', content: [] },
@@ -107,59 +109,95 @@ export const useNoteStore = defineStore('note', {
           ...note,
         };
 
-        storage.set('notes', this.data).then(() => {
-          this.lockStatus[id] = 'unlocked';
-          this.isLocked[id] = false;
-          storage.set('lockStatus', this.lockStatus);
-          storage.set('isLocked', this.isLocked);
-          resolve(this.data[id]);
-        });
-      });
+        this.data[id] = newNote;
+        this.lockStatus[id] = 'unlocked';
+        this.isLocked[id] = false;
+
+        // Save to local storage
+        await storage.set('notes', this.data);
+        await storage.set('lockStatus', this.lockStatus);
+        await storage.set('isLocked', this.isLocked);
+
+        // Track the change for sync
+        await trackChange('notes', this.data);
+        await trackChange('lockStatus', this.lockStatus);
+        await trackChange('isLocked', this.isLocked);
+
+        return this.data[id];
+      } catch (error) {
+        console.error('Error adding note:', error);
+        throw error;
+      }
     },
 
-    update(id, data = {}) {
-      return new Promise((resolve) => {
+    async update(id, data = {}) {
+      try {
+        // Update note with new data
         this.data[id] = {
           ...this.data[id],
           ...data,
+          updatedAt: Date.now(), // Always update the timestamp
         };
 
-        storage
-          .set(`notes.${id}`, this.data[id])
-          .then(() => resolve(this.data[id]));
-      });
+        // Save to local storage
+        await storage.set(`notes.${id}`, this.data[id]);
+
+        // Track the change for sync
+        await trackChange('notes', this.data);
+
+        return this.data[id];
+      } catch (error) {
+        console.error('Error updating note:', error);
+        throw error;
+      }
     },
 
     async delete(id) {
       try {
         const lastEditedNote = localStorage.getItem('lastNoteEdit');
         if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
+
         const { path, ipcRenderer } = window.electron;
         const dataDir = await storage.get('dataDir', '', 'settings');
+
+        // Delete from store
         delete this.data[id];
+        delete this.lockStatus[id];
+        delete this.isLocked[id];
 
-        this.lockStatus[id] = undefined;
-        this.isLocked[id] = undefined;
-        storage.delete(`notes.${id}`).then(() => {
-          storage.set('lockStatus', this.lockStatus);
-          storage.set('isLocked', this.isLocked);
-        });
+        // Delete from storage
+        await storage.delete(`notes.${id}`);
+        await storage.set('lockStatus', this.lockStatus);
+        await storage.set('isLocked', this.isLocked);
 
-        await ipcRenderer.callMain(
-          'fs:remove',
-          path.join(dataDir, 'notes-assets', id)
-        );
+        // Track the changes for sync
+        await trackChange('notes', this.data);
+        await trackChange('lockStatus', this.lockStatus);
+        await trackChange('isLocked', this.isLocked);
 
-        await ipcRenderer.callMain(
-          'fs:remove',
-          path.join(dataDir, 'file-assets', id)
-        );
+        // Remove associated files
+        try {
+          await ipcRenderer.callMain(
+            'fs:remove',
+            path.join(dataDir, 'notes-assets', id)
+          );
+
+          await ipcRenderer.callMain(
+            'fs:remove',
+            path.join(dataDir, 'file-assets', id)
+          );
+        } catch (fileError) {
+          console.warn('Error removing note files:', fileError);
+          // Continue even if file deletion fails
+        }
 
         return id;
       } catch (error) {
-        console.error(error);
+        console.error('Error deleting note:', error);
+        throw error;
       }
     },
+
     async lockNote(id, password) {
       if (!password) {
         console.error('No password provided.');
@@ -172,16 +210,24 @@ export const useNoteStore = defineStore('note', {
           password
         ).toString();
 
+        // Update note with encrypted content and lock status
         this.data[id].content = { type: 'doc', content: [encryptedContent] };
         this.data[id].isLocked = true;
+        this.data[id].updatedAt = Date.now();
         this.isLocked[id] = true;
-        await storage.set(`notes.${id}`, this.data[id]);
         this.lockStatus[id] = 'locked';
-        this.isLocked[id] = true;
+
+        // Save to storage
+        await storage.set(`notes.${id}`, this.data[id]);
         await Promise.all([
           storage.set('lockStatus', this.lockStatus),
           storage.set('isLocked', this.isLocked),
         ]);
+
+        // Track changes for sync
+        await trackChange('notes', this.data);
+        await trackChange('lockStatus', this.lockStatus);
+        await trackChange('isLocked', this.isLocked);
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -207,60 +253,163 @@ export const useNoteStore = defineStore('note', {
           note.content.content[0].trim().length > 0;
 
         if (!isEncrypted) {
-          // Content is not encrypted, update isLocked flag and return
+          // Content is not encrypted, update isLocked flag only
           this.data[id].isLocked = false;
+          this.data[id].updatedAt = Date.now();
           this.isLocked[id] = false;
-          await storage.set(`notes.${id}`, this.data[id]);
           this.lockStatus[id] = 'unlocked';
+
+          await storage.set(`notes.${id}`, this.data[id]);
           await Promise.all([
             storage.set('lockStatus', this.lockStatus),
             storage.set('isLocked', this.isLocked),
           ]);
+
+          // Track changes for sync
+          await trackChange('notes', this.data);
+          await trackChange('lockStatus', this.lockStatus);
+          await trackChange('isLocked', this.isLocked);
           return;
         }
 
-        // Content is encrypted, proceed with decryption
-        const decryptedBytes = AES.decrypt(
-          this.data[id].content.content[0],
-          password
-        );
-        const decryptedContent = decryptedBytes.toString(Utf8);
+        // Decrypt the content
+        try {
+          const decryptedBytes = AES.decrypt(
+            this.data[id].content.content[0],
+            password
+          );
+          const decryptedContent = decryptedBytes.toString(Utf8);
+          this.data[id].content = JSON.parse(decryptedContent);
+        } catch (decryptError) {
+          console.error('Failed to decrypt note:', decryptError);
+          throw new Error('Incorrect password');
+        }
 
-        this.data[id].content = JSON.parse(decryptedContent);
+        // Update collapsible heading if needed
         const appStore = useAppStore();
         if (!appStore.setting.collapsibleHeading) {
           this.convertNote(id);
         }
+
+        // Update lock status
         this.data[id].isLocked = false;
+        this.data[id].updatedAt = Date.now();
         this.isLocked[id] = false;
-        await storage.set(`notes.${id}`, this.data[id]);
         this.lockStatus[id] = 'unlocked';
+
+        // Save to storage
+        await storage.set(`notes.${id}`, this.data[id]);
         await Promise.all([
           storage.set('lockStatus', this.lockStatus),
           storage.set('isLocked', this.isLocked),
         ]);
+
+        // Track changes for sync
+        await trackChange('notes', this.data);
+        await trackChange('lockStatus', this.lockStatus);
+        await trackChange('isLocked', this.isLocked);
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
       }
     },
 
-    addLabel(id, labelId) {
-      return new Promise((resolve) => {
-        if (this.data[id]) {
-          const labelIndex = this.data[id].labels.indexOf(labelId);
-
-          if (labelIndex === -1) {
-            this.data[id].labels.push(labelId);
-
-            storage
-              .set(`notes.${id}`, this.data[id])
-              .then(() => resolve(labelId));
-          } else {
-            resolve();
-          }
+    async addLabel(id, labelId) {
+      try {
+        if (!this.data[id]) {
+          console.error('Note not found');
+          return;
         }
-      });
+
+        const labelIndex = this.data[id].labels.indexOf(labelId);
+        if (labelIndex !== -1) {
+          // Label already exists on this note
+          return labelId;
+        }
+
+        // Add the label
+        this.data[id].labels.push(labelId);
+        this.data[id].updatedAt = Date.now();
+
+        // Save to storage
+        await storage.set(`notes.${id}`, this.data[id]);
+
+        // Track change for sync
+        await trackChange('notes', this.data);
+
+        return labelId;
+      } catch (error) {
+        console.error('Error adding label:', error);
+        throw error;
+      }
+    },
+
+    async removeLabel(id, labelId) {
+      try {
+        if (!this.data[id]) {
+          console.error('Note not found');
+          return;
+        }
+
+        const labelIndex = this.data[id].labels.indexOf(labelId);
+        if (labelIndex === -1) {
+          // Label doesn't exist on this note
+          return;
+        }
+
+        // Remove the label
+        this.data[id].labels.splice(labelIndex, 1);
+        this.data[id].updatedAt = Date.now();
+
+        // Save to storage
+        await storage.set(`notes.${id}`, this.data[id]);
+
+        // Track change for sync
+        await trackChange('notes', this.data);
+
+        return labelId;
+      } catch (error) {
+        console.error('Error removing label:', error);
+        throw error;
+      }
+    },
+
+    // Handle incoming sync updates (called by sync system when changes are pulled)
+    async applyRemoteChanges(entityType, remoteData) {
+      if (this.syncInProgress) return;
+
+      try {
+        this.syncInProgress = true;
+
+        if (entityType === 'notes') {
+          // Merge the remote notes with local notes
+          // Keep newer versions based on updatedAt timestamp
+          const mergedNotes = { ...this.data };
+
+          for (const [noteId, remoteNote] of Object.entries(remoteData)) {
+            const localNote = this.data[noteId];
+
+            // If note doesn't exist locally or remote is newer, use remote
+            if (!localNote || remoteNote.updatedAt > localNote.updatedAt) {
+              mergedNotes[noteId] = remoteNote;
+            }
+          }
+
+          this.data = mergedNotes;
+          await storage.set('notes', this.data);
+        } else if (entityType === 'lockStatus') {
+          this.lockStatus = { ...this.lockStatus, ...remoteData };
+          await storage.set('lockStatus', this.lockStatus);
+        } else if (entityType === 'isLocked') {
+          this.isLocked = { ...this.isLocked, ...remoteData };
+          await storage.set('isLocked', this.isLocked);
+        }
+      } catch (error) {
+        console.error('Error applying remote changes:', error);
+        throw error;
+      } finally {
+        this.syncInProgress = false;
+      }
     },
   },
 });

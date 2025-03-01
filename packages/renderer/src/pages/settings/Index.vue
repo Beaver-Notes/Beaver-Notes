@@ -188,7 +188,7 @@
               class="mt-2 w-fill"
               style="-webkit-text-security: disc"
               autofocus
-              @keyup.enter="exportData"
+              @keyup.enter="forceSyncNow"
             />
           </expand-transition>
           <ui-button class="w-full mt-4" @click="exportData(defaultPath)">
@@ -255,6 +255,7 @@ import '../../assets/css/passwd.css';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
 import { processDirectory } from '@/utils/markdown';
+import { forceSyncNow } from '../../utils/sync';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -879,6 +880,7 @@ export default {
       storage,
       translations,
       exportData,
+      forceSyncNow,
       importData,
       resetPasswordDialog,
       changeDataDir,
