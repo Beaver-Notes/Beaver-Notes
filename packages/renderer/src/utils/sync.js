@@ -110,32 +110,51 @@ export async function syncData() {
     // 3. Try to get remote metadata
     let remoteMetadata;
     try {
-      const { data } = await ipcRenderer.callMain(
+      remoteMetadata = await ipcRenderer.callMain(
         'fs:read-json',
         path.join(syncFolderPath, 'metadata.json')
       );
-      remoteMetadata = data || { version: 0 };
+      state.remoteVersion = remoteMetadata.version;
     } catch (error) {
       // Remote metadata doesn't exist yet, create it
       remoteMetadata = { version: 0 };
     }
+    
 
-    // 4. Compare versions to determine sync direction
+    console.log('Sync versions - Local:', localMetadata.version, 'Remote:', remoteMetadata.version);
+
+    // 4. Determine sync direction based on versions
     if (remoteMetadata.version > localMetadata.version) {
       // Remote is newer, pull changes
-      await pullChanges(syncFolderPath, remoteMetadata.version);
-    } else if (
-      localMetadata.version > remoteMetadata.version ||
-      pendingChanges.size > 0
-    ) {
+      console.log('Remote version is newer, pulling changes...');
+      const pullSuccess = await pullChanges(syncFolderPath, remoteMetadata.version);
+      
+      if (pullSuccess) {
+        console.log('Successfully pulled changes from remote');
+        // Only sync assets if pull was successful
+        await syncAssets(dataDir, syncFolderPath);
+      } else {
+        console.log('Pull operation failed or was canceled');
+      }
+    } else if (localMetadata.version > remoteMetadata.version || pendingChanges.size > 0) {
       // Local is newer or has pending changes, push changes
-      await pushChanges(syncFolderPath, localMetadata.version);
+      console.log('Local is newer or has pending changes, pushing to remote...');
+      const pushSuccess = await pushChanges(syncFolderPath, localMetadata.version);
+      
+      if (pushSuccess) {
+        console.log('Successfully pushed changes to remote');
+        // Only sync assets if push was successful
+        await syncAssets(dataDir, syncFolderPath);
+      } else {
+        console.log('Push operation failed');
+      }
+    } else {
+      // Versions are identical, just sync assets
+      console.log('Versions are identical, syncing assets only');
+      await syncAssets(dataDir, syncFolderPath);
     }
 
-    // 5. Sync assets
-    await syncAssets(dataDir, syncFolderPath);
-
-    // 6. Update sync status
+    // 5. Update sync status
     state.lastSyncTime = Date.now();
     syncStatus.value = 'success';
 
@@ -164,47 +183,85 @@ async function pullChanges(syncFolderPath, remoteVersion) {
   const translations = await useTranslation();
 
   try {
-    // Read remote data
-    const { data: remoteData } = await ipcRenderer.callMain(
-      'fs:read-json',
-      path.join(syncFolderPath, 'data.json')
-    );
+    console.log('Starting pull operation from remote...');
+    
+    // Read remote data file
+    let remoteDataResult;
+    try {
+      remoteDataResult = await ipcRenderer.callMain(
+        'fs:read-json',
+        path.join(syncFolderPath, 'data.json')
+      );
+    } catch (error) {
+      console.error('Error reading remote data file:', error);
+      throw new Error(`${translations.settings.invaliddata}: ${error.message}`);
+    }
 
+    const remoteData = remoteDataResult.data;
     if (!remoteData) {
+      console.error('Remote data is empty or invalid');
       throw new Error(translations.settings.invaliddata);
     }
 
-    // Handle encrypted data
+    // Process data based on encryption status
+    let dataToMerge;
     if (typeof remoteData === 'string') {
+      // Data is encrypted
+      console.log('Remote data is encrypted, requesting password...');
       const passwordResult = await promptForPassword(translations);
       if (!passwordResult.success) {
-        throw new Error(translations.settings.Invalidpassword);
+        console.log('Password prompt was canceled by user');
+        return false;
       }
 
       try {
+        console.log('Attempting to decrypt remote data...');
         const bytes = AES.decrypt(remoteData, passwordResult.password);
-        const result = bytes.toString(Utf8);
-        const decryptedData = JSON.parse(result);
-
-        await mergePulledData(decryptedData);
+        const decryptedString = bytes.toString(Utf8);
+        
+        if (!decryptedString) {
+          throw new Error('Decryption resulted in empty data');
+        }
+        
+        dataToMerge = JSON.parse(decryptedString);
+        
+        // Store the password for future syncs if successful
+        state.password = passwordResult.password;
+        state.withPassword = true;
+        console.log('Decryption successful');
       } catch (error) {
+        console.error('Decryption error:', error);
         throw new Error(translations.settings.Invalidpassword);
       }
     } else {
       // Unencrypted data
-      await mergePulledData(remoteData);
+      console.log('Remote data is not encrypted');
+      dataToMerge = remoteData;
+      state.withPassword = false;
     }
 
-    // Update local version
-    const metadata = {
+    // Verify data integrity
+    if (!dataToMerge || typeof dataToMerge !== 'object') {
+      console.error('Invalid data format after processing:', dataToMerge);
+      throw new Error(translations.settings.invaliddata);
+    }
+
+    // Merge the pulled data with local data
+    console.log('Merging remote data with local data...');
+    await mergePulledData(dataToMerge);
+
+    // Update local version to match remote version
+    const updatedMetadata = {
       version: remoteVersion,
       lastSynced: Date.now(),
       lastPull: Date.now(),
     };
-    await storage.set('syncMetadata', metadata, 'settings');
+    
+    await storage.set('syncMetadata', updatedMetadata, 'settings');
     state.localVersion = remoteVersion;
     state.remoteVersion = remoteVersion;
 
+    console.log('Pull completed successfully, local version updated to:', remoteVersion);
     return true;
   } catch (error) {
     console.error('Error pulling changes:', error);
@@ -234,12 +291,16 @@ function promptForPassword(translations) {
 // Push changes to remote
 async function pushChanges(syncFolderPath, localVersion) {
   try {
+    console.log('Starting push operation to remote...');
+    
     // Get all data to push
     const dataToSync = await prepareDataToSync();
+    console.log('Prepared data for sync with keys:', Object.keys(dataToSync));
 
     // Encrypt if needed
     let finalData = dataToSync;
     if (state.withPassword && state.password) {
+      console.log('Encrypting data before pushing...');
       finalData = AES.encrypt(
         JSON.stringify(dataToSync),
         state.password
@@ -254,19 +315,26 @@ async function pushChanges(syncFolderPath, localVersion) {
     };
 
     // Write data and metadata
-    await ipcRenderer.callMain('fs:output-json', {
-      path: path.join(syncFolderPath, 'data.json'),
-      data: finalData,
-    });
+    console.log('Writing data to remote...');
+    try {
+      await ipcRenderer.callMain('fs:output-json', {
+        path: path.join(syncFolderPath, 'data.json'),
+        data: finalData,
+      });
 
-    await ipcRenderer.callMain('fs:output-json', {
-      path: path.join(syncFolderPath, 'metadata.json'),
-      data: metadata,
-    });
+      await ipcRenderer.callMain('fs:output-json', {
+        path: path.join(syncFolderPath, 'metadata.json'),
+        data: metadata,
+      });
+    } catch (error) {
+      console.error('Error writing files to remote:', error);
+      throw error;
+    }
 
-    // Update remote version
+    // Update remote version and clear pending changes
     state.remoteVersion = localVersion;
     pendingChanges.clear();
+    console.log('Push completed successfully, remote version updated to:', localVersion);
 
     return true;
   } catch (error) {
@@ -277,6 +345,8 @@ async function pushChanges(syncFolderPath, localVersion) {
 
 // Sync assets in both directions
 async function syncAssets(dataDir, syncFolderPath) {
+  console.log('Starting asset synchronization...');
+  
   // Ensure asset directories exist
   const remoteNotesAssetsPath = path.join(syncFolderPath, 'notes-assets');
   const remoteFileAssetsPath = path.join(syncFolderPath, 'file-assets');
@@ -306,6 +376,9 @@ async function syncAssets(dataDir, syncFolderPath) {
     localFileAssetsPath
   );
 
+  console.log(`Notes assets - Local: ${localNotesAssets.length}, Remote: ${remoteNotesAssets.length}`);
+  console.log(`File assets - Local: ${localFileAssets.length}, Remote: ${remoteFileAssets.length}`);
+
   // Sync notes assets
   await syncFileCollections(
     localNotesAssetsPath,
@@ -321,6 +394,8 @@ async function syncAssets(dataDir, syncFolderPath) {
     localFileAssets,
     remoteFileAssets
   );
+  
+  console.log('Asset synchronization completed');
 }
 
 // Sync two directories by comparing file lists and timestamps
@@ -343,45 +418,74 @@ async function syncFileCollections(
   // Find files that exist in both
   const commonFiles = localFiles.filter((file) => remoteFiles.includes(file));
 
+  console.log(`Files to download: ${filesToDownload.length}`);
+  console.log(`Files to upload: ${filesToUpload.length}`);
+  console.log(`Common files to compare: ${commonFiles.length}`);
+
   // Download new files from remote
   for (const file of filesToDownload) {
-    await ipcRenderer.callMain('fs:copy', {
-      path: path.join(remoteDir, file),
-      dest: path.join(localDir, file),
-    });
+    console.log(`Downloading file: ${file}`);
+    try {
+      await ipcRenderer.callMain('fs:copy', {
+        path: path.join(remoteDir, file),
+        dest: path.join(localDir, file),
+      });
+    } catch (error) {
+      console.error(`Error downloading file ${file}:`, error);
+      // Continue with other files
+    }
   }
 
   // Upload new files to remote
   for (const file of filesToUpload) {
-    await ipcRenderer.callMain('fs:copy', {
-      path: path.join(localDir, file),
-      dest: path.join(remoteDir, file),
-    });
+    console.log(`Uploading file: ${file}`);
+    try {
+      await ipcRenderer.callMain('fs:copy', {
+        path: path.join(localDir, file),
+        dest: path.join(remoteDir, file),
+      });
+    } catch (error) {
+      console.error(`Error uploading file ${file}:`, error);
+      // Continue with other files
+    }
   }
 
   // Handle conflict resolution for common files by comparing timestamps
   for (const file of commonFiles) {
-    const localPath = path.join(localDir, file);
-    const remotePath = path.join(remoteDir, file);
+    try {
+      const localPath = path.join(localDir, file);
+      const remotePath = path.join(remoteDir, file);
 
-    const localStat = await ipcRenderer.callMain('fs:stat', localPath);
-    const remoteStat = await ipcRenderer.callMain('fs:stat', remotePath);
+      const localStat = await ipcRenderer.callMain('fs:stat', localPath);
+      const remoteStat = await ipcRenderer.callMain('fs:stat', remotePath);
 
-    // If remote is newer, download it
-    if (new Date(remoteStat.mtime) > new Date(localStat.mtime)) {
-      await ipcRenderer.callMain('fs:copy', {
-        path: remotePath,
-        dest: localPath,
-      });
+      const localTime = new Date(localStat.mtime);
+      const remoteTime = new Date(remoteStat.mtime);
+
+      // If remote is newer, download it
+      if (remoteTime > localTime) {
+        console.log(`Remote file ${file} is newer, downloading`);
+        await ipcRenderer.callMain('fs:copy', {
+          path: remotePath,
+          dest: localPath,
+        });
+      }
+      // If local is newer, upload it
+      else if (localTime > remoteTime) {
+        console.log(`Local file ${file} is newer, uploading`);
+        await ipcRenderer.callMain('fs:copy', {
+          path: localPath,
+          dest: remotePath,
+        });
+      }
+      // If same timestamp, do nothing (already in sync)
+      else {
+        console.log(`File ${file} has same timestamp, skipping`);
+      }
+    } catch (error) {
+      console.error(`Error processing common file ${file}:`, error);
+      // Continue with other files
     }
-    // If local is newer, upload it
-    else if (new Date(localStat.mtime) > new Date(remoteStat.mtime)) {
-      await ipcRenderer.callMain('fs:copy', {
-        path: localPath,
-        dest: remotePath,
-      });
-    }
-    // If same timestamp, do nothing (already in sync)
   }
 }
 
@@ -389,7 +493,6 @@ async function syncFileCollections(
 async function prepareDataToSync() {
   const storage = useStorage();
   const keysToSync = ['notes', 'labels', 'lockStatus', 'isLocked', 'settings'];
-
   const result = {};
 
   for (const key of keysToSync) {
@@ -412,38 +515,93 @@ async function mergePulledData(importedData) {
     { key: 'settings', dfData: {} },
   ];
 
+  console.log('Beginning data merge process with keys:', keys.map(k => k.key).join(', '));
+
   for (const { key, dfData } of keys) {
-    const currentData = await storage.get(key, dfData);
-    const importedDataForKey = importedData[key] ?? dfData;
-    let mergedData;
-
-    if (key === 'labels') {
-      // For arrays like labels, merge and remove duplicates
-      const mergedArr = [...currentData, ...importedDataForKey];
-      mergedData = [...new Set(mergedArr)];
-    } else if (key === 'notes') {
-      // For notes, merge by ID and prefer the newer note
-      mergedData = { ...currentData };
-
-      for (const [noteId, importedNote] of Object.entries(importedDataForKey)) {
-        const currentNote = mergedData[noteId];
-
-        if (
-          !currentNote ||
-          (importedNote.updatedAt &&
-            currentNote.updatedAt &&
-            new Date(importedNote.updatedAt) > new Date(currentNote.updatedAt))
-        ) {
-          mergedData[noteId] = importedNote;
-        }
-      }
-    } else {
-      // For other objects like lockStatus and isLocked, simple merge
-      mergedData = { ...currentData, ...importedDataForKey };
+    // Skip if the imported data doesn't contain this key
+    if (!(key in importedData)) {
+      console.log(`Key "${key}" not found in imported data, skipping`);
+      continue;
     }
 
-    await storage.set(key, mergedData);
+    try {
+      const currentData = await storage.get(key, dfData);
+      const importedDataForKey = importedData[key] ?? dfData;
+      let mergedData;
+
+      // Skip processing if imported data is invalid
+      if (!importedDataForKey) {
+        console.log(`Invalid imported data for key "${key}", skipping`);
+        continue;
+      }
+
+      // Different merging strategies based on data type
+      if (key === 'labels' && Array.isArray(currentData) && Array.isArray(importedDataForKey)) {
+        // For arrays like labels, merge and remove duplicates
+        console.log(`Merging labels - Current: ${currentData.length}, Imported: ${importedDataForKey.length}`);
+        const mergedArr = [...currentData, ...importedDataForKey];
+        mergedData = [...new Set(mergedArr)];
+        console.log(`Merged labels - Total unique: ${mergedData.length}`);
+      } else if (key === 'notes') {
+        // For notes, merge by ID and prefer the newer note
+        mergedData = { ...currentData };
+        const currentNoteCount = Object.keys(currentData).length;
+        const importedNoteCount = Object.keys(importedDataForKey).length;
+        console.log(`Merging notes - Current: ${currentNoteCount}, Imported: ${importedNoteCount}`);
+        
+        let updated = 0, added = 0, kept = 0;
+        for (const [noteId, importedNote] of Object.entries(importedDataForKey)) {
+          const currentNote = mergedData[noteId];
+
+          if (!currentNote) {
+            // New note, add it
+            mergedData[noteId] = importedNote;
+            added++;
+          } else if (
+            importedNote.updatedAt &&
+            currentNote.updatedAt &&
+            new Date(importedNote.updatedAt) > new Date(currentNote.updatedAt)
+          ) {
+            // Remote note is newer, update local
+            mergedData[noteId] = importedNote;
+            updated++;
+          } else {
+            // Local note is newer or same age, keep it
+            kept++;
+          }
+        }
+        
+        console.log(`Notes merge results - Added: ${added}, Updated: ${updated}, Kept: ${kept}`);
+      } else if (typeof currentData === 'object' && typeof importedDataForKey === 'object') {
+        // For other objects like lockStatus and isLocked, deep merge
+        mergedData = { ...currentData };
+        
+        // For objects that should replace entirely rather than merge, uncomment this:
+        // if (key === 'settings' || key === 'lockStatus' || key === 'isLocked') {
+        //   mergedData = { ...importedDataForKey };
+        // } else {
+        //   mergedData = { ...currentData, ...importedDataForKey };
+        // }
+
+        // Default behavior: merge objects
+        mergedData = { ...currentData, ...importedDataForKey };
+        console.log(`Merged object data for "${key}"`);
+      } else {
+        // For other data types, just use the imported data
+        mergedData = importedDataForKey;
+        console.log(`Replaced data for "${key}" with imported data`);
+      }
+
+      // Save the merged data
+      await storage.set(key, mergedData);
+      console.log(`Successfully saved merged data for "${key}"`);
+    } catch (error) {
+      console.error(`Error merging data for key "${key}":`, error);
+      throw new Error(`Failed to merge data for ${key}: ${error.message}`);
+    }
   }
+  
+  console.log('Data merge completed successfully');
 }
 
 // Force immediate sync
