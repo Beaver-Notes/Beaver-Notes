@@ -63,7 +63,7 @@
           <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
-              v-for="color in higlighterColors"
+              v-for="color in highlighterColors"
               :key="color"
               :class="['w-8 h-8 cursor-pointer rounded', color]"
               @click="setHighlightColor(color)"
@@ -386,7 +386,7 @@
           <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
-              v-for="color in higlighterColors"
+              v-for="color in highlighterColors"
               :key="color"
               :class="['w-8 h-8 cursor-pointer rounded', color]"
               @click="setHighlightColor(color)"
@@ -1139,26 +1139,26 @@ export default {
       }
     });
 
-    const higlighterColors = [
-      'bg-orange-200 dark:bg-orange-40',
-      'bg-yellow-200 dark:bg-yellow-100',
-      'bg-green-200 dark:bg-green-100',
-      'bg-blue-200 dark:bg-blue-100',
-      'bg-purple-200 dark:bg-purple-100',
-      'bg-pink-200 dark:bg-pink-100',
-      'bg-red-200 dark:bg-red-100',
-      'bg-gray-200 dark:bg-gray-100',
+    const highlighterColors = [
+      'bg-[#FFD56B]/60 dark:bg-[#996B1F]/50 dark:text-white', // Soft Orange-Yellow
+      'bg-[#FFF78A]/60 dark:bg-[#B8A233]/50 dark:text-white', // Yellow
+      'bg-[#C5F6C7]/60 dark:bg-[#5A9E5D]/50 dark:text-white', // Green
+      'bg-[#A7DBFA]/60 dark:bg-[#4785A3]/50 dark:text-white', // Blue
+      'bg-[#D7B5F7]/60 dark:bg-[#7E5A9A]/50 dark:text-white', // Purple
+      'bg-[#F9C3D8]/60 dark:bg-[#B15A79]/50 dark:text-white', // Pink
+      'bg-[#FF9E9E]/60 dark:bg-[#B04C4C]/50 dark:text-white', // Red
+      'bg-[#E0E0E0]/60 dark:bg-[#6B6B6B]/50 dark:text-white', // Gray
     ];
 
     const textColors = [
-      '#F97316',
-      '#FBBF24',
-      '#22C55E',
-      '#3B82F6',
-      '#A855F7',
-      '#F472B6',
-      '#F43F5E',
-      '#D6D3D1',
+      '#DC8D42', // Soft Orange
+      '#E3B324', // Warm Yellow
+      '#4CAF50', // Natural Green
+      '#3A8EE6', // Soft Blue
+      '#9B5EE6', // Muted Purple
+      '#E67EA4', // Pastel Pink
+      '#E75C5C', // Warm Red
+      '#A3A3A3', // Soft Gray
     ];
 
     function setHighlightColor(color) {
@@ -1179,7 +1179,7 @@ export default {
 
     return {
       store,
-      higlighterColors,
+      highlighterColors,
       textColors,
       setHighlightColor,
       lists,

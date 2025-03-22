@@ -88,7 +88,7 @@ if (selectedLanguage === 'de') {
 
 const extensions = [
   StarterKit,
-  Highlight.configure({
+  Highlight.extend({ priority: 1000 }).configure({
     multicolor: true,
   }),
   Typography,
