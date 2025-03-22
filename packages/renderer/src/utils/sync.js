@@ -119,16 +119,23 @@ export async function syncData() {
       // Remote metadata doesn't exist yet, create it
       remoteMetadata = { version: 0 };
     }
-    
 
-    console.log('Sync versions - Local:', localMetadata.version, 'Remote:', remoteMetadata.version);
+    console.log(
+      'Sync versions - Local:',
+      localMetadata.version,
+      'Remote:',
+      remoteMetadata.version
+    );
 
     // 4. Determine sync direction based on versions
     if (remoteMetadata.version > localMetadata.version) {
       // Remote is newer, pull changes
       console.log('Remote version is newer, pulling changes...');
-      const pullSuccess = await pullChanges(syncFolderPath, remoteMetadata.version);
-      
+      const pullSuccess = await pullChanges(
+        syncFolderPath,
+        remoteMetadata.version
+      );
+
       if (pullSuccess) {
         console.log('Successfully pulled changes from remote');
         // Only sync assets if pull was successful
@@ -136,11 +143,19 @@ export async function syncData() {
       } else {
         console.log('Pull operation failed or was canceled');
       }
-    } else if (localMetadata.version > remoteMetadata.version || pendingChanges.size > 0) {
+    } else if (
+      localMetadata.version > remoteMetadata.version ||
+      pendingChanges.size > 0
+    ) {
       // Local is newer or has pending changes, push changes
-      console.log('Local is newer or has pending changes, pushing to remote...');
-      const pushSuccess = await pushChanges(syncFolderPath, localMetadata.version);
-      
+      console.log(
+        'Local is newer or has pending changes, pushing to remote...'
+      );
+      const pushSuccess = await pushChanges(
+        syncFolderPath,
+        localMetadata.version
+      );
+
       if (pushSuccess) {
         console.log('Successfully pushed changes to remote');
         // Only sync assets if push was successful
@@ -184,7 +199,7 @@ async function pullChanges(syncFolderPath, remoteVersion) {
 
   try {
     console.log('Starting pull operation from remote...');
-    
+
     // Read remote data file
     let remoteDataResult;
     try {
@@ -218,13 +233,13 @@ async function pullChanges(syncFolderPath, remoteVersion) {
         console.log('Attempting to decrypt remote data...');
         const bytes = AES.decrypt(remoteData, passwordResult.password);
         const decryptedString = bytes.toString(Utf8);
-        
+
         if (!decryptedString) {
           throw new Error('Decryption resulted in empty data');
         }
-        
+
         dataToMerge = JSON.parse(decryptedString);
-        
+
         // Store the password for future syncs if successful
         state.password = passwordResult.password;
         state.withPassword = true;
@@ -256,12 +271,15 @@ async function pullChanges(syncFolderPath, remoteVersion) {
       lastSynced: Date.now(),
       lastPull: Date.now(),
     };
-    
+
     await storage.set('syncMetadata', updatedMetadata, 'settings');
     state.localVersion = remoteVersion;
     state.remoteVersion = remoteVersion;
 
-    console.log('Pull completed successfully, local version updated to:', remoteVersion);
+    console.log(
+      'Pull completed successfully, local version updated to:',
+      remoteVersion
+    );
     return true;
   } catch (error) {
     console.error('Error pulling changes:', error);
@@ -292,7 +310,7 @@ function promptForPassword(translations) {
 async function pushChanges(syncFolderPath, localVersion) {
   try {
     console.log('Starting push operation to remote...');
-    
+
     // Get all data to push
     const dataToSync = await prepareDataToSync();
     console.log('Prepared data for sync with keys:', Object.keys(dataToSync));
@@ -334,7 +352,10 @@ async function pushChanges(syncFolderPath, localVersion) {
     // Update remote version and clear pending changes
     state.remoteVersion = localVersion;
     pendingChanges.clear();
-    console.log('Push completed successfully, remote version updated to:', localVersion);
+    console.log(
+      'Push completed successfully, remote version updated to:',
+      localVersion
+    );
 
     return true;
   } catch (error) {
@@ -346,7 +367,7 @@ async function pushChanges(syncFolderPath, localVersion) {
 // Sync assets in both directions
 async function syncAssets(dataDir, syncFolderPath) {
   console.log('Starting asset synchronization...');
-  
+
   // Ensure asset directories exist
   const remoteNotesAssetsPath = path.join(syncFolderPath, 'notes-assets');
   const remoteFileAssetsPath = path.join(syncFolderPath, 'file-assets');
@@ -376,8 +397,12 @@ async function syncAssets(dataDir, syncFolderPath) {
     localFileAssetsPath
   );
 
-  console.log(`Notes assets - Local: ${localNotesAssets.length}, Remote: ${remoteNotesAssets.length}`);
-  console.log(`File assets - Local: ${localFileAssets.length}, Remote: ${remoteFileAssets.length}`);
+  console.log(
+    `Notes assets - Local: ${localNotesAssets.length}, Remote: ${remoteNotesAssets.length}`
+  );
+  console.log(
+    `File assets - Local: ${localFileAssets.length}, Remote: ${remoteFileAssets.length}`
+  );
 
   // Sync notes assets
   await syncFileCollections(
@@ -394,7 +419,7 @@ async function syncAssets(dataDir, syncFolderPath) {
     localFileAssets,
     remoteFileAssets
   );
-  
+
   console.log('Asset synchronization completed');
 }
 
@@ -515,7 +540,10 @@ async function mergePulledData(importedData) {
     { key: 'settings', dfData: {} },
   ];
 
-  console.log('Beginning data merge process with keys:', keys.map(k => k.key).join(', '));
+  console.log(
+    'Beginning data merge process with keys:',
+    keys.map((k) => k.key).join(', ')
+  );
 
   for (const { key, dfData } of keys) {
     // Skip if the imported data doesn't contain this key
@@ -536,9 +564,15 @@ async function mergePulledData(importedData) {
       }
 
       // Different merging strategies based on data type
-      if (key === 'labels' && Array.isArray(currentData) && Array.isArray(importedDataForKey)) {
+      if (
+        key === 'labels' &&
+        Array.isArray(currentData) &&
+        Array.isArray(importedDataForKey)
+      ) {
         // For arrays like labels, merge and remove duplicates
-        console.log(`Merging labels - Current: ${currentData.length}, Imported: ${importedDataForKey.length}`);
+        console.log(
+          `Merging labels - Current: ${currentData.length}, Imported: ${importedDataForKey.length}`
+        );
         const mergedArr = [...currentData, ...importedDataForKey];
         mergedData = [...new Set(mergedArr)];
         console.log(`Merged labels - Total unique: ${mergedData.length}`);
@@ -547,10 +581,16 @@ async function mergePulledData(importedData) {
         mergedData = { ...currentData };
         const currentNoteCount = Object.keys(currentData).length;
         const importedNoteCount = Object.keys(importedDataForKey).length;
-        console.log(`Merging notes - Current: ${currentNoteCount}, Imported: ${importedNoteCount}`);
-        
-        let updated = 0, added = 0, kept = 0;
-        for (const [noteId, importedNote] of Object.entries(importedDataForKey)) {
+        console.log(
+          `Merging notes - Current: ${currentNoteCount}, Imported: ${importedNoteCount}`
+        );
+
+        let updated = 0,
+          added = 0,
+          kept = 0;
+        for (const [noteId, importedNote] of Object.entries(
+          importedDataForKey
+        )) {
           const currentNote = mergedData[noteId];
 
           if (!currentNote) {
@@ -570,12 +610,17 @@ async function mergePulledData(importedData) {
             kept++;
           }
         }
-        
-        console.log(`Notes merge results - Added: ${added}, Updated: ${updated}, Kept: ${kept}`);
-      } else if (typeof currentData === 'object' && typeof importedDataForKey === 'object') {
+
+        console.log(
+          `Notes merge results - Added: ${added}, Updated: ${updated}, Kept: ${kept}`
+        );
+      } else if (
+        typeof currentData === 'object' &&
+        typeof importedDataForKey === 'object'
+      ) {
         // For other objects like lockStatus and isLocked, deep merge
         mergedData = { ...currentData };
-        
+
         // For objects that should replace entirely rather than merge, uncomment this:
         // if (key === 'settings' || key === 'lockStatus' || key === 'isLocked') {
         //   mergedData = { ...importedDataForKey };
@@ -600,7 +645,7 @@ async function mergePulledData(importedData) {
       throw new Error(`Failed to merge data for ${key}: ${error.message}`);
     }
   }
-  
+
   console.log('Data merge completed successfully');
 }
 

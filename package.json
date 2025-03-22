@@ -111,10 +111,12 @@
   "dependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
+    "@tiptap/extension-color": "^2.11.5",
     "@tiptap/extension-dropcursor": "^2.10.3",
     "@tiptap/extension-hard-break": "^2.6.5",
     "@tiptap/extension-subscript": "^2.5.4",
     "@tiptap/extension-superscript": "^2.5.4",
+    "@tiptap/extension-text-style": "^2.11.5",
     "add": "^2.0.6",
     "buffer": "^6.0.3",
     "cross-env": "^7.0.3",

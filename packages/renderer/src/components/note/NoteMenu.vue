@@ -45,24 +45,30 @@
             :class="{ 'is-active': editor.isActive('highlight') }"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riMarkPenLine" />
+            <v-remixicon name="riFontColor" />
           </button>
         </template>
-        <div class="grid grid-cols-4 gap-2 p-2">
-          <button
-            v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
-            class="transition hoverable w-8 h-8 px-1 rounded-lg cursor-pointer"
-            @click="editor.commands.unsetHighlight()"
-          >
-            <v-remixicon name="riCloseLine" />
-          </button>
-          <div
-            v-for="color in colors"
-            :key="color"
-            :class="['w-8 h-8 cursor-pointer', color]"
-            @click="setHighlightColor(color)"
-          ></div>
+        <div class="px-2">
+          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in textColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded']"
+              @click="setTextColor(color)"
+            >
+              <v-remixicon name="riFontColor" :style="{ color: color }" />
+            </div>
+          </div>
+          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in higlighterColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded', color]"
+              @click="setHighlightColor(color)"
+            ></div>
+          </div>
         </div>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
@@ -362,24 +368,30 @@
             :class="{ 'is-active': editor.isActive('highlight') }"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riMarkPenLine" />
+            <v-remixicon name="riFontColor" />
           </button>
         </template>
-        <div class="grid grid-cols-4 gap-2 p-2">
-          <button
-            v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
-            class="transition hoverable w-8 h-8 px-1 rounded-lg cursor-pointer"
-            @click="editor.commands.unsetHighlight()"
-          >
-            <v-remixicon name="riCloseLine" />
-          </button>
-          <div
-            v-for="color in colors"
-            :key="color"
-            :class="['w-8 h-8 cursor-pointer', color]"
-            @click="setHighlightColor(color)"
-          ></div>
+        <div class="px-2">
+          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in textColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded']"
+              @click="setTextColor(color)"
+            >
+              <v-remixicon name="riFontColor" :style="{ color: color }" />
+            </div>
+          </div>
+          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in higlighterColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded', color]"
+              @click="setHighlightColor(color)"
+            ></div>
+          </div>
         </div>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
@@ -1127,7 +1139,7 @@ export default {
       }
     });
 
-    const colors = [
+    const higlighterColors = [
       'bg-orange-200 dark:bg-orange-40',
       'bg-yellow-200 dark:bg-yellow-100',
       'bg-green-200 dark:bg-green-100',
@@ -1135,15 +1147,40 @@ export default {
       'bg-purple-200 dark:bg-purple-100',
       'bg-pink-200 dark:bg-pink-100',
       'bg-red-200 dark:bg-red-100',
+      'bg-gray-200 dark:bg-gray-100',
+    ];
+
+    const textColors = [
+      '#F97316',
+      '#FBBF24',
+      '#22C55E',
+      '#3B82F6',
+      '#A855F7',
+      '#F472B6',
+      '#F43F5E',
+      '#D6D3D1',
     ];
 
     function setHighlightColor(color) {
-      props.editor.commands.setHighlight({ color });
+      if (props.editor.isActive('highlight', { color })) {
+        props.editor.commands.unsetHighlight();
+      } else {
+        props.editor.commands.setHighlight({ color });
+      }
+    }
+
+    function setTextColor(color) {
+      if (props.editor.isActive('textStyle', { color })) {
+        props.editor.chain().focus().unsetColor().run();
+      } else {
+        props.editor.commands.setColor(color);
+      }
     }
 
     return {
       store,
-      colors,
+      higlighterColors,
+      textColors,
       setHighlightColor,
       lists,
       isTableActive,
@@ -1157,6 +1194,7 @@ export default {
       addIframe,
       editorImage,
       headingsTree,
+      setTextColor,
       textFormatting,
       getHeadingsTree,
       toggleReaderMode,

@@ -143,7 +143,9 @@
     "greenCallout": "Green Callout",
     "purpleCallout": "Purple Callout",
     "redCallout": "Red Callout",
-    "yellowCallout": "Yellow Callout"
+    "yellowCallout": "Yellow Callout",
+    "textColor": "Text Color",
+    "highlighterColor": "Highlighter Color"
   },
   "paper": {
     "dotted": "Dotted",

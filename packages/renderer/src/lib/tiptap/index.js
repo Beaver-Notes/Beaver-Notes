@@ -46,6 +46,8 @@ import Footnote from './exts/footnote-block/footnote';
 import Footnotes from './exts/footnote-block/footnotes';
 import FootnoteReference from './exts/footnote-block/reference';
 import Commands from './exts/commands';
+import TextStyle from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -94,6 +96,7 @@ const extensions = [
     content: 'block+ footnotes?',
   }),
   LiteralTab,
+  Color,
   Underline,
   blueCallout,
   yellowCallout,
@@ -142,6 +145,7 @@ const extensions = [
   Paste,
   SearchAndReplace.configure(),
   drawingCanvas,
+  TextStyle,
   markdownEngine,
   Placeholder.configure({
     placeholder: translations.tiptap.placeholder,

@@ -1,5 +1,8 @@
 import { useStorage } from '@/composable/storage';
+import { useRouter } from 'vue-router';
 const { ipcRenderer, path } = window.electron;
+const router = useRouter();
+
 async function encodeAssets(sourcePath) {
   const assets = {};
 
@@ -189,9 +192,7 @@ async function processImportedNote(noteData) {
       }
     }
 
-    alert(`Note "${noteData.title}" processed and stored successfully.`);
-
-    window.location.reload();
+    router.push(`/note/${noteData.id}`);
   } catch (error) {
     console.error('Error processing imported note:', error);
     throw error;

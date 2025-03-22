@@ -4,7 +4,7 @@ import { useAppStore } from './app';
 import { AES } from 'crypto-es/lib/aes.js';
 import { useStorage } from '../composable/storage.js';
 import { Utf8 } from 'crypto-es/lib/core.js';
-import { trackChange } from '@/utils/sync.js'; // Import the trackChange function
+import { trackChange } from '@/utils/sync.js';
 
 const storage = useStorage();
 
