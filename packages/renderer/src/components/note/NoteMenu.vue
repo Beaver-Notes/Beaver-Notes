@@ -60,7 +60,7 @@
               <v-remixicon name="riFontColor" :style="{ color: color }" />
             </div>
           </div>
-          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
               v-for="color in highlighterColors"
@@ -383,7 +383,7 @@
               <v-remixicon name="riFontColor" :style="{ color: color }" />
             </div>
           </div>
-          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
               v-for="color in highlighterColors"
