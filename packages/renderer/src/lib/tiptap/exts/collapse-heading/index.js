@@ -48,8 +48,14 @@ function findCollapseFragment(matchNode, doc) {
     }
 
     if (start) {
+      // Check if we hit a node that should end the collapse fragment
       if (breakCriteria(node)) {
         isDone = true;
+        return;
+      }
+
+      // Skip footnotes list - don't include it in the collapsed content
+      if (node.type.name === 'footnotes') {
         return;
       }
 
@@ -151,12 +157,12 @@ export default Heading.extend({
         const currentPos = findParentNode((f) => f.type === this.type)(
           selection
         );
-        if (!currentPos) {
+
+        if (!currentPos || !currentPos.node.attrs.open) {
           return false;
         }
-        if (!currentPos.node.attrs.open) {
-          return false;
-        }
+
+        // Find the range of content that would be collapsed
         const result = findCollapseFragment(currentPos.node, state.doc);
         if (!result) {
           chain()
@@ -168,12 +174,65 @@ export default Heading.extend({
             .run();
           return true;
         }
+
+        // Check for footnotes list in the content to be collapsed
+        // We'll exclude it from collapsing
+        let footnoteListPositions = [];
+
+        state.doc.nodesBetween(result.start, result.end, (node, pos) => {
+          if (node.type.name === 'footnotes') {
+            footnoteListPositions.push({ pos, node });
+          }
+        });
+
+        // If there are footnote lists in the section to be collapsed,
+        // we need to exclude them from the collapse
+        if (footnoteListPositions.length > 0) {
+          // Create a modified fragment that excludes the footnote list
+          let modifiedFragment = result.fragment;
+          let newEnd = result.end;
+
+          // Exclude footnote lists from the collapsed content
+          footnoteListPositions.forEach(({ pos, node }) => {
+            // Check if the footnote list is within our fragment
+            if (pos >= result.start && pos <= result.end) {
+              // Remove it from the fragment to be collapsed
+              const nodeSize = node.nodeSize;
+              const relativePos = pos - result.start;
+
+              // Split the fragment to exclude the footnote list
+              const beforeList = result.fragment.cut(0, relativePos);
+              const afterList = result.fragment.cut(relativePos + nodeSize);
+
+              // Join the fragments back without the footnote list
+              modifiedFragment = beforeList.append(afterList);
+              newEnd = newEnd - nodeSize;
+            }
+          });
+
+          // Use the modified fragment for collapsing
+          const currentNode = currentPos.node.toJSON();
+          currentNode.attrs.collapsedContent = jsonRaw(
+            modifiedFragment.toJSON()
+          );
+          currentNode.attrs.open = false;
+
+          chain()
+            .insertContentAt({ from: result.start, to: newEnd }, currentNode)
+            .run();
+
+          return true;
+        }
+
+        // If no footnote lists, proceed with normal collapsing logic
         const currentNode = currentPos.node.toJSON();
         currentNode.attrs.collapsedContent = jsonRaw(result.fragment.toJSON());
         currentNode.attrs.open = false;
+
         chain()
           .insertContentAt({ from: result.start, to: result.end }, currentNode)
           .run();
+
         return true;
       },
       unCollapsedHeading: () => (e) => {

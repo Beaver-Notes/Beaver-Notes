@@ -93,7 +93,10 @@ const extensions = [
     multicolor: true,
   }),
   Typography,
-  Document,
+  Document.extend({
+    content: 'block+ (footnotes)?',
+    allowGapCursor: true,
+  }),
   LiteralTab,
   Color,
   Underline,
