@@ -7,7 +7,6 @@ import Typography from '@tiptap/extension-typography';
 import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
-import Gapcursor from '@tiptap/extension-gapcursor';
 import markdownEngine from './exts/markdown-engine';
 import { Paste } from './exts/markdown-engine/paste';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -114,7 +113,6 @@ const extensions = [
   FootnoteReference,
   Footnote,
   TaskList,
-  Gapcursor,
   Table.configure({
     resizable: true,
   }),

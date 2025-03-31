@@ -160,7 +160,7 @@ export default {
     theme.loadTheme();
     onFileOpened((path) => {
       console.log('File opened:', path);
-      importNoteFromBea(path);
+      importNoteFromBea(path, router);
     });
     window.electron.ipcRenderer.callMain(
       'app:set-zoom',

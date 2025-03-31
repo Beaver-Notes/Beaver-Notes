@@ -1004,7 +1004,6 @@ export default {
 
     const container = ref();
     function changeWheelDirection(e) {
-      e.preventDefault();
       if (container.value) {
         container.value.scrollLeft += e.deltaY + e.deltaX;
       }

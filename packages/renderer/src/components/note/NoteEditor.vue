@@ -5,7 +5,7 @@
       :editor="editor"
       class="prose dark:text-neutral-100 max-w-none prose-indigo print:cursor-none"
     />
-    <note-bubble-menu v-if="editor" v-bind="{ editor }" />
+    <note-bubble-menu v-if="editor && editor.isEditable" v-bind="{ editor }" />
   </div>
 </template>
 

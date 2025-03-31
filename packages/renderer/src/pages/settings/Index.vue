@@ -252,6 +252,7 @@ import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
+import { useRouter } from 'vue-router';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
 import { processDirectory } from '@/utils/markdown';
@@ -282,7 +283,7 @@ export default {
       { name: 'dark', img: darkImg },
       { name: 'system', img: systemImg },
     ];
-
+    const router = useRouter();
     const theme = useTheme();
     // eslint-disable-next-line no-unused-vars
     const dialog = useDialog();
@@ -609,7 +610,7 @@ export default {
 
         state.importFile = file;
 
-        await importNoteFromBea(state.importFile);
+        await importNoteFromBea(state.importFile, router);
 
         notification({
           title: translations.settings.notification,
