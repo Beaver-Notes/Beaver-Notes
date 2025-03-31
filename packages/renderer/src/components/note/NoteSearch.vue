@@ -235,7 +235,11 @@ export default {
 
     onUnmounted(() => {
       if (!props.editor) return;
-      props.editor.commands.clearSearch();
+      state.query = '';
+      state.replaceWith = '';
+      props.editor.commands.setSearchTerm('');
+      props.editor.commands.setReplaceTerm('');
+      props.editor.commands.resetIndex();
       Mousetrap.unbind(Object.keys(shortcuts));
     });
 
