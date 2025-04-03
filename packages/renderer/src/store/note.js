@@ -8,6 +8,59 @@ import { trackChange } from '@/utils/sync.js';
 
 const storage = useStorage();
 
+function findAllNodesInRange(fragment, name) {
+  if (!fragment) {
+    return [];
+  }
+  if (!Array.isArray(fragment)) {
+    return findAllNodesInRange(fragment.content, name);
+  }
+  const nodes = [];
+  for (const n of fragment) {
+    if (n.type === name) {
+      nodes.push(n);
+      continue;
+    }
+    nodes.push(...findAllNodesInRange(n.content, name));
+  }
+  return nodes;
+}
+
+function unCollapsedFootnotes(note, footnotes) {
+  let lastNode = note.content.content.at(-1);
+  if (lastNode.type !== 'footnotes') {
+    lastNode = {
+      type: 'footnotes',
+      content: [],
+      attrs: { class: 'footnotes' },
+    };
+    note.content.content.push(lastNode);
+  }
+  const footnoteMap = [...footnotes, ...lastNode.content].reduce(
+    (a, c) => ({ ...a, [c.attrs['data-id']]: c }),
+    {}
+  );
+  const references = findAllNodesInRange(
+    note.content.content,
+    'footnoteReference'
+  );
+  lastNode.content = references.map((r, i) => {
+    if (r.attrs['data-id'] in footnoteMap) {
+      return footnoteMap[r.attrs['data-id']];
+    }
+    return {
+      type: 'footnote',
+      content: [
+        {
+          type: 'paragraph',
+          content: [],
+        },
+      ],
+      attrs: { 'data-id': r.attrs['data-id'], id: `fn:${i + 1}` },
+    };
+  });
+}
+
 export const useNoteStore = defineStore('note', {
   state: () => ({
     data: {},
@@ -59,10 +112,17 @@ export const useNoteStore = defineStore('note', {
 
     convertNote(id) {
       const note = this.data[id];
-      note.content.content = this.uncollapseHeading(note.content.content);
+      let footnotes = [];
+      note.content.content = this.uncollapseHeading(
+        note.content.content ?? [],
+        footnotes
+      );
+      if (footnotes.length > 0) {
+        unCollapsedFootnotes(note, footnotes);
+      }
     },
 
-    uncollapseHeading(contents = []) {
+    uncollapseHeading(contents, footnotes) {
       if (contents.length === 0) {
         return contents;
       }
@@ -72,6 +132,10 @@ export const useNoteStore = defineStore('note', {
         newContents.push(content);
         if (content.type === 'heading') {
           let collapsedContent = content.attrs.collapsedContent ?? [];
+          let collapsedFootnotes = content.attrs.collapsedFootnotes ?? [];
+          if (collapsedFootnotes.length > 0) {
+            footnotes.push(...collapsedFootnotes);
+          }
           if (typeof collapsedContent === 'string') {
             if (collapsedContent === '') {
               collapsedContent = [];
@@ -81,12 +145,13 @@ export const useNoteStore = defineStore('note', {
           }
           content.attrs.open = true;
           content.attrs.collapsedContent = null;
+          // content.attrs.collapsedFootnotes = null;
           if (collapsedContent.length === 0) {
             continue;
           }
           newContents = [
             ...newContents,
-            ...this.uncollapseHeading(collapsedContent),
+            ...this.uncollapseHeading(collapsedContent, footnotes),
           ];
         }
       }
