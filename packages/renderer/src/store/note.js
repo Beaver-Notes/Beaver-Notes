@@ -145,7 +145,7 @@ export const useNoteStore = defineStore('note', {
           }
           content.attrs.open = true;
           content.attrs.collapsedContent = null;
-          // content.attrs.collapsedFootnotes = null;
+          content.attrs.collapsedFootnotes = null;
           if (collapsedContent.length === 0) {
             continue;
           }
