@@ -158,6 +158,7 @@ const extensions = [
     },
   }).configure({
     openOnClick: false,
+    protocols: ['http', 'https', 'mailto', 'note'],
     HTMLAttributes: {
       target: '_blank',
       rel: 'noopener noreferrer nofollow',
