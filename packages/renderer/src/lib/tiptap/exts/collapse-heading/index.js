@@ -1,5 +1,6 @@
 import Heading from '@tiptap/extension-heading';
 import { findParentNode, mergeAttributes } from '@tiptap/vue-3';
+import { mergeCollapsedFootnotes } from '../footnote-block/utils';
 
 function createArrowSVG() {
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -83,6 +84,45 @@ function findCollapseFragment(matchNode, doc) {
   };
 }
 
+export function findAllNodesInRange(fragment, name) {
+  if (!fragment) {
+    return [];
+  }
+  if (!Array.isArray(fragment)) {
+    return findAllNodesInRange(fragment.content, name);
+  }
+  const nodes = [];
+  for (const n of fragment) {
+    if (n.type.name === name) {
+      nodes.push(n);
+      continue;
+    }
+    nodes.push(...findAllNodesInRange(n.content, name));
+  }
+  return nodes;
+}
+
+function getCollapsedFootnote(result, state) {
+  const references = findAllNodesInRange(
+    result.fragment.content,
+    'footnoteReference'
+  );
+  const footnotes = findAllNodesInRange(state.doc, 'footnotes');
+  const footnotesMap = footnotes.reduce((acc, cur) => {
+    for (const child of cur.content.content) {
+      acc[child.attrs['data-id']] = child;
+    }
+    return acc;
+  }, {});
+  const matchList = [];
+  for (const ref of references) {
+    if (ref.attrs['data-id'] in footnotesMap) {
+      matchList.push(footnotesMap[ref.attrs['data-id']]);
+    }
+  }
+  return matchList;
+}
+
 function parseJSON(obj) {
   try {
     return JSON.parse(obj);
@@ -130,6 +170,10 @@ export default Heading.extend({
           return !attributes.open ? {} : { open: '' };
         },
       },
+      collapsedFootnotes: {
+        default: null,
+        rendered: false,
+      },
       collapsedContent: {
         default: null,
         rendered: false,
@@ -170,6 +214,7 @@ export default Heading.extend({
               ...currentPos.node.attrs,
               open: false,
               collapsedContent: [],
+              collapsedFootnotes: [],
             })
             .run();
           return true;
@@ -227,6 +272,9 @@ export default Heading.extend({
         // If no footnote lists, proceed with normal collapsing logic
         const currentNode = currentPos.node.toJSON();
         currentNode.attrs.collapsedContent = jsonRaw(result.fragment.toJSON());
+        currentNode.attrs.collapsedFootnotes = jsonRaw(
+          getCollapsedFootnote(result, state)
+        );
         currentNode.attrs.open = false;
 
         chain()
@@ -249,6 +297,13 @@ export default Heading.extend({
         }
         const currentNode = currentPos.node.toJSON();
         const collapsedContent = currentNode.attrs.collapsedContent;
+        const footnotes = currentNode.attrs.collapsedFootnotes;
+        const footnoteMap = (footnotes ?? []).reduce((acc, item) => {
+          acc[item.attrs['data-id']] = item;
+          return acc;
+        }, {});
+        mergeCollapsedFootnotes(jsonRaw(footnoteMap));
+        currentNode.attrs.collapsedFootnotes = null;
         currentNode.attrs.collapsedContent = null;
         currentNode.attrs.open = true;
         chain()
