@@ -56,8 +56,9 @@ export async function trackChange(key, data) {
   await storage.set('syncMetadata', metadata, 'settings');
   state.localVersion = metadata.version;
 
-  // Schedule sync if not already syncing
-  if (!state.syncInProgress) {
+  const autoSync = localStorage.getItem('autoSync');
+
+  if (!state.syncInProgress && autoSync == 'true') {
     scheduleSyncWithDebounce();
   }
 
