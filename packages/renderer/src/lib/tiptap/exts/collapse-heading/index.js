@@ -298,7 +298,7 @@ export default Heading.extend({
         const currentNode = currentPos.node.toJSON();
         const collapsedContent = currentNode.attrs.collapsedContent;
         const footnotes = currentNode.attrs.collapsedFootnotes;
-        const footnoteMap = footnotes.reduce((acc, item) => {
+        const footnoteMap = (footnotes ?? []).reduce((acc, item) => {
           acc[item.attrs['data-id']] = item;
           return acc;
         }, {});
