@@ -8,7 +8,7 @@ import { AES } from 'crypto-es/lib/aes';
 const { ipcRenderer, path, notification } = window.electron;
 const dialog = useDialog();
 const defaultPath = localStorage.getItem('default-path');
-const syncStatus = ref('idle'); // 'idle', 'syncing', 'error', 'success'
+const syncStatus = ref('idle');
 
 const state = shallowReactive({
   dataDir: '',
@@ -173,12 +173,6 @@ export async function syncData() {
     // 5. Update sync status
     state.lastSyncTime = Date.now();
     syncStatus.value = 'success';
-
-    // Show notification
-    notification({
-      title: translations.sidebar.notification,
-      body: translations.sidebar.syncSuccess,
-    });
   } catch (error) {
     console.error('Sync error:', error);
     state.syncError = error.message;
@@ -518,18 +512,30 @@ async function syncFileCollections(
 // Prepare all data for syncing
 async function prepareDataToSync() {
   const storage = useStorage();
-  const keysToSync = ['notes', 'labels', 'lockStatus', 'isLocked', 'settings'];
+  const keysToSync = [
+    'notes',
+    'labels',
+    'lockStatus',
+    'isLocked',
+    'settings',
+    'deleteIds',
+  ];
   const result = {};
 
   for (const key of keysToSync) {
     const defaultValue =
-      key === 'notes' || key === 'lockStatus' || key === 'isLocked' ? {} : [];
+      key === 'notes' || key === 'lockStatus' || key === 'isLocked'
+        ? {}
+        : key === 'deleteIds'
+        ? []
+        : [];
     result[key] = await storage.get(key, defaultValue);
   }
 
   return result;
 }
 
+// Merge pulled data with local data
 // Merge pulled data with local data
 async function mergePulledData(importedData) {
   const storage = useStorage();
@@ -539,6 +545,7 @@ async function mergePulledData(importedData) {
     { key: 'lockStatus', dfData: {} },
     { key: 'isLocked', dfData: {} },
     { key: 'settings', dfData: {} },
+    { key: 'deleteIds', dfData: [] }, // Add deleteIds to the list of keys to process
   ];
 
   console.log(
@@ -546,7 +553,32 @@ async function mergePulledData(importedData) {
     keys.map((k) => k.key).join(', ')
   );
 
+  // First, process deleteIds to ensure we have the complete list before modifying notes
+  let combinedDeleteIds = [];
+  if (importedData.deleteIds && Array.isArray(importedData.deleteIds)) {
+    const currentDeleteIds = await storage.get('deleteIds', []);
+    console.log(
+      `Processing deleteIds - Current: ${currentDeleteIds.length}, Imported: ${importedData.deleteIds.length}`
+    );
+
+    // Combine local and remote deleteIds
+    combinedDeleteIds = [
+      ...new Set([...currentDeleteIds, ...importedData.deleteIds]),
+    ];
+    console.log(
+      `Combined deleteIds - Total unique: ${combinedDeleteIds.length}`
+    );
+
+    // Save the combined deleteIds
+    await storage.set('deleteIds', combinedDeleteIds);
+    console.log('Successfully saved combined deleteIds');
+  }
+
+  // Then process all other data keys
   for (const { key, dfData } of keys) {
+    // Skip deleteIds as we've already processed it
+    if (key === 'deleteIds') continue;
+
     // Skip if the imported data doesn't contain this key
     if (!(key in importedData)) {
       console.log(`Key "${key}" not found in imported data, skipping`);
@@ -578,7 +610,7 @@ async function mergePulledData(importedData) {
         mergedData = [...new Set(mergedArr)];
         console.log(`Merged labels - Total unique: ${mergedData.length}`);
       } else if (key === 'notes') {
-        // For notes, merge by ID and prefer the newer note
+        // For notes, merge by ID, prefer the newer note, and respect deleteIds
         mergedData = { ...currentData };
         const currentNoteCount = Object.keys(currentData).length;
         const importedNoteCount = Object.keys(importedDataForKey).length;
@@ -586,12 +618,31 @@ async function mergePulledData(importedData) {
           `Merging notes - Current: ${currentNoteCount}, Imported: ${importedNoteCount}`
         );
 
+        // First, remove any notes that are in the combined deleteIds list
+        let deletedCount = 0;
+        for (const noteId of combinedDeleteIds) {
+          if (noteId in mergedData) {
+            delete mergedData[noteId];
+            deletedCount++;
+          }
+        }
+        console.log(`Deleted ${deletedCount} notes based on deleteIds`);
+
+        // Then process the imported notes
         let updated = 0,
           added = 0,
-          kept = 0;
+          kept = 0,
+          skipped = 0;
+
         for (const [noteId, importedNote] of Object.entries(
           importedDataForKey
         )) {
+          // Skip notes that are in the deleteIds list
+          if (combinedDeleteIds.includes(noteId)) {
+            skipped++;
+            continue;
+          }
+
           const currentNote = mergedData[noteId];
 
           if (!currentNote) {
@@ -613,7 +664,7 @@ async function mergePulledData(importedData) {
         }
 
         console.log(
-          `Notes merge results - Added: ${added}, Updated: ${updated}, Kept: ${kept}`
+          `Notes merge results - Added: ${added}, Updated: ${updated}, Kept: ${kept}, Skipped (deleted): ${skipped}`
         );
       } else if (
         typeof currentData === 'object' &&
@@ -622,15 +673,18 @@ async function mergePulledData(importedData) {
         // For other objects like lockStatus and isLocked, deep merge
         mergedData = { ...currentData };
 
-        // For objects that should replace entirely rather than merge, uncomment this:
-        // if (key === 'settings' || key === 'lockStatus' || key === 'isLocked') {
-        //   mergedData = { ...importedDataForKey };
-        // } else {
-        //   mergedData = { ...currentData, ...importedDataForKey };
-        // }
-
         // Default behavior: merge objects
         mergedData = { ...currentData, ...importedDataForKey };
+
+        // For lockStatus, also respect deleteIds
+        if (key === 'lockStatus') {
+          for (const noteId of combinedDeleteIds) {
+            if (noteId in mergedData) {
+              delete mergedData[noteId];
+            }
+          }
+        }
+
         console.log(`Merged object data for "${key}"`);
       } else {
         // For other data types, just use the imported data

@@ -67,6 +67,7 @@ export const useNoteStore = defineStore('note', {
     lockStatus: {},
     isLocked: {},
     syncInProgress: false,
+    deletedIds: {},
   }),
   getters: {
     notes: (state) => Object.values(state.data).filter(({ id }) => id),
@@ -225,42 +226,65 @@ export const useNoteStore = defineStore('note', {
         const { path, ipcRenderer } = window.electron;
         const dataDir = await storage.get('dataDir', '', 'settings');
 
-        // Delete from store
+        this.deletedIds = this.deletedIds || {};
+        if (!this.deletedIds[id]) {
+          this.deletedIds[id] = Date.now();
+        }
+
         delete this.data[id];
         delete this.lockStatus[id];
         delete this.isLocked[id];
 
-        // Delete from storage
         await storage.delete(`notes.${id}`);
         await storage.set('lockStatus', this.lockStatus);
         await storage.set('isLocked', this.isLocked);
+        await storage.set('deletedIds', this.deletedIds);
 
-        // Track the changes for sync
         await trackChange('notes', this.data);
         await trackChange('lockStatus', this.lockStatus);
         await trackChange('isLocked', this.isLocked);
+        await trackChange('deletedIds', this.deletedIds);
 
-        // Remove associated files
         try {
           await ipcRenderer.callMain(
             'fs:remove',
             path.join(dataDir, 'notes-assets', id)
           );
-
           await ipcRenderer.callMain(
             'fs:remove',
             path.join(dataDir, 'file-assets', id)
           );
         } catch (fileError) {
           console.warn('Error removing note files:', fileError);
-          // Continue even if file deletion fails
         }
+
+        this.cleanupDeletedIds(30);
 
         return id;
       } catch (error) {
         console.error('Error deleting note:', error);
         throw error;
       }
+    },
+
+    cleanupDeletedIds(days = 30) {
+      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+      const toDelete = [];
+
+      for (const [id, timestamp] of Object.entries(this.deletedIds || {})) {
+        if (timestamp < cutoff) {
+          toDelete.push(id);
+        }
+      }
+
+      for (const id of toDelete) {
+        delete this.deletedIds[id];
+      }
+
+      storage.set('deletedIds', this.deletedIds);
+      trackChange('deletedIds', this.deletedIds);
+
+      return toDelete;
     },
 
     async lockNote(id, password) {
