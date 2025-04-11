@@ -69,7 +69,7 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.10.6",
     "dmg-builder": "^24.5.0",
-    "electron": "^31.2.1",
+    "electron": "^35.1.5",
     "electron-better-ipc": "^2.0.1",
     "electron-browser-storage": "^1.0.7",
     "electron-builder": "24.10.0",
