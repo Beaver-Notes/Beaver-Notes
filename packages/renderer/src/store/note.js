@@ -245,6 +245,8 @@ export const useNoteStore = defineStore('note', {
         await trackChange('isLocked', this.isLocked);
         await trackChange('deletedIds', this.deletedIds);
 
+        console.log(this.deletedIds);
+
         try {
           await ipcRenderer.callMain(
             'fs:remove',

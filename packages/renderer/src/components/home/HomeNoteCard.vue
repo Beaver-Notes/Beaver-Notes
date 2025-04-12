@@ -127,7 +127,7 @@ import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { onMounted, shallowReactive } from 'vue';
-import { getSyncStatus, forceSyncNow } from '@/utils/sync.js';
+import { forceSyncNow } from '@/utils/sync.js';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
 import 'dayjs/locale/de';
@@ -299,8 +299,6 @@ onMounted(async () => {
   const autoSync = localStorage.getItem('autoSync');
   if (autoSync === 'true') {
     forceSyncNow();
-    const status = getSyncStatus();
-    console.log('Sync status:', status);
   }
 });
 
