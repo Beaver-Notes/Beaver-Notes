@@ -23,9 +23,6 @@
 .ProseMirror a {
   @apply text-primary dark:text-primary !important;
 }
-.ProseMirror strong {
-  @apply dark:text-[color:var(--selected-dark-text)];
-}
 .ProseMirror blockquote {
   @apply dark:border-neutral-700 dark:text-neutral-100;
 }
@@ -40,6 +37,12 @@
   margin-bottom: 1em !important;
 }
 .ProseMirror p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  @apply dark:text-[color:var(--selected-dark-text)];
+}
+.ProseMirror strong {
+  color: inherit !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   @apply dark:text-[color:var(--selected-dark-text)];

@@ -1139,14 +1139,22 @@ export default {
     });
 
     const highlighterColors = [
-      'bg-[#FFD56B]/60 dark:bg-[#996B1F]/50 dark:text-white', // Soft Orange-Yellow
-      'bg-[#FFF78A]/60 dark:bg-[#B8A233]/50 dark:text-white', // Yellow
-      'bg-[#C5F6C7]/60 dark:bg-[#5A9E5D]/50 dark:text-white', // Green
-      'bg-[#A7DBFA]/60 dark:bg-[#4785A3]/50 dark:text-white', // Blue
-      'bg-[#D7B5F7]/60 dark:bg-[#7E5A9A]/50 dark:text-white', // Purple
-      'bg-[#F9C3D8]/60 dark:bg-[#B15A79]/50 dark:text-white', // Pink
-      'bg-[#FF9E9E]/60 dark:bg-[#B04C4C]/50 dark:text-white', // Red
-      'bg-[#E0E0E0]/60 dark:bg-[#6B6B6B]/50 dark:text-white', // Gray
+      'bg-[#FFD56B]/60 dark:bg-[#996B1F]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#FFF78A]/60 dark:bg-[#B8A233]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#C5F6C7]/60 dark:bg-[#5A9E5D]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#A7DBFA]/60 dark:bg-[#4785A3]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#D7B5F7]/60 dark:bg-[#7E5A9A]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#F9C3D8]/60 dark:bg-[#B15A79]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#FF9E9E]/60 dark:bg-[#B04C4C]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-[#E0E0E0]/60 dark:bg-[#6B6B6B]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-orange-200 dark:bg-orange-40',
+      'bg-yellow-200 dark:bg-yellow-100',
+      'bg-green-200 dark:bg-green-100',
+      'bg-blue-200 dark:bg-blue-100',
+      'bg-purple-200 dark:bg-purple-100',
+      'bg-pink-200 dark:bg-pink-100',
+      'bg-red-200 dark:bg-red-100',
+      'bg-zinc-200 dark:bg-zinc-100',
     ];
 
     const textColors = [
