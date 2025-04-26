@@ -395,7 +395,7 @@ async function syncFileCollections(
         // No action needed, files are identical
       }
     } catch (error) {
-      console.errpr(`Error syncing file ${file}:`, error);
+      console.error(`Error syncing file ${file}:`, error);
     }
   }
 }

@@ -107,7 +107,6 @@ export default {
     ]);
 
     const shortcuts = {
-      'mod+n': addNote,
       'mod+,': openSettings,
       'mod+shift+w': openLastEdited,
       'mod+shift+n': () => router.push('/'),
