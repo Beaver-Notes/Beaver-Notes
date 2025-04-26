@@ -37,7 +37,6 @@
 </template>
 
 <script setup>
-/* eslint-disable no-undef */
 import { watch, ref, shallowReactive, onMounted } from 'vue';
 
 const props = defineProps({
