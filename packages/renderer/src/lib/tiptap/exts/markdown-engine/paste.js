@@ -23,19 +23,22 @@ export const Paste = Extension.create({
               const hasNonTextContent = Array.from(clipboardData.items).some(
                 (item) => !item.type.startsWith('text/')
               );
-
               if (hasNonTextContent) {
                 return false;
               }
-
               if (clipboardData.getData('text/html')) {
                 return false;
               }
               const text = clipboardData.getData('text/plain');
               if (!text) return false;
+
               try {
                 const md = new MarkdownIt();
-                const parsedHtml = md.render(text);
+                const normalizedText = text
+                  .replace(/\r\n?/g, '\n') // Normalize Windows line endings
+                  .replace(/\n/g, '  \n'); // Make all newlines Markdown hard breaks
+
+                const parsedHtml = md.render(normalizedText);
 
                 event.preventDefault();
 
@@ -43,10 +46,6 @@ export const Paste = Extension.create({
                   StarterKit,
                   Link.configure({ openOnClick: false }),
                 ]);
-
-                editor.commands.insertContent('', {
-                  parseOptions: { preserveWhitespace: false },
-                });
 
                 editor.commands.insertContent(json, {
                   parseOptions: { preserveWhitespace: false },
