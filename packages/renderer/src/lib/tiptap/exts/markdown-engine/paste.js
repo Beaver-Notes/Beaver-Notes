@@ -32,30 +32,42 @@ export const Paste = Extension.create({
               const text = clipboardData.getData('text/plain');
               if (!text) return false;
 
-              try {
-                const md = new MarkdownIt();
-                const normalizedText = text
-                  .replace(/\r\n?/g, '\n') // Normalize Windows line endings
-                  .replace(/\n/g, '  \n'); // Make all newlines Markdown hard breaks
+              const { state } = view;
+              const { $from } = state.selection;
 
-                const parsedHtml = md.render(normalizedText);
+              // Detect if we're inside a codeBlock
+              const isInCodeBlock = $from.parent.type.name === 'codeBlock';
 
-                event.preventDefault();
+              event.preventDefault();
 
-                const json = generateJSON(parsedHtml, [
-                  StarterKit,
-                  Link.configure({ openOnClick: false }),
-                ]);
+              if (isInCodeBlock) {
+                // Inside code block: just insert plain text
+                editor.commands.insertContent(text);
+              } else {
+                // Outside code block: parse and insert as rich content
+                try {
+                  const md = new MarkdownIt();
+                  const normalizedText = text
+                    .replace(/\r\n?/g, '\n') // Normalize Windows line endings
+                    .replace(/\n/g, '  \n'); // Make all newlines Markdown hard breaks
 
-                editor.commands.insertContent(json, {
-                  parseOptions: { preserveWhitespace: false },
-                });
+                  const parsedHtml = md.render(normalizedText);
 
-                return true;
-              } catch (error) {
-                console.error('Error processing markdown:', error);
-                return false;
+                  const json = generateJSON(parsedHtml, [
+                    StarterKit,
+                    Link.configure({ openOnClick: false }),
+                  ]);
+
+                  editor.commands.insertContent(json, {
+                    parseOptions: { preserveWhitespace: false },
+                  });
+                } catch (error) {
+                  console.error('Error processing markdown:', error);
+                  return false;
+                }
               }
+
+              return true;
             },
           },
         },
