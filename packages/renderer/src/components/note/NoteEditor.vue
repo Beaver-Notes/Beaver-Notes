@@ -92,7 +92,6 @@ export default {
       editor.value.on('update', () => {
         let data = editor.value.getJSON();
 
-        // Clean up empty paragraphs
         data.content = data.content?.filter(
           (node) =>
             !(
