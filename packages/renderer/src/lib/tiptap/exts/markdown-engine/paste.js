@@ -52,13 +52,25 @@ export const Paste = Extension.create({
                     .replace(/\n/g, '  \n'); // Make all newlines Markdown hard breaks
 
                   const parsedHtml = md.render(normalizedText);
-
                   const json = generateJSON(parsedHtml, [
                     StarterKit,
                     Link.configure({ openOnClick: false }),
                   ]);
 
-                  editor.commands.insertContent(json, {
+                  const paragraphs = json.content.map((c) => c.content);
+                  const newJson = [];
+                  for (let i = 0, len = paragraphs.length; i < len; i++) {
+                    const paragraph = paragraphs[i];
+                    if (i !== 0) {
+                      newJson.push(
+                        { type: 'hardBreak' },
+                        { type: 'hardBreak' }
+                      );
+                    }
+                    newJson.push(...paragraph);
+                  }
+
+                  editor.commands.insertContent(newJson, {
                     parseOptions: { preserveWhitespace: false },
                   });
                 } catch (error) {
