@@ -90,7 +90,16 @@ export default {
       editor.value.options.element.style.fontSize =
         (localStorage.getItem('font-size') || '16') + 'px';
       editor.value.on('update', () => {
-        const data = editor.value.getJSON();
+        let data = editor.value.getJSON();
+
+        // Clean up empty paragraphs
+        data.content = data.content?.filter(
+          (node) =>
+            !(
+              node.type === 'paragraph' &&
+              (!node.content || node.content.length === 0)
+            )
+        );
 
         emit('update', data);
         emit('update:modelValue', data);
