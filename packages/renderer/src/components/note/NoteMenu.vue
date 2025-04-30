@@ -704,7 +704,7 @@ export default {
     },
     note: {
       type: Object,
-      required: true, // Set to true if this prop is essential
+      required: true,
     },
   },
   emits: ['update:tree'],
@@ -854,20 +854,17 @@ export default {
         return;
       }
 
-      let trimmedEmbedUrl = EmbedUrl.value.trim(); // Renamed local variable
+      let trimmedEmbedUrl = EmbedUrl.value.trim();
 
-      // Check if the URL is a YouTube Embed URL in the regular format
       if (trimmedEmbedUrl.includes('youtube.com/watch?v=')) {
         let EmbedId = trimmedEmbedUrl.split('v=')[1];
         const ampersandPosition = EmbedId.indexOf('&');
         if (ampersandPosition !== -1) {
           EmbedId = EmbedId.substring(0, ampersandPosition);
         }
-        // Convert to the embed format
         trimmedEmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
       }
 
-      // Use the value of trimmedEmbedUrl to set the iframe source
       props.editor
         .chain()
         .focus()
@@ -876,7 +873,6 @@ export default {
         })
         .run();
 
-      // Clear the input field after setting the iframe source
       EmbedUrl.value = '';
     }
 
@@ -914,7 +910,6 @@ export default {
     };
 
     function toggleReaderMode() {
-      // Zoom and toggle inReaderMode state
       handleZoomButtonClick();
       store.inReaderMode = !store.inReaderMode;
 
@@ -979,7 +974,7 @@ export default {
       try {
         for (const file of files) {
           const { fileName, relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
+          const src = `${relativePath}`;
           props.editor.commands.setFileEmbed(src, fileName);
         }
       } catch (error) {
@@ -994,7 +989,7 @@ export default {
       try {
         for (const file of files) {
           const { relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
+          const src = `${relativePath}`;
           props.editor.commands.setVideo(src);
         }
       } catch (error) {
@@ -1012,7 +1007,7 @@ export default {
     let recorder;
     let recordingStartTime = null;
     let recordingInterval = null;
-    let stream = null; // Keep track of the media stream
+    let stream = null;
 
     const minutes = ref(0);
     const seconds = ref(0);
@@ -1031,21 +1026,17 @@ export default {
 
     async function toggleRecording() {
       if (isRecording.value) {
-        // Stop recording
         recorder.stopRecording(() => {
           const blob = recorder.getBlob();
           const filename = generateRandomFilename('ogg');
 
-          // Process and save the blob
           handleBlob(blob, filename);
 
-          // Clean up
           if (stream) {
-            // Stop all tracks in the stream
             stream.getTracks().forEach((track) => {
               track.stop();
             });
-            stream = null; // Ensure the stream is nullified
+            stream = null;
           }
           if (recorder && typeof recorder.destroy === 'function') {
             recorder.destroy();
@@ -1053,7 +1044,6 @@ export default {
           recorder = null;
         });
 
-        // Update state
         isRecording.value = false;
         clearInterval(recordingInterval);
         recordingInterval = null;
@@ -1120,18 +1110,14 @@ export default {
       }
       if (recorder) {
         if (recorder.stream) {
-          // Ensure all tracks are stopped
           recorder.stream.getTracks().forEach((track) => track.stop());
-          // Nullify the stream
           recorder.stream = null;
         }
-        // Destroy the recorder if applicable
         if (recorder && typeof recorder.destroy === 'function') {
           recorder.destroy();
         }
         recorder = null;
       }
-      // Ensure all media streams are closed
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
         stream = null;
@@ -1139,14 +1125,14 @@ export default {
     });
 
     const highlighterColors = [
-      'bg-[#FFD56B]/60 dark:bg-[#996B1F]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#FFF78A]/60 dark:bg-[#B8A233]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#C5F6C7]/60 dark:bg-[#5A9E5D]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#A7DBFA]/60 dark:bg-[#4785A3]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#D7B5F7]/60 dark:bg-[#7E5A9A]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#F9C3D8]/60 dark:bg-[#B15A79]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#FF9E9E]/60 dark:bg-[#B04C4C]/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-[#E0E0E0]/60 dark:bg-[#6B6B6B]/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-yellow-300/60 dark:bg-yellow-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-lime-300/60 dark:bg-lime-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-fuchsia-300/60 dark:bg-fuchsia-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-cyan-300/60 dark:bg-cyan-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-violet-300/60 dark:bg-violet-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-amber-300/60 dark:bg-amber-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-rose-300/60 dark:bg-rose-600/50 dark:text-[color:var(--selected-dark-text)]',
+      'bg-neutral-300/60 dark:bg-neutral-600/50 dark:text-[color:var(--selected-dark-text)]',
       'bg-orange-200 dark:bg-orange-40',
       'bg-yellow-200 dark:bg-yellow-100',
       'bg-green-200 dark:bg-green-100',
@@ -1158,14 +1144,14 @@ export default {
     ];
 
     const textColors = [
-      '#DC8D42', // Soft Orange
-      '#E3B324', // Warm Yellow
-      '#4CAF50', // Natural Green
-      '#3A8EE6', // Soft Blue
-      '#9B5EE6', // Muted Purple
-      '#E67EA4', // Pastel Pink
-      '#E75C5C', // Warm Red
-      '#A3A3A3', // Soft Gray
+      '#DC8D42',
+      '#E3B324',
+      '#4CAF50',
+      '#3A8EE6',
+      '#9B5EE6',
+      '#E67EA4',
+      '#E75C5C',
+      '#A3A3A3',
     ];
 
     function setHighlightColor(color) {
