@@ -5,14 +5,11 @@ async function encodeAssets(sourcePath) {
   const assets = {};
 
   try {
-    // Fetch the list of files in the directory
     const files = await ipcRenderer.callMain('fs:readdir', sourcePath);
 
     for (const file of files) {
-      // Construct the full file path
       const filePath = path.join(sourcePath, file);
 
-      // Read the file's Base64-encoded contents directly
       const base64Data = await ipcRenderer.callMain('fs:readData', filePath);
 
       if (!base64Data) {
@@ -21,7 +18,6 @@ async function encodeAssets(sourcePath) {
         continue;
       }
 
-      // Store the Base64-encoded data in the assets object
       assets[file] = base64Data;
     }
   } catch (error) {
@@ -87,7 +83,7 @@ export async function exportNoteById(noteId, noteTitle) {
   }
 }
 
-export async function importNoteFromBea(filePath, router) {
+export async function importNoteFromBea(filePath, router, store) {
   try {
     const fileContent = await ipcRenderer.callMain('fs:read-json', filePath);
 
@@ -97,7 +93,6 @@ export async function importNoteFromBea(filePath, router) {
 
     const fileData = fileContent.data;
 
-    // Validate required fields
     if (
       !fileData.id ||
       !fileData.title ||
@@ -108,14 +103,12 @@ export async function importNoteFromBea(filePath, router) {
       throw new Error('Missing essential note fields in the imported file.');
     }
 
-    // Validate assets structure
     const { notesAssets, fileAssets } = fileData.assets;
     if (typeof notesAssets !== 'object' || typeof fileAssets !== 'object') {
       throw new Error('Invalid assets structure in the imported note.');
     }
 
-    // Directly process the imported note
-    await processImportedNote(fileData, router);
+    await processImportedNote(fileData, router, store);
 
     return true;
   } catch (error) {
@@ -127,7 +120,7 @@ export async function importNoteFromBea(filePath, router) {
   }
 }
 
-async function processImportedNote(noteData, router) {
+async function processImportedNote(noteData, router, store) {
   const storage = useStorage();
   try {
     const currentNotes = await storage.get('notes', {});
@@ -138,13 +131,12 @@ async function processImportedNote(noteData, router) {
       [noteData.id]: {
         id: noteData.id,
         title: noteData.title,
-        content: noteData.content, // Directly use content as provided
-        labels: noteData.labels || [], // Import labels
+        content: noteData.content,
+        labels: noteData.labels || [],
       },
     };
     await storage.set('notes', updatedNotes);
 
-    // Process locked notes
     if (noteData.lockedNotes) {
       const existingLockedNotes = JSON.parse(
         localStorage.getItem('lockedNotes') || '{}'
@@ -156,7 +148,6 @@ async function processImportedNote(noteData, router) {
       localStorage.setItem('lockedNotes', JSON.stringify(mergedLockedNotes));
     }
 
-    // Process assets
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
 
@@ -175,7 +166,7 @@ async function processImportedNote(noteData, router) {
         );
         await ipcRenderer.callMain('fs:writeFile', {
           path: path.join(dataDir, 'notes-assets', noteData.id, filename),
-          data: byteArray.buffer,
+          data: byteArray,
         });
       }
 
@@ -185,11 +176,12 @@ async function processImportedNote(noteData, router) {
         );
         await ipcRenderer.callMain('fs:writeFile', {
           path: path.join(dataDir, 'file-assets', noteData.id, filename),
-          data: byteArray.buffer,
+          data: byteArray,
         });
       }
     }
 
+    store.retrieve('notes', updatedNotes);
     router.push(`/note/${noteData.id}`);
   } catch (error) {
     console.error('Error processing imported note:', error);

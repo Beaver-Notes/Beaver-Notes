@@ -462,43 +462,5 @@ export const useNoteStore = defineStore('note', {
         throw error;
       }
     },
-
-    // Handle incoming sync updates (called by sync system when changes are pulled)
-    async applyRemoteChanges(entityType, remoteData) {
-      if (this.syncInProgress) return;
-
-      try {
-        this.syncInProgress = true;
-
-        if (entityType === 'notes') {
-          // Merge the remote notes with local notes
-          // Keep newer versions based on updatedAt timestamp
-          const mergedNotes = { ...this.data };
-
-          for (const [noteId, remoteNote] of Object.entries(remoteData)) {
-            const localNote = this.data[noteId];
-
-            // If note doesn't exist locally or remote is newer, use remote
-            if (!localNote || remoteNote.updatedAt > localNote.updatedAt) {
-              mergedNotes[noteId] = remoteNote;
-            }
-          }
-
-          this.data = mergedNotes;
-          await storage.set('notes', this.data);
-        } else if (entityType === 'lockStatus') {
-          this.lockStatus = { ...this.lockStatus, ...remoteData };
-          await storage.set('lockStatus', this.lockStatus);
-        } else if (entityType === 'isLocked') {
-          this.isLocked = { ...this.isLocked, ...remoteData };
-          await storage.set('isLocked', this.isLocked);
-        }
-      } catch (error) {
-        console.error('Error applying remote changes:', error);
-        throw error;
-      } finally {
-        this.syncInProgress = false;
-      }
-    },
   },
 });
