@@ -29,16 +29,6 @@ import {
   writeFileSync,
 } from 'fs-extra';
 import store from './store';
-import enTranslations from '../../renderer/src/pages/settings/locales/en.json';
-import itTranslations from '../../renderer/src/pages/settings/locales/it.json';
-import deTranslations from '../../renderer/src/pages/settings/locales/de.json';
-import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
-import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
-import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
-import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
-import trTranslation from '../../renderer/src/pages/settings/locales/tr.json';
-import ruTranslations from '../../renderer/src/pages/settings/locales/ru.json';
-import frTranslations from '../../renderer/src/pages/settings/locales/fr.json';
 
 const { localStorage } = browserStorage;
 const isMac = process.platform === 'darwin';
@@ -52,7 +42,7 @@ if (!isSingleInstance) {
 if (process.env.PORTABLE_EXECUTABLE_DIR)
   app.setPath(
     'userData',
-    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
+    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data'),
   );
 
 /**
@@ -114,7 +104,7 @@ const createWindow = async () => {
       ? env.VITE_DEV_SERVER_URL
       : new URL(
           '../renderer/dist/index.html',
-          'file://' + __dirname
+          'file://' + __dirname,
         ).toString();
 
   await mainWindow.loadURL(pageUrl);
@@ -134,7 +124,7 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
     title: 'Save PDF',
     defaultPath: path.join(
       app.getPath('desktop'),
-      pdfName || 'editor-output.pdf'
+      pdfName || 'editor-output.pdf',
     ),
     filters: [
       { name: 'PDF Files', extensions: ['pdf'] },
@@ -257,7 +247,6 @@ app
           }
         }
       } else {
-
         process.argv.forEach((arg) => {
           console.log(`Received argument: ${arg}`);
         });
@@ -281,7 +270,7 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
   mainWindow?.webContents.send(
     'update-status',
-    `Update available: ${info.version}`
+    `Update available: ${info.version}`,
   );
 });
 
@@ -296,7 +285,7 @@ autoUpdater.on('download-progress', (progress) => {
 autoUpdater.on('update-downloaded', (info) => {
   mainWindow?.webContents.send(
     'update-status',
-    `Update ready: ${info.version}`
+    `Update ready: ${info.version}`,
   );
 });
 
@@ -361,30 +350,48 @@ ipcMain.handle('app:set-zoom', (newZoomLevel) => {
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
 
 ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) =>
-  win.setMenuBarVisibility(visibility)
+  win.setMenuBarVisibility(visibility),
 );
 
 ipcMain.answerRenderer('dialog:open', (props) => dialog.showOpenDialog(props));
 ipcMain.answerRenderer('dialog:message', (props) =>
-  dialog.showMessageBox(props)
+  dialog.showMessageBox(props),
 );
 ipcMain.answerRenderer('dialog:save', (props) => dialog.showSaveDialog(props));
 
 ipcMain.answerRenderer('fs:copy', ({ path, dest }) => copy(path, dest));
 ipcMain.answerRenderer('fs:output-json', ({ path, data }) =>
-  outputJson(path, data)
+  outputJson(path, data),
 );
 ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
 ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
 ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
 ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-  writeFileSync(path, data)
+  writeFileSync(path, data),
 );
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
-ipcMain.answerRenderer('fs:readData', (path) =>
-  fs.readFileSync(path, 'base64')
-);
+ipcMain.answerRenderer('fs:readData', (filePath) => {
+  // Handle 'assets://' and 'file-assets://' paths
+  if (filePath.startsWith('assets://')) {
+    const url = filePath.substr(9); // Remove 'assets://'
+    const dir = store.settings.get('dataDir');
+    filePath = path.join(dir, 'notes-assets', url);
+  } else if (filePath.startsWith('file-assets://')) {
+    const url = filePath.substr(14); // Remove 'file-assets://'
+    const dir = store.settings.get('dataDir');
+    filePath = path.join(dir, 'file-assets', url);
+  }
+
+  // Now filePath should be a valid file system path
+  try {
+    return fs.readFileSync(filePath, 'base64'); // Return base64-encoded file
+  } catch (error) {
+    console.error('Error reading file:', error);
+    return null;
+  }
+});
+
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
 });
@@ -392,10 +399,13 @@ ipcMain.answerRenderer('fs:stat', async (filePath) => {
   return statSync(filePath);
 });
 ipcMain.answerRenderer('fs:mkdir', async (dirPath) => {
-  return mkdir(dirPath);
+  await mkdir(dirPath, { recursive: true });
 });
 ipcMain.answerRenderer('fs:unlink', async (filePath) => {
   fs.unlinkSync(filePath);
+});
+ipcMain.answerRenderer('fs:readData', (filePath) => {
+  return fs.readFileSync(filePath, 'base64'); // Returns base64-encoded file
 });
 ipcMain.handle('fs:isFile', async (filePath) => {
   try {
@@ -416,22 +426,22 @@ ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
 ipcMain.answerRenderer('helper:get-path', (name) => app.getPath(name));
 ipcMain.answerRenderer(
   'helper:is-dark-theme',
-  () => nativeTheme.shouldUseDarkColors
+  () => nativeTheme.shouldUseDarkColors,
 );
 
 ipcMain.answerRenderer('storage:store', (name) => store[name]?.store);
 ipcMain.answerRenderer(
   'storage:replace',
-  ({ name, data }) => (store[name].store = data)
+  ({ name, data }) => (store[name].store = data),
 );
 ipcMain.answerRenderer('storage:get', ({ name, key, def }) =>
-  store[name]?.get(key, def)
+  store[name]?.get(key, def),
 );
 ipcMain.answerRenderer('storage:set', ({ name, key, value }) =>
-  store[name]?.set(key, value)
+  store[name]?.set(key, value),
 );
 ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
-  store[name]?.delete(key)
+  store[name]?.delete(key),
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
@@ -440,34 +450,42 @@ function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');
 }
 
-function initializeMenu() {
-  // languages
+async function getTranslations(lang = 'en') {
+  const supportedLangs = [
+    'en',
+    'de',
+    'es',
+    'fr',
+    'it',
+    'nl',
+    'tr',
+    'ru',
+    'uk',
+    'zh',
+  ];
 
-  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+  if (!supportedLangs.includes(lang)) lang = 'en';
 
-  let translations = enTranslations;
-
-  if (selectedLanguage === 'de') {
-    translations = deTranslations;
-  } else if (selectedLanguage === 'en') {
-    translations = enTranslations;
-  } else if (selectedLanguage === 'es') {
-    translations = esTranslations;
-  } else if (selectedLanguage === 'fr') {
-    translations = frTranslations;
-  } else if (selectedLanguage === 'it') {
-    translations = itTranslations;
-  } else if (selectedLanguage === 'nl') {
-    translations = nlTranslations;
-  } else if (selectedLanguage === 'tr') {
-    translations = trTranslation;
-  } else if (selectedLanguage === 'ru') {
-    translations = ruTranslations;
-  } else if (selectedLanguage === 'uk') {
-    translations = ukTranslations;
-  } else if (selectedLanguage === 'zh') {
-    translations = zhTranslations;
+  try {
+    const translations = await import(
+      `../../renderer/src/pages/settings/locales/${lang}.json`
+    );
+    return translations.default;
+  } catch (error) {
+    console.error(
+      `Failed to load translations for ${lang}, falling back to English.`,
+      error,
+    );
+    const fallback = await import(
+      '../../renderer/src/pages/settings/locales/en.json'
+    );
+    return fallback.default;
   }
+}
+
+async function initializeMenu() {
+  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+  const translations = await getTranslations(selectedLanguage);
 
   import('electron-context-menu')
     .then((contextMenuModule) => {
@@ -579,9 +597,7 @@ function initializeMenu() {
           label: 'Docs',
           click: async () => {
             const { shell } = require('electron');
-            await shell.openExternal(
-              'https://docs.beavernotes.com/'
-            );
+            await shell.openExternal('https://docs.beavernotes.com/');
           },
         },
       ],

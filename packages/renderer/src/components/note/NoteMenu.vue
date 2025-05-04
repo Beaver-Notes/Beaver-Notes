@@ -666,6 +666,7 @@ import {
   shallowReactive,
   ref,
 } from 'vue';
+import useAudioRecorder from '@/utils/record';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
 import { saveFile } from '../../utils/copy-doc';
@@ -675,7 +676,6 @@ import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
-import RecordRTC from 'recordrtc';
 import { useStorage } from '@/composable/storage';
 import { exportNoteById } from '@/utils/share';
 import { useTranslation } from '@/composable/translations';
@@ -709,6 +709,13 @@ export default {
   },
   emits: ['update:tree'],
   setup(props) {
+    const {
+      isRecording,
+      formattedTime,
+      toggleRecording,
+      isPaused,
+      pauseResume,
+    } = useAudioRecorder(props, ipcRenderer, storage, path);
     const headings = [
       { name: 'Paragraphs', id: 'paragraph' },
       { name: 'Header 1', id: 1 },
@@ -1003,126 +1010,6 @@ export default {
         container.value.scrollLeft += e.deltaY + e.deltaX;
       }
     }
-    const isRecording = ref(false);
-    let recorder;
-    let recordingStartTime = null;
-    let recordingInterval = null;
-    let stream = null;
-
-    const minutes = ref(0);
-    const seconds = ref(0);
-
-    const formattedTime = computed(() => {
-      return `${String(minutes.value).padStart(2, '0')}:${String(
-        seconds.value
-      ).padStart(2, '0')}`;
-    });
-
-    function generateRandomFilename(extension = 'ogg') {
-      const randomString = Math.random().toString(36).substring(2, 15);
-      const timestamp = Date.now();
-      return `${timestamp}_${randomString}.${extension}`;
-    }
-
-    async function toggleRecording() {
-      if (isRecording.value) {
-        recorder.stopRecording(() => {
-          const blob = recorder.getBlob();
-          const filename = generateRandomFilename('ogg');
-
-          handleBlob(blob, filename);
-
-          if (stream) {
-            stream.getTracks().forEach((track) => {
-              track.stop();
-            });
-            stream = null;
-          }
-          if (recorder && typeof recorder.destroy === 'function') {
-            recorder.destroy();
-          }
-          recorder = null;
-        });
-
-        isRecording.value = false;
-        clearInterval(recordingInterval);
-        recordingInterval = null;
-        minutes.value = 0;
-        seconds.value = 0;
-      } else {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-          });
-
-          recorder = RecordRTC(stream, {
-            type: 'audio',
-            mimeType: 'audio/ogg',
-            recorderType: RecordRTC.StereoAudioRecorder,
-          });
-
-          recorder.startRecording();
-          isRecording.value = true;
-          recordingStartTime = Date.now();
-
-          recordingInterval = setInterval(() => {
-            if (isRecording.value) {
-              const elapsedTime = Math.floor(
-                (Date.now() - recordingStartTime) / 1000
-              );
-              minutes.value = Math.floor(elapsedTime / 60);
-              seconds.value = elapsedTime % 60;
-            }
-          }, 1000);
-        } catch (err) {
-          console.error('Error accessing media devices.', err);
-        }
-      }
-    }
-
-    async function handleBlob(blob, filename) {
-      const dataDir = await storage.get('dataDir');
-      const assetsPath = path.join(dataDir, 'file-assets', props.id);
-      await ipcRenderer.callMain('fs:ensureDir', assetsPath);
-      const destPath = path.join(assetsPath, filename);
-      const contentUint8Array = await readFile(blob);
-      await ipcRenderer.callMain('fs:writeFile', {
-        path: destPath,
-        data: contentUint8Array,
-      });
-      const audioPath = `file-assets://${props.id}/${filename}`;
-      props.editor.commands.setAudio(audioPath);
-    }
-
-    async function readFile(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(new Uint8Array(reader.result));
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(blob);
-      });
-    }
-
-    onUnmounted(() => {
-      if (recordingInterval) {
-        clearInterval(recordingInterval);
-      }
-      if (recorder) {
-        if (recorder.stream) {
-          recorder.stream.getTracks().forEach((track) => track.stop());
-          recorder.stream = null;
-        }
-        if (recorder && typeof recorder.destroy === 'function') {
-          recorder.destroy();
-        }
-        recorder = null;
-      }
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-        stream = null;
-      }
-    });
 
     const highlighterColors = [
       'bg-yellow-300/60 dark:bg-yellow-600/50 dark:text-[color:var(--selected-dark-text)]',
@@ -1194,6 +1081,8 @@ export default {
       toggleRecording,
       handleVideoSelect,
       isRecording,
+      isPaused,
+      pauseResume,
       formattedTime,
       insertFile,
       fileUrl,

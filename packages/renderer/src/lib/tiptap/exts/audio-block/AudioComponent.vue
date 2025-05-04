@@ -102,14 +102,14 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed } from 'vue';
 
+const { ipcRenderer } = window.electron;
+
 export default {
-  components: {
-    NodeViewWrapper,
-  },
+  components: { NodeViewWrapper },
   props: nodeViewProps,
   setup(props) {
     const fileName = ref(props.node.attrs.fileName || '');
-    const audioSrc = ref(props.node.attrs.src || '');
+    const audioSrc = ref('');
     const audioPlayer = ref(null);
     const isPlaying = ref(false);
     const currentTime = ref(0);
@@ -119,10 +119,20 @@ export default {
     const showSpeedOptions = ref(false);
     const playbackRates = [0.5, 1, 1.5, 2];
 
+    // Read and convert audio file via IPC
+    const loadAudioFile = async () => {
+      try {
+        const filePath = props.node.attrs.src; // Full path to audio file
+        const base64Data = await ipcRenderer.callMain('fs:readData', filePath);
+        audioSrc.value = `data:audio/mpeg;base64,${base64Data}`;
+        preloadAudio();
+      } catch (error) {
+        console.error('Failed to load audio file via IPC:', error);
+      }
+    };
+
     onMounted(() => {
-      audioPlayer.value.volume = 1;
-      audioPlayer.value.playbackRate = playbackRate.value;
-      preloadAudio();
+      loadAudioFile();
     });
 
     const togglePlay = () => {
@@ -174,15 +184,11 @@ export default {
 
     const preloadAudio = () => {
       const tempAudio = new Audio(audioSrc.value);
-
       tempAudio.addEventListener('loadedmetadata', () => {
         if (!isNaN(tempAudio.duration) && tempAudio.duration > 0) {
           duration.value = tempAudio.duration;
-        } else {
-          console.error('Invalid audio duration');
         }
       });
-
       tempAudio.addEventListener('error', (event) => {
         console.error('Error loading audio metadata:', event);
       });
@@ -281,7 +287,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-/* Tailwind CSS is used for styling, scoped custom styles can be added here if needed */
-</style>
