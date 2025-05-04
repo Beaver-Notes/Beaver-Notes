@@ -155,17 +155,44 @@
           @click="insertImage"
         />
       </ui-popover>
-      <div class="flex items-center">
+      <div
+        :class="[
+          'flex items-center space-x-2',
+          isRecording
+            ? 'bg-primary text-[color:var(--selected-dark-text)] rounded-full'
+            : '',
+        ]"
+      >
         <button
           v-tooltip.group="translations.menu.record"
-          class="transition hoverable h-8 px-1 rounded-lg"
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isRecording
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
           @click="toggleRecording"
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
-          formattedTime
-        }}</span>
+        <span v-if="isRecording" class="font-secondary font-semibold text-sm">
+          {{ formattedTime }}
+        </span>
+        <button
+          v-if="isRecording"
+          v-tooltip.group="
+            isPaused ? translations.menu.resume : translations.menu.pause
+          "
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isPaused
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
+          @click="pauseResume"
+        >
+          <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
+        </button>
       </div>
       <button
         v-tooltip.group="translations.menu.Link"
@@ -432,17 +459,44 @@
           @click="insertImage"
         />
       </ui-popover>
-      <div class="flex items-center">
+      <div
+        :class="[
+          'flex items-center space-x-2',
+          isRecording
+            ? 'bg-primary text-[color:var(--selected-dark-text)] rounded-full'
+            : '',
+        ]"
+      >
         <button
           v-tooltip.group="translations.menu.record"
-          class="transition hoverable h-8 px-1 rounded-lg"
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isRecording
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
           @click="toggleRecording"
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
-          formattedTime
-        }}</span>
+        <span v-if="isRecording" class="font-secondary font-semibold text-sm">
+          {{ formattedTime }}
+        </span>
+        <button
+          v-if="isRecording"
+          v-tooltip.group="
+            isPaused ? translations.menu.resume : translations.menu.pause
+          "
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isPaused
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
+          @click="pauseResume"
+        >
+          <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
+        </button>
       </div>
       <button
         v-tooltip.group="translations.menu.Link"
