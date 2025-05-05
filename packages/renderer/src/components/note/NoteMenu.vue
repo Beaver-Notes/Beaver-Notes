@@ -1066,22 +1066,14 @@ export default {
     }
 
     const highlighterColors = [
-      'bg-yellow-300/60 dark:bg-yellow-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-lime-300/60 dark:bg-lime-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-fuchsia-300/60 dark:bg-fuchsia-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-cyan-300/60 dark:bg-cyan-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-violet-300/60 dark:bg-violet-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-amber-300/60 dark:bg-amber-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-rose-300/60 dark:bg-rose-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-neutral-300/60 dark:bg-neutral-600/50 dark:text-[color:var(--selected-dark-text)]',
-      'bg-orange-200 dark:bg-orange-40',
-      'bg-yellow-200 dark:bg-yellow-100',
-      'bg-green-200 dark:bg-green-100',
-      'bg-blue-200 dark:bg-blue-100',
-      'bg-purple-200 dark:bg-purple-100',
-      'bg-pink-200 dark:bg-pink-100',
-      'bg-red-200 dark:bg-red-100',
-      'bg-zinc-200 dark:bg-zinc-100',
+      'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #DC8D42 (orange)
+      'bg-[#E3B324]/30 dark:bg-[#E3B324]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E3B324 (yellow)
+      'bg-[#4CAF50]/30 dark:bg-[#4CAF50]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #4CAF50 (green)
+      'bg-[#3A8EE6]/30 dark:bg-[#3A8EE6]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #3A8EE6 (blue)
+      'bg-[#9B5EE6]/30 dark:bg-[#9B5EE6]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #9B5EE6 (purple)
+      'bg-[#E67EA4]/30 dark:bg-[#E67EA4]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E67EA4 (pink)
+      'bg-[#E75C5C]/30 dark:bg-[#E75C5C]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E75C5C (red)
+      'bg-[#A3A3A3]/30 dark:bg-[#A3A3A3]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #A3A3A3 (gray)
     ];
 
     const textColors = [
