@@ -1,6 +1,6 @@
 ---
 name: Ask a question or get help
-about: Describe this issue template's purpose here.
+about: Use this template to ask questions or seek help with an issue or feature.
 title: ''
 labels: ''
 assignees: ''
@@ -9,7 +9,7 @@ assignees: ''
 ---
 
 name: Ask a Question or Get Help
-about: Use this template to ask questions or seek assistance
+about: Use this template to ask questions or seek help with an issue or feature.
 
 ---
 
