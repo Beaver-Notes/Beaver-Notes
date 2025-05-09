@@ -1,17 +1,30 @@
 <template>
   <NodeViewWrapper>
     <div>
-      <div v-if="showTextarea" class="bg-input transition rounded-lg p-2">
-        <textarea
-          ref="inputRef"
-          :value="mermaidContent"
-          type="textarea"
-          :placeholder="translations._idvue.MermaidPlaceholder || '-'"
-          class="bg-transparent min-h-24 w-full"
-          @input="updateContent($event)"
-          @keydown.ctrl.enter="closeTextarea"
-          @keydown.exact="handleKeydown"
-        ></textarea>
+      <div v-if="showTextarea" class="bg-input transition rounded-lg">
+        <div class="flex">
+          <!-- Line numbers -->
+          <div
+            class="line-numbers pr-2 select-none text-neutral-500 rounded-tl-lg bg-neutral-100 text-right"
+          >
+            <div v-for="i in lineCount" :key="i" class="leading-tight">
+              {{ i }}
+            </div>
+          </div>
+
+          <!-- Textarea -->
+          <textarea
+            ref="inputRef"
+            :value="mermaidContent"
+            type="textarea"
+            :placeholder="translations._idvue.MermaidPlaceholder || '-'"
+            class="bg-transparent min-h-24 w-full resize-y leading-tight p-2"
+            @input="updateContent($event)"
+            @keydown.ctrl.enter="closeTextarea"
+            @keydown.exact="handleKeydown"
+            @scroll="syncScroll"
+          ></textarea>
+        </div>
         <div class="border-t-2 p-2 flex justify-between">
           <p style="margin: 0">
             <strong>{{ translations._idvue.exit }}</strong>
@@ -33,7 +46,7 @@
 </template>
 
 <script>
-import { ref, watch, onMounted, shallowReactive } from 'vue';
+import { ref, watch, onMounted, shallowReactive, computed } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import MermaidComponent from '../../../../utils/mermaid-renderer.vue'; // Adjust the import path accordingly
 
@@ -48,6 +61,11 @@ export default {
     const inputRef = ref(null);
     const showTextarea = ref(false);
 
+    // Compute the number of lines in the content
+    const lineCount = computed(() => {
+      return (mermaidContent.value.match(/\n/g) || []).length + 1;
+    });
+
     function renderContent() {
       mermaidContent.value = props.node.attrs.content || '';
     }
@@ -60,9 +78,11 @@ export default {
 
     function openTextarea() {
       showTextarea.value = true;
-      if (inputRef.value) {
-        inputRef.value.focus();
-      }
+      setTimeout(() => {
+        if (inputRef.value) {
+          inputRef.value.focus();
+        }
+      }, 0);
     }
 
     function closeTextarea() {
@@ -74,6 +94,12 @@ export default {
         event.preventDefault();
         insertTabAtCursor();
       }
+    }
+
+    // Sync scroll between textarea and line numbers
+    function syncScroll(event) {
+      const lineNumbers = event.target.previousElementSibling;
+      lineNumbers.scrollTop = event.target.scrollTop;
     }
 
     function insertTabAtCursor() {
@@ -150,7 +176,25 @@ export default {
       openTextarea,
       closeTextarea,
       handleKeydown,
+      lineCount,
+      syncScroll,
     };
   },
 };
 </script>
+
+<style scoped>
+.line-numbers {
+  font-family: monospace;
+  min-width: 2em;
+  color: #888;
+  user-select: none;
+  overflow: hidden;
+}
+
+textarea {
+  font-family: monospace;
+  line-height: inherit;
+  overflow-y: auto;
+}
+</style>
