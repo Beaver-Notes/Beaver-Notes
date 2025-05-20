@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
+import heading from './exts/headings';
 import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
@@ -87,7 +88,13 @@ if (selectedLanguage === 'de') {
 }
 
 const extensions = [
-  StarterKit,
+  LabelSuggestion,
+  StarterKit.configure({
+    heading: false,
+    text: false,
+    codeBlock: false,
+    code: false,
+  }),
   Highlight.extend({ priority: 1000 }).configure({
     multicolor: true,
   }),
@@ -108,7 +115,6 @@ const extensions = [
   greenCallout,
   LinkNote,
   FileEmbed,
-  LabelSuggestion,
   Footnotes,
   FootnoteReference,
   Footnote,
@@ -169,7 +175,7 @@ const extensions = [
   Iframe,
 ];
 
-export { extensions, CollapseHeading };
+export { extensions, CollapseHeading, heading };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

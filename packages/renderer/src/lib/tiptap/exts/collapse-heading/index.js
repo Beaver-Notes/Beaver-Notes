@@ -1,5 +1,9 @@
 import Heading from '@tiptap/extension-heading';
-import { findParentNode, mergeAttributes } from '@tiptap/vue-3';
+import {
+  findParentNode,
+  mergeAttributes,
+  textblockTypeInputRule,
+} from '@tiptap/vue-3';
 import { mergeCollapsedFootnotes } from '../footnote-block/utils';
 
 function createArrowSVG() {
@@ -140,6 +144,17 @@ function jsonRaw(obj) {
 }
 
 export default Heading.extend({
+  addInputRules() {
+    return this.options.levels.map((level) => {
+      return textblockTypeInputRule({
+        find: new RegExp(`^(#{1,${level}}) $`), // <-- Notice the trailing space only
+        type: this.type,
+        getAttributes: {
+          level,
+        },
+      });
+    });
+  },
   addOptions() {
     return {
       levels: [1, 2, 3, 4, 5, 6],

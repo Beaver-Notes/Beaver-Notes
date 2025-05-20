@@ -13,7 +13,7 @@
 import { onMounted, watch, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
-import { extensions, CollapseHeading } from '@/lib/tiptap';
+import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
@@ -46,6 +46,8 @@ export default {
     const exts = [...extensions, dropFile.configure({ id: props.id })];
     if (appStore.setting.collapsibleHeading) {
       exts.push(CollapseHeading);
+    } else {
+      exts.push(heading);
     }
     const editor = useEditor({
       content: props.modelValue,
