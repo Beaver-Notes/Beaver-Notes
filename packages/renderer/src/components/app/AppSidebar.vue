@@ -40,6 +40,19 @@
     <div class="flex-grow"></div>
     <button
       v-tooltip:right="
+        translations.sidebar.toggleSync + ' (' + keyBinding + '+Shift+Y)'
+      "
+      :class="[theme.isDark() ? 'text-primary' : '']"
+      class="transition p-2 mb-4"
+      @click="manualSync"
+    >
+      <v-remixicon
+        name="riLoopRightLine"
+        :class="spinning ? 'animate-spin' : ''"
+      />
+    </button>
+    <button
+      v-tooltip:right="
         translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
       "
       :class="[theme.isDark() ? 'text-primary' : '']"
@@ -60,15 +73,17 @@
 </template>
 
 <script>
-import { shallowReactive, onUnmounted, onMounted, computed } from 'vue';
+import { shallowReactive, onUnmounted, onMounted, computed, ref } from 'vue';
 import { useTheme } from '@/composable/theme';
 import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
+import { forceSyncNow } from '@/utils/sync';
 
 export default {
   setup() {
+    const spinning = ref(false);
     const theme = useTheme();
     const router = useRouter();
     const noteStore = useNoteStore();
@@ -112,6 +127,7 @@ export default {
       'mod+shift+n': () => router.push('/'),
       'mod+shift+a': () => router.push('/?archived=true'),
       'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
+      'mod+shift+y': () => manualSync(),
     };
 
     emitter.on('new-note', addNote);
@@ -197,12 +213,24 @@ export default {
       router.push(nav.path);
     };
 
+    function manualSync() {
+      spinning.value = true;
+
+      forceSyncNow();
+
+      setTimeout(() => {
+        spinning.value = false;
+      }, 1000); // duration of spin animation
+    }
+
     return {
       navs,
       translations,
       theme,
+      spinning,
       addNote,
       noteStore,
+      manualSync,
       openLastEdited,
       keyBinding,
       handleNavigation,

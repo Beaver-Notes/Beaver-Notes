@@ -315,8 +315,7 @@
     "importSuccess": "Import successful!",
     "notification": "Notification",
     "toggledarktheme": "Toggle dark theme",
-    "toggleexport": "Toggle export",
-    "toggleimport": "Toggle import"
+    "toggleSync": "Toggle sync"
   },
   "tiptap": {
     "placeholder": "Write something..."

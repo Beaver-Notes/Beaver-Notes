@@ -35,8 +35,6 @@ const translations = shallowReactive({
     Createnewnote: 'shortcuts.Createnewnote',
     Togglecommandprompt: 'shortcuts.Togglecommandprompt',
     Toggledarktheme: 'shortcuts.Toggledarktheme',
-    Toggleexport: 'shortcuts.Toggleexport',
-    Toggleimport: 'shortcuts.Toggleimport',
     Toeditednote: 'shortcuts.Toeditednote',
     Tonotes: 'shortcuts.Tonotes',
     Toarchivednotes: 'shortcuts.Toarchivednotes',
@@ -56,6 +54,9 @@ const translations = shallowReactive({
     Previousnote: 'shortcuts.Previousnote',
     EmbedFile: 'shortcuts.EmbedFile',
     Drag: 'shortcuts.Drag',
+  },
+  sidebar: {
+    toggleSync: 'sidebar.toggleSync',
   },
 });
 
@@ -92,8 +93,7 @@ const shortcuts = [
         name: 'Toggledarktheme',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'L']),
       },
-      { name: 'Toggleexport', keys: getFormattedKeys(['Ctrl', 'Shift', 'E']) },
-      { name: 'Toggleimport', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
+      { name: 'Togglesync', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
     ],
   },
   {
