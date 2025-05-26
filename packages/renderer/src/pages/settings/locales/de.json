@@ -298,8 +298,6 @@
     "Toeditednote": "Zur letzten geänderten Notiz gehen",
     "Togglecommandprompt": "Aktivieren der Befehlszeile",
     "Toggledarktheme": "Thema umschalten",
-    "Toggleexport": "Export",
-    "Toggleimport": "Import",
     "Tonotes": "Zu den Notizen",
     "Tosettings": "Zu den Einstellungen",
     "Underline": "Unterstrichen"
@@ -314,9 +312,8 @@
     "importFail": "Import fehlgeschlagen!",
     "importSuccess": "Import erfolgreich!",
     "notification": "Benachrichtigung",
-    "toggledarktheme": "Thema umschalten",
-    "toggleexport": "Export",
-    "toggleimport": "Import"
+    "toggleSync": "Synchronisierung auslösen",
+    "toggledarktheme": "Thema umschalten"
   },
   "tiptap": {
     "placeholder": "Schreibe etwas..."

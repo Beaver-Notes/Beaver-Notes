@@ -298,8 +298,6 @@
     "Toeditednote": "To Edited Note",
     "Togglecommandprompt": "Toggle Command Prompt",
     "Toggledarktheme": "Toggle Dark Theme",
-    "Toggleexport": "Toggle Export",
-    "Toggleimport": "Toggle Import",
     "Tonotes": "To Notes",
     "Tosettings": "To Settings",
     "Underline": "Underline"
@@ -314,8 +312,8 @@
     "importFail": "Import failed!",
     "importSuccess": "Import successful!",
     "notification": "Notification",
-    "toggledarktheme": "Toggle dark theme",
-    "toggleSync": "Toggle sync"
+    "toggleSync": "Toggle sync",
+    "toggledarktheme": "Toggle dark theme"
   },
   "tiptap": {
     "placeholder": "Write something..."

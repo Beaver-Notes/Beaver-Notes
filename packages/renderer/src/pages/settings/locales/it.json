@@ -298,8 +298,6 @@
     "Toeditednote": "Vai all'ultima nota modificata",
     "Togglecommandprompt": "Attiva/disattiva prompt dei comandi",
     "Toggledarktheme": "Attiva/disattiva tema scuro",
-    "Toggleexport": "Esporta",
-    "Toggleimport": "Importa",
     "Tonotes": "Vai alle note",
     "Tosettings": "Vai alle impostazioni",
     "Underline": "Sottolineato"
@@ -314,9 +312,8 @@
     "importFail": "Importazione fallita!",
     "importSuccess": "Importazione riuscita!",
     "notification": "Notifica",
-    "toggledarktheme": "Attiva/disattiva tema scuro",
-    "toggleexport": "Esporta",
-    "toggleimport": "Importa"
+    "toggleSync": "Avvia sincronizzazione",
+    "toggledarktheme": "Attiva/disattiva tema scuro"
   },
   "tiptap": {
     "placeholder": "Scrivi qualcosa..."

@@ -298,8 +298,6 @@
     "Toeditednote": "Перейти до останньої зміненої нотатки",
     "Togglecommandprompt": "Активація командного рядка",
     "Toggledarktheme": "Змінити тему",
-    "Toggleexport": "Експорт",
-    "Toggleimport": "Імпорт",
     "Tonotes": "До нотаток",
     "Tosettings": "До налаштувань",
     "Underline": "Підкреслено"
@@ -314,9 +312,8 @@
     "importFail": "Помилка імпорту!",
     "importSuccess": "Імпорт успішно виконано!",
     "notification": "Повідомлення",
-    "toggledarktheme": "Змінити тему",
-    "toggleexport": "Експорт",
-    "toggleimport": "Імпо"
+    "toggleSync": "Запустити синхронізацію",
+    "toggledarktheme": "Змінити тему"
   },
   "tiptap": {
     "placeholder": "Напиши щось..."

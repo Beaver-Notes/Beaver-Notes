@@ -298,8 +298,6 @@
     "Toeditednote": "Ga naar de laatst gewijzigde notitie",
     "Togglecommandprompt": "Activeer opdrachtprompt",
     "Toggledarktheme": "thema veranderen",
-    "Toggleexport": "exporteer",
-    "Toggleimport": "importeer",
     "Tonotes": "Ga naar notities",
     "Tosettings": "Ga naar instellingen",
     "Underline": "Onderstreep"
@@ -314,9 +312,8 @@
     "importFail": "Importeren mislukt!",
     "importSuccess": "Import geslaagd!",
     "notification": "Melding",
-    "toggledarktheme": "Thema omschakelen",
-    "toggleexport": "Exporteer",
-    "toggleimport": "Importeer"
+    "toggleSync": "Synchronisatie starten",
+    "toggledarktheme": "Thema omschakelen"
   },
   "tiptap": {
     "placeholder": "Schrijf iets..."

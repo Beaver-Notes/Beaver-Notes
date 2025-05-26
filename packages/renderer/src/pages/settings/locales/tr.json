@@ -298,8 +298,6 @@
     "Toeditednote": "Düzenlenmiş Notlara",
     "Togglecommandprompt": "Komut Satırını Aç/Kapa ",
     "Toggledarktheme": "Karanlık Temayı Aç/Kapa",
-    "Toggleexport": "Dışa Aktarmayı Aç/Kapa",
-    "Toggleimport": "İçe Aktarmayı Aç/Kapa",
     "Tonotes": "Notlara",
     "Tosettings": "Ayarlara",
     "Underline": "Altı Çizili"
@@ -314,9 +312,8 @@
     "importFail": "İçe aktarma başarısız !",
     "importSuccess": "İçe aktarma başarılı !",
     "notification": "Bildirim",
-    "toggledarktheme": "Karanlık temayı aç/kapa",
-    "toggleexport": "Dışa aktarmayı aç/kapa",
-    "toggleimport": "İçe aktarmayı aç/kapa"
+    "toggleSync": "Senkronizasyonu başlat",
+    "toggledarktheme": "Karanlık temayı aç/kapa"
   },
   "tiptap": {
     "placeholder": "Bir şeyler yaz..."

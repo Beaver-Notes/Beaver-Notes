@@ -298,8 +298,6 @@
     "Toeditednote": "编辑笔记",
     "Togglecommandprompt": "切换命令提示符",
     "Toggledarktheme": "启用/禁用深色主题",
-    "Toggleexport": "导出",
-    "Toggleimport": "导入",
     "Tonotes": "查看笔记",
     "Tosettings": "打开设置",
     "Underline": "下划线"
@@ -314,9 +312,8 @@
     "importFail": "导入失败！",
     "importSuccess": "导入成功！",
     "notification": "通知",
-    "toggledarktheme": "启用/禁用深色主题",
-    "toggleexport": "导出",
-    "toggleimport": "导入"
+    "toggleSync": "立即同步",
+    "toggledarktheme": "启用/禁用深色主题"
   },
   "tiptap": {
     "placeholder": "写点什么..."

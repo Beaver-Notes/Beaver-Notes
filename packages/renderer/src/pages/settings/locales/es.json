@@ -298,8 +298,6 @@
     "Toeditednote": "Ir a nota en edición",
     "Togglecommandprompt": "Activar línea de comandos",
     "Toggledarktheme": "Activar tema oscuro",
-    "Toggleexport": "Activar exportación",
-    "Toggleimport": "Activar importación",
     "Tonotes": "Ir a notas",
     "Tosettings": "Ir a ajustes",
     "Underline": "Subrayado"
@@ -314,9 +312,8 @@
     "importFail": "Fallo al importar",
     "importSuccess": "Importación exitosa",
     "notification": "Notificación",
-    "toggledarktheme": "Activar tema oscuro",
-    "toggleexport": "Activar exportación",
-    "toggleimport": "Activar importación"
+    "toggleSync": "Iniciar sincronización",
+    "toggledarktheme": "Activar tema oscuro"
   },
   "tiptap": {
     "placeholder": "Escribe algo..."

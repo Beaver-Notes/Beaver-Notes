@@ -298,8 +298,6 @@
     "Toeditednote": "Редактировать заметку",
     "Togglecommandprompt": "Активация командной строки",
     "Toggledarktheme": "Вкл/выкл тёмную тему",
-    "Toggleexport": "Экспортировать",
-    "Toggleimport": "Импорт",
     "Tonotes": "К заметкам",
     "Tosettings": "К настройкам",
     "Underline": "Подчеркнуть"
@@ -314,9 +312,8 @@
     "importFail": "Импорт не удался!",
     "importSuccess": "Импорт выполнен успешно!",
     "notification": "Уведомления",
-    "toggledarktheme": "Выключить тёмную тему",
-    "toggleexport": "Экспортировать",
-    "toggleimport": "Импортировать"
+    "toggleSync": "Запустить синхронизацию",
+    "toggledarktheme": "Выключить тёмную тему"
   },
   "tiptap": {
     "placeholder": "Напиши шо-нибудь..."
