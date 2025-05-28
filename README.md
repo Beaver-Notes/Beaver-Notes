@@ -16,7 +16,7 @@
 <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
 <p><b>Build your knowledge one log at a time</b></p>
-<p>Developed with love ❤️ in a 🇪🇺</p>
+<p>Developed with love ❤️ in 🇪🇺</p>
 
 [Website](https://beavernotes.com) | [Blog](https://blog.beavernotes.com) | [Docs](https://docs.beavernotes.com) | [Downloads](https://beavernotes.com/#/Download) | [Mastodon](https://mastodon.social/@Beavernotes) | [Reddit](https://www.reddit.com/r/BeaverNotes/) | [Bluesky](https://bsky.app/profile/beavernotes.com)
 
