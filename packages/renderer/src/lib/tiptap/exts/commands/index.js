@@ -61,7 +61,6 @@ export default Extension.create({
                 getReferenceClientRect: props.clientRect,
               });
             },
-
             onExit() {
               popup[0].destroy();
               component.destroy();

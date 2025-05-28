@@ -68,6 +68,14 @@ We and the community are here to help! For any questions or support, feel free t
 
 Additionally, check out the [**docs**](https://docs.beavernotes.com) for quick answers and solutions.
 
+## 📜 Acknowledgements
+
+This project makes use of:
+
+- [tiptap-footnotes](https://github.com/buttondown/tiptap-footnotes) by [Buttondown](https://github.com/buttondown) for footnote integration
+- Portions of [Notething](https://github.com/Kholid060/notething) by [Kholid060](https://github.com/Kholid060), licensed under the MIT License  
+
+We are grateful to the open-source community for providing the tools and inspiration that made Beaver Notes possible.
 
 ## Contributors ✨
 

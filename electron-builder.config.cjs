@@ -1,7 +1,4 @@
 const packageJSON = require('./package.json');
-const { loadEnv } = require('./env.js');
-
-loadEnv('private');
 
 /**
  * @type {import('electron-builder').Configuration}
@@ -91,8 +88,14 @@ const electronBuilderConfig = {
   },
 };
 
-module.exports = () => {
+module.exports = async () => {
+  // Dynamically import the ES module
+  const envModule = await import('./env.js');
+  const loadEnv = envModule.loadEnv;
+  
+  // Load environment variables
+  loadEnv('private');
+  
   const config = { ...electronBuilderConfig };
-
   return config;
 };

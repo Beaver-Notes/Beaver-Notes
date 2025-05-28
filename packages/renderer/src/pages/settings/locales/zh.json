@@ -2,7 +2,7 @@
   "_idvue": {
     "MathPlaceholder": "在此输入……",
     "MermaidPlaceholder": "在此输入 Mermaid 代码……",
-    "Previousnote": "之前的笔记",
+    "Previousnote": "上一篇",
     "error": "哎呀！渲染图表时出现问题。请检查语法。",
     "exit": "按 Ctrl + Enter 关闭",
     "untitlednote": "无标题笔记"
@@ -119,6 +119,7 @@
     "heading": "标题",
     "headingsTree": "标题搜索",
     "highlight": "高亮",
+    "highlighterColor": "高亮颜色",
     "image": "图片",
     "imgurl": "图片链接",
     "inlinecode": "行内代码",
@@ -128,16 +129,19 @@
     "noData": "无数据",
     "orderedlist": "有序列表",
     "paragraph": "段落",
+    "pause": "暂停",
     "pdf": "PDF",
     "purpleCallout": "紫色标注",
     "readerMode": "阅读器模式",
     "record": "录音",
     "redCallout": "红色标注",
+    "resume": "继续",
     "searchHeadings": "标题搜索",
     "strikethrough": "删除线",
     "table": "表格",
     "tableInsert": "插入表格",
     "tableOptions": "表格设置",
+    "textColor": "文字颜色",
     "toggleHeader": "切换头部单元格",
     "underline": "下划线",
     "vidUrl": "视频链接",
@@ -286,7 +290,7 @@
     "Link": "链接",
     "Navigates": "导航快捷键",
     "Orderedlist": "有序列表",
-    "Previousnote": "之前的笔记",
+    "Previousnote": "上一篇笔记",
     "Strikethrough": "删除线",
     "SubScript": "下标",
     "SuperScript": "上标",
@@ -294,8 +298,6 @@
     "Toeditednote": "编辑笔记",
     "Togglecommandprompt": "切换命令提示符",
     "Toggledarktheme": "启用/禁用深色主题",
-    "Toggleexport": "导出",
-    "Toggleimport": "导入",
     "Tonotes": "查看笔记",
     "Tosettings": "打开设置",
     "Underline": "下划线"
@@ -310,9 +312,8 @@
     "importFail": "导入失败！",
     "importSuccess": "导入成功！",
     "notification": "通知",
-    "toggledarktheme": "启用/禁用深色主题",
-    "toggleexport": "导出",
-    "toggleimport": "导入"
+    "toggleSync": "立即同步",
+    "toggledarktheme": "启用/禁用深色主题"
   },
   "tiptap": {
     "placeholder": "写点什么..."

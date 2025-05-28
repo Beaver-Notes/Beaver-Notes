@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
+import heading from './exts/headings';
 import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
@@ -46,6 +47,8 @@ import Footnote from './exts/footnote-block/footnote';
 import Footnotes from './exts/footnote-block/footnotes';
 import FootnoteReference from './exts/footnote-block/reference';
 import Commands from './exts/commands';
+import TextStyle from '@tiptap/extension-text-style';
+import { Color } from '@tiptap/extension-color';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -85,15 +88,23 @@ if (selectedLanguage === 'de') {
 }
 
 const extensions = [
-  StarterKit,
-  Highlight.configure({
+  LabelSuggestion,
+  StarterKit.configure({
+    heading: false,
+    text: false,
+    codeBlock: false,
+    code: false,
+  }),
+  Highlight.extend({ priority: 1000 }).configure({
     multicolor: true,
   }),
   Typography,
   Document.extend({
-    content: 'block+ footnotes?',
+    content: 'block+ (footnotes)?',
+    allowGapCursor: true,
   }),
   LiteralTab,
+  Color,
   Underline,
   blueCallout,
   yellowCallout,
@@ -104,7 +115,6 @@ const extensions = [
   greenCallout,
   LinkNote,
   FileEmbed,
-  LabelSuggestion,
   Footnotes,
   FootnoteReference,
   Footnote,
@@ -112,11 +122,9 @@ const extensions = [
   Table.configure({
     resizable: true,
   }),
-  TableCell,
+  TableRow,
   TableHeader,
-  TableRow.extend({
-    allowGapCursor: false,
-  }),
+  TableCell,
   TaskItem.configure({
     nested: true,
   }),
@@ -142,6 +150,7 @@ const extensions = [
   Paste,
   SearchAndReplace.configure(),
   drawingCanvas,
+  TextStyle,
   markdownEngine,
   Placeholder.configure({
     placeholder: translations.tiptap.placeholder,
@@ -155,6 +164,7 @@ const extensions = [
     },
   }).configure({
     openOnClick: false,
+    protocols: ['http', 'https', 'mailto', 'note'],
     HTMLAttributes: {
       target: '_blank',
       rel: 'noopener noreferrer nofollow',
@@ -165,7 +175,7 @@ const extensions = [
   Iframe,
 ];
 
-export { extensions, CollapseHeading };
+export { extensions, CollapseHeading, heading };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

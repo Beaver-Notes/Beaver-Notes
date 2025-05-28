@@ -568,6 +568,53 @@ export default {
       inputVisible.value = true; // Directly update the ref
     };
 
+    onMounted(() => {
+      Mousetrap.bind('up', (e) => {
+        e.preventDefault();
+        upHandler();
+      });
+      Mousetrap.bind('down', (e) => {
+        e.preventDefault();
+        downHandler();
+      });
+      Mousetrap.bind('enter', (e) => {
+        e.preventDefault();
+        enterHandler();
+      });
+      Mousetrap.bind('esc', () => {
+        props.editor.commands.deleteRange(props.range);
+      });
+    });
+
+    onUnmounted(() => {
+      Mousetrap.unbind('up');
+      Mousetrap.unbind('down');
+      Mousetrap.unbind('enter');
+      Mousetrap.unbind('esc');
+    });
+
+    function upHandler() {
+      selectedIndex.value =
+        (selectedIndex.value + filteredItems.value.length - 1) %
+        filteredItems.value.length;
+    }
+
+    function downHandler() {
+      selectedIndex.value =
+        (selectedIndex.value + 1) % filteredItems.value.length;
+    }
+
+    function enterHandler() {
+      selectItem(selectedIndex.value);
+    }
+
+    function selectItem(index) {
+      const item = filteredItems.value[index];
+      if (item) {
+        handleItemClick(item);
+      }
+    }
+
     return {
       translations,
       filteredItems,

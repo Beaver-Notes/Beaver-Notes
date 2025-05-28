@@ -188,7 +188,7 @@
               class="mt-2 w-fill"
               style="-webkit-text-security: disc"
               autofocus
-              @keyup.enter="exportData"
+              @keyup.enter="forceSyncNow"
             />
           </expand-transition>
           <ui-button class="w-full mt-4" @click="exportData(defaultPath)">
@@ -252,9 +252,11 @@ import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import '../../assets/css/passwd.css';
+import { useRouter } from 'vue-router';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
 import { processDirectory } from '@/utils/markdown';
+import { forceSyncNow } from '../../utils/sync';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -281,7 +283,7 @@ export default {
       { name: 'dark', img: darkImg },
       { name: 'system', img: systemImg },
     ];
-
+    const router = useRouter();
     const theme = useTheme();
     // eslint-disable-next-line no-unused-vars
     const dialog = useDialog();
@@ -608,7 +610,7 @@ export default {
 
         state.importFile = file;
 
-        await importNoteFromBea(state.importFile);
+        await importNoteFromBea(state.importFile, router);
 
         notification({
           title: translations.settings.notification,
@@ -879,6 +881,7 @@ export default {
       storage,
       translations,
       exportData,
+      forceSyncNow,
       importData,
       resetPasswordDialog,
       changeDataDir,

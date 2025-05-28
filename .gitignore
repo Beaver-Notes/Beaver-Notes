@@ -60,3 +60,4 @@ types/env.d.ts
 /.idea/csv-plugin.xml
 .DS_Store
 *.development
+.env.development

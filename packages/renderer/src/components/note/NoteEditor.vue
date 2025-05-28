@@ -5,7 +5,7 @@
       :editor="editor"
       class="prose dark:text-neutral-100 max-w-none prose-indigo print:cursor-none"
     />
-    <note-bubble-menu v-if="editor" v-bind="{ editor }" />
+    <note-bubble-menu v-if="editor && editor.isEditable" v-bind="{ editor }" />
   </div>
 </template>
 
@@ -13,7 +13,7 @@
 import { onMounted, watch, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { useRouter } from 'vue-router';
-import { extensions, CollapseHeading } from '@/lib/tiptap';
+import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import '@/assets/css/one-dark.css';
 import '@/assets/css/one-light.css';
@@ -46,6 +46,8 @@ export default {
     const exts = [...extensions, dropFile.configure({ id: props.id })];
     if (appStore.setting.collapsibleHeading) {
       exts.push(CollapseHeading);
+    } else {
+      exts.push(heading);
     }
     const editor = useEditor({
       content: props.modelValue,
@@ -90,7 +92,15 @@ export default {
       editor.value.options.element.style.fontSize =
         (localStorage.getItem('font-size') || '16') + 'px';
       editor.value.on('update', () => {
-        const data = editor.value.getJSON();
+        let data = editor.value.getJSON();
+
+        data.content = data.content?.filter(
+          (node) =>
+            !(
+              node.type === 'paragraph' &&
+              (!node.content || node.content.length === 0)
+            )
+        );
 
         emit('update', data);
         emit('update:modelValue', data);

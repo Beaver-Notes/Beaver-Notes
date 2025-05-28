@@ -12,7 +12,6 @@ import windowStateKeeper from 'electron-window-state';
 import * as browserStorage from 'electron-browser-storage';
 import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
-const { exec } = require('child_process');
 import path, { join, normalize } from 'path';
 import { URL } from 'url';
 const fs = require('node:fs');
@@ -21,6 +20,7 @@ import {
   readJson,
   ensureDir,
   copy,
+  mkdir,
   statSync,
   pathExists,
   readdir,
@@ -29,16 +29,6 @@ import {
   writeFileSync,
 } from 'fs-extra';
 import store from './store';
-import enTranslations from '../../renderer/src/pages/settings/locales/en.json';
-import itTranslations from '../../renderer/src/pages/settings/locales/it.json';
-import deTranslations from '../../renderer/src/pages/settings/locales/de.json';
-import zhTranslations from '../../renderer/src/pages/settings/locales/zh.json';
-import nlTranslations from '../../renderer/src/pages/settings/locales/nl.json';
-import esTranslations from '../../renderer/src/pages/settings/locales/es.json';
-import ukTranslations from '../../renderer/src/pages/settings/locales/uk.json';
-import trTranslation from '../../renderer/src/pages/settings/locales/tr.json';
-import ruTranslations from '../../renderer/src/pages/settings/locales/ru.json';
-import frTranslations from '../../renderer/src/pages/settings/locales/fr.json';
 
 const { localStorage } = browserStorage;
 const isMac = process.platform === 'darwin';
@@ -97,16 +87,6 @@ const createWindow = async () => {
     if (env.MODE === 'development') {
       mainWindow?.webContents.openDevTools();
     }
-  });
-
-  let canClosed = false;
-  mainWindow.on('close', (e) => {
-    if (canClosed) {
-      return;
-    }
-    e.preventDefault();
-    windowCloseHandler(mainWindow);
-    canClosed = true;
   });
 
   mainWindow?.webContents.setWindowOpenHandler(function (details) {
@@ -202,24 +182,12 @@ app.on('open-file', (event, path) => {
   event.preventDefault();
   if (mainWindow && mainWindow.webContents) {
     if (mainWindow.webContents.isLoading()) {
-      // If the frontend isn't ready, queue the file path
       queuedPath = path;
     } else {
-      // If the frontend is ready, send the file path immediately
       mainWindow.webContents.send('file-opened', path);
     }
   }
 });
-
-async function windowCloseHandler(win) {
-  try {
-    await ipcMain.callRenderer(win, 'win:close');
-  } catch (error) {
-    console.error('Error handling window close:', error);
-  } finally {
-    app.quit();
-  }
-}
 
 app.on('second-instance', () => {
   if (mainWindow) {
@@ -251,16 +219,9 @@ app
       const filePath = `${dir}/file-assets/${url}`;
       callback({ path: normalize(filePath) });
     });
-    protocol.registerFileProtocol('fonts', (request, callback) => {
-      const url = request.url.substr(8);
-      const dir = store.settings.get('dataDir');
-      const fontPath = `${dir}/fonts/${url}`;
-      callback({ path: normalize(fontPath) });
-    });
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
-      ensureDir(join(app.getPath('userData'), 'fonts')),
     ]);
     createWindow();
     if (process.argv.length >= 2) {
@@ -280,20 +241,12 @@ app
       if (filePath) {
         if (mainWindow && mainWindow.webContents) {
           if (mainWindow.webContents.isLoading()) {
-            // If the frontend isn't ready, queue the file path
             queuedPath = filePath;
           } else {
-            // If the frontend is ready, send the file path immediately
             mainWindow.webContents.send('file-opened', filePath);
           }
         }
       } else {
-        // No .bea file found, just print and let the app handle the other arguments
-        console.log(
-          'No valid .bea file found. Continuing with other arguments.',
-        );
-
-        // Process runtime arguments (like --ozone-platform-hint=auto)
         process.argv.forEach((arg) => {
           console.log(`Received argument: ${arg}`);
         });
@@ -381,7 +334,6 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
 
   try {
     await shell.openPath(fullPath);
-    console.log(`File ${fullPath} opened successfully`);
     return fullPath;
   } catch (error) {
     console.error(`Error opening file: ${error.message}`);
@@ -419,17 +371,41 @@ ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
   writeFileSync(path, data),
 );
 ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
-ipcMain.answerRenderer('fs:readData', (path) =>
-  fs.readFileSync(path, 'base64'),
-);
+ipcMain.answerRenderer('fs:readData', (filePath) => {
+  // Handle 'assets://' and 'file-assets://' paths
+  if (filePath.startsWith('assets://')) {
+    const url = filePath.substr(9); // Remove 'assets://'
+    const dir = store.settings.get('dataDir');
+    filePath = path.join(dir, 'notes-assets', url);
+  } else if (filePath.startsWith('file-assets://')) {
+    const url = filePath.substr(14); // Remove 'file-assets://'
+    const dir = store.settings.get('dataDir');
+    filePath = path.join(dir, 'file-assets', url);
+  }
+
+  // Now filePath should be a valid file system path
+  try {
+    return fs.readFileSync(filePath, 'base64'); // Return base64-encoded file
+  } catch (error) {
+    console.error('Error reading file:', error);
+    return null;
+  }
+});
+
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
 });
 ipcMain.answerRenderer('fs:stat', async (filePath) => {
   return statSync(filePath);
 });
+ipcMain.answerRenderer('fs:mkdir', async (dirPath) => {
+  await mkdir(dirPath, { recursive: true });
+});
 ipcMain.answerRenderer('fs:unlink', async (filePath) => {
   fs.unlinkSync(filePath);
+});
+ipcMain.answerRenderer('fs:readData', (filePath) => {
+  return fs.readFileSync(filePath, 'base64'); // Returns base64-encoded file
 });
 ipcMain.handle('fs:isFile', async (filePath) => {
   try {
@@ -438,25 +414,6 @@ ipcMain.handle('fs:isFile', async (filePath) => {
   } catch (error) {
     console.error('Error checking if file exists:', error);
     throw error; // Propagate the error back to the renderer process
-  }
-});
-ipcMain.answerRenderer('gvfs:copy', async ({ path, dest }) => {
-  try {
-    await new Promise((resolve, reject) => {
-      exec(`cp -r '${path}/' '${dest}/'`, (error, stdout, stderr) => {
-        if (error) {
-          console.error('Error copying using gvfs-move:', error);
-          reject(error);
-          return;
-        }
-        console.log('stdout:', stdout);
-        console.error('stderr:', stderr);
-        resolve();
-      });
-    });
-  } catch (error) {
-    console.error('Error during gvfs-move:', error);
-    throw error;
   }
 });
 ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
@@ -493,34 +450,42 @@ function addNoteFromMenu() {
   mainWindow.webContents.executeJavaScript('addNote();');
 }
 
-function initializeMenu() {
-  // languages
+async function getTranslations(lang = 'en') {
+  const supportedLangs = [
+    'en',
+    'de',
+    'es',
+    'fr',
+    'it',
+    'nl',
+    'tr',
+    'ru',
+    'uk',
+    'zh',
+  ];
 
-  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+  if (!supportedLangs.includes(lang)) lang = 'en';
 
-  let translations = enTranslations;
-
-  if (selectedLanguage === 'de') {
-    translations = deTranslations;
-  } else if (selectedLanguage === 'en') {
-    translations = enTranslations;
-  } else if (selectedLanguage === 'es') {
-    translations = esTranslations;
-  } else if (selectedLanguage === 'fr') {
-    translations = frTranslations;
-  } else if (selectedLanguage === 'it') {
-    translations = itTranslations;
-  } else if (selectedLanguage === 'nl') {
-    translations = nlTranslations;
-  } else if (selectedLanguage === 'tr') {
-    translations = trTranslation;
-  } else if (selectedLanguage === 'ru') {
-    translations = ruTranslations;
-  } else if (selectedLanguage === 'uk') {
-    translations = ukTranslations;
-  } else if (selectedLanguage === 'zh') {
-    translations = zhTranslations;
+  try {
+    const translations = await import(
+      `../../renderer/src/pages/settings/locales/${lang}.json`
+    );
+    return translations.default;
+  } catch (error) {
+    console.error(
+      `Failed to load translations for ${lang}, falling back to English.`,
+      error,
+    );
+    const fallback = await import(
+      '../../renderer/src/pages/settings/locales/en.json'
+    );
+    return fallback.default;
   }
+}
+
+async function initializeMenu() {
+  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+  const translations = await getTranslations(selectedLanguage);
 
   import('electron-context-menu')
     .then((contextMenuModule) => {
@@ -629,12 +594,10 @@ function initializeMenu() {
       role: 'help',
       submenu: [
         {
-          label: 'Beaver Help',
+          label: 'Docs',
           click: async () => {
             const { shell } = require('electron');
-            await shell.openExternal(
-              'https://danieles-organization.gitbook.io/beaver-notes',
-            );
+            await shell.openExternal('https://docs.beavernotes.com/');
           },
         },
       ],

@@ -116,6 +116,8 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed } from 'vue';
 
+const { ipcRenderer } = window.electron;
+
 export default {
   components: {
     NodeViewWrapper,
@@ -123,7 +125,7 @@ export default {
   props: nodeViewProps,
   setup(props) {
     const fileName = ref(props.node.attrs.fileName || '');
-    const videoSrc = ref(props.node.attrs.src || '');
+    const videoSrc = ref('');
     const videoPlayer = ref(null);
     const isPlaying = ref(false);
     const currentTime = ref(0);
@@ -133,18 +135,26 @@ export default {
     const showSpeedOptions = ref(false);
     const playbackRates = [0.5, 1, 1.5, 2];
 
+    const loadVideoFromFile = async () => {
+      try {
+        const filePath = props.node.attrs.src;
+        const base64Data = await ipcRenderer.callMain('fs:readData', filePath);
+        videoSrc.value = `data:video/mp4;base64,${base64Data}`;
+        preloadVideo();
+      } catch (error) {
+        console.error('Failed to read video file:', error);
+      }
+    };
+
     onMounted(() => {
       videoPlayer.value.volume = 1;
       videoPlayer.value.playbackRate = playbackRate.value;
-      preloadVideo();
+      loadVideoFromFile();
     });
 
     const togglePlay = () => {
-      if (isPlaying.value) {
-        videoPlayer.value.pause();
-      } else {
-        videoPlayer.value.play();
-      }
+      if (!videoPlayer.value) return;
+      isPlaying.value ? videoPlayer.value.pause() : videoPlayer.value.play();
       isPlaying.value = !isPlaying.value;
     };
 
@@ -156,22 +166,23 @@ export default {
 
     const seek = (event) => {
       const progressBar = event.target.closest('[role="progressbar"]');
-      if (progressBar) {
-        const boundingRect = progressBar.getBoundingClientRect();
-        const offsetX = event.clientX - boundingRect.left;
-        const newTime = (offsetX / progressBar.offsetWidth) * duration.value;
-        if (videoPlayer.value) {
-          videoPlayer.value.currentTime = newTime;
-          currentTime.value = newTime;
-        }
+      if (!progressBar) return;
+
+      const boundingRect = progressBar.getBoundingClientRect();
+      const offsetX = event.clientX - boundingRect.left;
+      const newTime = (offsetX / progressBar.offsetWidth) * duration.value;
+
+      if (videoPlayer.value) {
+        videoPlayer.value.currentTime = newTime;
+        currentTime.value = newTime;
       }
     };
 
     const startDrag = (event) => {
       const progressBar = event.target.closest('[role="progressbar"]');
       const onMove = (moveEvent) => {
-        const boundingRect = progressBar.getBoundingClientRect();
-        const offsetX = moveEvent.clientX - boundingRect.left;
+        const rect = progressBar.getBoundingClientRect();
+        const offsetX = moveEvent.clientX - rect.left;
         const newTime = (offsetX / progressBar.offsetWidth) * duration.value;
         if (videoPlayer.value) {
           videoPlayer.value.currentTime = newTime;
@@ -189,15 +200,11 @@ export default {
     const preloadVideo = () => {
       const tempVideo = document.createElement('video');
       tempVideo.src = videoSrc.value;
-
       tempVideo.addEventListener('loadedmetadata', () => {
         if (!isNaN(tempVideo.duration) && tempVideo.duration > 0) {
           duration.value = tempVideo.duration;
-        } else {
-          console.error('Invalid video duration');
         }
       });
-
       tempVideo.addEventListener('error', (event) => {
         console.error('Error loading video metadata:', event);
       });
@@ -208,40 +215,36 @@ export default {
     };
 
     const toggleMute = () => {
-      if (videoPlayer.value) {
-        isMuted.value = !isMuted.value;
-        videoPlayer.value.muted = isMuted.value;
-      }
+      if (!videoPlayer.value) return;
+      isMuted.value = !isMuted.value;
+      videoPlayer.value.muted = isMuted.value;
     };
 
     const skipForward = () => {
-      if (videoPlayer.value) {
-        videoPlayer.value.currentTime = Math.min(
-          videoPlayer.value.currentTime + 5,
-          duration.value
-        );
-        currentTime.value = videoPlayer.value.currentTime;
-      }
+      if (!videoPlayer.value) return;
+      const newTime = Math.min(
+        videoPlayer.value.currentTime + 5,
+        duration.value
+      );
+      videoPlayer.value.currentTime = newTime;
+      currentTime.value = newTime;
     };
 
     const skipBackward = () => {
-      if (videoPlayer.value) {
-        videoPlayer.value.currentTime = Math.max(
-          videoPlayer.value.currentTime - 5,
-          0
-        );
-        currentTime.value = videoPlayer.value.currentTime;
-      }
+      if (!videoPlayer.value) return;
+      const newTime = Math.max(videoPlayer.value.currentTime - 5, 0);
+      videoPlayer.value.currentTime = newTime;
+      currentTime.value = newTime;
     };
 
     const toggleSpeedOptions = () => {
       showSpeedOptions.value = !showSpeedOptions.value;
     };
 
-    const setPlaybackRate = (speed) => {
-      playbackRate.value = speed;
+    const setPlaybackRate = (rate) => {
+      playbackRate.value = rate;
       if (videoPlayer.value) {
-        videoPlayer.value.playbackRate = speed;
+        videoPlayer.value.playbackRate = rate;
       }
       showSpeedOptions.value = false;
     };
@@ -252,13 +255,8 @@ export default {
         : '0%';
     });
 
-    const formattedCurrentTime = computed(() => {
-      return formatTime(currentTime.value);
-    });
-
-    const formattedDuration = computed(() => {
-      return formatTime(duration.value);
-    });
+    const formattedCurrentTime = computed(() => formatTime(currentTime.value));
+    const formattedDuration = computed(() => formatTime(duration.value));
 
     const formatTime = (time) => {
       const minutes = Math.floor(time / 60);

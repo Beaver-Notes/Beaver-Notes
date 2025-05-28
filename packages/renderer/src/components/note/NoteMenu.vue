@@ -45,24 +45,30 @@
             :class="{ 'is-active': editor.isActive('highlight') }"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riMarkPenLine" />
+            <v-remixicon name="riFontColor" />
           </button>
         </template>
-        <div class="grid grid-cols-4 gap-2 p-2">
-          <button
-            v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
-            class="transition hoverable w-8 h-8 px-1 rounded-lg cursor-pointer"
-            @click="editor.commands.unsetHighlight()"
-          >
-            <v-remixicon name="riCloseLine" />
-          </button>
-          <div
-            v-for="color in colors"
-            :key="color"
-            :class="['w-8 h-8 cursor-pointer', color]"
-            @click="setHighlightColor(color)"
-          ></div>
+        <div class="px-2">
+          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in textColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded']"
+              @click="setTextColor(color)"
+            >
+              <v-remixicon name="riFontColor" :style="{ color: color }" />
+            </div>
+          </div>
+          <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in highlighterColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded', color]"
+              @click="setHighlightColor(color)"
+            ></div>
+          </div>
         </div>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
@@ -149,17 +155,44 @@
           @click="insertImage"
         />
       </ui-popover>
-      <div class="flex items-center">
+      <div
+        :class="[
+          'flex items-center space-x-2',
+          isRecording
+            ? 'bg-primary text-[color:var(--selected-dark-text)] rounded-full'
+            : '',
+        ]"
+      >
         <button
           v-tooltip.group="translations.menu.record"
-          class="transition hoverable h-8 px-1 rounded-lg"
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isRecording
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
           @click="toggleRecording"
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
-          formattedTime
-        }}</span>
+        <span v-if="isRecording" class="font-secondary font-semibold text-sm">
+          {{ formattedTime }}
+        </span>
+        <button
+          v-if="isRecording"
+          v-tooltip.group="
+            isPaused ? translations.menu.resume : translations.menu.pause
+          "
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isPaused
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
+          @click="pauseResume"
+        >
+          <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
+        </button>
       </div>
       <button
         v-tooltip.group="translations.menu.Link"
@@ -362,24 +395,30 @@
             :class="{ 'is-active': editor.isActive('highlight') }"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riMarkPenLine" />
+            <v-remixicon name="riFontColor" />
           </button>
         </template>
-        <div class="grid grid-cols-4 gap-2 p-2">
-          <button
-            v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
-            class="transition hoverable w-8 h-8 px-1 rounded-lg cursor-pointer"
-            @click="editor.commands.unsetHighlight()"
-          >
-            <v-remixicon name="riCloseLine" />
-          </button>
-          <div
-            v-for="color in colors"
-            :key="color"
-            :class="['w-8 h-8 cursor-pointer', color]"
-            @click="setHighlightColor(color)"
-          ></div>
+        <div class="px-2">
+          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in textColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded']"
+              @click="setTextColor(color)"
+            >
+              <v-remixicon name="riFontColor" :style="{ color: color }" />
+            </div>
+          </div>
+          <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
+          <div class="grid grid-cols-4 gap-2">
+            <div
+              v-for="color in highlighterColors"
+              :key="color"
+              :class="['w-8 h-8 cursor-pointer rounded', color]"
+              @click="setHighlightColor(color)"
+            ></div>
+          </div>
         </div>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
@@ -420,17 +459,44 @@
           @click="insertImage"
         />
       </ui-popover>
-      <div class="flex items-center">
+      <div
+        :class="[
+          'flex items-center space-x-2',
+          isRecording
+            ? 'bg-primary text-[color:var(--selected-dark-text)] rounded-full'
+            : '',
+        ]"
+      >
         <button
           v-tooltip.group="translations.menu.record"
-          class="transition hoverable h-8 px-1 rounded-lg"
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isRecording
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
           @click="toggleRecording"
         >
           <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
         </button>
-        <span v-if="isRecording" class="font-secondary font-semibold pr-1">{{
-          formattedTime
-        }}</span>
+        <span v-if="isRecording" class="font-secondary font-semibold text-sm">
+          {{ formattedTime }}
+        </span>
+        <button
+          v-if="isRecording"
+          v-tooltip.group="
+            isPaused ? translations.menu.resume : translations.menu.pause
+          "
+          :class="[
+            'transition hoverable h-10 p-2 flex items-center justify-center',
+            isPaused
+              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+              : 'rounded-full hover',
+          ]"
+          @click="pauseResume"
+        >
+          <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
+        </button>
       </div>
       <button
         v-tooltip.group="translations.menu.Link"
@@ -654,6 +720,7 @@ import {
   shallowReactive,
   ref,
 } from 'vue';
+import useAudioRecorder from '@/utils/record';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
 import { saveFile } from '../../utils/copy-doc';
@@ -663,7 +730,6 @@ import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
-import RecordRTC from 'recordrtc';
 import { useStorage } from '@/composable/storage';
 import { exportNoteById } from '@/utils/share';
 import { useTranslation } from '@/composable/translations';
@@ -692,11 +758,18 @@ export default {
     },
     note: {
       type: Object,
-      required: true, // Set to true if this prop is essential
+      required: true,
     },
   },
   emits: ['update:tree'],
   setup(props) {
+    const {
+      isRecording,
+      formattedTime,
+      toggleRecording,
+      isPaused,
+      pauseResume,
+    } = useAudioRecorder(props, ipcRenderer, storage, path);
     const headings = [
       { name: 'Paragraphs', id: 'paragraph' },
       { name: 'Header 1', id: 1 },
@@ -842,20 +915,17 @@ export default {
         return;
       }
 
-      let trimmedEmbedUrl = EmbedUrl.value.trim(); // Renamed local variable
+      let trimmedEmbedUrl = EmbedUrl.value.trim();
 
-      // Check if the URL is a YouTube Embed URL in the regular format
       if (trimmedEmbedUrl.includes('youtube.com/watch?v=')) {
         let EmbedId = trimmedEmbedUrl.split('v=')[1];
         const ampersandPosition = EmbedId.indexOf('&');
         if (ampersandPosition !== -1) {
           EmbedId = EmbedId.substring(0, ampersandPosition);
         }
-        // Convert to the embed format
         trimmedEmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
       }
 
-      // Use the value of trimmedEmbedUrl to set the iframe source
       props.editor
         .chain()
         .focus()
@@ -864,7 +934,6 @@ export default {
         })
         .run();
 
-      // Clear the input field after setting the iframe source
       EmbedUrl.value = '';
     }
 
@@ -902,7 +971,6 @@ export default {
     };
 
     function toggleReaderMode() {
-      // Zoom and toggle inReaderMode state
       handleZoomButtonClick();
       store.inReaderMode = !store.inReaderMode;
 
@@ -967,7 +1035,7 @@ export default {
       try {
         for (const file of files) {
           const { fileName, relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
+          const src = `${relativePath}`;
           props.editor.commands.setFileEmbed(src, fileName);
         }
       } catch (error) {
@@ -982,7 +1050,7 @@ export default {
       try {
         for (const file of files) {
           const { relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
+          const src = `${relativePath}`;
           props.editor.commands.setVideo(src);
         }
       } catch (error) {
@@ -992,158 +1060,53 @@ export default {
 
     const container = ref();
     function changeWheelDirection(e) {
-      e.preventDefault();
       if (container.value) {
         container.value.scrollLeft += e.deltaY + e.deltaX;
       }
     }
-    const isRecording = ref(false);
-    let recorder;
-    let recordingStartTime = null;
-    let recordingInterval = null;
-    let stream = null; // Keep track of the media stream
 
-    const minutes = ref(0);
-    const seconds = ref(0);
+    const highlighterColors = [
+      'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #DC8D42 (orange)
+      'bg-[#E3B324]/30 dark:bg-[#E3B324]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E3B324 (yellow)
+      'bg-[#4CAF50]/30 dark:bg-[#4CAF50]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #4CAF50 (green)
+      'bg-[#3A8EE6]/30 dark:bg-[#3A8EE6]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #3A8EE6 (blue)
+      'bg-[#9B5EE6]/30 dark:bg-[#9B5EE6]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #9B5EE6 (purple)
+      'bg-[#E67EA4]/30 dark:bg-[#E67EA4]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E67EA4 (pink)
+      'bg-[#E75C5C]/30 dark:bg-[#E75C5C]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E75C5C (red)
+      'bg-[#A3A3A3]/30 dark:bg-[#A3A3A3]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #A3A3A3 (gray)
+    ];
 
-    const formattedTime = computed(() => {
-      return `${String(minutes.value).padStart(2, '0')}:${String(
-        seconds.value
-      ).padStart(2, '0')}`;
-    });
-
-    function generateRandomFilename(extension = 'ogg') {
-      const randomString = Math.random().toString(36).substring(2, 15);
-      const timestamp = Date.now();
-      return `${timestamp}_${randomString}.${extension}`;
-    }
-
-    async function toggleRecording() {
-      if (isRecording.value) {
-        // Stop recording
-        recorder.stopRecording(() => {
-          const blob = recorder.getBlob();
-          const filename = generateRandomFilename('ogg');
-
-          // Process and save the blob
-          handleBlob(blob, filename);
-
-          // Clean up
-          if (stream) {
-            // Stop all tracks in the stream
-            stream.getTracks().forEach((track) => {
-              track.stop();
-            });
-            stream = null; // Ensure the stream is nullified
-          }
-          if (recorder && typeof recorder.destroy === 'function') {
-            recorder.destroy();
-          }
-          recorder = null;
-        });
-
-        // Update state
-        isRecording.value = false;
-        clearInterval(recordingInterval);
-        recordingInterval = null;
-        minutes.value = 0;
-        seconds.value = 0;
-      } else {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false,
-          });
-
-          recorder = RecordRTC(stream, {
-            type: 'audio',
-            mimeType: 'audio/ogg',
-            recorderType: RecordRTC.StereoAudioRecorder,
-          });
-
-          recorder.startRecording();
-          isRecording.value = true;
-          recordingStartTime = Date.now();
-
-          recordingInterval = setInterval(() => {
-            if (isRecording.value) {
-              const elapsedTime = Math.floor(
-                (Date.now() - recordingStartTime) / 1000
-              );
-              minutes.value = Math.floor(elapsedTime / 60);
-              seconds.value = elapsedTime % 60;
-            }
-          }, 1000);
-        } catch (err) {
-          console.error('Error accessing media devices.', err);
-        }
-      }
-    }
-
-    async function handleBlob(blob, filename) {
-      const dataDir = await storage.get('dataDir');
-      const assetsPath = path.join(dataDir, 'file-assets', props.id);
-      await ipcRenderer.callMain('fs:ensureDir', assetsPath);
-      const destPath = path.join(assetsPath, filename);
-      const contentUint8Array = await readFile(blob);
-      await ipcRenderer.callMain('fs:writeFile', {
-        path: destPath,
-        data: contentUint8Array,
-      });
-      const audioPath = `file-assets://${props.id}/${filename}`;
-      props.editor.commands.setAudio(audioPath);
-    }
-
-    async function readFile(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(new Uint8Array(reader.result));
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(blob);
-      });
-    }
-
-    onUnmounted(() => {
-      if (recordingInterval) {
-        clearInterval(recordingInterval);
-      }
-      if (recorder) {
-        if (recorder.stream) {
-          // Ensure all tracks are stopped
-          recorder.stream.getTracks().forEach((track) => track.stop());
-          // Nullify the stream
-          recorder.stream = null;
-        }
-        // Destroy the recorder if applicable
-        if (recorder && typeof recorder.destroy === 'function') {
-          recorder.destroy();
-        }
-        recorder = null;
-      }
-      // Ensure all media streams are closed
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-        stream = null;
-      }
-    });
-
-    const colors = [
-      'bg-orange-200 dark:bg-orange-40',
-      'bg-yellow-200 dark:bg-yellow-100',
-      'bg-green-200 dark:bg-green-100',
-      'bg-blue-200 dark:bg-blue-100',
-      'bg-purple-200 dark:bg-purple-100',
-      'bg-pink-200 dark:bg-pink-100',
-      'bg-red-200 dark:bg-red-100',
+    const textColors = [
+      '#DC8D42',
+      '#E3B324',
+      '#4CAF50',
+      '#3A8EE6',
+      '#9B5EE6',
+      '#E67EA4',
+      '#E75C5C',
+      '#A3A3A3',
     ];
 
     function setHighlightColor(color) {
-      props.editor.commands.setHighlight({ color });
+      if (props.editor.isActive('highlight', { color })) {
+        props.editor.commands.unsetHighlight();
+      } else {
+        props.editor.commands.setHighlight({ color });
+      }
+    }
+
+    function setTextColor(color) {
+      if (props.editor.isActive('textStyle', { color })) {
+        props.editor.chain().focus().unsetColor().run();
+      } else {
+        props.editor.commands.setColor(color);
+      }
     }
 
     return {
       store,
-      colors,
+      highlighterColors,
+      textColors,
       setHighlightColor,
       lists,
       isTableActive,
@@ -1157,12 +1120,15 @@ export default {
       addIframe,
       editorImage,
       headingsTree,
+      setTextColor,
       textFormatting,
       getHeadingsTree,
       toggleReaderMode,
       toggleRecording,
       handleVideoSelect,
       isRecording,
+      isPaused,
+      pauseResume,
       formattedTime,
       insertFile,
       fileUrl,

@@ -1,5 +1,10 @@
 import Heading from '@tiptap/extension-heading';
-import { findParentNode, mergeAttributes } from '@tiptap/vue-3';
+import {
+  findParentNode,
+  mergeAttributes,
+  textblockTypeInputRule,
+} from '@tiptap/vue-3';
+import { mergeCollapsedFootnotes } from '../footnote-block/utils';
 
 function createArrowSVG() {
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -48,8 +53,14 @@ function findCollapseFragment(matchNode, doc) {
     }
 
     if (start) {
+      // Check if we hit a node that should end the collapse fragment
       if (breakCriteria(node)) {
         isDone = true;
+        return;
+      }
+
+      // Skip footnotes list - don't include it in the collapsed content
+      if (node.type.name === 'footnotes') {
         return;
       }
 
@@ -77,6 +88,45 @@ function findCollapseFragment(matchNode, doc) {
   };
 }
 
+export function findAllNodesInRange(fragment, name) {
+  if (!fragment) {
+    return [];
+  }
+  if (!Array.isArray(fragment)) {
+    return findAllNodesInRange(fragment.content, name);
+  }
+  const nodes = [];
+  for (const n of fragment) {
+    if (n.type.name === name) {
+      nodes.push(n);
+      continue;
+    }
+    nodes.push(...findAllNodesInRange(n.content, name));
+  }
+  return nodes;
+}
+
+function getCollapsedFootnote(result, state) {
+  const references = findAllNodesInRange(
+    result.fragment.content,
+    'footnoteReference'
+  );
+  const footnotes = findAllNodesInRange(state.doc, 'footnotes');
+  const footnotesMap = footnotes.reduce((acc, cur) => {
+    for (const child of cur.content.content) {
+      acc[child.attrs['data-id']] = child;
+    }
+    return acc;
+  }, {});
+  const matchList = [];
+  for (const ref of references) {
+    if (ref.attrs['data-id'] in footnotesMap) {
+      matchList.push(footnotesMap[ref.attrs['data-id']]);
+    }
+  }
+  return matchList;
+}
+
 function parseJSON(obj) {
   try {
     return JSON.parse(obj);
@@ -94,6 +144,17 @@ function jsonRaw(obj) {
 }
 
 export default Heading.extend({
+  addInputRules() {
+    return this.options.levels.map((level) => {
+      return textblockTypeInputRule({
+        find: new RegExp(`^(#{1,${level}}) $`), // <-- Notice the trailing space only
+        type: this.type,
+        getAttributes: {
+          level,
+        },
+      });
+    });
+  },
   addOptions() {
     return {
       levels: [1, 2, 3, 4, 5, 6],
@@ -124,6 +185,10 @@ export default Heading.extend({
           return !attributes.open ? {} : { open: '' };
         },
       },
+      collapsedFootnotes: {
+        default: null,
+        rendered: false,
+      },
       collapsedContent: {
         default: null,
         rendered: false,
@@ -151,12 +216,12 @@ export default Heading.extend({
         const currentPos = findParentNode((f) => f.type === this.type)(
           selection
         );
-        if (!currentPos) {
+
+        if (!currentPos || !currentPos.node.attrs.open) {
           return false;
         }
-        if (!currentPos.node.attrs.open) {
-          return false;
-        }
+
+        // Find the range of content that would be collapsed
         const result = findCollapseFragment(currentPos.node, state.doc);
         if (!result) {
           chain()
@@ -164,16 +229,73 @@ export default Heading.extend({
               ...currentPos.node.attrs,
               open: false,
               collapsedContent: [],
+              collapsedFootnotes: [],
             })
             .run();
           return true;
         }
+
+        // Check for footnotes list in the content to be collapsed
+        // We'll exclude it from collapsing
+        let footnoteListPositions = [];
+
+        state.doc.nodesBetween(result.start, result.end, (node, pos) => {
+          if (node.type.name === 'footnotes') {
+            footnoteListPositions.push({ pos, node });
+          }
+        });
+
+        // If there are footnote lists in the section to be collapsed,
+        // we need to exclude them from the collapse
+        if (footnoteListPositions.length > 0) {
+          // Create a modified fragment that excludes the footnote list
+          let modifiedFragment = result.fragment;
+          let newEnd = result.end;
+
+          // Exclude footnote lists from the collapsed content
+          footnoteListPositions.forEach(({ pos, node }) => {
+            // Check if the footnote list is within our fragment
+            if (pos >= result.start && pos <= result.end) {
+              // Remove it from the fragment to be collapsed
+              const nodeSize = node.nodeSize;
+              const relativePos = pos - result.start;
+
+              // Split the fragment to exclude the footnote list
+              const beforeList = result.fragment.cut(0, relativePos);
+              const afterList = result.fragment.cut(relativePos + nodeSize);
+
+              // Join the fragments back without the footnote list
+              modifiedFragment = beforeList.append(afterList);
+              newEnd = newEnd - nodeSize;
+            }
+          });
+
+          // Use the modified fragment for collapsing
+          const currentNode = currentPos.node.toJSON();
+          currentNode.attrs.collapsedContent = jsonRaw(
+            modifiedFragment.toJSON()
+          );
+          currentNode.attrs.open = false;
+
+          chain()
+            .insertContentAt({ from: result.start, to: newEnd }, currentNode)
+            .run();
+
+          return true;
+        }
+
+        // If no footnote lists, proceed with normal collapsing logic
         const currentNode = currentPos.node.toJSON();
         currentNode.attrs.collapsedContent = jsonRaw(result.fragment.toJSON());
+        currentNode.attrs.collapsedFootnotes = jsonRaw(
+          getCollapsedFootnote(result, state)
+        );
         currentNode.attrs.open = false;
+
         chain()
           .insertContentAt({ from: result.start, to: result.end }, currentNode)
           .run();
+
         return true;
       },
       unCollapsedHeading: () => (e) => {
@@ -190,6 +312,13 @@ export default Heading.extend({
         }
         const currentNode = currentPos.node.toJSON();
         const collapsedContent = currentNode.attrs.collapsedContent;
+        const footnotes = currentNode.attrs.collapsedFootnotes;
+        const footnoteMap = (footnotes ?? []).reduce((acc, item) => {
+          acc[item.attrs['data-id']] = item;
+          return acc;
+        }, {});
+        mergeCollapsedFootnotes(jsonRaw(footnoteMap));
+        currentNode.attrs.collapsedFootnotes = null;
         currentNode.attrs.collapsedContent = null;
         currentNode.attrs.open = true;
         chain()

@@ -1,6 +1,6 @@
 <template>
   <bubble-menu
-    v-show="editor.isActive('image') || editor.isActive('link')"
+    v-if="editor && (editor.isActive('image') || editor.isActive('link'))"
     v-bind="{ editor, shouldShow: () => true }"
     class="bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl"
   >
@@ -31,16 +31,20 @@ export default {
   },
   setup(props) {
     onMounted(() => {
-      Mousetrap.bind('mod+l', () => {
-        if (props.editor.isActive('image') || props.editor.isActive('link')) {
-          const input = document.getElementById('bubble-input');
-
-          input?.focus();
-        }
-      });
+      if (props.editor) {
+        Mousetrap.bind('mod+l', () => {
+          if (props.editor.isActive('image') || props.editor.isActive('link')) {
+            const input = document.getElementById('bubble-input');
+            input?.focus();
+          }
+        });
+      }
     });
+
     onUnmounted(() => {
-      Mousetrap.unbind('mod+l');
+      if (props.editor) {
+        Mousetrap.unbind('mod+l');
+      }
     });
   },
 };

@@ -1,6 +1,12 @@
 import { EditorState, Transaction } from '@tiptap/pm/state';
 import { Fragment, Node } from '@tiptap/pm/model';
 
+let unCollapsedFootnotes = {} as any;
+
+export function mergeCollapsedFootnotes(notes: any) {
+  Object.assign(unCollapsedFootnotes, notes);
+}
+
 // update the reference number of all the footnote references in the document
 export function updateFootnoteReferences(tr: Transaction) {
   let count = 1;
@@ -90,16 +96,21 @@ export function updateFootnotesList(tr: Transaction, state: EditorState) {
         )
       );
     } else {
-      const newNode = footnoteType.create(
+      let newNode = footnoteType.create(
         {
           'data-id': refId,
           id: `fn:${i + 1}`,
         },
         [emptyParagraph]
       );
+      if (refId in unCollapsedFootnotes) {
+        newNode = state.schema.nodeFromJSON(unCollapsedFootnotes[refId]);
+      }
       newFootnotes.push(newNode);
     }
   }
+
+  unCollapsedFootnotes = {};
 
   if (newFootnotes.length == 0) {
     // no footnotes in the doc, delete the "footnotes" node
