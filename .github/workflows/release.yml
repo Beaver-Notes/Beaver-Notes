@@ -48,6 +48,7 @@ jobs:
           echo "${{ secrets.api_key }}" > ~/private_keys/AuthKey_${{ secrets.api_key_id }}.p8
 
       - name: Build and conditionally publish Electron app
+        shell: bash
         run: |
           PUBLISH_FLAG=""
           if [[ "${{ steps.publishflag.outputs.publish }}" == "true" ]]; then
