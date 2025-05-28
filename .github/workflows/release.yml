@@ -24,9 +24,6 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Clean dist directory
-        run: rm -rf dist
-
       - name: build Vite bundles
         run: yarn build
 
@@ -57,11 +54,11 @@ jobs:
           fi
 
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --mac $PUBLISH_FLAG
+            yarn electron-builder build --config electron-builder.config.cjs --mac --clean $PUBLISH_FLAG
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --win $PUBLISH_FLAG
+            yarn electron-builder build --config electron-builder.config.cjs --win --clean $PUBLISH_FLAG
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
+            yarn electron-builder build --config electron-builder.config.cjs --linux --clean $PUBLISH_FLAG
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
