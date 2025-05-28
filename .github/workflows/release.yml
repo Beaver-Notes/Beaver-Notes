@@ -47,8 +47,8 @@ jobs:
       - name: Create release tag
         if: matrix.os == 'macos-latest' && steps.publishflag.outputs.publish == 'true'
         run: |
-          git tag ${{ github.ref_name }}
-          git push origin ${{ github.ref_name }}
+          git tag ${{ steps.commitmsg.outputs.msg }}
+          git push origin ${{ steps.commitmsg.outputs.msg }}
 
       - name: Prepare for app notarization (macOS only)
         if: matrix.os == 'macos-latest'
