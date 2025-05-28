@@ -48,7 +48,14 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           mkdir -p ~/private_keys/
-          echo "${{ secrets.api_key }}" > ~/private_keys/AuthKey_${{ secrets.api_key_id }}.p8
+          echo "$API_KEY" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+
+          xcrun notarytool store-credentials "AC_API" \
+            --key ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
+            --key-id $API_KEY_ID \
+            --issuer $API_KEY_ISSUER_ID
+
+          
 
       - name: Build and conditionally publish Electron app
         shell: bash
@@ -67,6 +74,7 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+          API_KEY: ${{ secrets.api_key }}
           API_KEY_ID: ${{ secrets.api_key_id }}
           API_KEY_ISSUER_ID: ${{ secrets.api_key_issuer_id }}
           USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}
