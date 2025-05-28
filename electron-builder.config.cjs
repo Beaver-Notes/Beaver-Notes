@@ -27,7 +27,6 @@ const electronBuilderConfig = {
     {
       provider: 'github',
       releaseType: 'draft',
-      tagPrefix: '',
     },
   ],
   mac: {
