@@ -44,13 +44,6 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create release tag
-        if: matrix.os == 'macos-latest' && steps.publishflag.outputs.publish == 'true'
-        run: |
-          VERSION=$(echo "${{ steps.commitmsg.outputs.msg }}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-          git tag "$VERSION"
-          git push origin "$VERSION"
-
       - name: Prepare for app notarization (macOS only)
         if: matrix.os == 'macos-latest'
         run: |
