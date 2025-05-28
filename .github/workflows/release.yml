@@ -48,12 +48,12 @@ jobs:
         if: matrix.os == 'macos-latest'
         run: |
           mkdir -p ~/private_keys/
-          echo "$API_KEY" > ~/private_keys/AuthKey_${API_KEY_ID}.p8
+          echo "${{ secrets.api_key }}" > ~/private_keys/AuthKey_${{ secrets.api_key_id }}.p8
 
           xcrun notarytool store-credentials "AC_API" \
-            --key ~/private_keys/AuthKey_${API_KEY_ID}.p8 \
-            --key-id $API_KEY_ID \
-            --issuer $API_KEY_ISSUER_ID
+            --key ~/private_keys/AuthKey_${{ secrets.api_key_id }}.p8 \
+            --key-id ${{ secrets.api_key_id }} \
+            --issuer ${{ secrets.api_key_issuer_id }}
 
           
 
