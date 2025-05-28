@@ -74,15 +74,14 @@ jobs:
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
           fi
-
-      - name: Clean up keychain
-        if: matrix.os == 'macos-latest'
-        run: |
-          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
-
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
           APPLE_TEAM_ID: ${{ secrets.apple_team_id }}
           APPLE_ID: ${{ secrets.apple_id }}
           APPLE_ID_PASSWORD: ${{ secrets.apple_id_password }}
           USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}
+
+      - name: Clean up keychain
+        if: matrix.os == 'macos-latest'
+        run: |
+          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
