@@ -48,6 +48,8 @@ const electronBuilderConfig = {
     },
     notarize: {
       teamId: process.env.APPLE_TEAM_ID || 'none',
+      appleId: process.env.APPLE_ID || 'none',
+      appleIdPassword: process.env.APPLE_ID_PASSWORD || 'none',
     },
   },
   linux: {
