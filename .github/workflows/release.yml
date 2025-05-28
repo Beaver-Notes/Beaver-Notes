@@ -24,7 +24,10 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Create dist directory
+      - name: Clean dist directory
+        run: rm -rf dist
+
+      - name: build Vite bundles
         run: yarn build
 
       - name: Get latest commit message
