@@ -47,7 +47,7 @@ jobs:
       - name: Create release tag
         if: matrix.os == 'macos-latest' && steps.publishflag.outputs.publish == 'true'
         run: |
-          VERSION=$(echo "${{ steps.commitmsg.outputs.msg }}" | grep -oE '\b[0-9]+\.[0-9]+\.[0-9]+\b')
+          VERSION=$(echo "${{ steps.commitmsg.outputs.msg }}" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
           git tag "$VERSION"
           git push origin "$VERSION"
 
