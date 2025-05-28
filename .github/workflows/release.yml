@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
+      - name: Build frontend
+        run: yarn build
+
       - name: Get latest commit message
         id: commitmsg
         run: echo "msg=$(git log -1 --pretty=%B | tr -d '\n')" >> "$GITHUB_OUTPUT"
