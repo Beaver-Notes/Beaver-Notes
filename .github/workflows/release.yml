@@ -39,11 +39,11 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ steps.commitmsg.outputs.msg }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
             echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
-      
+
       - name: Create release tag
         if: matrix.os == 'macos-latest' && steps.publishflag.outputs.publish == 'true'
         run: |
