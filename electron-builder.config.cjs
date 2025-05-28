@@ -27,6 +27,7 @@ const electronBuilderConfig = {
     {
       provider: 'github',
       releaseType: 'draft',
+      tagPrefix: '',
     },
   ],
   mac: {
@@ -92,10 +93,10 @@ module.exports = async () => {
   // Dynamically import the ES module
   const envModule = await import('./env.js');
   const loadEnv = envModule.loadEnv;
-  
+
   // Load environment variables
   loadEnv('private');
-  
+
   const config = { ...electronBuilderConfig };
   return config;
 };

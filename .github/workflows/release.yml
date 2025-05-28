@@ -43,6 +43,12 @@ jobs:
           else
             echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
+      
+      - name: Create release tag
+        if: matrix.os == 'macos-latest' && steps.publishflag.outputs.publish == 'true'
+        run: |
+          git tag ${{ github.ref_name }}
+          git push origin ${{ github.ref_name }}
 
       - name: Prepare for app notarization (macOS only)
         if: matrix.os == 'macos-latest'
