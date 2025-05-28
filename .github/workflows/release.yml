@@ -7,10 +7,10 @@ on:
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout code
@@ -26,37 +26,37 @@ jobs:
 
       - name: Get latest commit message
         id: commitmsg
-        run: echo "::set-output name=msg::$(git log -1 --pretty=%B | tr -d '\n')"
+        run: echo "msg=$(git log -1 --pretty=%B | tr -d '\n')" >> "$GITHUB_OUTPUT"
 
       - name: Determine publish flag
         id: publishflag
         run: |
-          echo "Commit message: '${{ steps.commitmsg.outputs.msg }}'"
-          if echo "${{ steps.commitmsg.outputs.msg }}" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "Semver tag detected, skipping publish"
-            echo "::set-output name=publish::false"
+          if [[ "${{ steps.commitmsg.outputs.msg }}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
           else
-            echo "No semver tag, publishing"
-            echo "::set-output name=publish::true"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Prepare for app notarization
+      - name: Prepare for app notarization (macOS only)
         if: matrix.os == 'macos-latest'
         run: |
           mkdir -p ~/private_keys/
-          echo '${{ secrets.api_key }}' > ~/private_keys/AuthKey_${{ secrets.api_key_id }}.p8
+          echo "${{ secrets.api_key }}" > ~/private_keys/AuthKey_${{ secrets.api_key_id }}.p8
 
       - name: Build and conditionally publish Electron app
         run: |
           PUBLISH_FLAG=""
-          if [ "${{ steps.publishflag.outputs.publish }}" = "true" ]; then
+          if [[ "${{ steps.publishflag.outputs.publish }}" == "true" ]]; then
             PUBLISH_FLAG="--publish always"
           fi
 
-          yarn electron-builder build \
-            --config electron-builder.config.cjs \
-            --win --mac --linux \
-            $PUBLISH_FLAG
+          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            yarn electron-builder build --mac $PUBLISH_FLAG
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            yarn electron-builder build --win $PUBLISH_FLAG
+          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            yarn electron-builder build --linux $PUBLISH_FLAG
+          fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           API_KEY_ID: ${{ secrets.api_key_id }}
