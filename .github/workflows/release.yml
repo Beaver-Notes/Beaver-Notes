@@ -30,12 +30,12 @@ jobs:
           CERTIFICATE_PATH=$RUNNER_TEMP/cert.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-          echo -n "${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}" | base64 --decode > $CERTIFICATE_PATH
+          echo -n "${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
 
           security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
           security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
           security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security import $CERTIFICATE_PATH -P "$${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychains -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
 
