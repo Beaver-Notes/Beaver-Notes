@@ -1,4 +1,4 @@
-name: Build and Conditional Publish on PR Merge
+name: Build and Package
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Build frontend
+      - name: Create dist directory
         run: yarn build
 
       - name: Get latest commit message
@@ -54,11 +54,11 @@ jobs:
           fi
 
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            yarn electron-builder build --mac $PUBLISH_FLAG
+            yarn electron-builder build --config electron-builder.config.cjs --mac $PUBLISH_FLAG
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            yarn electron-builder build --win $PUBLISH_FLAG
+            yarn electron-builder build --config electron-builder.config.cjs --win $PUBLISH_FLAG
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            yarn electron-builder build --linux $PUBLISH_FLAG
+            yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
