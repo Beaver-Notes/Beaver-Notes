@@ -40,6 +40,23 @@
   <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
   <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
   <releases>
+    <release version="4.0.0" date="2025-05-29">
+      <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.0.0</url>
+      <description>
+        <p>Release description</p>
+        <ul>
+          <li>Overhauled Sync</li>
+          <li>Fixed Note Links</li>
+          <li>Improved Copy and Paste</li>
+          <li>Fixed Gap Cursor</li>
+          <li>Fixed Margin in Tiling Window Managers</li>
+          <li>Improved Note Import</li>
+          <li>Enhanced Recording</li>
+          <li>Fixed Collapsible Headings</li>
+          <li>Added Text Colors and Highlighters</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.9.0" date="2025-02-15">
       <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/3.9.0</url>
       <description>
