@@ -65,6 +65,10 @@ const electronBuilderConfig = {
         target: 'deb',
         arch: ['x64', 'arm64'],
       },
+      {
+        target: 'tar.gz',
+        arch: ['x64', 'arm64'],
+      },
     ],
     maintainer: 'Daniele Rolli <danielerolli@proton.me>',
     category: 'Productivity',

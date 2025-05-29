@@ -14,7 +14,6 @@ import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
 import path, { join, normalize } from 'path';
 import { URL } from 'url';
-const fs = require('node:fs');
 import {
   remove,
   readJson,
@@ -27,6 +26,9 @@ import {
   outputJson,
   pathExistsSync,
   writeFileSync,
+  readFileSync,
+  existsSync,
+  unlinkSync,
 } from 'fs-extra';
 import store from './store';
 
@@ -42,7 +44,7 @@ if (!isSingleInstance) {
 if (process.env.PORTABLE_EXECUTABLE_DIR)
   app.setPath(
     'userData',
-    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data'),
+    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
   );
 
 /**
@@ -104,7 +106,7 @@ const createWindow = async () => {
       ? env.VITE_DEV_SERVER_URL
       : new URL(
           '../renderer/dist/index.html',
-          'file://' + __dirname,
+          'file://' + __dirname
         ).toString();
 
   await mainWindow.loadURL(pageUrl);
@@ -124,7 +126,7 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
     title: 'Save PDF',
     defaultPath: path.join(
       app.getPath('desktop'),
-      pdfName || 'editor-output.pdf',
+      pdfName || 'editor-output.pdf'
     ),
     filters: [
       { name: 'PDF Files', extensions: ['pdf'] },
@@ -172,7 +174,7 @@ ipcMain.answerRenderer('print-pdf', async (options) => {
     });
 
     // Save the PDF to the selected path
-    fs.writeFileSync(filePath, pdfData);
+    writeFileSync(filePath, pdfData);
   } catch (error) {
     console.error(error);
   }
@@ -202,6 +204,13 @@ app.on('window-all-closed', () => {
   }
 });
 
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'file-assets',
+    privileges: { standard: true, secure: true, stream: true },
+  },
+]);
+
 app
   .whenReady()
   .then(async () => {
@@ -213,12 +222,39 @@ app
 
       callback({ path: normalize(imgPath) });
     });
-    protocol.registerFileProtocol('file-assets', (request, callback) => {
-      const url = request.url.substr(12);
-      const dir = store.settings.get('dataDir');
-      const filePath = `${dir}/file-assets/${url}`;
-      callback({ path: normalize(filePath) });
-    });
+    protocol.registerFileProtocol(
+      'file-assets',
+      (request, callback) => {
+        try {
+          const url = request.url.substr('file-assets://'.length);
+          const decodedUrl = decodeURIComponent(url);
+          const dir = store.settings.get('dataDir');
+          const filePath = path.join(dir, 'file-assets', decodedUrl);
+
+          if (!existsSync(filePath)) {
+            console.error(`File not found: ${filePath}`);
+            return callback({ error: -6 });
+          }
+
+          const mimeType = 'application/octet-stream';
+
+          callback({
+            path: filePath,
+            headers: {
+              'Content-Type': mimeType,
+              'Access-Control-Allow-Origin': '*',
+            },
+          });
+        } catch (err) {
+          console.error('Error handling file-assets protocol:', err);
+          callback({ error: -2 });
+        }
+      },
+      (error) => {
+        if (error) console.error('Failed to register protocol', error);
+      }
+    );
+
     await Promise.all([
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
@@ -270,7 +306,7 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
   mainWindow?.webContents.send(
     'update-status',
-    `Update available: ${info.version}`,
+    `Update available: ${info.version}`
   );
 });
 
@@ -285,7 +321,7 @@ autoUpdater.on('download-progress', (progress) => {
 autoUpdater.on('update-downloaded', (info) => {
   mainWindow?.webContents.send(
     'update-status',
-    `Update ready: ${info.version}`,
+    `Update ready: ${info.version}`
   );
 });
 
@@ -341,7 +377,7 @@ ipcMain.answerRenderer('open-file-external', async (src) => {
   }
 });
 
-ipcMain.handle('app:set-zoom', (newZoomLevel) => {
+ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {
   if (mainWindow && mainWindow.webContents) {
     mainWindow.webContents.setZoomFactor(newZoomLevel);
   }
@@ -350,48 +386,45 @@ ipcMain.handle('app:set-zoom', (newZoomLevel) => {
 ipcMain.answerRenderer('app:get-zoom', () => mainWindow.webContents.zoomFactor);
 
 ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) =>
-  win.setMenuBarVisibility(visibility),
+  win.setMenuBarVisibility(visibility)
 );
 
 ipcMain.answerRenderer('dialog:open', (props) => dialog.showOpenDialog(props));
 ipcMain.answerRenderer('dialog:message', (props) =>
-  dialog.showMessageBox(props),
+  dialog.showMessageBox(props)
 );
 ipcMain.answerRenderer('dialog:save', (props) => dialog.showSaveDialog(props));
 
 ipcMain.answerRenderer('fs:copy', ({ path, dest }) => copy(path, dest));
 ipcMain.answerRenderer('fs:output-json', ({ path, data }) =>
-  outputJson(path, data),
+  outputJson(path, data)
 );
 ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
 ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
 ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
 ipcMain.answerRenderer('fs:remove', (path) => remove(path));
 ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-  writeFileSync(path, data),
+  writeFileSync(path, data)
 );
-ipcMain.answerRenderer('fs:readFile', (path) => fs.readFileSync(path, 'utf8'));
+ipcMain.answerRenderer('fs:readFile', (path) => readFileSync(path, 'utf8'));
 ipcMain.answerRenderer('fs:readData', (filePath) => {
-  // Handle 'assets://' and 'file-assets://' paths
   if (filePath.startsWith('assets://')) {
-    const url = filePath.substr(9); // Remove 'assets://'
+    const url = filePath.substr(9);
     const dir = store.settings.get('dataDir');
     filePath = path.join(dir, 'notes-assets', url);
   } else if (filePath.startsWith('file-assets://')) {
-    const url = filePath.substr(14); // Remove 'file-assets://'
+    const url = filePath.substr(14);
     const dir = store.settings.get('dataDir');
     filePath = path.join(dir, 'file-assets', url);
   }
 
-  // Now filePath should be a valid file system path
   try {
-    return fs.readFileSync(filePath, 'base64'); // Return base64-encoded file
+    return readFileSync(filePath, 'base64');
   } catch (error) {
     console.error('Error reading file:', error);
     return null;
   }
 });
-
 ipcMain.answerRenderer('fs:readdir', async (dirPath) => {
   return readdir(dirPath);
 });
@@ -402,12 +435,9 @@ ipcMain.answerRenderer('fs:mkdir', async (dirPath) => {
   await mkdir(dirPath, { recursive: true });
 });
 ipcMain.answerRenderer('fs:unlink', async (filePath) => {
-  fs.unlinkSync(filePath);
+  unlinkSync(filePath);
 });
-ipcMain.answerRenderer('fs:readData', (filePath) => {
-  return fs.readFileSync(filePath, 'base64'); // Returns base64-encoded file
-});
-ipcMain.handle('fs:isFile', async (filePath) => {
+ipcMain.answerRenderer('fs:isFile', async (filePath) => {
   try {
     const isFile = await pathExists(filePath);
     return isFile;
@@ -426,22 +456,22 @@ ipcMain.answerRenderer('helper:relaunch', (options = {}) => {
 ipcMain.answerRenderer('helper:get-path', (name) => app.getPath(name));
 ipcMain.answerRenderer(
   'helper:is-dark-theme',
-  () => nativeTheme.shouldUseDarkColors,
+  () => nativeTheme.shouldUseDarkColors
 );
 
 ipcMain.answerRenderer('storage:store', (name) => store[name]?.store);
 ipcMain.answerRenderer(
   'storage:replace',
-  ({ name, data }) => (store[name].store = data),
+  ({ name, data }) => (store[name].store = data)
 );
 ipcMain.answerRenderer('storage:get', ({ name, key, def }) =>
-  store[name]?.get(key, def),
+  store[name]?.get(key, def)
 );
 ipcMain.answerRenderer('storage:set', ({ name, key, value }) =>
-  store[name]?.set(key, value),
+  store[name]?.set(key, value)
 );
 ipcMain.answerRenderer('storage:delete', ({ name, key }) =>
-  store[name]?.delete(key),
+  store[name]?.delete(key)
 );
 ipcMain.answerRenderer('storage:has', ({ name, key }) => store[name]?.has(key));
 ipcMain.answerRenderer('storage:clear', (name) => store[name]?.clear());
@@ -474,7 +504,7 @@ async function getTranslations(lang = 'en') {
   } catch (error) {
     console.error(
       `Failed to load translations for ${lang}, falling back to English.`,
-      error,
+      error
     );
     const fallback = await import(
       '../../renderer/src/pages/settings/locales/en.json'
