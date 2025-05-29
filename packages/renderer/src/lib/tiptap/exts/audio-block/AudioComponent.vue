@@ -102,8 +102,6 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed } from 'vue';
 
-const { ipcRenderer } = window.electron;
-
 export default {
   components: { NodeViewWrapper },
   props: nodeViewProps,
@@ -123,8 +121,7 @@ export default {
     const loadAudioFile = async () => {
       try {
         const filePath = props.node.attrs.src; // Full path to audio file
-        const base64Data = await ipcRenderer.callMain('fs:readData', filePath);
-        audioSrc.value = `data:audio/mpeg;base64,${base64Data}`;
+        audioSrc.value = filePath;
         preloadAudio();
       } catch (error) {
         console.error('Failed to load audio file via IPC:', error);

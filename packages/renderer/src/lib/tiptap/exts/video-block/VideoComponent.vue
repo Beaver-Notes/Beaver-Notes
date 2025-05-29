@@ -116,8 +116,6 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted, computed } from 'vue';
 
-const { ipcRenderer } = window.electron;
-
 export default {
   components: {
     NodeViewWrapper,
@@ -138,8 +136,7 @@ export default {
     const loadVideoFromFile = async () => {
       try {
         const filePath = props.node.attrs.src;
-        const base64Data = await ipcRenderer.callMain('fs:readData', filePath);
-        videoSrc.value = `data:video/mp4;base64,${base64Data}`;
+        videoSrc.value = filePath;
         preloadVideo();
       } catch (error) {
         console.error('Failed to read video file:', error);
