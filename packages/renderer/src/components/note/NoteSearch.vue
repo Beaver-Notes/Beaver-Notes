@@ -129,7 +129,7 @@ export default {
       props.editor.commands.setSearchTerm(state.query);
       props.editor.commands.setReplaceTerm(state.replaceWith);
       props.editor.commands.setCaseSensitive(state.caseSensitive);
-      props.editor.commands.nextSearchResult();
+      goToSelection();
     }
 
     function findNextResult() {
@@ -182,8 +182,7 @@ export default {
       'alt+r': toggleRegex,
       'alt+enter': replaceText,
       'mod+alt+enter': replaceAllText,
-      'ctrl+shift+f': findNextResult,
-      'ctrl+shift+p': findPreviousResult,
+      enter: findNextResult,
     };
 
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
