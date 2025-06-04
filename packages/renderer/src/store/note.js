@@ -185,9 +185,9 @@ export const useNoteStore = defineStore('note', {
         await storage.set('isLocked', this.isLocked);
 
         // Track the change for sync
-        await trackChange('notes', this.data);
-        await trackChange('lockStatus', this.lockStatus);
-        await trackChange('isLocked', this.isLocked);
+        await trackChange(`notes.${id}`, this.data[id]);
+        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
+        await trackChange(`isLocked.${id}`, this.isLocked[id]);
 
         return this.data[id];
       } catch (error) {
@@ -209,7 +209,7 @@ export const useNoteStore = defineStore('note', {
         await storage.set(`notes.${id}`, this.data[id]);
 
         // Track the change for sync
-        await trackChange('notes', this.data);
+        await trackChange(`notes.${id}`, this.data[id]);
 
         return this.data[id];
       } catch (error) {
@@ -240,9 +240,9 @@ export const useNoteStore = defineStore('note', {
         await storage.set('isLocked', this.isLocked);
         await storage.set('deletedIds', this.deletedIds);
 
-        await trackChange('notes', this.data);
-        await trackChange('lockStatus', this.lockStatus);
-        await trackChange('isLocked', this.isLocked);
+        await trackChange(`notes.${id}`, this.data[id]);
+        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
+        await trackChange(`isLocked.${id}`, this.isLocked[id]);
         await trackChange('deletedIds', this.deletedIds);
 
         try {
@@ -314,9 +314,9 @@ export const useNoteStore = defineStore('note', {
         ]);
 
         // Track changes for sync
-        await trackChange('notes', this.data);
-        await trackChange('lockStatus', this.lockStatus);
-        await trackChange('isLocked', this.isLocked);
+        await trackChange(`notes.${id}`, this.data[id]);
+        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
+        await trackChange(`isLocked.${id}`, this.isLocked[id]);
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -355,7 +355,7 @@ export const useNoteStore = defineStore('note', {
           ]);
 
           // Track changes for sync
-          await trackChange('notes', this.data);
+          await trackChange(`notes.${id}`, this.data[id]);
           await trackChange('lockStatus', this.lockStatus);
           await trackChange('isLocked', this.isLocked);
           return;
@@ -394,9 +394,9 @@ export const useNoteStore = defineStore('note', {
         ]);
 
         // Track changes for sync
-        await trackChange('notes', this.data);
-        await trackChange('lockStatus', this.lockStatus);
-        await trackChange('isLocked', this.isLocked);
+        await trackChange(`notes.${id}`, this.data[id]);
+        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
+        await trackChange(`isLocked.${id}`, this.isLocked[id]);
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
@@ -424,7 +424,7 @@ export const useNoteStore = defineStore('note', {
         await storage.set(`notes.${id}`, this.data[id]);
 
         // Track change for sync
-        await trackChange('notes', this.data);
+        await trackChange(`notes.${id}`, this.data[id]);
 
         return labelId;
       } catch (error) {
@@ -454,7 +454,7 @@ export const useNoteStore = defineStore('note', {
         await storage.set(`notes.${id}`, this.data[id]);
 
         // Track change for sync
-        await trackChange('notes', this.data);
+        await trackChange(`notes.${id}`, this.data[id]);
 
         return labelId;
       } catch (error) {

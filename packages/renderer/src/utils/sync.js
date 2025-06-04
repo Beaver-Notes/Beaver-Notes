@@ -35,15 +35,23 @@ function generateChangeId() {
 
 // Debounce
 let syncTimeout = null;
+let lastScheduled = 0;
 const SYNC_DEBOUNCE_MS = 60000; // 60 seconds
 
 function scheduleSync(immediate = false) {
-  clearTimeout(syncTimeout);
-  if (immediate) {
-    syncData();
-  } else {
-    syncTimeout = setTimeout(syncData, SYNC_DEBOUNCE_MS);
+  const now = Date.now();
+
+  if (immediate || now - lastScheduled > SYNC_DEBOUNCE_MS) {
+    clearTimeout(syncTimeout);
+    lastScheduled = now;
+    return syncData();
   }
+
+  clearTimeout(syncTimeout);
+  syncTimeout = setTimeout(() => {
+    lastScheduled = Date.now();
+    syncData();
+  }, SYNC_DEBOUNCE_MS);
 }
 
 // Change Tracking
