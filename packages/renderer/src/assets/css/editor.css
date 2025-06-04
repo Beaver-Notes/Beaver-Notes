@@ -107,7 +107,7 @@ img.ProseMirror-selectednode {
         user-select: none;
       }
       p {
-        margin: 0;
+        margin: 0 !important;
       }
       input[type='checkbox'] {
         appearance: none;
@@ -122,8 +122,7 @@ img.ProseMirror-selectednode {
       }
 
       input[type='checkbox']:checked {
-        border-color: #fbbf24;
-        background-color: #fbbf24;
+        @apply bg-primary border-primary border-2;
       }
 
       /* Optional: You can add a custom background or other styles for the checked state */

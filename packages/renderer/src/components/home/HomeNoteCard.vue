@@ -16,7 +16,7 @@
           v-for="label in note.labels"
           :key="label"
           :to="`/?label=${label}`"
-          class="inline-block mr-2 hover:underline cursor-pointer"
+          class="inline-block hover:underline cursor-pointer"
           @click="$emit('update:label', label)"
         >
           #{{ label }}
@@ -36,23 +36,24 @@
           : truncateText(note.content, 160) || translations.card.content
       }}
     </router-link>
-
-    <button
-      v-if="note.isLocked"
-      class="hover:text-gray-600 dark:text-[color:var(--selected-dark-text)] h-full mr-2 transition"
-      @click="unlockNote(note.id)"
+    <div
+      class="flex z-10 items-center mt-4 text-gray-600 dark:text-gray-200 gap-2"
     >
-      <v-remixicon
-        class="w-24 h-auto text-gray-600 dark:text-[color:var(--selected-dark-text)]"
-        name="riLockLine"
-      />
-      <div
-        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
+      <button
+        v-if="note.isLocked"
+        class="hover:text-gray-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
+        @click="unlockNote(note.id)"
       >
-        {{ translations.card.unlocktoedit || '-' }}
-      </div>
-    </button>
-    <div class="flex z-10 items-center mt-4 text-gray-600 dark:text-gray-200">
+        <v-remixicon
+          class="w-24 h-auto text-gray-600 dark:text-[color:var(--selected-dark-text)]"
+          name="riLockLine"
+        />
+        <div
+          class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
+        >
+          {{ translations.card.unlocktoedit || '-' }}
+        </div>
+      </button>
       <button
         v-if="!note.isArchived"
         v-tooltip.group="
@@ -63,7 +64,7 @@
         :class="[
           note.isBookmarked
             ? 'text-primary opacity-90 hover:opacity-100'
-            : 'hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition',
+            : 'hover:text-gray-900 dark:hover:text-[color:var(--selected-dark-text)] transition',
         ]"
         @click="toggleBookmark(note)"
       >
@@ -77,7 +78,7 @@
             ? translations.card.unarchive
             : translations.card.archive
         "
-        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
+        class="hover:text-gray-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="toggleArchive(note)"
       >
         <v-remixicon
@@ -87,7 +88,7 @@
       <button
         v-if="!note.isLocked"
         v-tooltip.group="translations.card.lock"
-        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
+        class="hover:text-gray-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="lockNote(note.id)"
       >
         <v-remixicon name="riLockLine" />
@@ -95,14 +96,14 @@
       <button
         v-if="note.isLocked"
         v-tooltip.group="translations.card.unlock"
-        class="hover:text-gray-900 mr-2 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
+        class="hover:text-gray-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
         <v-remixicon name="riLockUnlockLine" />
       </button>
       <button
         v-tooltip.group="translations.card.delete"
-        class="hover:text-red-500 rtl:mr-2 dark:hover:text-red-400 transition invisible group-hover:visible"
+        class="hover:text-red-500 rtl: dark:hover:text-red-400 transition invisible group-hover:visible"
         @click="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" />

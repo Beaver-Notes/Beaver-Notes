@@ -42,7 +42,7 @@
       v-tooltip:right="
         translations.sidebar.toggleSync + ' (' + keyBinding + '+Shift+Y)'
       "
-      :class="[theme.isDark() ? 'text-primary' : '']"
+      :class="[spinning ? 'text-secondary' : '']"
       class="transition p-2 mb-4"
       @click="manualSync"
     >
@@ -55,7 +55,7 @@
       v-tooltip:right="
         translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
       "
-      :class="[theme.isDark() ? 'text-primary' : '']"
+      :class="[theme.isDark() ? 'text-secondary' : '']"
       class="transition p-2 mb-4"
       @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
     >
