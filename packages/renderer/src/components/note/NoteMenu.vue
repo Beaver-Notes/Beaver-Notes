@@ -5,345 +5,7 @@
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inReaderMode }"
     @wheel.passive="changeWheelDirection"
   >
-    <div
-      v-if="isTableActive"
-      class="w-full h-full flex items-center justify-between w-full"
-    >
-      <button
-        v-tooltip.group="translations.menu.paragraph"
-        :class="{ 'is-active': editor.isActive('paragraph') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().setParagraph().run()"
-      >
-        <v-remixicon name="riParagraph" />
-      </button>
-      <button
-        v-for="heading in [1, 2]"
-        :key="heading"
-        v-tooltip.group="`${translations.menu.heading} ${heading}`"
-        :class="{ 'is-active': editor.isActive('heading', { level: heading }) }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().toggleHeading({ level: heading }).run()"
-      >
-        <v-remixicon :name="`riH${heading}`" />
-      </button>
-      <hr class="border-r mx-2 h-6" />
-      <button
-        v-for="action in textFormatting"
-        :key="action.name"
-        v-tooltip.group="action.title"
-        :class="{ 'is-active': editor.isActive(action.activeState) }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="action.handler"
-      >
-        <v-remixicon :name="action.icon" />
-      </button>
-      <ui-popover padding="p-2 flex items-center">
-        <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
-            <v-remixicon name="riFontColor" />
-          </button>
-        </template>
-        <div class="px-2">
-          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
-          <div class="grid grid-cols-4 gap-2">
-            <div
-              v-for="color in textColors"
-              :key="color"
-              :class="['w-8 h-8 cursor-pointer rounded']"
-              @click="setTextColor(color)"
-            >
-              <v-remixicon name="riFontColor" :style="{ color: color }" />
-            </div>
-          </div>
-          <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
-          <div class="grid grid-cols-4 gap-2">
-            <div
-              v-for="color in highlighterColors"
-              :key="color"
-              :class="['w-8 h-8 cursor-pointer rounded', color]"
-              @click="setHighlightColor(color)"
-            ></div>
-          </div>
-        </div>
-      </ui-popover>
-      <hr class="border-r mx-2 h-6" />
-      <button
-        v-tooltip.group="translations.menu.addRowAbove"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().addRowBefore().run()"
-      >
-        <v-remixicon name="riInsertRowTop" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.addRowBelow"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().addRowAfter().run()"
-      >
-        <v-remixicon name="riInsertRowBottom" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.deleteRow"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().deleteRow().run()"
-      >
-        <v-remixicon name="riDeleteRow" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.addColumnLeft"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().addColumnBefore().run()"
-      >
-        <v-remixicon name="riInsertColumnLeft" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.addColumnRight"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().addColumnAfter().run()"
-      >
-        <v-remixicon name="riInsertColumnRight" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.deleteColumn"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().deleteColumn().run()"
-      >
-        <v-remixicon name="riDeleteColumn" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.mergeorSplit"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().mergeOrSplit().run()"
-      >
-        <v-remixicon name="riSplitCellsHorizontal" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.toggleHeader"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().toggleHeaderCell().run()"
-      >
-        <v-remixicon name="riBrush2Fill" />
-      </button>
-      <hr class="border-r mx-2 h-6" />
-      <ui-popover padding="p-2 flex items-center">
-        <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.image"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
-            <v-remixicon name="riImageLine" />
-          </button>
-        </template>
-        <input
-          v-model="imgUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.imgurl || '-'"
-          @keyup.enter="insertImage"
-        />
-        <v-remixicon
-          name="riFolderOpenLine"
-          class="mr-2 cursor-pointer"
-          @click="editorImage.select(true)"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="insertImage"
-        />
-      </ui-popover>
-      <div
-        :class="[
-          'flex items-center space-x-2',
-          isRecording
-            ? 'bg-primary text-[color:var(--selected-dark-text)] rounded-full'
-            : '',
-        ]"
-      >
-        <button
-          v-tooltip.group="translations.menu.record"
-          :class="[
-            'transition hoverable h-10 p-2 flex items-center justify-center',
-            isRecording
-              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
-              : 'rounded-full hover',
-          ]"
-          @click="toggleRecording"
-        >
-          <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
-        </button>
-        <span v-if="isRecording" class="font-secondary font-semibold text-sm">
-          {{ formattedTime }}
-        </span>
-        <button
-          v-if="isRecording"
-          v-tooltip.group="
-            isPaused ? translations.menu.resume : translations.menu.pause
-          "
-          :class="[
-            'transition hoverable h-10 p-2 flex items-center justify-center',
-            isPaused
-              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
-              : 'rounded-full hover',
-          ]"
-          @click="pauseResume"
-        >
-          <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
-        </button>
-      </div>
-      <button
-        v-tooltip.group="translations.menu.Link"
-        :class="{ 'is-active': editor.isActive('link') }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().toggleLink({ href: '' }).run()"
-      >
-        <v-remixicon name="riLink" />
-      </button>
-      <ui-popover padding="p-2 flex items-center">
-        <template #trigger>
-          <button
-            v-tooltip.group="translations.menu.File"
-            class="transition hoverable h-8 px-1 rounded-lg"
-          >
-            <v-remixicon name="riFile2Line" />
-          </button>
-        </template>
-        <input
-          v-model="fileUrl"
-          class="bg-transparent mr-2"
-          :placeholder="translations.menu.fileUrl || '-'"
-          @keyup.enter="insertFile"
-        />
-        <v-remixicon
-          name="riFolderOpenLine"
-          class="mr-2 cursor-pointer"
-          @click="$refs.fileInput.click()"
-        />
-        <input
-          ref="fileInput"
-          type="file"
-          class="hidden"
-          multiple
-          @change="handleFileSelect"
-        />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="insertFile"
-        />
-      </ui-popover>
-      <button
-        v-tooltip.group="translations.menu.table"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="insertTableWithEmptyParagraph"
-      >
-        <v-remixicon name="riTableLine" />
-      </button>
-      <ui-popover padding="p-2 flex items-center">
-        <ui-popover padding="p-2 flex items-center">
-          <template #trigger>
-            <button
-              v-tooltip.group="translations.menu.Embed"
-              class="transition hoverable h-8 px-1 rounded-lg"
-            >
-              <v-remixicon name="riPagesLine" />
-            </button>
-          </template>
-          <input
-            v-model="EmbedUrl"
-            class="bg-transparent mr-2"
-            :placeholder="translations.menu.EmbedUrl || '-'"
-            @keyup.enter="addIframe"
-          />
-          <v-remixicon
-            name="riSave3Line"
-            class="mr-2 cursor-pointer"
-            @click="addIframe"
-          />
-        </ui-popover>
-        <template #trigger>
-          <button class="transition hoverable h-8 px-1 rounded-lg">
-            <v-remixicon name="riMoreFill" />
-          </button>
-        </template>
-        <button
-          v-tooltip.group="translations.menu.draw"
-          class="transition hoverable h-8 px-1 rounded-lg"
-          @click="editor.commands.insertPaper"
-        >
-          <v-remixicon name="riBrushLine" />
-        </button>
-        <ui-popover padding="p-2 flex items-center">
-          <template #trigger>
-            <button
-              v-tooltip.group="translations.menu.video"
-              class="transition hoverable h-8 px-1 rounded-lg"
-            >
-              <v-remixicon name="riMovieLine" />
-            </button>
-          </template>
-          <input
-            v-model="VideoUrl"
-            class="bg-transparent mr-2"
-            :placeholder="translations.menu.videoUrl || '-'"
-            @keyup.enter="insertVideo"
-          />
-          <v-remixicon
-            name="riFolderOpenLine"
-            class="mr-2 cursor-pointer"
-            @click="$refs.videoInput.click()"
-          />
-          <input
-            ref="videoInput"
-            type="file"
-            class="hidden"
-            multiple
-            @change="handleVideoSelect"
-          />
-          <input
-            ref="fileInput"
-            type="file"
-            class="hidden"
-            multiple
-            @change="handleFileSelect"
-          />
-          <v-remixicon
-            name="riSave3Line"
-            class="mr-2 cursor-pointer"
-            @click="insertVideo"
-          />
-        </ui-popover>
-      </ui-popover>
-      <hr class="border-r mx-2 h-6" />
-      <button
-        v-tooltip.group="translations.menu.deleteTable"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().deleteTable().run()"
-      >
-        <v-remixicon name="riDeleteBin6Line" />
-      </button>
-      <ui-popover
-        v-slot="{ isShow }"
-        v-model="showHeadingsTree"
-        trigger="manual"
-        @show="getHeadingsTree"
-        @close="editor.commands.focus()"
-      >
-        <note-menu-headings-tree
-          v-if="isShow"
-          :editor="editor"
-          :headings="headingsTree"
-          @close="
-            showHeadingsTree = false;
-            editor.commands.focus();
-          "
-        />
-      </ui-popover>
-    </div>
-    <div v-else class="w-full h-full flex items-center justify-between w-full">
+    <div class="w-full h-full flex items-center justify-between w-full">
       <!-- <input
         type="number"
         class="
@@ -422,16 +84,76 @@
         </div>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
-      <button
-        v-for="action in lists"
-        :key="action.name"
-        v-tooltip.group="action.title"
-        :class="{ 'is-active': editor.isActive(action.activeState) }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="action.handler"
-      >
-        <v-remixicon :name="action.icon" />
-      </button>
+      <div v-if="!isTableActive">
+        <button
+          v-for="action in lists"
+          :key="action.name"
+          v-tooltip.group="action.title"
+          :class="{ 'is-active': editor.isActive(action.activeState) }"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="action.handler"
+        >
+          <v-remixicon :name="action.icon" />
+        </button>
+      </div>
+      <div v-else>
+        <button
+          v-tooltip.group="translations.menu.addRowAbove"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().addRowBefore().run()"
+        >
+          <v-remixicon name="riInsertRowTop" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.addRowBelow"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().addRowAfter().run()"
+        >
+          <v-remixicon name="riInsertRowBottom" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.deleteRow"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().deleteRow().run()"
+        >
+          <v-remixicon name="riDeleteRow" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.addColumnLeft"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().addColumnBefore().run()"
+        >
+          <v-remixicon name="riInsertColumnLeft" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.addColumnRight"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().addColumnAfter().run()"
+        >
+          <v-remixicon name="riInsertColumnRight" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.deleteColumn"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().deleteColumn().run()"
+        >
+          <v-remixicon name="riDeleteColumn" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.mergeorSplit"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().mergeOrSplit().run()"
+        >
+          <v-remixicon name="riSplitCellsHorizontal" />
+        </button>
+        <button
+          v-tooltip.group="translations.menu.toggleHeader"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().toggleHeaderCell().run()"
+        >
+          <v-remixicon name="riBrush2Fill" />
+        </button>
+      </div>
       <hr class="border-r mx-2 h-6" />
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
@@ -622,91 +344,79 @@
         </ui-popover>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
-      <ui-popover padding="p-2 flex-col items-center print:hidden">
-        <template #trigger>
-          <button class="transition hoverable h-8 px-1 rounded-lg">
-            <v-remixicon name="riShare2Line" />
+      <div v-if="!isTableActive" class="flex items-center">
+        <ui-popover padding="p-2 grid grid-cols-2 items-center print:hidden">
+          <template #trigger>
+            <button class="transition hoverable h-8 px-1 rounded-lg">
+              <v-remixicon name="riShare2Line" />
+            </button>
+          </template>
+          <button
+            v-for="action in share"
+            :key="action.name"
+            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+            @click="action.handler"
+          >
+            <v-remixicon :name="action.icon" />
+            <div
+              class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+            >
+              <p
+                class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
+              >
+                {{ action.title }}
+              </p>
+            </div>
           </button>
-        </template>
+        </ui-popover>
+        <hr class="border-r mx-2 h-6" />
         <button
-          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
-          @click="printContent"
+          v-if="showAdavancedSettings"
+          v-tooltip.group="translations.menu.delete"
+          class="hoverable h-8 px-1 rounded-lg h-full"
+          @click="deleteNode"
         >
-          <v-remixicon
-            name="riArticleLine"
-            class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
-          />
-          <div
-            class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
-          >
-            <p
-              class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
-            >
-              {{ translations.menu.pdf || '-' }}
-            </p>
-          </div>
+          <v-remixicon name="riDeleteBin6Line" />
         </button>
         <button
-          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
-          @click="shareNote"
+          v-tooltip.group="translations.menu.readerMode"
+          :class="{ 'is-active': store.inReaderMode }"
+          class="hoverable h-8 px-1 rounded-lg h-full"
+          @click="toggleReaderMode"
         >
-          <v-remixicon
-            name="riFileTextFill"
-            class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
-          />
-          <div
-            class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
-          >
-            <p
-              class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
-            >
-              {{ translations.menu.bea || '-' }}
-            </p>
-          </div>
+          <v-remixicon name="riArticleLine" />
         </button>
-      </ui-popover>
-      <hr class="border-r mx-2 h-6" />
-      <button
-        v-if="showAdavancedSettings"
-        v-tooltip.group="translations.menu.delete"
-        class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="deleteNode"
-      >
-        <v-remixicon name="riDeleteBin6Line" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.readerMode"
-        :class="{ 'is-active': store.inReaderMode }"
-        class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="toggleReaderMode"
-      >
-        <v-remixicon name="riArticleLine" />
-      </button>
-      <button
-        v-tooltip.group="translations.menu.headingsTree"
-        :class="{ 'is-active': tree }"
-        class="hoverable h-8 px-1 rounded-lg h-full"
-        @click="showHeadingsTree = !showHeadingsTree"
-      >
-        <v-remixicon name="riSearchLine" />
-      </button>
-      <ui-popover
-        v-slot="{ isShow }"
-        v-model="showHeadingsTree"
-        trigger="manual"
-        @show="getHeadingsTree"
-        @close="editor.commands.focus()"
-      >
-        <note-menu-headings-tree
-          v-if="isShow"
-          :editor="editor"
-          :headings="headingsTree"
-          @close="
-            showHeadingsTree = false;
-            editor.commands.focus();
-          "
-        />
-      </ui-popover>
+        <button
+          v-tooltip.group="translations.menu.headingsTree"
+          :class="{ 'is-active': tree }"
+          class="hoverable h-8 px-1 rounded-lg h-full"
+          @click="showHeadingsTree = !showHeadingsTree"
+        >
+          <v-remixicon name="riSearchLine" />
+        </button>
+        <ui-popover
+          v-slot="{ isShow }"
+          v-model="showHeadingsTree"
+          trigger="manual"
+          @show="getHeadingsTree"
+        >
+          <note-menu-headings-tree
+            v-if="isShow"
+            :editor="editor"
+            :headings="headingsTree"
+            @close="showHeadingsTree = false"
+          />
+        </ui-popover>
+      </div>
+      <div v-else>
+        <button
+          v-tooltip.group="translations.menu.deleteTable"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().deleteTable().run()"
+        >
+          <v-remixicon name="riDeleteBin6Line" />
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -731,7 +441,7 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
-import { exportNoteById } from '@/utils/share';
+import { exportBEA, exportHTML, exportMD } from '@/utils/share';
 import { useTranslation } from '@/composable/translations';
 
 const { path, ipcRenderer } = window.electron;
@@ -819,12 +529,43 @@ export default {
         },
       ];
     });
+
+    const share = computed(() => {
+      return [
+        {
+          name: 'Bea',
+          title: 'BEA',
+          icon: 'riFileTextFill',
+          handler: () => shareNote(),
+        },
+        {
+          name: 'html',
+          title: 'HTML',
+          icon: 'riPagesLine',
+          handler: () => shareHTML(),
+        },
+        {
+          name: 'pdf',
+          title: 'PDF',
+          icon: 'riArticleLine',
+          handler: () => printContent(),
+        },
+        {
+          name: 'markdown',
+          title: 'MD',
+          icon: 'riMarkdownLine',
+          handler: () => shareMarkdown().run(),
+        },
+      ];
+    });
+
     const isTableActive = computed(() => {
       return (
         props.editor.isActive('tableCell') ||
         props.editor.isActive('tableHeader')
       );
     });
+
     const textFormatting = computed(() => {
       return [
         {
@@ -885,7 +626,15 @@ export default {
     }
 
     function shareNote() {
-      exportNoteById(props.id, props.note.title);
+      exportBEA(props.id, props.note.title);
+    }
+
+    function shareMarkdown() {
+      exportMD(props.id, props.note.title, props.editor);
+    }
+
+    function shareHTML() {
+      exportHTML(props.id, props.note.title, props.editor);
     }
 
     function insertImage() {
@@ -940,15 +689,26 @@ export default {
     function getHeadingsTree() {
       const editorEl = props.editor.options.element;
       const headingEls = editorEl.querySelectorAll('h1, h2, h3, h4');
-      const headingsArr = Array.from(headingEls).map((heading) => ({
-        el: heading,
-        tag: heading.tagName,
-        top: heading.offsetTop,
-        text: heading.innerText.slice(0, 120),
-      }));
+      const headingsArr = Array.from(headingEls).map((heading) => {
+        let pos = null;
+        try {
+          pos = props.editor.view.posAtDOM(heading, 0);
+        } catch (err) {
+          console.warn('Could not resolve position for heading:', heading, err);
+        }
+
+        return {
+          el: heading,
+          tag: heading.tagName,
+          top: heading.offsetTop,
+          text: heading.innerText.slice(0, 120),
+          pos,
+        };
+      });
 
       headingsTree.value = headingsArr;
     }
+
     const setZoom = (newZoomLevel) => {
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
 
@@ -1097,7 +857,11 @@ export default {
 
     function setTextColor(color) {
       if (props.editor.isActive('textStyle', { color })) {
-        props.editor.chain().focus().unsetColor().run();
+        props.editor
+          .chain()
+          .focus()
+          .updateAttributes('textStyle', { color: null }) // selectively unset
+          .run();
       } else {
         props.editor.commands.setColor(color);
       }
@@ -1141,6 +905,9 @@ export default {
       container,
       changeWheelDirection,
       shareNote,
+      shareHTML,
+      shareMarkdown,
+      share,
     };
   },
   methods: {

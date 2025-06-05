@@ -182,7 +182,6 @@ export default {
 
     function closeSearch() {
       showSearch.value = false;
-      editor.value.commands.focus();
     }
 
     watch(
