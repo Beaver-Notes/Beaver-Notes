@@ -195,7 +195,7 @@ export class MenuManager {
 
     try {
       const translations = await import(
-        `../../renderer/src/pages/settings/locales/${lang}.json`
+        `../../../renderer/src/pages/settings/locales/${lang}.json`
       );
       return translations.default;
     } catch (error) {

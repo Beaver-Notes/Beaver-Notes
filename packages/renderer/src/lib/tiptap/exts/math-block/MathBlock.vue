@@ -7,7 +7,7 @@
           :value="node.attrs.content"
           type="textarea"
           :placeholder="translations._idvue.MathPlaceholder || '-'"
-          class="bg-transparent flex-1"
+          class="bg-transparent flex-1 resize-y"
           style="direction: ltr"
           @input="updateContent($event, 'content', true)"
           @keydown="handleKeydown"
@@ -17,7 +17,7 @@
           v-autofocus
           :value="node.attrs.macros"
           placeholder="KaTeX macros"
-          class="bg-transparent ml-2 pl-2 border-l flex-1"
+          class="bg-transparent ml-2 pl-2 border-l flex-1 resize-y"
           @input="updateContent($event, 'macros', true)"
           @keydown="handleKeydown"
         />
@@ -39,12 +39,20 @@
         />
       </div>
     </div>
-    <p
-      ref="contentRef"
-      :class="{ 'dark:text-purple-400 text-purple-500': selected }"
-    ></p>
+
+    <!-- Scrollable output container -->
+    <div
+      class="overflow-x-auto max-w-full p-2 rounded bg-white dark:bg-zinc-900"
+      style="white-space: nowrap"
+    >
+      <p
+        ref="contentRef"
+        :class="{ 'dark:text-purple-400 text-purple-500': selected }"
+      ></p>
+    </div>
   </node-view-wrapper>
 </template>
+
 <script>
 import { shallowReactive, onMounted, ref, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
@@ -67,21 +75,23 @@ export default {
 
     function renderContent() {
       let macros = {};
-
       try {
         macros = JSON.parse(props.node.attrs.macros);
-      } catch (error) {
-        // Do nothing
+      } catch {
+        // ignore if macros are not valid JSON
       }
 
       katex.render(props.node.attrs.content || 'Empty', contentRef.value, {
         macros,
         displayMode: true,
         throwOnError: false,
+        fleqn: true,
+        trust: true,
+        strict: 'ignore',
+        output: 'htmlAndMathml',
       });
     }
 
-    // Debounce function to limit the rate of calling renderContent
     const debounce = (func, delay) => {
       let timer;
       return function (...args) {
@@ -97,7 +107,6 @@ export default {
       props.updateAttributes({ [key]: value });
 
       if (isRenderContent) {
-        // Use nextTick to ensure DOM updates are applied before rendering content
         nextTick(() => {
           debouncedRenderContent();
         });
@@ -106,7 +115,6 @@ export default {
 
     function handleKeydown(event) {
       const { ctrlKey, shiftKey, metaKey, key } = event;
-
       const isModEnter = (ctrlKey || metaKey) && key === 'Enter';
       const isMacrosShortcut = (ctrlKey || metaKey) && shiftKey && key === 'M';
       const isNotEdited =
@@ -123,24 +131,11 @@ export default {
       }
     }
 
-    onMounted(() => {
-      props.updateAttributes({ init: 'true' });
-      renderContent();
-    });
-
     const translations = shallowReactive({
       _idvue: {
         exit: '_idvue.exit',
         MathPlaceholder: '_idvue.MathPlaceholder',
       },
-    });
-
-    onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
     });
 
     const loadTranslations = async () => {
@@ -155,6 +150,15 @@ export default {
         return null;
       }
     };
+
+    onMounted(async () => {
+      props.updateAttributes({ init: 'true' });
+      renderContent();
+      const loadedTranslations = await loadTranslations();
+      if (loadedTranslations) {
+        Object.assign(translations, loadedTranslations);
+      }
+    });
 
     return {
       contentRef,

@@ -10,9 +10,9 @@ import { PDFHandler } from './handlers/pdf-handler.js';
 export class IPCHandlers {
   constructor() {
     this.appHandlers = new AppHandlers();
-    this.dialogHandlers = new DialogHandlers();
-    this.fileSystemHandlers = new FileSystemHandlers();
     this.storageHandlers = new StorageHandlers();
+    this.fileSystemHandlers = new FileSystemHandlers();
+    this.dialogHandlers = new DialogHandlers();
     this.pdfHandler = new PDFHandler();
   }
 

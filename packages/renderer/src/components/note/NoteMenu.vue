@@ -84,7 +84,7 @@
         </div>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
-      <div v-if="!isTableActive">
+      <div v-if="!isTableActive" class="flex">
         <button
           v-for="action in lists"
           :key="action.name"
@@ -96,7 +96,7 @@
           <v-remixicon :name="action.icon" />
         </button>
       </div>
-      <div v-else>
+      <div v-else class="flex">
         <button
           v-tooltip.group="translations.menu.addRowAbove"
           class="transition hoverable h-8 px-1 rounded-lg"
