@@ -5,9 +5,7 @@
     aria-modal="true"
     @click.self="$emit('close')"
   >
-    <div
-      class="bg-white dark:bg-neutral-800 rounded-lg overflow-auto h-full w-full"
-    >
+    <div class="bg-white dark:bg-neutral-800 overflow-auto h-full w-full">
       <slot></slot>
     </div>
   </div>

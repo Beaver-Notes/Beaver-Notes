@@ -20,12 +20,12 @@ import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
+import Paper from './exts/paper-block';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
-import drawingCanvas from './exts/drawing-block';
 import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
 import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
@@ -115,6 +115,7 @@ const extensions = [
   greenCallout,
   LinkNote,
   FileEmbed,
+  Paper,
   Footnotes,
   FootnoteReference,
   Footnote,
@@ -149,7 +150,6 @@ const extensions = [
   Audio,
   Paste,
   SearchAndReplace.configure(),
-  drawingCanvas,
   TextStyle,
   markdownEngine,
   Placeholder.configure({
