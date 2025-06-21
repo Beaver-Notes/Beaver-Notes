@@ -26,6 +26,7 @@ const state = shallowReactive({
   syncError: null,
   remoteVersion: 0,
   localVersion: 0,
+  isFirstSync: false,
 });
 
 // Utilities
@@ -58,11 +59,31 @@ function scheduleSync(immediate = false) {
 export async function trackChange(key, data) {
   const metadata = await storage.get(
     'syncMetadata',
-    { version: 0 },
+    { version: 0, isInitialized: false },
     'settings'
   );
+
+  // Don't increment version if this is the first sync and we haven't pulled remote data yet
+  if (!metadata.isInitialized && !state.isFirstSync) {
+    // Check if there's remote data first
+    const syncFolder = path.join(defaultPath, 'BeaverNotesSync');
+    try {
+      const remoteMetadata = await ipcRenderer.callMain(
+        'fs:read-json',
+        path.join(syncFolder, 'metadata.json')
+      );
+      if (remoteMetadata.version > 0) {
+        // There's remote data, don't track this change yet
+        return null;
+      }
+    } catch {
+      // No remote data, proceed normally
+    }
+  }
+
   metadata.version += 1;
   metadata.lastModified = Date.now();
+  metadata.isInitialized = true;
 
   const changeId = generateChangeId();
   pendingChanges.set(changeId, {
@@ -100,27 +121,77 @@ export async function syncData() {
 
     const localMetadata = await storage.get(
       'syncMetadata',
-      { version: 0 },
+      { version: 0, isInitialized: false },
       'settings'
     );
+
     let remoteMetadata = { version: 0 };
+    let hasRemoteData = false;
+
     try {
       remoteMetadata = await ipcRenderer.callMain(
         'fs:read-json',
         path.join(syncFolder, 'metadata.json')
       );
       state.remoteVersion = remoteMetadata.version;
+      hasRemoteData = true;
     } catch {
       /* no remote metadata yet */
     }
 
-    if (remoteMetadata.version > localMetadata.version) {
-      await pullChanges(syncFolder, remoteMetadata.version);
-    } else if (
-      localMetadata.version > remoteMetadata.version ||
-      pendingChanges.size > 0
+    // Check if this is a fresh instance encountering existing remote data
+    if (
+      !localMetadata.isInitialized &&
+      hasRemoteData &&
+      remoteMetadata.version > 0
     ) {
-      await pushChanges(syncFolder, localMetadata.version);
+      state.isFirstSync = true;
+      await pullChanges(syncFolder, remoteMetadata.version);
+      state.isFirstSync = false;
+    } else {
+      // Smart conflict resolution based on both version and timestamp
+      const localTimestamp = localMetadata.lastModified || 0;
+      const remoteTimestamp = remoteMetadata.lastModified || 0;
+
+      const shouldPull = remoteMetadata.version > localMetadata.version;
+      const shouldPush =
+        localMetadata.version > remoteMetadata.version ||
+        pendingChanges.size > 0;
+      const hasConflict =
+        remoteMetadata.version !== localMetadata.version &&
+        localTimestamp > 0 &&
+        remoteTimestamp > 0;
+
+      if (hasConflict) {
+        // Conflict detected: different versions but both have data
+        if (remoteTimestamp > localTimestamp) {
+          // Remote is newer, pull first then merge local changes
+          await pullChanges(syncFolder, remoteMetadata.version);
+          if (pendingChanges.size > 0) {
+            // Push local changes as incremental update
+            const newVersion =
+              Math.max(state.localVersion, state.remoteVersion) + 1;
+            await pushChanges(syncFolder, newVersion);
+          }
+        } else {
+          // Local is newer or same time, merge remote then push
+          if (shouldPull) {
+            await pullChanges(syncFolder, remoteMetadata.version);
+          }
+          if (pendingChanges.size > 0 || localTimestamp >= remoteTimestamp) {
+            const newVersion =
+              Math.max(localMetadata.version, remoteMetadata.version) + 1;
+            await pushChanges(syncFolder, newVersion);
+          }
+        }
+      } else {
+        // No conflict: normal version-based sync
+        if (shouldPull) {
+          await pullChanges(syncFolder, remoteMetadata.version);
+        } else if (shouldPush) {
+          await pushChanges(syncFolder, localMetadata.version);
+        }
+      }
     }
 
     await syncAssets(dataDir, syncFolder);
@@ -184,12 +255,16 @@ async function pullChanges(syncFolder, remoteVersion) {
       version: remoteVersion,
       lastSynced: Date.now(),
       lastPull: Date.now(),
+      isInitialized: true,
     },
     'settings'
   );
 
   state.localVersion = remoteVersion;
   state.remoteVersion = remoteVersion;
+
+  // Clear any pending changes since we just pulled the latest
+  pendingChanges.clear();
 }
 
 // Push Changes
@@ -208,6 +283,7 @@ async function pushChanges(syncFolder, localVersion) {
     version: localVersion,
     lastSynced: Date.now(),
     lastPush: Date.now(),
+    lastModified: Date.now(),
   };
 
   await ipcRenderer.callMain('fs:output-json', {
@@ -228,8 +304,8 @@ async function pushChanges(syncFolder, localVersion) {
 async function syncAssets(localDir, remoteDir) {
   const pairs = [
     {
-      local: path.join(localDir, 'notes-assets'),
-      remote: path.join(remoteDir, 'notes-assets'),
+      local: path.join(localDir, 'assets'),
+      remote: path.join(remoteDir, 'assets'),
     },
     {
       local: path.join(localDir, 'file-assets'),
@@ -305,11 +381,20 @@ async function mergePulledData(imported) {
     'settings',
     'deletedIds',
   ];
-  const currentDeletedIds = await storage.get('deletedIds', []);
+
+  const currentDeletedIdsRaw = await storage.get('deletedIds', []);
+  const currentDeletedIds = Array.isArray(currentDeletedIdsRaw)
+    ? currentDeletedIdsRaw
+    : [];
+
+  const importedDeletedIds = Array.isArray(imported.deletedIds)
+    ? imported.deletedIds
+    : [];
 
   const mergedDeletedIds = [
-    ...new Set([...currentDeletedIds, ...(imported.deletedIds || [])]),
+    ...new Set([...currentDeletedIds, ...importedDeletedIds]),
   ];
+
   await storage.set('deletedIds', mergedDeletedIds);
 
   for (const key of keys) {
