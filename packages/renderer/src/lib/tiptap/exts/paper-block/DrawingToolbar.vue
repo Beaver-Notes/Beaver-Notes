@@ -4,31 +4,29 @@
     <div
       class="fixed top-6 right-6 z-10 flex items-center gap-3 bg-neutral-800 rounded-2xl shadow-lg px-3 py-2"
     >
-      <!-- Brush Button -->
-      <button
-        class="flex items-center justify-center w-10 h-10 text-white rounded-lg hover:bg-neutral-700 transition"
-        @click="showStyleOpt = true"
+      <ui-popover
+        padding="!bg-neutral-800 p-2 flex items-center hover:bg-neutral-700"
       >
-        <v-remixicon name="riBrush2Fill" />
-        <!-- Style Dropdown -->
-        <div
-          v-if="showStyleOpt"
-          class="absolute top-16 right-6 bg-neutral-800 border border-neutral-600 shadow-lg rounded-xl p-4 z-20"
-        >
-          <div class="grid grid-cols-2 gap-2">
+        <template #trigger>
+          <button class="transition hoverable h-8 px-1 rounded-lg text-white">
+            <v-remixicon name="riBrush2Fill" />
+          </button>
+        </template>
+        <div class="draw">
+          <div class="drawing-container grid grid-cols-2 gap-2">
             <button
               v-for="type in paperTypes"
               :key="type"
-              :class="`w-16 h-16 rounded-lg border transition-all ${
+              :class="`w-16 h-16 rounded-lg border transition-all ${type} ${
                 state.background === type
                   ? 'ring-2 ring-primary scale-105'
                   : 'hover:border-primary border-neutral-600'
-              } ${type}`"
+              }`"
               @click="handleBackgroundChange(type)"
             ></button>
           </div>
         </div>
-      </button>
+      </ui-popover>
 
       <!-- Divider -->
       <div class="w-px h-6 bg-neutral-500/50"></div>
@@ -131,18 +129,12 @@
         </label>
       </div>
     </div>
-
-    <!-- Overlay to close style menu -->
-    <div
-      v-if="showStyleOpt"
-      class="fixed inset-0 z-0"
-      @click="showStyleOpt = false"
-    ></div>
   </div>
 </template>
 
 <script>
 import { ref, nextTick } from 'vue';
+import '@/assets/css/paper.scss';
 
 export default {
   name: 'DrawingToolBar',

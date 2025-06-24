@@ -17,9 +17,11 @@ export default {
   emits: { close: null },
   mounted() {
     document.addEventListener('keydown', this.onKeydown);
+    document.body.style.overflow = 'hidden';
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
+    document.body.style.overflow = '';
   },
   methods: {
     onKeydown(event) {

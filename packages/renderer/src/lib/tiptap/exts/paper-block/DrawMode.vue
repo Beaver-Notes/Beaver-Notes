@@ -339,7 +339,6 @@ onMounted(() => {
     e.preventDefault();
   };
 
-  svgElement.addEventListener('wheel', preventAllScrolling, { passive: false });
   svgElement.addEventListener('touchmove', preventTouchScroll, {
     passive: false,
   });
@@ -348,7 +347,6 @@ onMounted(() => {
   });
 
   return () => {
-    svgElement.removeEventListener('wheel', preventAllScrolling);
     svgElement.removeEventListener('touchmove', preventTouchScroll);
     svgElement.removeEventListener('touchstart', preventAllScrolling);
   };

@@ -8,7 +8,7 @@
         <DrawMode
           :node="node"
           @update-attributes="updateAttributes"
-          @on-close="handleDrawModeClose"
+          @close="handleDrawModeClose"
         />
       </OverlayPortal>
     </div>
