@@ -1,5 +1,11 @@
 <template>
-  <NodeViewWrapper class="draw select-none" style="touch-action: none">
+  <NodeViewWrapper
+    class="draw"
+    :class="{ 'is-active': selected }"
+    :contenteditable="false"
+    style="touch-action: none"
+    tabindex="0"
+  >
     <div
       v-if="isDrawMode"
       class="bg-neutral-100 dark:bg-neutral-800 absolute inset-0 z-50"
