@@ -35,6 +35,13 @@ export default defineConfig({
       root: join(PACKAGE_ROOT, '../../'),
     },
   },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern-compiler',
+      },
+    },
+  },
   build: {
     sourcemap: true,
     target: `chrome${chrome}`,
