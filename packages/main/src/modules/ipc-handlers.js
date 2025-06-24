@@ -6,6 +6,7 @@ import { DialogHandlers } from './handlers/dialog-handlers.js';
 import { FileSystemHandlers } from './handlers/filesystem-handlers.js';
 import { StorageHandlers } from './handlers/storage-handlers.js';
 import { PDFHandler } from './handlers/pdf-handler.js';
+import { FontHandler } from './handlers/fonts-handler.js';
 
 export class IPCHandlers {
   constructor() {
@@ -14,6 +15,7 @@ export class IPCHandlers {
     this.fileSystemHandlers = new FileSystemHandlers();
     this.dialogHandlers = new DialogHandlers();
     this.pdfHandler = new PDFHandler();
+    this.fontHandler = new FontHandler();
   }
 
   async initialize(windowManager) {
@@ -22,22 +24,12 @@ export class IPCHandlers {
   }
 
   registerHandlers() {
-    // App handlers
     this.appHandlers.register(this.windowManager);
-
-    // Dialog handlers
     this.dialogHandlers.register();
-
-    // File system handlers
     this.fileSystemHandlers.register();
-
-    // Storage handlers
     this.storageHandlers.register();
-
-    // PDF handler
     this.pdfHandler.register();
-
-    // Helper handlers
+    this.fontHandler.register();
     this.registerHelperHandlers();
   }
 
@@ -54,7 +46,7 @@ export class IPCHandlers {
 
     ipcMain.answerRenderer(
       'helper:is-dark-theme',
-      () => nativeTheme.shouldUseDarkColors
+      () => nativeTheme.shouldUseDarkColors,
     );
   }
 }
