@@ -23,6 +23,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@/': join(PACKAGE_ROOT, 'src') + '/',
+      crypto: 'crypto-browserify',
     },
   },
   plugins: [vue()],
