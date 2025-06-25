@@ -18,7 +18,6 @@
 </template>
 <script>
 import { ref, onMounted, onUnmounted, reactive } from 'vue';
-import { importNoteFromBea } from '@/utils/share';
 import { useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
 import { useStore } from './store';
@@ -30,6 +29,7 @@ import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import Mousetrap from '@/lib/mousetrap';
 import { useAppStore } from './store/app';
 import { useTranslation } from './composable/translations';
+import { importBEA } from './utils/share/BEA';
 
 export default {
   components: { AppSidebar, AppCommandPrompt },
@@ -160,7 +160,7 @@ export default {
     theme.loadTheme();
     onFileOpened((path) => {
       console.log('File opened:', path);
-      importNoteFromBea(path, router, store);
+      importBEA(path, router, store);
     });
     window.electron.ipcRenderer.callMain(
       'app:set-zoom',

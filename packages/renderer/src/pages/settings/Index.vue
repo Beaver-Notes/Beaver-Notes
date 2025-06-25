@@ -238,7 +238,6 @@
 
 <script>
 import { shallowReactive, onMounted, computed } from 'vue';
-import { importNoteFromBea } from '@/utils/share';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -255,8 +254,9 @@ import '../../assets/css/passwd.css';
 import { useRouter } from 'vue-router';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
-import { processDirectory } from '@/utils/markdown';
+import { processDirectory } from '@/utils/markdown-helper';
 import { forceSyncNow } from '../../utils/sync';
+import { importBEA } from '../../utils/share/BEA';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -610,7 +610,7 @@ export default {
 
         state.importFile = file;
 
-        await importNoteFromBea(state.importFile, router);
+        await importBEA(state.importFile, router);
 
         notification({
           title: translations.settings.notification,

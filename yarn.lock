@@ -7587,6 +7587,11 @@ tunnel@^0.0.6:
   resolved "https://registry.yarnpkg.com/tunnel/-/tunnel-0.0.6.tgz#72f1314b34a5b192db012324df2cc587ca47f92c"
   integrity sha512-1h/Lnq9yajKY2PEbBadPXj3VxsDDu844OnaAo52UVmIzIvwwtBPIuNvkjuzBlTWpfJyUbG3ez0KSBibQkj4ojg==
 
+turndown-plugin-gfm@^1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/turndown-plugin-gfm/-/turndown-plugin-gfm-1.0.2.tgz#6f8678a361f35220b2bdf5619e6049add75bf1c7"
+  integrity sha512-vwz9tfvF7XN/jE0dGoBei3FXWuvll78ohzCZQuOb+ZjWrs3a0XhQVomJEb2Qh4VHTPNRO4GPZh0V7VRbiWwkRg==
+
 turndown@^7.2.0:
   version "7.2.0"
   resolved "https://registry.yarnpkg.com/turndown/-/turndown-7.2.0.tgz#67d614fe8371fb511079a93345abfd156c0ffcf4"
@@ -8041,6 +8046,7 @@ word-wrap@^1.2.5:
   integrity sha512-BN22B5eaMMI9UMtjrGd5g5eCYPpCPDUy0FJXbYsaT5zYxjFOckS53SQDE3pWkVoWpHXVb3BrYcEN4Twa55B5cA==
 
 "wrap-ansi-cjs@npm:wrap-ansi@^7.0.0", wrap-ansi@^7.0.0:
+  name wrap-ansi-cjs
   version "7.0.0"
   resolved "https://registry.yarnpkg.com/wrap-ansi/-/wrap-ansi-7.0.0.tgz#67e145cff510a6a6984bdf1152911d69d2eb9e43"
   integrity sha512-YVGIj2kamLSTxw6NsZjoBxfSwsn0ycdesmc4p+Q21c5zPuZ1pl+NfxVdxPtdHvmNVOQ6XSYG4AUtyt/Fi7D16Q==

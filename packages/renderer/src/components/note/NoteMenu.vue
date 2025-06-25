@@ -344,8 +344,8 @@
         </ui-popover>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
-      <div v-if="!isTableActive" class="flex items-center">
-        <ui-popover padding="p-2 grid grid-cols-2 items-center print:hidden">
+      <div v-if="!isTableActive" class="flex">
+        <ui-popover padding="p-2 flex flex-col print:hidden">
           <template #trigger>
             <button class="transition hoverable h-8 px-1 rounded-lg">
               <v-remixicon name="riShare2Line" />
@@ -362,7 +362,7 @@
               class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
             >
               <p
-                class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
+                class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
               >
                 {{ action.title }}
               </p>
@@ -441,7 +441,9 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
-import { exportBEA, exportHTML, exportMD } from '@/utils/share';
+import { exportBEA } from '../../utils/share/BEA';
+import { exportHTML } from '../../utils/share/HTML';
+import { exportMD } from '../../utils/share/MD';
 import { useTranslation } from '@/composable/translations';
 
 const { path, ipcRenderer } = window.electron;
@@ -554,7 +556,7 @@ export default {
           name: 'markdown',
           title: 'MD',
           icon: 'riMarkdownLine',
-          handler: () => shareMarkdown().run(),
+          handler: () => shareMarkdown(),
         },
       ];
     });

@@ -33,6 +33,7 @@ export default Node.create({
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'paper',
+        'data-lines': JSON.stringify(HTMLAttributes.lines),
         style: `height: ${HTMLAttributes.height}px;`,
       }),
     ];

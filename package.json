@@ -130,6 +130,7 @@
     "remove": "^0.1.5",
     "stream-browserify": "^3.0.0",
     "turndown": "^7.2.0",
+    "turndown-plugin-gfm": "^1.0.2",
     "tw-colors": "^3.3.2",
     "util": "^0.12.5",
     "yaml": "^2.7.0",

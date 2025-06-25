@@ -1,7 +1,5 @@
 import { useStorage } from '@/composable/storage';
 const { ipcRenderer, path } = window.electron;
-import TurndownService from 'turndown';
-import mime from 'mime';
 
 async function encodeAssets(sourcePath) {
   const assets = {};
@@ -23,103 +21,10 @@ async function encodeAssets(sourcePath) {
       assets[file] = base64Data;
     }
   } catch (error) {
-    console.error(`Error reading assets from ${sourcePath}:`, error);
+    console.error(`Error reading assets from ${sourcePath}:, error`);
   }
 
   return assets;
-}
-
-export async function exportHTML(noteId, noteTitle, editor) {
-  let html = editor.getHTML();
-  const storage = useStorage();
-  const dataDir = await storage.get('dataDir', '', 'settings');
-  const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
-
-  const assets = {
-    notesAssets: await encodeAssets(noteAssetsSource),
-    fileAssets: await encodeAssets(fileAssetsSource),
-  };
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-
-  const imgs = doc.querySelectorAll('img');
-
-  imgs.forEach((img) => {
-    const src = img.getAttribute('src');
-    if (!src) return;
-
-    // Extract filename from src (handle query strings or hashes if needed)
-    const fileName = src.split('/').pop().split('?')[0].split('#')[0];
-
-    // Check both asset sources
-    const base64Data =
-      assets.notesAssets[fileName] || assets.fileAssets[fileName];
-
-    if (base64Data) {
-      // Determine mime type
-      const mimeType = mime.getType(fileName) || 'application/octet-stream';
-
-      // Set src to base64 data URI
-      img.setAttribute('src', `data:${mimeType};base64,${base64Data}`);
-    } else {
-      console.warn(`No base64 data found for image: ${fileName}`);
-    }
-  });
-
-  const finalHtml = doc.documentElement.outerHTML;
-
-  const blob = new Blob([finalHtml], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${noteTitle}.html`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-export async function exportMD(noteId, noteTitle, editor) {
-  let html = editor.getHTML();
-  const turndownService = new TurndownService();
-  let markdown = turndownService.turndown(html); // convert to Markdown
-
-  const storage = useStorage();
-  const dataDir = await storage.get('dataDir', '', 'settings');
-  const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
-
-  const assets = {
-    notesAssets: await encodeAssets(noteAssetsSource),
-    fileAssets: await encodeAssets(fileAssetsSource),
-  };
-
-  // Replace image markdown with base64 data URIs
-  markdown = markdown.replace(
-    /!\[([^\]]*)\]\(([^)]+)\)/g,
-    (match, altText, src) => {
-      const fileName = src.split('/').pop().split('?')[0].split('#')[0];
-      const base64Data =
-        assets.notesAssets[fileName] || assets.fileAssets[fileName];
-
-      if (base64Data) {
-        const mimeType = mime.getType(fileName) || 'application/octet-stream';
-        return `![${altText}](data:${mimeType};base64,${base64Data})`;
-      } else {
-        console.warn(`No base64 data found for image: ${fileName}`);
-        return match;
-      }
-    }
-  );
-
-  // Create and download .md file
-  const blob = new Blob([markdown], { type: 'text/markdown' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${noteTitle}.md`;
-  link.click();
-  URL.revokeObjectURL(url);
 }
 
 export async function exportBEA(noteId, noteTitle) {
@@ -178,7 +83,7 @@ export async function exportBEA(noteId, noteTitle) {
   }
 }
 
-export async function importNoteFromBea(filePath, router, store) {
+export async function importBEA(filePath, router, store) {
   try {
     const fileContent = await ipcRenderer.callMain('fs:read-json', filePath);
 

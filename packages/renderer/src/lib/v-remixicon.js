@@ -1,5 +1,8 @@
 import VRemixIcon from 'v-remixicon';
 import {
+  riMarkPenLine,
+  riFocus3Line,
+  riMarkdownLine,
   riFontColor,
   riFontSize,
   riMoreFill,
@@ -52,7 +55,6 @@ import {
   riStrikethrough,
   riCodeLine,
   riCodeBoxLine,
-  riMarkPenLine,
   riParagraph,
   riH1,
   riH2,
@@ -217,6 +219,8 @@ VRemixIcon.add({
   riErrorWarningLine,
   riBallPenLine,
   riShareForwardLine,
+  riMarkdownLine,
+  riFocus3Line,
   riSingleQuotesR,
   riPieChart2Line,
   riFileTextFill,
