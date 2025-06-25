@@ -270,7 +270,11 @@
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wide": "Wide",
-    "wrongCurrentPassword": "Wrong password, please try again"
+    "wrongCurrentPassword": "Wrong password, please try again",
+    "updatenow": "Update Now",
+    "later": "Later",
+    "updateReady": "Update ready to install:",
+    "restartToUpdate": "Restart the app now to apply the update?"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",
