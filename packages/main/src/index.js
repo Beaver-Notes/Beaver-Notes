@@ -42,8 +42,8 @@ class Application {
 
       // Initialize all components
       await this.protocolManager.initialize();
-      await this.windowManager.createWindow();
       await this.ipcHandlers.initialize(this.windowManager);
+      await this.windowManager.createWindow();
       await this.autoUpdater.initialize(this.windowManager);
       await this.menuManager.initialize();
 
