@@ -5,6 +5,7 @@ import { AppHandlers } from './handlers/app-handlers.js';
 import { DialogHandlers } from './handlers/dialog-handlers.js';
 import { FileSystemHandlers } from './handlers/filesystem-handlers.js';
 import { StorageHandlers } from './handlers/storage-handlers.js';
+import { FontHandler } from './handlers/fonts-handler.js';
 import { PDFHandler } from './handlers/pdf-handler.js';
 
 export class IPCHandlers {
@@ -14,6 +15,7 @@ export class IPCHandlers {
     this.fileSystemHandlers = new FileSystemHandlers();
     this.dialogHandlers = new DialogHandlers();
     this.pdfHandler = new PDFHandler();
+    this.FontHandler = new FontHandler();
   }
 
   async initialize(windowManager) {
@@ -36,6 +38,9 @@ export class IPCHandlers {
 
     // PDF handler
     this.pdfHandler.register();
+
+    // Font handler
+    this.FontHandler.register();
 
     // Helper handlers
     this.registerHelperHandlers();
