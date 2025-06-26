@@ -794,6 +794,11 @@
     lodash.merge "^4.6.2"
     postcss-selector-parser "6.0.10"
 
+"@tiptap/core@^2.0.0-beta.116":
+  version "2.22.3"
+  resolved "https://registry.yarnpkg.com/@tiptap/core/-/core-2.22.3.tgz#32628cc734c37f7e274e12594807bd8ba97c4e47"
+  integrity sha512-czyBPXZG/ZFyObZEF1kyusGf58Ai3X8TnaxlUUn3gqLLWPy0idXZg85NETCidzi/gAxWxL9j6Pcy+zwS4pbZYQ==
+
 "@tiptap/core@^2.11.0":
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/@tiptap/core/-/core-2.11.0.tgz#72891ae9b3e4b2a67f79ab3bcb14483d30a9bd8a"
@@ -979,6 +984,11 @@
   version "2.11.0"
   resolved "https://registry.yarnpkg.com/@tiptap/extension-text-align/-/extension-text-align-2.11.0.tgz#b90b86ee3f6e14c9abf186cb8ab6ced20c0df14d"
   integrity sha512-VRXBqO17po6ddqhoWLBa2aCX/tqHdzdKPLfjnBy1fF8hjQKbidzjMWhb4CMm31ApvJjKK/DTkM3EnyYS/XDhng==
+
+"@tiptap/extension-text-style@^2.0.0-beta.17":
+  version "2.22.3"
+  resolved "https://registry.yarnpkg.com/@tiptap/extension-text-style/-/extension-text-style-2.22.3.tgz#b945dae81a4d7d100bd2c6d0a715d68a9fdbcc1e"
+  integrity sha512-M3FLOUPcO8fR+rM97mR2gQ54KFkdlAUQtEPKQpO1f312gtcVdBNxgq0WgqTnBY7thWLyqQSKiAsL6y88+JddSA==
 
 "@tiptap/extension-text-style@^2.11.0":
   version "2.11.0"
@@ -7506,6 +7516,14 @@ tippy.js@^6.3.1, tippy.js@^6.3.7:
   integrity sha512-E1d3oP2emgJ9dRQZdf3Kkn0qJgI6ZLpyS5z6ZkY1DF3kaQaBsGZsndEpHwx+eC+tYM41HaSNvNtLx8tU57FzTQ==
   dependencies:
     "@popperjs/core" "^2.9.0"
+
+tiptap-extension-font-size@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/tiptap-extension-font-size/-/tiptap-extension-font-size-1.2.0.tgz#dc884e2a8158819cffa4a322107de4c275aca6e0"
+  integrity sha512-akVve/bIAhAf4ze6XR4sh0qV7o7XgAoPkDGumTj4SFNtjhcH61wD97ibxWQAXchJPNAV6DdzRJiuUtEgzspjyA==
+  dependencies:
+    "@tiptap/core" "^2.0.0-beta.116"
+    "@tiptap/extension-text-style" "^2.0.0-beta.17"
 
 tiptap-extension-resize-image@^1.0.3:
   version "1.2.1"

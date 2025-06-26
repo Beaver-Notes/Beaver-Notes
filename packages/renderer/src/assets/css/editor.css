@@ -16,10 +16,6 @@
   tab-size: 2;
   font-variant-ligatures: normal;
 }
-.ProseMirror {
-  font-size: 1.065rem;
-  line-height: 1.5;
-}
 .ProseMirror a {
   @apply text-primary dark:text-primary !important;
 }

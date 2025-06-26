@@ -6,21 +6,6 @@
     @wheel.passive="changeWheelDirection"
   >
     <div class="w-full h-full flex items-center justify-between w-full">
-      <!-- <input
-        type="number"
-        class="
-          hoverable
-          appearance-none
-          h-full
-          bg-transparent
-          h-8 px-1 rounded-lg
-          w-20
-          text-center
-        "
-        value="16"
-        min="1"
-        title="Font size"
-      /> -->
       <button
         v-tooltip.group="translations.menu.paragraph"
         :class="{ 'is-active': editor.isActive('paragraph') }"
@@ -29,16 +14,49 @@
       >
         <v-remixicon name="riParagraph" />
       </button>
-      <button
-        v-for="heading in [1, 2]"
-        :key="heading"
-        v-tooltip.group="`${translations.menu.heading} ${heading}`"
-        :class="{ 'is-active': editor.isActive('heading', { level: heading }) }"
-        class="transition hoverable h-8 px-1 rounded-lg"
-        @click="editor.chain().focus().toggleHeading({ level: heading }).run()"
-      >
-        <v-remixicon :name="`riH${heading}`" />
-      </button>
+      <ui-popover padding="p-2 flex flex-col print:hidden">
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.highlight"
+            :class="{ 'is-active': editor.isActive('highlight') }"
+            class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
+          >
+            <v-remixicon name="riHeading" />
+            <v-remixicon name="riArrowDownSLine" class="w-4 h-4" />
+          </button>
+        </template>
+        <button
+          v-for="heading in [1, 2, 3, 4]"
+          :key="heading"
+          v-tooltip.group="`${translations.menu.heading} ${heading}`"
+          :class="{
+            'is-active': editor.isActive('heading', { level: heading }),
+          }"
+          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+          @click="
+            editor.chain().focus().toggleHeading({ level: heading }).run()
+          "
+        >
+          <v-remixicon :name="`riH${heading}`" />
+          <div
+            class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+          >
+            <p
+              class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
+            >
+              {{ translations.menu.heading }} {{ heading }}
+            </p>
+          </div>
+        </button>
+      </ui-popover>
+      <input
+        v-model.number="fontSize"
+        type="number"
+        class="hoverable appearance-none h-full bg-transparent h-8 px-1 rounded-lg w-14 text-center"
+        min="1"
+        title="Font size"
+        @change="updateFontSize"
+      />
       <hr class="border-r mx-2 h-6" />
       <button
         v-for="action in textFormatting"
@@ -86,15 +104,52 @@
       <hr class="border-r mx-2 h-6" />
       <div v-if="!isTableActive" class="flex">
         <button
-          v-for="action in lists"
-          :key="action.name"
-          v-tooltip.group="action.title"
-          :class="{ 'is-active': editor.isActive(action.activeState) }"
+          v-tooltip.group="translations.menu.blockquote"
+          :class="{ 'is-active': editor.isActive('blockquote') }"
           class="transition hoverable h-8 px-1 rounded-lg"
-          @click="action.handler"
+          @click="editor.chain().focus().toggleBlockquote().run()"
         >
-          <v-remixicon :name="action.icon" />
+          <v-remixicon name="riDoubleQuotesR" />
         </button>
+        <button
+          v-tooltip.group="translations.menu.codeblock"
+          :class="{ 'is-active': editor.isActive('codeBlock') }"
+          class="transition hoverable h-8 px-1 rounded-lg"
+          @click="editor.chain().focus().toggleCodeBlock().run()"
+        >
+          <v-remixicon name="riCodeBoxLine" />
+        </button>
+        <ui-popover padding="p-2 flex flex-col print:hidden">
+          <template #trigger>
+            <button
+              v-tooltip.group="translations.menu.highlight"
+              :class="{ 'is-active': editor.isActive('highlight') }"
+              class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
+            >
+              <v-remixicon name="riListOrdered" />
+              <v-remixicon name="riArrowDownSLine" class="w-4 h-4" />
+            </button>
+          </template>
+          <button
+            v-for="action in lists"
+            :key="action.name"
+            v-tooltip.group="action.title"
+            :class="{ 'is-active': editor.isActive(action.activeState) }"
+            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+            @click="action.handler"
+          >
+            <v-remixicon :name="action.icon" />
+            <div
+              class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+            >
+              <p
+                class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
+              >
+                {{ action.title }}
+              </p>
+            </div>
+          </button>
+        </ui-popover>
       </div>
       <div v-else class="flex">
         <button
@@ -373,7 +428,7 @@
         <button
           v-if="showAdavancedSettings"
           v-tooltip.group="translations.menu.delete"
-          class="hoverable h-8 px-1 rounded-lg h-full"
+          class="hoverable px-1 rounded-lg"
           @click="deleteNode"
         >
           <v-remixicon name="riDeleteBin6Line" />
@@ -381,7 +436,7 @@
         <button
           v-tooltip.group="translations.menu.readerMode"
           :class="{ 'is-active': store.inReaderMode }"
-          class="hoverable h-8 px-1 rounded-lg h-full"
+          class="hoverable px-1 rounded-lg"
           @click="toggleReaderMode"
         >
           <v-remixicon name="riArticleLine" />
@@ -389,7 +444,7 @@
         <button
           v-tooltip.group="translations.menu.headingsTree"
           :class="{ 'is-active': tree }"
-          class="hoverable h-8 px-1 rounded-lg h-full"
+          class="hoverable h-8 px-1 rounded-lg"
           @click="showHeadingsTree = !showHeadingsTree"
         >
           <v-remixicon name="riSearchLine" />
@@ -448,6 +503,7 @@ import { useTranslation } from '@/composable/translations';
 
 const { path, ipcRenderer } = window.electron;
 const filePath = '';
+const fontSize = ref(16);
 const storage = useStorage('settings');
 const state = shallowReactive({
   zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
@@ -482,6 +538,7 @@ export default {
       isPaused,
       pauseResume,
     } = useAudioRecorder(props, ipcRenderer, storage, path);
+
     const headings = [
       { name: 'Paragraphs', id: 'paragraph' },
       { name: 'Header 1', id: 1 },
@@ -514,20 +571,6 @@ export default {
           icon: 'riListCheck2',
           activeState: 'taskList',
           handler: () => props.editor.chain().focus().toggleTaskList().run(),
-        },
-        {
-          name: 'blockquote',
-          title: translations.value.menu.blockquote,
-          icon: 'riDoubleQuotesR',
-          activeState: 'blockquote',
-          handler: () => props.editor.chain().focus().toggleBlockquote().run(),
-        },
-        {
-          name: 'code-block',
-          title: translations.value.menu.codeblock,
-          icon: 'riCodeBoxLine',
-          activeState: 'codeBlock',
-          handler: () => props.editor.chain().focus().toggleCodeBlock().run(),
         },
       ];
     });
@@ -784,6 +827,14 @@ export default {
           translations.value = trans;
         }
       });
+      if (!props.editor) return;
+
+      props.editor.on('selectionUpdate', () => {
+        const size = getCurrentFontSize();
+        if (size) {
+          fontSize.value = parseInt(size); // strip "px"
+        }
+      });
     });
 
     const showAdavancedSettings = computed(() => {
@@ -869,8 +920,47 @@ export default {
       }
     }
 
+    const updateFontSize = () => {
+      if (props.editor) {
+        props.editor.chain().focus().setFontSize(`${fontSize.value}pt`).run();
+      }
+    };
+
+    function getCurrentFontSize() {
+      if (!props.editor) return;
+
+      const attrs = props.editor.getAttributes('textStyle');
+
+      if (attrs.fontSize) {
+        return parseInt(attrs.fontSize);
+      }
+
+      const selection = window.getSelection();
+      const anchorNode = selection?.anchorNode;
+      if (!anchorNode) return null;
+
+      const element =
+        anchorNode.nodeType === 3 ? anchorNode.parentElement : anchorNode;
+      const computed = window.getComputedStyle(element);
+      const px = parseFloat(computed.fontSize);
+
+      const pt = px * (72 / 96);
+      return Math.round(pt);
+    }
+
+    const updateInputFontSize = () => {
+      if (!props.editor) return;
+
+      const attrs = props.editor.getAttributes('textStyle');
+      const currentSize = attrs.fontSize || '16pt';
+      fontSize.value = parseInt(currentSize);
+    };
+
     return {
       store,
+      fontSize,
+      updateFontSize,
+      updateInputFontSize,
       highlighterColors,
       textColors,
       setHighlightColor,

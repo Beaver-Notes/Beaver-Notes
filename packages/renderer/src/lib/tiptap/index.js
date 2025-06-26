@@ -49,6 +49,7 @@ import FootnoteReference from './exts/footnote-block/reference';
 import Commands from './exts/commands';
 import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
+import FontSize from 'tiptap-extension-font-size';
 import enTranslations from '../../pages/settings/locales/en.json';
 import itTranslations from '../../pages/settings/locales/it.json';
 import deTranslations from '../../pages/settings/locales/de.json';
@@ -133,6 +134,7 @@ const extensions = [
   Video,
   MathInline,
   MermaidBlock,
+  FontSize,
   MathBlock,
   Subscript.extend({
     addKeyboardShortcuts() {
