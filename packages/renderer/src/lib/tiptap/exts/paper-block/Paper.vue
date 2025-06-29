@@ -13,7 +13,7 @@
       <OverlayPortal>
         <DrawMode
           :node="node"
-          @update-attributes="updateAttributes"
+          @update-attributes="handleUpdateAttributes"
           @close="handleDrawModeClose"
         />
       </OverlayPortal>
@@ -50,13 +50,12 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { getStroke } from 'perfect-freehand';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import {
   getStrokeOptions,
   getSvgPathFromStroke,
-  convertToLegacyFormat,
   convertLegacyLines,
 } from './helpers/drawHelper';
 import DrawMode from './DrawMode.vue';
@@ -73,9 +72,9 @@ export default {
   props: nodeViewProps,
   setup(props) {
     const lines = ref(convertLegacyLines(props.node.attrs.lines || []));
-    const background = ref(props.node.attrs.paperType);
+    const background = ref(props.node.attrs.paperType || 'plain');
     const tool = ref('pen');
-    const height = ref(props.node.attrs.height);
+    const height = ref(props.node.attrs.height || 400);
     const isDrawMode = ref(false);
     const translations = ref({
       paperBlock: {
@@ -83,16 +82,37 @@ export default {
       },
     });
 
+    // Watch for external changes to node attributes
+    watch(
+      () => props.node.attrs,
+      (newAttrs) => {
+        console.log('Node attrs changed:', newAttrs);
+        lines.value = convertLegacyLines(newAttrs.lines || []);
+        background.value = newAttrs.paperType || 'plain';
+        height.value = newAttrs.height || 400;
+      },
+      { deep: true }
+    );
+
     const renderedPaths = computed(() => {
       return lines.value.map((line) => {
-        const stroke = getStroke(line.points, getStrokeOptions(line));
-        const pathData = getSvgPathFromStroke(stroke);
+        if (!line.points || line.points.length === 0) {
+          return { d: '', fill: 'transparent', opacity: 1 };
+        }
 
-        return {
-          d: pathData,
-          fill: line.color,
-          opacity: line.tool === 'highlighter' ? 0.4 : 1,
-        };
+        try {
+          const stroke = getStroke(line.points, getStrokeOptions(line));
+          const pathData = getSvgPathFromStroke(stroke);
+
+          return {
+            d: pathData,
+            fill: line.color || '#000000',
+            opacity: line.tool === 'highlighter' ? 0.4 : 1,
+          };
+        } catch (error) {
+          console.error('Error rendering path:', error, line);
+          return { d: '', fill: 'transparent', opacity: 1 };
+        }
       });
     });
 
@@ -102,14 +122,69 @@ export default {
 
     const closeDrawMode = () => {
       isDrawMode.value = false;
+      // Refresh from current node attributes
       lines.value = convertLegacyLines(props.node.attrs.lines || []);
-      background.value = props.node.attrs.paperType || [];
+      background.value = props.node.attrs.paperType || 'plain';
+      height.value = props.node.attrs.height || 400;
+    };
+
+    const handleUpdateAttributes = (updates) => {
+      console.log('Received update-attributes:', updates);
+
+      try {
+        // Validate the updates before applying
+        const validatedUpdates = {};
+
+        if (updates.lines !== undefined) {
+          validatedUpdates.lines = Array.isArray(updates.lines)
+            ? updates.lines
+            : [];
+        }
+
+        if (updates.linesV2 !== undefined) {
+          validatedUpdates.linesV2 = Array.isArray(updates.linesV2)
+            ? updates.linesV2
+            : [];
+        }
+
+        if (updates.height !== undefined) {
+          validatedUpdates.height = Math.max(
+            100,
+            Number(updates.height) || 400
+          );
+        }
+
+        if (updates.paperType !== undefined) {
+          validatedUpdates.paperType = updates.paperType;
+        }
+
+        console.log('Calling updateAttributes with:', validatedUpdates);
+
+        // Call the Tiptap updateAttributes method
+        props.updateAttributes(validatedUpdates);
+
+        // Update local state to reflect changes immediately
+        if (validatedUpdates.lines || validatedUpdates.linesV2) {
+          const linesToUse =
+            validatedUpdates.linesV2 ||
+            convertLegacyLines(validatedUpdates.lines || []);
+          lines.value = linesToUse;
+        }
+
+        if (validatedUpdates.height !== undefined) {
+          height.value = validatedUpdates.height;
+        }
+
+        if (validatedUpdates.paperType !== undefined) {
+          background.value = validatedUpdates.paperType;
+        }
+      } catch (error) {
+        console.error('Error updating attributes:', error);
+      }
     };
 
     const handleDrawModeClose = () => {
-      props.updateAttributes({
-        lines: convertToLegacyFormat(lines.value),
-      });
+      console.log('Draw mode closing');
       closeDrawMode();
     };
 
@@ -132,6 +207,7 @@ export default {
       toggleDrawMode,
       closeDrawMode,
       handleDrawModeClose,
+      handleUpdateAttributes,
       setLines,
       setTool,
     };
