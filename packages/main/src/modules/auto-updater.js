@@ -62,7 +62,7 @@ export class AutoUpdater {
         `Update ready: ${info.version}`
       );
 
-      const window = this.windowManager.getMainWindow(); // or however you get the main BrowserWindow
+      const window = this.windowManager.getWindow();
       const result = await dialog.showMessageBox(window, {
         type: 'question',
         buttons: [translations.settings.updatenow, translations.settings.later],
