@@ -12,6 +12,8 @@ export class AppHandlers {
       version: app.getVersion(),
     }));
 
+    app.setAppUserModelId('com.beavernotes.beavernotes');
+
     ipcMain.answerRenderer('app:notification', ({ title, body }) => {
       new Notification({ title, body }).show();
     });
