@@ -1,5 +1,6 @@
 import { useStorage } from '@/composable/storage';
-import { useTranslation } from '../composable/translations';
+import { useTranslation } from '@/composable/translations';
+import { t } from '@/utils/translations';
 import { shallowReactive, ref } from 'vue';
 import { Utf8 } from 'crypto-es/lib/core';
 import { AES } from 'crypto-es/lib/aes';
@@ -10,7 +11,14 @@ const { ipcRenderer, path, notification } = window.electron;
 // Preload composables
 const storage = useStorage();
 const dialog = useDialog();
-const translationsPromise = useTranslation();
+const translations = ref({ sidebar: {} });
+
+(async () => {
+  const trans = await useTranslation();
+  if (trans) {
+    translations.value = trans;
+  }
+})();
 
 // App State
 const syncStatus = ref('idle');
@@ -63,9 +71,7 @@ export async function trackChange(key, data) {
     'settings'
   );
 
-  // Don't increment version if this is the first sync and we haven't pulled remote data yet
   if (!metadata.isInitialized && !state.isFirstSync) {
-    // Check if there's remote data first
     const syncFolder = path.join(defaultPath, 'BeaverNotesSync');
     try {
       const remoteMetadata = await ipcRenderer.callMain(
@@ -73,7 +79,6 @@ export async function trackChange(key, data) {
         path.join(syncFolder, 'metadata.json')
       );
       if (remoteMetadata.version > 0) {
-        // There's remote data, don't track this change yet
         return null;
       }
     } catch {
@@ -107,7 +112,6 @@ export async function trackChange(key, data) {
 export async function syncData() {
   if (state.syncInProgress || !defaultPath) return;
 
-  const translations = await translationsPromise;
   try {
     state.syncInProgress = true;
     syncStatus.value = 'syncing';
@@ -139,17 +143,20 @@ export async function syncData() {
       /* no remote metadata yet */
     }
 
-    // Check if this is a fresh instance encountering existing remote data
+    const remoteIsNewer = remoteMetadata.version > localMetadata.version;
+    const bothInitialized = localMetadata.isInitialized && hasRemoteData;
+
     if (
-      !localMetadata.isInitialized &&
-      hasRemoteData &&
-      remoteMetadata.version > 0
+      (!localMetadata.isInitialized && remoteMetadata.version > 0) ||
+      (bothInitialized && remoteIsNewer)
     ) {
-      state.isFirstSync = true;
       await pullChanges(syncFolder, remoteMetadata.version);
-      state.isFirstSync = false;
+      if (pendingChanges.size > 0) {
+        const newVersion =
+          Math.max(state.localVersion, state.remoteVersion) + 1;
+        await pushChanges(syncFolder, newVersion);
+      }
     } else {
-      // Smart conflict resolution based on both version and timestamp
       const localTimestamp = localMetadata.lastModified || 0;
       const remoteTimestamp = remoteMetadata.lastModified || 0;
 
@@ -163,18 +170,14 @@ export async function syncData() {
         remoteTimestamp > 0;
 
       if (hasConflict) {
-        // Conflict detected: different versions but both have data
         if (remoteTimestamp > localTimestamp) {
-          // Remote is newer, pull first then merge local changes
           await pullChanges(syncFolder, remoteMetadata.version);
           if (pendingChanges.size > 0) {
-            // Push local changes as incremental update
             const newVersion =
               Math.max(state.localVersion, state.remoteVersion) + 1;
             await pushChanges(syncFolder, newVersion);
           }
         } else {
-          // Local is newer or same time, merge remote then push
           if (shouldPull) {
             await pullChanges(syncFolder, remoteMetadata.version);
           }
@@ -185,7 +188,6 @@ export async function syncData() {
           }
         }
       } else {
-        // No conflict: normal version-based sync
         if (shouldPull) {
           await pullChanges(syncFolder, remoteMetadata.version);
         } else if (shouldPush) {
@@ -204,8 +206,8 @@ export async function syncData() {
     state.syncError = error.message;
 
     notification({
-      title: translations.sidebar.notification,
-      body: translations.sidebar.syncFail,
+      title: t(translations.value.sidebar.notification),
+      body: t(translations.value.sidebar.syncFail),
     });
   } finally {
     state.syncInProgress = false;
@@ -214,14 +216,15 @@ export async function syncData() {
 
 // Pull Changes
 async function pullChanges(syncFolder, remoteVersion) {
-  const translations = await translationsPromise;
   const remoteDataFile = path.join(syncFolder, 'data.json');
 
   let remoteData;
   try {
     remoteData = await ipcRenderer.callMain('fs:read-json', remoteDataFile);
   } catch (error) {
-    throw new Error(`${translations.settings.invaliddata}: ${error.message}`);
+    throw new Error(
+      `${t(translations.value.settings.invaliddata)}: ${error.message}`
+    );
   }
 
   let importedData = remoteData.data;
@@ -237,14 +240,14 @@ async function pullChanges(syncFolder, remoteVersion) {
       state.password = password;
       state.withPassword = true;
     } catch {
-      throw new Error(translations.settings.Invalidpassword);
+      throw new Error(t(translations.value.settings.Invalidpassword));
     }
   } else {
     state.withPassword = false;
   }
 
   if (!importedData || typeof importedData !== 'object') {
-    throw new Error(translations.settings.invaliddata);
+    throw new Error(t(translations.value.settings.invaliddata));
   }
 
   await mergePulledData(importedData);
@@ -263,7 +266,6 @@ async function pullChanges(syncFolder, remoteVersion) {
   state.localVersion = remoteVersion;
   state.remoteVersion = remoteVersion;
 
-  // Clear any pending changes since we just pulled the latest
   pendingChanges.clear();
 }
 
@@ -382,34 +384,77 @@ async function mergePulledData(imported) {
     'deletedIds',
   ];
 
-  const currentDeletedIdsRaw = await storage.get('deletedIds', []);
-  const currentDeletedIds = Array.isArray(currentDeletedIdsRaw)
-    ? currentDeletedIdsRaw
-    : [];
+  const currentDeletedIdsRaw = await storage.get('deletedIds', {});
+  const currentDeletedIds =
+    typeof currentDeletedIdsRaw === 'object' && currentDeletedIdsRaw !== null
+      ? currentDeletedIdsRaw
+      : {};
 
-  const importedDeletedIds = Array.isArray(imported.deletedIds)
-    ? imported.deletedIds
-    : [];
+  const importedDeletedIds =
+    typeof imported.deletedIds === 'object' && imported.deletedIds !== null
+      ? imported.deletedIds
+      : {};
 
-  const mergedDeletedIds = [
-    ...new Set([...currentDeletedIds, ...importedDeletedIds]),
-  ];
+  const mergedDeletedIds = { ...currentDeletedIds };
+  for (const [id, timestamp] of Object.entries(importedDeletedIds)) {
+    if (!mergedDeletedIds[id] || timestamp > mergedDeletedIds[id]) {
+      mergedDeletedIds[id] = timestamp;
+    }
+  }
 
   await storage.set('deletedIds', mergedDeletedIds);
 
   for (const key of keys) {
     if (key === 'deletedIds') continue;
-    const current = await storage.get(key, {});
-    const incoming = imported[key];
 
+    const current = await storage.get(key, key === 'notes' ? {} : []);
+    const incoming = imported[key];
     if (!incoming) continue;
 
-    if (Array.isArray(current) && Array.isArray(incoming)) {
+    if (key === 'notes') {
+      const mergedNotes = {};
+
+      for (const [id, note] of Object.entries(current)) {
+        if (
+          mergedDeletedIds[id] &&
+          note.updatedAt &&
+          mergedDeletedIds[id] >= new Date(note.updatedAt).getTime()
+        ) {
+          continue;
+        }
+        mergedNotes[id] = note;
+      }
+
+      for (const [id, incomingNote] of Object.entries(incoming)) {
+        if (
+          mergedDeletedIds[id] &&
+          incomingNote.updatedAt &&
+          mergedDeletedIds[id] >= new Date(incomingNote.updatedAt).getTime()
+        ) {
+          continue;
+        }
+
+        const currentNote = mergedNotes[id];
+
+        if (
+          !currentNote ||
+          (incomingNote.updatedAt &&
+            currentNote.updatedAt &&
+            new Date(incomingNote.updatedAt) > new Date(currentNote.updatedAt))
+        ) {
+          mergedNotes[id] = incomingNote;
+        }
+      }
+
+      await storage.set('notes', mergedNotes);
+    } else if (Array.isArray(current) && Array.isArray(incoming)) {
       await storage.set(key, [...new Set([...current, ...incoming])]);
     } else if (typeof current === 'object' && typeof incoming === 'object') {
       const merged = { ...current, ...incoming };
-      if (key === 'notes' || key === 'lockStatus') {
-        for (const id of mergedDeletedIds) delete merged[id];
+      if (key === 'lockStatus' || key === 'notes') {
+        for (const id of Object.keys(mergedDeletedIds)) {
+          delete merged[id];
+        }
       }
       await storage.set(key, merged);
     }
@@ -419,11 +464,11 @@ async function mergePulledData(imported) {
 function promptForPassword(translations) {
   return new Promise((resolve) => {
     dialog.prompt({
-      title: translations.settings.Inputpassword,
-      body: translations.settings.body,
-      okText: translations.settings.Import,
-      cancelText: translations.settings.Cancel,
-      placeholder: translations.settings.Password,
+      title: t(translations.settings.Inputpassword),
+      body: t(translations.settings.body),
+      okText: t(translations.settings.Import),
+      cancelText: t(translations.settings.Cancel),
+      placeholder: t(translations.settings.Password),
       onConfirm: (password) => resolve({ success: true, password }),
       onCancel: () => resolve({ success: false }),
     });
