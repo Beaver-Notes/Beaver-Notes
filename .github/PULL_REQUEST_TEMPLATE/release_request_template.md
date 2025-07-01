@@ -1,14 +1,18 @@
----
-name: Release Pull Request
-about: This template is used by the team to review releases and make last-minute fixes.
-title: ''
-labels: 'release'
-assignees: ''
----
+# Release - {{version}}
 
----
+## Summary
 
-name: Release Pull Request
-about: This template is used by the team to review releases and make last-minute fixes.
+<!-- Briefly describe the purpose of this release -->
 
----
+## Changes
+
+- <!-- List key features, bug fixes, or improvements here -->
+-
+
+## Bug Fixes
+
+- <!-- List any critical bug fixes included -->
+
+## Known Issues
+
+- <!-- Mention any known issues or limitations -->
