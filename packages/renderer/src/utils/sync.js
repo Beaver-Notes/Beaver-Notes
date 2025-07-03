@@ -1,4 +1,5 @@
 import { useStorage } from '@/composable/storage';
+import { useNoteStore } from '@/store/note.js';
 import { useTranslation } from '@/composable/translations';
 import { t } from '@/utils/translations';
 import { shallowReactive, ref } from 'vue';
@@ -200,6 +201,10 @@ export async function syncData() {
 
     state.lastSyncTime = Date.now();
     syncStatus.value = 'success';
+    if (syncStatus.value === 'success') {
+      const noteStore = useNoteStore();
+      await noteStore.retrieve();
+    }
   } catch (error) {
     console.error('Sync error:', error);
     syncStatus.value = 'error';
