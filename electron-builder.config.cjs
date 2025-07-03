@@ -4,6 +4,7 @@ const packageJSON = require('./package.json');
  * @type {import('electron-builder').Configuration}
  * @see https://www.electron.build/configuration/configuration
  */
+const { azuresigntool } = require('@ossign/azuresigntool');
 const electronBuilderConfig = {
   appId: 'com.danielerolli.beaver-notes',
   files: ['packages/**/dist/**'],
@@ -79,6 +80,7 @@ const electronBuilderConfig = {
       { target: 'portable', arch: ['x64', 'arm64'] },
       { target: 'nsis', arch: ['x64', 'arm64'] },
     ],
+    sign: process.env.AST_TD === 'SHA256' ? azuresigntool : undefined,
   },
   nsis: {
     oneClick: true,
@@ -94,11 +96,9 @@ const electronBuilderConfig = {
 };
 
 module.exports = async () => {
-  // Dynamically import the ES module
   const envModule = await import('./env.js');
   const loadEnv = envModule.loadEnv;
 
-  // Load environment variables
   loadEnv('private');
 
   const config = { ...electronBuilderConfig };

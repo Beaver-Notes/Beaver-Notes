@@ -38,6 +38,7 @@
     "*.{js,ts,vue}": "eslint --cache --fix"
   },
   "devDependencies": {
+    "@ossign/azuresigntool": "^1.1.1",
     "@benrbray/prosemirror-math": "^0.2.2",
     "@tailwindcss/typography": "^0.5.13",
     "@tiptap/extension-code": "^2.1.16",
