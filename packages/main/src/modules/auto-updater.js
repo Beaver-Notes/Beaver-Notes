@@ -2,8 +2,7 @@
 import * as browserStorage from 'electron-browser-storage';
 import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
-import { dialog } from 'electron';
-
+import { dialog, app } from 'electron';
 const { localStorage } = browserStorage;
 
 export class AutoUpdater {
@@ -11,6 +10,7 @@ export class AutoUpdater {
     this.autoUpdateEnabled = true;
     this.isChecking = false;
     this.isDownloading = false;
+    this.pendingQuit = false;
   }
 
   get isBusy() {
@@ -21,6 +21,49 @@ export class AutoUpdater {
     this.windowManager = windowManager;
     this.setupEventListeners();
     this.registerIPCHandlers();
+    this.setupAppCloseHandlers();
+  }
+
+  setupAppCloseHandlers() {
+    app.on('before-quit', async (event) => {
+      if (this.isDownloading) {
+        event.preventDefault();
+        this.pendingQuit = true;
+
+        const selectedLanguage =
+          localStorage.getItem('selectedLanguage') || 'en';
+        const translations = await this.getTranslations(selectedLanguage);
+
+        const window = this.windowManager.getWindow();
+        await dialog.showMessageBox(window, {
+          type: 'info',
+          buttons: ['OK'],
+          message: translations.settings.updateDownloading,
+          detail: translations.settings.updateDownloadingMessage,
+        });
+      }
+    });
+
+    const window = this.windowManager.getWindow();
+    if (window) {
+      window.on('close', async (event) => {
+        if (this.isDownloading) {
+          event.preventDefault();
+          this.pendingQuit = true;
+
+          const selectedLanguage =
+            localStorage.getItem('selectedLanguage') || 'en';
+          const translations = await this.getTranslations(selectedLanguage);
+
+          await dialog.showMessageBox(window, {
+            type: 'info',
+            buttons: ['OK'],
+            message: translations.settings.updateDownloading,
+            detail: translations.settings.updateDownloadingMessage,
+          });
+        }
+      });
+    }
   }
 
   setupEventListeners() {
@@ -56,11 +99,18 @@ export class AutoUpdater {
     autoUpdater.on('update-downloaded', async (info) => {
       const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
       const translations = await this.getTranslations(selectedLanguage);
+
       this.isDownloading = false;
       this.windowManager.sendToRenderer(
         'update-status',
         `Update ready: ${info.version}`
       );
+
+      // If user tried to quit during download, quit automatically now
+      if (this.pendingQuit) {
+        autoUpdater.quitAndInstall();
+        return;
+      }
 
       const window = this.windowManager.getWindow();
       const result = await dialog.showMessageBox(window, {
@@ -77,9 +127,11 @@ export class AutoUpdater {
     });
 
     // Handle errors and reset flags
-    autoUpdater.on('error', () => {
+    autoUpdater.on('error', (error) => {
+      console.error('Auto-updater error:', error);
       this.isChecking = false;
       this.isDownloading = false;
+      this.pendingQuit = false;
     });
   }
 
@@ -110,6 +162,11 @@ export class AutoUpdater {
       'get-auto-update-status',
       () => this.autoUpdateEnabled
     );
+
+    // New handler to check if update is downloading
+    ipcMain.answerRenderer('is-update-downloading', () => {
+      return this.isDownloading;
+    });
   }
 
   async getTranslations(lang = 'en') {
@@ -125,7 +182,6 @@ export class AutoUpdater {
       'uk',
       'zh',
     ];
-
     if (!supportedLangs.includes(lang)) lang = 'en';
 
     try {
@@ -138,8 +194,9 @@ export class AutoUpdater {
         `Failed to load translations for ${lang}, falling back to English.`,
         error
       );
+      // Fixed: Use 'en' as fallback instead of the same failed language
       const fallback = await import(
-        `../../../renderer/src/pages/settings/locales/${lang}.json`
+        `../../../renderer/src/pages/settings/locales/en.json`
       );
       return fallback.default;
     }

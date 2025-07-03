@@ -275,11 +275,8 @@
     "later": "Later",
     "updateReady": "Update ready to install:",
     "restartToUpdate": "Restart the app now to apply the update?",
-    "updateInProgress": "An update is currently in progress.",
-    "updateInProgressDetail": "Closing the app now could result in data loss or a failed update. Do you want to cancel the update and close the app?",
-    "cancelUpdate": "Cancel Update and Close",
-    "continueUpdate": "Continue Update",
-    "updateInProgressTitle": "Update in Progress"
+    "updateDownloading": "Update Downloading",
+    "updateDownloadingMessage": "An update is currently downloading. The application will close when the download is complete."
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",
