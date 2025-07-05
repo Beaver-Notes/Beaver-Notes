@@ -149,7 +149,7 @@
     "vidUrl": "Video url",
     "video": "Video",
     "videoUrl": "Video url",
-    "yellowCallout": "Yellow Callout"
+    "yellowCallout": "Yellow Callout",
   },
   "paper": {
     "dotted": "Dotted",
@@ -273,9 +273,11 @@
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wide": "Wide",
     "wrongCurrentPassword": "Wrong password, please try again",
-    "UpdateAvailable": "A new update is available",
-    "InstallNow": "Install Now",
-    "Later": "Later"
+    "updateTitle": "Installing Update...",
+    "updateDescription": "An update is being installed. The app will close automatically when the update has completed.",
+    "updateAvailable": "A new update is available",
+    "installNow": "Install Now",
+    "later": "Later"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",

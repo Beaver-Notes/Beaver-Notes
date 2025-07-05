@@ -5,6 +5,20 @@
     v-if="store.inReaderMode"
     class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
   ></div>
+
+  <div
+    v-if="updateBanner.show"
+    class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
+  >
+    <ui-banner
+      :content="updateBanner.content"
+      :primary-text="updateBanner.primaryText"
+      :secondary-text="updateBanner.secondaryText"
+      @button-1="handleUpdateInstall"
+      @button-2="handleUpdateDismiss"
+    />
+  </div>
+
   <main v-if="retrieved" :class="{ 'pl-16 print:p-2': !store.inReaderMode }">
     <router-view />
   </main>
@@ -14,8 +28,10 @@
   >
     <ui-spinner :size="50" />
   </div>
+
   <ui-dialog />
 </template>
+
 <script>
 import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import { useRouter } from 'vue-router';
@@ -32,7 +48,10 @@ import { useTranslation } from './composable/translations';
 import { importBEA } from './utils/share/BEA';
 
 export default {
-  components: { AppSidebar, AppCommandPrompt },
+  components: {
+    AppSidebar,
+    AppCommandPrompt,
+  },
   setup() {
     const { onFileOpened } = window.electron;
     const theme = useTheme();
@@ -42,6 +61,15 @@ export default {
     const labelStore = useLabelStore();
     const retrieved = ref(false);
 
+    // Update banner state
+    const updateBanner = reactive({
+      show: false,
+      content: '',
+      primaryText: '',
+      secondaryText: '',
+      version: '',
+    });
+
     const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
     const selectedCodeFont =
       localStorage.getItem('selected-font-code') || 'JetBrains Mono';
@@ -49,6 +77,7 @@ export default {
       localStorage.getItem('selected-dark-text') || 'white';
     const colorScheme = localStorage.getItem('color-scheme') || 'light';
     const editorWidth = localStorage.getItem('editorWidth') || '54rem';
+
     document.documentElement.style.setProperty('--selected-font', selectedFont);
     document.documentElement.style.setProperty(
       '--selected-font-code',
@@ -62,20 +91,41 @@ export default {
     document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const zoom = async () => {
-      // Check if zoom level exists in localStorage
       const zoomLevel = localStorage.getItem('zoomLevel');
-
-      // If zoom level doesn't exist in localStorage, set it to 1.0
       if (!zoomLevel) {
         localStorage.setItem('zoomLevel', '1.0');
-
-        // Send message to main process to set zoom level
         window.electron.ipcRenderer.callMain('app:set-zoom', 1.0);
       }
     };
 
     const appStore = useAppStore();
-    const translations = ref({ dialog: {} });
+    const translations = ref({ dialog: {}, settings: {} });
+
+    // Handle update banner actions
+    const handleUpdateInstall = () => {
+      window.electron.ipcRenderer.callMain('install-update');
+      updateBanner.show = false;
+    };
+
+    const handleUpdateDismiss = () => {
+      updateBanner.show = false;
+    };
+
+    // Listen for update banner events
+    const setupUpdateListeners = () => {
+      if (window.electron && window.electron.ipcRenderer) {
+        const handleUpdateBanner = (bannerData) => {
+          updateBanner.content = bannerData.content;
+          updateBanner.primaryText = bannerData.primaryText;
+          updateBanner.secondaryText = bannerData.secondaryText;
+          updateBanner.version = bannerData.version;
+          updateBanner.show = true;
+        };
+
+        // Store the handler so we can access it
+        window.handleUpdateBanner = handleUpdateBanner;
+      }
+    };
 
     onMounted(async () => {
       await useTranslation().then((trans) => {
@@ -84,22 +134,8 @@ export default {
         }
       });
 
-      try {
-        const autoUpdateEnabled = await window.electron.ipcRenderer.callMain(
-          'get-auto-update-status'
-        );
-
-        if (autoUpdateEnabled) {
-          await window.electron.ipcRenderer.callMain('check-for-updates');
-        }
-      } catch (error) {
-        console.error('Error checking auto-update status:', error);
-      }
-
-      // Apply the stored zoom level on mount
       document.body.style.zoom = state.zoomLevel;
 
-      // Detect platform and apply shortcuts for Windows and Linux only
       const platform = navigator.userAgent.toLowerCase();
       const isWindowsOrLinux =
         platform.includes('win') || platform.includes('linux');
@@ -116,6 +152,34 @@ export default {
         Mousetrap.bind('ctrl+0', () => {
           setZoom(1.0);
         });
+      }
+
+      setupUpdateListeners();
+
+      // Notify main process that renderer is ready
+      try {
+        await window.electron.ipcRenderer.callMain('renderer-ready');
+      } catch (error) {
+        console.error(
+          'Error notifying main process that renderer is ready:',
+          error
+        );
+      }
+
+      // Check for updates if auto-update is enabled
+      try {
+        const autoUpdateEnabled = await window.electron.ipcRenderer.callMain(
+          'get-auto-update-status'
+        );
+
+        if (autoUpdateEnabled) {
+          // Add a small delay to ensure everything is fully initialized
+          setTimeout(async () => {
+            await window.electron.ipcRenderer.callMain('check-for-updates');
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('Error checking auto-update status:', error);
       }
     });
 
@@ -151,17 +215,18 @@ export default {
 
       if (appStore.setting.openLastEdited) {
         const lastNoteEdit = localStorage.getItem('lastNoteEdit');
-
         if (lastNoteEdit) {
           router.push(`/note/${lastNoteEdit}`);
         }
       }
     }
+
     theme.loadTheme();
     onFileOpened((path) => {
       console.log('File opened:', path);
       importBEA(path, router, store);
     });
+
     window.electron.ipcRenderer.callMain(
       'app:set-zoom',
       +localStorage.getItem('zoomLevel') || 1
@@ -179,7 +244,6 @@ export default {
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
       state.zoomLevel = newZoomLevel.toFixed(1);
       localStorage.setItem('zoomLevel', state.zoomLevel);
-      // Apply the zoom level to the document body (or specific container)
       document.body.style.zoom = state.zoomLevel;
     };
 
@@ -190,6 +254,9 @@ export default {
       retrieved,
       zoom,
       appStore,
+      updateBanner,
+      handleUpdateInstall,
+      handleUpdateDismiss,
     };
   },
 };

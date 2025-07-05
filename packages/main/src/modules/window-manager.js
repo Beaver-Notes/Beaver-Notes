@@ -83,7 +83,12 @@ export class WindowManager {
   }
 
   sendToRenderer(channel, data) {
-    if (this.mainWindow && this.mainWindow.webContents) {
+    if (
+      this.mainWindow &&
+      !this.mainWindow.isDestroyed() &&
+      this.mainWindow.webContents &&
+      !this.mainWindow.webContents.isDestroyed()
+    ) {
       this.mainWindow.webContents.send(channel, data);
     }
   }
