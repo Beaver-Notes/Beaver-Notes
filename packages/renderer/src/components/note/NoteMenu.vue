@@ -48,46 +48,37 @@
           </div>
         </button>
       </ui-popover>
-      <div class="relative w-20 h-8 rounded-lg bg-input">
+      <div class="flex w-20 h-8 rounded-lg bg-input overflow-hidden">
+        <button
+          type="button"
+          class="w-1/3 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors rounded-l-lg"
+          @click="
+            fontSize += 1;
+            updateFontSize();
+          "
+        >
+          <v-remixicon name="riAddLine" class="w-4 h-4" />
+        </button>
+
         <input
           v-model.number="fontSize"
           v-tooltip.group="translations.menu.fontSize"
           type="number"
           min="1"
-          class="w-full h-full bg-transparent text-center border-0 pr-7 rounded-lg appearance-none focus:outline-none"
+          class="w-1/3 bg-transparent text-center text-neutral-800 dark:text-white border-0 appearance-none focus:outline-none text-xs flex items-center justify-center [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none -moz-appearance:textfield"
           @change="updateFontSize"
         />
 
-        <!-- Buttons container -->
-        <div
-          class="absolute top-0.5 bottom-0.5 right-0.5 flex flex-col bg-neutral-50 dark:bg-neutral-800 rounded-r-md"
-          style="width: 1.75rem"
+        <button
+          type="button"
+          class="w-1/3 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors rounded-r-lg"
+          @click="
+            fontSize = Math.max(1, fontSize - 1);
+            updateFontSize();
+          "
         >
-          <button
-            type="button"
-            class="flex-1 flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-tr-md transition-colors"
-            @click="
-              fontSize += 1;
-              updateFontSize();
-            "
-          >
-            <v-remixicon name="riAddLine" class="w-3 h-3" />
-          </button>
-
-          <!-- Divider -->
-          <div class="h-px bg-neutral-300 dark:bg-neutral-600 mx-0.5"></div>
-
-          <button
-            type="button"
-            class="flex-1 flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-br-md transition-colors"
-            @click="
-              fontSize = Math.max(1, fontSize - 1);
-              updateFontSize();
-            "
-          >
-            <v-remixicon name="riSubtractLine" class="w-3 h-3" />
-          </button>
-        </div>
+          <v-remixicon name="riSubtractLine" class="w-4 h-4" />
+        </button>
       </div>
       <hr class="border-r mx-2 h-6" />
       <button
