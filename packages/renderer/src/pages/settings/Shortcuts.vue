@@ -56,7 +56,7 @@ const translations = shallowReactive({
     Drag: 'shortcuts.Drag',
   },
   sidebar: {
-    toggleSync: 'sidebar.toggleSync',
+    Togglesync: 'sidebar.toggleSync',
   },
 });
 
