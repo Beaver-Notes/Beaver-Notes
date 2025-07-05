@@ -87,6 +87,8 @@
     "untitlednote": "Untitled note"
   },
   "menu": {
+    "Lists": "Lists",
+    "Headings": "Headings",
     "Add": "Add",
     "Embed": "Embed",
     "EmbedUrl": "Insert url",
@@ -271,12 +273,9 @@
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wide": "Wide",
     "wrongCurrentPassword": "Wrong password, please try again",
-    "updatenow": "Update Now",
-    "later": "Later",
-    "updateReady": "Update ready to install:",
-    "restartToUpdate": "Restart the app now to apply the update?",
-    "updateDownloading": "Update Downloading",
-    "updateDownloadingMessage": "An update is currently downloading. The application will close when the download is complete."
+    "UpdateAvailable": "A new update is available",
+    "InstallNow": "Install Now",
+    "Later": "Later"
   },
   "shortcuts": {
     "Arrowleft": "Arrow Left",

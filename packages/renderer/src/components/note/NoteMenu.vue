@@ -17,8 +17,8 @@
       <ui-popover padding="p-2 flex flex-col print:hidden">
         <template #trigger>
           <button
-            v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
+            v-tooltip.group="translations.menu.headings"
+            :class="{ 'is-active': editor.isActive('heading') }"
             class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
           >
             <v-remixicon name="riHeading" />
@@ -28,7 +28,6 @@
         <button
           v-for="heading in [1, 2, 3, 4]"
           :key="heading"
-          v-tooltip.group="`${translations.menu.heading} ${heading}`"
           :class="{
             'is-active': editor.isActive('heading', { level: heading }),
           }"
@@ -122,8 +121,7 @@
         <ui-popover padding="p-2 flex flex-col print:hidden">
           <template #trigger>
             <button
-              v-tooltip.group="translations.menu.highlight"
-              :class="{ 'is-active': editor.isActive('highlight') }"
+              v-tooltip.group="translations.menu.lists"
               class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
             >
               <v-remixicon name="riListOrdered" />
@@ -133,7 +131,6 @@
           <button
             v-for="action in lists"
             :key="action.name"
-            v-tooltip.group="action.title"
             :class="{ 'is-active': editor.isActive(action.activeState) }"
             class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
             @click="action.handler"
