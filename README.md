@@ -1,7 +1,7 @@
 <h1 align="center">Beaver Notes</h1>
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-11-orange.svg?style=flat)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-8-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
 ![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat&logo=archlinux&color=blue)
@@ -96,32 +96,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="http://tahinli.com"><img src="https://avatars.githubusercontent.com/u/96421894?v=4?s=100" width="100px;" alt="Ahmet Kaan GÜMÜŞ"/><br /><sub><b>Ahmet Kaan GÜMÜŞ</b></sub></a><br /><a href="#translation-Tahinli" title="Translation">🌍</a></td>
     </tr>
     <tr>
-         <td align="center" valign="top" width="14.28%">
-        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="verthandii"/>
-        <br /><sub><b>Verthandii</b></sub>
-        <br />
-        <a href="https://github.com/Daniele-rolli/Beaver-Notes/commit/6b3240dbc69f667f6a74cd29387f628f94c67ef2" title="Translation">🌍</a>
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <a href="https://moooon.dresden.network">
-          <img src="https://files.mastodon.social/cache/accounts/avatars/109/133/358/983/739/539/original/581ad9fb29a9a04d.png" width="100px;" alt="Mondstern"/>
-          <br /><sub><b>Mondstern</b></sub>
-        </a>
-        <br />
-        <a title="Translation">🌍</a>
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="Gabriel Soleil"/>
-        <br /><sub><b>Gabriel Soleil</b></sub>
-        <br />
-        <a title="Translation">🌍</a>
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="Gabriel Soleil"/>
-        <br /><sub><b>Rem</b></sub>
-        <br />
-        <a title="Translation">🌍</a>
-      </td>
+      <td align="center" valign="top" width="14.28%"><a href="http://rianorie.com"><img src="https://avatars.githubusercontent.com/u/2292861?v=4?s=100" width="100px;" alt="Rian Orie"/><br /><sub><b>Rian Orie</b></sub></a><br /><a href="#design-rianorie" title="Design">🎨</a></td>
     </tr>
   </tbody>
 </table>
