@@ -48,14 +48,47 @@
           </div>
         </button>
       </ui-popover>
-      <input
-        v-model.number="fontSize"
-        type="number"
-        class="hoverable appearance-none h-full bg-transparent h-8 px-1 rounded-lg w-14 text-center"
-        min="1"
-        title="Font size"
-        @change="updateFontSize"
-      />
+      <div class="relative w-20 h-8 rounded-lg bg-input">
+        <input
+          v-model.number="fontSize"
+          v-tooltip.group="translations.menu.fontSize"
+          type="number"
+          min="1"
+          class="w-full h-full bg-transparent text-center border-0 pr-7 rounded-lg appearance-none focus:outline-none"
+          @change="updateFontSize"
+        />
+
+        <!-- Buttons container -->
+        <div
+          class="absolute top-0.5 bottom-0.5 right-0.5 flex flex-col bg-neutral-50 dark:bg-neutral-800 rounded-r-md"
+          style="width: 1.75rem"
+        >
+          <button
+            type="button"
+            class="flex-1 flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-tr-md transition-colors"
+            @click="
+              fontSize += 1;
+              updateFontSize();
+            "
+          >
+            <v-remixicon name="riAddLine" class="w-3 h-3" />
+          </button>
+
+          <!-- Divider -->
+          <div class="h-px bg-neutral-300 dark:bg-neutral-600 mx-0.5"></div>
+
+          <button
+            type="button"
+            class="flex-1 flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset rounded-br-md transition-colors"
+            @click="
+              fontSize = Math.max(1, fontSize - 1);
+              updateFontSize();
+            "
+          >
+            <v-remixicon name="riSubtractLine" class="w-3 h-3" />
+          </button>
+        </div>
+      </div>
       <hr class="border-r mx-2 h-6" />
       <button
         v-for="action in textFormatting"
@@ -883,7 +916,7 @@ export default {
       'bg-[#9B5EE6]/30 dark:bg-[#9B5EE6]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #9B5EE6 (purple)
       'bg-[#E67EA4]/30 dark:bg-[#E67EA4]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E67EA4 (pink)
       'bg-[#E75C5C]/30 dark:bg-[#E75C5C]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E75C5C (red)
-      'bg-[#A3A3A3]/30 dark:bg-[#A3A3A3]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #A3A3A3 (gray)
+      'bg-[#A3A3A3]/30 dark:bg-[#A3A3A3]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #A3A3A3 (neutral)
     ];
 
     const textColors = [
@@ -1046,5 +1079,15 @@ input[type='number'] {
   &::-webkit-inner-spin-button {
     opacity: 1;
   }
+}
+
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type='number'] {
+  -moz-appearance: textfield;
 }
 </style>
