@@ -76,6 +76,15 @@
       "contributions": [
         "translation"
       ]
+    },
+    {
+      "login": "rianorie",
+      "name": "Rian Orie",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2292861?v=4",
+      "profile": "http://rianorie.com",
+      "contributions": [
+        "design"
+      ]
     }
   ],
   "contributorsPerLine": 7,
