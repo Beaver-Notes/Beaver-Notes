@@ -17,7 +17,7 @@
       <ui-popover padding="p-2 flex flex-col print:hidden">
         <template #trigger>
           <button
-            v-tooltip.group="translations.menu.headings"
+            v-tooltip.group="translations.menu.Headings"
             :class="{ 'is-active': editor.isActive('heading') }"
             class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
           >
@@ -145,7 +145,7 @@
         <ui-popover padding="p-2 flex flex-col print:hidden">
           <template #trigger>
             <button
-              v-tooltip.group="translations.menu.lists"
+              v-tooltip.group="translations.menu.Lists"
               class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
             >
               <v-remixicon name="riListOrdered" />
