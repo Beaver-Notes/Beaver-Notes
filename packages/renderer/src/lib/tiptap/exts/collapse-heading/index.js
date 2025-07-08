@@ -197,9 +197,9 @@ export default Heading.extend({
   },
 
   renderHTML({ HTMLAttributes }) {
-    return [`h${HTMLAttributes.levels}`, mergeAttributes(HTMLAttributes), 0];
+    const { level = 1, ...rest } = HTMLAttributes;
+    return [`h${level}`, mergeAttributes(rest), 0];
   },
-
   parseHTML() {
     return this.options.levels.map((level) => ({
       tag: `h${level}`,

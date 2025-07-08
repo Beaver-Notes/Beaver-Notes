@@ -12,7 +12,7 @@ jobs:
   release:
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -69,8 +69,6 @@ jobs:
 
           if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
             yarn electron-builder build --config electron-builder.config.cjs --mac $PUBLISH_FLAG
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --win $PUBLISH_FLAG
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
           fi

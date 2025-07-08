@@ -16,10 +16,6 @@
   tab-size: 2;
   font-variant-ligatures: normal;
 }
-.ProseMirror {
-  font-size: 1.065rem;
-  line-height: 1.5;
-}
 .ProseMirror a {
   @apply text-primary dark:text-primary !important;
 }
@@ -107,23 +103,23 @@ img.ProseMirror-selectednode {
         user-select: none;
       }
       p {
-        margin: 0;
+        margin: 0 !important;
       }
       input[type='checkbox'] {
         appearance: none;
         -webkit-appearance: none;
-        width: 20px;
-        height: 20px;
+        width: 18px;
+        height: 18px;
         border-radius: 50%;
         border: 2px solid #ccc;
         outline: none;
         cursor: pointer;
         transition: border-color 0.3s;
+        transform: translateY(8px) translateX(-2px);
       }
 
       input[type='checkbox']:checked {
-        border-color: #fbbf24;
-        background-color: #fbbf24;
+        @apply bg-primary border-primary border-2;
       }
 
       /* Optional: You can add a custom background or other styles for the checked state */

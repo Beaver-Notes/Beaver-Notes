@@ -127,26 +127,30 @@
       <p class="mb-2">{{ translations.settings.selectfont || '-' }}</p>
       <div class="flex gap-2 items-center">
         <ui-select
-          id="fontSelect"
           v-model="state.selectedFont"
           class="w-full"
           @change="updateFont"
         >
-          <option value="Arimo" class="font-arimo">Arimo</option>
-          <option value="avenir" class="font-avenir">Avenir</option>
-          <option value="EB Garamond" class="font-eb-faramond">
-            EB Garamond
-          </option>
-          <option value="'Helvetica Neue', sans-serif" class="font-helvetica">
-            Helvetica
-          </option>
-          <option value="OpenDyslexic" class="font-open-dyslexic">
-            Open Dyslexic
-          </option>
-          <option value="Roboto Mono" class="font-roboto-mono">
-            Roboto Mono
-          </option>
-          <option value="Ubuntu" class="font-ubuntu">Ubuntu</option>
+          <optgroup>
+            <option
+              v-for="font in defaultFonts"
+              :key="font.value"
+              :value="font.value"
+              :class="font.class"
+            >
+              {{ font.label }}
+            </option>
+          </optgroup>
+          <optgroup v-if="systemFonts.length">
+            <option
+              v-for="fontName in systemFonts"
+              :key="fontName"
+              :value="fontName"
+              :style="{ fontFamily: fontName }"
+            >
+              {{ fontName }}
+            </option>
+          </optgroup>
         </ui-select>
       </div>
     </section>
@@ -441,6 +445,36 @@ export default {
       },
     });
 
+    const defaultFonts = [
+      { label: 'Arimo', value: 'Arimo', class: 'font-arimo' },
+      { label: 'Avenir', value: 'avenir', class: 'font-avenir' },
+      { label: 'EB Garamond', value: 'EB Garamond', class: 'font-eb-faramond' },
+      {
+        label: 'Helvetica',
+        value: "'Helvetica Neue', sans-serif",
+        class: 'font-helvetica',
+      },
+      {
+        label: 'Open Dyslexic',
+        value: 'OpenDyslexic',
+        class: 'font-open-dyslexic',
+      },
+      { label: 'Roboto Mono', value: 'Roboto Mono', class: 'font-roboto-mono' },
+      { label: 'Ubuntu', value: 'Ubuntu', class: 'font-ubuntu' },
+    ];
+
+    const systemFonts = ref([]);
+
+    onMounted(async () => {
+      try {
+        systemFonts.value = await window.electron.ipcRenderer.callMain(
+          'get-system-fonts'
+        );
+      } catch (e) {
+        console.error('Failed to fetch system fonts', e);
+      }
+    });
+
     // Reactive variables for width management
     const selectedWidth = ref(localStorage.getItem('editorWidth') || '54rem');
     const customWidth = ref(
@@ -589,6 +623,8 @@ export default {
       updateCodeFont,
       setZoom,
       setColor,
+      defaultFonts,
+      systemFonts,
     };
   },
 };

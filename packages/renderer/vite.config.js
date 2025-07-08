@@ -23,6 +23,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@/': join(PACKAGE_ROOT, 'src') + '/',
+      crypto: 'crypto-browserify',
     },
   },
   plugins: [vue()],
@@ -33,6 +34,13 @@ export default defineConfig({
   server: {
     fsServe: {
       root: join(PACKAGE_ROOT, '../../'),
+    },
+  },
+  css: {
+    preprocessorOptions: {
+      scss: {
+        api: 'modern-compiler',
+      },
     },
   },
   build: {

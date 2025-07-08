@@ -21,13 +21,13 @@ async function encodeAssets(sourcePath) {
       assets[file] = base64Data;
     }
   } catch (error) {
-    console.error(`Error reading assets from ${sourcePath}:`, error);
+    console.error(`Error reading assets from ${sourcePath}:, error`);
   }
 
   return assets;
 }
 
-export async function exportNoteById(noteId, noteTitle) {
+export async function exportBEA(noteId, noteTitle) {
   const storage = useStorage();
   try {
     const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
@@ -83,7 +83,7 @@ export async function exportNoteById(noteId, noteTitle) {
   }
 }
 
-export async function importNoteFromBea(filePath, router, store) {
+export async function importBEA(filePath, router, store) {
   try {
     const fileContent = await ipcRenderer.callMain('fs:read-json', filePath);
 

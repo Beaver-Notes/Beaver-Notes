@@ -5,29 +5,27 @@ export default Node.create({
   name: 'paper',
 
   group: 'block',
-
   atom: true,
+
+  addOptions() {
+    return {
+      ...this.parent?.(),
+      selectable: true,
+      draggable: false,
+      allowGapCursor: true, // 👈 Important for gapcursor support
+    };
+  },
 
   addAttributes() {
     return {
-      lines: {
-        default: [],
-      },
-      height: {
-        default: 400, // Default height
-      },
-      paperType: {
-        default: 'plain',
-      },
+      lines: { default: [] },
+      height: { default: 400 },
+      paperType: { default: 'plain' },
     };
   },
 
   parseHTML() {
-    return [
-      {
-        tag: 'div[data-type="paper"]',
-      },
-    ];
+    return [{ tag: 'div[data-type="paper"]' }];
   },
 
   renderHTML({ HTMLAttributes }) {
@@ -35,7 +33,8 @@ export default Node.create({
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'paper',
-        style: `height: ${HTMLAttributes.height}px;`, // Set initial height via style
+        'data-lines': JSON.stringify(HTMLAttributes.lines),
+        style: `height: ${HTMLAttributes.height}px;`,
       }),
     ];
   },
@@ -51,7 +50,7 @@ export default Node.create({
         ({ commands }) => {
           return commands.insertContent({
             type: 'paper',
-            attrs: { lines: [], height: 800 }, // Ensure default height is set
+            attrs: { lines: [], height: 800 },
           });
         },
     };

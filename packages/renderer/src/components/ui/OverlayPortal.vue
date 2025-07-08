@@ -5,9 +5,7 @@
     aria-modal="true"
     @click.self="$emit('close')"
   >
-    <div
-      class="bg-white dark:bg-neutral-800 rounded-lg overflow-auto h-full w-full"
-    >
+    <div class="bg-white dark:bg-neutral-800 overflow-auto h-full w-full">
       <slot></slot>
     </div>
   </div>
@@ -19,9 +17,11 @@ export default {
   emits: { close: null },
   mounted() {
     document.addEventListener('keydown', this.onKeydown);
+    document.body.style.overflow = 'hidden';
   },
   beforeUnmount() {
     document.removeEventListener('keydown', this.onKeydown);
+    document.body.style.overflow = '';
   },
   methods: {
     onKeydown(event) {

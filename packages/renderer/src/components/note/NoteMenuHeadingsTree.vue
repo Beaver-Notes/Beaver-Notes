@@ -68,14 +68,11 @@ export default {
           downHandler();
           break;
         case 'Enter': {
-          const activeElement = filteredHeadings.value[selectedIndex.value]?.el;
-          if (activeElement == null) {
-            return;
-          }
-          props.editor.commands.setTextSelection(
-            activeElement.pmViewDesc.posAtEnd
-          );
-          scrollIntoView(activeElement);
+          const heading = filteredHeadings.value[selectedIndex.value];
+          if (!heading || heading.pos == null) return;
+
+          props.editor.commands.setTextSelection(heading.pos);
+          scrollIntoView(heading.el);
           break;
         }
         case 'Escape':
