@@ -40,6 +40,21 @@
   <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
   <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
   <releases>
+    <release version="4.1.0" date="2025-07-10">
+      <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.1.0</url>
+      <description>
+        <p>Release description</p>
+        <ul>
+          <li>Improved sync reliability and performance</li>
+          <li>Overhauled drawing block</li>
+          <li>Fixed "Jump to Result"</li>
+          <li>Fixed gap cursor in drawing block</li>
+          <li>Fixed PDF export</li>
+          <li>Share in Markdown and HTML</li>
+          <li>Improved update flow</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.0.0" date="2025-05-29">
       <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.0.0</url>
       <description>
