@@ -10,7 +10,7 @@
       </div>
       <div
         v-if="note.labels.length !== 0"
-        class="text-primary dark:text-primary mt-2 mb-1 line-clamp w-full"
+        class="text-primary dark:text-primary mt-2 mb-1 line-clamp w-full space-x-1"
       >
         <span
           v-for="label in note.labels"

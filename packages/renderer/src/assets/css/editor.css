@@ -16,6 +16,10 @@
   tab-size: 2;
   font-variant-ligatures: normal;
 }
+.ProseMirror {
+  font-size: 1.065rem;
+  line-height: 1.5;
+}
 .ProseMirror a {
   @apply text-primary dark:text-primary !important;
 }
@@ -37,6 +41,10 @@
   margin-bottom: 0.5em !important;
   @apply dark:text-[color:var(--selected-dark-text)];
 }
+.ProseMirror li {
+  margin-top: 0.25em !important;
+  margin-bottom: 0.25em !important;
+}
 .ProseMirror strong {
   color: inherit !important;
   margin-top: 0 !important;
@@ -56,6 +64,9 @@
 .ProseMirror .math-block {
   @apply dark:bg-neutral-800;
 }
+.ProseMirror hr {
+  @apply dark:bg-neutral-600;
+}
 .math-node .math-src {
   @apply dark:text-purple-400 text-purple-500 !important;
 }
@@ -70,6 +81,9 @@ img.ProseMirror-selectednode {
   }
   &:focus {
     outline: none;
+  }
+  li::marker {
+    @apply dark:text-[color:var(--selected-dark-text)];
   }
   li[data-checked='false'] {
     @apply dark:text-[color:var(--selected-dark-text)];
@@ -103,7 +117,7 @@ img.ProseMirror-selectednode {
         user-select: none;
       }
       p {
-        margin: 0 !important;
+        margin: 0;
       }
       input[type='checkbox'] {
         appearance: none;
@@ -119,7 +133,8 @@ img.ProseMirror-selectednode {
       }
 
       input[type='checkbox']:checked {
-        @apply bg-primary border-primary border-2;
+        border-color: #fbbf24;
+        background-color: #fbbf24;
       }
 
       /* Optional: You can add a custom background or other styles for the checked state */
