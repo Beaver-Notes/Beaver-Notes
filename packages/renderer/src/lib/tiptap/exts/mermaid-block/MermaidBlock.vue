@@ -46,8 +46,9 @@
 </template>
 
 <script>
-import { ref, watch, onMounted, shallowReactive, computed } from 'vue';
+import { ref, watch, onMounted, computed } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
+import { useTranslation } from '@/composable/translations';
 import MermaidComponent from '../../../../utils/mermaid-renderer.vue'; // Adjust the import path accordingly
 
 export default {
@@ -139,33 +140,17 @@ export default {
       }
     );
 
-    const translations = shallowReactive({
-      sidebar: {
-        exit: '_idvue.exit',
-        MermaidPlaceholder: '_idvue.MermaidPlaceholder',
-      },
+    const translations = ref({
+      sidebar: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       updateContent,

@@ -23,7 +23,7 @@
         />
       </div>
       <div
-        class="flex border-t items-center pt-2 text-gray-600 dark:text-gray-300"
+        class="flex border-t items-center pt-2 text-neutral-600 dark:text-neutral-300"
       >
         <img src="@/assets/svg/katex.svg" width="48" style="margin: 0" />
         <div class="flex-grow"></div>
@@ -42,7 +42,7 @@
 
     <!-- Scrollable output container -->
     <div
-      class="overflow-x-auto max-w-full p-2 rounded bg-white dark:bg-zinc-900"
+      class="overflow-x-auto max-w-full p-2 rounded bg-white dark:bg-neutral-900"
       style="white-space: nowrap"
     >
       <p
@@ -54,8 +54,9 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, ref, nextTick } from 'vue';
+import { onMounted, ref, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
+import { useTranslation } from '@/composable/translations';
 import katex from 'katex';
 
 export default {
@@ -131,33 +132,18 @@ export default {
       }
     }
 
-    const translations = shallowReactive({
-      _idvue: {
-        exit: '_idvue.exit',
-        MathPlaceholder: '_idvue.MathPlaceholder',
-      },
+    const translations = ref({
+      _idvue: {},
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     onMounted(async () => {
       props.updateAttributes({ init: 'true' });
       renderContent();
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
 
     return {

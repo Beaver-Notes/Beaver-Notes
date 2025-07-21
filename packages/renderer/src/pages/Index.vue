@@ -96,8 +96,8 @@ import {
   shallowRef,
   onMounted,
   onUnmounted,
-  shallowReactive,
 } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useRoute, useRouter } from 'vue-router';
 import { useTheme } from '@/composable/theme';
 import { useNoteStore } from '@/store/note';
@@ -278,9 +278,9 @@ export default {
             router.push(`/note/${noteId}`);
           } else if (key === 'Backspace' || key === 'Delete') {
             dialog.confirm({
-              title: translations.card.confirmPrompt,
-              okText: translations.card.confirm,
-              cancelText: translations.card.Cancel,
+              title: translations.value.card.confirmPrompt,
+              okText: translations.value.card.confirm,
+              cancelText: translations.value.card.Cancel,
               onConfirm: async () => {
                 await noteStore.delete(noteId);
               },
@@ -295,40 +295,18 @@ export default {
 
     //Translations
 
-    const translations = shallowReactive({
-      sidebar: {
-        Notes: 'sidebar.Notes',
-      },
-      index: {
-        newnote: 'index.newnote',
-        all: 'index.all',
-        syncreminder: 'index.syncreminder',
-        syncmessage: 'index.syncmessage',
-        hide: 'index.hide',
-        close: 'index.close',
-      },
+    const translations = ref({
+      sidebar: {},
+      index: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       notes,

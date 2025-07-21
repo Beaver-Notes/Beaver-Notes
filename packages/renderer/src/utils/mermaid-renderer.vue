@@ -9,7 +9,8 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch, onMounted, shallowReactive } from 'vue';
+import { defineComponent, ref, watch, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useTheme } from '@/composable/theme';
 import mermaid from 'mermaid';
 
@@ -55,7 +56,7 @@ export default defineComponent({
         hasSyntaxError.value = false; // No syntax error
       } catch (e) {
         console.error('Error rendering Mermaid diagram:', e);
-        mermaidString.value = `<div class="text-red-500 text-center">${translations._idvue.error}</div>`;
+        mermaidString.value = `<div class="text-red-500 text-center">${translations.value._idvue.error}</div>`;
         hasSyntaxError.value = true; // Syntax error
       }
     }
@@ -113,32 +114,18 @@ export default defineComponent({
       }
     );
 
-    const translations = shallowReactive({
-      _idvue: {
-        error: '_idvue.error',
-      },
+    const translations = ref({
+      _idvue: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+      if (!props.editor) return;
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       elRef,

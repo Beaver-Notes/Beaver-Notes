@@ -11,12 +11,12 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted } from 'vue';
+import { shallowReactive, onMounted, ref } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
-import '../../assets/css/passwd.css';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
 
@@ -50,10 +50,10 @@ export default {
       const passwordStore = usePasswordStore(); // Get the password store instance
 
       dialog.prompt({
-        title: translations.settings.resetPasswordTitle,
-        okText: translations.settings.next,
-        cancelText: translations.settings.Cancel,
-        placeholder: translations.settings.password,
+        title: translations.value.settings.resetPasswordTitle,
+        okText: translations.value.settings.next,
+        cancelText: translations.value.settings.Cancel,
+        placeholder: translations.value.settings.password,
         onConfirm: async (currentPassword) => {
           if (currentPassword) {
             const isCurrentPasswordValid = await passwordStore.isValidPassword(
@@ -61,118 +61,49 @@ export default {
             );
             if (isCurrentPasswordValid) {
               dialog.prompt({
-                title: translations.settings.enterNewPassword,
-                okText: translations.settings.resetPassword,
-                body: translations.settings.warning,
-                cancelText: translations.settings.Cancel,
-                placeholder: translations.settings.newPassword,
+                title: translations.value.settings.enterNewPassword,
+                okText: translations.value.settings.resetPassword,
+                body: translations.value.settings.warning,
+                cancelText: translations.value.settings.Cancel,
+                placeholder: translations.value.settings.newPassword,
                 onConfirm: async (newPassword) => {
                   if (newPassword) {
                     try {
                       // Reset the password
                       await passwordStore.setsharedKey(newPassword);
                       console.log('Password reset successful');
-                      alert(translations.settings.passwordResetSuccess);
+                      alert(translations.value.settings.passwordResetSuccess);
                     } catch (error) {
                       console.error('Error resetting password:', error);
-                      alert(translations.settings.passwordResetError);
+                      alert(translations.value.settings.passwordResetError);
                     }
                   } else {
-                    alert(translations.settings.Invalidpassword);
+                    alert(translations.value.settings.Invalidpassword);
                   }
                 },
               });
             } else {
-              alert(translations.settings.wrongCurrentPassword);
+              alert(translations.value.settings.wrongCurrentPassword);
             }
           } else {
-            alert(translations.settings.Invalidpassword);
+            alert(translations.value.settings.Invalidpassword);
           }
         },
       });
     }
 
     // Translations
-    const translations = shallowReactive({
-      settings: {
-        advancedSettings: 'settings.advancedSettings',
-        apptheme: 'settings.apptheme',
-        light: 'settings.light',
-        dark: 'settings.dark',
-        system: 'settings.system',
-        selectlanguage: 'settings.selectlanguage',
-        selectfont: 'settings.selectfont',
-        syncpath: 'settings.syncpath',
-        selectpath: 'settings.selectpath',
-        iedata: 'settings.iedata',
-        encryptwpasswd: 'settings.encryptwpasswd',
-        exportdata: 'settings.exportdata',
-        importdata: 'settings.importdata',
-        pathplaceholder: 'settings.pathplaceholder',
-        password: 'settings.password',
-        Inputpassword: 'settings.Inputpassword',
-        body: 'settings.body',
-        Import: 'settings.Import',
-        Cancel: 'settings.Cancel',
-        Password: 'settings.password',
-        Invalidpassword: 'settings.Invalidpassword',
-        relaunch: 'settings.relaunch',
-        relaunchbutton: 'settings.relaunchbutton',
-        exportmessage: 'settings.exportmessage',
-        invaliddata: 'settings.invaliddata',
-        syncreminder: 'settings.syncreminder',
-        spellcheck: 'settings.spellcheck',
-        fullWidth: 'settings.fullwidth',
-        interfacesize: 'settings.interfacesize',
-        large: 'settings.large',
-        medium: 'settings.medium',
-        default: 'settings.default',
-        morespace: 'settings.morespace',
-        aboutDataEncryption: 'settings.aboutDataEncryption',
-        encryptionMessage: 'settings.encryptionMessage',
-        resetPasswordTitle: 'settings.resetPasswordTitle',
-        next: 'settings.next',
-        enterNewPassword: 'settings.enterNewPassword',
-        resetPassword: 'settings.resetPassword',
-        newPassword: 'settings.newPassword',
-        security: 'settings.security',
-        utilities: 'settings.utilities',
-        wrongCurrentPassword: 'settings.wrongCurrentPassword',
-        passwordResetSuccess: 'settings.passwordResetSuccess',
-        passwordResetError: 'settings.passwordResetError',
-        menuBarVisibility: 'settings.menuBarVisibility',
-        interfaceDirection: 'settings.interfaceDirection',
-        LTR: 'settings.LTR',
-        RTL: 'settings.RTL',
-        autosync: 'settings.autosync',
-        clearfont: 'settings.clearfont',
-        platform: 'settings.platform',
-        id: 'settings.id',
-        confirmDelete: 'settings.confirmDelete',
-        createdAt: 'settings.createdAt',
-      },
+    const translations = ref({
+      settings: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const appStore = useAppStore();
 

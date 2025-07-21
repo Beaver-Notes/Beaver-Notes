@@ -15,6 +15,7 @@
       autofocus
       :placeholder="state.options.placeholder"
       :label="state.options.label"
+      :password="true"
       class="w-full mt-4"
     ></ui-input>
     <ui-input
@@ -82,14 +83,12 @@ export default {
     const auths = ref(allPermissions.map((p) => ({ label: p, value: false })));
     const isEmpty = ref(false);
     const translations = ref({});
-    const loadTranslations = () =>
+    onMounted(async () => {
       useTranslation().then((trans) => {
         if (trans) {
           translations.value = trans;
         }
       });
-    onMounted(async () => {
-      await loadTranslations();
     });
 
     emitter.on('show-dialog', (type, options) => {

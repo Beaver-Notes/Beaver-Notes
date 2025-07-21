@@ -1,19 +1,16 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div
-    class="z-50 fixed bg-white dark:bg-neutral-800 rounded-lg shadow-lg border shadow-xl dark:border-neutral-600 p-2"
-  >
-    <div
+  <ui-list>
+    <ui-list-item
       v-for="(item, index) in filteredItems.slice(0, 5)"
       :key="index"
-      ref="menuItems"
-      :class="['menu-item', { selected: index === selectedIndex }]"
+      :active="index === selectedIndex"
+      class="menu-item"
+      tag="button"
+      :disabled="item.disabled"
+      @click="handleItemClick(item)"
     >
-      <button
-        v-if="!item.popover && !item.embed"
-        class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition duration-200"
-        @click="handleItemClick(item)"
-      >
+      <template v-if="!item.popover && !item.embed">
         <v-remixicon
           :name="item.icon"
           :class="[
@@ -28,23 +25,19 @@
             {{ translations.menu[item.name] || item.name }}
           </h3>
         </div>
-      </button>
+      </template>
 
-      <div v-if="item.popover">
+      <template v-if="item.popover">
+        <!-- your existing popover markup -->
         <input v-model="fileUrl" class="hidden" @keyup.enter="item.action" />
-
-        <!-- Use the icon and text in a flexbox container -->
         <label
           for="fileInput"
           class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition duration-200"
         >
-          <!-- Icon -->
           <v-remixicon
             :name="item.icon"
             class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
           />
-
-          <!-- Text -->
           <div
             class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
           >
@@ -55,8 +48,6 @@
             </h3>
           </div>
         </label>
-
-        <!-- Hidden file input -->
         <input
           id="fileInput"
           ref="fileInput"
@@ -65,14 +56,12 @@
           multiple
           @change="item.action"
         />
-      </div>
+      </template>
 
-      <div v-if="item.embed">
-        <!-- Initially hidden input -->
+      <template v-if="item.embed">
         <div
           class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition duration-200"
         >
-          <!-- Input field -->
           <input
             v-show="inputVisible"
             v-model="EmbedUrl"
@@ -80,28 +69,21 @@
             :placeholder="translations.menu.EmbedUrl || '-'"
             @keyup.enter="addIframe"
           />
-
-          <!-- Button for triggering addIframe -->
           <v-remixicon
             v-show="inputVisible"
             name="riSave3Line"
             class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
             @click="addIframe"
           />
-
-          <!-- Flexbox container for icon and text -->
           <label
             v-show="!inputVisible"
             class="flex items-center space-x-2 cursor-pointer"
             @click="showInput"
           >
-            <!-- Icon -->
             <v-remixicon
               :name="item.icon"
               class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
             />
-
-            <!-- Name (hidden when inputVisible is true) -->
             <div
               class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
             >
@@ -113,9 +95,9 @@
             </div>
           </label>
         </div>
-      </div>
-    </div>
-  </div>
+      </template>
+    </ui-list-item>
+  </ui-list>
 </template>
 
 <script>
@@ -128,6 +110,7 @@ import {
   onUnmounted,
 } from 'vue';
 import Mousetrap from 'mousetrap';
+import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
 
@@ -158,71 +141,21 @@ export default {
     const EmbedUrl = shallowRef('');
     const inputVisible = ref(false);
 
-    // Translations object
     const translations = reactive({
-      menu: {
-        paragraph: 'menu.paragraph',
-        heading: 'menu.heading',
-        image: 'menu.image',
-        imgurl: 'menu.imgurl',
-        Embed: 'menu.embed',
-        EmbedUrl: 'menu.EmbedUrl',
-        record: 'menu.record',
-        Link: 'menu.Link',
-        File: 'menu.File',
-        Print: 'menu.Print',
-        headingsTree: 'menu.headingsTree',
-        orderedlist: 'menu.orderedlist',
-        bulletlist: 'menu.bulletlist',
-        checklist: 'menu.checklist',
-        blockquote: 'menu.blockquote',
-        codeblock: 'menu.codeblock',
-        bold: 'menu.bold',
-        italic: 'menu.italic',
-        underline: 'menu.underline',
-        strikethrough: 'menu.strikethrough',
-        inlinecode: 'menu.inlinecode',
-        highlight: 'menu.highlight',
-        delete: 'menu.delete',
-        tableOptions: 'menu.tableOptions',
-        table: 'menu.tableInsert',
-        mathblock: 'menu.mathblock',
-        addRowAbove: 'menu.addRowAbove',
-        addRowBelow: 'menu.addRowBelow',
-        addColumnLeft: 'menu.addColumnLeft',
-        addColumnRight: 'menu.addColumnRight',
-        deleteRow: 'menu.deleteRow',
-        deleteColumn: 'menu.deleteColumn',
-        toggleHeader: 'menu.toggleHeader',
-        deleteTable: 'menu.deleteTable',
-      },
+      menu: {},
     });
-
-    // Function to load translations dynamically
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const handleFileInputClick = () => {
       console.log(this.$refs.fileInput);
       this.$refs.fileInput?.click();
     };
 
-    // Fetch translations on mounted
     onMounted(async () => {
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
 
     const filteredItems = computed(() => {

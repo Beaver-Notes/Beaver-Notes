@@ -65,15 +65,9 @@
 </template>
 
 <script>
-import {
-  watch,
-  ref,
-  onUnmounted,
-  onMounted,
-  shallowReactive,
-  computed,
-} from 'vue';
+import { watch, ref, onUnmounted, onMounted, computed } from 'vue';
 import Mousetrap from '@/lib/mousetrap';
+import { useTranslation } from '@/composable/translations';
 
 export default {
   props: {
@@ -110,25 +104,13 @@ export default {
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const newLabel = ref(props.label);
 
-    const translations = shallowReactive({
-      filter: {
-        Selectlabel: 'filter.Selectlabel',
-        search: 'filter.search',
-        searchplaceholder: 'filter.searchplaceholder',
-        Alphabetical: 'filter.Alphabetical',
-        Createddate: 'filter.Createddate',
-        deletelabel: 'filter.deletelabel',
-        ascending: 'filter.ascending',
-        descending: 'filter.descending',
-        clearSearch: 'Clear Search',
-      },
-    });
+    const translations = ref({ filter: {} });
 
     const sorts = computed(() => {
       return {
-        title: translations.filter.Alphabetical,
-        createdAt: translations.filter.Createddate,
-        updatedAt: translations.filter.Lastupdated,
+        title: translations.value.filter.Alphabetical,
+        createdAt: translations.value.filter.Createddate,
+        updatedAt: translations.value.filter.Lastupdated,
       };
     });
 
@@ -141,25 +123,12 @@ export default {
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const clearSearch = () => {
       emit('update:query', '');

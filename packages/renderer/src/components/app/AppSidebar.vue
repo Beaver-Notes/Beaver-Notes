@@ -74,6 +74,7 @@
 
 <script>
 import { shallowReactive, onUnmounted, onMounted, computed, ref } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useTheme } from '@/composable/theme';
 import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
@@ -102,7 +103,7 @@ export default {
 
     const navs = computed(() => [
       {
-        name: translations.sidebar.Notes,
+        name: translations.value.sidebar.Notes,
         path: '/',
         icon: 'riBookletLine',
         shortcut: 'mod+shift+n',
@@ -111,7 +112,7 @@ export default {
         },
       },
       {
-        name: translations.sidebar.Archive,
+        name: translations.value.sidebar.Archive,
         path: '/?archived=true',
         icon: 'riArchiveDrawerLine',
         shortcut: 'mod+shift+a',
@@ -161,53 +162,18 @@ export default {
       state.dataDir = defaultPath;
     });
 
-    const translations = shallowReactive({
-      sidebar: {
-        addNotes: 'sidebar.addNotes',
-        Editednote: 'sidebar.Editednote',
-        toggleexport: 'sidebar.toggleexport',
-        toggleimport: 'sidebar.toggleimport',
-        toggledarktheme: 'sidebar.toggledarktheme',
-        Notes: 'sidebar.Notes',
-        Archive: 'sidebar.Archive',
-        notification: 'sidebar.notification',
-        exportSuccess: 'sidebar.exportSuccess',
-        importSuccess: 'sidebar.importSuccess',
-        exportFail: 'sidebar.exportFail',
-        importFail: 'sidebar.importFail',
-      },
-      settings: {
-        title: 'settings.title',
-        Inputpassword: 'settings.Inputpassword',
-        body: 'settings.body',
-        Import: 'settings.Import',
-        Cancel: 'settings.Cancel',
-        Password: 'settings.Password',
-        invaliddata: 'settings.invaliddata',
-        Invalidpassword: 'settings.Invalidpassword',
-      },
+    const translations = ref({
+      sidebar: {},
+      settings: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const handleNavigation = async (nav) => {
       router.push(nav.path);

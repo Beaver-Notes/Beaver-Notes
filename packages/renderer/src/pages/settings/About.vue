@@ -86,7 +86,8 @@
 </template>
 
 <script>
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, ref, shallowReactive } from 'vue';
+import { useTranslation } from '@/composable/translations';
 
 export default {
   setup() {
@@ -117,29 +118,10 @@ export default {
       updateStatusType: 'idle',
     });
 
-    const translations = shallowReactive({
-      about: {
-        title: 'About.Title',
-        description: 'About.Description',
-        versionLabel: 'About.VersionLabel',
-        website: 'Links.Website',
-        github: 'Links.GitHub',
-        donate: 'Links.Donate',
-      },
-      settings: {
-        autoUpdate: 'Settings.AutoUpdate',
-      },
+    const translations = ref({
+      about: {},
+      settings: {},
     });
-
-    const loadTranslations = async () => {
-      const lang = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const { default: loaded } = await import(`./locales/${lang}.json`);
-        Object.assign(translations, loaded);
-      } catch (e) {
-        console.error('Translation load error:', e);
-      }
-    };
 
     const checkForUpdates = async () => {
       if (state.isProcessing) return;
@@ -252,7 +234,11 @@ export default {
         if (state.autoUpdateEnabled) setTimeout(checkForUpdates, 2000);
       }
 
-      await loadTranslations();
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
 
     return {

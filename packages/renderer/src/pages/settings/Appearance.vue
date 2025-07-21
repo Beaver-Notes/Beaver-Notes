@@ -312,12 +312,12 @@
 
 <script>
 import { shallowReactive, onMounted, computed, ref } from 'vue';
+import { useTranslation } from '../../composable/translations';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import '../../assets/css/passwd.css';
 import LTRImg from '@/assets/images/LTR.png';
 import LTRImgDark from '@/assets/images/LTR-dark.png';
 import RTLImg from '@/assets/images/RTL.png';
@@ -350,64 +350,8 @@ export default {
     let defaultPath = '';
 
     // Translations
-    const translations = shallowReactive({
-      settings: {
-        advancedSettings: 'settings.advancedSettings',
-        apptheme: 'settings.apptheme',
-        light: 'settings.light',
-        dark: 'settings.dark',
-        system: 'settings.system',
-        selectlanguage: 'settings.selectlanguage',
-        selectfont: 'settings.selectfont',
-        syncpath: 'settings.syncpath',
-        selectpath: 'settings.selectpath',
-        iedata: 'settings.iedata',
-        encryptwpasswd: 'settings.encryptwpasswd',
-        exportdata: 'settings.exportdata',
-        importdata: 'settings.importdata',
-        pathplaceholder: 'settings.pathplaceholder',
-        password: 'settings.password',
-        Inputpassword: 'settings.Inputpassword',
-        body: 'settings.body',
-        Import: 'settings.Import',
-        Cancel: 'settings.Cancel',
-        Password: 'settings.password',
-        Invalidpassword: 'settings.Invalidpassword',
-        relaunch: 'settings.relaunch',
-        relaunchbutton: 'settings.relaunchbutton',
-        exportmessage: 'settings.exportmessage',
-        invaliddata: 'settings.invaliddata',
-        syncreminder: 'settings.syncreminder',
-        spellcheck: 'settings.spellcheck',
-        editorSpacing: 'settings.editorSpacing',
-        normal: 'settings.normal',
-        wide: 'settings.wide',
-        enterWidth: 'settings.enterwidth',
-        interfacesize: 'settings.interfacesize',
-        large: 'settings.large',
-        medium: 'settings.medium',
-        default: 'settings.default',
-        morespace: 'settings.morespace',
-        aboutDataEncryption: 'settings.aboutDataEncryption',
-        encryptionMessage: 'settings.encryptionMessage',
-        resetPasswordTitle: 'settings.resetPasswordTitle',
-        next: 'settings.next',
-        enterNewPassword: 'settings.enterNewPassword',
-        resetPassword: 'settings.resetPassword',
-        newPassword: 'settings.newPassword',
-        security: 'settings.security',
-        utilities: 'settings.utilities',
-        wrongCurrentPassword: 'settings.wrongCurrentPassword',
-        passwordResetSuccess: 'settings.passwordResetSuccess',
-        passwordResetError: 'settings.passwordResetError',
-        menuBarVisibility: 'settings.menuBarVisibility',
-        interfaceDirection: 'settings.interfaceDirection',
-        LTR: 'settings.LTR',
-        RTL: 'settings.RTL',
-        autosync: 'settings.autosync',
-        clearfont: 'settings.clearfont',
-        selectcodefont: 'settings.selectcodefont',
-      },
+    const translations = ref({
+      settings: {},
     });
 
     // Computed properties
@@ -500,25 +444,12 @@ export default {
       document.documentElement.dir = state.directionPreference;
     });
 
-    // Translation loading
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
-
     onMounted(async () => {
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
 
     // Methods

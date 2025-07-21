@@ -237,7 +237,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, computed } from 'vue';
+import { shallowReactive, onMounted, computed, ref } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -250,13 +250,13 @@ import systemImg from '@/assets/images/system.png';
 import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
-import '../../assets/css/passwd.css';
 import { useRouter } from 'vue-router';
 import { useAppStore } from '../../store/app';
 import { t } from '@/utils/translations';
 import { processDirectory } from '@/utils/markdown-helper';
 import { forceSyncNow } from '../../utils/sync';
 import { importBEA } from '../../utils/share/BEA';
+import { useTranslation } from '@/composable/translations';
 
 const deTranslations = import('../../pages/settings/locales/de.json');
 const enTranslations = import('../../pages/settings/locales/en.json');
@@ -311,9 +311,9 @@ export default {
 
         if (canceled) return;
 
-        showAlert(translations.settings.relaunch, {
+        showAlert(translations.value.settings.relaunch, {
           type: 'info',
-          buttons: [translations.settings.relaunchbutton],
+          buttons: [translations.value.settings.relaunchbutton],
         });
 
         await storage.set('dataDir', dir);
@@ -397,7 +397,7 @@ export default {
             dest: path.join(folderPath, 'file-assets'),
           });
 
-          alert(`${translations.settings.exportmessage}"${folderName}"`);
+          alert(`${translations.value.settings.exportmessage}"${folderName}"`);
         }
 
         state.withPassword = false;
@@ -452,15 +452,15 @@ export default {
           path.join(dirPath, 'data.json')
         );
 
-        if (!data) return showAlert(translations.settings.invaliddata);
+        if (!data) return showAlert(translations.value.settings.invaliddata);
 
         if (typeof data === 'string') {
           dialog.prompt({
-            title: translations.settings.Inputpassword,
-            body: translations.settings.body,
-            okText: translations.settings.Import,
-            cancelText: translations.settings.Cancel,
-            placeholder: translations.settings.Password,
+            title: translations.value.settings.Inputpassword,
+            body: translations.value.settings.body,
+            okText: translations.value.settings.Import,
+            cancelText: translations.value.settings.Cancel,
+            placeholder: translations.value.settings.Password,
             onConfirm: async (pass) => {
               try {
                 const bytes = AES.decrypt(data, pass);
@@ -510,7 +510,7 @@ export default {
                 console.log('Assets copied successfully.');
                 window.location.reload();
               } catch (error) {
-                showAlert(translations.settings.Invalidpassword);
+                showAlert(translations.value.settings.Invalidpassword);
                 return false;
               }
             },
@@ -578,9 +578,9 @@ export default {
 
         // Success notification
         notification({
-          title: translations.settings.notification,
+          title: translations.value.settings.notification,
           body:
-            translations.settings.importSuccess ||
+            translations.value.settings.importSuccess ||
             'Directory processed successfully!',
         });
       } catch (error) {
@@ -588,9 +588,9 @@ export default {
 
         // Failure notification
         notification({
-          title: translations.settings.notification,
+          title: translations.value.settings.notification,
           body:
-            translations.settings.importFail ||
+            translations.value.settings.importFail ||
             'Failed to process the directory.',
         });
       }
@@ -613,9 +613,9 @@ export default {
         await importBEA(state.importFile, router);
 
         notification({
-          title: translations.settings.notification,
+          title: translations.value.settings.notification,
           body:
-            translations.settings.importSuccess ||
+            translations.value.settings.importSuccess ||
             'File processed successfully!',
         });
       } catch (error) {
@@ -623,9 +623,10 @@ export default {
 
         // Failure notification
         notification({
-          title: translations.settings.notification,
+          title: translations.value.settings.notification,
           body:
-            translations.settings.importFail || 'Failed to process the file.',
+            translations.value.settings.importFail ||
+            'Failed to process the file.',
         });
       }
     };
@@ -669,10 +670,10 @@ export default {
       const passwordStore = usePasswordStore(); // Get the password store instance
 
       dialog.prompt({
-        title: translations.settings.resetPasswordTitle,
-        okText: translations.settings.next,
-        cancelText: translations.settings.Cancel,
-        placeholder: translations.settings.password,
+        title: translations.value.settings.resetPasswordTitle,
+        okText: translations.value.settings.next,
+        cancelText: translations.value.settings.Cancel,
+        placeholder: translations.value.settings.password,
         onConfirm: async (currentPassword) => {
           if (currentPassword) {
             const isCurrentPasswordValid = await passwordStore.isValidPassword(
@@ -680,130 +681,50 @@ export default {
             );
             if (isCurrentPasswordValid) {
               dialog.prompt({
-                title: translations.settings.enterNewPassword,
-                okText: translations.settings.resetPassword,
-                body: translations.settings.warning,
-                cancelText: translations.settings.Cancel,
-                placeholder: translations.settings.newPassword,
+                title: translations.value.settings.enterNewPassword,
+                okText: translations.value.settings.resetPassword,
+                body: translations.value.settings.warning,
+                cancelText: translations.value.settings.Cancel,
+                placeholder: translations.value.settings.newPassword,
                 onConfirm: async (newPassword) => {
                   if (newPassword) {
                     try {
                       // Reset the password
                       await passwordStore.setsharedKey(newPassword);
                       console.log('Password reset successful');
-                      alert(translations.settings.passwordResetSuccess);
+                      alert(translations.value.settings.passwordResetSuccess);
                     } catch (error) {
                       console.error('Error resetting password:', error);
-                      alert(translations.settings.passwordResetError);
+                      alert(translations.value.settings.passwordResetError);
                     }
                   } else {
-                    alert(translations.settings.Invalidpassword);
+                    alert(translations.value.settings.Invalidpassword);
                   }
                 },
               });
             } else {
-              alert(translations.settings.wrongCurrentPassword);
+              alert(translations.value.settings.wrongCurrentPassword);
             }
           } else {
-            alert(translations.settings.Invalidpassword);
+            alert(translations.value.settings.Invalidpassword);
           }
         },
       });
     }
 
     // Translations
-    const translations = shallowReactive({
-      settings: {
-        advancedSettings: 'settings.advancedSettings',
-        apptheme: 'settings.apptheme',
-        light: 'settings.light',
-        dark: 'settings.dark',
-        system: 'settings.system',
-        selectlanguage: 'settings.selectlanguage',
-        selectfont: 'settings.selectfont',
-        syncpath: 'settings.syncpath',
-        selectpath: 'settings.selectpath',
-        iedata: 'settings.iedata',
-        encryptwpasswd: 'settings.encryptwpasswd',
-        exportdata: 'settings.exportdata',
-        importdata: 'settings.importdata',
-        pathplaceholder: 'settings.pathplaceholder',
-        password: 'settings.password',
-        Inputpassword: 'settings.Inputpassword',
-        body: 'settings.body',
-        Editor: 'settings.Editor',
-        CollapsibleHeading: 'settings.CollapsibleHeading',
-        OpenLastEdited: 'settings.OpenLastEdited',
-        Import: 'settings.Import',
-        Cancel: 'settings.Cancel',
-        Password: 'settings.password',
-        Invalidpassword: 'settings.Invalidpassword',
-        relaunch: 'settings.relaunch',
-        relaunchbutton: 'settings.relaunchbutton',
-        exportmessage: 'settings.exportmessage',
-        invaliddata: 'settings.invaliddata',
-        syncreminder: 'settings.syncreminder',
-        spellcheck: 'settings.spellcheck',
-        fullWidth: 'settings.fullwidth',
-        interfacesize: 'settings.interfacesize',
-        large: 'settings.large',
-        medium: 'settings.medium',
-        default: 'settings.default',
-        morespace: 'settings.morespace',
-        aboutDataEncryption: 'settings.aboutDataEncryption',
-        encryptionMessage: 'settings.encryptionMessage',
-        resetPasswordTitle: 'settings.resetPasswordTitle',
-        next: 'settings.next',
-        enterNewPassword: 'settings.enterNewPassword',
-        resetPassword: 'settings.resetPassword',
-        newPassword: 'settings.newPassword',
-        security: 'settings.security',
-        utilities: 'settings.utilities',
-        wrongCurrentPassword: 'settings.wrongCurrentPassword',
-        passwordResetSuccess: 'settings.passwordResetSuccess',
-        passwordResetError: 'settings.passwordResetError',
-        menuBarVisibility: 'settings.menuBarVisibility',
-        interfaceDirection: 'settings.interfaceDirection',
-        LTR: 'settings.LTR',
-        RTL: 'settings.RTL',
-        autosync: 'settings.autosync',
-        clearfont: 'settings.clearfont',
-        platform: 'settings.platform',
-        noAuthorizedApplicaitons: 'settings.noAuthorizedApplicaitons',
-        id: 'settings.id',
-        confirmDelete: 'settings.confirmDelete',
-        createdAt: 'settings.createdAt',
-        authorizedApplications: 'settings.authorizedApplications',
-        exportSuccess: 'settings.exportSuccess',
-        importFail: 'settings.importFail',
-        notification: 'settings.notification',
-        markdownArchive: 'settings.markdownArchive',
-      },
-      menu: {
-        bea: 'menu.bea',
-      },
+    const translations = ref({
+      settings: {},
+      menu: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
       shortcuts[combo]();
@@ -813,7 +734,7 @@ export default {
 
     function deleteAuth(auth) {
       dialog.confirm({
-        body: t(translations.settings.confirmDelete, {
+        body: t(translations.value.settings.confirmDelete, {
           name: auth.name,
           id: auth.id,
         }),
@@ -836,14 +757,14 @@ export default {
 
       // Check if exportPath is null or empty
       if (!exportPath || exportPath.trim() === '') {
-        showAlert(translations.settings.emptyPathWarn);
+        showAlert(translations.value.settings.emptyPathWarn);
         return; // Exit early since there's no valid path to process
       }
 
       const containsGvfs = exportPath.includes('gvfs');
 
       if (containsGvfs) {
-        showAlert(translations.settings.gvfswarn);
+        showAlert(translations.value.settings.gvfswarn);
       } else {
         // Read the current value from localStorage
         const currentValue = localStorage.getItem('autoSync');

@@ -25,7 +25,8 @@
   </div>
 </template>
 <script>
-import { watch, ref, onMounted, shallowReactive } from 'vue';
+import { watch, ref, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 
 export default {
@@ -48,32 +49,17 @@ export default {
       { immediate: true }
     );
 
-    const translations = shallowReactive({
-      image: {
-        imgurl: 'image.imgurl',
-      },
+    const translations = ref({
+      image: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       translations,

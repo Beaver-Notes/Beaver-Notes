@@ -5,7 +5,12 @@
       <p class="mb-2">{{ translations.shortcuts[shortcut.title] || '-' }}</p>
       <ui-list class="rounded-lg">
         <ui-list-item v-for="item in shortcut.items" :key="item.name">
-          <p class="flex-1">{{ translations.shortcuts[item.name] || '-' }}</p>
+          <p class="flex-1">
+            {{
+              translations.shortcuts[item.name] ||
+              translations.sidebar[item.name]
+            }}
+          </p>
           <kbd v-for="key in item.keys" :key="key" class="mr-1">
             <!-- Directly include "Drag" and "Arrow left" -->
             {{
@@ -23,63 +28,23 @@
 </template>
 
 <script setup>
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, ref } from 'vue';
+import { useTranslation } from '@/composable/translations';
 
 // Translations
 
-const translations = shallowReactive({
-  shortcuts: {
-    General: 'shortcuts.General',
-    Navigates: 'shortcuts.Navigates',
-    Editor: 'shortcuts.Editor',
-    Createnewnote: 'shortcuts.Createnewnote',
-    Togglecommandprompt: 'shortcuts.Togglecommandprompt',
-    Toggledarktheme: 'shortcuts.Toggledarktheme',
-    Toeditednote: 'shortcuts.Toeditednote',
-    Tonotes: 'shortcuts.Tonotes',
-    Toarchivednotes: 'shortcuts.Toarchivednotes',
-    Tosettings: 'shortcuts.Tosettings',
-    Bold: 'shortcuts.Bold',
-    Italic: 'shortcuts.Italic',
-    Underline: 'shortcuts.Underline',
-    Link: 'shortcuts.Link',
-    Strikethrough: 'shortcuts.Strikethrough',
-    Highlight: 'shortcuts.Highlight',
-    Inlinecode: 'shortcuts.Inlinecode',
-    Headings: 'shortcuts.Headings',
-    Orderedlist: 'shortcuts.Orderedlist',
-    Bulletlist: 'shortcuts.Bulletlist',
-    Blockquote: 'shortcuts.Blockquote',
-    Blockcode: 'shortcuts.Blockcode',
-    Previousnote: 'shortcuts.Previousnote',
-    EmbedFile: 'shortcuts.EmbedFile',
-    Drag: 'shortcuts.Drag',
-  },
-  sidebar: {
-    Togglesync: 'sidebar.toggleSync',
-  },
+const translations = ref({
+  shortcuts: {},
+  sidebar: {},
 });
 
 onMounted(async () => {
-  const loadedTranslations = await loadTranslations();
-  if (loadedTranslations) {
-    Object.assign(translations, loadedTranslations);
-  }
+  await useTranslation().then((trans) => {
+    if (trans) {
+      translations.value = trans;
+    }
+  });
 });
-
-const loadTranslations = async () => {
-  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-  try {
-    const translationModule = await import(
-      `./locales/${selectedLanguage}.json`
-    );
-    return translationModule.default;
-  } catch (error) {
-    console.error('Error loading translations:', error);
-    return null;
-  }
-};
-
 const shortcuts = [
   {
     title: 'General',
@@ -93,7 +58,7 @@ const shortcuts = [
         name: 'Toggledarktheme',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'L']),
       },
-      { name: 'Togglesync', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
+      { name: 'toggleSync', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
     ],
   },
   {

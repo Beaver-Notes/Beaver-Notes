@@ -28,67 +28,51 @@
   </div>
 </template>
 <script setup>
-import { onMounted, shallowReactive, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
+import { useTranslation } from '@/composable/translations';
 
 const settings = computed(() => ({
   Settings: {
-    name: translations.settings.General,
+    name: translations.value.settings.General,
     icon: 'riWindowLine',
     path: '/settings',
     description: '',
   },
   'Settings-Appearance': {
-    name: translations.settings.Appearance,
+    name: translations.value.settings.Appearance,
     icon: 'riBrush3Fill',
     path: '/settings/appearance',
     description: '',
   },
   'Settings-Shortcuts': {
-    name: translations.settings.Shortcuts,
+    name: translations.value.settings.Shortcuts,
     icon: 'riKeyboardLine',
     path: '/settings/shortcuts',
     description: '',
   },
   'Settings-Security': {
-    name: translations.settings.privacysecurity,
+    name: translations.value.settings.privacysecurity,
     icon: 'riLockLine',
     path: '/settings/privacysecurity',
     description: '',
   },
   'Settings-About': {
-    name: translations.settings.About,
+    name: translations.value.settings.About,
     icon: 'riInformationLine',
     path: '/settings/about',
     description: '',
   },
 }));
 
-const translations = shallowReactive({
-  settings: {
-    title: 'settings.title',
-    General: 'settings.General',
-    Shortcuts: 'settings.Shortcuts',
-    About: 'settings.About',
-  },
+const translations = ref({
+  settings: {},
 });
 
 onMounted(async () => {
-  const loadedTranslations = await loadTranslations();
-  if (loadedTranslations) {
-    Object.assign(translations, loadedTranslations);
-  }
+  await useTranslation().then((trans) => {
+    if (trans) {
+      translations.value = trans;
+    }
+  });
 });
-
-const loadTranslations = async () => {
-  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-  try {
-    const translationModule = await import(
-      `./settings/locales/${selectedLanguage}.json`
-    );
-    return translationModule.default;
-  } catch (error) {
-    console.error('Error loading translations:', error);
-    return null;
-  }
-};
 </script>

@@ -122,11 +122,11 @@
 <script setup>
 /* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
-import '../../assets/css/passwd.css';
 import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
+import { useTranslation } from '@/composable/translations';
 import { onMounted, shallowReactive } from 'vue';
 import { forceSyncNow } from '@/utils/sync.js';
 import { useDialog } from '@/composable/dialog';
@@ -267,54 +267,20 @@ function formatDate(date) {
 // Translations
 
 const translations = shallowReactive({
-  card: {
-    unarchive: 'card.unarchive',
-    archive: 'card.archive',
-    removebookmark: 'card.removebookmark',
-    bookmark: 'card.bookmark',
-    delete: 'card.delete',
-    content: 'card.content',
-    lock: 'card.lock',
-    unlock: 'card.unlock',
-    islocked: 'card.islocked',
-    unlocktoedit: 'card.unlocktoedit',
-    setupkey: 'card.setupkey',
-    setkey: 'card.setkey',
-    Cancel: 'card.Cancel',
-    NewKey: 'card.NewKey',
-    nokey: 'card.nokey',
-    enteredPassword: 'card.enteredPassword',
-    Password: 'card.Password',
-    wrongpasswd: 'card.wrongpasswd',
-    Passwordcorrect: 'card.passwordcorrect',
-    warning: 'card.warning',
-    keyfail: 'card.keyfail',
-  },
+  card: {},
 });
 
 onMounted(async () => {
-  const loadedTranslations = await loadTranslations();
-  if (loadedTranslations) {
-    Object.assign(translations, loadedTranslations);
-  }
+  await useTranslation().then((trans) => {
+    if (trans) {
+      translations.value = trans;
+    }
+  });
   const autoSync = localStorage.getItem('autoSync');
   if (autoSync === 'true') {
     forceSyncNow();
   }
 });
-
-const loadTranslations = async () => {
-  const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-  try {
-    const translationModule = await import(
-      `../../pages/settings/locales/${selectedLanguage}.json`
-    );
-    return translationModule.default;
-  } catch (error) {
-    console.error('Error loading translations:', error);
-    return null;
-  }
-};
 
 async function emitUpdate(payload) {
   emit('update', payload);

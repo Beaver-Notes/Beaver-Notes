@@ -79,14 +79,8 @@
 </template>
 
 <script>
-import {
-  ref,
-  shallowRef,
-  computed,
-  watch,
-  onMounted,
-  shallowReactive,
-} from 'vue';
+import { ref, shallowRef, computed, watch, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
@@ -237,40 +231,19 @@ export default {
     });
 
     // Translations
-    const translations = shallowReactive({
-      _idvue: {
-        Previousnote: '_idvue.Previousnote',
-        untitlednote: '_idvue.untitlednote',
-      },
-      card: {
-        unlocktoedit: 'card.unlocktoedit',
-        unlock: 'card.unlock',
-      },
-      index: {
-        close: 'index.close',
-      },
+    const translations = ref({
+      _idvue: {},
+      card: {},
+      index: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const focusEditor = () =>
       noteEditor.value?.$el?.querySelector('*[tabindex="0"]')?.focus();
@@ -295,28 +268,28 @@ export default {
       const noteStore = useNoteStore();
 
       dialog.prompt({
-        title: translations.card.enterpasswd,
-        okText: translations.card.unlock,
-        cancelText: translations.card.Cancel,
-        placeholder: translations.card.Password,
+        title: translations.value.card.enterpasswd,
+        okText: translations.value.card.unlock,
+        cancelText: translations.value.card.Cancel,
+        placeholder: translations.value.card.Password,
         onConfirm: async (enteredPassword) => {
           try {
             const isValidPassword = await passwordStore.isValidPassword(
               enteredPassword
             );
             if (isValidPassword) {
-              console.log(translations.card.Passwordcorrect);
+              console.log(translations.value.card.Passwordcorrect);
               // Note unlocked
               userPassword.value = '';
               await noteStore.unlockNote(note, enteredPassword); // Pass entered password to unlockNote
               console.log(`Note (ID: ${note}) is unlocked`);
             } else {
-              console.log(translations.card.Passwordcorrect);
-              alert(translations.card.wrongpasswd);
+              console.log(translations.value.card.Passwordcorrect);
+              alert(translations.value.card.wrongpasswd);
             }
           } catch (error) {
             console.error('Error unlocking note:', error);
-            alert(translations.card.wrongpasswd);
+            alert(translations.value.card.wrongpasswd);
           }
         },
       });

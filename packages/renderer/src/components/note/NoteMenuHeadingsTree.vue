@@ -26,7 +26,8 @@
   </div>
 </template>
 <script>
-import { shallowRef, computed, shallowReactive, onMounted } from 'vue';
+import { shallowRef, computed, ref, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 
 export default {
   props: {
@@ -97,32 +98,17 @@ export default {
 
     // Translations
 
-    const translations = shallowReactive({
-      menu: {
-        searchHeadings: 'menu.searchHeadings',
-      },
+    const translations = ref({
+      menu: {},
     });
 
     onMounted(async () => {
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
-
     return {
       query,
       paddings,

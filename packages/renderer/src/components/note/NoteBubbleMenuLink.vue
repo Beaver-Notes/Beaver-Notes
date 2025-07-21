@@ -52,9 +52,10 @@
 </template>
 
 <script>
-import { ref, computed, watch, shallowReactive, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useNoteStore } from '@/store/note';
+import { useRoute } from 'vue-router';
 
 export default {
   props: {
@@ -133,34 +134,17 @@ export default {
       { immediate: true }
     );
 
-    const translations = shallowReactive({
-      link: {
-        untitlednote: 'link.untitlednote',
-        placeholder: 'link.placeholder',
-        shortcut: 'link.shortcut',
-      },
+    const translations = ref({
+      link: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       notes,

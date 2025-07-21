@@ -52,7 +52,15 @@
   </ui-card>
 </template>
 <script>
-import { shallowReactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import {
+  shallowReactive,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  ref,
+} from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { debounce } from '@/utils/helper';
@@ -182,32 +190,17 @@ export default {
       }, 100)
     );
 
-    const translations = shallowReactive({
-      commandprompt: {
-        placeholder: 'commandprompt.placeholder',
-        untitlednote: 'commandprompt.untitlednote',
-      },
+    const translations = ref({
+      commandprompt: {},
     });
 
     onMounted(async () => {
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const escQuit = (event) => {
       if (event.code === 'Escape') {
