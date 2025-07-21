@@ -14,52 +14,69 @@
             v-if="prependIcon"
             class="ml-2 dark:text-neutral-200 text-neutral-600 absolute left-0"
             :name="prependIcon"
-          ></v-remixicon>
+          />
         </slot>
+
         <input
           v-autofocus="autofocus"
-          v-bind="{ readonly: disabled || readonly || null, placeholder, type }"
+          v-bind="{
+            readonly: disabled || readonly || null,
+            placeholder,
+            type: inputType,
+          }"
           class="py-2 px-4 rounded-lg w-full bg-input bg-transparent transition ring-2 ring-secondary"
           :class="{
             'opacity-75 pointer-events-none': disabled,
             'pl-10': prependIcon || $slots.prepend,
-            'pr-10': clearable, // Add padding if clear button is visible
+            'pr-24': hasRightButtons, // Enough padding for both buttons
           }"
           :value="modelValue"
           @keydown="$emit('keydown', $event)"
           @input="emitValue"
         />
-        <button
-          v-if="clearable && modelValue"
-          class="absolute right-2 text-neutral-600 dark:text-neutral-200"
-          @click="clearInput"
+
+        <div
+          v-if="hasRightButtons"
+          class="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2"
         >
-          <v-remixicon name="riDeleteBackLine" />
-        </button>
+          <button
+            v-if="password"
+            type="button"
+            class="text-sm text-secondary"
+            @click="toggleVisibility"
+          >
+            <v-remixicon
+              :name="visible ? 'riEyeCloseLine' : 'riEyeLine'"
+              class="text-2xl"
+            />
+          </button>
+
+          <button
+            v-if="clearable && modelValue"
+            type="button"
+            class="text-neutral-600 dark:text-neutral-200"
+            @click="clearInput"
+          >
+            <v-remixicon name="riDeleteBackLine" />
+          </button>
+        </div>
       </div>
     </label>
   </div>
 </template>
 
 <script>
+import { ref, computed } from 'vue';
+
 export default {
   props: {
-    // eslint-disable-next-line vue/require-prop-types
     modelModifiers: {
+      type: Object,
       default: () => ({}),
     },
-    disabled: {
-      type: Boolean,
-      default: false,
-    },
-    readonly: {
-      type: Boolean,
-      default: false,
-    },
-    autofocus: {
-      type: Boolean,
-      default: false,
-    },
+    disabled: Boolean,
+    readonly: Boolean,
+    autofocus: Boolean,
     modelValue: {
       type: String,
       default: '',
@@ -82,13 +99,30 @@ export default {
     },
     clearable: {
       type: Boolean,
-      default: false, // Add clearable prop
+      default: false,
+    },
+    password: {
+      type: Boolean,
+      default: false,
     },
   },
   emits: ['update:modelValue', 'change', 'keydown'],
   setup(props, { emit }) {
+    const visible = ref(false);
+
+    const inputType = computed(() => {
+      if (props.password) {
+        return visible.value ? 'text' : 'password';
+      }
+      return props.type;
+    });
+
+    const hasRightButtons = computed(() => {
+      return props.password || (props.clearable && props.modelValue.length > 0);
+    });
+
     function emitValue(event) {
-      let { value } = event.target;
+      let value = event.target.value;
 
       if (props.modelModifiers.lowercase) {
         value = value.toLocaleLowerCase();
@@ -103,9 +137,17 @@ export default {
       emit('change', '');
     }
 
+    function toggleVisibility() {
+      visible.value = !visible.value;
+    }
+
     return {
       emitValue,
       clearInput,
+      toggleVisibility,
+      visible,
+      inputType,
+      hasRightButtons,
     };
   },
 };
