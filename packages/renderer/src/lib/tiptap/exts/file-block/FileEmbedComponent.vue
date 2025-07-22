@@ -4,10 +4,16 @@
       <div
         class="mt-2 mb-2 file-embed bg-neutral-100 dark:bg-[#353333] p-3 rounded-lg flex items-center justify-between"
       >
-        <div class="flex items-center cursor-pointer" @click="openDocument">
+        <div class="flex items-center cursor-pointer">
           <v-remixicon name="riFile2Line" class="w-6 h-6 mr-2" />
           <span>{{ truncatedFileName }}</span>
         </div>
+        <ui-button
+          class="download-button bg-input p-1 px-3 rounded-lg outline-none"
+          @click="openDocument"
+        >
+          <v-remixicon name="riEyeLine" class="w-6 h-6" />
+        </ui-button>
         <button
           class="download-button bg-input p-1 px-3 rounded-lg outline-none"
           @click="downloadFile"
