@@ -50,15 +50,17 @@ import Commands from './exts/commands';
 import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
-import enTranslations from '../../pages/settings/locales/en.json';
-import itTranslations from '../../pages/settings/locales/it.json';
-import deTranslations from '../../pages/settings/locales/de.json';
-import esTranslations from '../../pages/settings/locales/es.json';
-import zhTranslations from '../../pages/settings/locales/zh.json';
-import nlTranslations from '../../pages/settings/locales/nl.json';
-import ukTranslations from '../../pages/settings/locales/uk.json';
-import ruTranslations from '../../pages/settings/locales/ru.json';
-import frTranslations from '../../pages/settings/locales/fr.json';
+import { TrailingNode } from '@tiptap/extensions';
+import enTranslations from '@/assets/locales/en.json';
+import itTranslations from '@/assets/locales/it.json';
+import esTranslations from '@/assets/locales/es.json';
+import deTranslations from '@/assets/locales/de.json';
+import zhTranslations from '@/assets/locales/zh.json';
+import nlTranslations from '@/assets/locales/nl.json';
+import ukTranslations from '@/assets/locales/uk.json';
+import frTranslations from '@/assets/locales/fr.json';
+import ruTranslations from '@/assets/locales/ru.json';
+import arTranslations from '@/assets/locales/ar.json';
 
 const directionPreference = localStorage.getItem('directionPreference');
 
@@ -86,6 +88,8 @@ if (selectedLanguage === 'de') {
   translations = ukTranslations;
 } else if (selectedLanguage === 'zh') {
   translations = zhTranslations;
+} else if (selectedLanguage === 'ar') {
+  translations = arTranslations;
 }
 
 const extensions = [
@@ -154,8 +158,9 @@ const extensions = [
   SearchAndReplace.configure(),
   TextStyle,
   markdownEngine,
+  TrailingNode,
   Placeholder.configure({
-    placeholder: translations.tiptap.placeholder,
+    placeholder: translations.editor.tiptapPlaceholder,
   }),
   Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
   Link.extend({
