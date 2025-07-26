@@ -34,9 +34,16 @@ export default Extension.create({
           return {
             onStart: (props) => {
               component = new VueRenderer(Commands, {
-                props,
+                props: {
+                  ...props,
+                  editor: props.editor,
+                  range: props.range,
+                  command: ({ editor, range, props }) => {
+                    editor.chain().focus().deleteRange(range).run();
+                    props.action();
+                  },
+                },
                 editor: props.editor,
-                range: props.range,
               });
 
               popup = tippy('body', {
@@ -51,7 +58,15 @@ export default Extension.create({
             },
 
             onUpdate(props) {
-              component.updateProps(props);
+              component.updateProps({
+                ...props,
+                editor: props.editor,
+                range: props.range,
+                command: ({ editor, range, props }) => {
+                  editor.chain().focus().deleteRange(range).run();
+                  props.action();
+                },
+              });
 
               if (!props.clientRect) {
                 return;
@@ -61,6 +76,16 @@ export default Extension.create({
                 getReferenceClientRect: props.clientRect,
               });
             },
+
+            onKeyDown(props) {
+              if (props.event.key === 'Escape') {
+                popup[0].hide();
+                return true;
+              }
+
+              return component.ref?.onKeyDown?.(props);
+            },
+
             onExit() {
               popup[0].destroy();
               component.destroy();

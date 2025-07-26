@@ -235,7 +235,6 @@ export default {
       await useTranslation().then((trans) => {
         if (trans) {
           translations.value = trans;
-          console.log(translations.value);
         }
       });
     });

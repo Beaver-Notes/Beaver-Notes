@@ -1,88 +1,41 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <ui-list>
-    <ui-list-item
-      v-for="(item, index) in filteredItems.slice(0, 5)"
-      :key="index"
-      :active="index === selectedIndex"
-      class="menu-item"
-      tag="button"
-      :disabled="item.disabled"
-      @click="handleItemClick(item)"
-    >
-      <template v-if="!item.popover && !item.embed">
-        <v-remixicon
-          :name="item.icon"
-          :class="[
-            'text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2',
-            item.className || '',
-          ]"
-        />
-        <div class="text-left overflow-hidden text-ellipsis whitespace-nowrap">
-          <h3
-            class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
-          >
-            {{ translations.menu[item.name] || item.name }}
-          </h3>
-        </div>
-      </template>
-
-      <template v-if="item.popover">
-        <!-- your existing popover markup -->
-        <input v-model="fileUrl" class="hidden" @keyup.enter="item.action" />
-        <label
-          for="fileInput"
-          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition duration-200"
-        >
-          <v-remixicon
-            :name="item.icon"
-            class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
-          />
+  <ui-card
+    class="border max-w-xs"
+    padding="p-2"
+    style="max-width: 16rem; min-width: 6rem"
+  >
+    <ui-list class="cursor-pointer space-y-1">
+      <ui-list-item
+        v-for="(item, index) in filteredItems.slice(0, 5)"
+        :key="index"
+        :active="index === selectedIndex"
+        class="label-item w-full text-overflow"
+        tag="button"
+        :disabled="item.disabled"
+        @click="handleItemClick(item)"
+      >
+        <template v-if="!item.popover && !item.embed">
+          <v-remixicon :name="item.icon" class="mr-2" />
           <div
             class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
           >
-            <h3
-              class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
-            >
+            <h3 class="font-medium">
               {{ translations.menu[item.name] || item.name }}
             </h3>
           </div>
-        </label>
-        <input
-          id="fileInput"
-          ref="fileInput"
-          type="file"
-          class="hidden"
-          multiple
-          @change="item.action"
-        />
-      </template>
+        </template>
 
-      <template v-if="item.embed">
-        <div
-          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700 transition duration-200"
-        >
-          <input
-            v-show="inputVisible"
-            v-model="EmbedUrl"
-            class="bg-transparent mr-2 flex-1"
-            :placeholder="translations.menu.embedUrl || '-'"
-            @keyup.enter="addIframe"
-          />
-          <v-remixicon
-            v-show="inputVisible"
-            name="riSave3Line"
-            class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
-            @click="addIframe"
-          />
+        <template v-if="item.popover">
+          <!-- your existing popover markup -->
+          <input v-model="fileUrl" class="hidden" @keyup.enter="item.action" />
           <label
-            v-show="!inputVisible"
-            class="flex items-center space-x-2 cursor-pointer"
-            @click="showInput"
+            for="fileInput"
+            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer transition duration-200"
           >
             <v-remixicon
               :name="item.icon"
-              class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
+              class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
             />
             <div
               class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
@@ -94,10 +47,57 @@
               </h3>
             </div>
           </label>
-        </div>
-      </template>
-    </ui-list-item>
-  </ui-list>
+          <input
+            id="fileInput"
+            ref="fileInput"
+            type="file"
+            class="hidden"
+            multiple
+            @change="item.action"
+          />
+        </template>
+
+        <template v-if="item.embed">
+          <div
+            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer transition duration-200"
+          >
+            <input
+              v-show="inputVisible"
+              v-model="EmbedUrl"
+              class="bg-transparent mr-2 flex-1"
+              :placeholder="translations.menu.embedUrl || '-'"
+              @keyup.enter="addIframe"
+            />
+            <v-remixicon
+              v-show="inputVisible"
+              name="riSave3Line"
+              class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
+              @click="addIframe"
+            />
+            <label
+              v-show="!inputVisible"
+              class="flex items-center space-x-2 cursor-pointer"
+              @click="showInput"
+            >
+              <v-remixicon
+                :name="item.icon"
+                class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
+              />
+              <div
+                class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                <h3
+                  class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
+                >
+                  {{ translations.menu[item.name] || item.name }}
+                </h3>
+              </div>
+            </label>
+          </div>
+        </template>
+      </ui-list-item>
+    </ui-list>
+  </ui-card>
 </template>
 
 <script>
@@ -107,9 +107,8 @@ import {
   reactive,
   shallowRef,
   computed,
-  onUnmounted,
+  getCurrentInstance,
 } from 'vue';
-import Mousetrap from 'mousetrap';
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
@@ -132,8 +131,13 @@ export default {
       type: String,
       default: '',
     },
+    command: {
+      type: Function,
+      required: true,
+    },
   },
   setup(props) {
+    const instance = getCurrentInstance();
     const editorImage = useEditorImage(props.editor);
     const selectedIndex = ref(0);
     const fileUrl = shallowRef('');
@@ -146,14 +150,14 @@ export default {
     });
 
     const handleFileInputClick = () => {
-      console.log(this.$refs.fileInput);
-      this.$refs.fileInput?.click();
+      console.log(instance?.refs.fileInput);
+      instance?.refs.fileInput?.click();
     };
 
     onMounted(async () => {
       await useTranslation().then((trans) => {
         if (trans) {
-          translations.value = trans;
+          translations.menu = trans.menu || {};
         }
       });
     });
@@ -164,56 +168,30 @@ export default {
       );
     });
 
-    const moveSelection = (direction) => {
-      if (direction === 'up') {
-        selectedIndex.value =
-          (selectedIndex.value - 1 + filteredItems.value.length) %
-          filteredItems.value.length;
-      } else if (direction === 'down') {
-        selectedIndex.value =
-          (selectedIndex.value + 1) % filteredItems.value.length;
+    function onKeyDown({ event }) {
+      switch (event.key) {
+        case 'ArrowUp':
+          upHandler();
+          return true;
+        case 'ArrowDown':
+          downHandler();
+          return true;
+        case 'Enter':
+          enterHandler();
+          return true;
+        default:
+          return false;
       }
-    };
-
-    onMounted(() => {
-      Mousetrap.bind('up', () => moveSelection('up'));
-      Mousetrap.bind('down', () => moveSelection('down'));
-      Mousetrap.bind('esc', () => {
-        props.editor.commands.deleteRange(props.range);
-      });
-    });
-
-    onUnmounted(() => {
-      Mousetrap.unbind('up');
-      Mousetrap.unbind('down');
-      Mousetrap.unbind('esc');
-    });
+    }
 
     const handleItemClick = (item) => {
-      item.action();
-    };
-
-    const insertTableWithEmptyParagraph = () => {
-      const transaction = props.editor
-        .chain()
-        .focus()
-        .deleteRange(props.range)
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-        .run();
-
-      if (transaction) {
-        const pos = props.editor.state.doc.content.size;
-        props.editor
-          .chain()
-          .focus()
-          .insertContentAt(pos, {
-            type: 'paragraph',
-            content: [],
-          })
-          .run();
-      } else {
-        console.error('Failed to insert table.');
-      }
+      props.command({
+        editor: props.editor,
+        range: props.range,
+        props: {
+          action: item.action,
+        },
+      });
     };
 
     function addIframe() {
@@ -221,7 +199,7 @@ export default {
         return;
       }
 
-      let trimmedEmbedUrl = EmbedUrl.value.trim(); // Renamed local variable
+      let trimmedEmbedUrl = EmbedUrl.value.trim();
 
       // Check if the URL is a YouTube Embed URL in the regular format
       if (trimmedEmbedUrl.includes('youtube.com/watch?v=')) {
@@ -234,15 +212,23 @@ export default {
         trimmedEmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
       }
 
-      // Use the value of trimmedEmbedUrl to set the iframe source
-      props.editor
-        .chain()
-        .focus()
-        .deleteRange(props.range)
-        .setIframe({
-          src: trimmedEmbedUrl,
-        })
-        .run();
+      // Use the command system to execute the action
+      props.command({
+        editor: props.editor,
+        range: props.range,
+        props: {
+          action: () => {
+            props.editor
+              .chain()
+              .focus()
+              .deleteRange(props.range)
+              .setIframe({
+                src: trimmedEmbedUrl,
+              })
+              .run();
+          },
+        },
+      });
 
       // Clear the input field after setting the iframe source
       EmbedUrl.value = '';
@@ -256,8 +242,17 @@ export default {
         for (const file of files) {
           const { fileName, relativePath } = await saveFile(file, props.id);
           const src = `${relativePath}`;
-          props.editor.commands.deleteRange(props.range);
-          props.editor.commands.setFileEmbed(src, fileName);
+
+          props.command({
+            editor: props.editor,
+            range: props.range,
+            props: {
+              action: () => {
+                props.editor.commands.deleteRange(props.range);
+                props.editor.commands.setFileEmbed(src, fileName);
+              },
+            },
+          });
         }
       } catch (error) {
         console.error(error);
@@ -271,9 +266,18 @@ export default {
       try {
         for (const file of files) {
           const { relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`; // Construct the complete source path
-          props.editor.commands.deleteRange(props.range);
-          props.editor.commands.setVideo(src);
+          const src = `${relativePath}`;
+
+          props.command({
+            editor: props.editor,
+            range: props.range,
+            props: {
+              action: () => {
+                props.editor.commands.deleteRange(props.range);
+                props.editor.commands.setVideo(src);
+              },
+            },
+          });
         }
       } catch (error) {
         console.error(error);
@@ -285,13 +289,7 @@ export default {
       {
         icon: 'riParagraph',
         name: 'paragraph',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setParagraph()
-            .run(),
+        action: () => props.editor.chain().focus().setParagraph().run(),
       },
       ...Array.from({ length: 6 }, (_, i) => ({
         icon: `riH${i + 1}`,
@@ -300,69 +298,43 @@ export default {
           props.editor
             .chain()
             .focus()
-            .deleteRange(props.range)
             .toggleHeading({ level: i + 1 })
             .run(),
       })),
       {
         icon: 'riDoubleQuotesR',
         name: 'blockQuote',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .toggleBlockquote()
-            .run(),
+        action: () => props.editor.chain().focus().toggleBlockquote().run(),
       },
       {
         icon: 'riCodeBoxLine',
         name: 'codeBlock',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .toggleCodeBlock()
-            .run(),
+        action: () => props.editor.chain().focus().toggleCodeBlock().run(),
       },
       {
         icon: 'riTableLine',
         name: 'table',
-        action: () => insertTableWithEmptyParagraph(),
+        action: () =>
+          props.editor
+            .chain()
+            .focus()
+            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+            .run(),
       },
       {
         icon: 'riListOrdered',
         name: 'orderedList',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .toggleOrderedList()
-            .run(),
+        action: () => props.editor.chain().focus().toggleOrderedList().run(),
       },
       {
         icon: 'riListUnordered',
         name: 'bulletList',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .toggleBulletList()
-            .run(),
+        action: () => props.editor.chain().focus().toggleBulletList().run(),
       },
       {
         icon: 'riListCheck2',
         name: 'checkList',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .toggleTaskList()
-            .run(),
+        action: () => props.editor.chain().focus().toggleTaskList().run(),
       },
       {
         icon: 'riCalculatorLine',
@@ -379,95 +351,47 @@ export default {
         icon: 'riSingleQuotesR',
         name: 'blackCallout',
         className: 'dark:text-neutral-400',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setBlackCallout()
-            .run(),
+        action: () => props.editor.chain().focus().setBlackCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'blueCallout',
         className: 'text-blue-500 dark:text-blue-500',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setBlueCallout()
-            .run(),
+        action: () => props.editor.chain().focus().setBlueCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'greenCallout',
         className: 'text-green-600 dark:text-green-600',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setGreenCallout()
-            .run(),
+        action: () => props.editor.chain().focus().setGreenCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'purpleCallout',
         className: 'text-purple-500 dark:text-purple-500',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setPurpleCallout()
-            .run(),
+        action: () => props.editor.chain().focus().setPurpleCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'redCallout',
         className: 'text-red-500 dark:text-red-500',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setRedCallout()
-            .run(),
+        action: () => props.editor.chain().focus().setRedCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'yellowCallout',
         className: 'text-yellow-500 dark:text-yellow-500',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setYellowCallout()
-            .run(),
+        action: () => props.editor.chain().focus().setYellowCallout().run(),
       },
       {
         icon: 'riPieChart2Line',
         name: 'mermaid',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .setMermaidDiagram()
-            .run(),
+        action: () => props.editor.chain().focus().setMermaidDiagram().run(),
       },
       {
         icon: 'riBrush3Fill',
         name: 'drawing',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .deleteRange(props.range)
-            .insertPaper()
-            .run(),
+        action: () => props.editor.chain().focus().insertPaper().run(),
       },
       {
         icon: 'riImageLine',
@@ -498,33 +422,8 @@ export default {
     ]);
 
     const showInput = () => {
-      inputVisible.value = true; // Directly update the ref
+      inputVisible.value = true;
     };
-
-    onMounted(() => {
-      Mousetrap.bind('up', (e) => {
-        e.preventDefault();
-        upHandler();
-      });
-      Mousetrap.bind('down', (e) => {
-        e.preventDefault();
-        downHandler();
-      });
-      Mousetrap.bind('enter', (e) => {
-        e.preventDefault();
-        enterHandler();
-      });
-      Mousetrap.bind('esc', () => {
-        props.editor.commands.deleteRange(props.range);
-      });
-    });
-
-    onUnmounted(() => {
-      Mousetrap.unbind('up');
-      Mousetrap.unbind('down');
-      Mousetrap.unbind('enter');
-      Mousetrap.unbind('esc');
-    });
 
     function upHandler() {
       selectedIndex.value =
@@ -548,13 +447,19 @@ export default {
       }
     }
 
+    // Properly expose the onKeyDown method to the parent component
+    // In Options API, we need to expose it through the instance
+    if (instance) {
+      instance.exposed = instance.exposed || {};
+      instance.exposed.onKeyDown = onKeyDown;
+    }
+
     return {
       translations,
       filteredItems,
       EmbedUrl,
       showInput,
       handleItemClick,
-      insertTableWithEmptyParagraph,
       fileUrl,
       VideoUrl,
       handleFileSelect,
@@ -563,13 +468,8 @@ export default {
       handleFileInputClick,
       inputVisible,
       selectedIndex,
+      onKeyDown,
     };
   },
 };
 </script>
-
-<style>
-.menu-item.selected {
-  @apply bg-neutral-100 dark:bg-neutral-700 rounded-lg;
-}
-</style>

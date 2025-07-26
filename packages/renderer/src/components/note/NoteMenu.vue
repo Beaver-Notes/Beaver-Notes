@@ -340,7 +340,13 @@
       <button
         v-tooltip.group="translations.menu.table"
         class="transition hoverable h-8 px-1 rounded-lg"
-        @click="insertTableWithEmptyParagraph"
+        @click="
+          editor
+            .chain()
+            .focus()
+            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+            .run()
+        "
       >
         <v-remixicon name="riTableLine" />
       </button>
@@ -1022,30 +1028,6 @@ export default {
       shareMarkdown,
       share,
     };
-  },
-  methods: {
-    insertTableWithEmptyParagraph() {
-      // Insert the table first
-      const transaction = this.editor
-        .chain()
-        .focus()
-        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-        .run();
-
-      if (transaction) {
-        const pos = this.editor.state.doc.content.size;
-        this.editor
-          .chain()
-          .focus()
-          .insertContentAt(pos, {
-            type: 'paragraph',
-            content: [],
-          })
-          .run();
-      } else {
-        console.error('Failed to insert table.');
-      }
-    },
   },
 };
 </script>
