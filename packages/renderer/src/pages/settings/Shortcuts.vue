@@ -12,12 +12,11 @@
             }}
           </p>
           <kbd v-for="key in item.keys" :key="key" class="mr-1">
-            <!-- Directly include "Drag" and "Arrow left" -->
             {{
               key === 'Drag'
-                ? translations.shortcuts.Drag
+                ? translations.shortcuts.drag
                 : key === 'Arrow left'
-                ? translations.shortcuts.Arrowleft
+                ? translations.shortcuts.arrowLeft
                 : getFormattedKey(key)
             }}
           </kbd>
@@ -49,13 +48,13 @@ const shortcuts = [
   {
     title: 'General',
     items: [
-      { name: 'Createnewnote', keys: getFormattedKeys(['Ctrl', 'N']) },
+      { name: 'createNewNote', keys: getFormattedKeys(['Ctrl', 'N']) },
       {
-        name: 'Togglecommandprompt',
+        name: 'toggleCommandPrompt',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'P']),
       },
       {
-        name: 'Toggledarktheme',
+        name: 'toggleDarkTheme',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'L']),
       },
       { name: 'toggleSync', keys: getFormattedKeys(['Ctrl', 'Shift', 'Y']) },
@@ -65,38 +64,38 @@ const shortcuts = [
     title: 'Navigates',
     items: [
       {
-        name: 'Toeditednote',
+        name: 'toEditedNote',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'W']),
       },
-      { name: 'Tonotes', keys: getFormattedKeys(['Ctrl', 'Shift', 'N']) },
+      { name: 'toNotes', keys: getFormattedKeys(['Ctrl', 'Shift', 'N']) },
       {
-        name: 'Toarchivednotes',
+        name: 'toArchivedNotes',
         keys: getFormattedKeys(['Ctrl', 'Shift', 'A']),
       },
-      { name: 'Tosettings', keys: getFormattedKeys(['Ctrl', ',']) },
+      { name: 'toSettings', keys: getFormattedKeys(['Ctrl', ',']) },
     ],
   },
   {
     title: 'Editor',
     items: [
-      { name: 'Bold', keys: getFormattedKeys(['Ctrl', 'B']) },
-      { name: 'Italic', keys: getFormattedKeys(['Ctrl', 'I']) },
-      { name: 'Underline', keys: getFormattedKeys(['Ctrl', 'U']) },
-      { name: 'Link', keys: getFormattedKeys(['Ctrl', 'K']) },
-      { name: 'Strikethrough', keys: getFormattedKeys(['Ctrl', 'Shift', 'X']) },
-      { name: 'Highlight', keys: getFormattedKeys(['Ctrl', 'Shift', 'H']) },
-      { name: 'SuperScript', keys: getFormattedKeys(['Ctrl', '.']) },
-      { name: 'SubScript', keys: getFormattedKeys(['Alt', ',']) },
-      { name: 'Inlinecode', keys: getFormattedKeys(['Ctrl', 'E']) },
+      { name: 'bold', keys: getFormattedKeys(['Ctrl', 'B']) },
+      { name: 'italic', keys: getFormattedKeys(['Ctrl', 'I']) },
+      { name: 'underline', keys: getFormattedKeys(['Ctrl', 'U']) },
+      { name: 'link', keys: getFormattedKeys(['Ctrl', 'K']) },
+      { name: 'strikethrough', keys: getFormattedKeys(['Ctrl', 'Shift', 'X']) },
+      { name: 'highlight', keys: getFormattedKeys(['Ctrl', 'Shift', 'H']) },
+      { name: 'superscript', keys: getFormattedKeys(['Ctrl', '.']) },
+      { name: 'subscript', keys: getFormattedKeys(['Alt', ',']) },
+      { name: 'inlineCode', keys: getFormattedKeys(['Ctrl', 'E']) },
       {
-        name: 'Headings',
+        name: 'headings',
         keys: getFormattedKeys(['Ctrl', 'Alt', '(1-6)']),
       },
-      { name: 'Orderedlist', keys: getFormattedKeys(['Ctrl', 'Shift', '7']) },
-      { name: 'Bulletlist', keys: getFormattedKeys(['Ctrl', 'Shift', '8']) },
-      { name: 'Blockquote', keys: getFormattedKeys(['Ctrl', 'Shift', 'B']) },
-      { name: 'Blockcode', keys: getFormattedKeys(['Ctrl', 'Alt', 'C']) },
-      { name: 'Previousnote', keys: getFormattedKeys(['Alt', 'Arrow left']) },
+      { name: 'orderedList', keys: getFormattedKeys(['Ctrl', 'Shift', '7']) },
+      { name: 'bulletList', keys: getFormattedKeys(['Ctrl', 'Shift', '8']) },
+      { name: 'blockQuote', keys: getFormattedKeys(['Ctrl', 'Shift', 'B']) },
+      { name: 'codeBlock', keys: getFormattedKeys(['Ctrl', 'Alt', 'C']) },
+      { name: 'previousNote', keys: getFormattedKeys(['Alt', 'Arrow left']) },
     ],
   },
 ];

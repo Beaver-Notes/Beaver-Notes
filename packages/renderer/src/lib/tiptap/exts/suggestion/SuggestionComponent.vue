@@ -28,7 +28,7 @@
         @click="onAdd(query, command)"
       >
         <v-remixicon name="riAddLine" class="mr-2" />
-        {{ translations.menu.Add || '-' }} "<strong class="text-overflow">
+        {{ translations.menu.add || '-' }} "<strong class="text-overflow">
           {{ query.slice(0, 50) }} </strong
         >"
       </ui-list-item>

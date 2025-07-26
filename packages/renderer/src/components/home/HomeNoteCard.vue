@@ -32,33 +32,33 @@
     >
       {{
         note.isLocked
-          ? translations.card.unlocktoedit
+          ? translations.card.unlockToEdit
           : truncateText(note.content, 160) || translations.card.content
       }}
     </router-link>
+    <button
+      v-if="note.isLocked"
+      class="hover:text-gray-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
+      @click="unlockNote(note.id)"
+    >
+      <v-remixicon
+        class="w-24 h-auto text-gray-600 dark:text-[color:var(--selected-dark-text)]"
+        name="riLockLine"
+      />
+      <div
+        class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
+      >
+        {{ translations.card.unlockToEdit || '-' }}
+      </div>
+    </button>
     <div
       class="flex z-10 items-center mt-4 text-gray-600 dark:text-gray-200 gap-2"
     >
       <button
-        v-if="note.isLocked"
-        class="hover:text-gray-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
-        @click="unlockNote(note.id)"
-      >
-        <v-remixicon
-          class="w-24 h-auto text-gray-600 dark:text-[color:var(--selected-dark-text)]"
-          name="riLockLine"
-        />
-        <div
-          class="text-xs text-gray-500 dark:text-gray-400 invisible group-hover:visible dark:text-[color:var(--selected-dark-text)]"
-        >
-          {{ translations.card.unlocktoedit || '-' }}
-        </div>
-      </button>
-      <button
         v-if="!note.isArchived"
         v-tooltip.group="
           note.isBookmarked
-            ? translations.card.removebookmark
+            ? translations.card.removeBookmark
             : translations.card.bookmark
         "
         :class="[
@@ -99,7 +99,9 @@
         class="hover:text-gray-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="unlockNote(note.id)"
       >
-        <v-remixicon name="riLockUnlockLine" />
+        <v-remixicon
+          :name="note.isLocked ? 'riLockUnlockLine' : 'riLockLine'"
+        />
       </button>
       <button
         v-tooltip.group="translations.card.delete"
@@ -112,7 +114,7 @@
       <p class="text-overflow">
         {{
           note.isLocked
-            ? translations.card.islocked
+            ? translations.card.isLocked
             : formatDate(note.createdAt)
         }}
       </p>
@@ -127,7 +129,7 @@ import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useTranslation } from '@/composable/translations';
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, ref } from 'vue';
 import { forceSyncNow } from '@/utils/sync.js';
 import { useDialog } from '@/composable/dialog';
 import 'dayjs/locale/it';
@@ -161,11 +163,11 @@ async function lockNote(note) {
     if (!hassharedKey) {
       // If there's no global password set, prompt the user to set it
       dialog.prompt({
-        title: translations.card.enterpasswd,
-        okText: translations.card.setkey,
-        body: translations.settings.warning,
-        cancelText: translations.card.Cancel,
-        placeholder: translations.card.Password,
+        title: translations.value.card.enterPasswd,
+        okText: translations.value.card.setkey,
+        body: translations.value.settings.warning,
+        cancelText: translations.value.card.cancel,
+        placeholder: translations.value.card.password,
         onConfirm: async (newKey) => {
           if (newKey) {
             try {
@@ -176,20 +178,20 @@ async function lockNote(note) {
               console.log(`Note (ID: ${note}) is locked`);
             } catch (error) {
               console.error('Error setting up key:', error);
-              alert(translations.card.keyfail);
+              alert(translations.value.card.keyFail);
             }
           } else {
-            alert(translations.card.keyfail);
+            alert(translations.value.card.keyFail);
           }
         },
       });
     } else {
       // If the global password is set, prompt the user to enter it to lock the note
       dialog.prompt({
-        title: translations.card.enterpasswd,
-        okText: translations.card.lock,
-        cancelText: translations.card.Cancel,
-        placeholder: translations.card.Password,
+        title: translations.value.card.enterPasswd,
+        okText: translations.value.card.lock,
+        cancelText: translations.value.card.cancel,
+        placeholder: translations.value.card.password,
         onConfirm: async (enteredPassword) => {
           // Validate the entered password against the stored global password
           const isValidPassword = await passwordStore.isValidPassword(
@@ -201,7 +203,7 @@ async function lockNote(note) {
             console.log(`Note (ID: ${note}) is locked`);
           } else {
             // If the entered password does not match, show an error message
-            alert(translations.card.wrongpasswd);
+            alert(translations.value.card.wrongPasswd);
           }
         },
       });
@@ -216,10 +218,10 @@ async function unlockNote(note) {
   const noteStore = useNoteStore();
 
   dialog.prompt({
-    title: translations.card.enterpasswd,
-    okText: translations.card.unlock,
-    cancelText: translations.card.Cancel,
-    placeholder: translations.card.Password,
+    title: translations.value.card.enterPasswd,
+    okText: translations.value.card.unlock,
+    cancelText: translations.value.card.cancel,
+    placeholder: translations.value.card.password,
     onConfirm: async (enteredPassword) => {
       try {
         // Validate the entered password against the global password
@@ -227,16 +229,16 @@ async function unlockNote(note) {
           enteredPassword
         );
         if (isValidPassword) {
-          console.log(translations.card.Passwordcorrect);
+          console.log(translations.value.card.passwordCorrect);
           // Note unlocked using the global password
           await noteStore.unlockNote(note, enteredPassword);
           console.log(`Note (ID: ${note}) is unlocked`);
         } else {
-          alert(translations.card.wrongpasswd);
+          alert(translations.value.card.wrongPasswd);
         }
       } catch (error) {
         console.error('Error unlocking note:', error);
-        alert(translations.card.wrongpasswd);
+        alert(translations.value.card.wrongPasswd);
       }
     },
   });
@@ -246,9 +248,9 @@ async function deleteNote(note) {
   const noteStore = useNoteStore();
 
   dialog.confirm({
-    title: translations.card.confirmPrompt,
-    okText: translations.card.confirm,
-    cancelText: translations.card.Cancel,
+    title: translations.value.card.confirmPrompt,
+    okText: translations.value.card.confirm,
+    cancelText: translations.value.card.cancel,
     onConfirm: async () => {
       // Delete the note locally
       await noteStore.delete(note);
@@ -266,7 +268,7 @@ function formatDate(date) {
 
 // Translations
 
-const translations = shallowReactive({
+const translations = ref({
   card: {},
 });
 

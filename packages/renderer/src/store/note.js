@@ -77,38 +77,48 @@ export const useNoteStore = defineStore('note', {
     async retrieve() {
       try {
         const piniaData = this.data;
-        const piniaLockStatus = this.lockStatus;
-
         const localStorageData = await storage.get('notes', {});
         this.data = { ...piniaData, ...localStorageData };
 
-        const lockStatusData = await storage.get('lockStatus', {});
-        this.lockStatus = { ...piniaLockStatus, ...lockStatusData };
-
-        for (const noteId in this.data) {
-          if (this.lockStatus[noteId]) {
-            this.lockStatus[noteId] = lockStatusData[noteId];
-          } else {
-            this.lockStatus[noteId] = 'unlocked';
-          }
-        }
-
-        const isLockedData = await storage.get('isLocked', {});
-        this.isLocked = { ...isLockedData };
-
-        for (const noteId in this.data) {
-          if (this.isLocked[noteId]) {
-            this.data[noteId].isLocked = true;
-          } else {
-            this.data[noteId].isLocked = false;
-          }
-        }
+        // Migration: Clean up old lock-related storage if it exists
+        await this.migrateLockData();
 
         return this.data;
       } catch (error) {
         console.error('Error retrieving notes:', error);
         throw error;
       }
+    },
+
+    async migrateLockData() {
+      const lockStatusData = await storage.get('lockStatus', {});
+      const isLockedData = await storage.get('isLocked', {});
+      // Migrate lock status to individual notes if needed
+      for (const noteId in this.data) {
+        const wasLocked =
+          lockStatusData[noteId] === 'locked' || isLockedData[noteId] === true;
+        const currentLockStatus = this.data[noteId].isLocked;
+
+        if (wasLocked) {
+          this.data[noteId].isLocked = true;
+        } else if (currentLockStatus === true) {
+          // If the note was already marked as locked, keep it locked
+        } else {
+          this.data[noteId].isLocked = false;
+        }
+      }
+
+      // Clean up old storage
+      if (
+        Object.keys(lockStatusData).length > 0 ||
+        Object.keys(isLockedData).length > 0
+      ) {
+        await storage.delete('lockStatus');
+        await storage.delete('isLocked');
+      }
+
+      // Save migrated data
+      await storage.set('notes', this.data);
     },
 
     convertNote(id) {
@@ -176,18 +186,12 @@ export const useNoteStore = defineStore('note', {
         };
 
         this.data[id] = newNote;
-        this.lockStatus[id] = 'unlocked';
-        this.isLocked[id] = false;
 
         // Save to local storage
         await storage.set('notes', this.data);
-        await storage.set('lockStatus', this.lockStatus);
-        await storage.set('isLocked', this.isLocked);
 
         // Track the change for sync
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
 
         return this.data[id];
       } catch (error) {
@@ -232,17 +236,11 @@ export const useNoteStore = defineStore('note', {
         }
 
         delete this.data[id];
-        delete this.lockStatus[id];
-        delete this.isLocked[id];
 
         await storage.delete(`notes.${id}`);
-        await storage.set('lockStatus', this.lockStatus);
-        await storage.set('isLocked', this.isLocked);
         await storage.set('deletedIds', this.deletedIds);
 
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
         await trackChange('deletedIds', this.deletedIds);
 
         try {
@@ -303,20 +301,12 @@ export const useNoteStore = defineStore('note', {
         this.data[id].content = { type: 'doc', content: [encryptedContent] };
         this.data[id].isLocked = true;
         this.data[id].updatedAt = Date.now();
-        this.isLocked[id] = true;
-        this.lockStatus[id] = 'locked';
 
         // Save to storage
         await storage.set(`notes.${id}`, this.data[id]);
-        await Promise.all([
-          storage.set('lockStatus', this.lockStatus),
-          storage.set('isLocked', this.isLocked),
-        ]);
 
         // Track changes for sync
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -345,19 +335,9 @@ export const useNoteStore = defineStore('note', {
           // Content is not encrypted, update isLocked flag only
           this.data[id].isLocked = false;
           this.data[id].updatedAt = Date.now();
-          this.isLocked[id] = false;
-          this.lockStatus[id] = 'unlocked';
 
           await storage.set(`notes.${id}`, this.data[id]);
-          await Promise.all([
-            storage.set('lockStatus', this.lockStatus),
-            storage.set('isLocked', this.isLocked),
-          ]);
-
-          // Track changes for sync
           await trackChange(`notes.${id}`, this.data[id]);
-          await trackChange('lockStatus', this.lockStatus);
-          await trackChange('isLocked', this.isLocked);
           return;
         }
 
@@ -383,20 +363,10 @@ export const useNoteStore = defineStore('note', {
         // Update lock status
         this.data[id].isLocked = false;
         this.data[id].updatedAt = Date.now();
-        this.isLocked[id] = false;
-        this.lockStatus[id] = 'unlocked';
 
         // Save to storage
         await storage.set(`notes.${id}`, this.data[id]);
-        await Promise.all([
-          storage.set('lockStatus', this.lockStatus),
-          storage.set('isLocked', this.isLocked),
-        ]);
-
-        // Track changes for sync
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;

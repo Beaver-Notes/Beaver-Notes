@@ -2,7 +2,7 @@
 <template>
   <div class="container py-5">
     <h1 class="text-3xl mb-8 font-bold">
-      {{ translations.sidebar.Notes || '-' }}
+      {{ translations.sidebar.notes || '-' }}
     </h1>
     <home-note-filter
       v-model:query="state.query"
@@ -40,37 +40,6 @@
           @update:label="state.activeLabel = $event"
           @update="noteStore.update(note.id, $event)"
         />
-        <div
-          v-if="showDialog"
-          class="bg-black p-5 overflow-y-auto bg-opacity-20 modal-ui__content-container z-50 flex justify-center items-end md:items-center"
-        >
-          <div
-            class="modal-ui__content shadow-lg w-full max-w-sm bg-[#F8F8F7] dark:bg-[#353333] transform rounded-lg transition-transform ui-card overflow-hidden p-4 modal-ui__content shadow-lg w-full max-w-sm"
-          >
-            <h3 class="font-semibold text-lg">
-              {{ translations.index.syncreminder || '-' }}
-            </h3>
-            <p class="mb-4">
-              {{ translations.index.syncmessage || '-' }}
-            </p>
-            <label class="flex items-center space-x-2">
-              <input
-                v-model="disableDialog"
-                type="checkbox"
-                class="form-checkbox rtl:ml-2"
-              />
-              <span class="inline-block align-middle">
-                {{ translations.index.hide || '-' }}</span
-              >
-            </label>
-            <button
-              class="mt-4 ui-button h-10 relative transition focus:ring-2 ring-amber-300 bg-primary text-white dark:bg-secondary dark:hover:bg-primary hover:bg-secondary py-2 px-4 w-full rounded-lg"
-              @click="closeDialog"
-            >
-              {{ translations.index.close || '-' }}
-            </button>
-          </div>
-        </div>
       </template>
     </div>
     <div v-else class="text-center">
@@ -82,7 +51,7 @@
       <p
         class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
       >
-        {{ translations.index.newnote || '-' }}
+        {{ translations.index.newNote || '-' }}
       </p>
     </div>
   </div>
@@ -110,33 +79,12 @@ import KeyboardNavigation from '@/utils/keyboard-navigation';
 import Beaver from '@/assets/images/Beaver.png';
 import BeaverDark from '@/assets/images/Beaver-dark.png';
 
-let hasReminded = true;
-
 export default {
   components: { HomeNoteCard, HomeNoteFilter },
   setup() {
-    const showDialog = ref(checkAppReminder());
     const disableDialog = ref(false);
     const theme = useTheme();
 
-    function checkAppReminder() {
-      const disableReminder = localStorage.getItem('disableAppReminder');
-      return !(disableReminder === 'true') && hasReminded;
-    }
-
-    const showAppReminderDialog = () => {
-      if (!disableDialog.value) {
-        showDialog.value = true;
-      }
-    };
-
-    const closeDialog = () => {
-      showDialog.value = false;
-      hasReminded = false;
-      if (disableDialog.value) {
-        localStorage.setItem('disableAppReminder', 'true');
-      }
-    };
     const route = useRoute();
     const router = useRouter();
     const noteStore = useNoteStore();
@@ -171,30 +119,23 @@ export default {
       notes.forEach((note) => {
         let { title, content, isArchived, isBookmarked, labels } = note;
 
-        // Sort labels alphabetically
         labels = labels.sort((a, b) => a.localeCompare(b));
 
-        // Check if an active label filter is applied
         const labelFilter = state.activeLabel
           ? labels.includes(state.activeLabel)
           : true;
 
-        // Check if the query matches labels, title, or content
         const queryLower = state.query.toLocaleLowerCase();
-        const isMatch =
-          // Label match (supports `#` prefix and plain text)
-          queryLower.startsWith('#')
-            ? labels.some((label) =>
-                label.toLocaleLowerCase().includes(queryLower.substr(1))
-              )
-            : labels.some((label) =>
-                label.toLocaleLowerCase().includes(queryLower)
-              ) ||
-              // Title and content match
-              title.toLocaleLowerCase().includes(queryLower) ||
-              content.toLocaleLowerCase().includes(queryLower);
+        const isMatch = queryLower.startsWith('#')
+          ? labels.some((label) =>
+              label.toLocaleLowerCase().includes(queryLower.substr(1))
+            )
+          : labels.some((label) =>
+              label.toLocaleLowerCase().includes(queryLower)
+            ) ||
+            title.toLocaleLowerCase().includes(queryLower) ||
+            content.toLocaleLowerCase().includes(queryLower);
 
-        // Add notes to appropriate categories if all conditions are met
         if (isMatch && labelFilter) {
           if (isArchived) return filteredNotes.archived.push(note);
 
@@ -280,7 +221,7 @@ export default {
             dialog.confirm({
               title: translations.value.card.confirmPrompt,
               okText: translations.value.card.confirm,
-              cancelText: translations.value.card.Cancel,
+              cancelText: translations.value.card.cancel,
               onConfirm: async () => {
                 await noteStore.delete(noteId);
               },
@@ -292,8 +233,6 @@ export default {
     onUnmounted(() => {
       keyboardNavigation.value.destroy();
     });
-
-    //Translations
 
     const translations = ref({
       sidebar: {},
@@ -315,10 +254,7 @@ export default {
       labelStore,
       translations,
       deleteLabel,
-      showDialog,
       disableDialog,
-      showAppReminderDialog,
-      closeDialog,
       Beaver,
       BeaverDark,
       theme,

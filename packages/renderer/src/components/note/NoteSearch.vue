@@ -20,7 +20,7 @@
         v-model="state.query"
         autofocus
         prepend-icon="riSearchLine"
-        :placeholder="translations.search.searchplaceholder"
+        :placeholder="translations.search.searchPlaceholder"
         class="w-full editor-search"
         @keyup="startSearch"
       />
@@ -35,7 +35,7 @@
     <!-- Replace Term Input -->
     <ui-input
       v-model="state.replaceWith"
-      :placeholder="translations.search.replaceplaceholder"
+      :placeholder="translations.search.replacePlaceholder"
       class="flex-1"
       @keyup="startSearch"
     />
@@ -60,7 +60,7 @@
       :disabled="!state.replaceWith"
       @click="replaceAllText"
     >
-      {{ translations.search.replaceall || 'Replace All' }}
+      {{ translations.search.replaceAll || 'Replace All' }}
     </ui-button>
 
     <!-- Case Sensitivity Toggle -->

@@ -33,31 +33,31 @@ import { useTranslation } from '@/composable/translations';
 
 const settings = computed(() => ({
   Settings: {
-    name: translations.value.settings.General,
+    name: translations.value.settings.general,
     icon: 'riWindowLine',
     path: '/settings',
     description: '',
   },
   'Settings-Appearance': {
-    name: translations.value.settings.Appearance,
+    name: translations.value.settings.appearance,
     icon: 'riBrush3Fill',
     path: '/settings/appearance',
     description: '',
   },
   'Settings-Shortcuts': {
-    name: translations.value.settings.Shortcuts,
+    name: translations.value.settings.shortcuts,
     icon: 'riKeyboardLine',
     path: '/settings/shortcuts',
     description: '',
   },
   'Settings-Security': {
-    name: translations.value.settings.privacysecurity,
+    name: translations.value.settings.privacySecurity,
     icon: 'riLockLine',
     path: '/settings/privacysecurity',
     description: '',
   },
   'Settings-About': {
-    name: translations.value.settings.About,
+    name: translations.value.settings.about,
     icon: 'riInformationLine',
     path: '/settings/about',
     description: '',

@@ -17,7 +17,7 @@
       <ui-popover padding="p-2 flex flex-col print:hidden">
         <template #trigger>
           <button
-            v-tooltip.group="translations.menu.Headings"
+            v-tooltip.group="translations.menu.headings"
             :class="{ 'is-active': editor.isActive('heading') }"
             class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
           >
@@ -127,7 +127,7 @@
       <hr class="border-r mx-2 h-6" />
       <div v-if="!isTableActive" class="flex">
         <button
-          v-tooltip.group="translations.menu.blockquote"
+          v-tooltip.group="translations.menu.blockQuote"
           :class="{ 'is-active': editor.isActive('blockquote') }"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().toggleBlockquote().run()"
@@ -135,7 +135,7 @@
           <v-remixicon name="riDoubleQuotesR" />
         </button>
         <button
-          v-tooltip.group="translations.menu.codeblock"
+          v-tooltip.group="translations.menu.codeBlock"
           :class="{ 'is-active': editor.isActive('codeBlock') }"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().toggleCodeBlock().run()"
@@ -145,7 +145,7 @@
         <ui-popover padding="p-2 flex flex-col print:hidden">
           <template #trigger>
             <button
-              v-tooltip.group="translations.menu.Lists"
+              v-tooltip.group="translations.menu.lists"
               class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
             >
               <v-remixicon name="riListOrdered" />
@@ -174,49 +174,49 @@
       </div>
       <div v-else class="flex">
         <button
-          v-tooltip.group="translations.menu.addRowAbove"
+          v-tooltip.group="translations.menu.addrowabove"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addRowBefore().run()"
         >
           <v-remixicon name="riInsertRowTop" />
         </button>
         <button
-          v-tooltip.group="translations.menu.addRowBelow"
+          v-tooltip.group="translations.menu.addrowbelow"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addRowAfter().run()"
         >
           <v-remixicon name="riInsertRowBottom" />
         </button>
         <button
-          v-tooltip.group="translations.menu.deleteRow"
+          v-tooltip.group="translations.menu.deleterow"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().deleteRow().run()"
         >
           <v-remixicon name="riDeleteRow" />
         </button>
         <button
-          v-tooltip.group="translations.menu.addColumnLeft"
+          v-tooltip.group="translations.menu.addcolumnleft"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addColumnBefore().run()"
         >
           <v-remixicon name="riInsertColumnLeft" />
         </button>
         <button
-          v-tooltip.group="translations.menu.addColumnRight"
+          v-tooltip.group="translations.menu.addcolumnright"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addColumnAfter().run()"
         >
           <v-remixicon name="riInsertColumnRight" />
         </button>
         <button
-          v-tooltip.group="translations.menu.deleteColumn"
+          v-tooltip.group="translations.menu.deletecolumn"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().deleteColumn().run()"
         >
           <v-remixicon name="riDeleteColumn" />
         </button>
         <button
-          v-tooltip.group="translations.menu.mergeorSplit"
+          v-tooltip.group="translations.menu.mergeOrSplit"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().mergeOrSplit().run()"
         >
@@ -243,7 +243,7 @@
         <input
           v-model="imgUrl"
           class="bg-transparent mr-2"
-          :placeholder="translations.menu.imgurl || '-'"
+          :placeholder="translations.menu.imgUrl || '-'"
           @keyup.enter="insertImage"
         />
         <v-remixicon
@@ -297,7 +297,7 @@
         </button>
       </div>
       <button
-        v-tooltip.group="translations.menu.Link"
+        v-tooltip.group="translations.menu.link"
         :class="{ 'is-active': editor.isActive('link') }"
         class="transition hoverable h-8 px-1 rounded-lg"
         @click="editor.chain().focus().toggleLink({ href: '' }).run()"
@@ -307,7 +307,7 @@
       <ui-popover padding="p-2 flex items-center">
         <template #trigger>
           <button
-            v-tooltip.group="translations.menu.File"
+            v-tooltip.group="translations.menu.file"
             class="transition hoverable h-8 px-1 rounded-lg"
           >
             <v-remixicon name="riFile2Line" />
@@ -348,7 +348,7 @@
         <ui-popover padding="p-2 flex items-center">
           <template #trigger>
             <button
-              v-tooltip.group="translations.menu.Embed"
+              v-tooltip.group="translations.menu.embed"
               class="transition hoverable h-8 px-1 rounded-lg"
             >
               <v-remixicon name="riPagesLine" />
@@ -357,7 +357,7 @@
           <input
             v-model="EmbedUrl"
             class="bg-transparent mr-2"
-            :placeholder="translations.menu.EmbedUrl || '-'"
+            :placeholder="translations.menu.embedUrl || '-'"
             @keyup.enter="addIframe"
           />
           <v-remixicon
@@ -574,21 +574,21 @@ export default {
       return [
         {
           name: 'ordered-list',
-          title: translations.value.menu.orderedlist,
+          title: translations.value.menu.orderedList,
           icon: 'riListOrdered',
           activeState: 'orderedList',
           handler: () => props.editor.chain().focus().toggleOrderedList().run(),
         },
         {
           name: 'bullet-list',
-          title: translations.value.menu.bulletlist,
+          title: translations.value.menu.bulletList,
           icon: 'riListUnordered',
           activeState: 'bulletList',
           handler: () => props.editor.chain().focus().toggleBulletList().run(),
         },
         {
           name: 'check-list',
-          title: translations.value.menu.checklist,
+          title: translations.value.menu.checkList,
           icon: 'riListCheck2',
           activeState: 'taskList',
           handler: () => props.editor.chain().focus().toggleTaskList().run(),
@@ -599,7 +599,7 @@ export default {
     const share = computed(() => {
       return [
         {
-          name: 'Bea',
+          name: 'bea',
           title: 'BEA',
           icon: 'riFileTextFill',
           handler: () => shareNote(),
@@ -664,7 +664,7 @@ export default {
         },
         {
           name: 'inline-code',
-          title: translations.value.menu.inlinecode,
+          title: translations.value.menu.inlineCode,
           icon: 'riCodeLine',
           activeState: 'code',
           handler: () => props.editor.chain().focus().toggleCode().run(),
@@ -677,7 +677,7 @@ export default {
     const router = useRouter();
     const editorImage = useEditorImage(props.editor);
     const dialog = useDialog();
-    const translations = ref({ menu: {} });
+    const translations = ref({ menu: {}, card: {} });
 
     useGroupTooltip();
 
@@ -814,7 +814,7 @@ export default {
       dialog.confirm({
         title: translations.value.card.confirmPrompt,
         okText: translations.value.card.confirm,
-        cancelText: translations.value.card.Cancel,
+        cancelText: translations.value.card.cancel,
         onConfirm: async () => {
           await noteStore.delete(props.id);
           router.push('/');

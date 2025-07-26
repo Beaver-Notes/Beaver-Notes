@@ -12,7 +12,7 @@
         @click="updateCurrentLink(note.id)"
       >
         <p class="text-overflow w-full">
-          {{ note.title || translations.link.untitlednote }}
+          {{ note.title || translations.editor.untitledNote }}
         </p>
       </ui-list-item>
     </ui-list>
@@ -23,7 +23,7 @@
         id="bubble-input"
         v-model="currentLinkVal"
         type="url"
-        :placeholder="translations.link.placeholder"
+        :placeholder="translations.editor.linkPlaceholder"
         class="flex-1 bg-transparent"
         @keydown="keydownHandler"
         @keydown.esc="editor.commands.focus()"
@@ -46,7 +46,7 @@
       </button>
     </div>
     <span class="text-xs text-neutral-600 dark:text-neutral-300 leading-none">{{
-      translations.link.shortcut || '-'
+      translations.editor.linkShortcut || '-'
     }}</span>
   </div>
 </template>
@@ -135,7 +135,7 @@ export default {
     );
 
     const translations = ref({
-      link: {},
+      editor: {},
     });
 
     onMounted(async () => {

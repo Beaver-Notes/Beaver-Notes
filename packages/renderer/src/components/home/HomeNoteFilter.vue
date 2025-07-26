@@ -7,7 +7,7 @@
           class="w-full note-search-input"
           prepend-icon="riSearch2Line"
           :clearable="true"
-          :placeholder="translations.filter.searchplaceholder || '-'"
+          :placeholder="translations.filter.searchPlaceholder || '-'"
           @keydown.esc="$event.target.blur()"
           @change="$emit('update:query', $event.toLocaleLowerCase())"
         ></ui-input>
@@ -21,8 +21,8 @@
       <ui-button
         v-tooltip="
           label === ''
-            ? translations.filter.Selectlabel
-            : translations.filter.deletelabel
+            ? translations.filter.selectLabel
+            : translations.filter.deleteLabel
         "
         icon
         class="ltr:rounded-r-none rtl:rounded-l-none"
@@ -34,7 +34,7 @@
       </ui-button>
       <ui-select
         :model-value="newLabel"
-        :placeholder="translations.filter.Selectlabel || '-'"
+        :placeholder="translations.filter.selectLabel || '-'"
         @change="$emit('update:label', $event)"
       >
         <option v-for="item in labels" :key="item" :value="item">
@@ -108,9 +108,9 @@ export default {
 
     const sorts = computed(() => {
       return {
-        title: translations.value.filter.Alphabetical,
-        createdAt: translations.value.filter.Createddate,
-        updatedAt: translations.value.filter.Lastupdated,
+        title: translations.value.filter.alphabetical,
+        createdAt: translations.value.filter.createdDate,
+        updatedAt: translations.value.filter.lastUpdated,
       };
     });
 

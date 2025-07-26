@@ -13,7 +13,7 @@
         v-model="state.query"
         v-autofocus
         class="w-full bg-transparent command-input"
-        :placeholder="translations.commandprompt.placeholder || '-'"
+        :placeholder="translations.commandPrompt.placeholder || '-'"
         @keyup.enter="selectItem"
         @keyup.esc="clear"
         @keydown="keydownHandler"
@@ -31,7 +31,7 @@
         <div class="w-full">
           <p class="text-overflow w-full flex flex-1 justify-between">
             <span>
-              {{ item.title || translations.commandprompt.untitlednote }}
+              {{ item.title || translations.commandPrompt.untitledNote }}
               <template v-if="item.isLocked">
                 <v-remixicon
                   name="riLockLine"
@@ -191,7 +191,7 @@ export default {
     );
 
     const translations = ref({
-      commandprompt: {},
+      commandPrompt: {},
     });
 
     onMounted(async () => {

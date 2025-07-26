@@ -56,7 +56,7 @@ export default defineComponent({
         hasSyntaxError.value = false; // No syntax error
       } catch (e) {
         console.error('Error rendering Mermaid diagram:', e);
-        mermaidString.value = `<div class="text-red-500 text-center">${translations.value._idvue.error}</div>`;
+        mermaidString.value = `<div class="text-red-500 text-center">${translations.value.editor.error}</div>`;
         hasSyntaxError.value = true; // Syntax error
       }
     }

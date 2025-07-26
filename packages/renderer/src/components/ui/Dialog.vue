@@ -18,14 +18,6 @@
       :password="true"
       class="w-full mt-4"
     ></ui-input>
-    <ui-input
-      v-else-if="state.type === 'auth'"
-      v-model="state.input"
-      autofocus
-      :placeholder="state.options.placeholder"
-      :label="state.options.label"
-      class="w-full mt-4 no-security-text"
-    ></ui-input>
     <div v-if="isEmpty" class="text-sm text-red-500 mt-2">
       {{ translations.dialog.inputEmpty }}
     </div>

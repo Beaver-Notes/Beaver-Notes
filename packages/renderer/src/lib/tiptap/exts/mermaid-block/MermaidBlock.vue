@@ -17,7 +17,7 @@
             ref="inputRef"
             :value="mermaidContent"
             type="textarea"
-            :placeholder="translations._idvue.MermaidPlaceholder || '-'"
+            :placeholder="translations.editor.mermaidPlaceholder || '-'"
             class="bg-transparent min-h-24 w-full resize-y leading-tight p-2"
             @input="updateContent($event)"
             @keydown.ctrl.enter="closeTextarea"
@@ -27,7 +27,7 @@
         </div>
         <div class="border-t-2 p-2 flex justify-between">
           <p style="margin: 0">
-            <strong>{{ translations._idvue.exit }}</strong>
+            <strong>{{ translations.editor.exit }}</strong>
           </p>
           <v-remixicon
             class="cursor-pointer"
@@ -141,7 +141,7 @@ export default {
     );
 
     const translations = ref({
-      sidebar: {},
+      editor: {},
     });
 
     onMounted(async () => {

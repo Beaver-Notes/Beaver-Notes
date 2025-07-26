@@ -14,7 +14,7 @@
     </button>
     <button
       v-tooltip:right="
-        translations.sidebar.Editednote + ' (' + keyBinding + '+Shift+W)'
+        translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
       "
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
       :class="{ 'text-primary': $route.name === 'Note' }"
@@ -53,7 +53,7 @@
     </button>
     <button
       v-tooltip:right="
-        translations.sidebar.toggledarktheme + ' (' + keyBinding + '+Shift+L)'
+        translations.sidebar.toggleDarkTheme + ' (' + keyBinding + '+Shift+L)'
       "
       :class="[theme.isDark() ? 'text-secondary' : '']"
       class="transition p-2 mb-4"
@@ -103,7 +103,7 @@ export default {
 
     const navs = computed(() => [
       {
-        name: translations.value.sidebar.Notes,
+        name: translations.value.sidebar.notes,
         path: '/',
         icon: 'riBookletLine',
         shortcut: 'mod+shift+n',
@@ -112,7 +112,7 @@ export default {
         },
       },
       {
-        name: translations.value.sidebar.Archive,
+        name: translations.value.sidebar.archive,
         path: '/?archived=true',
         icon: 'riArchiveDrawerLine',
         shortcut: 'mod+shift+a',

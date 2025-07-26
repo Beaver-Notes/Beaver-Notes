@@ -312,7 +312,7 @@ export class AutoUpdater {
 
     try {
       const translations = await import(
-        `../../../renderer/src/pages/settings/locales/${lang}.json`
+        `../../../renderer/src/assets/locales/${lang}.json`
       );
       return translations.default;
     } catch (error) {
@@ -322,7 +322,7 @@ export class AutoUpdater {
       );
       
       const fallback = await import(
-        `../../../renderer/src/pages/settings/locales/en.json`
+        `../../../renderer/src/assets/locales/en.json`
       );
       return fallback.default;
     }

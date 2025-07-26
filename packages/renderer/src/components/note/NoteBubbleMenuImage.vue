@@ -6,7 +6,7 @@
         v-model="currentImage"
         type="text"
         class="flex-1 bg-transparent w-52 mr-4"
-        :placeholder="translations.image.imgurl"
+        :placeholder="translations.image.imgUrl"
         @keydown.esc="editor.commands.focus()"
         @keyup.enter="editorImage.set(currentImage)"
       />

@@ -2,10 +2,10 @@ export const useTranslation = async (fallback = 'en') => {
   const selectedLanguage = localStorage.getItem('selectedLanguage') || fallback;
   try {
     const translationModule = await import(
-      `@/pages/settings/locales/${selectedLanguage}.json`
+      `@/assets/locales/${selectedLanguage}.json`
     );
     const translationsFallbackModule = await import(
-      `@/pages/settings/locales/${fallback}.json`
+      `@/assets/locales/${fallback}.json`
     );
     return Object.assign(
       translationsFallbackModule.default,

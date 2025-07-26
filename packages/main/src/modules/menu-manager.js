@@ -86,7 +86,7 @@ export class MenuManager {
       label: 'File',
       submenu: [
         {
-          label: translations.commands.newnote,
+          label: translations.commands.newNote,
           accelerator: 'CmdOrCtrl+N',
           click: () => this.addNoteFromMenu(),
         },

@@ -41,7 +41,7 @@
           <span
             class="text-neutral-800 dark:text-[color:var(--selected-dark-text)] mb-6 text-lg font-medium"
           >
-            {{ translations.paperBlock.clicktoDraw }}
+            {{ translations.paperBlock.clickToDraw }}
           </span>
         </div>
       </div>

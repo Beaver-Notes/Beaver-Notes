@@ -469,11 +469,11 @@ async function mergePulledData(imported) {
 function promptForPassword(translations) {
   return new Promise((resolve) => {
     dialog.prompt({
-      title: t(translations.settings.Inputpassword),
+      title: t(translations.settings.inputPassword),
       body: t(translations.settings.body),
-      okText: t(translations.settings.Import),
-      cancelText: t(translations.settings.Cancel),
-      placeholder: t(translations.settings.Password),
+      okText: t(translations.settings.import),
+      cancelText: t(translations.settings.cancel),
+      placeholder: t(translations.settings.password),
       onConfirm: (password) => resolve({ success: true, password }),
       onCancel: () => resolve({ success: false }),
     });

@@ -3,7 +3,7 @@
   <div class="general space-y-8 mb-14 w-full max-w-xl">
     <!-- App theme -->
     <section>
-      <p class="mb-2">{{ translations.settings.apptheme || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.appTheme || '-' }}</p>
       <div
         class="flex ltr:space-x-4 text-gray-600 dark:text-[color:var(--selected-dark-text)]"
       >
@@ -18,14 +18,14 @@
         >
           <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
           <p class="capitalize text-center text-sm">
-            {{ translations.settings[item.name] || item.name }}
+            {{ translations.appearence[item.name] || item.name }}
           </p>
         </button>
       </div>
     </section>
     <!-- Accent Color -->
     <section>
-      <p class="mb-2">{{ translations.settings.colorScheme || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.colorScheme || '-' }}</p>
       <div class="w-full items-center justify-center flex gap-4">
         <button
           class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
@@ -66,7 +66,7 @@
     </section>
     <!-- Interface size -->
     <section>
-      <p class="mb-2">{{ translations.settings.interfacesize || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.interfaceSize || '-' }}</p>
       <div class="grid grid-cols-4 gap-4">
         <button
           class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
@@ -78,7 +78,7 @@
             class="w-40 border-2 mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">
-            {{ translations.settings.large || '-' }}
+            {{ translations.appearence.large || '-' }}
           </p>
         </button>
         <button
@@ -91,7 +91,7 @@
             class="w-40 border-2 mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">
-            {{ translations.settings.medium || '-' }}
+            {{ translations.appearence.medium || '-' }}
           </p>
         </button>
         <button
@@ -104,7 +104,7 @@
             class="w-40 border-2 mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">
-            {{ translations.settings.default || '-' }}
+            {{ translations.appearence.default || '-' }}
           </p>
         </button>
         <button
@@ -117,14 +117,14 @@
             class="w-40 border-2 mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">
-            {{ translations.settings.morespace || '-' }}
+            {{ translations.appearence.moreSpace || '-' }}
           </p>
         </button>
       </div>
     </section>
     <!-- Font -->
     <section>
-      <p class="mb-2">{{ translations.settings.selectfont || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.selectFont || '-' }}</p>
       <div class="flex gap-2 items-center">
         <ui-select
           v-model="state.selectedFont"
@@ -156,7 +156,7 @@
     </section>
     <!-- Code Font Section -->
     <section>
-      <p class="mb-2">{{ translations.settings.selectcodefont || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.selectCodeFont || '-' }}</p>
       <div class="flex items-center gap-2">
         <ui-select
           id="codeFontSelect"
@@ -177,38 +177,10 @@
         </ui-select>
       </div>
     </section>
-    <!-- Interface Direction -->
-    <section>
-      <p class="mb-2">{{ translations.settings.interfaceDirection || '-' }}</p>
-      <div class="grid grid-cols-2 gap-4">
-        <ui-button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{
-            'ring-2 ring-primary': state.directionPreference === 'ltr',
-          }"
-          @click="toggleLtr"
-        >
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.LTR || '-' }}
-          </p>
-        </ui-button>
-        <ui-button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{
-            'ring-2 ring-primary': state.directionPreference === 'rtl',
-          }"
-          @click="toggleRtl"
-        >
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.RTL || '-' }}
-          </p>
-        </ui-button>
-      </div>
-    </section>
     <!-- Page width -->
     <section>
       <p class="mb-2">
-        {{ translations.settings.editorSpacing || '-' }}
+        {{ translations.appearence.editorSpacing || '-' }}
       </p>
       <div class="grid grid-cols-3 gap-4">
         <!-- Normal Button -->
@@ -219,7 +191,7 @@
           }"
           @click="setWidth('54rem')"
         >
-          {{ translations.settings.normal || '-' }}
+          {{ translations.appearence.normal || '-' }}
         </ui-button>
         <!-- Wide Button -->
         <ui-button
@@ -229,7 +201,7 @@
           }"
           @click="setWidth('68rem')"
         >
-          {{ translations.settings.wide || '-' }}
+          {{ translations.appearence.wide || '-' }}
         </ui-button>
         <!-- Custom Width (takes up the remaining space) -->
         <div class="relative col-span-1">
@@ -250,7 +222,7 @@
               v-model="customWidthInput"
               type="text"
               class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-2 ring-secondary"
-              placeholder="translations.settings.enterWidth"
+              placeholder="translations.appearence.enterWidth"
               style="appearance: none"
               @blur="applyCustomWidth"
               @keydown.enter="applyCustomWidth"
@@ -261,14 +233,14 @@
       </div>
     </section>
     <section>
-      <p class="mb-2">{{ translations.settings.interfaceOptions || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.interfaceOptions || '-' }}</p>
       <div>
         <div class="space-y-1">
           <!-- Clear Text - OLED -->
           <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
-                {{ translations.settings.clearfont || '-' }}
+                {{ translations.appearence.clearFont || '-' }}
               </span>
             </div>
             <label class="relative inline-flex cursor-pointer items-center">
@@ -288,7 +260,7 @@
           <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
-                {{ translations.settings.menuBarVisibility || '-' }}
+                {{ translations.appearence.menuBarVisibility || '-' }}
               </span>
             </div>
             <label class="relative inline-flex cursor-pointer items-center">
@@ -318,10 +290,6 @@ import { useStorage } from '@/composable/storage';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import LTRImg from '@/assets/images/LTR.png';
-import LTRImgDark from '@/assets/images/LTR-dark.png';
-import RTLImg from '@/assets/images/RTL.png';
-import RTLImgDark from '@/assets/images/RTL-dark.png';
 
 export default {
   setup() {
@@ -334,7 +302,6 @@ export default {
     const theme = useTheme();
     const storage = useStorage();
 
-    // State for application settings
     const state = shallowReactive({
       dataDir: '',
       password: '',
@@ -349,12 +316,10 @@ export default {
 
     let defaultPath = '';
 
-    // Translations
     const translations = ref({
-      settings: {},
+      appearence: {},
     });
 
-    // Computed properties
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
     );
@@ -419,7 +384,6 @@ export default {
       }
     });
 
-    // Reactive variables for width management
     const selectedWidth = ref(localStorage.getItem('editorWidth') || '54rem');
     const customWidth = ref(
       localStorage.getItem('customEditorWidth') || '60rem'
@@ -427,12 +391,10 @@ export default {
     const customWidthInput = ref(customWidth.value.replace('rem', ''));
     const isEditingCustomWidth = ref(false);
 
-    // Lifecycle hooks and initialization
     onMounted(() => {
       defaultPath = localStorage.getItem('default-path') || '';
       state.dataDir = defaultPath;
 
-      // Set font and direction properties
       document.documentElement.style.setProperty(
         '--selected-font',
         state.selectedFont
@@ -452,7 +414,6 @@ export default {
       });
     });
 
-    // Methods
     const toggleClearFont = () => {
       ClearFontChecked.value = !ClearFontChecked.value;
     };
@@ -462,16 +423,6 @@ export default {
         'app:change-menu-visibility',
         localStorage.getItem('visibility-menubar') !== 'true'
       );
-    };
-
-    const toggleRtl = () => {
-      localStorage.setItem('directionPreference', 'rtl');
-      window.location.reload();
-    };
-
-    const toggleLtr = () => {
-      localStorage.setItem('directionPreference', 'ltr');
-      window.location.reload();
     };
 
     const toggleDirectionPreference = () => {
@@ -505,7 +456,6 @@ export default {
       window.location.reload();
     };
 
-    // Width management methods
     const setWidth = (width) => {
       selectedWidth.value = width;
       localStorage.setItem('editorWidth', width);
@@ -532,8 +482,6 @@ export default {
       themes,
       storage,
       translations,
-      toggleRtl,
-      toggleLtr,
       toggleClearFont,
       ClearFontChecked,
       visibilityMenubar,
@@ -544,10 +492,6 @@ export default {
       isEditingCustomWidth,
       setWidth,
       applyCustomWidth,
-      LTRImg,
-      LTRImgDark,
-      RTLImg,
-      RTLImgDark,
       isMacOS,
       toggleDirectionPreference,
       updateFont,

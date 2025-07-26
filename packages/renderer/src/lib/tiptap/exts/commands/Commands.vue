@@ -66,7 +66,7 @@
             v-show="inputVisible"
             v-model="EmbedUrl"
             class="bg-transparent mr-2 flex-1"
-            :placeholder="translations.menu.EmbedUrl || '-'"
+            :placeholder="translations.menu.embedUrl || '-'"
             @keyup.enter="addIframe"
           />
           <v-remixicon
@@ -306,7 +306,7 @@ export default {
       })),
       {
         icon: 'riDoubleQuotesR',
-        name: 'blockquote',
+        name: 'blockQuote',
         action: () =>
           props.editor
             .chain()
@@ -317,7 +317,7 @@ export default {
       },
       {
         icon: 'riCodeBoxLine',
-        name: 'codeblock',
+        name: 'codeBlock',
         action: () =>
           props.editor
             .chain()
@@ -333,7 +333,7 @@ export default {
       },
       {
         icon: 'riListOrdered',
-        name: 'orderedlist',
+        name: 'orderedList',
         action: () =>
           props.editor
             .chain()
@@ -344,7 +344,7 @@ export default {
       },
       {
         icon: 'riListUnordered',
-        name: 'bulletlist',
+        name: 'bulletList',
         action: () =>
           props.editor
             .chain()
@@ -355,7 +355,7 @@ export default {
       },
       {
         icon: 'riListCheck2',
-        name: 'checklist',
+        name: 'checkList',
         action: () =>
           props.editor
             .chain()
@@ -366,7 +366,7 @@ export default {
       },
       {
         icon: 'riCalculatorLine',
-        name: 'mathblock',
+        name: 'mathBlock',
         action: () => {
           props.editor.commands.deleteRange(props.range);
           props.editor.commands.insertMathBlock({
@@ -479,19 +479,19 @@ export default {
       },
       {
         icon: 'riFile2Line',
-        name: 'File',
+        name: 'file',
         popover: true,
         action: handleFileSelect,
       },
       {
         icon: 'riMovieLine',
-        name: 'Video',
+        name: 'video',
         popover: true,
         action: handleVideoSelect,
       },
       {
         icon: 'riPagesLine',
-        name: 'Embed',
+        name: 'embed',
         embed: true,
         action: addIframe,
       },

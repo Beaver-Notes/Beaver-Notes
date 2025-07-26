@@ -6,7 +6,7 @@
           v-focus="!useKatexMacros"
           :value="node.attrs.content"
           type="textarea"
-          :placeholder="translations._idvue.MathPlaceholder || '-'"
+          :placeholder="translations.editor.mathPlaceholder || '-'"
           class="bg-transparent flex-1 resize-y"
           style="direction: ltr"
           @input="updateContent($event, 'content', true)"
@@ -28,7 +28,7 @@
         <img src="@/assets/svg/katex.svg" width="48" style="margin: 0" />
         <div class="flex-grow"></div>
         <p v-if="isContentChange" class="text-sm" style="margin: 0">
-          <strong>{{ translations._idvue.exit }}</strong>
+          <strong>{{ translations.editor.exit }}</strong>
         </p>
         <v-remixicon
           v-tooltip="'KaTeX Macros (Ctrl+Shift+M)'"
@@ -133,12 +133,14 @@ export default {
     }
 
     const translations = ref({
-      _idvue: {},
+      editor: {},
     });
 
     onMounted(async () => {
-      props.updateAttributes({ init: 'true' });
+      await nextTick();
+      props.updateAttributes?.({ init: 'true' });
       renderContent();
+
       await useTranslation().then((trans) => {
         if (trans) {
           translations.value = trans;
