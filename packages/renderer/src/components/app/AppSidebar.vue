@@ -14,6 +14,15 @@
     </button>
     <button
       v-tooltip:right="
+        translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+      "
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
+      @click="addFolder"
+    >
+      <v-remixicon name="riFolderAddLine" />
+    </button>
+    <button
+      v-tooltip:right="
         translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
       "
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
@@ -80,6 +89,7 @@ import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
+import { useFolderStore } from '../../store/folder';
 import { forceSyncNow } from '@/utils/sync';
 
 export default {
@@ -88,6 +98,7 @@ export default {
     const theme = useTheme();
     const router = useRouter();
     const noteStore = useNoteStore();
+    const folderStore = useFolderStore();
     const defaultPath = localStorage.getItem('default-path');
 
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
@@ -147,9 +158,16 @@ export default {
 
       if (noteId) router.push(`/note/${noteId}`);
     }
+
     function addNote() {
       noteStore.add().then(({ id }) => {
         router.push(`/note/${id}`);
+      });
+    }
+
+    function addFolder() {
+      folderStore.add().then(({ id }) => {
+        console.log(`${id}`);
       });
     }
 
@@ -196,6 +214,7 @@ export default {
       theme,
       spinning,
       addNote,
+      addFolder,
       noteStore,
       manualSync,
       openLastEdited,

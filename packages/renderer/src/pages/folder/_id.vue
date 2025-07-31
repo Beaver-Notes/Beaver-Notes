@@ -1,17 +1,59 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="container py-5">
-    <h1 class="text-3xl mb-8 font-bold">
-      {{ translations.sidebar.notes || '-' }}
-    </h1>
+    <!-- Header Section -->
+    <div class="flex flex-col gap-2 mb-6">
+      <div class="flex items-center gap-3">
+        <span v-if="folder.icon" class="text-2xl select-none">
+          {{ folder.icon }}
+        </span>
+        <v-remixicon
+          v-else
+          name="riFolder3Line"
+          class="w-6 h-6"
+          :style="{ color: folder.color || '#6B7280' }"
+        />
+        <h1 class="text-2xl md:text-3xl font-bold">
+          {{ folder.name || 'Unnamed Folder' }}
+        </h1>
+      </div>
+
+      <!-- Breadcrumb Navigation -->
+      <nav aria-label="Breadcrumb" class="text-sm text-gray-500">
+        <ol class="flex flex-wrap items-center gap-1">
+          <li>
+            <router-link to="/" class="hover:text-primary font-medium">
+              Home
+            </router-link>
+          </li>
+          <template
+            v-for="(pathFolder, index) in folderPath"
+            :key="pathFolder?.id ?? index"
+          >
+            <li class="mx-1">/</li>
+            <li>
+              <router-link
+                v-if="index < folderPath.length - 1 && pathFolder?.id"
+                :to="`/folder/${pathFolder.id}`"
+                class="hover:text-primary"
+              >
+                {{ pathFolder?.name || '...' }}
+              </router-link>
+              <span v-else class="font-medium text-gray-900">
+                {{ pathFolder?.name || '...' }}
+              </span>
+            </li>
+          </template>
+        </ol>
+      </nav>
+    </div>
+
+    <!-- Filters and content below -->
     <home-note-filter
       v-model:query="state.query"
       v-model:label="state.activeLabel"
       v-model:sort-by="state.sortBy"
       v-model:sort-order="state.sortOrder"
-      v-bind="{
-        labels: labelStore.data,
-      }"
+      v-bind="{ labels: labelStore.data }"
       @delete:label="deleteLabel"
     />
 
@@ -21,6 +63,7 @@
       "
       class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
     >
+      <!-- Render folders first -->
       <template v-if="folders.all.length">
         <p
           class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
@@ -31,23 +74,10 @@
           v-for="folder in folders.all"
           :key="folder.id"
           :folder="folder"
-          :class="{
-            'ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900':
-              dragOverFolderId === folder.id,
-          }"
-          @dragover.prevent="dragOverFolderId = folder.id"
-          @dragleave="dragOverFolderId = null"
-          @drop="handleDrop($event, folder.id)"
         />
       </template>
-    </div>
 
-    <div
-      v-if="
-        noteStore.notes.length !== 0 || folderStore.rootFolders.length !== 0
-      "
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-    >
+      <!-- Then render notes -->
       <template
         v-for="name in $route.query.archived
           ? ['archived']
@@ -67,12 +97,6 @@
           :note-id="note.id"
           :is-locked="note.isLocked"
           v-bind="{ note }"
-          :class="{
-            'opacity-50 transform rotate-2': draggedNoteId === note.id,
-          }"
-          draggable="true"
-          @dragstart="handleDragStart($event, note.id)"
-          @dragend="draggedNoteId = null"
           @update:label="state.activeLabel = $event"
           @update="noteStore.update(note.id, $event)"
         />
@@ -93,7 +117,6 @@
     </div>
   </div>
 </template>
-
 <script>
 import {
   computed,
@@ -116,15 +139,17 @@ import HomeNoteFilter from '@/components/home/HomeNoteFilter.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
 import Beaver from '@/assets/images/Beaver.png';
 import BeaverDark from '@/assets/images/Beaver-dark.png';
-import HomeFolderCard from '../components/home/HomeFolderCard.vue';
-import { useFolderStore } from '../store/folder';
+import HomeFolderCard from '@/components/home/HomeFolderCard.vue';
+import { useFolderStore } from '@/store/folder';
+import dayjs from 'dayjs';
 
 export default {
   components: { HomeNoteCard, HomeNoteFilter, HomeFolderCard },
   setup() {
+    const folderId = computed(() => route.params.id);
+    const currentFolderId = computed(() => route.params.id);
     const disableDialog = ref(false);
     const theme = useTheme();
-
     const route = useRoute();
     const router = useRouter();
     const noteStore = useNoteStore();
@@ -133,9 +158,6 @@ export default {
     const dialog = useDialog();
 
     const keyboardNavigation = shallowRef(null);
-    const dragOverFolderId = ref(null);
-    const draggedNoteId = ref(null);
-
     const state = reactive({
       notes: [],
       query: '',
@@ -155,12 +177,13 @@ export default {
     const notes = computed(() => filterNotes(sortedNotes.value));
 
     const folders = computed(() => {
-      const rootFolders = folderStore.rootFolders.filter(
-        (f) => !folderStore.deletedIds[f.id]
+      const childFolders = folderStore.folders.filter(
+        (f) =>
+          f.parentId === currentFolderId.value && !folderStore.deletedIds[f.id]
       );
 
       return {
-        all: rootFolders,
+        all: childFolders,
         bookmarked: [],
         archived: [],
       };
@@ -177,7 +200,8 @@ export default {
         let { title, content, isArchived, isBookmarked, labels, folderId } =
           note;
 
-        if (folderId !== null && folderId !== undefined) {
+        // Filter out notes that are not in the current folder
+        if (folderId !== currentFolderId.value) {
           return;
         }
 
@@ -212,6 +236,7 @@ export default {
 
     function extractNoteContent(note) {
       const text = extractNoteText(note.content.content).toLocaleLowerCase();
+
       return { ...note, content: text };
     }
 
@@ -219,21 +244,6 @@ export default {
       labelStore.delete(id).then(() => {
         state.activeLabel = '';
       });
-    }
-
-    function handleDragStart(event, noteId) {
-      event.dataTransfer.setData('text/plain', noteId);
-      draggedNoteId.value = noteId;
-    }
-
-    function handleDrop(event, folderId) {
-      event.preventDefault();
-      const noteId = event.dataTransfer.getData('text/plain');
-      if (noteId) {
-        noteStore.update(noteId, { folderId });
-      }
-      dragOverFolderId.value = null;
-      draggedNoteId.value = null;
     }
 
     watch(
@@ -328,6 +338,41 @@ export default {
       });
     });
 
+    const folder = computed(() => {
+      if (!folderId.value) return null;
+      return folderStore.getById(folderId.value) ?? null;
+    });
+
+    const childFolders = computed(() => {
+      if (!folderId.value) return [];
+      return folderStore
+        .getByParent(folderId.value)
+        .filter((f) => f?.id && !folderStore.deletedIds[f.id])
+        .sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    const notesInFolder = computed(() => {
+      if (!folderId.value) return [];
+      return noteStore
+        .getByFolder(folderId.value)
+        .filter((note) => note && typeof note === 'object' && note.id)
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+    });
+
+    const folderPath = computed(() => {
+      if (!folderId.value) return [];
+      return folderStore.getFolderPath(folderId.value) || [];
+    });
+
+    function formatDate(date) {
+      return date ? dayjs(date).format('MMMM D, YYYY') : 'Unknown date';
+    }
+
+    function updateNote(noteId, updates) {
+      if (!noteId) return;
+      noteStore.update(noteId, updates);
+    }
+
     return {
       notes,
       state,
@@ -341,15 +386,17 @@ export default {
       Beaver,
       BeaverDark,
       theme,
-      dragOverFolderId,
-      draggedNoteId,
-      handleDragStart,
-      handleDrop,
+      folderId,
+      folder,
+      childFolders,
+      notesInFolder,
+      folderPath,
+      formatDate,
+      updateNote,
     };
   },
 };
 </script>
-
 <style>
 input[type='checkbox'] {
   appearance: none;
@@ -368,6 +415,7 @@ input[type='checkbox']:checked {
   border-color: #fbbf24;
 }
 
+/* Optional: You can add a custom background or other styles for the checked state */
 input[type='checkbox']:checked::before {
   content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='rgba(251,191,36,1)'%3E%3C/path%3E%3C/svg%3E");
   display: block;
@@ -378,17 +426,7 @@ input[type='checkbox']:checked::before {
   text-align: center;
   color: #fbbf24;
 }
-
-[draggable='true'] {
-  cursor: grab;
-  transition: all 0.2s ease;
-}
-
-[draggable='true']:active {
-  cursor: grabbing;
-}
 </style>
-
 <style lang="scss">
 @use 'sass:math';
 .tiptap {

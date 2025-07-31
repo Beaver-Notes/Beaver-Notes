@@ -94,6 +94,11 @@ if (selectedLanguage === 'de') {
 
 const extensions = [
   LabelSuggestion,
+  Paste,
+  Document.extend({
+    content: 'block+ (footnotes)?',
+    allowGapCursor: true,
+  }),
   StarterKit.configure({
     heading: false,
     text: false,
@@ -104,10 +109,6 @@ const extensions = [
     multicolor: true,
   }),
   Typography,
-  Document.extend({
-    content: 'block+ (footnotes)?',
-    allowGapCursor: true,
-  }),
   LiteralTab,
   Color,
   Underline,
@@ -154,7 +155,6 @@ const extensions = [
   Image,
   Commands,
   Audio,
-  Paste,
   SearchAndReplace.configure(),
   TextStyle,
   markdownEngine,

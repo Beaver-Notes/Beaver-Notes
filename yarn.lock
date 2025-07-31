@@ -3595,6 +3595,11 @@ emoji-regex@^9.2.2:
   resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-9.2.2.tgz#840c8803b0d8047f4ff0cf963176b32d4ef3ed72"
   integrity sha512-L18DaJsXSUk2+42pv8mLs5jJT2hqFkFE4j21wOmgbUqsZ2hL72NsUU785g9RXgo3s0ZNgVl42TiHp3ZtOv/Vyg==
 
+emoji.json@^16.0.0:
+  version "16.0.0"
+  resolved "https://registry.yarnpkg.com/emoji.json/-/emoji.json-16.0.0.tgz#fbca988ee7f8c1574803202465e69c51a762d511"
+  integrity sha512-OWFSIAA5ZY2D7KTPxnS/oZTk5cs4ZE4+w/bHkpS+t6hj4AUwDH0okBGuffvsli6WMIimfgxb8ofadPC+UR+glw==
+
 encodeurl@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/encodeurl/-/encodeurl-1.0.2.tgz#ad3ff4c86ec2d029322f5a02c3a9a606c95b3f59"
