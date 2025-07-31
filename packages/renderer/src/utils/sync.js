@@ -129,10 +129,10 @@ export async function syncData() {
       { version: 0, isInitialized: false },
       'settings'
     );
+    state.localVersion = localMetadata.version;
 
     let remoteMetadata = { version: 0 };
     let hasRemoteData = false;
-
     try {
       remoteMetadata = await ipcRenderer.callMain(
         'fs:read-json',
@@ -141,70 +141,23 @@ export async function syncData() {
       state.remoteVersion = remoteMetadata.version;
       hasRemoteData = true;
     } catch {
-      /* no remote metadata yet */
+      // No remote metadata available
     }
 
-    const remoteIsNewer = remoteMetadata.version > localMetadata.version;
-    const bothInitialized = localMetadata.isInitialized && hasRemoteData;
-
-    if (
-      (!localMetadata.isInitialized && remoteMetadata.version > 0) ||
-      (bothInitialized && remoteIsNewer)
-    ) {
+    if (hasRemoteData && remoteMetadata.version > 0) {
       await pullChanges(syncFolder, remoteMetadata.version);
-      if (pendingChanges.size > 0) {
-        const newVersion =
-          Math.max(state.localVersion, state.remoteVersion) + 1;
-        await pushChanges(syncFolder, newVersion);
-      }
-    } else {
-      const localTimestamp = localMetadata.lastModified || 0;
-      const remoteTimestamp = remoteMetadata.lastModified || 0;
-
-      const shouldPull = remoteMetadata.version > localMetadata.version;
-      const shouldPush =
-        localMetadata.version > remoteMetadata.version ||
-        pendingChanges.size > 0;
-      const hasConflict =
-        remoteMetadata.version !== localMetadata.version &&
-        localTimestamp > 0 &&
-        remoteTimestamp > 0;
-
-      if (hasConflict) {
-        if (remoteTimestamp > localTimestamp) {
-          await pullChanges(syncFolder, remoteMetadata.version);
-          if (pendingChanges.size > 0) {
-            const newVersion =
-              Math.max(state.localVersion, state.remoteVersion) + 1;
-            await pushChanges(syncFolder, newVersion);
-          }
-        } else {
-          if (shouldPull) {
-            await pullChanges(syncFolder, remoteMetadata.version);
-          }
-          if (pendingChanges.size > 0 || localTimestamp >= remoteTimestamp) {
-            const newVersion =
-              Math.max(localMetadata.version, remoteMetadata.version) + 1;
-            await pushChanges(syncFolder, newVersion);
-          }
-        }
-      } else {
-        if (shouldPull) {
-          await pullChanges(syncFolder, remoteMetadata.version);
-        } else if (shouldPush) {
-          await pushChanges(syncFolder, localMetadata.version);
-        }
-      }
     }
+
+    const newVersion = Math.max(state.localVersion, state.remoteVersion) + 1;
+    await pushChanges(syncFolder, newVersion);
 
     await syncAssets(dataDir, syncFolder);
 
     state.lastSyncTime = Date.now();
     syncStatus.value = 'success';
-    if (syncStatus.value === 'success') {
-      const noteStore = useNoteStore();
-      await noteStore.retrieve();
-    }
+
+    const noteStore = useNoteStore();
+    await noteStore.retrieve();
   } catch (error) {
     console.error('Sync error:', error);
     syncStatus.value = 'error';
