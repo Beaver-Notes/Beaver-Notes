@@ -6,7 +6,6 @@
     <ui-popover padding="p-3 flex flex-col print:hidden">
       <template #trigger>
         <button
-          v-tooltip.group="folder.icon"
           class="transition hoverable h-10 w-10 rounded-lg flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
         >
           <span v-if="folder.icon" class="text-2xl select-none">{{
@@ -23,12 +22,12 @@
 
       <!-- Tab Headers -->
       <div
-        class="flex mb-4 border-b border-neutral-200 dark:border-neutral-700"
+        class="flex mb-4 border-b border-neutral-200 dark:border-neutral-700 w-full relative"
       >
         <button
-          class="px-4 py-2 font-medium text-sm transition-colors"
+          class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
           :class="{
-            'border-b-2 border-primary text-primary': activeTab === 'icon',
+            'text-primary': activeTab === 'icon',
             'text-neutral-600 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200':
               activeTab !== 'icon',
           }"
@@ -37,9 +36,9 @@
           Colors
         </button>
         <button
-          class="px-4 py-2 font-medium text-sm transition-colors"
+          class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
           :class="{
-            'border-b-2 border-primary text-primary': activeTab === 'emoji',
+            'text-primary': activeTab === 'emoji',
             'text-neutral-600 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200':
               activeTab !== 'emoji',
           }"
@@ -47,19 +46,28 @@
         >
           Emojis
         </button>
+
+        <!-- Animated underline -->
+        <div
+          class="absolute bottom-0 h-0.5 bg-primary transition-all duration-300"
+          :style="{
+            width: '50%',
+            left: activeTab === 'icon' ? '0%' : '50%',
+          }"
+        ></div>
       </div>
 
       <!-- Color Icons Grid -->
-      <div v-if="activeTab === 'icon'" class="grid grid-cols-6 gap-2">
+      <div v-if="activeTab === 'icon'" class="grid grid-cols-4 gap-2">
         <button
           v-for="color in iconColors"
           :key="color"
-          class="w-10 h-10 rounded-lg flex items-center justify-center hover:ring-2 hover:ring-neutral-300 transition-all duration-200 hover:scale-105"
+          class="p-2 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800"
           @click="selectColorIcon(color)"
         >
           <v-remixicon
             name="riFolder3Line"
-            class="w-5 h-5"
+            class="w-6 h-6"
             :style="{ color: color }"
           />
         </button>
@@ -90,14 +98,13 @@
               'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                 selectedCategory !== category.name,
             }"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200"
+            class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-all duration-200"
             @click="
               selectedCategory =
                 selectedCategory === category.name ? null : category.name
             "
           >
-            <span class="text-sm">{{ category.icon }}</span>
-            <span>{{ category.name }}</span>
+            <v-remixicon :name="category.icon" />
           </button>
         </div>
 
@@ -144,7 +151,7 @@
         v-else
         ref="renameInput"
         v-model="newName"
-        class="flex-1 bg-transparent border-b-2 border-primary focus:outline-none font-medium"
+        class="flex-1 bg-transparent focus:outline-none font-medium"
         autofocus
         @keydown.enter.prevent="saveRename"
         @keydown.esc.prevent="cancelRename"
@@ -160,7 +167,7 @@
       <button
         v-tooltip.group="'Rename'"
         type="button"
-        class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+        class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="startRenaming"
       >
         <v-remixicon name="riEditLine" />
@@ -177,7 +184,7 @@
       <button
         v-tooltip.group="'Duplicate'"
         type="button"
-        class="p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+        class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="duplicateFolder"
       >
         <v-remixicon name="riFoldersLine" />
@@ -187,7 +194,7 @@
       <button
         v-tooltip.group="'Delete'"
         type="button"
-        class="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 hover:text-red-600 transition-colors"
+        class="hover:text-red-500 rtl: dark:hover:text-red-400 transition invisible group-hover:visible"
         @click="deleteFolder"
       >
         <v-remixicon name="riDeleteBin6Line" />
@@ -227,15 +234,41 @@ const iconColors = [
 ];
 
 const emojiCategories = [
-  { name: 'Smileys & Emotion', icon: '😀', group: 'Smileys & Emotion' },
-  { name: 'People & Body', icon: '👤', group: 'People & Body' },
-  { name: 'Animals & Nature', icon: '🐾', group: 'Animals & Nature' },
-  { name: 'Food & Drink', icon: '🍎', group: 'Food & Drink' },
-  { name: 'Travel & Places', icon: '✈️', group: 'Travel & Places' },
-  { name: 'Activities', icon: '⚽', group: 'Activities' },
-  { name: 'Objects', icon: '💡', group: 'Objects' },
-  { name: 'Symbols', icon: '❤️', group: 'Symbols' },
-  { name: 'Flags', icon: '🏳️', group: 'Flags' },
+  {
+    name: 'Smileys & Emotion',
+    icon: 'riEmotionLine',
+    groups: ['Smileys & Emotion', 'People & Body'],
+  },
+  {
+    name: 'Animals & Nature',
+    icon: 'riLeafLine',
+    groups: ['Animals & Nature'],
+  },
+  {
+    name: 'Food & Drink',
+    icon: 'riCake3Line',
+    groups: ['Food & Drink'],
+  },
+  {
+    name: 'Travel & Places',
+    icon: 'riPlaneLine',
+    groups: ['Travel & Places'],
+  },
+  {
+    name: 'Activities',
+    icon: 'riFootballLine',
+    groups: ['Activities'],
+  },
+  {
+    name: 'Objects',
+    icon: 'riLightbulbLine',
+    groups: ['Objects'],
+  },
+  {
+    name: 'Symbols & Flags', // ✅ Merged
+    icon: 'riFlagLine',
+    groups: ['Symbols', 'Flags'],
+  },
 ];
 
 const dialog = useDialog();
@@ -249,24 +282,29 @@ const selectedCategory = ref(null);
 const filteredEmojis = computed(() => {
   let filtered = emojis;
 
-  // Filter by search query
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = emojis.filter((emoji) =>
       emoji.name.toLowerCase().includes(query)
     );
-  }
-  // Filter by category using the actual group property
-  else if (selectedCategory.value) {
-    const category = emojiCategories.find(
+  } else if (selectedCategory.value) {
+    const selected = emojiCategories.find(
       (cat) => cat.name === selectedCategory.value
     );
-    if (category) {
-      filtered = emojis.filter((emoji) => emoji.group === category.group);
+    if (selected) {
+      filtered = emojis.filter((emoji) => {
+        const mainGroup = (emoji.group || '').split(' (')[0];
+        const subgroup = emoji.subgroup || '';
+        const inGroup = selected.groups.includes(mainGroup);
+        const inSubgroup = selected.subgroups
+          ? selected.subgroups.includes(subgroup)
+          : true;
+        return inGroup && inSubgroup;
+      });
     }
   }
 
-  return filtered.slice(0, 200); // Limit results for performance
+  return filtered;
 });
 
 function startRenaming() {

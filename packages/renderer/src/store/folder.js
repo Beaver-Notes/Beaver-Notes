@@ -101,7 +101,6 @@ export const useFolderStore = defineStore('folder', {
         }));
       },
 
-    // New getter for valid folders (excluding deleted and undefined IDs)
     validFolders: (state) => {
       return Object.values(state.data).filter(
         (folder) => folder.id && !state.deletedIds[folder.id]
@@ -311,15 +310,6 @@ export const useFolderStore = defineStore('folder', {
         return duplicatedFolder;
       } catch (error) {
         console.error('Error duplicating folder:', error);
-        throw error;
-      }
-    },
-
-    async reorder(folderId, newSortOrder) {
-      try {
-        return await this.update(folderId, { sortOrder: newSortOrder });
-      } catch (error) {
-        console.error('Error reordering folder:', error);
         throw error;
       }
     },

@@ -138,6 +138,7 @@
     "turndown-plugin-gfm": "^1.0.2",
     "tw-colors": "^3.3.2",
     "util": "^0.12.5",
+    "vue-remix-icons": "^3.15.0",
     "yaml": "^2.7.0",
     "yarn": "^1.22.22"
   },

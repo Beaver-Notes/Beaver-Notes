@@ -8017,6 +8017,11 @@ vue-eslint-parser@^9.4.3:
     lodash "^4.17.21"
     semver "^7.3.6"
 
+vue-remix-icons@^3.15.0:
+  version "3.15.0"
+  resolved "https://registry.yarnpkg.com/vue-remix-icons/-/vue-remix-icons-3.15.0.tgz#d44d8226875dc4b72fc5d9d549542872ad846f97"
+  integrity sha512-OzQ1z8iomi884TpISTuKUDSvDmYTc/h0pQakVySzjGni9JsNRrArdiW2K/75RItIZI710yBojsyMn4UhTKG0dQ==
+
 vue-router@^4.0.11:
   version "4.5.1"
   resolved "https://registry.yarnpkg.com/vue-router/-/vue-router-4.5.1.tgz#47bffe2d3a5479d2886a9a244547a853aa0abf69"

@@ -94,16 +94,16 @@ if (selectedLanguage === 'de') {
 
 const extensions = [
   LabelSuggestion,
-  Paste,
-  Document.extend({
-    content: 'block+ (footnotes)?',
-    allowGapCursor: true,
-  }),
   StarterKit.configure({
     heading: false,
     text: false,
     codeBlock: false,
     code: false,
+  }),
+  Paste,
+  Document.extend({
+    content: 'block+ (footnotes)?',
+    allowGapCursor: true,
   }),
   Highlight.extend({ priority: 1000 }).configure({
     multicolor: true,

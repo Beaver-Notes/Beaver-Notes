@@ -1,5 +1,6 @@
 import { useStorage } from '@/composable/storage';
 import { useNoteStore } from '@/store/note.js';
+import { useFolderStore } from '@/store/folder.js';
 import { useTranslation } from '@/composable/translations';
 import { t } from '@/utils/translations';
 import { shallowReactive, ref } from 'vue';
@@ -9,7 +10,6 @@ import { useDialog } from '@/composable/dialog';
 
 const { ipcRenderer, path, notification } = window.electron;
 
-// Preload composables
 const storage = useStorage();
 const dialog = useDialog();
 const translations = ref({ sidebar: {} });
@@ -21,7 +21,6 @@ const translations = ref({ sidebar: {} });
   }
 })();
 
-// App State
 const syncStatus = ref('idle');
 const defaultPath = localStorage.getItem('default-path');
 const pendingChanges = new Map();
@@ -38,15 +37,13 @@ const state = shallowReactive({
   isFirstSync: false,
 });
 
-// Utilities
 function generateChangeId() {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-// Debounce
 let syncTimeout = null;
 let lastScheduled = 0;
-const SYNC_DEBOUNCE_MS = 60000; // 60 seconds
+const SYNC_DEBOUNCE_MS = 60000;
 
 function scheduleSync(immediate = false) {
   const now = Date.now();
@@ -64,7 +61,6 @@ function scheduleSync(immediate = false) {
   }, SYNC_DEBOUNCE_MS);
 }
 
-// Change Tracking
 export async function trackChange(key, data) {
   const metadata = await storage.get(
     'syncMetadata',
@@ -109,7 +105,6 @@ export async function trackChange(key, data) {
   return changeId;
 }
 
-// Main Sync
 export async function syncData() {
   if (state.syncInProgress || !defaultPath) return;
 
@@ -157,7 +152,8 @@ export async function syncData() {
     syncStatus.value = 'success';
 
     const noteStore = useNoteStore();
-    await noteStore.retrieve();
+    const folderStore = useFolderStore();
+    await Promise.all([noteStore.retrieve(), folderStore.retrieve()]);
   } catch (error) {
     console.error('Sync error:', error);
     syncStatus.value = 'error';
@@ -172,7 +168,6 @@ export async function syncData() {
   }
 }
 
-// Pull Changes
 async function pullChanges(syncFolder, remoteVersion) {
   const remoteDataFile = path.join(syncFolder, 'data.json');
 
@@ -227,7 +222,6 @@ async function pullChanges(syncFolder, remoteVersion) {
   pendingChanges.clear();
 }
 
-// Push Changes
 async function pushChanges(syncFolder, localVersion) {
   const dataToSync = await prepareDataToSync();
   let finalData = dataToSync;
@@ -260,7 +254,6 @@ async function pushChanges(syncFolder, localVersion) {
   pendingChanges.clear();
 }
 
-// Assets Sync
 async function syncAssets(localDir, remoteDir) {
   const pairs = [
     {
@@ -303,7 +296,6 @@ async function syncFileCollections(
   }
 }
 
-// Helpers
 async function safeCopy(source, dest) {
   try {
     await ipcRenderer.callMain('fs:copy', { path: source, dest });
@@ -315,16 +307,23 @@ async function safeCopy(source, dest) {
 async function prepareDataToSync() {
   const keys = [
     'notes',
+    'folders',
     'labels',
     'lockStatus',
     'isLocked',
     'settings',
     'deletedIds',
+    'deletedFolderIds',
   ];
   const result = {};
 
   for (const key of keys) {
-    const defaultValue = ['notes', 'lockStatus', 'isLocked'].includes(key)
+    const defaultValue = [
+      'notes',
+      'folders',
+      'lockStatus',
+      'isLocked',
+    ].includes(key)
       ? {}
       : [];
     result[key] = await storage.get(key, defaultValue);
@@ -335,44 +334,76 @@ async function prepareDataToSync() {
 async function mergePulledData(imported) {
   const keys = [
     'notes',
+    'folders',
     'labels',
     'lockStatus',
     'isLocked',
     'settings',
     'deletedIds',
+    'deletedFolderIds',
   ];
 
-  const currentDeletedIdsRaw = await storage.get('deletedIds', {});
-  const currentDeletedIds =
-    typeof currentDeletedIdsRaw === 'object' && currentDeletedIdsRaw !== null
-      ? currentDeletedIdsRaw
-      : {};
-
-  const importedDeletedIds =
-    typeof imported.deletedIds === 'object' && imported.deletedIds !== null
-      ? imported.deletedIds
-      : {};
-
+  const currentDeletedIds = await storage.get('deletedIds', {});
+  const importedDeletedIds = imported.deletedIds || {};
   const mergedDeletedIds = { ...currentDeletedIds };
+
   for (const [id, timestamp] of Object.entries(importedDeletedIds)) {
     if (!mergedDeletedIds[id] || timestamp > mergedDeletedIds[id]) {
       mergedDeletedIds[id] = timestamp;
     }
   }
 
+  const currentDeletedFolderIds = await storage.get('deletedFolderIds', {});
+  const importedDeletedFolderIds = imported.deletedFolderIds || {};
+  const mergedDeletedFolderIds = { ...currentDeletedFolderIds };
+
+  for (const [id, timestamp] of Object.entries(importedDeletedFolderIds)) {
+    if (!mergedDeletedFolderIds[id] || timestamp > mergedDeletedFolderIds[id]) {
+      mergedDeletedFolderIds[id] = timestamp;
+    }
+  }
+
+  const currentNotes = await storage.get('notes', {});
+  const incomingNotes = imported.notes || {};
+
+  for (const [noteId, note] of Object.entries({
+    ...currentNotes,
+    ...incomingNotes,
+  })) {
+    if (note.folderId && mergedDeletedFolderIds[note.folderId]) {
+      const folderDeletionTime = mergedDeletedFolderIds[note.folderId];
+      const noteUpdateTime = note.updatedAt
+        ? new Date(note.updatedAt).getTime()
+        : 0;
+
+      if (folderDeletionTime > noteUpdateTime) {
+        if (currentNotes[noteId]) {
+          currentNotes[noteId] = { ...currentNotes[noteId], folderId: null };
+        }
+        if (incomingNotes[noteId]) {
+          incomingNotes[noteId] = { ...incomingNotes[noteId], folderId: null };
+        }
+      }
+    }
+  }
+
   await storage.set('deletedIds', mergedDeletedIds);
+  await storage.set('deletedFolderIds', mergedDeletedFolderIds);
 
   for (const key of keys) {
-    if (key === 'deletedIds') continue;
+    if (key === 'deletedIds' || key === 'deletedFolderIds') continue;
 
-    const current = await storage.get(key, key === 'notes' ? {} : []);
+    const current = await storage.get(
+      key,
+      ['notes', 'folders'].includes(key) ? {} : []
+    );
     const incoming = imported[key];
     if (!incoming) continue;
 
     if (key === 'notes') {
       const mergedNotes = {};
 
-      for (const [id, note] of Object.entries(current)) {
+      for (const [id, note] of Object.entries(currentNotes)) {
         if (
           mergedDeletedIds[id] &&
           note.updatedAt &&
@@ -380,16 +411,28 @@ async function mergePulledData(imported) {
         ) {
           continue;
         }
+
+        if (note.folderId && mergedDeletedFolderIds[note.folderId]) {
+          note.folderId = null;
+        }
+
         mergedNotes[id] = note;
       }
 
-      for (const [id, incomingNote] of Object.entries(incoming)) {
+      for (const [id, incomingNote] of Object.entries(incomingNotes)) {
         if (
           mergedDeletedIds[id] &&
           incomingNote.updatedAt &&
           mergedDeletedIds[id] >= new Date(incomingNote.updatedAt).getTime()
         ) {
           continue;
+        }
+
+        if (
+          incomingNote.folderId &&
+          mergedDeletedFolderIds[incomingNote.folderId]
+        ) {
+          incomingNote.folderId = null;
         }
 
         const currentNote = mergedNotes[id];
@@ -405,15 +448,56 @@ async function mergePulledData(imported) {
       }
 
       await storage.set('notes', mergedNotes);
+    } else if (key === 'folders') {
+      const mergedFolders = {};
+
+      for (const [id, folder] of Object.entries(current)) {
+        if (
+          mergedDeletedFolderIds[id] &&
+          folder.updatedAt &&
+          mergedDeletedFolderIds[id] >= folder.updatedAt
+        ) {
+          continue;
+        }
+        mergedFolders[id] = folder;
+      }
+
+      for (const [id, incomingFolder] of Object.entries(incoming)) {
+        if (
+          mergedDeletedFolderIds[id] &&
+          incomingFolder.updatedAt &&
+          mergedDeletedFolderIds[id] >= incomingFolder.updatedAt
+        ) {
+          continue;
+        }
+
+        const currentFolder = mergedFolders[id];
+
+        if (
+          !currentFolder ||
+          (incomingFolder.updatedAt &&
+            currentFolder.updatedAt &&
+            incomingFolder.updatedAt > currentFolder.updatedAt)
+        ) {
+          mergedFolders[id] = incomingFolder;
+        }
+      }
+
+      await storage.set('folders', mergedFolders);
     } else if (Array.isArray(current) && Array.isArray(incoming)) {
       await storage.set(key, [...new Set([...current, ...incoming])]);
     } else if (typeof current === 'object' && typeof incoming === 'object') {
       const merged = { ...current, ...incoming };
-      if (key === 'lockStatus' || key === 'notes') {
+
+      if (key === 'lockStatus') {
         for (const id of Object.keys(mergedDeletedIds)) {
           delete merged[id];
         }
+        for (const id of Object.keys(mergedDeletedFolderIds)) {
+          delete merged[id];
+        }
       }
+
       await storage.set(key, merged);
     }
   }
@@ -433,7 +517,6 @@ function promptForPassword(translations) {
   });
 }
 
-// Public API
 export function configureSyncPassword(usePassword, password) {
   state.withPassword = usePassword;
   state.password = password;

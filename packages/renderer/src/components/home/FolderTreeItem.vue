@@ -2,9 +2,9 @@
 <template>
   <div>
     <div
-      class="flex items-center p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition"
+      class="flex items-center p-1 rounded hover:bg- cursor-pointer transition"
       :class="{
-        'bg-blue-100 dark:bg-blue-900': isSelected,
+        'bg-primary bg-opacity-20': isSelected,
         'opacity-50': isCurrentFolder,
       }"
       :style="{ paddingLeft: level * 16 + 8 + 'px' }"
@@ -12,7 +12,7 @@
     >
       <button
         v-if="children.length > 0"
-        class="mr-1 p-0.5 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+        class="mr-1 p-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded"
         @click.stop="isExpanded = !isExpanded"
       >
         <v-remixicon
@@ -22,20 +22,21 @@
       </button>
       <div v-else class="w-4 mr-1"></div>
 
-      <span v-if="folder.icon" class="text-2xl select-none">{{
-        folder.icon
-      }}</span>
-      <v-remixicon
-        v-else
-        name="riFolder3Line"
-        class="w-6 h-6"
-        :style="{ color: folder.color || '#6B7280' }"
-      />
-      <span class="flex-1" :class="{ 'text-gray-400': isCurrentFolder }">
+      <div class="mr-2">
+        <span v-if="folder.icon" class="text-2xl select-none">{{
+          folder.icon
+        }}</span>
+        <v-remixicon
+          v-else
+          name="riFolder3Line"
+          class="w-6 h-6"
+          :style="{ color: folder.color || '#6B7280' }"
+        />
+      </div>
+      <span class="flex-1" :class="{ 'text-neutral-400': isCurrentFolder }">
         {{ folder.name }}
         <span v-if="isCurrentFolder" class="text-xs">(current)</span>
       </span>
-      <v-remixicon v-if="isSelected" name="riCheckLine" class="text-blue-500" />
     </div>
 
     <div v-if="isExpanded && children.length > 0">

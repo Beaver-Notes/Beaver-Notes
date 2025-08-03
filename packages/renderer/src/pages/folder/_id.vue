@@ -78,12 +78,7 @@
       </template>
 
       <!-- Then render notes -->
-      <template
-        v-for="name in $route.query.archived
-          ? ['archived']
-          : ['bookmarked', 'all']"
-        :key="name"
-      >
+      <template v-for="name in ['archived', 'bookmarked', 'all']" :key="name">
         <p
           v-if="notes[name].length !== 0"
           class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize"

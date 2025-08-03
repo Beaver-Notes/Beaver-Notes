@@ -56,10 +56,9 @@
       >
         <p
           v-if="notes[name].length !== 0"
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize"
-          :class="{ 'mt-2': name === 'all' }"
+          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
         >
-          {{ name === 'all' ? '' : translations.index[name] }}
+          {{ translations.index[name] }}
         </p>
         <home-note-card
           v-for="note in notes[name]"

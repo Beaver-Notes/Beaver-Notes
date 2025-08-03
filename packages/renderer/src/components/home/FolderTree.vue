@@ -1,22 +1,18 @@
 <template>
-  <ui-modal v-model="show" content-class="max-w-md">
+  <ui-modal v-model="show" content-class="max-w-md" persist>
     <template #header>
       <h3 class="text-lg font-semibold">Move Note to Folder</h3>
     </template>
 
     <div class="space-y-4">
-      <div class="text-sm text-gray-600 dark:text-gray-400">
-        Select a folder to move "{{ note?.title }}" to:
-      </div>
-
       <!-- Root option -->
       <div
         class="flex items-center p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition"
-        :class="{ 'bg-blue-100 dark:bg-blue-900': selectedId === null }"
+        :class="{ 'bg:primary': selectedId === null }"
         @click="selectedId = null"
       >
         <v-remixicon name="riHomeLine" class="mr-2 text-gray-500" />
-        <span>Root (No Folder)</span>
+        <span>Root</span>
         <v-remixicon
           v-if="selectedId === null"
           name="riCheckLine"
@@ -25,7 +21,7 @@
       </div>
 
       <!-- Folder tree -->
-      <div class="max-h-64 overflow-y-auto border rounded p-1">
+      <div class="max-h-64 overflow-y-auto p-1">
         <folder-tree-item
           v-for="rootFolder in rootFolders"
           :key="rootFolder.id"
@@ -47,20 +43,19 @@
       </div>
 
       <!-- Action buttons -->
-      <div class="flex justify-end space-x-2 pt-4 border-t">
-        <button
-          class="px-4 py-2 text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
-          @click="closeModal"
+
+      <div class="mt-8 flex space-x-2 rtl:space-x-0">
+        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal"
+          >Cancel</ui-button
         >
-          Cancel
-        </button>
-        <button
-          class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition disabled:opacity-50"
+        <ui-button
+          class="w-6/12"
           :disabled="isMoving"
+          :variant="'primary'"
           @click="handleMove"
         >
           {{ isMoving ? 'Moving...' : 'Move' }}
-        </button>
+        </ui-button>
       </div>
     </div>
   </ui-modal>
