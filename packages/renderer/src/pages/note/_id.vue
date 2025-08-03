@@ -31,7 +31,7 @@
       contenteditable="true"
       :value="note.title"
       class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
-      :placeholder="translations.editor.previousNote"
+      :placeholder="translations.editor.untitledNote"
       @input="updateNote({ title: $event.target.innerText })"
       @keydown="disallowedEnter"
     >
@@ -62,6 +62,7 @@
     </div>
 
     <note-editor
+      v-if="!isLocked"
       :id="$route.params.id"
       ref="noteEditor"
       :key="$route.params.id"
