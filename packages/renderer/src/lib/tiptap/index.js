@@ -51,6 +51,7 @@ import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import { TrailingNode } from '@tiptap/extensions';
+import { dropFile } from './exts/drop-file';
 import enTranslations from '@/assets/locales/en.json';
 import itTranslations from '@/assets/locales/it.json';
 import esTranslations from '@/assets/locales/es.json';
@@ -182,7 +183,7 @@ const extensions = [
   Iframe,
 ];
 
-export { extensions, CollapseHeading, heading };
+export { extensions, CollapseHeading, heading, dropFile };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

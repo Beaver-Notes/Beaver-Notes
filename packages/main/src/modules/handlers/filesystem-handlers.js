@@ -22,25 +22,33 @@ export class FileSystemHandlers {
   register() {
     ipcMain.answerRenderer('fs:copy', ({ path, dest }) => copy(path, dest));
     ipcMain.answerRenderer('fs:output-json', ({ path, data }) =>
-      outputJson(path, data)
-    );
+      outputJson(path, data));
     ipcMain.answerRenderer('fs:read-json', (path) => readJson(path));
     ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
     ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
     ipcMain.answerRenderer('fs:remove', (path) => remove(path));
-    ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-      writeFileSync(path, data)
-    );
+    ipcMain.answerRenderer('fs:writeFile', ({ path, data, mode }) => {
+      if (mode !== undefined) {
+        writeFileSync(path, data, { mode });
+      } else {
+        writeFileSync(path, data);
+      }
+    });
+
+    ipcMain.answerRenderer('fs:mkdir', async (dirPath, mode) => {
+      if (mode !== undefined) {
+        await mkdir(dirPath, { recursive: true, mode });
+      } else {
+        await mkdir(dirPath, { recursive: true });
+      }
+    });
+
     ipcMain.answerRenderer('fs:readFile', (path) => readFileSync(path, 'utf8'));
 
     ipcMain.answerRenderer('fs:readdir', async (dirPath) => readdir(dirPath));
     ipcMain.answerRenderer('fs:stat', async (filePath) => statSync(filePath));
-    ipcMain.answerRenderer('fs:mkdir', async (dirPath) => {
-      await mkdir(dirPath, { recursive: true });
-    });
     ipcMain.answerRenderer('fs:unlink', async (filePath) =>
-      unlinkSync(filePath)
-    );
+      unlinkSync(filePath));
 
     ipcMain.answerRenderer('fs:readData', this.handleReadData.bind(this));
     ipcMain.answerRenderer('fs:isFile', this.handleIsFile.bind(this));
