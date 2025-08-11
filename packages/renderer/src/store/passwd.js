@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import CryptoJS from 'crypto-js';
 import { useStorage } from '../composable/storage';
 import bcryptjs from 'bcryptjs';
 import {
@@ -12,6 +13,15 @@ const storage = useStorage();
 const dataDir = await storage.get('dataDir', '', 'settings');
 const filePath = path.join(dataDir, 'password.enc');
 const LEGACY_STORAGE_KEY = 'sharedKey';
+
+function deriveKeyFromPassword(password) {
+  const salt = CryptoJS.SHA256(password).toString().slice(0, 32);
+  return CryptoJS.PBKDF2(password, salt, {
+    keySize: 256 / 32,
+    iterations: 100000,
+    hasher: CryptoJS.algo.SHA256,
+  }).toString();
+}
 
 export const usePasswordStore = defineStore('password', {
   state: () => ({
@@ -58,21 +68,28 @@ export const usePasswordStore = defineStore('password', {
         if (!encryptionAvailable) {
           const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
           this.sharedKey = legacyPassword;
-          return this.sharedKey;
+          return legacyPassword;
         }
 
-        // Encryption available
         const encryptedBase64 = await this.readEncryptedFile();
 
         if (!encryptedBase64) {
-          // Don't fallback to legacy storage if encryption available
           this.sharedKey = '';
           return '';
         }
 
-        const decryptedPassword = await decryptString(encryptedBase64);
-        this.sharedKey = decryptedPassword;
-        return decryptedPassword;
+        const decrypted = await decryptString(encryptedBase64);
+
+        try {
+          const parsed = JSON.parse(decrypted);
+          this.sharedKey = parsed.hash;
+          this.derivedKey = parsed.key;
+        } catch {
+          // fallback: legacy data
+          this.sharedKey = decrypted;
+        }
+
+        return this.sharedKey;
       } catch (error) {
         console.error('Error retrieving global password:', error);
         return '';
@@ -82,12 +99,20 @@ export const usePasswordStore = defineStore('password', {
     async setsharedKey(password) {
       try {
         const hashedPassword = await bcryptjs.hash(password, 10);
+        const derivedKey = deriveKeyFromPassword(password);
+
         this.sharedKey = hashedPassword;
 
         const encryptionAvailable = await isEncryptionAvailable();
 
         if (encryptionAvailable) {
-          const encrypted = await encryptString(hashedPassword);
+          // Store both bcrypt and derived key if needed
+          const encrypted = await encryptString(
+            JSON.stringify({
+              hash: hashedPassword,
+              key: derivedKey,
+            })
+          );
           await this.writeEncryptedFile(encrypted);
           await this.deleteLegacyStorage();
         } else {
@@ -101,7 +126,14 @@ export const usePasswordStore = defineStore('password', {
 
     async isValidPassword(enteredPassword) {
       try {
-        return await bcryptjs.compare(enteredPassword, this.sharedKey);
+        const validLegacy = await bcryptjs.compare(
+          enteredPassword,
+          this.sharedKey
+        );
+        if (validLegacy) return true;
+
+        const derivedKey = deriveKeyFromPassword(enteredPassword);
+        return derivedKey === this.derivedKey;
       } catch (error) {
         console.error('Error validating password:', error);
         throw error;
