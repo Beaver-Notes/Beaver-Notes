@@ -25,7 +25,7 @@
         <p
           class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
         >
-          Folders
+          {{ translations.index.folders }}
         </p>
         <home-folder-card
           v-for="folder in folders.all"
@@ -34,9 +34,13 @@
           :class="{
             'ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900':
               dragOverFolderId === folder.id,
+            'opacity-50 transform rotate-1': draggedFolderId === folder.id,
           }"
-          @dragover.prevent="dragOverFolderId = folder.id"
-          @dragleave="dragOverFolderId = null"
+          draggable="true"
+          @dragstart="handleFolderDragStart($event, folder.id)"
+          @dragend="handleDragEnd"
+          @dragover="handleDragOver($event, folder.id)"
+          @dragleave="handleDragLeave"
           @drop="handleDrop($event, folder.id)"
         />
       </template>
@@ -70,8 +74,8 @@
             'opacity-50 transform rotate-2': draggedNoteId === note.id,
           }"
           draggable="true"
-          @dragstart="handleDragStart($event, note.id)"
-          @dragend="draggedNoteId = null"
+          @dragstart="handleNoteDragStart($event, note.id)"
+          @dragend="handleDragEnd"
           @update:label="state.activeLabel = $event"
           @update="noteStore.update(note.id, $event)"
         />
@@ -134,6 +138,8 @@ export default {
     const keyboardNavigation = shallowRef(null);
     const dragOverFolderId = ref(null);
     const draggedNoteId = ref(null);
+    const draggedFolderId = ref(null);
+    const dragType = ref(null);
 
     const state = reactive({
       notes: [],
@@ -220,19 +226,108 @@ export default {
       });
     }
 
-    function handleDragStart(event, noteId) {
-      event.dataTransfer.setData('text/plain', noteId);
-      draggedNoteId.value = noteId;
+    // Check if folder would create a circular reference
+    function wouldCreateCircularReference(draggedFolderId, targetFolderId) {
+      if (draggedFolderId === targetFolderId) return true;
+
+      // Check if target folder is a descendant of dragged folder
+      const checkDescendant = (folderId, ancestorId) => {
+        const folder = folderStore.data[folderId];
+        if (!folder) return false;
+        if (folder.parentId === ancestorId) return true;
+        if (folder.parentId)
+          return checkDescendant(folder.parentId, ancestorId);
+        return false;
+      };
+
+      return checkDescendant(targetFolderId, draggedFolderId);
     }
 
-    function handleDrop(event, folderId) {
+    function handleNoteDragStart(event, noteId) {
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'note',
+          id: noteId,
+        })
+      );
+      draggedNoteId.value = noteId;
+      dragType.value = 'note';
+
+      // Set drag image
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleFolderDragStart(event, folderId) {
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'folder',
+          id: folderId,
+        })
+      );
+      draggedFolderId.value = folderId;
+      dragType.value = 'folder';
+
+      // Set drag image
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(event, folderId) {
       event.preventDefault();
-      const noteId = event.dataTransfer.getData('text/plain');
-      if (noteId) {
-        noteStore.update(noteId, { folderId });
+
+      // Only show drop indicator if it's a valid drop target
+      const dragData = event.dataTransfer.types.includes('application/json');
+      if (!dragData) return;
+
+      // If dragging a folder, check for circular reference
+      if (dragType.value === 'folder' && draggedFolderId.value) {
+        if (wouldCreateCircularReference(draggedFolderId.value, folderId)) {
+          event.dataTransfer.dropEffect = 'none';
+          return;
+        }
       }
+
+      dragOverFolderId.value = folderId;
+      event.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragLeave(event) {
+      // Only clear if we're actually leaving the folder area
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        dragOverFolderId.value = null;
+      }
+    }
+
+    function handleDrop(event, targetFolderId) {
+      event.preventDefault();
+
+      try {
+        const dragData = JSON.parse(
+          event.dataTransfer.getData('application/json')
+        );
+
+        if (dragData.type === 'note') {
+          // Move note to folder
+          noteStore.update(dragData.id, { folderId: targetFolderId });
+        } else if (dragData.type === 'folder') {
+          // Move folder inside another folder
+          if (!wouldCreateCircularReference(dragData.id, targetFolderId)) {
+            folderStore.update(dragData.id, { parentId: targetFolderId });
+          }
+        }
+      } catch (error) {
+        console.error('Error handling drop:', error);
+      }
+
+      handleDragEnd();
+    }
+
+    function handleDragEnd() {
       dragOverFolderId.value = null;
       draggedNoteId.value = null;
+      draggedFolderId.value = null;
+      dragType.value = null;
     }
 
     watch(
@@ -342,8 +437,13 @@ export default {
       theme,
       dragOverFolderId,
       draggedNoteId,
-      handleDragStart,
+      draggedFolderId,
+      handleNoteDragStart,
+      handleFolderDragStart,
+      handleDragOver,
+      handleDragLeave,
       handleDrop,
+      handleDragEnd,
     };
   },
 };
@@ -385,6 +485,17 @@ input[type='checkbox']:checked::before {
 
 [draggable='true']:active {
   cursor: grabbing;
+}
+
+/* Enhanced drag feedback */
+.drag-over {
+  transform: scale(1.02);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.15);
+}
+
+.drag-forbidden {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 </style>
 

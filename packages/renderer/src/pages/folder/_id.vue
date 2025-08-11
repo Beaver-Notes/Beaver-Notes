@@ -8,21 +8,20 @@
         </span>
         <v-remixicon
           v-else
-          name="riFolder3Line"
+          name="riFolder5Fill"
           class="w-6 h-6"
           :style="{ color: folder.color || '#6B7280' }"
         />
         <h1 class="text-2xl md:text-3xl font-bold">
-          {{ folder.name || 'Unnamed Folder' }}
+          {{ folder.name }}
         </h1>
       </div>
 
-      <!-- Breadcrumb Navigation -->
-      <nav aria-label="Breadcrumb" class="text-sm text-gray-500">
+      <nav aria-label="Breadcrumb" class="text-sm text-neutral-500">
         <ol class="flex flex-wrap items-center gap-1">
           <li>
             <router-link to="/" class="hover:text-primary font-medium">
-              Home
+              {{ translations.index.home }}
             </router-link>
           </li>
           <template
@@ -38,7 +37,7 @@
               >
                 {{ pathFolder?.name || '...' }}
               </router-link>
-              <span v-else class="font-medium text-gray-900">
+              <span v-else class="font-medium text-neutral-900">
                 {{ pathFolder?.name || '...' }}
               </span>
             </li>
@@ -66,14 +65,20 @@
       <!-- Render folders first -->
       <template v-if="folders.all.length">
         <p
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
+          class="col-span-full text-neutral-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
         >
-          Folders
+          {{ translations.index.folders }}
         </p>
         <home-folder-card
           v-for="folder in folders.all"
           :key="folder.id"
           :folder="folder"
+          draggable="true"
+          @dragstart="handleFolderDragStart($event, folder.id)"
+          @dragend="handleDragEnd"
+          @dragover="handleDragOver($event, folder.id)"
+          @dragleave="handleDragLeave"
+          @drop="handleDrop($event, folder.id)"
         />
       </template>
 
@@ -81,7 +86,7 @@
       <template v-for="name in ['archived', 'bookmarked', 'all']" :key="name">
         <p
           v-if="notes[name].length !== 0"
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize"
+          class="col-span-full text-neutral-600 dark:text-[color:var(--selected-dark-text)] capitalize"
           :class="{ 'mt-2': name === 'all' }"
         >
           {{ name === 'all' ? '' : translations.index[name] }}
@@ -92,8 +97,14 @@
           :note-id="note.id"
           :is-locked="note.isLocked"
           v-bind="{ note }"
+          :class="{
+            'opacity-50 transform rotate-2': draggedNoteId === note.id,
+          }"
+          draggable="true"
           @update:label="state.activeLabel = $event"
           @update="noteStore.update(note.id, $event)"
+          @dragstart="handleNoteDragStart($event, note.id)"
+          @dragend="handleDragEnd"
         />
       </template>
     </div>
@@ -105,7 +116,7 @@
       />
 
       <p
-        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
+        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-neutral-600 mt-2"
       >
         {{ translations.index.newNote || '-' }}
       </p>
@@ -153,6 +164,10 @@ export default {
     const dialog = useDialog();
 
     const keyboardNavigation = shallowRef(null);
+    const dragOverFolderId = ref(null);
+    const draggedNoteId = ref(null);
+    const draggedFolderId = ref(null);
+    const dragType = ref(null);
     const state = reactive({
       notes: [],
       query: '',
@@ -368,6 +383,109 @@ export default {
       noteStore.update(noteId, updates);
     }
 
+    function wouldCreateCircularReference(draggedFolderId, targetFolderId) {
+      if (draggedFolderId === targetFolderId) return true;
+
+      // Check if target folder is a descendant of dragged folder
+      const checkDescendant = (folderId, ancestorId) => {
+        const folder = folderStore.data[folderId];
+        if (!folder) return false;
+        if (folder.parentId === ancestorId) return true;
+        if (folder.parentId)
+          return checkDescendant(folder.parentId, ancestorId);
+        return false;
+      };
+
+      return checkDescendant(targetFolderId, draggedFolderId);
+    }
+
+    function handleNoteDragStart(event, noteId) {
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'note',
+          id: noteId,
+        })
+      );
+      draggedNoteId.value = noteId;
+      dragType.value = 'note';
+
+      // Set drag image
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleFolderDragStart(event, folderId) {
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'folder',
+          id: folderId,
+        })
+      );
+      draggedFolderId.value = folderId;
+      dragType.value = 'folder';
+
+      // Set drag image
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(event, folderId) {
+      event.preventDefault();
+
+      // Only show drop indicator if it's a valid drop target
+      const dragData = event.dataTransfer.types.includes('application/json');
+      if (!dragData) return;
+
+      // If dragging a folder, check for circular reference
+      if (dragType.value === 'folder' && draggedFolderId.value) {
+        if (wouldCreateCircularReference(draggedFolderId.value, folderId)) {
+          event.dataTransfer.dropEffect = 'none';
+          return;
+        }
+      }
+
+      dragOverFolderId.value = folderId;
+      event.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDragLeave(event) {
+      // Only clear if we're actually leaving the folder area
+      if (!event.currentTarget.contains(event.relatedTarget)) {
+        dragOverFolderId.value = null;
+      }
+    }
+
+    function handleDrop(event, targetFolderId) {
+      event.preventDefault();
+
+      try {
+        const dragData = JSON.parse(
+          event.dataTransfer.getData('application/json')
+        );
+
+        if (dragData.type === 'note') {
+          // Move note to folder
+          noteStore.update(dragData.id, { folderId: targetFolderId });
+        } else if (dragData.type === 'folder') {
+          // Move folder inside another folder
+          if (!wouldCreateCircularReference(dragData.id, targetFolderId)) {
+            folderStore.update(dragData.id, { parentId: targetFolderId });
+          }
+        }
+      } catch (error) {
+        console.error('Error handling drop:', error);
+      }
+
+      handleDragEnd();
+    }
+
+    function handleDragEnd() {
+      dragOverFolderId.value = null;
+      draggedNoteId.value = null;
+      draggedFolderId.value = null;
+      dragType.value = null;
+    }
+
     return {
       notes,
       state,
@@ -388,6 +506,15 @@ export default {
       folderPath,
       formatDate,
       updateNote,
+      dragOverFolderId,
+      draggedNoteId,
+      draggedFolderId,
+      handleNoteDragStart,
+      handleFolderDragStart,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop,
+      handleDragEnd,
     };
   },
 };

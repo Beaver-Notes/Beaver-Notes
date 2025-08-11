@@ -34,6 +34,7 @@
     "cancel": "Cancel",
     "confirm": "Confirm",
     "confirmPrompt": "Are you sure you want to delete this note?",
+    "confirmPromptFolder": "Are you sure you want to delete this folder?",
     "content": "No content",
     "delete": "Delete",
     "enterPasswd": "Enter the Password",
@@ -41,8 +42,6 @@
     "keyFail": "Password setup cancelled. Note cannot be locked.",
     "lock": "Lock",
     "newKey": "New Key",
-    "noKey": "No shared key set up for this note",
-    "passwdCorrect": "Password is incorrect.",
     "password": "Password",
     "removeBookmark": "Remove bookmark",
     "setKey": "Set Key",
@@ -52,7 +51,20 @@
     "unlock": "Unlock",
     "unlockToEdit": "Unlock to edit",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
-    "wrongPasswd": "Incorrect password. Note cannot be unlocked."
+    "wrongPasswd": "Incorrect password. Note cannot be unlocked.",
+    "duplicate": "Duplicate",
+    "moveToFolder": "Move to folder",
+    "rename": "Rename",
+    "noEmojis": "No emojis found",
+    "noEmojisMessage": "Try a different search term or category"
+  },
+  "folderTree": {
+    "noFolders": "No folders available",
+    "newFolder": "Create a folder first to organize your notes",
+    "cancel": "Cancel",
+    "move": "Move",
+    "moveToFolder": "Move Note to Folder",
+    "root": "Root"
   },
   "commandPrompt": {
     "placeholder": "Search file or type '>' to search commands",
@@ -96,6 +108,8 @@
     "all": "All",
     "archived": "Archived",
     "bookmarked": "Bookmarked",
+    "home": "Home",
+    "folders": "Folders",
     "close": "Close",
     "newNote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left"
   },

@@ -1,18 +1,20 @@
 <template>
   <ui-modal v-model="show" content-class="max-w-md" persist>
     <template #header>
-      <h3 class="text-lg font-semibold">Move Note to Folder</h3>
+      <h3 class="text-lg font-semibold">
+        {{ translations.folderTree.moveToFolder }}
+      </h3>
     </template>
 
     <div class="space-y-4">
       <!-- Root option -->
       <div
-        class="flex items-center p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition"
+        class="flex items-center p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer transition"
         :class="{ 'bg:primary': selectedId === null }"
         @click="selectedId = null"
       >
-        <v-remixicon name="riHomeLine" class="mr-2 text-gray-500" />
-        <span>Root</span>
+        <v-remixicon name="riHomeLine" class="mr-2 text-neutral-500" />
+        <span> {{ translations.folderTree.root }} </span>
         <v-remixicon
           v-if="selectedId === null"
           name="riCheckLine"
@@ -35,26 +37,26 @@
       <!-- No folders message -->
       <div
         v-if="rootFolders.length === 0"
-        class="text-center py-8 text-gray-500"
+        class="text-center py-8 text-neutral-500"
       >
-        <v-remixicon name="riFolder3Line" class="text-4xl mb-2" />
-        <p>No folders available</p>
-        <p class="text-sm">Create a folder first to organize your notes</p>
+        <v-remixicon name="riFolder5Fill" class="text-4xl mb-2" />
+        <p>{{ translations.folderTree.noFolders }}</p>
+        <p class="text-sm">{{ translations.folderTree.newFolder }}</p>
       </div>
 
       <!-- Action buttons -->
 
       <div class="mt-8 flex space-x-2 rtl:space-x-0">
-        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal"
-          >Cancel</ui-button
-        >
+        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal">{{
+          translations.folderTree.cancel
+        }}</ui-button>
         <ui-button
           class="w-6/12"
           :disabled="isMoving"
           :variant="'primary'"
           @click="handleMove"
         >
-          {{ isMoving ? 'Moving...' : 'Move' }}
+          {{ translations.folderTree.move }}
         </ui-button>
       </div>
     </div>
@@ -62,10 +64,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useFolderStore } from '@/store/folder';
 import FolderTreeItem from './FolderTreeItem.vue';
 import { useNoteStore } from '@/store/note';
+import { useTranslation } from '../../composable/translations';
 
 const props = defineProps({
   note: {
@@ -82,7 +85,7 @@ const props = defineProps({
   },
   mode: {
     type: String,
-    default: 'note', // can be 'note' or 'folder'
+    default: 'note',
     validator: (val) => ['note', 'folder'].includes(val),
   },
 });
@@ -145,7 +148,19 @@ async function handleMove() {
       });
     }
 
-    emit('update:modelValue', false); // close modal
+    emit('update:modelValue', false);
+
+    const translations = ref({
+      folderTree: {},
+    });
+
+    onMounted(async () => {
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+    });
   } catch (error) {
     console.error('Move failed:', error);
   }

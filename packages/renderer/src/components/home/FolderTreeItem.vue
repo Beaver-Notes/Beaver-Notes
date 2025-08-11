@@ -28,7 +28,7 @@
         }}</span>
         <v-remixicon
           v-else
-          name="riFolder3Line"
+          name="riFolder5Fill"
           class="w-6 h-6"
           :style="{ color: folder.color || '#6B7280' }"
         />

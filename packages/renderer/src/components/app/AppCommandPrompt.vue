@@ -7,7 +7,7 @@
     <div class="flex items-center border-b pb-4 mb-4">
       <v-remixicon
         name="riSearch2Line"
-        class="mr-3 text-gray-600 dark:text-gray-200"
+        class="mr-3 text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
       />
       <input
         v-model="state.query"
@@ -30,20 +30,55 @@
       >
         <div class="w-full">
           <p class="text-overflow w-full flex flex-1 justify-between">
-            <span>
-              {{ item.title || translations.commandPrompt.untitledNote }}
-              <template v-if="item.isLocked">
-                <v-remixicon
-                  name="riLockLine"
-                  class="text-gray-600 dark:text-[color:var(--selected-dark-text)] ml-2 w-4 translate-y-[-1.5px]"
-                />
+            <span class="flex items-center">
+              <template v-if="item.type === 'folder' && item.icon">
+                <span
+                  class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+                >
+                  {{ item.icon }}
+                </span>
               </template>
+
+              <v-remixicon
+                v-else-if="item.type === 'folder'"
+                name="riFolder5Fill"
+                class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+                :style="{ color: item.color || '#6B7280' }"
+              />
+
+              <v-remixicon
+                v-else-if="item.type === 'note' && item.isLocked"
+                name="riLockLine"
+                class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+              />
+
+              <v-remixicon
+                v-else-if="item.type === 'note'"
+                name="riFile2Line"
+                class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+              />
+
+              <v-remixicon
+                v-else-if="item.type === 'command'"
+                name="riCodeLine"
+                class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+              />
+
+              {{
+                item.title ||
+                item.name ||
+                translations.commandPrompt.untitledNote
+              }}
             </span>
-            <span v-if="!isCommand">
-              {{ formatDate(item.updatedAt) }}
+
+            <span v-if="!isCommand && item.type !== 'command'">
+              {{ formatDate(item.updatedAt || item.createdAt) }}
             </span>
           </p>
-          <p v-if="!isCommand && !item.isLocked" class="text-overflow text-xs">
+          <p
+            v-if="!isCommand && !item.isLocked && item.type === 'note'"
+            class="text-overflow text-xs"
+          >
             {{ item.content }}
           </p>
         </div>
@@ -51,6 +86,7 @@
     </ui-list>
   </ui-card>
 </template>
+
 <script>
 import {
   shallowReactive,
@@ -63,6 +99,7 @@ import {
 import { useTranslation } from '@/composable/translations';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
+import { useFolderStore } from '@/store/folder';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
 import commands from '@/utils/commands';
@@ -73,6 +110,7 @@ export default {
   setup() {
     const router = useRouter();
     const noteStore = useNoteStore();
+    const folderStore = useFolderStore();
     const store = useStore();
 
     const formatDate = (timestamp) =>
@@ -111,25 +149,38 @@ export default {
     });
 
     const items = computed(() => {
-      const filterItems = isCommand.value ? commands : noteStore.notes;
+      if (isCommand.value) {
+        return commands
+          .map((item) => ({ ...item, type: 'command' }))
+          .filter(({ title }) =>
+            title.toLocaleLowerCase().includes(queryTerm.value)
+          );
+      }
 
-      return filterItems
-        .map((item) => {
-          if (isCommand.value) {
-            return item;
-          }
-          return {
-            ...item,
-            content: mergeContent(item.content),
-          };
-        })
-        .filter(({ title, content }) => {
-          const isInTitle = title.toLocaleLowerCase().includes(queryTerm.value);
-          if (!isCommand.value) {
-            return content.includes(queryTerm.value) || isInTitle;
-          }
-          return isInTitle;
-        });
+      const notesWithType = noteStore.notes.map((note) => ({
+        ...note,
+        type: 'note',
+        content: mergeContent(note.content),
+      }));
+
+      const foldersWithType = (folderStore.folders || []).map((folder) => ({
+        ...folder,
+        type: 'folder',
+        title: folder.name || folder.title,
+      }));
+
+      const allItems = [...notesWithType, ...foldersWithType];
+
+      return allItems.filter(({ title, name, content }) => {
+        const itemTitle = title || name || '';
+        const isInTitle = itemTitle
+          .toLocaleLowerCase()
+          .includes(queryTerm.value);
+        const isInContent =
+          content && content.toLocaleLowerCase().includes(queryTerm.value);
+
+        return isInTitle || isInContent;
+      });
     });
 
     function keydownHandler(event) {
@@ -144,6 +195,7 @@ export default {
         state.selectedIndex = (state.selectedIndex + 1) % items.value.length;
       }
     }
+
     function selectItem(item, isItem) {
       let selectedItem = items.value[state.selectedIndex];
 
@@ -151,12 +203,15 @@ export default {
 
       if (selectedItem.handler) {
         selectedItem.handler();
-      } else {
+      } else if (selectedItem.type === 'folder') {
+        router.push(`/folder/${selectedItem.id}`);
+      } else if (selectedItem.type === 'note') {
         selectedItem.id && router.push(`/note/${selectedItem.id}`);
       }
 
       clear();
     }
+
     function clear() {
       store.showPrompt = false;
       state.query = '';
@@ -173,6 +228,7 @@ export default {
     watch(items, () => {
       state.selectedIndex = 0;
     });
+
     watch(
       () => state.selectedIndex,
       debounce(() => {
@@ -211,6 +267,7 @@ export default {
     onMounted(() => {
       document.addEventListener('keyup', escQuit);
     });
+
     onUnmounted(() => {
       document.removeEventListener('keyup', escQuit);
     });
@@ -230,6 +287,7 @@ export default {
   },
 };
 </script>
+
 <style scoped>
 .command-prompt {
   position: fixed;

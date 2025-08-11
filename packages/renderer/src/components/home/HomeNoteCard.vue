@@ -3,7 +3,6 @@
     class="hover:ring-2 ring-secondary group note-card transition flex flex-col"
     padding="p-5"
   >
-    <!-- Display title and labels -->
     <div>
       <div class="font-semibold text-lg block line-clamp leading-tight">
         {{ note.title }}
@@ -23,7 +22,6 @@
         </span>
       </div>
     </div>
-    <!-- Display note content based on the note's lock status -->
     <router-link
       v-if="!note.isLocked"
       :to="`/note/${note.id}`"
@@ -176,20 +174,16 @@ async function lockNote(note) {
     if (!hassharedKey) {
       dialog.prompt({
         title: translations.value.card.enterPasswd,
-        okText: translations.value.card.setkey,
-        body: translations.value.settings.warning,
+        okText: translations.value.card.setKey,
+        body: translations.value.card.warning,
         cancelText: translations.value.card.cancel,
         placeholder: translations.value.card.password,
         onConfirm: async (newKey) => {
           if (newKey) {
             try {
-              // Set the global password
               await passwordStore.setsharedKey(newKey);
-              // Lock the note using the global password
               await noteStore.lockNote(note, newKey);
-              console.log(`Note (ID: ${note}) is locked`);
             } catch (error) {
-              console.error('Error setting up key:', error);
               alert(translations.value.card.keyFail);
             }
           } else {
@@ -198,23 +192,18 @@ async function lockNote(note) {
         },
       });
     } else {
-      // If the global password is set, prompt the user to enter it to lock the note
       dialog.prompt({
         title: translations.value.card.enterPasswd,
         okText: translations.value.card.lock,
         cancelText: translations.value.card.cancel,
         placeholder: translations.value.card.password,
         onConfirm: async (enteredPassword) => {
-          // Validate the entered password against the stored global password
           const isValidPassword = await passwordStore.isValidPassword(
             enteredPassword
           );
           if (isValidPassword) {
-            // If the entered password matches the stored one, lock the note
             await noteStore.lockNote(note, enteredPassword);
-            console.log(`Note (ID: ${note}) is locked`);
           } else {
-            // If the entered password does not match, show an error message
             alert(translations.value.card.wrongPasswd);
           }
         },
@@ -236,15 +225,11 @@ async function unlockNote(note) {
     placeholder: translations.value.card.password,
     onConfirm: async (enteredPassword) => {
       try {
-        // Validate the entered password against the global password
         const isValidPassword = await passwordStore.isValidPassword(
           enteredPassword
         );
         if (isValidPassword) {
-          console.log(translations.value.card.passwordCorrect);
-          // Note unlocked using the global password
           await noteStore.unlockNote(note, enteredPassword);
-          console.log(`Note (ID: ${note}) is unlocked`);
         } else {
           alert(translations.value.card.wrongPasswd);
         }
@@ -264,7 +249,6 @@ async function deleteNote(note) {
     okText: translations.value.card.confirm,
     cancelText: translations.value.card.cancel,
     onConfirm: async () => {
-      // Delete the note locally
       await noteStore.delete(note);
     },
   });
