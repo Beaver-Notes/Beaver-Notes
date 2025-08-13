@@ -9,7 +9,7 @@
 body {
   position: relative;
   font-family: var(--selected-font);
-  @apply bg-[#FFFFFF] dark:bg-[#232222] dark:text-[color:var(--selected-dark-text)];
+  @apply bg-white dark:bg-neutral-800 dark:text-[color:var(--selected-dark-text)];
 }
 .dark * {
   border-color: rgba(255, 255, 255, 0.1);

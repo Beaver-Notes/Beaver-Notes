@@ -12,7 +12,7 @@
           @change="$emit('update:query', $event.toLocaleLowerCase())"
         ></ui-input>
       </div>
-      <span class="text-sm text-gray-600 dark:text-gray-300 ml-2">
+      <span class="text-sm text-neutral-600 dark:text-neutral-300 ml-2">
         {{ keyBinding }} {{ translations.filter.search || '-' }}
       </span>
     </div>

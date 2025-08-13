@@ -57,7 +57,7 @@
                 @change="toggleAdvancedSettings"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -77,7 +77,7 @@
                 @change="toggleSpellcheck"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -97,7 +97,7 @@
                 @change="handleAutoSyncChange"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -116,7 +116,7 @@
                 class="peer sr-only"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -140,7 +140,7 @@
               class="peer sr-only"
             />
             <div
-              class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+              class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
             ></div>
           </label>
         </div>
@@ -150,7 +150,7 @@
       <p class="mb-2">{{ translations.settings.ieData || '-' }}</p>
       <div class="flex ltr:space-x-4">
         <div class="bg-input rtl:ml-4 transition w-6/12 rounded-lg p-4">
-          <div class="text-center mb-8 dark:text-gray-300 text-gray-600">
+          <div class="text-center mb-8 dark:text-neutral-300 text-neutral-600">
             <span
               class="p-5 rounded-full bg-black dark:bg-white dark:bg-opacity-5 bg-opacity-5 inline-block"
             >
@@ -176,7 +176,7 @@
           >
         </div>
         <div class="bg-input transition w-6/12 rounded-lg p-4 flex flex-col">
-          <div class="text-center mb-6 dark:text-gray-300 text-gray-600">
+          <div class="text-center mb-6 dark:text-neutral-300 text-neutral-600">
             <span
               class="p-5 rounded-full bg-black dark:bg-white dark:bg-opacity-5 bg-opacity-5 inline-block"
             >
@@ -194,7 +194,7 @@
           name="riQuestionLine"
           class="inline-block align-middle mr-1 mt-2"
         />
-        <p class="text-sm relative text-gray-500 mt-2">
+        <p class="text-sm relative text-neutral-500 mt-2">
           <span v-tooltip:right="translations.settings.encryptionMessage">
             {{ translations.settings.aboutDataEncryption || '-' }}
           </span>

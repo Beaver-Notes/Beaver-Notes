@@ -5,7 +5,7 @@
     <section>
       <p class="mb-2">{{ translations.appearence.appTheme || '-' }}</p>
       <div
-        class="flex ltr:space-x-4 text-gray-600 dark:text-[color:var(--selected-dark-text)]"
+        class="flex ltr:space-x-4 text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
       >
         <button
           v-for="item in themes"
@@ -185,7 +185,7 @@
       <div class="grid grid-cols-3 gap-4">
         <!-- Normal Button -->
         <ui-button
-          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-gray-200"
+          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
           :class="{
             'outline-none ring-2 ring-primary': selectedWidth === '54rem',
           }"
@@ -195,7 +195,7 @@
         </ui-button>
         <!-- Wide Button -->
         <ui-button
-          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-gray-200"
+          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
           :class="{
             'outline-none ring-2 ring-primary': selectedWidth === '68rem',
           }"
@@ -208,7 +208,7 @@
           <!-- Button (shown when not editing) -->
           <ui-button
             v-if="!isEditingCustomWidth"
-            class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-gray-200"
+            class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-neutral-200"
             :class="{
               'outline-none ring-2 ring-primary': selectedWidth === customWidth,
             }"
@@ -227,7 +227,7 @@
               @blur="applyCustomWidth"
               @keydown.enter="applyCustomWidth"
             />
-            <span class="absolute top-2 right-2 text-gray-500">rem</span>
+            <span class="absolute top-2 right-2 text-neutral-500">rem</span>
           </div>
         </div>
       </div>
@@ -252,7 +252,7 @@
                 @change="toggleClearFont"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -272,7 +272,7 @@
                 @change="toggleVisibilityOfMenubar"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:tranneutral-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>

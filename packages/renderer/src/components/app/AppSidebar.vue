@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="w-16 text-gray-600 dark:text-[color:var(--selected-dark-text)] bg-[#F8F8F7] dark:bg-[#353333] fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
+    class="w-16 text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-neutral-50 dark:bg-neutral-750 fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
   >
     <!-- Sidebar top icons-->
     <button
@@ -16,7 +16,7 @@
       v-tooltip:right="
         translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
       "
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
       @click="addFolder"
     >
       <v-remixicon name="riFolderAddLine" />
@@ -25,7 +25,7 @@
       v-tooltip:right="
         translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
       "
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
       :class="{ 'text-primary': $route.name === 'Note' }"
       @click="openLastEdited"
     >
@@ -40,7 +40,7 @@
       :class="{
         'text-primary dark:text-secondary': $route.fullPath === nav.path,
       }"
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2 mb-4"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
       @click="handleNavigation(nav)"
     >
       <v-remixicon :name="nav.icon" />
@@ -73,7 +73,7 @@
     <router-link
       v-tooltip:right="translations.settings.title + ' (' + keyBinding + '+,)'"
       to="/settings"
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-gray-800 p-2"
+      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2"
       active-class="text-primary dark:text-secondary"
     >
       <v-remixicon name="riSettingsLine" />
