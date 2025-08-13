@@ -83,6 +83,7 @@ const handleImagePaste = new Plugin({
 });
 
 export default ImageResize.extend({
+  name: 'image',
   addProseMirrorPlugins() {
     return [handleImagePaste];
   },
