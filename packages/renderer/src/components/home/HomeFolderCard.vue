@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:ring-2 ring-secondary group note-card transition flex flex-row items-center p-3"
+    class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:border-2 hover:border-secondary group note-card transition flex flex-row items-center p-3"
   >
     <ui-popover padding="p-3 flex flex-col print:hidden">
       <template #trigger>

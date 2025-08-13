@@ -32,8 +32,7 @@
           :key="folder.id"
           :folder="folder"
           :class="{
-            'ring-2 ring-blue-400 bg-blue-50 dark:bg-blue-900':
-              dragOverFolderId === folder.id,
+            'ring-2 ring-secondary': dragOverFolderId === folder.id,
             'opacity-50 transform rotate-1': draggedFolderId === folder.id,
           }"
           draggable="true"

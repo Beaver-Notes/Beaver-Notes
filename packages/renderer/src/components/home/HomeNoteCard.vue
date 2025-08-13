@@ -1,6 +1,6 @@
 <template>
   <ui-card
-    class="hover:ring-2 ring-secondary group note-card transition flex flex-col"
+    class="hover:border-2 hover:border-secondary group note-card transition flex flex-col"
     padding="p-5"
   >
     <div>
