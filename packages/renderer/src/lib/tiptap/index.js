@@ -180,7 +180,9 @@ const extensions = [
       title: 'Ctrl+Click to open URL',
     },
   }),
-  Iframe,
+  Iframe.configure({
+    placeholderText: translations.editor.embedPlaceholder,
+  }),
 ];
 
 export { extensions, CollapseHeading, heading, dropFile };

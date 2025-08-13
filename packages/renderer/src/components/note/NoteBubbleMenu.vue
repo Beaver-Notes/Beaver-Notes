@@ -1,6 +1,11 @@
 <template>
   <bubble-menu
-    v-if="editor && (editor.isActive('image') || editor.isActive('link'))"
+    v-if="
+      editor &&
+      (editor.isActive('image') ||
+        editor.isActive('link') ||
+        editor.isActive('iframe'))
+    "
     v-bind="{ editor, shouldShow: () => true }"
     class="bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl"
   >
@@ -8,6 +13,8 @@
       :is="
         editor.isActive('image')
           ? 'note-bubble-menu-image'
+          : editor.isActive('iframe')
+          ? 'note-bubble-menu-embed'
           : 'note-bubble-menu-link'
       "
       v-bind="{ editor }"
@@ -20,9 +27,15 @@ import { BubbleMenu } from '@tiptap/vue-3';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
+import NoteBubbleMenuEmbed from './NoteBubbleMenuEmbed.vue';
 
 export default {
-  components: { BubbleMenu, NoteBubbleMenuLink, NoteBubbleMenuImage },
+  components: {
+    BubbleMenu,
+    NoteBubbleMenuLink,
+    NoteBubbleMenuImage,
+    NoteBubbleMenuEmbed,
+  },
   props: {
     editor: {
       type: Object,

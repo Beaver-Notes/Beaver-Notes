@@ -15,86 +15,12 @@
         :disabled="item.disabled"
         @click="handleItemClick(item)"
       >
-        <template v-if="!item.popover && !item.embed">
-          <v-remixicon :name="item.icon" class="mr-2" />
-          <div
-            class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
-          >
-            <h3 class="font-medium">
-              {{ translations.menu[item.name] || item.name }}
-            </h3>
-          </div>
-        </template>
-
-        <template v-if="item.popover">
-          <!-- your existing popover markup -->
-          <input v-model="fileUrl" class="hidden" @keyup.enter="item.action" />
-          <label
-            for="fileInput"
-            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer transition duration-200"
-          >
-            <v-remixicon
-              :name="item.icon"
-              class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6 mr-2"
-            />
-            <div
-              class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
-            >
-              <h3
-                class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
-              >
-                {{ translations.menu[item.name] || item.name }}
-              </h3>
-            </div>
-          </label>
-          <input
-            id="fileInput"
-            ref="fileInput"
-            type="file"
-            class="hidden"
-            multiple
-            @change="item.action"
-          />
-        </template>
-
-        <template v-if="item.embed">
-          <div
-            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer transition duration-200"
-          >
-            <input
-              v-show="inputVisible"
-              v-model="EmbedUrl"
-              class="bg-transparent mr-2 flex-1"
-              :placeholder="translations.menu.embedUrl || '-'"
-              @keyup.enter="addIframe"
-            />
-            <v-remixicon
-              v-show="inputVisible"
-              name="riSave3Line"
-              class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
-              @click="addIframe"
-            />
-            <label
-              v-show="!inputVisible"
-              class="flex items-center space-x-2 cursor-pointer"
-              @click="showInput"
-            >
-              <v-remixicon
-                :name="item.icon"
-                class="text-black dark:text-[color:var(--selected-dark-text)] text-xl w-6 h-6"
-              />
-              <div
-                class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
-              >
-                <h3
-                  class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)]"
-                >
-                  {{ translations.menu[item.name] || item.name }}
-                </h3>
-              </div>
-            </label>
-          </div>
-        </template>
+        <v-remixicon :name="item.icon" class="mr-2" />
+        <div class="text-left overflow-hidden text-ellipsis whitespace-nowrap">
+          <h3 class="font-medium">
+            {{ translations.menu[item.name] || item.name }}
+          </h3>
+        </div>
       </ui-list-item>
     </ui-list>
   </ui-card>
@@ -112,6 +38,8 @@ import {
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
+
+const { ipcRenderer } = window.electron;
 
 export default {
   props: {
@@ -194,62 +122,30 @@ export default {
       });
     };
 
-    function addIframe() {
-      if (EmbedUrl.value.trim() === '') {
-        return;
-      }
-
-      let trimmedEmbedUrl = EmbedUrl.value.trim();
-
-      // Check if the URL is a YouTube Embed URL in the regular format
-      if (trimmedEmbedUrl.includes('youtube.com/watch?v=')) {
-        let EmbedId = trimmedEmbedUrl.split('v=')[1];
-        const ampersandPosition = EmbedId.indexOf('&');
-        if (ampersandPosition !== -1) {
-          EmbedId = EmbedId.substring(0, ampersandPosition);
-        }
-        // Convert to the embed format
-        trimmedEmbedUrl = `https://www.youtube.com/embed/${EmbedId}`;
-      }
-
-      // Use the command system to execute the action
-      props.command({
-        editor: props.editor,
-        range: props.range,
-        props: {
-          action: () => {
-            props.editor
-              .chain()
-              .focus()
-              .deleteRange(props.range)
-              .setIframe({
-                src: trimmedEmbedUrl,
-              })
-              .run();
-          },
-        },
-      });
-
-      // Clear the input field after setting the iframe source
-      EmbedUrl.value = '';
-    }
-
-    const handleFileSelect = async (event) => {
-      const files = event.target.files;
-      if (!files.length) return;
-
+    const handleFileSelect = async () => {
       try {
-        for (const file of files) {
-          const { fileName, relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`;
+        const filePaths = await ipcRenderer.callMain('dialog:open', {
+          properties: ['openFile', 'multiSelections'],
+          filters: [
+            {
+              name: 'Files',
+              extensions: ['pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
+            },
+          ],
+        });
+
+        if (!filePaths || filePaths.length === 0) return;
+
+        for (const path of filePaths) {
+          // You might need to adapt saveFile to accept paths instead of File objects
+          const { fileName, relativePath } = await saveFile(path, props.id);
 
           props.command({
             editor: props.editor,
             range: props.range,
             props: {
               action: () => {
-                props.editor.commands.deleteRange(props.range);
-                props.editor.commands.setFileEmbed(src, fileName);
+                props.editor.commands.setFileEmbed(relativePath, fileName);
               },
             },
           });
@@ -259,22 +155,24 @@ export default {
       }
     };
 
-    const handleVideoSelect = async (event) => {
-      const files = event.target.files;
-      if (!files.length) return;
-
+    const handleVideoSelect = async () => {
       try {
-        for (const file of files) {
-          const { relativePath } = await saveFile(file, props.id);
-          const src = `${relativePath}`;
+        const filePaths = await ipcRenderer.callMain('dialog:open', {
+          properties: ['openFile', 'multiSelections'],
+          filters: [{ name: 'Videos', extensions: ['mp4', 'mov', 'webm'] }],
+        });
+
+        if (!filePaths || filePaths.length === 0) return;
+
+        for (const path of filePaths) {
+          const { relativePath } = await saveFile(path, props.id);
 
           props.command({
             editor: props.editor,
             range: props.range,
             props: {
               action: () => {
-                props.editor.commands.deleteRange(props.range);
-                props.editor.commands.setVideo(src);
+                props.editor.commands.setVideo(relativePath);
               },
             },
           });
@@ -340,7 +238,6 @@ export default {
         icon: 'riCalculatorLine',
         name: 'mathBlock',
         action: () => {
-          props.editor.commands.deleteRange(props.range);
           props.editor.commands.insertMathBlock({
             content: '',
             macros: '{\\f: "#1f(#2)"}',
@@ -397,27 +294,35 @@ export default {
         icon: 'riImageLine',
         name: 'image',
         action: () => {
-          props.editor.commands.deleteRange(props.range);
           editorImage.select(true);
         },
       },
       {
         icon: 'riFile2Line',
         name: 'file',
-        popover: true,
-        action: handleFileSelect,
+        action: () => {
+          handleFileSelect();
+        },
       },
       {
         icon: 'riMovieLine',
         name: 'video',
-        popover: true,
-        action: handleVideoSelect,
+        action: () => {
+          handleVideoSelect();
+        },
       },
       {
         icon: 'riPagesLine',
         name: 'embed',
-        embed: true,
-        action: addIframe,
+        action: () => {
+          props.editor
+            .chain()
+            .focus()
+            .setIframe({
+              src: '',
+            })
+            .run();
+        },
       },
     ]);
 
@@ -447,8 +352,6 @@ export default {
       }
     }
 
-    // Properly expose the onKeyDown method to the parent component
-    // In Options API, we need to expose it through the instance
     if (instance) {
       instance.exposed = instance.exposed || {};
       instance.exposed.onKeyDown = onKeyDown;
@@ -464,7 +367,6 @@ export default {
       VideoUrl,
       handleFileSelect,
       handleVideoSelect,
-      addIframe,
       handleFileInputClick,
       inputVisible,
       selectedIndex,
