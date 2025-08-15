@@ -269,51 +269,6 @@ export const useFolderStore = defineStore('folder', {
 
       return false;
     },
-
-    async duplicate(id, options = {}) {
-      try {
-        const originalFolder = this.data[id];
-        if (!originalFolder) {
-          throw new Error('Folder not found');
-        }
-
-        const {
-          name = `${originalFolder.name} Copy`,
-          parentId = originalFolder.parentId,
-          includeChildren = false,
-        } = options;
-
-        // Generate a new ID for the duplicated folder
-        const newId = nanoid();
-
-        const duplicatedFolder = await this.add({
-          ...originalFolder,
-          id: newId, // Explicitly set the new ID
-          name,
-          parentId,
-          createdAt: Date.now(), // Reset creation time
-          updatedAt: Date.now(), // Reset update time
-        });
-
-        if (includeChildren) {
-          const childFolders = Object.values(this.data).filter(
-            (f) => f.parentId === id
-          );
-          for (const childFolder of childFolders) {
-            await this.duplicate(childFolder.id, {
-              parentId: duplicatedFolder.id,
-              includeChildren: true,
-            });
-          }
-        }
-
-        return duplicatedFolder;
-      } catch (error) {
-        console.error('Error duplicating folder:', error);
-        throw error;
-      }
-    },
-
     cleanupDeletedIds(days = 30) {
       const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
       const toDelete = [];
