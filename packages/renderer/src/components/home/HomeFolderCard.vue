@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:border-2 hover:border-secondary group note-card transition flex flex-row items-center p-3"
+    class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:ring-2 hover:ring-secondary group note-card transition flex flex-row items-center p-3"
   >
     <ui-popover padding="p-3 flex flex-col print:hidden">
       <template #trigger>
@@ -79,7 +79,10 @@
           />
         </div>
 
-        <div v-if="!searchQuery" class="flex flex-wrap gap-1 mb-3">
+        <div
+          v-if="!searchQuery"
+          class="flex flex-wrap gap-1 mb-3 justify-center"
+        >
           <button
             v-for="category in emojiCategories"
             :key="category.name"
@@ -103,6 +106,10 @@
             v-for="emoji in filteredEmojis"
             :key="emoji.char"
             class="text-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 p-2 rounded-md transition-colors duration-150 relative group"
+            style="
+              font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
+                'Noto Color Emoji', 'Twemoji', sans-serif;
+            "
             :title="emoji.name"
             @click="selectEmoji(emoji.char)"
           >
@@ -164,15 +171,6 @@
         @click="showFolderMoveModal = true"
       >
         <v-remixicon name="riFolderTransferLine" />
-      </button>
-
-      <button
-        v-tooltip.group="translations.card.duplicate"
-        type="button"
-        class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="duplicateFolder"
-      >
-        <v-remixicon name="riFoldersLine" />
       </button>
 
       <button
@@ -265,29 +263,36 @@ const searchQuery = ref('');
 const selectedCategory = ref(null);
 
 const filteredEmojis = computed(() => {
-  let filtered = emojis;
+  let filtered = emojis; // assuming emojis is a plain array, not a ref
 
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    filtered = emojis.filter((emoji) =>
+    filtered = filtered.filter((emoji) =>
       emoji.name.toLowerCase().includes(query)
     );
   } else if (selectedCategory.value) {
-    const selected = emojiCategories.find(
+    const category = emojiCategories.find(
       (cat) => cat.name === selectedCategory.value
     );
-    if (selected) {
-      filtered = emojis.filter((emoji) => {
+    if (category) {
+      filtered = filtered.filter((emoji) => {
         const mainGroup = (emoji.group || '').split(' (')[0];
-        const subgroup = emoji.subgroup || '';
-        const inGroup = selected.groups.includes(mainGroup);
-        const inSubgroup = selected.subgroups
-          ? selected.subgroups.includes(subgroup)
+        const inGroup = category.groups.includes(mainGroup);
+        const inSubgroup = category.subgroups
+          ? category.subgroups.includes(emoji.subgroup || '')
           : true;
         return inGroup && inSubgroup;
       });
     }
   }
+
+  const seen = new Set();
+  filtered = filtered.filter((emoji) => {
+    const normalized = emoji.char.normalize('NFC').replace(/\uFE0F/g, '');
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
 
   return filtered;
 });
@@ -326,12 +331,6 @@ function selectColorIcon(color) {
   folderStore.update(props.folder.id, {
     color: color,
     icon: null,
-  });
-}
-
-function duplicateFolder() {
-  folderStore.duplicate(props.folder.id, {
-    includeChildren: true,
   });
 }
 

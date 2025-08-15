@@ -210,7 +210,6 @@ export default {
         let { title, content, isArchived, isBookmarked, labels, folderId } =
           note;
 
-        // Filter out notes that are not in the current folder
         if (folderId !== currentFolderId.value) {
           return;
         }
