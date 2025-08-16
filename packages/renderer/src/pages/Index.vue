@@ -139,6 +139,10 @@ export default {
     const draggedNoteId = ref(null);
     const draggedFolderId = ref(null);
     const dragType = ref(null);
+    const scrollContainer = ref(null);
+    const autoScrollInterval = ref(null);
+    const SCROLL_ZONE_SIZE = 80;
+    const SCROLL_SPEED = 5;
 
     const state = reactive({
       notes: [],
@@ -225,63 +229,19 @@ export default {
       });
     }
 
-    // Check if folder would create a circular reference
-    function wouldCreateCircularReference(draggedFolderId, targetFolderId) {
-      if (draggedFolderId === targetFolderId) return true;
-
-      // Check if target folder is a descendant of dragged folder
-      const checkDescendant = (folderId, ancestorId) => {
-        const folder = folderStore.data[folderId];
-        if (!folder) return false;
-        if (folder.parentId === ancestorId) return true;
-        if (folder.parentId)
-          return checkDescendant(folder.parentId, ancestorId);
-        return false;
-      };
-
-      return checkDescendant(targetFolderId, draggedFolderId);
-    }
-
-    function handleNoteDragStart(event, noteId) {
-      event.dataTransfer.setData(
-        'application/json',
-        JSON.stringify({
-          type: 'note',
-          id: noteId,
-        })
-      );
-      draggedNoteId.value = noteId;
-      dragType.value = 'note';
-
-      // Set drag image
-      event.dataTransfer.effectAllowed = 'move';
-    }
-
-    function handleFolderDragStart(event, folderId) {
-      event.dataTransfer.setData(
-        'application/json',
-        JSON.stringify({
-          type: 'folder',
-          id: folderId,
-        })
-      );
-      draggedFolderId.value = folderId;
-      dragType.value = 'folder';
-
-      // Set drag image
-      event.dataTransfer.effectAllowed = 'move';
-    }
-
     function handleDragOver(event, folderId) {
       event.preventDefault();
 
-      // Only show drop indicator if it's a valid drop target
       const dragData = event.dataTransfer.types.includes('application/json');
       if (!dragData) return;
 
-      // If dragging a folder, check for circular reference
       if (dragType.value === 'folder' && draggedFolderId.value) {
-        if (wouldCreateCircularReference(draggedFolderId.value, folderId)) {
+        if (
+          folderStore.wouldCreateCircularReference(
+            draggedFolderId.value,
+            folderId
+          )
+        ) {
           event.dataTransfer.dropEffect = 'none';
           return;
         }
@@ -292,7 +252,6 @@ export default {
     }
 
     function handleDragLeave(event) {
-      // Only clear if we're actually leaving the folder area
       if (!event.currentTarget.contains(event.relatedTarget)) {
         dragOverFolderId.value = null;
       }
@@ -307,11 +266,14 @@ export default {
         );
 
         if (dragData.type === 'note') {
-          // Move note to folder
           noteStore.update(dragData.id, { folderId: targetFolderId });
         } else if (dragData.type === 'folder') {
-          // Move folder inside another folder
-          if (!wouldCreateCircularReference(dragData.id, targetFolderId)) {
+          if (
+            !folderStore.wouldCreateCircularReference(
+              dragData.id,
+              targetFolderId
+            )
+          ) {
             folderStore.update(dragData.id, { parentId: targetFolderId });
           }
         }
@@ -320,13 +282,6 @@ export default {
       }
 
       handleDragEnd();
-    }
-
-    function handleDragEnd() {
-      dragOverFolderId.value = null;
-      draggedNoteId.value = null;
-      draggedFolderId.value = null;
-      dragType.value = null;
     }
 
     watch(
@@ -421,6 +376,101 @@ export default {
       });
     });
 
+    function startAutoScroll(event) {
+      if (autoScrollInterval.value) return;
+
+      const rect = window.innerHeight;
+      const clientY = event.clientY;
+
+      let scrollDirection = 0;
+
+      if (clientY < SCROLL_ZONE_SIZE) {
+        scrollDirection = -1;
+      } else if (clientY > rect - SCROLL_ZONE_SIZE) {
+        scrollDirection = 1;
+      }
+
+      if (scrollDirection !== 0) {
+        autoScrollInterval.value = setInterval(() => {
+          const currentScrollTop =
+            window.scrollY || document.documentElement.scrollTop;
+          const maxScroll =
+            document.documentElement.scrollHeight - window.innerHeight;
+
+          if (scrollDirection === -1 && currentScrollTop > 0) {
+            window.scrollBy(0, -SCROLL_SPEED);
+          } else if (scrollDirection === 1 && currentScrollTop < maxScroll) {
+            window.scrollBy(0, SCROLL_SPEED);
+          }
+        }, 16);
+      }
+    }
+
+    function stopAutoScroll() {
+      if (autoScrollInterval.value) {
+        clearInterval(autoScrollInterval.value);
+        autoScrollInterval.value = null;
+      }
+    }
+
+    function handleNoteDragStart(event, noteId) {
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'note',
+          id: noteId,
+        })
+      );
+      draggedNoteId.value = noteId;
+      dragType.value = 'note';
+      event.dataTransfer.effectAllowed = 'move';
+
+      document.addEventListener('dragover', handleGlobalDragOver, {
+        passive: false,
+      });
+    }
+
+    function handleFolderDragStart(event, folderId) {
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify({
+          type: 'folder',
+          id: folderId,
+        })
+      );
+      draggedFolderId.value = folderId;
+      dragType.value = 'folder';
+      event.dataTransfer.effectAllowed = 'move';
+
+      document.addEventListener('dragover', handleGlobalDragOver, {
+        passive: false,
+      });
+    }
+
+    function handleGlobalDragOver(event) {
+      event.preventDefault();
+
+      stopAutoScroll();
+
+      startAutoScroll(event);
+    }
+
+    function handleDragEnd() {
+      dragOverFolderId.value = null;
+      draggedNoteId.value = null;
+      draggedFolderId.value = null;
+      dragType.value = null;
+
+      stopAutoScroll();
+      document.removeEventListener('dragover', handleGlobalDragOver);
+    }
+
+    onUnmounted(() => {
+      keyboardNavigation.value?.destroy();
+      stopAutoScroll();
+      document.removeEventListener('dragover', handleGlobalDragOver);
+    });
+
     return {
       notes,
       state,
@@ -443,40 +493,16 @@ export default {
       handleDragLeave,
       handleDrop,
       handleDragEnd,
+      scrollContainer,
+      startAutoScroll,
+      stopAutoScroll,
+      handleGlobalDragOver,
     };
   },
 };
 </script>
 
 <style>
-input[type='checkbox'] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid #ccc;
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.3s;
-  vertical-align: middle;
-}
-
-input[type='checkbox']:checked {
-  border-color: #fbbf24;
-}
-
-input[type='checkbox']:checked::before {
-  content: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='16' height='16'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='rgba(251,191,36,1)'%3E%3C/path%3E%3C/svg%3E");
-  display: block;
-  width: 100%;
-  height: 100%;
-  font-size: 16px;
-  line-height: 20px;
-  text-align: center;
-  color: #fbbf24;
-}
-
 [draggable='true'] {
   cursor: grab;
   transition: all 0.2s ease;
@@ -495,35 +521,5 @@ input[type='checkbox']:checked::before {
 .drag-forbidden {
   cursor: not-allowed;
   opacity: 0.6;
-}
-</style>
-
-<style lang="scss">
-@use 'sass:math';
-.tiptap {
-  > * + * {
-    margin-top: 0.75em;
-  }
-}
-
-.iframe-wrapper {
-  position: relative;
-  padding-bottom: math.div(100, 16) * 9%;
-  height: 0;
-  overflow: hidden;
-  width: 100%;
-  height: auto;
-
-  &.ProseMirror-selectednode {
-    outline: 3px solid #fbbf24;
-  }
-
-  iframe {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-  }
 }
 </style>

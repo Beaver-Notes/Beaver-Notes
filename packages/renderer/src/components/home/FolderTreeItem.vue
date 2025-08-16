@@ -23,7 +23,7 @@
       <div v-else class="w-4 mr-1"></div>
 
       <div class="mr-2">
-        <span v-if="folder.icon" class="text-2xl select-none">{{
+        <span v-if="folder.icon" class="text-xl select-none">{{
           folder.icon
         }}</span>
         <v-remixicon
@@ -33,9 +33,8 @@
           :style="{ color: folder.color || '#6B7280' }"
         />
       </div>
-      <span class="flex-1" :class="{ 'text-neutral-400': isCurrentFolder }">
+      <span class="flex-1" :class="{ 'text-neutral-800': isCurrentFolder }">
         {{ folder.name }}
-        <span v-if="isCurrentFolder" class="text-xs">(current)</span>
       </span>
     </div>
 

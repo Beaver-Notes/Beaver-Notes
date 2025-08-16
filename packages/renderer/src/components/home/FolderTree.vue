@@ -6,20 +6,19 @@
       </h3>
     </template>
 
-    <div class="space-y-4">
+    <div>
       <!-- Root option -->
       <div
         class="flex items-center p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer transition"
-        :class="{ 'bg:primary': selectedId === null }"
+        :class="{ 'bg-primary bg-opacity-20': selectedId === null }"
         @click="selectedId = null"
       >
-        <v-remixicon name="riHomeLine" class="mr-2 text-neutral-500" />
-        <span> {{ translations.folderTree.root }} </span>
         <v-remixicon
-          v-if="selectedId === null"
-          name="riCheckLine"
-          class="ml-auto text-blue-500"
+          name="riHomeLine"
+          class="mr-2 text-neutral-500"
+          :class="{ 'text-primary': selectedId === null }"
         />
+        <span> {{ translations.folderTree.root }} </span>
       </div>
 
       <!-- Folder tree -->
@@ -68,7 +67,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useFolderStore } from '@/store/folder';
 import FolderTreeItem from './FolderTreeItem.vue';
 import { useNoteStore } from '@/store/note';
-import { useTranslation } from '../../composable/translations';
+import { useTranslation } from '@/composable/translations';
 
 const props = defineProps({
   note: {
@@ -88,6 +87,18 @@ const props = defineProps({
     default: 'note',
     validator: (val) => ['note', 'folder'].includes(val),
   },
+});
+
+const translations = ref({
+  folderTree: {},
+});
+
+onMounted(async () => {
+  await useTranslation().then((trans) => {
+    if (trans) {
+      translations.value = trans;
+    }
+  });
 });
 
 const emit = defineEmits(['update:modelValue', 'moved']);
@@ -149,18 +160,6 @@ async function handleMove() {
     }
 
     emit('update:modelValue', false);
-
-    const translations = ref({
-      folderTree: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
   } catch (error) {
     console.error('Move failed:', error);
   }
