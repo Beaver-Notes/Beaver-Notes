@@ -2,7 +2,7 @@
 <template>
   <div>
     <div
-      class="flex items-center p-1 rounded hover:bg- cursor-pointer transition"
+      class="flex items-center p-1 rounded cursor-pointer transition"
       :class="{
         'bg-primary bg-opacity-20': isSelected,
         'opacity-50': isCurrentFolder,
@@ -13,6 +13,7 @@
       <button
         v-if="children.length > 0"
         class="mr-1 p-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded"
+        :class="{ 'hover:bg-primary hover:bg-opacity-20': isSelected }"
         @click.stop="isExpanded = !isExpanded"
       >
         <v-remixicon
