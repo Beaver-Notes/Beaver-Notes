@@ -129,6 +129,7 @@
         <ui-select
           v-model="state.selectedFont"
           class="w-full"
+          search="true"
           @change="updateFont"
         >
           <optgroup>
@@ -287,16 +288,23 @@ import { shallowReactive, onMounted, computed, ref } from 'vue';
 import { useTranslation } from '../../composable/translations';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
+import { useAppStore } from '../../store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 
 export default {
   setup() {
+    const appStore = useAppStore();
     const themes = [
       { name: 'light', img: lightImg },
       { name: 'dark', img: darkImg },
       { name: 'system', img: systemImg },
+    ];
+
+    const layouts = [
+      { name: 'default', img: lightImg },
+      { name: 'columns', img: darkImg },
     ];
 
     const theme = useTheme();
@@ -480,6 +488,7 @@ export default {
       state,
       theme,
       themes,
+      layouts,
       storage,
       translations,
       toggleClearFont,
@@ -500,6 +509,7 @@ export default {
       setColor,
       defaultFonts,
       systemFonts,
+      appStore,
     };
   },
 };

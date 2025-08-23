@@ -1,6 +1,9 @@
 <template>
-  <div class="flex items-start mb-6 space-x-4">
-    <div class="flex-1 rtl:ml-4">
+  <div
+    class="flex flex-col md:flex-row items-start mb-6 md:space-x-4 space-y-2 md:space-y-0"
+  >
+    <!-- Search -->
+    <div class="w-full md:flex-1 rtl:ml-4">
       <div class="flex items-center divide-x btn-group">
         <ui-input
           :model-value="query"
@@ -10,56 +13,73 @@
           :placeholder="translations.filter.searchPlaceholder || '-'"
           @keydown.esc="$event.target.blur()"
           @change="$emit('update:query', $event.toLocaleLowerCase())"
-        ></ui-input>
+        />
       </div>
-      <span class="text-sm text-neutral-600 dark:text-neutral-300 ml-2">
+      <span
+        class="text-sm text-neutral-600 dark:text-neutral-300 ml-2 hidden md:block"
+      >
         {{ keyBinding }} {{ translations.filter.search || '-' }}
       </span>
     </div>
 
-    <div class="flex items-center divide-x btn-group">
-      <ui-button
-        v-tooltip="
-          label === ''
-            ? translations.filter.selectLabel
-            : translations.filter.deleteLabel
-        "
-        icon
-        class="ltr:rounded-r-none rtl:rounded-l-none"
-        @click="deleteLabel"
-      >
-        <v-remixicon
-          :name="label === '' ? 'riPriceTag3Line' : 'riDeleteBin6Line'"
-        />
-      </ui-button>
-      <ui-select
-        :model-value="newLabel"
-        :placeholder="translations.filter.selectLabel || '-'"
-        @change="$emit('update:label', $event)"
-      >
-        <option v-for="item in labels" :key="item" :value="item">
-          {{ item }}
-        </option>
-      </ui-select>
-    </div>
-    <div class="flex items-center divide-x btn-group">
-      <ui-button
-        v-tooltip="
-          sortOrder === 'asc'
-            ? translations.filter.ascending
-            : translations.filter.discending
-        "
-        icon
-        class="ltr:rounded-r-none rtl:rounded-l-none"
-        @click="$emit('update:sortOrder', sortOrder === 'asc' ? 'desc' : 'asc')"
-      >
-        <v-remixicon :name="sortOrder === 'asc' ? 'riSortAsc' : 'riSortDesc'" />
-      </ui-button>
-      <ui-select :model-value="sortBy" @change="$emit('update:sortBy', $event)">
-        <option v-for="(name, id) in sorts" :key="id" :value="id">
-          {{ name }}
-        </option>
-      </ui-select>
+    <!-- Filters row -->
+    <div class="flex flex-row w-full md:w-auto space-x-2">
+      <!-- Label filter -->
+      <div class="flex items-center divide-x btn-group flex-1">
+        <ui-button
+          v-tooltip="
+            label === ''
+              ? translations.filter.selectLabel
+              : translations.filter.deleteLabel
+          "
+          icon
+          class="ltr:rounded-r-none rtl:rounded-l-none"
+          @click="deleteLabel"
+        >
+          <v-remixicon
+            :name="label === '' ? 'riPriceTag3Line' : 'riDeleteBin6Line'"
+          />
+        </ui-button>
+        <ui-select
+          :model-value="newLabel"
+          class="w-full"
+          :placeholder="translations.filter.selectLabel || '-'"
+          @change="$emit('update:label', $event)"
+        >
+          <option v-for="item in labels" :key="item" :value="item">
+            {{ item }}
+          </option>
+        </ui-select>
+      </div>
+
+      <!-- Sort filter -->
+      <div class="flex items-center divide-x btn-group flex-1">
+        <ui-button
+          v-tooltip="
+            sortOrder === 'asc'
+              ? translations.filter.ascending
+              : translations.filter.discending
+          "
+          icon
+          class="ltr:rounded-r-none rtl:rounded-l-none"
+          @click="
+            $emit('update:sortOrder', sortOrder === 'asc' ? 'desc' : 'asc')
+          "
+        >
+          <v-remixicon
+            :name="sortOrder === 'asc' ? 'riSortAsc' : 'riSortDesc'"
+          />
+        </ui-button>
+        <ui-select
+          :model-value="sortBy"
+          class="w-full"
+          @change="$emit('update:sortBy', $event)"
+        >
+          <option v-for="(name, id) in sorts" :key="id" :value="String(id)">
+            {{ name }}
+          </option>
+        </ui-select>
+      </div>
     </div>
   </div>
 </template>

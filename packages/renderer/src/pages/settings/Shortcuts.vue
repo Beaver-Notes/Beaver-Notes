@@ -46,7 +46,7 @@ onMounted(async () => {
 });
 const shortcuts = [
   {
-    title: 'General',
+    title: 'general',
     items: [
       { name: 'createNewNote', keys: getFormattedKeys(['Ctrl', 'N']) },
       {
@@ -61,7 +61,7 @@ const shortcuts = [
     ],
   },
   {
-    title: 'Navigates',
+    title: 'navigates',
     items: [
       {
         name: 'toEditedNote',
@@ -76,7 +76,7 @@ const shortcuts = [
     ],
   },
   {
-    title: 'Editor',
+    title: 'editor',
     items: [
       { name: 'bold', keys: getFormattedKeys(['Ctrl', 'B']) },
       { name: 'italic', keys: getFormattedKeys(['Ctrl', 'I']) },

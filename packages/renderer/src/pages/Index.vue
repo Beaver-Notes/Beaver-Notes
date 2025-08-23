@@ -4,14 +4,12 @@
     <h1 class="text-3xl mb-8 font-bold">
       {{ translations.sidebar.notes || '-' }}
     </h1>
-    <home-note-filter
+    <home-search
       v-model:query="state.query"
       v-model:label="state.activeLabel"
       v-model:sort-by="state.sortBy"
       v-model:sort-order="state.sortOrder"
-      v-bind="{
-        labels: labelStore.data,
-      }"
+      v-bind="{ labels: labelStore.data, context: 'folder' }"
       @delete:label="deleteLabel"
     />
 
@@ -32,7 +30,9 @@
           :key="folder.id"
           :folder="folder"
           :class="{
-            'ring-2 ring-secondary': dragOverFolderId === folder.id,
+            'ring-2 ring-secondary':
+              dragOverFolderId === folder.id ||
+              (state.query && highlightedFolderIds.has(folder.id)),
             'opacity-50 transform rotate-1': draggedFolderId === folder.id,
           }"
           draggable="true"
@@ -43,14 +43,6 @@
           @drop="handleDrop($event, folder.id)"
         />
       </template>
-    </div>
-
-    <div
-      v-if="
-        noteStore.notes.length !== 0 || folderStore.rootFolders.length !== 0
-      "
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-    >
       <template
         v-for="name in $route.query.archived
           ? ['archived']
@@ -114,16 +106,17 @@ import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
 import { sortArray, extractNoteText } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
-import HomeNoteFilter from '@/components/home/HomeNoteFilter.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
 import Beaver from '@/assets/images/Beaver.png';
 import BeaverDark from '@/assets/images/Beaver-dark.png';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
+import HomeSearch from '../components/home/HomeSearch.vue';
 
 export default {
-  components: { HomeNoteCard, HomeNoteFilter, HomeFolderCard },
+  components: { HomeNoteCard, HomeSearch, HomeFolderCard },
   setup() {
+    const highlightedFolderIds = ref(new Set());
     const disableDialog = ref(false);
     const theme = useTheme();
 
@@ -167,27 +160,26 @@ export default {
         (f) => !folderStore.deletedIds[f.id]
       );
 
+      const sortedFolders = sortArray({
+        data: rootFolders,
+        order: state.sortOrder,
+        key: 'name',
+      });
+
       return {
-        all: rootFolders,
+        all: filterFolders(sortedFolders),
         bookmarked: [],
         archived: [],
       };
     });
 
     function filterNotes(notes) {
-      const filteredNotes = {
-        all: [],
-        archived: [],
-        bookmarked: [],
-      };
+      const filteredNotes = { all: [], archived: [], bookmarked: [] };
+      highlightedFolderIds.value.clear();
 
       notes.forEach((note) => {
         let { title, content, isArchived, isBookmarked, labels, folderId } =
           note;
-
-        if (folderId !== null && folderId !== undefined) {
-          return;
-        }
 
         labels = labels.sort((a, b) => a.localeCompare(b));
 
@@ -207,8 +199,13 @@ export default {
             content.toLocaleLowerCase().includes(queryLower);
 
         if (isMatch && labelFilter) {
-          if (isArchived) return filteredNotes.archived.push(note);
+          if (folderId !== null && folderId !== undefined) {
+            highlightedFolderIds.value.add(folderId);
+            bubbleHighlight(folderId);
+            return;
+          }
 
+          if (isArchived) return filteredNotes.archived.push(note);
           isBookmarked
             ? filteredNotes.bookmarked.push(note)
             : filteredNotes.all.push(note);
@@ -216,6 +213,25 @@ export default {
       });
 
       return filteredNotes;
+    }
+
+    function filterFolders(folders) {
+      return folders.filter((folder) => {
+        const queryLower = state.query.toLocaleLowerCase();
+        const matchesSelf = folder.name
+          .toLocaleLowerCase()
+          .includes(queryLower);
+
+        const matchesChildren = highlightedFolderIds.value.has(folder.id);
+
+        if (matchesSelf || matchesChildren) {
+          highlightedFolderIds.value.add(folder.id);
+          bubbleHighlight(folder.id);
+          return true;
+        }
+
+        return false;
+      });
     }
 
     function extractNoteContent(note) {
@@ -227,6 +243,14 @@ export default {
       labelStore.delete(id).then(() => {
         state.activeLabel = '';
       });
+    }
+
+    function bubbleHighlight(folderId) {
+      let current = folderStore.data[folderId];
+      while (current?.parentId) {
+        highlightedFolderIds.value.add(current.parentId);
+        current = folderStore.data[current.parentId];
+      }
     }
 
     function handleDragOver(event, folderId) {
@@ -327,7 +351,7 @@ export default {
 
       keyboardNavigation.value = new KeyboardNavigation({
         itemSelector: '.note-card',
-        activeClass: 'ring-2 active-note',
+        activeClass: 'ring-2 ring-primary active-note',
         breakpoints: {
           default: 1,
           '(min-width: 768px)': 2,
@@ -496,6 +520,7 @@ export default {
       scrollContainer,
       startAutoScroll,
       stopAutoScroll,
+      highlightedFolderIds,
       handleGlobalDragOver,
     };
   },

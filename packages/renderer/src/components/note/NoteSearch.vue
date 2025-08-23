@@ -96,6 +96,10 @@ import Mousetrap from '@/lib/mousetrap';
 
 export default {
   props: {
+    context: {
+      type: String,
+      default: 'note',
+    },
     editor: {
       type: Object,
       default: null,

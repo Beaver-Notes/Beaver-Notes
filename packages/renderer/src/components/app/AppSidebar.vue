@@ -14,7 +14,7 @@
     </button>
     <button
       v-tooltip:right="
-        translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+        translations.sidebar.newFolder + ' (' + keyBinding + '+Shift+F)'
       "
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
       @click="addFolder"
@@ -117,7 +117,7 @@ export default {
         name: translations.value.sidebar.notes,
         path: '/',
         icon: 'riBookletLine',
-        shortcut: 'mod+shift+n',
+        shortcut: 'mod+Shift+N',
         action: () => {
           router.push('/');
         },
@@ -126,7 +126,7 @@ export default {
         name: translations.value.sidebar.archive,
         path: '/?archived=true',
         icon: 'riArchiveDrawerLine',
-        shortcut: 'mod+shift+a',
+        shortcut: 'mod+Shift+A',
         action: () => {
           router.push('/?archived=true');
         },
@@ -136,6 +136,7 @@ export default {
     const shortcuts = {
       'mod+n': addNote,
       'mod+,': openSettings,
+      'mod+shift+f': addFolder,
       'mod+shift+w': openLastEdited,
       'mod+shift+n': () => router.push('/'),
       'mod+shift+a': () => router.push('/?archived=true'),
@@ -144,7 +145,10 @@ export default {
     };
 
     emitter.on('new-note', addNote);
+    emitter.on('new-folder', addFolder);
     emitter.on('open-settings', openSettings);
+    emitter.on('dark', () => theme.setTheme('dark'));
+    emitter.on('light', () => theme.setTheme('light'));
 
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
       shortcuts[combo]();

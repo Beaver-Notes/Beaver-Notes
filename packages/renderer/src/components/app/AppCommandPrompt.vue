@@ -57,13 +57,18 @@
                 name="riFile2Line"
                 class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
               />
-
-              <v-remixicon
-                v-else-if="item.type === 'command'"
-                name="riCodeLine"
-                class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
-              />
-
+              <template v-else-if="item.type === 'command'">
+                <v-remixicon
+                  v-if="item.icon"
+                  :name="item.icon"
+                  class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+                />
+                <v-remixicon
+                  v-else
+                  name="riCodeLine"
+                  class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] mr-2 w-4"
+                />
+              </template>
               {{
                 item.title ||
                 item.name ||

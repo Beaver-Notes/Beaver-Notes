@@ -26,7 +26,7 @@ class EventHandler {
       ArrowLeft: this.leftHandler.bind(this),
       ArrowRight: this.rightHandler.bind(this),
     };
-    const elementBlacklist = ['INPUT', 'SELECT', 'TEXTAREA'];
+    const elementBlacklist = ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'];
     const isInBlacklist = elementBlacklist.includes(event.target.tagName);
 
     if (keyHandlers[event.key] && !isInBlacklist) {

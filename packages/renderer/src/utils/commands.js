@@ -1,5 +1,4 @@
 import emitter from 'tiny-emitter/instance';
-import { useTheme } from '../composable/theme';
 import enTranslations from '@/assets/locales/en.json';
 import itTranslations from '@/assets/locales/it.json';
 import esTranslations from '@/assets/locales/es.json';
@@ -7,8 +6,6 @@ import deTranslations from '@/assets/locales/de.json';
 import zhTranslations from '@/assets/locales/zh.json';
 import nlTranslations from '@/assets/locales/nl.json';
 import ukTranslations from '@/assets/locales/uk.json';
-
-const theme = useTheme();
 
 function getModifierKey() {
   return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
@@ -46,24 +43,35 @@ let commands = [
   {
     id: 'new-note',
     title: translations.commands.newNote,
+    icon: 'riEditLine',
     shortcut: [getModifierKey(), 'N'],
     handler: () => emitter.emit('new-note'),
   },
   {
+    id: 'new-folder',
+    title: translations.commands.newFolder,
+    icon: 'riFolder5Fill',
+    shortcut: [getModifierKey(), 'N'],
+    handler: () => emitter.emit('new-folder'),
+  },
+  {
     id: 'settings',
     title: translations.commands.settings,
+    icon: 'riSettingsLine',
     shortcut: [getModifierKey(), ','],
     handler: () => emitter.emit('open-settings'),
   },
   {
     id: 'dark-theme',
+    icon: 'riMoonClearLine',
     title: translations.commands.darkTheme,
-    handler: () => theme.setTheme('dark'),
+    handler: () => emitter.emit('dark'),
   },
   {
     id: 'light-theme',
+    icon: 'riSunLine',
     title: translations.commands.lightTheme,
-    handler: () => theme.setTheme('light'),
+    handler: () => emitter.emit('light'),
   },
 ];
 

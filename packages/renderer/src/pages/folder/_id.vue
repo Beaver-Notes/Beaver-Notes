@@ -47,12 +47,12 @@
     </div>
 
     <!-- Filters and content below -->
-    <home-note-filter
+    <home-search
       v-model:query="state.query"
       v-model:label="state.activeLabel"
       v-model:sort-by="state.sortBy"
       v-model:sort-order="state.sortOrder"
-      v-bind="{ labels: labelStore.data }"
+      v-bind="{ labels: labelStore.data, context: 'folder' }"
       @delete:label="deleteLabel"
     />
 
@@ -141,7 +141,7 @@ import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
 import { sortArray, extractNoteText } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
-import HomeNoteFilter from '@/components/home/HomeNoteFilter.vue';
+import HomeSearch from '@/components/home/HomeSearch.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
 import Beaver from '@/assets/images/Beaver.png';
 import BeaverDark from '@/assets/images/Beaver-dark.png';
@@ -150,7 +150,7 @@ import { useFolderStore } from '@/store/folder';
 import dayjs from 'dayjs';
 
 export default {
-  components: { HomeNoteCard, HomeNoteFilter, HomeFolderCard },
+  components: { HomeNoteCard, HomeSearch, HomeFolderCard },
   setup() {
     const folderId = computed(() => route.params.id);
     const currentFolderId = computed(() => route.params.id);
@@ -193,7 +193,7 @@ export default {
       );
 
       return {
-        all: childFolders,
+        all: filterFolders(childFolders),
         bookmarked: [],
         archived: [],
       };
@@ -241,6 +241,17 @@ export default {
       });
 
       return filteredNotes;
+    }
+
+    function filterFolders(folders) {
+      return folders.filter((folder) => {
+        const queryLower = state.query.toLocaleLowerCase();
+        const matchesQuery = folder.name
+          .toLocaleLowerCase()
+          .includes(queryLower);
+
+        return matchesQuery;
+      });
     }
 
     function extractNoteContent(note) {
@@ -382,22 +393,6 @@ export default {
       noteStore.update(noteId, updates);
     }
 
-    function wouldCreateCircularReference(draggedFolderId, targetFolderId) {
-      if (draggedFolderId === targetFolderId) return true;
-
-      // Check if target folder is a descendant of dragged folder
-      const checkDescendant = (folderId, ancestorId) => {
-        const folder = folderStore.data[folderId];
-        if (!folder) return false;
-        if (folder.parentId === ancestorId) return true;
-        if (folder.parentId)
-          return checkDescendant(folder.parentId, ancestorId);
-        return false;
-      };
-
-      return checkDescendant(targetFolderId, draggedFolderId);
-    }
-
     function handleNoteDragStart(event, noteId) {
       event.dataTransfer.setData(
         'application/json',
@@ -437,7 +432,12 @@ export default {
 
       // If dragging a folder, check for circular reference
       if (dragType.value === 'folder' && draggedFolderId.value) {
-        if (wouldCreateCircularReference(draggedFolderId.value, folderId)) {
+        if (
+          folderStore.wouldCreateCircularReference(
+            draggedFolderId.value,
+            folderId
+          )
+        ) {
           event.dataTransfer.dropEffect = 'none';
           return;
         }
@@ -467,7 +467,12 @@ export default {
           noteStore.update(dragData.id, { folderId: targetFolderId });
         } else if (dragData.type === 'folder') {
           // Move folder inside another folder
-          if (!wouldCreateCircularReference(dragData.id, targetFolderId)) {
+          if (
+            !folderStore.wouldCreateCircularReference(
+              dragData.id,
+              targetFolderId
+            )
+          ) {
             folderStore.update(dragData.id, { parentId: targetFolderId });
           }
         }

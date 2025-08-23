@@ -74,6 +74,7 @@
     "darkTheme": "Apply dark theme",
     "lightTheme": "Apply light theme",
     "newNote": "Create new note",
+    "newFolder": "Create new folder",
     "settings": "Settings"
   },
   "dialog": {
@@ -99,7 +100,7 @@
     "descending": "Descending",
     "lastUpdated": "Last updated",
     "search": "+ F to start search",
-    "searchPlaceholder": "Search...",
+    "searchPlaceholder": "Find notes or type # for labels",
     "selectLabel": "Select label"
   },
   "image": {
@@ -112,7 +113,9 @@
     "home": "Home",
     "folders": "Folders",
     "close": "Close",
-    "newNote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left"
+    "newNote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left",
+    "search": "Search something...",
+    "notFound": "No options found"
   },
   "menu": {
     "add": "Add",
@@ -310,7 +313,8 @@
     "underline": "Underline"
   },
   "sidebar": {
-    "addNotes": "Add notes",
+    "addNotes": "Add note",
+    "newFolder": "New Folder",
     "archive": "Archive",
     "editedNote": "Edited note",
     "exportFail": "Export failed!",

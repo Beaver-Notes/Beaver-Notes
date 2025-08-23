@@ -7,6 +7,7 @@
         <ui-select
           v-model="selectedLanguage"
           class="w-full"
+          search="true"
           @change="updateLanguage"
         >
           <option
@@ -237,6 +238,8 @@ import { processDirectory } from '@/utils/markdown-helper';
 import { forceSyncNow } from '../../utils/sync';
 import { importBEA } from '../../utils/share/BEA';
 import { useTranslation } from '@/composable/translations';
+import { useNoteStore } from '../../store/note';
+import { useFolderStore } from '../../store/folder';
 
 const LANGUAGE_CONFIG = {
   de: { name: 'Deutsch', dir: 'ltr' },
@@ -297,6 +300,8 @@ export default {
     const theme = useTheme();
     const dialog = useDialog();
     const storage = useStorage();
+    const noteStore = useNoteStore();
+    const folerStore = useFolderStore();
 
     const state = shallowReactive({
       dataDir: '',
@@ -418,6 +423,7 @@ export default {
           { key: 'labels', dfData: [] },
           { key: 'lockStatus', dfData: {} },
           { key: 'isLocked', dfData: {} },
+          { key: 'folders', dfData: {} },
         ];
 
         for (const { key, dfData } of keys) {
@@ -433,6 +439,8 @@ export default {
           }
 
           await storage.set(key, mergedData);
+          await noteStore.retrieve();
+          await folerStore.retrieve();
         }
       } catch (error) {
         console.error(error);
@@ -511,7 +519,6 @@ export default {
                 });
 
                 console.log('Assets copied successfully.');
-                window.location.reload();
               } catch (error) {
                 showAlert(translations.value.settings.invalidPassword);
                 return false;
@@ -551,9 +558,6 @@ export default {
             path: path.join(dirPath, 'file-assets'),
             dest: path.join(dataDir, 'file-assets'),
           });
-
-          console.log('Assets copied successfully.');
-          window.location.reload();
         }
       } catch (error) {
         console.error(error);
