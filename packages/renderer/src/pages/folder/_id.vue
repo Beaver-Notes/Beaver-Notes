@@ -58,7 +58,10 @@
 
     <div
       v-if="
-        noteStore.notes.length !== 0 || folderStore.rootFolders.length !== 0
+        folders.all.length ||
+        notes.archived.length ||
+        notes.bookmarked.length ||
+        notes.all.length
       "
       class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
     >
@@ -109,14 +112,10 @@
       </template>
     </div>
 
-    <div v-else class="text-center">
-      <img
-        :src="theme.currentTheme.value === 'dark' ? BeaverDark : Beaver"
-        class="mx-auto w-2/4"
-      />
-
+    <div v-else class="text-center items-center justify-center h-full">
+      <img :src="FolderImg" class="mx-auto w-1/4" />
       <p
-        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-neutral-600 mt-2"
+        class="w-sm mx-auto dark:text-[color:var(--selected-dark-text)] text-neutral-600 mt-2"
       >
         {{ translations.index.newNote || '-' }}
       </p>
@@ -143,8 +142,7 @@ import { sortArray, extractNoteText } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import HomeSearch from '@/components/home/HomeSearch.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
-import Beaver from '@/assets/images/Beaver.png';
-import BeaverDark from '@/assets/images/Beaver-dark.png';
+import FolderImg from '@/assets/images/folder.png';
 import HomeFolderCard from '@/components/home/HomeFolderCard.vue';
 import { useFolderStore } from '@/store/folder';
 import dayjs from 'dayjs';
@@ -500,8 +498,7 @@ export default {
       folders,
       deleteLabel,
       disableDialog,
-      Beaver,
-      BeaverDark,
+      FolderImg,
       theme,
       folderId,
       folder,

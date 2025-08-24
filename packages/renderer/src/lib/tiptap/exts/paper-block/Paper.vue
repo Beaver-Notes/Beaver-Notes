@@ -93,7 +93,6 @@ export default {
     watch(
       () => props.node.attrs,
       (newAttrs) => {
-        console.log('Node attrs changed:', newAttrs);
         lines.value = convertLegacyLines(newAttrs.lines || []);
         background.value = newAttrs.paperType || 'plain';
         height.value = newAttrs.height || 400;
@@ -136,8 +135,6 @@ export default {
     };
 
     const handleUpdateAttributes = (updates) => {
-      console.log('Received update-attributes:', updates);
-
       try {
         // Validate the updates before applying
         const validatedUpdates = {};
@@ -165,8 +162,6 @@ export default {
           validatedUpdates.paperType = updates.paperType;
         }
 
-        console.log('Calling updateAttributes with:', validatedUpdates);
-
         // Call the Tiptap updateAttributes method
         props.updateAttributes(validatedUpdates);
 
@@ -191,7 +186,6 @@ export default {
     };
 
     const handleDrawModeClose = () => {
-      console.log('Draw mode closing');
       closeDrawMode();
     };
 

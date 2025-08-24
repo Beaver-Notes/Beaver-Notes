@@ -38,7 +38,7 @@
         v-if="rootFolders.length === 0"
         class="text-center py-8 text-neutral-500"
       >
-        <v-remixicon name="riFolder5Fill" class="text-4xl mb-2" />
+        <v-remixicon name="riFolder5Fill" class="text-4xl mb-2 text-primary" />
         <p>{{ translations.folderTree.noFolders }}</p>
         <p class="text-sm">{{ translations.folderTree.newFolder }}</p>
       </div>

@@ -75,8 +75,8 @@
 
     <div v-else class="text-center">
       <img
-        :src="theme.currentTheme.value === 'dark' ? BeaverDark : Beaver"
-        class="mx-auto w-2/4"
+        :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
+        class="mx-auto w-1/4"
       />
 
       <p
@@ -107,8 +107,8 @@ import { useDialog } from '@/composable/dialog';
 import { sortArray, extractNoteText } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
-import Beaver from '@/assets/images/Beaver.png';
-import BeaverDark from '@/assets/images/Beaver-dark.png';
+import HomeImg from '@/assets/images/home.png';
+import ArchiveImg from '@/assets/images/archive.png';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
 import HomeSearch from '../components/home/HomeSearch.vue';
@@ -505,8 +505,8 @@ export default {
       folders,
       deleteLabel,
       disableDialog,
-      Beaver,
-      BeaverDark,
+      HomeImg,
+      ArchiveImg,
       theme,
       dragOverFolderId,
       draggedNoteId,

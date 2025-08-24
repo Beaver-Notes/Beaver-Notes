@@ -5,9 +5,12 @@
     padding="p-2"
     style="max-width: 16rem; min-width: 6rem"
   >
-    <ui-list class="cursor-pointer space-y-1">
+    <ui-list
+      class="cursor-pointer space-y-1 overflow-y-auto no-scrollbar"
+      style="max-height: calc(5 * 2.5rem)"
+    >
       <ui-list-item
-        v-for="(item, index) in filteredItems.slice(0, 5)"
+        v-for="(item, index) in filteredItems"
         :key="index"
         :active="index === selectedIndex"
         class="label-item w-full text-overflow"
@@ -15,7 +18,7 @@
         :disabled="item.disabled"
         @click="handleItemClick(item)"
       >
-        <v-remixicon :name="item.icon" class="mr-2" />
+        <v-remixicon :name="item.icon" class="mr-2" :class="item.className" />
         <div class="text-left overflow-hidden text-ellipsis whitespace-nowrap">
           <h3 class="font-medium">
             {{ translations.menu[item.name] || item.name }}
@@ -375,3 +378,14 @@ export default {
   },
 };
 </script>
+<style scoped>
+/* Hide scrollbar but keep scroll working */
+.no-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari */
+}
+</style>

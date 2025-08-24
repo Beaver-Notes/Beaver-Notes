@@ -7,7 +7,7 @@
         <ui-select
           v-model="selectedLanguage"
           class="w-full"
-          search="true"
+          :search="true"
           @change="updateLanguage"
         >
           <option
