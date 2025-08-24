@@ -1068,15 +1068,17 @@ export default {
       fontSize.value = parseInt(currentSize);
     };
 
-    const currentTextColor = computed(() => {
-      return props.editor.getAttributes('textStyle')?.color || null;
-    });
+    const currentTextColor = computed(() =>
+      props.editor.isActive('textStyle')
+        ? props.editor.getAttributes('textStyle')?.color || null
+        : null
+    );
 
-    const currentHighlightColor = computed(() => {
-      return props.editor.getAttributes('highlight')?.color || null;
-    });
-
-    console.log(currentHighlightColor);
+    const currentHighlightColor = computed(() =>
+      props.editor.isActive('highlight')
+        ? props.editor.getAttributes('highlight')?.color || null
+        : null
+    );
 
     return {
       store,
