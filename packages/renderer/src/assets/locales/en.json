@@ -88,7 +88,7 @@
     "mathPlaceholder": "Text here...",
     "mermaidPlaceholder": "Enter Mermaid code here...",
     "previousNote": "Previous notes",
-    "tiptapPlaceholder": "Write something...",
+    "tiptapPlaceholder": "Write something... or type \"/\" for commands.",
     "embedPlaceholder": "Click here to embed a link",
     "untitledNote": "Untitled note"
   },
