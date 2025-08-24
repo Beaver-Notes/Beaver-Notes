@@ -272,7 +272,6 @@
           @click="insertImage"
         />
       </ui-popover>
-      <!-- Replace the existing recording section with this updated version -->
       <div
         :class="[
           'flex items-center space-x-2',
