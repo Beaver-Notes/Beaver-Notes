@@ -19,10 +19,9 @@
           <button
             v-tooltip.group="translations.menu.headings"
             :class="{ 'is-active': editor.isActive('heading') }"
-            class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
+            class="transition hoverable h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riHeading" />
-            <v-remixicon name="riArrowDownSLine" class="w-4 h-4" />
+            <v-remixicon name="riHeading" class="block" />
           </button>
         </template>
         <button
@@ -48,7 +47,7 @@
           </div>
         </button>
       </ui-popover>
-      <div class="flex w-20 h-8 rounded-lg bg-input overflow-hidden">
+      <div class="flex w-20 h-8 ml-1 rounded-lg bg-input overflow-hidden">
         <button
           type="button"
           class="w-1/3 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors rounded-l-lg"
@@ -95,19 +94,32 @@
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.highlight"
-            :class="{ 'is-active': editor.isActive('highlight') }"
-            class="transition hoverable h-8 px-1 rounded-lg"
+            :class="currentHighlightColor"
+            class="transition h-8 px-1 rounded-lg"
           >
-            <v-remixicon name="riFontColor" />
+            <v-remixicon
+              name="riFontColor"
+              :style="{
+                color: currentTextColor,
+              }"
+            />
           </button>
         </template>
         <div class="px-2">
           <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
+              class="w-8 h-8 flex items-center justify-center cursor-pointer rounded border"
+              @click="editor.chain().focus().unsetColor().run()"
+            >
+              <v-remixicon name="riFontColor" />
+            </div>
+            <div
               v-for="color in textColors"
               :key="color"
-              :class="['w-8 h-8 cursor-pointer rounded']"
+              :class="[
+                'w-8 h-8 flex cursor-pointer rounded border  items-center justify-center',
+              ]"
               @click="setTextColor(color)"
             >
               <v-remixicon name="riFontColor" :style="{ color: color }" />
@@ -115,6 +127,10 @@
           </div>
           <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
           <div class="grid grid-cols-4 gap-2">
+            <div
+              class="w-8 h-8 flex items-center justify-center cursor-pointer rounded border"
+              @click="editor.commands.unsetHighlight()"
+            ></div>
             <div
               v-for="color in highlighterColors"
               :key="color"
@@ -146,10 +162,9 @@
           <template #trigger>
             <button
               v-tooltip.group="translations.menu.lists"
-              class="transition hoverable h-8 px-1 rounded-lg flex items-center space-x-1"
+              class="transition hoverable h-8 px-1 rounded-lg space-x-1"
             >
               <v-remixicon name="riListOrdered" />
-              <v-remixicon name="riArrowDownSLine" class="w-4 h-4" />
             </button>
           </template>
           <button
@@ -257,6 +272,7 @@
           @click="insertImage"
         />
       </ui-popover>
+      <!-- Replace the existing recording section with this updated version -->
       <div
         :class="[
           'flex items-center space-x-2',
@@ -265,36 +281,92 @@
             : '',
         ]"
       >
-        <button
-          v-tooltip.group="translations.menu.record"
-          :class="[
-            'transition hoverable h-10 p-2 flex items-center justify-center',
-            isRecording
-              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
-              : 'rounded-full hover',
-          ]"
-          @click="toggleRecording"
-        >
-          <v-remixicon :name="isRecording ? 'riStopCircleLine' : 'riMicLine'" />
-        </button>
-        <span v-if="isRecording" class="font-secondary font-semibold text-sm">
-          {{ formattedTime }}
-        </span>
-        <button
-          v-if="isRecording"
-          v-tooltip.group="
-            isPaused ? translations.menu.resume : translations.menu.pause
-          "
-          :class="[
-            'transition hoverable h-10 p-2 flex items-center justify-center',
-            isPaused
-              ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
-              : 'rounded-full hover',
-          ]"
-          @click="pauseResume"
-        >
-          <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
-        </button>
+        <template v-if="isRecording">
+          <button
+            v-tooltip.group="translations.menu.record"
+            :class="[
+              'transition hoverable h-8 px-1 flex items-center justify-center',
+              'rounded-full bg-primary text-[color:var(--selected-dark-text)]',
+            ]"
+            @click="toggleRecording"
+          >
+            <v-remixicon name="riStopCircleLine" />
+          </button>
+          <span class="font-secondary font-semibold text-sm">
+            {{ formattedTime }}
+          </span>
+          <button
+            v-tooltip.group="
+              isPaused ? translations.menu.resume : translations.menu.pause
+            "
+            :class="[
+              'transition hoverable h-8 px-1 flex items-center justify-center',
+              isPaused
+                ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
+                : 'rounded-full hover',
+            ]"
+            @click="pauseResume"
+          >
+            <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
+          </button>
+        </template>
+
+        <template v-else>
+          <ui-popover padding="p-2 flex flex-col print:hidden">
+            <template #trigger>
+              <button
+                v-tooltip.group="translations.menu.audio || 'Audio'"
+                class="transition hoverable h-8 px-1 rounded-lg space-x-1"
+              >
+                <v-remixicon name="riMicLine" />
+              </button>
+            </template>
+
+            <!-- Start Recording Option -->
+            <button
+              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+              @click="toggleRecording"
+            >
+              <v-remixicon name="riMicLine" />
+              <div
+                class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                <p
+                  class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
+                >
+                  {{ translations.menu.startRecording || 'Record' }}
+                </p>
+              </div>
+            </button>
+
+            <!-- Upload Audio File Option -->
+            <button
+              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+              @click="$refs.audioInput.click()"
+            >
+              <v-remixicon name="riFile2Line" />
+              <div
+                class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                <p
+                  class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
+                >
+                  {{ translations.menu.uploadAudio || 'Upload' }}
+                </p>
+              </div>
+            </button>
+          </ui-popover>
+
+          <!-- Hidden audio file input -->
+          <input
+            ref="audioInput"
+            type="file"
+            class="hidden"
+            accept="audio/*"
+            multiple
+            @change="handleAudioSelect"
+          />
+        </template>
       </div>
       <button
         v-tooltip.group="translations.menu.link"
@@ -859,7 +931,7 @@ export default {
       props.editor.on('selectionUpdate', () => {
         const size = getCurrentFontSize();
         if (size) {
-          fontSize.value = parseInt(size); // strip "px"
+          fontSize.value = parseInt(size);
         }
       });
     });
@@ -877,6 +949,21 @@ export default {
           const { fileName, relativePath } = await saveFile(file, props.id);
           const src = `${relativePath}`;
           props.editor.commands.setFileEmbed(src, fileName);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    const handleAudioSelect = async (event) => {
+      const files = event.target.files;
+      if (!files.length) return;
+
+      try {
+        for (const file of files) {
+          const { fileName, relativePath } = await saveFile(file, props.id);
+          const src = `${relativePath}`;
+          props.editor.commands.setAudio(src, fileName);
         }
       } catch (error) {
         console.error(error);
@@ -913,7 +1000,6 @@ export default {
       'bg-[#9B5EE6]/30 dark:bg-[#9B5EE6]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #9B5EE6 (purple)
       'bg-[#E67EA4]/30 dark:bg-[#E67EA4]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E67EA4 (pink)
       'bg-[#E75C5C]/30 dark:bg-[#E75C5C]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #E75C5C (red)
-      'bg-[#A3A3A3]/30 dark:bg-[#A3A3A3]/40 dark:text-[color:var(--selected-dark-text)]', // Matches text #A3A3A3 (neutral)
     ];
 
     const textColors = [
@@ -924,7 +1010,6 @@ export default {
       '#9B5EE6',
       '#E67EA4',
       '#E75C5C',
-      '#A3A3A3',
     ];
 
     function setHighlightColor(color) {
@@ -983,9 +1068,21 @@ export default {
       fontSize.value = parseInt(currentSize);
     };
 
+    const currentTextColor = computed(() => {
+      return props.editor.getAttributes('textStyle')?.color || null;
+    });
+
+    const currentHighlightColor = computed(() => {
+      return props.editor.getAttributes('highlight')?.color || null;
+    });
+
+    console.log(currentHighlightColor);
+
     return {
       store,
       fontSize,
+      currentTextColor,
+      currentHighlightColor,
       updateFontSize,
       updateInputFontSize,
       highlighterColors,
@@ -1025,6 +1122,7 @@ export default {
       changeWheelDirection,
       shareNote,
       shareHTML,
+      handleAudioSelect,
       shareMarkdown,
       share,
     };
