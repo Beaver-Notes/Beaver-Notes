@@ -24,7 +24,7 @@
             placeholder,
             type: inputType,
           }"
-          class="py-2 px-4 rounded-lg w-full bg-input bg-transparent transition ring-2 ring-secondary"
+          class="py-2 px-4 rounded-lg w-full bg-input bg-transparent transition focus:ring-2 ring-secondary"
           :class="{
             'opacity-75 pointer-events-none': disabled,
             'pl-10': prependIcon || $slots.prepend,

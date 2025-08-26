@@ -1,13 +1,35 @@
 const packageJSON = require('./package.json');
+const { azuresigntool } = require('@ossign/azuresigntool');
 
 /**
  * @type {import('electron-builder').Configuration}
  * @see https://www.electron.build/configuration/configuration
  */
-const { azuresigntool } = require('@ossign/azuresigntool');
 const electronBuilderConfig = {
   appId: 'com.danielerolli.beaver-notes',
-  files: ['packages/**/dist/**'],
+
+  asar: true,
+  asarUnpack: ['**/*.node'],
+
+  files: [
+    'packages/**/dist/**',
+    'LICENSE',
+    'package.json',
+    // EXCLUDES:
+    '!**/*.map',
+    '!**/*.d.ts',
+    '!**/README.md',
+    '!**/CHANGELOG.md',
+    '!**/docs{,/**}',
+    '!**/test{,/**}',
+    '!**/__tests__{,/**}',
+    '!**/fixtures{,/**}',
+    '!**/scripts{,/**}',
+    '!**/.*/**',
+  ],
+
+  compression: 'maximum',
+
   extraMetadata: {
     version: packageJSON.version,
   },
@@ -54,22 +76,10 @@ const electronBuilderConfig = {
   linux: {
     icon: 'buildResources/icon-linux.icns',
     target: [
-      {
-        target: 'AppImage',
-        arch: ['x64', 'arm64'],
-      },
-      {
-        target: 'rpm',
-        arch: ['x64', 'arm64'],
-      },
-      {
-        target: 'deb',
-        arch: ['x64', 'arm64'],
-      },
-      {
-        target: 'tar.gz',
-        arch: ['x64', 'arm64'],
-      },
+      { target: 'AppImage', arch: ['x64', 'arm64'] },
+      { target: 'rpm', arch: ['x64', 'arm64'] },
+      { target: 'deb', arch: ['x64', 'arm64'] },
+      { target: 'tar.gz', arch: ['x64', 'arm64'] },
     ],
     maintainer: 'Daniele Rolli <danielerolli@proton.me>',
     category: 'Productivity',
@@ -92,6 +102,36 @@ const electronBuilderConfig = {
   },
   portable: {
     artifactName: '${productName}-${version}-portable.${ext}',
+  },
+
+  afterPack: async (context) => {
+    const fs = require('fs');
+    const path = require('path');
+    const { appOutDir, packager } = context;
+    const platform = packager.platform?.name;
+
+    const localesDir =
+      platform === 'mac'
+        ? path.join(
+            appOutDir,
+            `${packager.appInfo.productFilename}.app`,
+            'Contents',
+            'Resources',
+            'locales'
+          )
+        : path.join(appOutDir, 'locales');
+
+    try {
+      const keep = new Set(['en-US.pak']);
+      if (fs.existsSync(localesDir)) {
+        for (const f of fs.readdirSync(localesDir)) {
+          if (!keep.has(f))
+            fs.rmSync(path.join(localesDir, f), { force: true });
+        }
+      }
+    } catch (e) {
+      console.warn('Locale pruning failed:', e);
+    }
   },
 };
 

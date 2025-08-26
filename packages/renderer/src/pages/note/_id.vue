@@ -20,11 +20,20 @@
     </button>
     <template v-if="editor && !note.isLocked">
       <note-menu v-bind="{ editor, id, note }" class="mb-6" />
-      <note-search
-        v-if="showSearch"
-        v-bind="{ editor }"
-        @keyup.esc="closeSearch"
-      />
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-4"
+      >
+        <note-search
+          v-if="showSearch"
+          v-bind="{ editor }"
+          @keyup.esc="closeSearch"
+        />
+      </transition>
     </template>
     <div
       v-if="!isLocked"

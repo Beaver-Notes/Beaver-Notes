@@ -17,7 +17,7 @@
       v-if="
         noteStore.notes.length !== 0 || folderStore.rootFolders.length !== 0
       "
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
     >
       <template v-if="folders.all.length">
         <p
@@ -25,23 +25,24 @@
         >
           {{ translations.index.folders }}
         </p>
-        <home-folder-card
-          v-for="folder in folders.all"
-          :key="folder.id"
-          :folder="folder"
-          :class="{
-            'ring-2 ring-secondary':
-              dragOverFolderId === folder.id ||
-              (state.query && highlightedFolderIds.has(folder.id)),
-            'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-          }"
-          draggable="true"
-          @dragstart="handleFolderDragStart($event, folder.id)"
-          @dragend="handleDragEnd"
-          @dragover="handleDragOver($event, folder.id)"
-          @dragleave="handleDragLeave"
-          @drop="handleDrop($event, folder.id)"
-        />
+        <div v-for="folder in folders.all" :key="folder.id" :min-height="120">
+          <home-folder-card
+            :key="folder.id"
+            :folder="folder"
+            :class="{
+              'ring-2 ring-secondary':
+                dragOverFolderId === folder.id ||
+                (state.query && highlightedFolderIds.has(folder.id)),
+              'opacity-50 transform rotate-1': draggedFolderId === folder.id,
+            }"
+            draggable="true"
+            @dragstart="handleFolderDragStart($event, folder.id)"
+            @dragend="handleDragEnd"
+            @dragover="handleDragOver($event, folder.id)"
+            @dragleave="handleDragLeave"
+            @drop="handleDrop($event, folder.id)"
+          />
+        </div>
       </template>
       <template
         v-for="name in $route.query.archived
@@ -55,21 +56,29 @@
         >
           {{ translations.index[name] }}
         </p>
-        <home-note-card
+
+        <div
           v-for="note in notes[name]"
           :key="note.id"
-          :note-id="note.id"
-          :is-locked="note.isLocked"
-          v-bind="{ note }"
-          :class="{
-            'opacity-50 transform rotate-2': draggedNoteId === note.id,
-          }"
-          draggable="true"
-          @dragstart="handleNoteDragStart($event, note.id)"
-          @dragend="handleDragEnd"
-          @update:label="state.activeLabel = $event"
-          @update="noteStore.update(note.id, $event)"
-        />
+          :min-height="180"
+          :unrender="true"
+        >
+          <home-note-card
+            :key="note.id"
+            :note-id="note.id"
+            :is-locked="note.isLocked"
+            v-bind="{ note }"
+            :class="{
+              'opacity-50 transform rotate-2': draggedNoteId === note.id,
+            }"
+            class="h-full"
+            draggable="true"
+            @dragstart="handleNoteDragStart($event, note.id)"
+            @dragend="handleDragEnd"
+            @update:label="state.activeLabel = $event"
+            @update="noteStore.update(note.id, $event)"
+          />
+        </div>
       </template>
     </div>
 
@@ -313,7 +322,7 @@ export default {
       () => {
         state.notes = noteStore.notes.map(extractNoteContent);
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     watch(
