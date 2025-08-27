@@ -29,37 +29,37 @@
       <div class="w-full items-center justify-center flex gap-4">
         <button
           class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'red' }"
           @click="setColor('red')"
         ></button>
         <button
           class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'light' }"
           @click="setColor('light')"
         ></button>
         <button
           class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'green' }"
           @click="setColor('green')"
         ></button>
         <button
           class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'blue' }"
           @click="setColor('blue')"
         ></button>
         <button
           class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'purple' }"
           @click="setColor('purple')"
         ></button>
         <button
           class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'pink' }"
           @click="setColor('pink')"
         ></button>
         <button
           class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'neutral' }"
           @click="setColor('neutral')"
         ></button>
       </div>
@@ -394,6 +394,7 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
+      accentColor: localStorage.getItem('color-scheme') || 'light',
       zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
       directionPreference: localStorage.getItem('directionPreference') || 'ltr',
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
@@ -431,6 +432,7 @@ export default {
         }
       });
       root.classList.add(color);
+      state.accentColor = color;
       localStorage.setItem('color-scheme', color);
     };
 

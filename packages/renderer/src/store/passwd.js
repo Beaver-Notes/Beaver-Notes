@@ -49,7 +49,6 @@ export const usePasswordStore = defineStore('password', {
     },
 
     async deleteLegacyStorage() {
-      console.log('Deleting legacy storage keys');
       const legacyKeys = [
         LEGACY_STORAGE_KEY,
         'sharedKey',
@@ -149,23 +148,28 @@ export const usePasswordStore = defineStore('password', {
           throw new Error('Current password is incorrect');
         }
 
-        const hashedNewPassword = await bcryptjs.hash(newPassword, 10);
-        this.sharedKey = hashedNewPassword;
-
-        const encryptionAvailable = await isEncryptionAvailable();
-
-        if (encryptionAvailable) {
-          const encrypted = await encryptString(hashedNewPassword);
-          await this.writeEncryptedFile(encrypted);
-          await this.deleteLegacyStorage();
-        } else {
-          await storage.set(LEGACY_STORAGE_KEY, hashedNewPassword);
-        }
+        await this.setsharedKey(newPassword);
 
         return true;
       } catch (error) {
         console.error('Error resetting password:', error);
         throw error;
+      }
+    },
+
+    async importSharedKey(hash, derivedKey = null) {
+      this.sharedKey = hash;
+      this.derivedKey = derivedKey;
+
+      const encryptionAvailable = await isEncryptionAvailable();
+      if (encryptionAvailable) {
+        const encrypted = await encryptString(
+          JSON.stringify({ hash, key: derivedKey })
+        );
+        await this.writeEncryptedFile(encrypted);
+        await this.deleteLegacyStorage();
+      } else {
+        await storage.set(LEGACY_STORAGE_KEY, hash);
       }
     },
   },

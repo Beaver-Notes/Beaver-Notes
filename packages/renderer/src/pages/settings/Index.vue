@@ -267,6 +267,7 @@ const getLanguageDirection = (languageCode) => {
 
 export default {
   setup() {
+    const passwordStore = usePasswordStore();
     const advancedSettings = ref(
       localStorage.getItem('advanced-settings') === 'true'
     );
@@ -348,6 +349,7 @@ export default {
 
     async function exportData() {
       try {
+        const dataDir = await storage.get('dataDir', '', 'settings');
         const { canceled, filePaths } = await ipcRenderer.callMain(
           'dialog:open',
           {
@@ -359,15 +361,16 @@ export default {
         if (canceled) return;
 
         let data = await storage.store();
-        data['default-path'] = defaultPath;
+        data['sharedKey'] = storage.get('sharedKey');
         data['lockedNotes'] = JSON.parse(localStorage.getItem('lockedNotes'));
+        await passwordStore.retrieve();
+        data['sharedKey'] = passwordStore.sharedKey;
         if (state.withPassword) {
           data = AES.encrypt(JSON.stringify(data), state.password).toString();
         }
 
         const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
         const folderPath = path.join(filePaths[0], folderName);
-        const dataDir = await storage.get('dataDir', '', 'settings');
 
         const containsGvfs = folderPath.includes('gvfs');
 
@@ -449,6 +452,7 @@ export default {
 
     async function importData() {
       try {
+        const dataDir = await storage.get('dataDir', '', 'settings');
         const {
           canceled,
           filePaths: [dirPath],
@@ -481,7 +485,6 @@ export default {
 
                 await mergeImportedData(resultObj);
 
-                const dataDir = await storage.get('dataDir', '', 'settings');
                 const importedDefaultPath = resultObj['dataDir'];
                 const importedLockedStatus = resultObj['lockStatus'];
                 const importedIsLocked = resultObj['isLocked'];
@@ -528,12 +531,15 @@ export default {
         } else {
           await mergeImportedData(data);
 
-          const dataDir = await storage.get('dataDir', '', 'settings');
-          const importedDefaultPath = data['dataDir'];
           const importedLockedStatus = data['lockStatus'];
           const importedIsLocked = data['isLocked'];
 
-          localStorage.setItem('dataDir', importedDefaultPath);
+          if (data['sharedKey']) {
+            await passwordStore.importSharedKey(
+              data['sharedKey'],
+              data['derivedKey']
+            );
+          }
 
           if (
             importedLockedStatus !== null &&
@@ -665,8 +671,6 @@ export default {
     };
 
     async function resetPasswordDialog() {
-      const passwordStore = usePasswordStore();
-
       dialog.prompt({
         title: translations.value.settings.resetPasswordTitle,
         okText: translations.value.settings.next,

@@ -3,9 +3,9 @@
   <div class="general space-y-8 mb-14 w-full max-w-xl">
     <section>
       <p class="mb-2">{{ translations.settings.security || '-' }}</p>
-      <ui-button class="w-full" @click="resetPasswordDialog">{{
-        translations.settings.resetPassword
-      }}</ui-button>
+      <ui-button class="w-full" @click="resetPasswordDialog">
+        {{ translations.settings.resetPassword }}
+      </ui-button>
     </section>
   </div>
 </template>
@@ -30,56 +30,53 @@ export default {
   setup() {
     const dialog = useDialog();
     const storage = useStorage();
+    const passwordStore = usePasswordStore();
 
     let defaultPath = '';
 
     onMounted(() => {
-      defaultPath = localStorage.getItem('default-path') || ''; // Set defaultPath here
+      defaultPath = localStorage.getItem('default-path') || '';
       state.dataDir = defaultPath;
     });
 
     async function resetPasswordDialog() {
-      const passwordStore = usePasswordStore(); // Get the password store instance
-
       dialog.prompt({
         title: translations.value.settings.resetPasswordTitle,
         okText: translations.value.settings.next,
         cancelText: translations.value.settings.cancel,
         placeholder: translations.value.settings.password,
         onConfirm: async (currentPassword) => {
-          if (currentPassword) {
-            const isCurrentPasswordValid = await passwordStore.isValidPassword(
-              currentPassword
-            );
-            if (isCurrentPasswordValid) {
-              dialog.prompt({
-                title: translations.value.settings.enterNewPassword,
-                okText: translations.value.settings.resetPassword,
-                body: translations.value.settings.warning,
-                cancelText: translations.value.settings.cancel,
-                placeholder: translations.value.settings.newPassword,
-                onConfirm: async (newPassword) => {
-                  if (newPassword) {
-                    try {
-                      // Reset the password
-                      await passwordStore.setsharedKey(newPassword);
-                      console.log('Password reset successful');
-                      alert(translations.value.settings.passwordResetSuccess);
-                    } catch (error) {
-                      console.error('Error resetting password:', error);
-                      alert(translations.value.settings.passwordResetError);
-                    }
-                  } else {
-                    alert(translations.value.settings.invalidPassword);
-                  }
-                },
-              });
-            } else {
-              alert(translations.value.settings.wrongCurrentPassword);
-            }
-          } else {
-            alert(translations.value.settings.invalidPassword);
+          if (!currentPassword) {
+            return alert(translations.value.settings.invalidPassword);
           }
+
+          const isCurrentPasswordValid = await passwordStore.isValidPassword(
+            currentPassword
+          );
+          if (!isCurrentPasswordValid) {
+            return alert(translations.value.settings.wrongCurrentPassword);
+          }
+
+          dialog.prompt({
+            title: translations.value.settings.enterNewPassword,
+            okText: translations.value.settings.resetPassword,
+            body: translations.value.settings.warning,
+            cancelText: translations.value.settings.cancel,
+            placeholder: translations.value.settings.newPassword,
+            onConfirm: async (newPassword) => {
+              if (!newPassword) {
+                return alert(translations.value.settings.invalidPassword);
+              }
+              try {
+                await passwordStore.resetPassword(currentPassword, newPassword);
+                console.log('Password reset successful');
+                alert(translations.value.settings.passwordResetSuccess);
+              } catch (error) {
+                console.error('Error resetting password:', error);
+                alert(translations.value.settings.passwordResetError);
+              }
+            },
+          });
         },
       });
     }
