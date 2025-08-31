@@ -31,6 +31,7 @@
         <note-search
           v-if="showSearch"
           v-bind="{ editor }"
+          @close="closeSearch"
           @keyup.esc="closeSearch"
         />
       </transition>

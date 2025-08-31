@@ -69,138 +69,58 @@
       <p class="mb-2">{{ translations.appearence.interfaceSize || '-' }}</p>
 
       <div class="grid grid-cols-4 gap-4">
-        <!-- Large -->
         <button
+          v-for="opt in [
+            {
+              s: 1.2,
+              key: '1.2',
+              label: translations.appearence.large || 'Large',
+            },
+            {
+              s: 1.1,
+              key: '1.1',
+              label: translations.appearence.medium || 'Medium',
+            },
+            {
+              s: 1.0,
+              key: '1.0',
+              label: translations.appearence.default || 'Default',
+            },
+            {
+              s: 0.9,
+              key: '0.9',
+              label: translations.appearence.moreSpace || 'More Space',
+            },
+          ]"
+          :key="opt.key"
           class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
           :class="{
-            'ring-2 ring-primary border-primary': state.zoomLevel === '1.2',
+            'ring-2 ring-primary border-primary':
+              String(state.zoomLevel) === opt.key,
           }"
-          @click="setZoom(1.2)"
+          :aria-pressed="String(state.zoomLevel) === opt.key"
+          type="button"
+          @click="setZoom(Number(opt.key))"
         >
+          <!-- Fixed-size preview frame -->
           <div
-            class="w-24 h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden flex items-center justify-center"
+            class="w-full h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden relative"
+            :style="`--s:${opt.s}`"
           >
-            <!-- Inner scaled wrapper: width is compensating for scale so it fills the frame -->
-            <div
-              style="
-                --s: 1.2;
-                transform: scale(var(--s));
-                width: calc(100% / var(--s));
-                transform-origin: top left;
-              "
-              class="p-1"
-            >
-              <div class="text-xs leading-4">
-                <div class="font-semibold mb-1 text-center">Lorem Ipsum</div>
-                <div class="text-neutral-600 dark:text-neutral-300 text-center">
+            <!-- Centered, scale-compensated wrapper (prevents clipping at any scale) -->
+            <div class="fit-scale">
+              <div class="p-1 text-center text-xs leading-4">
+                <div class="font-semibold mb-1 truncate">Lorem Ipsum</div>
+                <div
+                  class="text-neutral-600 dark:text-neutral-300 line-clamp-3"
+                >
                   Lorem ipsum dolor sit amet, consectetur adipiscing elit.
                 </div>
               </div>
             </div>
           </div>
-          <p class="capitalize text-center text-sm">
-            {{ translations.appearence.large || 'Large' }}
-          </p>
-        </button>
 
-        <!-- Medium -->
-        <button
-          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-          :class="{
-            'ring-2 ring-primary border-primary': state.zoomLevel === '1.1',
-          }"
-          @click="setZoom(1.1)"
-        >
-          <div
-            class="w-24 h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden flex items-center justify-center"
-          >
-            <div
-              style="
-                --s: 1.1;
-                transform: scale(var(--s));
-                width: calc(100% / var(--s));
-                transform-origin: top left;
-              "
-              class="p-1"
-            >
-              <div class="text-xs leading-4">
-                <div class="font-semibold mb-1 text-center">Lorem Ipsum</div>
-                <div class="text-neutral-600 dark:text-neutral-300 text-center">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                </div>
-              </div>
-            </div>
-          </div>
-          <p class="capitalize text-center text-sm">
-            {{ translations.appearence.medium || 'Medium' }}
-          </p>
-        </button>
-
-        <!-- Default -->
-        <button
-          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-          :class="{
-            'ring-2 ring-primary border-primary': state.zoomLevel === '1.0',
-          }"
-          @click="setZoom(1.0)"
-        >
-          <div
-            class="w-24 h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden flex items-center justify-center"
-          >
-            <div
-              style="
-                --s: 1;
-                transform: scale(var(--s));
-                width: calc(100% / var(--s));
-                transform-origin: top left;
-              "
-              class="p-1"
-            >
-              <div class="text-xs leading-4">
-                <div class="font-semibold mb-1 text-center">Lorem Ipsum</div>
-                <div class="text-neutral-600 dark:text-neutral-300 text-center">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                </div>
-              </div>
-            </div>
-          </div>
-          <p class="capitalize text-center text-sm">
-            {{ translations.appearence.default || 'Default' }}
-          </p>
-        </button>
-
-        <!-- More Space -->
-        <button
-          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-          :class="{
-            'ring-2 ring-primary border-primary': state.zoomLevel === '0.9',
-          }"
-          @click="setZoom(0.9)"
-        >
-          <div
-            class="w-24 h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden flex items-center justify-center"
-          >
-            <div
-              style="
-                --s: 0.9;
-                transform: scale(var(--s));
-                width: calc(100% / var(--s));
-                transform-origin: top left;
-              "
-              class="p-1"
-            >
-              <div class="text-xs leading-4">
-                <div class="font-semibold mb-1 text-center">Lorem Ipsum</div>
-                <div class="text-neutral-600 dark:text-neutral-300 text-center">
-                  Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed
-                  do eiusmod tempor.
-                </div>
-              </div>
-            </div>
-          </div>
-          <p class="capitalize text-center text-sm">
-            {{ translations.appearence.moreSpace || 'More Space' }}
-          </p>
+          <p class="capitalize text-center text-sm">{{ opt.label }}</p>
         </button>
       </div>
     </section>
@@ -595,3 +515,29 @@ export default {
   },
 };
 </script>
+<style scoped>
+/* Absolutely center the preview; size-compensate so scale never overflows */
+.fit-scale {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* compensate size so the scaled content fits within the frame */
+  width: calc(100% / var(--s));
+  height: calc(100% / var(--s));
+  transform: translate(-50%, -50%) scale(var(--s));
+  transform-origin: center center;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* crisp rendering; avoids subpixel fuzz */
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Optional: reduce jitter on some browsers */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+</style>

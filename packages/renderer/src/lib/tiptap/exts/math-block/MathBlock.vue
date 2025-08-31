@@ -42,7 +42,7 @@
 
     <!-- Scrollable output container -->
     <div
-      class="overflow-x-auto max-w-full p-2 rounded bg-white dark:bg-neutral-900"
+      class="overflow-x-auto max-w-full p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900"
       style="white-space: nowrap"
     >
       <p
