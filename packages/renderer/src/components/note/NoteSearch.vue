@@ -5,7 +5,8 @@
     <div
       class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
-      <div className="flex items-center p-2 space-x-2">
+      <!-- Desktop Layout -->
+      <div class="hidden sm:flex items-center p-2 space-x-2">
         <!-- Regex Toggle Button -->
         <ui-button
           v-tooltip="translations.search.useRegex"
@@ -96,6 +97,147 @@
           />
         </ui-button>
       </div>
+
+      <!-- Mobile Layout -->
+      <div class="sm:hidden">
+        <!-- Search Row -->
+        <div class="flex items-center p-2 space-x-2">
+          <!-- Search Term Input -->
+          <div class="relative flex-1">
+            <ui-input
+              v-model="state.query"
+              autofocus
+              prepend-icon="riSearchLine"
+              :placeholder="translations.search.searchPlaceholder"
+              class="w-full editor-search"
+              @keyup="startSearch"
+            />
+            <div
+              class="absolute right-2 rtl:left-2 top-1/2 transform -translate-y-1/2 text-sm opacity-40 font-medium"
+            >
+              {{
+                props.editor?.storage?.searchAndReplace?.resultIndex + 1 || 0
+              }}
+              /
+              {{
+                props.editor?.storage?.searchAndReplace?.results?.length || 0
+              }}
+            </div>
+          </div>
+
+          <!-- Navigation Controls -->
+          <div class="flex items-center space-x-1">
+            <!-- Find Previous Button -->
+            <ui-button
+              :disabled="
+                !state.query ||
+                (props.editor?.storage?.searchAndReplace?.results?.length ||
+                  0) === 0
+              "
+              icon
+              class="p-2"
+              @click="findPreviousResult"
+            >
+              <v-remixicon
+                name="riArrowUpLine"
+                class="w-4 h-4 text-neutral-600 dark:text-neutral-400"
+              />
+            </ui-button>
+
+            <!-- Find Next Button -->
+            <ui-button
+              :disabled="
+                !state.query ||
+                (props.editor?.storage?.searchAndReplace?.results?.length ||
+                  0) === 0
+              "
+              icon
+              class="p-2"
+              @click="findNextResult"
+            >
+              <v-remixicon
+                name="riArrowDownLine"
+                class="w-4 h-4 text-neutral-600 dark:text-neutral-400"
+              />
+            </ui-button>
+          </div>
+
+          <!-- Toggle Replace Button -->
+          <ui-button
+            icon
+            class="p-2"
+            @click="state.showReplace = !state.showReplace"
+          >
+            <v-remixicon
+              :name="state.showReplace ? 'riArrowUpSLine' : 'riArrowDownSLine'"
+              class="w-4 h-4 text-neutral-600 dark:text-neutral-400"
+            />
+          </ui-button>
+
+          <!-- Close Button (you'll need to emit this or handle closing) -->
+          <ui-button icon class="p-2" @click="$emit('close')">
+            <v-remixicon
+              name="riCloseLine"
+              class="w-4 h-4 text-neutral-600 dark:text-neutral-400"
+            />
+          </ui-button>
+        </div>
+
+        <!-- Replace Row (Collapsible) -->
+        <div
+          :class="[
+            'transition-all duration-200 ease-in-out overflow-hidden',
+            state.showReplace ? 'max-h-20 opacity-100' : 'max-h-0 opacity-0',
+          ]"
+        >
+          <div class="border-t border-neutral-200 dark:border-neutral-700 p-2">
+            <div class="flex items-center space-x-2">
+              <!-- Replace Input -->
+              <ui-input
+                v-model="state.replaceWith"
+                :placeholder="translations.search.replacePlaceholder"
+                class="flex-1"
+                @keyup="startSearch"
+              />
+
+              <!-- Replace Controls -->
+              <div class="flex items-center space-x-1">
+                <!-- Replace Button -->
+                <ui-button
+                  :disabled="!state.replaceWith || !state.query"
+                  class="px-3 py-2 text-xs"
+                  @click="replaceText"
+                >
+                  {{ translations.search.replace || 'Replace' }}
+                </ui-button>
+
+                <!-- Replace All Button -->
+                <ui-button
+                  :disabled="!state.replaceWith || !state.query"
+                  class="px-3 py-2 text-xs"
+                  @click="replaceAllText"
+                >
+                  {{ translations.search.replaceAll || 'All' }}
+                </ui-button>
+
+                <!-- Case Sensitivity Toggle -->
+                <ui-button
+                  :class="[
+                    'p-2 transition-colors',
+                    state.caseSensitive
+                      ? 'bg-secondary bg-opacity-20 text-primary'
+                      : 'text-neutral-600 dark:text-neutral-400',
+                  ]"
+                  icon
+                  @click="toggleCaseSensitive"
+                >
+                  <v-remixicon name="riFontSize" class="w-4 h-4" />
+                </ui-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -116,12 +258,14 @@ export default {
       default: null,
     },
   },
+  emits: ['close'],
   setup(props) {
     const state = shallowReactive({
       query: '',
       replaceWith: '',
       useRegex: false,
       caseSensitive: false,
+      showReplace: false, // Added for mobile toggle
     });
 
     function toggleRegex() {
