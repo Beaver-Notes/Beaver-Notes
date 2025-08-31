@@ -32,6 +32,14 @@
       <button
         icon
         class="text-neutral-600 dark:text-neutral-200"
+        title="Open link"
+        @click="handleClick"
+      >
+        <v-remixicon name="riExternalLinkLine" />
+      </button>
+      <button
+        icon
+        class="text-neutral-600 dark:text-neutral-200"
         title="Remove link"
         @click="editor.chain().focus().unsetLink().run()"
       >
@@ -55,7 +63,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useTranslation } from '@/composable/translations';
 import { useNoteStore } from '@/store/note';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 export default {
   props: {
@@ -66,6 +74,7 @@ export default {
   },
   setup(props) {
     const route = useRoute();
+    const router = useRouter();
     const noteStore = useNoteStore();
 
     const selectedNoteIndex = ref(0);
@@ -105,6 +114,21 @@ export default {
         .extendMarkRange('link')
         .setLink({ href: value })
         .run();
+    }
+    function handleClick() {
+      const href = props.editor.getAttributes('link')?.href;
+
+      if (!href) return;
+
+      if (href.startsWith('note://')) {
+        const noteId = href.slice(7);
+        router.push({
+          params: { id: noteId },
+          query: { linked: true },
+        });
+      } else {
+        window.open(href, '_blank', 'noopener');
+      }
     }
     function keydownHandler(event) {
       if (!currentLinkVal.value.startsWith('@')) return;
@@ -153,6 +177,7 @@ export default {
       currentLinkVal,
       selectedNoteIndex,
       updateCurrentLink,
+      handleClick,
       keyBinding,
     };
   },
