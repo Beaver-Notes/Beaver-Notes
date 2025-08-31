@@ -64,31 +64,44 @@ export const usePasswordStore = defineStore('password', {
       try {
         const encryptionAvailable = await isEncryptionAvailable();
 
-        if (!encryptionAvailable) {
+        if (encryptionAvailable) {
+          // Normal case: read encrypted file
+          const encryptedBase64 = await this.readEncryptedFile();
+
+          if (!encryptedBase64) {
+            // Check for legacy storage for migration
+            const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
+            if (legacyPassword) {
+              // Auto-migrate legacy
+              await this.importSharedKey(
+                legacyPassword,
+                deriveKeyFromPassword(legacyPassword)
+              );
+              return this.sharedKey;
+            }
+
+            this.sharedKey = '';
+            return '';
+          }
+
+          const decrypted = await decryptString(encryptedBase64);
+
+          try {
+            const parsed = JSON.parse(decrypted);
+            this.sharedKey = parsed.hash;
+            this.derivedKey = parsed.key;
+          } catch {
+            // fallback: legacy data
+            this.sharedKey = decrypted;
+          }
+
+          return this.sharedKey;
+        } else {
+          // Fallback to legacy system
           const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
           this.sharedKey = legacyPassword;
           return legacyPassword;
         }
-
-        const encryptedBase64 = await this.readEncryptedFile();
-
-        if (!encryptedBase64) {
-          this.sharedKey = '';
-          return '';
-        }
-
-        const decrypted = await decryptString(encryptedBase64);
-
-        try {
-          const parsed = JSON.parse(decrypted);
-          this.sharedKey = parsed.hash;
-          this.derivedKey = parsed.key;
-        } catch {
-          // fallback: legacy data
-          this.sharedKey = decrypted;
-        }
-
-        return this.sharedKey;
       } catch (error) {
         console.error('Error retrieving global password:', error);
         return '';
@@ -105,7 +118,6 @@ export const usePasswordStore = defineStore('password', {
         const encryptionAvailable = await isEncryptionAvailable();
 
         if (encryptionAvailable) {
-          // Store both bcrypt and derived key if needed
           const encrypted = await encryptString(
             JSON.stringify({
               hash: hashedPassword,

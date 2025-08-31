@@ -365,6 +365,7 @@ export default {
         data['lockedNotes'] = JSON.parse(localStorage.getItem('lockedNotes'));
         await passwordStore.retrieve();
         data['sharedKey'] = passwordStore.sharedKey;
+        data['derivedKey'] = passwordStore.derivedKey;
         if (state.withPassword) {
           data = AES.encrypt(JSON.stringify(data), state.password).toString();
         }
@@ -508,6 +509,13 @@ export default {
                   localStorage.setItem(
                     'isLocked',
                     JSON.stringify(importedIsLocked)
+                  );
+                }
+
+                if (data['sharedKey']) {
+                  await passwordStore.importSharedKey(
+                    data['sharedKey'],
+                    data['derivedKey']
                   );
                 }
 

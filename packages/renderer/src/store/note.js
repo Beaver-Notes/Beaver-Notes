@@ -140,7 +140,6 @@ export const useNoteStore = defineStore('note', {
         const localStorageData = await storage.get('notes', {});
         this.data = { ...piniaData, ...localStorageData };
 
-        // Only run migration if it hasn't been completed
         const migrationCompleted = await storage.get(
           'migration_completed',
           false
@@ -158,12 +157,9 @@ export const useNoteStore = defineStore('note', {
     },
 
     async migrateLockData() {
-      console.log('Running one-time lock data migration...');
-
       const lockStatusData = await storage.get('lockStatus', {});
       const isLockedData = await storage.get('isLocked', {});
 
-      // Only migrate if there's actually old data to migrate
       if (
         Object.keys(lockStatusData).length === 0 &&
         Object.keys(isLockedData).length === 0
@@ -179,27 +175,22 @@ export const useNoteStore = defineStore('note', {
           lockStatusData[noteId] === 'locked' || isLockedData[noteId] === true;
         const currentLockStatus = this.data[noteId].isLocked;
 
-        // Only update if there's legacy data indicating this note should be locked
-        // and it's not already locked
         if (wasLocked && !currentLockStatus) {
           this.data[noteId].isLocked = true;
           hasChanges = true;
           console.log(`Migrated lock status for note ${noteId}`);
         }
-        // Don't modify notes that are already correctly locked or unlocked
       }
 
       if (hasChanges) {
-        // Save each note individually (following Pinia pattern)
         for (const noteId in this.data) {
           await storage.set(`notes.${noteId}`, this.data[noteId]);
         }
-        console.log('Lock data migration completed with changes');
+        await this.retrieve();
       } else {
         console.log('Lock data migration completed - no changes needed');
       }
 
-      // Clean up old storage keys
       await storage.delete('lockStatus');
       await storage.delete('isLocked');
     },
@@ -510,7 +501,7 @@ export const useNoteStore = defineStore('note', {
 
         await trackChange(`notes.${id}`, this.data[id]);
 
-        console.log(`Note ${id} locked successfully`);
+        await this.retrieve();
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -576,7 +567,7 @@ export const useNoteStore = defineStore('note', {
         await storage.set(`notes.${id}`, this.data[id]);
         await trackChange(`notes.${id}`, this.data[id]);
 
-        console.log(`Note ${id} unlocked successfully`);
+        await this.retrieve();
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
