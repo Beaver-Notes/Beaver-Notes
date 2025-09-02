@@ -116,7 +116,6 @@ export default {
     const labelStore = useLabelStore();
     const appStore = useAppStore();
     const dialog = useDialog();
-    const userPassword = ref('');
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -279,18 +278,26 @@ export default {
         placeholder: translations.value.card.password,
         onConfirm: async (enteredPassword) => {
           try {
-            const isValidPassword = await passwordStore.isValidPassword(
-              enteredPassword
-            );
-            if (isValidPassword) {
-              console.log(translations.value.card.passwordCorrect);
-              // Note unlocked
-              userPassword.value = '';
-              await noteStore.unlockNote(note, enteredPassword);
-              console.log(`Note (ID: ${note}) is unlocked`);
+            const hassharedKey = await passwordStore.retrieve();
+
+            if (!hassharedKey) {
+              try {
+                console.log('test');
+                await noteStore.unlockNote(note, enteredPassword);
+                await passwordStore.setsharedKey(enteredPassword);
+              } catch (error) {
+                alert(translations.value.card.wrongPasswd);
+                return;
+              }
             } else {
-              console.log(translations.value.card.wrongPasswd);
-              alert(translations.value.card.wrongPasswd);
+              const isValidPassword = await passwordStore.isValidPassword(
+                enteredPassword
+              );
+              if (isValidPassword) {
+                await noteStore.unlockNote(note, enteredPassword);
+              } else {
+                alert(translations.value.card.wrongPasswd);
+              }
             }
           } catch (error) {
             console.error('Error unlocking note:', error);

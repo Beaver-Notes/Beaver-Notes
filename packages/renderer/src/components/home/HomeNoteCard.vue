@@ -225,13 +225,26 @@ async function unlockNote(note) {
     placeholder: translations.value.card.password,
     onConfirm: async (enteredPassword) => {
       try {
-        const isValidPassword = await passwordStore.isValidPassword(
-          enteredPassword
-        );
-        if (isValidPassword) {
-          await noteStore.unlockNote(note, enteredPassword);
+        const hassharedKey = await passwordStore.retrieve();
+
+        if (!hassharedKey) {
+          try {
+            console.log('test');
+            await noteStore.unlockNote(note, enteredPassword);
+            await passwordStore.setsharedKey(enteredPassword);
+          } catch (error) {
+            alert(translations.value.card.wrongPasswd);
+            return;
+          }
         } else {
-          alert(translations.value.card.wrongPasswd);
+          const isValidPassword = await passwordStore.isValidPassword(
+            enteredPassword
+          );
+          if (isValidPassword) {
+            await noteStore.unlockNote(note, enteredPassword);
+          } else {
+            alert(translations.value.card.wrongPasswd);
+          }
         }
       } catch (error) {
         console.error('Error unlocking note:', error);

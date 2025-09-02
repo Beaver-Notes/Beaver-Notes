@@ -65,14 +65,11 @@ export const usePasswordStore = defineStore('password', {
         const encryptionAvailable = await isEncryptionAvailable();
 
         if (encryptionAvailable) {
-          // Normal case: read encrypted file
           const encryptedBase64 = await this.readEncryptedFile();
 
           if (!encryptedBase64) {
-            // Check for legacy storage for migration
             const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
             if (legacyPassword) {
-              // Auto-migrate legacy
               await this.importSharedKey(
                 legacyPassword,
                 deriveKeyFromPassword(legacyPassword)
@@ -91,13 +88,11 @@ export const usePasswordStore = defineStore('password', {
             this.sharedKey = parsed.hash;
             this.derivedKey = parsed.key;
           } catch {
-            // fallback: legacy data
             this.sharedKey = decrypted;
           }
 
           return this.sharedKey;
         } else {
-          // Fallback to legacy system
           const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
           this.sharedKey = legacyPassword;
           return legacyPassword;
