@@ -12,11 +12,16 @@ export const useAppStore = defineStore('appStore', () => {
       defaultValue: true,
       parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
     }),
+    openAfterCreation: useLocalStorage('openAfterCreation', {
+      defaultValue: true,
+      parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
+    }),
   };
 
   const setting = ref({
     collapsibleHeading: settingStorage.collapsibleHeading.get(),
     openLastEdited: settingStorage.openLastEdited.get(),
+    openAfterCreation: settingStorage.openAfterCreation.get(),
   });
 
   const loading = ref(false);

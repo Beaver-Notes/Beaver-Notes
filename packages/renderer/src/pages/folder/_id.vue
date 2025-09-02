@@ -265,11 +265,11 @@ export default {
     }
 
     watch(
-      () => noteStore.data,
-      () => {
-        state.notes = noteStore.notes.map(extractNoteContent);
+      () => noteStore.notes,
+      (notes) => {
+        state.notes = notes.map(extractNoteContent);
       },
-      { immediate: true, deep: true }
+      { immediate: true }
     );
 
     watch(

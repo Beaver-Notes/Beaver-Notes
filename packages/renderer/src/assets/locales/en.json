@@ -275,6 +275,7 @@
     "spellCheck": "Spellcheck",
     "syncPath": "Sync path",
     "title": "Settings",
+    "openAfterCreation": "Open Note After Creation",
     "updateAvailable": "A new update is available",
     "updateDescription": "An update is being installed. The app will close automatically when the update has completed.",
     "updateTitle": "Installing Update...",

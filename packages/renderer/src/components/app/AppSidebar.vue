@@ -91,12 +91,14 @@ import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '../../store/folder';
 import { forceSyncNow } from '@/utils/sync';
+import { useAppStore } from '../../store/app';
 
 export default {
   setup() {
     const spinning = ref(false);
     const theme = useTheme();
     const router = useRouter();
+    const appStore = useAppStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const defaultPath = localStorage.getItem('default-path');
@@ -157,15 +159,22 @@ export default {
     function openSettings() {
       router.push('/settings');
     }
+
     function openLastEdited() {
       const noteId = localStorage.getItem('lastNoteEdit');
-
       if (noteId) router.push(`/note/${noteId}`);
     }
 
     function addNote() {
       noteStore.add().then(({ id }) => {
-        router.push(`/note/${id}`);
+        if (appStore.setting.openAfterCreation) {
+          const target = `/note/${id}`;
+          if (router.currentRoute.value.path !== target) {
+            router.push(`/note/${id}`);
+          }
+        } else {
+          // do nothing
+        }
       });
     }
 

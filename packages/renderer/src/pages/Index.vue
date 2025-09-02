@@ -316,11 +316,10 @@ export default {
 
       handleDragEnd();
     }
-
     watch(
-      () => noteStore.data,
-      () => {
-        state.notes = noteStore.notes.map(extractNoteContent);
+      () => noteStore.notes,
+      (notes) => {
+        state.notes = notes.map(extractNoteContent);
       },
       { immediate: true }
     );
