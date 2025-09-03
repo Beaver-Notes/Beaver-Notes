@@ -85,7 +85,7 @@
 import { shallowReactive, onUnmounted, onMounted, computed, ref } from 'vue';
 import { useTranslation } from '@/composable/translations';
 import { useTheme } from '@/composable/theme';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
@@ -97,6 +97,7 @@ export default {
   setup() {
     const spinning = ref(false);
     const theme = useTheme();
+    const route = useRoute();
     const router = useRouter();
     const appStore = useAppStore();
     const noteStore = useNoteStore();
@@ -165,21 +166,33 @@ export default {
       if (noteId) router.push(`/note/${noteId}`);
     }
 
-    function addNote() {
-      noteStore.add().then(({ id }) => {
+    const FolderId = computed(() => route.params.id ?? null);
+
+    async function addNote() {
+      const currentFolderId = FolderId.value;
+      const folderId =
+        currentFolderId && (await folderStore.exists(currentFolderId))
+          ? currentFolderId
+          : null;
+
+      noteStore.add({ folderId }).then(({ id }) => {
         if (appStore.setting.openAfterCreation) {
           const target = `/note/${id}`;
           if (router.currentRoute.value.path !== target) {
-            router.push(`/note/${id}`);
+            router.push(target);
           }
-        } else {
-          // do nothing
         }
       });
     }
 
-    function addFolder() {
-      folderStore.add().then(({ id }) => {
+    async function addFolder() {
+      const currentFolderId = FolderId.value;
+      const parentId =
+        currentFolderId && (await folderStore.exists(currentFolderId))
+          ? currentFolderId
+          : null;
+
+      folderStore.add({ parentId }).then(({ id }) => {
         console.log(`${id}`);
       });
     }
@@ -226,6 +239,7 @@ export default {
       translations,
       theme,
       spinning,
+      FolderId,
       addNote,
       addFolder,
       noteStore,

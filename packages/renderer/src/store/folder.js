@@ -130,7 +130,7 @@ export const useFolderStore = defineStore('folder', {
         const id = folder.id || nanoid();
         const newFolder = {
           id,
-          name: folder.name || 'New Folder',
+          name: folder.name || '',
           parentId: folder.parentId || null,
           createdAt: Date.now(),
           updatedAt: Date.now(),

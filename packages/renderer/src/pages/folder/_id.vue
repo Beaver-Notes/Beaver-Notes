@@ -13,11 +13,11 @@
           :style="{ color: folder.color || '#6B7280' }"
         />
         <h1 class="text-2xl md:text-3xl font-bold">
-          {{ folder.name }}
+          {{ folder.name || translations.index.untitledFolder }}
         </h1>
       </div>
 
-      <nav aria-label="Breadcrumb" class="text-sm text-neutral-500">
+      <nav aria-label="Breadcrumb" class="text-sm">
         <ol class="flex flex-wrap items-center gap-1">
           <li>
             <router-link to="/" class="hover:text-primary font-medium">
@@ -35,10 +35,10 @@
                 :to="`/folder/${pathFolder.id}`"
                 class="hover:text-primary"
               >
-                {{ pathFolder?.name || '...' }}
+                {{ pathFolder?.name || translations.index.untitledFolder }}
               </router-link>
-              <span v-else class="font-medium text-neutral-900">
-                {{ pathFolder?.name || '...' }}
+              <span v-else class="font-medium">
+                {{ pathFolder?.name || translations.index.untitledFolder }}
               </span>
             </li>
           </template>

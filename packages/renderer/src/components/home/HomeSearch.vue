@@ -16,7 +16,7 @@
         />
       </div>
       <span
-        class="text-sm text-neutral-600 dark:text-neutral-300 ml-2 hidden md:block"
+        class="text-sm text-neutral-600 dark:text-neutral-300 mt-1 hidden md:block"
       >
         {{ keyBinding }} {{ translations.filter.search || '-' }}
       </span>
@@ -134,8 +134,16 @@ export default {
       };
     });
 
-    Mousetrap.bind(isMacOS ? 'mod+f' : 'ctrl+f', () => {
-      document.querySelector('.note-search-input input')?.focus();
+    onMounted(async () => {
+      const combo = isMacOS ? 'mod+f' : 'ctrl+f';
+
+      Mousetrap.bind(combo, (e) => {
+        e.preventDefault();
+        document.querySelector('.note-search-input input')?.focus();
+      });
+
+      const trans = await useTranslation();
+      if (trans) translations.value = trans;
     });
 
     onUnmounted(() => {

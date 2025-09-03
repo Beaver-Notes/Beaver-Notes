@@ -5,7 +5,7 @@
   >
     <div>
       <div class="font-semibold text-lg block line-clamp leading-tight">
-        {{ note.title }}
+        {{ note.title || translations.card.untitledNote }}
       </div>
       <div
         v-if="note.labels.length !== 0"

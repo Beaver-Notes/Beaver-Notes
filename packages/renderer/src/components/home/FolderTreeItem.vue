@@ -35,7 +35,7 @@
         />
       </div>
       <span class="flex-1" :class="{ 'text-neutral-800': isCurrentFolder }">
-        {{ folder.name }}
+        {{ folder.name || translations.folderTree.untitledFolder }}
       </span>
     </div>
 
@@ -54,8 +54,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useFolderStore } from '@/store/folder';
+import { useTranslation } from '@/composable/translations';
 
 const props = defineProps({
   folder: {
@@ -89,4 +90,16 @@ const isSelected = computed(() => props.selectedId === props.folder.id);
 const isCurrentFolder = computed(
   () => props.currentNoteFolder === props.folder.id
 );
+
+const translations = ref({
+  folderTree: {},
+});
+
+onMounted(async () => {
+  await useTranslation().then((trans) => {
+    if (trans) {
+      translations.value = trans;
+    }
+  });
+});
 </script>

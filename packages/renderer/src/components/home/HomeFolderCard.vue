@@ -138,7 +138,7 @@
         class="block group truncate font-medium hover:text-primary transition-colors"
         @dblclick.prevent="startRenaming"
       >
-        {{ folder.name }}
+        {{ folder.name || translations.card.untitledFolder }}
       </router-link>
 
       <input
