@@ -150,6 +150,11 @@ import dayjs from 'dayjs';
 export default {
   components: { HomeNoteCard, HomeSearch, HomeFolderCard },
   setup() {
+    const translations = ref({
+      sidebar: {},
+      card: {},
+      index: {},
+    });
     const folderId = computed(() => route.params.id);
     const currentFolderId = computed(() => route.params.id);
     const disableDialog = ref(false);
@@ -212,6 +217,11 @@ export default {
           return;
         }
 
+        const normalizedTitle =
+          title && title.trim() !== ''
+            ? title
+            : translations.value.card?.untitledNote || '';
+
         labels = labels.sort((a, b) => a.localeCompare(b));
 
         const labelFilter = state.activeLabel
@@ -226,7 +236,7 @@ export default {
           : labels.some((label) =>
               label.toLocaleLowerCase().includes(queryLower)
             ) ||
-            title.toLocaleLowerCase().includes(queryLower) ||
+            normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
             content.toLocaleLowerCase().includes(queryLower);
 
         if (isMatch && labelFilter) {
@@ -243,8 +253,13 @@ export default {
 
     function filterFolders(folders) {
       return folders.filter((folder) => {
+        const normalizedName =
+          folder.name && folder.name.trim() !== ''
+            ? folder.name
+            : translations.value.card?.untitledFolder || '';
+
         const queryLower = state.query.toLocaleLowerCase();
-        const matchesQuery = folder.name
+        const matchesQuery = normalizedName
           .toLocaleLowerCase()
           .includes(queryLower);
 
@@ -341,11 +356,6 @@ export default {
 
     onUnmounted(() => {
       keyboardNavigation.value.destroy();
-    });
-
-    const translations = ref({
-      sidebar: {},
-      index: {},
     });
 
     onMounted(async () => {

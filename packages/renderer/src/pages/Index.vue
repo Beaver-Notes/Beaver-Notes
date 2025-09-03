@@ -125,6 +125,11 @@ import HomeSearch from '../components/home/HomeSearch.vue';
 export default {
   components: { HomeNoteCard, HomeSearch, HomeFolderCard },
   setup() {
+    const translations = ref({
+      sidebar: {},
+      index: {},
+      card: {},
+    });
     const highlightedFolderIds = ref(new Set());
     const disableDialog = ref(false);
     const theme = useTheme();
@@ -190,6 +195,11 @@ export default {
         let { title, content, isArchived, isBookmarked, labels, folderId } =
           note;
 
+        const normalizedTitle =
+          title && title.trim() !== ''
+            ? title
+            : translations.value.card?.untitledNote || '';
+
         labels = labels.sort((a, b) => a.localeCompare(b));
 
         const labelFilter = state.activeLabel
@@ -204,7 +214,7 @@ export default {
           : labels.some((label) =>
               label.toLocaleLowerCase().includes(queryLower)
             ) ||
-            title.toLocaleLowerCase().includes(queryLower) ||
+            normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
             content.toLocaleLowerCase().includes(queryLower);
 
         if (isMatch && labelFilter) {
@@ -226,8 +236,13 @@ export default {
 
     function filterFolders(folders) {
       return folders.filter((folder) => {
+        const normalizedName =
+          folder.name && folder.name.trim() !== ''
+            ? folder.name
+            : translations.value.card?.untitledFolder || '';
+
         const queryLower = state.query.toLocaleLowerCase();
-        const matchesSelf = folder.name
+        const matchesSelf = normalizedName
           .toLocaleLowerCase()
           .includes(queryLower);
 
@@ -393,11 +408,6 @@ export default {
 
     onUnmounted(() => {
       keyboardNavigation.value.destroy();
-    });
-
-    const translations = ref({
-      sidebar: {},
-      index: {},
     });
 
     onMounted(async () => {
