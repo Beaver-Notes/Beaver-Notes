@@ -314,7 +314,7 @@
           <ui-popover padding="p-2 flex flex-col print:hidden">
             <template #trigger>
               <button
-                v-tooltip.group="translations.menu.audio || 'Audio'"
+                v-tooltip.group="translations.menu.audio"
                 class="transition hoverable h-8 px-1 rounded-lg space-x-1"
               >
                 <v-remixicon name="riMicLine" />
@@ -333,7 +333,7 @@
                 <p
                   class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
                 >
-                  {{ translations.menu.startRecording || 'Record' }}
+                  {{ translations.menu.record }}
                 </p>
               </div>
             </button>
@@ -350,7 +350,7 @@
                 <p
                   class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
                 >
-                  {{ translations.menu.uploadAudio || 'Upload' }}
+                  {{ translations.menu.upload }}
                 </p>
               </div>
             </button>

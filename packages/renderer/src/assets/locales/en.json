@@ -56,7 +56,9 @@
     "moveToFolder": "Move to folder",
     "rename": "Rename",
     "noEmojis": "No emojis found",
-    "noEmojisMessage": "Try a different search term or category"
+    "noEmojisMessage": "Try a different search term or category",
+    "untitledNote": "Untitled note",
+    "untitledFolder": "Untitled folder"
   },
   "folderTree": {
     "noFolders": "No folders available",
@@ -64,7 +66,8 @@
     "cancel": "Cancel",
     "move": "Move",
     "moveToFolder": "Move Note to Folder",
-    "root": "Root"
+    "root": "Root",
+    "untitledFolder": "Untitled folder"
   },
   "commandPrompt": {
     "placeholder": "Search file or type '>' to search commands",
@@ -115,7 +118,8 @@
     "close": "Close",
     "newNote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left",
     "search": "Search something...",
-    "notFound": "No options found"
+    "notFound": "No options found",
+    "untitledFolder": "Untitled folder"
   },
   "menu": {
     "add": "Add",
@@ -164,6 +168,7 @@
     "purpleCallout": "Purple Callout",
     "readerMode": "Reader Mode",
     "record": "Record",
+    "upload": "Upload",
     "redCallout": "Red Callout",
     "resume": "Resume",
     "searchHeadings": "Search headings",
