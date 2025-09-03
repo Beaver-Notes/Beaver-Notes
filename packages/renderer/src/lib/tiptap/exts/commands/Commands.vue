@@ -38,6 +38,7 @@ import {
   computed,
   getCurrentInstance,
 } from 'vue';
+import mime from 'mime';
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
@@ -129,18 +130,11 @@ export default {
       try {
         const filePaths = await ipcRenderer.callMain('dialog:open', {
           properties: ['openFile', 'multiSelections'],
-          filters: [
-            {
-              name: 'Files',
-              extensions: ['pdf', 'docx', 'txt', 'png', 'jpg', 'jpeg'],
-            },
-          ],
         });
 
         if (!filePaths || filePaths.length === 0) return;
 
         for (const path of filePaths) {
-          // You might need to adapt saveFile to accept paths instead of File objects
           const { fileName, relativePath } = await saveFile(path, props.id);
 
           props.command({
@@ -162,30 +156,63 @@ export default {
       try {
         const filePaths = await ipcRenderer.callMain('dialog:open', {
           properties: ['openFile', 'multiSelections'],
-          filters: [{ name: 'Videos', extensions: ['mp4', 'mov', 'webm'] }],
+          // no filters → user can pick anything
         });
 
-        if (!filePaths || filePaths.length === 0) return;
+        if (!filePaths?.length) return;
 
         for (const path of filePaths) {
           const { relativePath } = await saveFile(path, props.id);
+          const type = mime.getType(path) || '';
 
-          props.command({
-            editor: props.editor,
-            range: props.range,
-            props: {
-              action: () => {
-                props.editor.commands.setVideo(relativePath);
+          if (type.startsWith('video/')) {
+            props.command({
+              editor: props.editor,
+              range: props.range,
+              props: {
+                action: () => props.editor.commands.setVideo(relativePath),
               },
-            },
-          });
+            });
+          } else {
+            console.warn(`Skipped non-video file: ${path} (${type})`);
+          }
         }
       } catch (error) {
         console.error(error);
       }
     };
 
-    // List of items to display in the menu
+    // Audio handler
+    const handleAudioSelect = async () => {
+      try {
+        const filePaths = await ipcRenderer.callMain('dialog:open', {
+          properties: ['openFile', 'multiSelections'],
+          // no filters → user can pick anything
+        });
+
+        if (!filePaths?.length) return;
+
+        for (const path of filePaths) {
+          const { relativePath } = await saveFile(path, props.id);
+          const type = mime.getType(path) || '';
+
+          if (type.startsWith('audio/')) {
+            props.command({
+              editor: props.editor,
+              range: props.range,
+              props: {
+                action: () => props.editor.commands.setAudio(relativePath),
+              },
+            });
+          } else {
+            console.warn(`Skipped non-audio file: ${path} (${type})`);
+          }
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     const items = ref([
       {
         icon: 'riParagraph',
@@ -312,6 +339,13 @@ export default {
         name: 'video',
         action: () => {
           handleVideoSelect();
+        },
+      },
+      {
+        icon: 'riMicLine',
+        name: 'audio',
+        action: () => {
+          handleAudioSelect();
         },
       },
       {

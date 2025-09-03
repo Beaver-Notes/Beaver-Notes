@@ -167,7 +167,7 @@ export default {
         const focusedElement = optionRefs.value[newIndex];
         if (focusedElement && focusedElement.scrollIntoView) {
           focusedElement.scrollIntoView({
-            block: 'nearest',
+            block: 'center',
             behavior: 'smooth',
           });
         }
