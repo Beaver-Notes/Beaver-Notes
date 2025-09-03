@@ -1,28 +1,33 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div
-    :class="{ 'inline-block': !block }"
-    class="ui-select cursor-pointer rtl:-rotate-180"
-  >
-    <label v-if="label" :for="selectId" class="text-neutral-200 text-sm ml-2">
+  <div :class="{ 'inline-block': !block }" class="ui-select cursor-pointer">
+    <label
+      v-if="label"
+      :for="selectId"
+      class="text-neutral-200 text-sm ml-2 rtl:ml-0 rtl:mr-2"
+    >
       {{ label }}
     </label>
+
     <div
       class="ui-select__content flex items-center w-full block transition focus-within:ring-2 ring-secondary bg-input rounded-lg appearance-none focus:outline-none relative"
     >
+      <!-- Prepend icon -->
       <v-remixicon
         v-if="prependIcon"
         size="20"
         :name="prependIcon"
-        class="absolute text-neutral-600 dark:text-neutral-200 left-0 ml-2"
+        class="absolute text-neutral-600 dark:text-neutral-200 left-0 ml-2 rtl:left-auto rtl:right-0 rtl:mr-2 rtl:ml-0"
       />
 
       <!-- Custom Select Button -->
       <button
         :id="selectId"
         ref="selectButton"
-        :class="{ 'pl-8': prependIcon }"
-        class="px-4 rtl:rotate-180 pr-8 bg-transparent py-2 z-10 w-full h-full text-left focus:outline-none"
+        :class="[
+          prependIcon ? 'pl-8 rtl:pl-0 rtl:pr-8' : '',
+          'px-4 pr-8 py-2 z-10 w-full h-full text-left rtl:text-right bg-transparent focus:outline-none',
+        ]"
         type="button"
         :aria-labelledby="label ? `${selectId}-label` : undefined"
         :aria-haspopup="true"
@@ -39,12 +44,12 @@
         </span>
       </button>
 
-      <!-- Dropdown Arrow -->
+      <!-- Dropdown Arrow (rotate only when open, not for RTL) -->
       <v-remixicon
         size="28"
         name="riArrowDropDownLine"
         :class="{ 'rotate-180': isOpen }"
-        class="absolute text-neutral-600 dark:text-neutral-200 mr-2 right-0 rtl:right-auto rtl:left-0 transition-transform duration-200 pointer-events-none"
+        class="absolute text-neutral-600 dark:text-neutral-200 mr-2 right-0 rtl:right-auto rtl:left-0 rtl:ml-2 rtl:mr-0 transition-transform duration-200 pointer-events-none"
       />
 
       <!-- Dropdown Menu -->
@@ -59,7 +64,7 @@
         <div
           v-if="isOpen"
           ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-lg z-50 max-h-60 overflow-hidden"
+          class="absolute top-full left-0 right-0 mt-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-lg z-50"
         >
           <!-- Search Input -->
           <div
@@ -76,9 +81,8 @@
             />
           </div>
 
-          <!-- Options Container -->
+          <!-- Options -->
           <div class="max-h-48 overflow-y-auto">
-            <!-- Placeholder Option -->
             <div
               v-if="placeholder && !hideePlaceholderInDropdown"
               class="px-4 py-2 hover:bg-neutral-200 dark:hover:bg-neutral-600 cursor-pointer text-neutral-500"
@@ -90,7 +94,6 @@
               {{ placeholder }}
             </div>
 
-            <!-- Filtered Options -->
             <div
               v-for="(option, index) in filteredOptions"
               :key="`${option.value}-${index}`"
@@ -108,7 +111,6 @@
               {{ option.text }}
             </div>
 
-            <!-- No Results -->
             <div
               v-if="search && searchQuery && filteredOptions.length === 0"
               class="px-4 py-2 text-neutral-500 text-center"
