@@ -65,17 +65,15 @@ export function useSelection() {
 
     if (isCtrlCmd) {
       toggleItemSelection(itemKey);
+      event.preventDefault();
+      event.stopPropagation();
     } else if (event.shiftKey && lastSelectedItem.value) {
       event.preventDefault();
       selectRange(lastSelectedItem.value, itemKey, getAllVisibleItems);
+      event.stopPropagation();
     } else {
-      selectedItems.value.clear();
-      selectedItems.value.add(itemKey);
-      lastSelectedItem.value = itemKey;
+      clearSelection();
     }
-
-    event.preventDefault();
-    event.stopPropagation();
   }
 
   return {

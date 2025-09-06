@@ -1,4 +1,3 @@
-// src/composables/dragAndDrop.js
 import { ref } from 'vue';
 import { useFolderStore } from '@/store/folder';
 import {
@@ -11,104 +10,86 @@ export function useDragAndDrop({ selectedItems }) {
   const draggedNoteId = ref(null);
   const draggedFolderId = ref(null);
   const dragType = ref(null);
+  const isDragging = ref(false);
+
+  function getIdsForDrag(kind, id) {
+    const key = `${kind}-${id}`;
+    if (selectedItems.value.has(key)) {
+      return Array.from(selectedItems.value)
+        .filter((k) => k.startsWith(`${kind}-`))
+        .map((k) => k.replace(new RegExp(`^${kind}-`), ''));
+    }
+    return [id];
+  }
 
   function handleNoteDragStart(event, noteId) {
-    const itemKey = `note-${noteId}`;
-    if (!selectedItems.value.has(itemKey)) {
-      selectedItems.value.clear();
-      selectedItems.value.add(itemKey);
-    }
+    isDragging.value = true;
+    const noteIds = getIdsForDrag('note', noteId);
 
-    const selectedNoteIds = Array.from(selectedItems.value)
-      .filter((i) => i.startsWith('note-'))
-      .map((i) => i.replace(/^note-/, ''));
-
-    const selectedElements = selectedNoteIds
+    const selectedElements = noteIds
       .map((id) => document.querySelector(`[data-item-id="note-${id}"]`))
       .filter(Boolean);
 
-    let ghost;
-    if (selectedElements.length > 1) {
-      ghost = createAnimatedStackGhost(selectedElements);
-    } else {
-      ghost = createFullSizeCardGhost(
-        event.target.closest('[data-item-id]'),
-        selectedElements.length
-      );
-    }
+    const ghost =
+      selectedElements.length > 1
+        ? createAnimatedStackGhost(selectedElements)
+        : createFullSizeCardGhost(
+            event.target.closest('[data-item-id]'),
+            selectedElements.length
+          );
 
-    const ghostRect = ghost.getBoundingClientRect();
-    event.dataTransfer.setDragImage(
-      ghost,
-      ghostRect.width / 2,
-      ghostRect.height / 2
-    );
-
+    const r = ghost.getBoundingClientRect();
+    event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
     event.dataTransfer.setData(
       'application/json',
       JSON.stringify({
-        type: selectedNoteIds.length > 1 ? 'notes' : 'note',
+        type: noteIds.length > 1 ? 'notes' : 'note',
         id: noteId,
-        ids: selectedNoteIds,
+        ids: noteIds,
       })
     );
 
     draggedNoteId.value = noteId;
     dragType.value = 'note';
     event.dataTransfer.effectAllowed = 'move';
-
     setTimeout(() => ghost.parentNode && document.body.removeChild(ghost), 100);
   }
 
   function handleFolderDragStart(event, folderId) {
-    const itemKey = `folder-${folderId}`;
-    if (!selectedItems.value.has(itemKey)) {
-      selectedItems.value.clear();
-      selectedItems.value.add(itemKey);
-    }
+    isDragging.value = true;
+    const folderIds = getIdsForDrag('folder', folderId);
 
-    const selectedFolderIds = Array.from(selectedItems.value)
-      .filter((i) => i.startsWith('folder-'))
-      .map((i) => i.replace(/^folder-/, ''));
-
-    const selectedElements = selectedFolderIds
+    const selectedElements = folderIds
       .map((id) => document.querySelector(`[data-item-id="folder-${id}"]`))
       .filter(Boolean);
 
-    let ghost;
-    if (selectedElements.length > 1) {
-      ghost = createAnimatedStackGhost(selectedElements);
-    } else {
-      ghost = createFullSizeCardGhost(
-        event.target.closest('[data-item-id]'),
-        selectedElements.length
-      );
-    }
+    const ghost =
+      selectedElements.length > 1
+        ? createAnimatedStackGhost(selectedElements)
+        : createFullSizeCardGhost(
+            event.target.closest('[data-item-id]'),
+            selectedElements.length
+          );
 
-    const ghostRect = ghost.getBoundingClientRect();
-    event.dataTransfer.setDragImage(
-      ghost,
-      ghostRect.width / 2,
-      ghostRect.height / 2
-    );
-
+    const r = ghost.getBoundingClientRect();
+    event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
     event.dataTransfer.setData(
       'application/json',
       JSON.stringify({
-        type: selectedFolderIds.length > 1 ? 'folders' : 'folder',
+        type: folderIds.length > 1 ? 'folders' : 'folder',
         id: folderId,
-        ids: selectedFolderIds,
+        ids: folderIds,
       })
     );
 
     draggedFolderId.value = folderId;
     dragType.value = 'folder';
     event.dataTransfer.effectAllowed = 'move';
-
     setTimeout(() => ghost.parentNode && document.body.removeChild(ghost), 100);
   }
 
   function handleDragEnd() {
+    isDragging.value = false;
     dragOverFolderId.value = null;
     draggedNoteId.value = null;
     draggedFolderId.value = null;
@@ -148,11 +129,12 @@ export function useDragAndDrop({ selectedItems }) {
     dragOverFolderId,
     draggedNoteId,
     draggedFolderId,
-    handleDragOver,
-    handleDragLeave,
     dragType,
+    isDragging,
     handleNoteDragStart,
     handleFolderDragStart,
     handleDragEnd,
+    handleDragOver,
+    handleDragLeave,
   };
 }

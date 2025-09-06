@@ -1,7 +1,7 @@
 <template>
   <div>
     <div
-      class="flex items-center p-1 rounded cursor-pointer transition"
+      class="flex items-center p-2 rounded hover:bg-primary hover:bg-opacity-30 cursor-pointer transition"
       :class="{
         'bg-primary bg-opacity-20': isSelected,
         'opacity-50': isCurrentFolder || isDisabled,

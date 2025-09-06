@@ -20,7 +20,7 @@
     <div>
       <!-- Root option -->
       <div
-        class="flex items-center p-2 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 cursor-pointer transition"
+        class="flex items-center p-2 rounded hover:bg-primary hover:bg-opacity-30 cursor-pointer transition"
         :class="{ 'bg-primary bg-opacity-20': selectedId === null }"
         @click="selectedId = null"
       >

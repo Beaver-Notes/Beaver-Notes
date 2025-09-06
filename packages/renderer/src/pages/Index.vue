@@ -1,10 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div
-    class="container py-5"
-    @mousedown="handleMouseDown"
-    @mousemove="handleMouseMove"
-  >
+  <div class="container pt-5">
     <h1 class="text-3xl mb-8 font-bold">
       {{ translations.sidebar.notes || '-' }}
     </h1>
@@ -16,7 +12,12 @@
       v-bind="{ labels: labelStore.data, context: 'folder' }"
       @delete:label="deleteLabel"
     />
-
+  </div>
+  <div
+    class="container pb-5"
+    @mousedown="handleMouseDown"
+    @mousemove="handleMouseMove"
+  >
     <div
       v-if="isSelecting"
       class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
