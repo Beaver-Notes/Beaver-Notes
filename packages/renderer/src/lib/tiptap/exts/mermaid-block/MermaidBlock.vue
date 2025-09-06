@@ -20,8 +20,7 @@
             :placeholder="translations.editor.mermaidPlaceholder || '-'"
             class="bg-transparent min-h-24 w-full resize-y leading-tight p-2"
             @input="updateContent($event)"
-            @keydown.ctrl.enter="closeTextarea"
-            @keydown.exact="handleKeydown"
+            @keydown="handleKeydown"
             @scroll="syncScroll"
           ></textarea>
         </div>
@@ -32,14 +31,14 @@
           <v-remixicon
             class="cursor-pointer"
             name="riCloseLine"
-            @click="() => (showTextarea = false)"
+            @click="closeTextarea"
           />
         </div>
       </div>
       <MermaidComponent
-        :class="{ 'dark:text-purple-400 text-purple-500': selected }"
+        :class="{ 'dark:text-purple-400 text-purple-500': showTextarea }"
         :content="mermaidContent"
-        @click="openTextarea"
+        @dblclick="openTextarea"
       />
     </div>
   </NodeViewWrapper>
@@ -49,7 +48,7 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslation } from '@/composable/translations';
-import MermaidComponent from '../../../../utils/mermaid-renderer.vue'; // Adjust the import path accordingly
+import MermaidComponent from '../../../../utils/mermaid-renderer.vue';
 
 export default {
   components: {
@@ -62,7 +61,7 @@ export default {
     const inputRef = ref(null);
     const showTextarea = ref(false);
 
-    // Compute the number of lines in the content
+    // Line numbers
     const lineCount = computed(() => {
       return (mermaidContent.value.match(/\n/g) || []).length + 1;
     });
@@ -80,9 +79,7 @@ export default {
     function openTextarea() {
       showTextarea.value = true;
       setTimeout(() => {
-        if (inputRef.value) {
-          inputRef.value.focus();
-        }
+        if (inputRef.value) inputRef.value.focus();
       }, 0);
     }
 
@@ -91,13 +88,28 @@ export default {
     }
 
     function handleKeydown(event) {
-      if (event.key === 'Tab') {
+      const { ctrlKey, metaKey, key } = event;
+      const mod = ctrlKey || metaKey;
+
+      if (mod && key.toLowerCase() === 'a') {
+        // Forward select-all to main editor
+        event.preventDefault();
+        closeTextarea();
+        props.editor.commands.selectAll();
+        return;
+      }
+
+      if (key === 'Tab') {
         event.preventDefault();
         insertTabAtCursor();
       }
+
+      if (mod && key === 'Enter') {
+        closeTextarea();
+        props.editor.commands.focus();
+      }
     }
 
-    // Sync scroll between textarea and line numbers
     function syncScroll(event) {
       const lineNumbers = event.target.previousElementSibling;
       lineNumbers.scrollTop = event.target.scrollTop;
@@ -107,24 +119,16 @@ export default {
       const textarea = inputRef.value;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
+      const newValue =
+        mermaidContent.value.substring(0, start) +
+        '\t' +
+        mermaidContent.value.substring(end);
 
-      // Insert a tab character at the cursor's current position
-      const newValue = `${mermaidContent.value.substring(
-        0,
-        start
-      )}\t${mermaidContent.value.substring(end)}`;
       mermaidContent.value = newValue;
-
-      // Update the attributes so that the content reflects the changes
       props.updateAttributes({ content: newValue });
 
-      // Force the textarea to display the updated value
       textarea.value = newValue;
-
-      // Set the cursor position after the inserted tab
       textarea.setSelectionRange(start + 1, start + 1);
-
-      // Focus the textarea to ensure the cursor is visible
       textarea.focus();
     }
 
@@ -132,7 +136,6 @@ export default {
       renderContent();
     });
 
-    // Watch for changes in node.attrs.content to keep mermaidContent updated
     watch(
       () => props.node.attrs.content,
       (newContent) => {
@@ -140,28 +143,23 @@ export default {
       }
     );
 
-    const translations = ref({
-      editor: {},
-    });
-
+    const translations = ref({ editor: {} });
     onMounted(async () => {
       await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
+        if (trans) translations.value = trans;
       });
     });
 
     return {
-      updateContent,
       mermaidContent,
       inputRef,
       showTextarea,
       translations,
+      lineCount,
       openTextarea,
       closeTextarea,
+      updateContent,
       handleKeydown,
-      lineCount,
       syncScroll,
     };
   },
