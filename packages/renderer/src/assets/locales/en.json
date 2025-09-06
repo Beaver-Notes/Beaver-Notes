@@ -58,7 +58,8 @@
     "noEmojis": "No emojis found",
     "noEmojisMessage": "Try a different search term or category",
     "untitledNote": "Untitled note",
-    "untitledFolder": "Untitled folder"
+    "untitledFolder": "Untitled folder",
+    "colors": "Colors"
   },
   "folderTree": {
     "noFolders": "No folders available",

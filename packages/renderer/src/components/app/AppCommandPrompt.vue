@@ -223,13 +223,6 @@ export default {
       state.selectedIndex = 0;
     }
 
-    Mousetrap.bind('mod+shift+p', () => {
-      if (store.showPrompt) return clear();
-
-      document.querySelector('.command-input')?.focus();
-      store.showPrompt = true;
-    });
-
     watch(items, () => {
       state.selectedIndex = 0;
     });
@@ -256,6 +249,12 @@ export default {
     });
 
     onMounted(async () => {
+      Mousetrap.bind('mod+shift+p', () => {
+        if (store.showPrompt) return clear();
+
+        document.querySelector('.command-input')?.focus();
+        store.showPrompt = true;
+      });
       await useTranslation().then((trans) => {
         if (trans) {
           translations.value = trans;

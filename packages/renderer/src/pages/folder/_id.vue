@@ -2,17 +2,19 @@
 <template>
   <div class="container pt-5">
     <div class="flex flex-col gap-2 mb-6">
-      <div class="flex items-center gap-3">
-        <span v-if="folder.icon" class="text-2xl select-none">
+      <div class="flex items-center gap-3 min-w-0">
+        <span v-if="folder.icon" class="text-2xl select-none flex-shrink-0">
           {{ folder.icon }}
         </span>
         <v-remixicon
           v-else
           name="riFolder5Fill"
-          class="w-6 h-6"
+          class="w-6 h-6 flex-shrink-0"
           :style="{ color: folder.color || '#6B7280' }"
         />
-        <h1 class="text-2xl md:text-3xl font-bold">
+        <h1
+          class="text-2xl md:text-3xl font-bold flex-1 min-w-0 truncate whitespace-nowrap"
+        >
           {{ folder.name || translations.index.untitledFolder }}
         </h1>
       </div>
@@ -24,20 +26,35 @@
               {{ translations.index.home }}
             </router-link>
           </li>
+
           <template
             v-for="(pathFolder, index) in folderPath"
             :key="pathFolder?.id ?? index"
           >
             <li class="mx-1">/</li>
-            <li>
+
+            <!-- previous crumbs (links) -->
+            <li
+              v-if="index < folderPath.length - 1 && pathFolder?.id"
+              class="min-w-0"
+            >
               <router-link
-                v-if="index < folderPath.length - 1 && pathFolder?.id"
                 :to="`/folder/${pathFolder.id}`"
-                class="hover:text-primary"
+                class="hover:text-primary inline-block align-middle max-w-[10rem] md:max-w-[14rem] lg:max-w-[18rem]"
+                :title="pathFolder?.name || translations.index.untitledFolder"
               >
-                {{ pathFolder?.name || translations.index.untitledFolder }}
+                <span class="truncate">
+                  {{ pathFolder?.name || translations.index.untitledFolder }}
+                </span>
               </router-link>
-              <span v-else class="font-medium">
+            </li>
+
+            <!-- last crumb (current) -->
+            <li v-else class="font-medium min-w-0">
+              <span
+                class="inline-block align-middle max-w-[10rem] md:max-w-[14rem] lg:max-w-[18rem] truncate"
+                :title="pathFolder?.name || translations.index.untitledFolder"
+              >
                 {{ pathFolder?.name || translations.index.untitledFolder }}
               </span>
             </li>

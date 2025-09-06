@@ -26,7 +26,7 @@
           class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
           @click="activeTab = 'icon'"
         >
-          Colors
+          {{ translations.card.colors }}
         </button>
         <button
           class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
@@ -73,7 +73,7 @@
             class="w-full note-search-input"
             prepend-icon="riSearch2Line"
             :clearable="true"
-            placeholder="Search emojis..."
+            :placeholder="translations.index.search"
             @keydown.esc="$event.target.blur()"
             @change="searchQuery = $event.toLowerCase()"
           />
@@ -348,6 +348,7 @@ function deleteFolder() {
 
 const translations = ref({
   card: {},
+  inxed: {},
 });
 
 onMounted(async () => {
