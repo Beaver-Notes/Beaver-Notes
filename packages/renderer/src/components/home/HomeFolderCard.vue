@@ -183,7 +183,11 @@
       </button>
     </div>
 
-    <folder-tree v-model="showFolderMoveModal" :folder="folder" mode="folder" />
+    <folder-tree
+      v-model="showFolderMoveModal"
+      :folders="[folder]"
+      mode="folder"
+    />
   </div>
 </template>
 

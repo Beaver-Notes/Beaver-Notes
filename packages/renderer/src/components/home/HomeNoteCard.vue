@@ -102,7 +102,7 @@
         />
       </button>
       <button
-        v-tooltip.group="'Move to Folder'"
+        v-tooltip.group="translations.card.moveToFolder"
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
         @click="showMoveModal = true"
       >
@@ -125,7 +125,7 @@
       </p>
     </div>
 
-    <folder-tree v-model="showMoveModal" :note="note" mode="note" />
+    <folder-tree v-model="showMoveModal" :notes="[note]" mode="note" />
   </ui-card>
 </template>
 

@@ -4,6 +4,17 @@
       <h3 class="text-lg font-semibold">
         {{ translations.folderTree.moveToFolder }}
       </h3>
+      <p class="text-xs text-neutral-500 mt-1">
+        <!-- tiny hint showing selection type/count -->
+        <span v-if="props.mode === 'note'"
+          >{{ notes.length }} note{{ notes.length !== 1 ? 's' : '' }}</span
+        >
+        <span v-else
+          >{{ folders.length }} folder{{
+            folders.length !== 1 ? 's' : ''
+          }}</span
+        >
+      </p>
     </template>
 
     <div>
@@ -18,7 +29,7 @@
           class="mr-2 text-neutral-500"
           :class="{ 'text-primary': selectedId === null }"
         />
-        <span> {{ translations.folderTree.root }} </span>
+        <span>{{ translations.folderTree.root }}</span>
       </div>
 
       <!-- Folder tree -->
@@ -28,8 +39,9 @@
           :key="rootFolder.id"
           :folder="rootFolder"
           :selected-id="selectedId"
-          :current-note-folder="note?.folderId"
-          @select="selectedId = $event"
+          :current-folder-ids="currentFolderIds"
+          :disabled-ids="disabledTargetIds"
+          @select="onSelect"
         />
       </div>
 
@@ -44,14 +56,17 @@
       </div>
 
       <!-- Action buttons -->
-
       <div class="mt-8 flex space-x-2 rtl:space-x-0">
-        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal">{{
-          translations.folderTree.cancel
-        }}</ui-button>
+        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal">
+          {{ translations.folderTree.cancel }}
+        </ui-button>
         <ui-button
           class="w-6/12"
-          :disabled="isMoving"
+          :disabled="
+            isMoving ||
+            (props.mode === 'folder' &&
+              disabledTargetIds.has(selectedId || undefined))
+          "
           :variant="'primary'"
           @click="handleMove"
         >
@@ -70,18 +85,9 @@ import { useNoteStore } from '@/store/note';
 import { useTranslation } from '@/composable/translations';
 
 const props = defineProps({
-  note: {
-    type: Object,
-    default: null,
-  },
-  folder: {
-    type: Object,
-    default: null,
-  },
-  modelValue: {
-    type: Boolean,
-    default: false,
-  },
+  notes: { type: Array, default: () => [] },
+  folders: { type: Array, default: () => [] },
+  modelValue: { type: Boolean, default: false },
   mode: {
     type: String,
     default: 'note',
@@ -89,16 +95,10 @@ const props = defineProps({
   },
 });
 
-const translations = ref({
-  folderTree: {},
-});
-
+const translations = ref({ folderTree: {} });
 onMounted(async () => {
-  await useTranslation().then((trans) => {
-    if (trans) {
-      translations.value = trans;
-    }
-  });
+  const trans = await useTranslation();
+  if (trans) translations.value = trans;
 });
 
 const emit = defineEmits(['update:modelValue', 'moved']);
@@ -110,58 +110,109 @@ const show = ref(false);
 const selectedId = ref(null);
 const isMoving = ref(false);
 
+/** Guarded root list */
 const rootFolders = computed(() => {
-  return folderStore.validFolders
-    .filter((f) => !f.parentId || f.parentId === null)
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const list = Array.isArray(folderStore.validFolders)
+    ? folderStore.validFolders
+    : [];
+  return list
+    .filter((f) => !f.parentId)
+    .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 });
 
+/** If moving notes, compute a set (usually size 1 or more) of their current folderIds (null allowed). */
+const currentFolderIds = computed(() => {
+  if (props.mode !== 'note') return new Set();
+  return new Set(props.notes.map((n) => n?.folderId ?? null));
+});
+
+/** Preselect a sensible target:
+ *  - notes: common folder if all in same folder, else null
+ *  - folders: common parent if all share a parent, else null
+ */
+const commonNoteFolderId = computed(() => {
+  if (props.mode !== 'note' || props.notes.length === 0) return null;
+  const s = new Set(props.notes.map((n) => n?.folderId ?? null));
+  return s.size === 1 ? [...s][0] : null;
+});
+
+const commonFolderParentId = computed(() => {
+  if (props.mode !== 'folder' || props.folders.length === 0) return null;
+  const s = new Set(props.folders.map((f) => f?.parentId ?? null));
+  return s.size === 1 ? [...s][0] : null;
+});
+
+/** Targets that must be disabled when moving folders (self or any descendant). */
+const disabledTargetIds = computed(() => {
+  if (props.mode !== 'folder' || props.folders.length === 0) return new Set();
+  const all = Array.isArray(folderStore.validFolders)
+    ? folderStore.validFolders
+    : [];
+  const childrenByParent = new Map();
+  all.forEach((f) => {
+    const arr = childrenByParent.get(f.parentId) || [];
+    arr.push(f);
+    childrenByParent.set(f.parentId, arr);
+  });
+  const out = new Set();
+  const addSubtree = (id) => {
+    out.add(id);
+    const kids = childrenByParent.get(id) || [];
+    kids.forEach((k) => addSubtree(k.id));
+  };
+  props.folders.forEach((f) => addSubtree(f.id));
+  return out;
+});
+
+/** Single watcher to open/initialize */
 watch(
   () => props.modelValue,
   (value) => {
     show.value = value;
-    if (value && props.note) {
-      selectedId.value = props.note.folderId || null;
-    }
+    if (!value) return;
+    selectedId.value =
+      props.mode === 'note'
+        ? commonNoteFolderId.value
+        : commonFolderParentId.value;
   }
 );
 
-watch(show, (value) => {
-  emit('update:modelValue', value);
-  if (!value) {
-    selectedId.value = null;
-    isMoving.value = false;
-  }
-});
+function onSelect(id) {
+  // block selecting invalid targets when moving folders
+  if (props.mode === 'folder' && id != null && disabledTargetIds.value.has(id))
+    return;
+  selectedId.value = id ?? null;
+}
 
 function closeModal() {
   show.value = false;
+  emit('update:modelValue', false);
 }
 
 async function handleMove() {
-  if (
-    selectedId.value === props.note?.folderId ||
-    selectedId.value === props.folder?.parentId
-  ) {
-    return;
-  }
-
+  if (isMoving.value) return;
+  isMoving.value = true;
   try {
-    if (props.mode === 'folder' && props.folder) {
-      await folderStore.move(props.folder.id, selectedId.value);
-      emit('moved', {
-        folderId: selectedId.value,
-      });
-    } else if (props.mode === 'note' && props.note) {
-      await noteStore.moveToFolder(props.note.id, selectedId.value);
-      emit('moved', {
-        folderId: selectedId.value,
-      });
+    if (props.mode === 'folder' && props.folders.length) {
+      // move folders under selectedId (may be null => root)
+      await Promise.all(
+        props.folders.map((folder) =>
+          folderStore.move(folder.id, selectedId.value)
+        )
+      );
+    } else if (props.mode === 'note' && props.notes.length) {
+      await Promise.all(
+        props.notes.map((note) =>
+          noteStore.moveToFolder(note.id, selectedId.value)
+        )
+      );
     }
-
+    emit('moved', { folderId: selectedId.value });
     emit('update:modelValue', false);
   } catch (error) {
     console.error('Move failed:', error);
+  } finally {
+    isMoving.value = false;
   }
 }
 </script>

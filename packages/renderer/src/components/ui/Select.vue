@@ -75,7 +75,7 @@
               ref="searchInput"
               v-model="searchQuery"
               type="text"
-              placeholder="Search options..."
+              placeholder="translations.index.search"
               class="w-full p-1"
               @keydown="onSearchKeydown"
             />
@@ -126,6 +126,7 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useTranslation } from '@/composable/translations';
 
 export default {
   props: {
@@ -154,6 +155,11 @@ export default {
     const focusedIndex = ref(-1);
     const searchQuery = ref('');
     const optionRefs = ref([]);
+    const translations = ref({ index: {} });
+    onMounted(async () => {
+      const trans = await useTranslation();
+      if (trans) translations.value = trans;
+    });
 
     const setOptionRef = (el, index) => {
       if (el) {

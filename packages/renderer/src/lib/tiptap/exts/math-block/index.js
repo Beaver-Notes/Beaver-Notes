@@ -7,6 +7,7 @@ const inputRegex = /\$\$\s+$/;
 export default Node.create({
   name: 'mathBlock',
   group: 'block',
+  selectable: false,
   atom: true,
 
   addAttributes() {

@@ -1,14 +1,14 @@
-<!-- src/components/FolderTreeItem.vue -->
 <template>
   <div>
     <div
       class="flex items-center p-1 rounded cursor-pointer transition"
       :class="{
         'bg-primary bg-opacity-20': isSelected,
-        'opacity-50': isCurrentFolder,
+        'opacity-50': isCurrentFolder || isDisabled,
+        'pointer-events-none': isDisabled,
       }"
       :style="{ paddingLeft: level * 16 + 8 + 'px' }"
-      @click="$emit('select', folder.id)"
+      @click="!isDisabled && $emit('select', folder.id)"
     >
       <button
         v-if="children.length > 0"
@@ -34,6 +34,7 @@
           :style="{ color: folder.color || '#6B7280' }"
         />
       </div>
+
       <span class="flex-1" :class="{ 'text-neutral-800': isCurrentFolder }">
         {{ folder.name || translations.folderTree.untitledFolder }}
       </span>
@@ -45,7 +46,8 @@
         :key="child.id"
         :folder="child"
         :selected-id="selectedId"
-        :current-note-folder="currentNoteFolder"
+        :current-folder-ids="currentFolderIds"
+        :disabled-ids="disabledIds"
         :level="level + 1"
         @select="$emit('select', $event)"
       />
@@ -59,22 +61,13 @@ import { useFolderStore } from '@/store/folder';
 import { useTranslation } from '@/composable/translations';
 
 const props = defineProps({
-  folder: {
-    type: Object,
-    default: () => ({}),
-  },
-  selectedId: {
-    type: [String, null],
-    default: null,
-  },
-  currentNoteFolder: {
-    type: [String, null],
-    default: null,
-  },
-  level: {
-    type: Number,
-    default: 0,
-  },
+  folder: { type: Object, default: () => ({}) },
+  selectedId: { type: [String, null], default: null },
+  /** For notes: may contain 0/1/many folder ids; used to mark "current" */
+  currentFolderIds: { type: Object, default: () => new Set() }, // Set<string|null>
+  /** For folders: targets you cannot drop into (self/descendants) */
+  disabledIds: { type: Object, default: () => new Set() }, // Set<string>
+  level: { type: Number, default: 0 },
 });
 
 defineEmits(['select']);
@@ -87,19 +80,14 @@ const children = computed(() =>
 );
 
 const isSelected = computed(() => props.selectedId === props.folder.id);
-const isCurrentFolder = computed(
-  () => props.currentNoteFolder === props.folder.id
+const isCurrentFolder = computed(() =>
+  props.currentFolderIds.has(props.folder.id)
 );
+const isDisabled = computed(() => props.disabledIds.has(props.folder.id));
 
-const translations = ref({
-  folderTree: {},
-});
-
+const translations = ref({ folderTree: {} });
 onMounted(async () => {
-  await useTranslation().then((trans) => {
-    if (trans) {
-      translations.value = trans;
-    }
-  });
+  const trans = await useTranslation();
+  if (trans) translations.value = trans;
 });
 </script>

@@ -68,3 +68,19 @@ export function extractNoteText(content) {
 
   return text;
 }
+
+export function parseItemId(itemKey) {
+  if (itemKey.startsWith('note-')) {
+    return { type: 'note', id: itemKey.replace(/^note-/, '') };
+  }
+  if (itemKey.startsWith('folder-')) {
+    return { type: 'folder', id: itemKey.replace(/^folder-/, '') };
+  }
+  return { type: null, id: null };
+}
+
+export function areSetsEqual(a, b) {
+  if (a.size !== b.size) return false;
+  for (const v of a) if (!b.has(v)) return false;
+  return true;
+}
