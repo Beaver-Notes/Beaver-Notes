@@ -5,19 +5,23 @@
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
-      v-if="$route.query.linked && !store.inReaderMode"
+      v-if="
+        (showBack && !store.inReaderMode) ||
+        ($route.query.linked && !store.inReaderMode)
+      "
       class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group"
       title="Alt+Arrow left"
-      @click="$router.back()"
+      @click="goBack"
     >
       <v-remixicon
         name="riArrowDownLine"
         class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
       />
-      <span>
+      <span v-if="$route.query.linked && !store.inReaderMode">
         {{ translations.editor.previousNote || '-' }}
       </span>
     </button>
+
     <template v-if="editor && !note.isLocked">
       <note-menu v-bind="{ editor, id, note }" class="mb-6" />
       <transition
@@ -136,6 +140,34 @@ export default {
         immediate: true,
       }
     );
+
+    const showBack = computed(() => {
+      const back = router.options.history.state.back;
+      if (!back) return false;
+      if (back === '/' || back.includes('/#/?')) return false;
+      return true;
+    });
+
+    function goBack() {
+      const from = router.options.history.state.back;
+
+      if (!from) {
+        router.push('/');
+        return;
+      }
+
+      if (from.includes('/folder/') || from.includes('/archive/')) {
+        router.go(-1);
+        return;
+      }
+
+      if (from.includes('/note/')) {
+        router.go(-1);
+        return;
+      }
+
+      router.push('/');
+    }
 
     const autoScroll = debounce(() => {
       if (!noteEditor.value) {
@@ -309,6 +341,8 @@ export default {
 
     return {
       id,
+      showBack,
+      goBack,
       noteEditor,
       note,
       translations,
