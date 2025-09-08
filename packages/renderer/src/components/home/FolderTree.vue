@@ -2,7 +2,7 @@
   <ui-modal v-model="show" content-class="max-w-md" persist>
     <template #header>
       <h3 class="text-lg font-semibold">
-        {{ translations.folderTree.moveToFolder }}
+        {{ moveLabel }}
       </h3>
       <p class="text-xs text-neutral-500 mt-1">
         <!-- tiny hint showing selection type/count -->
@@ -188,6 +188,13 @@ function closeModal() {
   show.value = false;
   emit('update:modelValue', false);
 }
+
+const moveLabel = computed(() => {
+  const n = props.mode === 'note' ? props.notes.length : props.folders.length;
+  return n === 1
+    ? translations.value.folderTree.moveToFolder
+    : translations.value.folderTree.moveItemsToFolder.replace('{count}', n);
+});
 
 async function handleMove() {
   if (isMoving.value) return;

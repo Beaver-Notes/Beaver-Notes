@@ -83,7 +83,7 @@
     />
 
     <div
-      v-if="noteStore.notes.length !== 0 || folderStore.all.lenght !== 0"
+      v-if="noteStore.notes.length !== 0 || folders.all.length !== 0"
       class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch mb-14"
       @mousedown="handleMouseDown"
       @mousemove="handleMouseMove"
@@ -492,19 +492,28 @@ export default {
       getAllVisibleItems().forEach((item) => selectedItems.value.add(item));
     }
 
+    function deleteDialogCopy(count) {
+      const title =
+        count === 1
+          ? translations.value.card.deleteItem
+          : translations.value.card.deleteItems.replace('{count}', count);
+      return { title };
+    }
+
     async function bulkDelete() {
+      const count = selectedItems.value.size;
+      const { title } = deleteDialogCopy(count);
+
       dialog.confirm({
-        title: translations.value.card.confirmPrompt,
-        okText: translations.value.card.confirm,
+        title,
+        okText: translations.value.card.delete,
         cancelText: translations.value.card.cancel,
+        destructive: true,
         onConfirm: async () => {
           for (const item of selectedItems.value) {
             const { type, id } = parseItemId(item);
-            if (type === 'note') {
-              await noteStore.delete(id);
-            } else if (type === 'folder') {
-              await folderStore.delete(id);
-            }
+            if (type === 'note') await noteStore.delete(id);
+            else if (type === 'folder') await folderStore.delete(id);
           }
           clearSelection();
         },
