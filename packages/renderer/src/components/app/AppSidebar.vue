@@ -7,7 +7,7 @@
       v-tooltip:right="
         translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
       "
-      class="transition p-2 mb-4 text-primary bg-input rounded-lg"
+      class="transition p-2 mb-4 text-primary bg-input rounded-lg focus:ring-secondary"
       @click="addNote"
     >
       <v-remixicon name="riAddFill" />

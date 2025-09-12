@@ -1,10 +1,15 @@
 <template>
   <node-view-wrapper>
     <!-- Editor panel -->
-    <div v-if="isEditing" class="bg-input transition rounded-lg p-2">
+    <div
+      v-if="isEditing"
+      class="bg-neutral-50 dark:bg-neutral-900 transition rounded-lg p-2"
+    >
       <div class="flex mb-2">
+        <!-- Main content textarea -->
         <textarea
-          v-focus="!useKatexMacros"
+          v-if="!useKatexMacros"
+          ref="contentTextarea"
           :value="node.attrs.content"
           type="textarea"
           :placeholder="translations.editor.mathPlaceholder || '-'"
@@ -13,9 +18,11 @@
           @input="updateContent($event, 'content', true)"
           @keydown="handleKeydown"
         />
+
+        <!-- KaTeX macros textarea -->
         <textarea
           v-if="useKatexMacros"
-          v-autofocus
+          ref="macrosTextarea"
           :value="node.attrs.macros"
           placeholder="KaTeX macros"
           class="bg-transparent ml-2 pl-2 border-l flex-1 resize-y"
@@ -24,6 +31,7 @@
         />
       </div>
 
+      <!-- Footer with toggle and exit -->
       <div
         class="flex border-t items-center pt-2 text-neutral-600 dark:text-neutral-300"
       >
@@ -37,51 +45,47 @@
           :class="{ 'text-primary': useKatexMacros }"
           name="riSettings3Line"
           class="ml-2 cursor-pointer"
-          @click="useKatexMacros = !useKatexMacros"
+          @click="toggleMacros"
         />
       </div>
     </div>
 
-    <!-- Rendered output (dblclick to edit) -->
+    <!-- Rendered output -->
     <div
-      class="overflow-x-auto max-w-full p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900"
-      style="white-space: nowrap"
-      @dblclick="startEditing"
+      class="overflow-x-auto max-w-full p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900 cursor-text min-h-[2em]"
+      @click="startEditing"
     >
-      <p
-        ref="contentRef"
-        :class="{ 'dark:text-purple-400 text-purple-500': isEditing }"
-      ></p>
+      <p ref="contentRef" class="select-none"></p>
     </div>
   </node-view-wrapper>
 </template>
 
 <script>
-import { onMounted, ref, nextTick } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslation } from '@/composable/translations';
 import katex from 'katex';
 
 export default {
   components: { NodeViewWrapper },
-  directives: {
-    focus: (el, { value = true }) => {
-      if (value) el.focus();
-    },
-  },
   props: nodeViewProps,
   setup(props) {
     const contentRef = ref(null);
-    const useKatexMacros = ref(false);
-    const isContentChange = ref(false);
-    const isEditing = ref(false);
+    const contentTextarea = ref(null);
+    const macrosTextarea = ref(null);
 
-    function renderContent() {
+    const isEditing = ref(false);
+    const isContentChange = ref(false);
+    const useKatexMacros = ref(false);
+    const translations = ref({ editor: {} });
+
+    // Render KaTeX
+    const renderContent = () => {
       let macros = {};
       try {
-        macros = JSON.parse(props.node.attrs.macros);
+        macros = JSON.parse(props.node.attrs.macros || '{}');
       } catch {
-        // do nothing
+        //
       }
       katex.render(props.node.attrs.content || 'Empty', contentRef.value, {
         macros,
@@ -92,81 +96,95 @@ export default {
         strict: 'ignore',
         output: 'htmlAndMathml',
       });
-    }
+    };
 
     const debounce = (func, delay) => {
       let timer;
-      return function (...args) {
+      return (...args) => {
         clearTimeout(timer);
-        timer = setTimeout(() => func.apply(this, args), delay);
+        timer = setTimeout(() => func(...args), delay);
       };
     };
     const debouncedRenderContent = debounce(renderContent, 300);
 
-    function updateContent({ target: { value } }, key, isRenderContent) {
+    // Update content or macros
+    const updateContent = ({ target: { value } }, key, shouldRender) => {
       isContentChange.value = true;
       props.updateAttributes({ [key]: value });
-      if (isRenderContent) nextTick(() => debouncedRenderContent());
-    }
+      if (shouldRender) nextTick(() => debouncedRenderContent());
+    };
 
-    function startEditing() {
+    // Start editing and focus textarea
+    const startEditing = () => {
       isEditing.value = true;
-    }
-    function stopEditing() {
+      nextTick(() => {
+        if (useKatexMacros.value) {
+          macrosTextarea.value?.focus();
+        } else {
+          contentTextarea.value?.focus();
+        }
+      });
+    };
+
+    // Stop editing
+    const stopEditing = () => {
       isEditing.value = false;
       isContentChange.value = false;
       useKatexMacros.value = false;
-    }
+    };
 
-    function handleKeydown(event) {
+    // Toggle macros textarea
+    const toggleMacros = () => {
+      useKatexMacros.value = !useKatexMacros.value;
+      nextTick(() => {
+        if (useKatexMacros.value) {
+          macrosTextarea.value?.focus();
+        } else {
+          contentTextarea.value?.focus();
+        }
+      });
+    };
+
+    // Handle keyboard shortcuts
+    const handleKeydown = (event) => {
       const { ctrlKey, shiftKey, metaKey, key } = event;
       const mod = ctrlKey || metaKey;
-      const isModEnter = mod && key === 'Enter';
-      const isMacrosShortcut = mod && shiftKey && key === 'M';
-      const isModA = mod && key.toLowerCase() === 'a';
-      const isNotEdited =
-        props.editor.isActive('mathBlock') &&
-        !isContentChange.value &&
-        ['ArrowUp', 'ArrowDown'].includes(key);
 
-      if (isModA) {
-        // Forward select-all to the main editor (don't keep the textarea open)
+      if (mod && key.toLowerCase() === 'a') {
         event.preventDefault();
         stopEditing();
         props.editor.commands.selectAll();
         return;
       }
-
-      if (isModEnter || isNotEdited) {
-        props.editor.commands.focus();
+      if (mod && shiftKey && key === 'M') toggleMacros();
+      if (mod && key === 'Enter') {
         stopEditing();
-      } else if (isMacrosShortcut) {
-        useKatexMacros.value = !useKatexMacros.value;
+        props.editor.commands.focus();
       }
-    }
-
-    const translations = ref({ editor: {} });
+    };
 
     onMounted(async () => {
       await nextTick();
       props.updateAttributes?.({ init: 'true' });
       renderContent();
 
-      await useTranslation().then((trans) => {
-        if (trans) translations.value = trans;
-      });
+      const trans = await useTranslation();
+      if (trans) translations.value = trans;
     });
 
     return {
       contentRef,
-      translations,
-      updateContent,
-      handleKeydown,
-      useKatexMacros,
-      isContentChange,
+      contentTextarea,
+      macrosTextarea,
       isEditing,
+      isContentChange,
+      useKatexMacros,
+      translations,
       startEditing,
       stopEditing,
+      toggleMacros,
+      updateContent,
+      handleKeydown,
     };
   },
 };

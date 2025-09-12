@@ -1,11 +1,6 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <pre
-    ref="elRef"
-    :class="['mermaid', className]"
-    @click="onClick"
-    v-html="mermaidString"
-  ></pre>
+  <div ref="elRef" :class="['mermaid', className]" v-html="mermaidString"></div>
 </template>
 
 <script>
@@ -28,15 +23,11 @@ export default defineComponent({
       type: String,
       default: '',
     },
-    onClick: {
-      type: Function,
-      default: null,
-    },
   },
   setup(props) {
     const elRef = ref(null);
     const mermaidString = ref('');
-    const { currentTheme } = useTheme(); // Assuming useTheme provides currentTheme
+    const { currentTheme } = useTheme();
     const hasSyntaxError = ref(false);
 
     function genSvgId() {
@@ -71,6 +62,18 @@ export default defineComponent({
         startOnLoad: true,
         suppressErrorRendering: true,
         theme,
+        flowchart: {
+          useMaxWidth: true,
+          htmlLabels: false,
+          nodeSpacing: 50,
+          rankSpacing: 50,
+        },
+        themeCSS: `
+          .label foreignObject {
+            overflow: visible;
+            font-size: 90%;
+          }
+        `,
         ...props.config,
       });
     }

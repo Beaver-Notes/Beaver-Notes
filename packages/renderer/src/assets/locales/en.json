@@ -128,6 +128,7 @@
   },
   "menu": {
     "add": "Add",
+    "share": "Share",
     "addColumnLeft": "Add column left",
     "addColumnRight": "Add column right",
     "addRowAbove": "Add row above",

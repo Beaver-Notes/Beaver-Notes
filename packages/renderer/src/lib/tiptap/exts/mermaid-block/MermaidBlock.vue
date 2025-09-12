@@ -1,54 +1,51 @@
 <template>
   <NodeViewWrapper>
-    <div>
-      <div v-if="showTextarea" class="bg-input transition rounded-lg">
-        <div class="flex">
-          <!-- Line numbers -->
-          <div
-            class="line-numbers pr-2 select-none text-neutral-500 rounded-tl-lg bg-neutral-100 text-right"
-          >
-            <div v-for="i in lineCount" :key="i" class="leading-tight">
-              {{ i }}
-            </div>
-          </div>
-
-          <!-- Textarea -->
-          <textarea
-            ref="inputRef"
-            :value="mermaidContent"
-            type="textarea"
-            :placeholder="translations.editor.mermaidPlaceholder || '-'"
-            class="bg-transparent min-h-24 w-full resize-y leading-tight p-2"
-            @input="updateContent($event)"
-            @keydown="handleKeydown"
-            @scroll="syncScroll"
-          ></textarea>
-        </div>
-        <div class="border-t-2 p-2 flex justify-between">
-          <p style="margin: 0">
-            <strong>{{ translations.editor.exit }}</strong>
-          </p>
-          <v-remixicon
-            class="cursor-pointer"
-            name="riCloseLine"
-            @click="closeTextarea"
-          />
-        </div>
+    <div
+      v-if="showTextarea"
+      class="bg-neutral-50 dark:bg-neutral-900 transition rounded-lg p-2"
+    >
+      <div class="flex">
+        <textarea
+          ref="inputRef"
+          :value="mermaidContent"
+          type="textarea"
+          :placeholder="translations.editor.mermaidPlaceholder || '-'"
+          class="bg-transparent min-h-24 w-full resize-y leading-tight p-2"
+          @input="updateContent($event)"
+          @keydown.ctrl.enter="closeTextarea"
+          @keydown.exact="handleKeydown"
+          @scroll="syncScroll"
+        ></textarea>
       </div>
+      <div class="border-t-2 p-2 flex justify-between">
+        <p style="margin: 0">
+          <strong>{{ translations.editor.exit }}</strong>
+        </p>
+        <v-remixicon
+          class="cursor-pointer"
+          name="riCloseLine"
+          @click="() => (showTextarea = false)"
+        />
+      </div>
+    </div>
+    <div
+      class="relative min-h-[6em] rounded-lg bg-neutral-50 dark:bg-neutral-900 w-full cursor-text mt-2"
+      @click="openTextarea"
+    >
       <MermaidComponent
-        :class="{ 'dark:text-purple-400 text-purple-500': showTextarea }"
+        ref="mermaidRef"
         :content="mermaidContent"
-        @dblclick="openTextarea"
+        class="w-full overflow-visible pointer-events-none"
       />
     </div>
   </NodeViewWrapper>
 </template>
 
 <script>
-import { ref, watch, onMounted, computed } from 'vue';
+import { ref, watch, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslation } from '@/composable/translations';
-import MermaidComponent from '../../../../utils/mermaid-renderer.vue';
+import MermaidComponent from '@/utils/mermaid-renderer.vue';
 
 export default {
   components: {
@@ -60,11 +57,6 @@ export default {
     const mermaidContent = ref('');
     const inputRef = ref(null);
     const showTextarea = ref(false);
-
-    // Line numbers
-    const lineCount = computed(() => {
-      return (mermaidContent.value.match(/\n/g) || []).length + 1;
-    });
 
     function renderContent() {
       mermaidContent.value = props.node.attrs.content || '';
@@ -79,7 +71,9 @@ export default {
     function openTextarea() {
       showTextarea.value = true;
       setTimeout(() => {
-        if (inputRef.value) inputRef.value.focus();
+        if (inputRef.value) {
+          inputRef.value.focus();
+        }
       }, 0);
     }
 
@@ -88,47 +82,30 @@ export default {
     }
 
     function handleKeydown(event) {
-      const { ctrlKey, metaKey, key } = event;
-      const mod = ctrlKey || metaKey;
-
-      if (mod && key.toLowerCase() === 'a') {
-        // Forward select-all to main editor
-        event.preventDefault();
-        closeTextarea();
-        props.editor.commands.selectAll();
-        return;
-      }
-
-      if (key === 'Tab') {
+      if (event.key === 'Tab') {
         event.preventDefault();
         insertTabAtCursor();
       }
-
-      if (mod && key === 'Enter') {
-        closeTextarea();
-        props.editor.commands.focus();
-      }
-    }
-
-    function syncScroll(event) {
-      const lineNumbers = event.target.previousElementSibling;
-      lineNumbers.scrollTop = event.target.scrollTop;
     }
 
     function insertTabAtCursor() {
       const textarea = inputRef.value;
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
-      const newValue =
-        mermaidContent.value.substring(0, start) +
-        '\t' +
-        mermaidContent.value.substring(end);
 
+      // Insert a tab character at the cursor's current position
+      const newValue = `${mermaidContent.value.substring(
+        0,
+        start
+      )}\t${mermaidContent.value.substring(end)}`;
       mermaidContent.value = newValue;
+
       props.updateAttributes({ content: newValue });
 
       textarea.value = newValue;
+
       textarea.setSelectionRange(start + 1, start + 1);
+
       textarea.focus();
     }
 
@@ -143,38 +120,33 @@ export default {
       }
     );
 
-    const translations = ref({ editor: {} });
+    const translations = ref({
+      editor: {},
+    });
+
     onMounted(async () => {
       await useTranslation().then((trans) => {
-        if (trans) translations.value = trans;
+        if (trans) {
+          translations.value = trans;
+        }
       });
     });
 
     return {
+      updateContent,
       mermaidContent,
       inputRef,
       showTextarea,
       translations,
-      lineCount,
       openTextarea,
       closeTextarea,
-      updateContent,
       handleKeydown,
-      syncScroll,
     };
   },
 };
 </script>
 
 <style scoped>
-.line-numbers {
-  font-family: monospace;
-  min-width: 2em;
-  color: #888;
-  user-select: none;
-  overflow: hidden;
-}
-
 textarea {
   font-family: monospace;
   line-height: inherit;

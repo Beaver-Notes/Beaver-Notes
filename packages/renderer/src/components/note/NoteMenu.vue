@@ -189,42 +189,42 @@
       </div>
       <div v-else class="flex">
         <button
-          v-tooltip.group="translations.menu.addrowabove"
+          v-tooltip.group="translations.menu.addRowAbove"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addRowBefore().run()"
         >
           <v-remixicon name="riInsertRowTop" />
         </button>
         <button
-          v-tooltip.group="translations.menu.addrowbelow"
+          v-tooltip.group="translations.menu.addRowBelow"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addRowAfter().run()"
         >
           <v-remixicon name="riInsertRowBottom" />
         </button>
         <button
-          v-tooltip.group="translations.menu.deleterow"
+          v-tooltip.group="translations.menu.deleteRow"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().deleteRow().run()"
         >
           <v-remixicon name="riDeleteRow" />
         </button>
         <button
-          v-tooltip.group="translations.menu.addcolumnleft"
+          v-tooltip.group="translations.menu.addColumnLeft"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addColumnBefore().run()"
         >
           <v-remixicon name="riInsertColumnLeft" />
         </button>
         <button
-          v-tooltip.group="translations.menu.addcolumnright"
+          v-tooltip.group="translations.menu.addColumnRight"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().addColumnAfter().run()"
         >
           <v-remixicon name="riInsertColumnRight" />
         </button>
         <button
-          v-tooltip.group="translations.menu.deletecolumn"
+          v-tooltip.group="translations.menu.deleteColumn"
           class="transition hoverable h-8 px-1 rounded-lg"
           @click="editor.chain().focus().deleteColumn().run()"
         >
@@ -314,7 +314,7 @@
           <ui-popover padding="p-2 flex flex-col print:hidden">
             <template #trigger>
               <button
-                v-tooltip.group="translations.menu.audio"
+                v-tooltip.group="translations.menu.record"
                 class="transition hoverable h-8 px-1 rounded-lg space-x-1"
               >
                 <v-remixicon name="riMicLine" />
@@ -443,7 +443,7 @@
             @click="addIframe"
           />
         </ui-popover>
-        <template #trigger>
+        <template v-if="!isTableActive" #trigger>
           <button class="transition hoverable h-8 px-1 rounded-lg">
             <v-remixicon name="riMoreFill" />
           </button>
@@ -500,7 +500,10 @@
       <div v-if="!isTableActive" class="flex">
         <ui-popover padding="p-2 flex flex-col print:hidden">
           <template #trigger>
-            <button class="transition hoverable h-8 px-1 rounded-lg">
+            <button
+              v-tooltip.group="translations.menu.share"
+              class="transition hoverable h-8 px-1 rounded-lg"
+            >
               <v-remixicon name="riShare2Line" />
             </button>
           </template>
