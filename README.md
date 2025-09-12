@@ -21,7 +21,7 @@
   <p>Developed with love ❤️ in 🇪🇺</p>
 
 [🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download)  
- [🐘 Mastodon](https://mastodon.social/@Beavernotes) | [💬 Reddit](https://www.reddit.com/r/BeaverNotes/) | [🦋 Bluesky](https://bsky.app/profile/beavernotes.com) | [🧶 Threads](https://www.threads.com/@beaver_notes)
+ [🐘 Mastodon](https://mastodon.social/@Beavernotes) | [💬 Reddit](https://www.reddit.com/r/BeaverNotes/) | [🦋 Bluesky](https://bsky.app/profile/beavernotes.com) | [🧶 Threads](https://www.threads.com/@beavernotes)
 
 </div>
 
