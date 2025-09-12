@@ -79,6 +79,38 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.apple_id_password }}
           USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}
 
+      - name: Dispatch Windows signing
+        if: matrix.os == 'windows-latest'
+        uses: ossign/actions/workflow/dispatch@main
+        id: dispatch
+        with:
+          username: beaver-notes
+          token: ${{ secrets.SIGNING_TOKEN }}
+
+      - name: Parse signed artifacts
+        if: matrix.os == 'windows-latest'
+        id: parse
+        run: |
+          echo '${{ steps.dispatch.outputs.signed_artifacts }}' > artifacts.json
+          echo "parsed=$(cat artifacts.json)" >> $GITHUB_OUTPUT
+
+      - name: Download signed artifacts
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir signed
+          for url in $(jq -r '.[].browser_download_url' artifacts.json); do
+            echo "Downloading $url"
+            curl -L -o signed/$(basename $url) "$url"
+          done
+
+      - name: Upload signed artifacts to release
+        if: matrix.os == 'windows-latest' && steps.publishflag.outputs.publish == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: signed/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
+
       - name: Clean up keychain
         if: matrix.os == 'macos-latest'
         run: |
