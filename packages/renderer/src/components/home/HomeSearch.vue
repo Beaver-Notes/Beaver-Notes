@@ -58,7 +58,7 @@
           v-tooltip="
             sortOrder === 'asc'
               ? translations.filter.ascending
-              : translations.filter.discending
+              : translations.filter.descending
           "
           icon
           class="ltr:rounded-r-none rtl:rounded-l-none"
@@ -86,8 +86,10 @@
 
 <script>
 import { watch, ref, onUnmounted, onMounted, computed } from 'vue';
-import Mousetrap from '@/lib/mousetrap';
+import emitter from 'tiny-emitter/instance';
 import { useTranslation } from '@/composable/translations';
+import { useDialog } from '@/composable/dialog';
+import Mousetrap from '@/lib/mousetrap';
 
 export default {
   props: {
@@ -120,6 +122,7 @@ export default {
     'delete:label',
   ],
   setup(props, { emit }) {
+    const dialog = useDialog();
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const newLabel = ref(props.label);
@@ -144,6 +147,11 @@ export default {
 
       const trans = await useTranslation();
       if (trans) translations.value = trans;
+
+      emitter.on('clear-label', () => {
+        emit('update:label', '');
+        newLabel.value = '';
+      });
     });
 
     onUnmounted(() => {
@@ -169,10 +177,15 @@ export default {
       }
     );
 
-    const deleteLabel = async () => {
-      emit('delete:label', props.label);
-      newLabel.value = '';
-    };
+    function deleteLabel() {
+      dialog.confirm({
+        title: translations.value.card.confirmPromptLabel,
+        onConfirm: () => {
+          emit('delete:label', props.label);
+          newLabel.value = '';
+        },
+      });
+    }
 
     return {
       sorts,

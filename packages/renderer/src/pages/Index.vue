@@ -651,7 +651,7 @@ export default {
       }, 250);
     });
 
-    onMounted(() => {
+    onMounted(async () => {
       window.addEventListener('mouseup', handleMouseUp);
 
       const sortState = JSON.parse(localStorage.getItem('sort-notes'));
@@ -687,6 +687,12 @@ export default {
         }
       );
 
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+
       Mousetrap.bind(['command+a', 'ctrl+a'], (e) => {
         e.preventDefault();
         selectAll();
@@ -696,14 +702,6 @@ export default {
         if (selectedItems.value.size > 0) {
           e.preventDefault();
           bulkDelete();
-        }
-      });
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
         }
       });
     });

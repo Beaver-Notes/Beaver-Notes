@@ -35,48 +35,46 @@ const handleImagePaste = new Plugin({
   key: new PluginKey('handlePasteLink'),
   props: {
     handleDOMEvents: {
-      paste: async (view, event) => {
+      paste: (view, event) => {
         const clipboardData =
           event.clipboardData || event.originalEvent.clipboardData;
-        const items = clipboardData.items;
-        const files = Array.from(items)
+        if (!clipboardData) return false;
+
+        const items = Array.from(clipboardData.items);
+        const files = items
           .filter((item) => item.kind === 'file')
-          .map((item) => item.getAsFile());
-        const urls = Array.from(items).filter(
+          .map((item) => item.getAsFile())
+          .filter(Boolean);
+
+        if (files.length === 0) {
+          return false;
+        }
+
+        const urls = items.filter(
           (item) => item.kind === 'string' && item.type === 'text/plain'
         );
 
-        // Check if both files and URLs are present
-        if (files.length > 0 && urls.length > 0) {
-          // Prioritize files, ignore URLs
-          event.preventDefault(); // Stop default behavior to prevent URL insertion
-        }
-
-        // Handle image files
         if (files.length > 0) {
+          event.preventDefault();
           insertImages(files, (src, alt) => {
-            if (view.state.selection.$cursor) {
-              const transaction = view.state.tr.replaceSelectionWith(
-                view.state.schema.nodes.image.create({ src, alt })
-              );
-              view.dispatch(transaction);
-            }
+            const { tr, schema } = view.state;
+            const imageNode = schema.nodes.image.create({ src, alt });
+            view.dispatch(tr.replaceSelectionWith(imageNode));
           });
-          return;
         }
 
-        // Handle URLs only if no files are present
         if (urls.length > 0) {
-          urls[0].getAsString((url) => {
-            if (url.match(/\.(jpeg|jpg|gif|png)$/)) {
-              const transaction = view.state.tr.insertText(
-                url,
-                view.state.selection.from
-              );
-              view.dispatch(transaction);
-            }
+          urls.forEach((urlItem) => {
+            urlItem.getAsString((url) => {
+              if (url.match(/\.(jpeg|jpg|gif|png)$/i)) {
+                const { tr } = view.state;
+                view.dispatch(tr.insertText(url, view.state.selection.from));
+              }
+            });
           });
         }
+
+        return files.length > 0;
       },
     },
   },

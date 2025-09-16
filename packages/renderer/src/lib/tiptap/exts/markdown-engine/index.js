@@ -5,7 +5,7 @@ const markdownEngine = Extension.create({
 
   addInputRules() {
     return [
-      // Handle Markdown images first
+      // Handle Markdown images
       {
         find: /!\[([^\]]*)\]\(([^)]+)\)/,
         handler: ({ state, range, match }) => {
