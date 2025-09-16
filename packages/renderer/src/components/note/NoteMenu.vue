@@ -47,10 +47,12 @@
           </div>
         </button>
       </ui-popover>
-      <div class="flex w-20 h-8 ml-1 rounded-lg bg-input overflow-hidden">
+      <div
+        class="flex items-center align-center justify-center w-24 h-8 rounded-full bg-neutral-50 dark:bg-neutral-750 overflow-hidden"
+      >
         <button
           type="button"
-          class="w-1/3 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors rounded-l-lg"
+          class="w-7 h-7 border flex items-center justify-center bg-input focus:outline-none rounded-full"
           @click="
             fontSize += 1;
             updateFontSize();
@@ -70,7 +72,7 @@
 
         <button
           type="button"
-          class="w-1/3 h-full flex items-center justify-center text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:text-white dark:hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset transition-colors rounded-r-lg"
+          class="w-7 h-7 border flex items-center justify-center bg-input focus:outline-none rounded-full"
           @click="
             fontSize = Math.max(1, fontSize - 1);
             updateFontSize();
@@ -95,7 +97,7 @@
           <button
             v-tooltip.group="translations.menu.highlight"
             :class="currentHighlightColor"
-            class="transition h-8 px-1 rounded-lg"
+            class="transition hoverable h-8 px-1 rounded-lg"
           >
             <v-remixicon
               name="riFontColor"
@@ -105,8 +107,8 @@
             />
           </button>
         </template>
-        <div class="px-2">
-          <p class="text-sm py-2">{{ translations.menu.textColor }}</p>
+        <div>
+          <p class="text-sm pb-2">{{ translations.menu.textColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
               class="w-8 h-8 flex items-center justify-center cursor-pointer rounded border"

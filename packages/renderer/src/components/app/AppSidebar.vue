@@ -222,6 +222,7 @@ export default {
 
     const handleNavigation = async (nav) => {
       router.push(nav.path);
+      emitter.emit('clear-label');
     };
 
     function manualSync() {
