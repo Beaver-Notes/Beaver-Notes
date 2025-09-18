@@ -167,7 +167,8 @@ const extensions = [
   Link.extend({
     addKeyboardShortcuts() {
       return {
-        'Mod-k': () => this.editor.chain().focus().toggleLink().run(),
+        'Mod-k': () =>
+          this.editor.chain().focus().toggleLink({ href: '' }).run(),
       };
     },
   }).configure({

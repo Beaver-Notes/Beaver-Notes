@@ -1,6 +1,11 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <div ref="elRef" :class="['mermaid', className]" v-html="mermaidString"></div>
+  <pre
+    ref="elRef"
+    :class="['mermaid', className]"
+    @click="onClick"
+    v-html="mermaidString"
+  ></pre>
 </template>
 
 <script>
@@ -23,11 +28,15 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    onClick: {
+      type: Function,
+      default: null,
+    },
   },
   setup(props) {
     const elRef = ref(null);
     const mermaidString = ref('');
-    const { currentTheme } = useTheme();
+    const { currentTheme, isDark } = useTheme(); // Assuming useTheme provides currentTheme
     const hasSyntaxError = ref(false);
 
     function genSvgId() {
@@ -55,32 +64,18 @@ export default defineComponent({
     function initializeMermaid() {
       if (!elRef.value) return;
 
-      const isDarkMode = currentTheme.value === 'dark';
-      const theme = isDarkMode ? 'dark' : 'default';
+      const theme = isDark() ? 'dark' : 'default';
 
       mermaid.initialize({
         startOnLoad: true,
         suppressErrorRendering: true,
         theme,
-        flowchart: {
-          useMaxWidth: true,
-          htmlLabels: false,
-          nodeSpacing: 50,
-          rankSpacing: 50,
-        },
-        themeCSS: `
-          .label foreignObject {
-            overflow: visible;
-            font-size: 90%;
-          }
-        `,
         ...props.config,
       });
     }
 
     function addThemeToContent(content) {
-      const isDarkMode = currentTheme.value === 'dark';
-      const theme = isDarkMode ? 'dark' : 'default';
+      const theme = isDark() ? 'dark' : 'default';
 
       return `%%{init: {'theme':'${theme}'}}%%\n${content}`;
     }

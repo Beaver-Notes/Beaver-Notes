@@ -87,7 +87,7 @@
     "katex": "^0.13.0",
     "lint-staged": "^11.1.2",
     "lowlight": "2.4.0",
-    "mermaid": "^11.11.0",
+    "mermaid": "10.9.1",
     "mousetrap": "^1.6.5",
     "nanoid": "^3.1.25",
     "node-fetch": "^3.3.2",
