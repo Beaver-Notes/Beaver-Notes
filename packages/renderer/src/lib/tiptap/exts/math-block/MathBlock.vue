@@ -37,7 +37,7 @@
       >
         <img src="@/assets/svg/katex.svg" width="48" style="margin: 0" />
         <div class="flex-grow"></div>
-        <p v-if="isContentChange" class="text-sm" style="margin: 0">
+        <p class="text-sm" style="margin: 0">
           <strong>{{ translations.editor.exit }}</strong>
         </p>
         <v-remixicon
@@ -75,7 +75,6 @@ export default {
     const macrosTextarea = ref(null);
 
     const isEditing = ref(false);
-    const isContentChange = ref(false);
     const useKatexMacros = ref(false);
     const translations = ref({ editor: {} });
 
@@ -109,7 +108,6 @@ export default {
 
     // Update content or macros
     const updateContent = ({ target: { value } }, key, shouldRender) => {
-      isContentChange.value = true;
       props.updateAttributes({ [key]: value });
       if (shouldRender) nextTick(() => debouncedRenderContent());
     };
@@ -129,7 +127,6 @@ export default {
     // Stop editing
     const stopEditing = () => {
       isEditing.value = false;
-      isContentChange.value = false;
       useKatexMacros.value = false;
     };
 
@@ -177,7 +174,6 @@ export default {
       contentTextarea,
       macrosTextarea,
       isEditing,
-      isContentChange,
       useKatexMacros,
       translations,
       startEditing,
