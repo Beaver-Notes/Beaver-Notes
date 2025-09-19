@@ -1,22 +1,4 @@
 <template>
-  <expand-transition>
-    <ui-list
-      v-if="currentLinkVal.startsWith('@')"
-      class="p-2 space-y-1 border-b"
-    >
-      <ui-list-item
-        v-for="(note, index) in notes"
-        :key="note.id"
-        :active="index === selectedNoteIndex"
-        class="cursor-pointer line-clamp leading-tight"
-        @click="updateCurrentLink(note.id)"
-      >
-        <p class="text-overflow w-full">
-          {{ note.title || translations.editor.untitledNote }}
-        </p>
-      </ui-list-item>
-    </ui-list>
-  </expand-transition>
   <div class="p-2">
     <div class="flex items-center space-x-2">
       <input
@@ -57,6 +39,24 @@
       translations.editor.linkShortcut || '-'
     }}</span>
   </div>
+  <expand-transition>
+    <ui-list
+      v-if="currentLinkVal.startsWith('@')"
+      class="p-2 space-y-1 border-b"
+    >
+      <ui-list-item
+        v-for="(note, index) in notes"
+        :key="note.id"
+        :active="index === selectedNoteIndex"
+        class="cursor-pointer line-clamp leading-tight"
+        @click="updateCurrentLink(note.id)"
+      >
+        <p class="text-overflow w-full">
+          {{ note.title || translations.editor.untitledNote }}
+        </p>
+      </ui-list-item>
+    </ui-list>
+  </expand-transition>
 </template>
 
 <script>

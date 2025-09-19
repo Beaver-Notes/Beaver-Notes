@@ -42,15 +42,13 @@
     </template>
     <div
       v-if="!isLocked"
+      ref="titleDiv"
       contenteditable="true"
-      :value="note.title"
       class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
       :placeholder="translations.editor.untitledNote"
       @input="updateNote({ title: $event.target.innerText })"
       @keydown="disallowedEnter"
-    >
-      {{ note.title }}
-    </div>
+    ></div>
     <div v-else class="flex flex-col items-center justify-center h-screen">
       <v-remixicon
         class="w-24 h-auto text-gray-600 dark:text-white"
@@ -339,9 +337,18 @@ export default {
       });
     }
 
+    const titleDiv = ref(null);
+
+    onMounted(() => {
+      if (titleDiv.value && note.value.title) {
+        titleDiv.value.innerText = note.value.title;
+      }
+    });
+
     return {
       id,
       showBack,
+      titleDiv,
       goBack,
       noteEditor,
       note,
