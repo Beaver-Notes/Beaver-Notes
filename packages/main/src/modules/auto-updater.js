@@ -1,4 +1,3 @@
-
 import * as browserStorage from 'electron-browser-storage';
 import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
@@ -14,7 +13,7 @@ export class AutoUpdater {
     this.pendingQuit = false;
     this.currentVersion = null;
     this.availableVersion = null;
-    this.pendingBannerData = null; 
+    this.pendingBannerData = null;
   }
 
   get isBusy() {
@@ -27,7 +26,6 @@ export class AutoUpdater {
     this.registerIPCHandlers();
     this.setupAppCloseHandlers();
 
-    
     try {
       const stored = await localStorage.getItem('autoUpdateEnabled');
       this.autoUpdateEnabled = stored !== null ? JSON.parse(stored) : true;
@@ -35,9 +33,7 @@ export class AutoUpdater {
       console.error('Error loading auto-update preference:', error);
     }
 
-    
     if (this.autoUpdateEnabled) {
-      
       setTimeout(() => {
         this.checkForUpdates();
       }, 3000);
@@ -94,7 +90,6 @@ export class AutoUpdater {
       this.isDownloading = true;
       this.isChecking = false;
 
-      
       this.sendUpdateProgress({
         percent: progress.percent,
         transferred: progress.transferred,
@@ -153,7 +148,6 @@ export class AutoUpdater {
     const mainWindow = this.windowManager.getWindow();
     if (mainWindow && mainWindow.webContents) {
       try {
-        
         await mainWindow.webContents.executeJavaScript(`
           if (window.handleUpdateBanner) {
             window.handleUpdateBanner(${JSON.stringify(bannerData)});
@@ -164,19 +158,16 @@ export class AutoUpdater {
         `);
       } catch (error) {
         console.error('Error showing update banner:', error);
-        
+
         this.pendingBannerData = bannerData;
       }
     } else {
-      
       this.pendingBannerData = bannerData;
     }
   }
 
   registerIPCHandlers() {
-    
     ipcMain.answerRenderer('renderer-ready', () => {
-      
       if (this.pendingBannerData) {
         this.showUpdateBanner(this.pendingBannerData);
         this.pendingBannerData = null;
@@ -184,12 +175,10 @@ export class AutoUpdater {
       return { success: true };
     });
 
-    
     ipcMain.answerRenderer('check-for-updates', async () => {
       return await this.checkForUpdates();
     });
 
-    
     ipcMain.answerRenderer('download-update', () => {
       if (!this.isDownloading) {
         this.isDownloading = true;
@@ -199,17 +188,14 @@ export class AutoUpdater {
       return { success: false, error: 'Download already in progress' };
     });
 
-    
     ipcMain.answerRenderer('install-update', () => {
       autoUpdater.quitAndInstall();
       return { success: true };
     });
 
-    
     ipcMain.answerRenderer('toggle-auto-update', (enabled) => {
       this.autoUpdateEnabled = enabled;
 
-      
       try {
         localStorage.setItem('autoUpdateEnabled', JSON.stringify(enabled));
         return { success: true, enabled };
@@ -219,17 +205,14 @@ export class AutoUpdater {
       }
     });
 
-    
     ipcMain.answerRenderer('get-auto-update-status', () => {
       return this.autoUpdateEnabled;
     });
 
-    
     ipcMain.answerRenderer('is-update-downloading', () => {
       return this.isDownloading;
     });
 
-    
     ipcMain.answerRenderer('get-update-info', () => {
       return {
         isChecking: this.isChecking,
@@ -276,7 +259,6 @@ export class AutoUpdater {
     };
 
     try {
-      
       await ipcMain.callFocusedRenderer('update-status-changed', statusData);
     } catch (error) {
       console.error('Error sending update status to renderer:', error);
@@ -320,7 +302,7 @@ export class AutoUpdater {
         `Failed to load translations for ${lang}, falling back to English.`,
         error
       );
-      
+
       const fallback = await import(
         `../../../renderer/src/assets/locales/en.json`
       );

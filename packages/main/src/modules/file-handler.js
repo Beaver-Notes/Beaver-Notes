@@ -33,8 +33,6 @@ export class FileHandler {
             windowManager.sendToRenderer('file-opened', filePath);
           }
         }
-      } else {
-        this.logArguments();
       }
     }
 
@@ -59,11 +57,5 @@ export class FileHandler {
       }
     }
     return null;
-  }
-
-  logArguments() {
-    process.argv.forEach((arg) => {
-      console.log(`Received argument: ${arg}`);
-    });
   }
 }

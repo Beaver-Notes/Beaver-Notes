@@ -75,7 +75,7 @@
               ref="searchInput"
               v-model="searchQuery"
               type="text"
-              placeholder="translations.index.search"
+              :placeholder="translations.index.search"
               class="w-full p-1"
               @keydown="onSearchKeydown"
             />
@@ -376,6 +376,7 @@ export default {
       selectedText,
       filteredOptions,
       optionRefs,
+      translations,
       setOptionRef,
       toggle,
       select,
