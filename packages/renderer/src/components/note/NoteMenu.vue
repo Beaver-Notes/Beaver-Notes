@@ -48,7 +48,7 @@
         </button>
       </ui-popover>
       <div
-        class="flex items-center align-center justify-center w-24 p-1 rounded-full bg-neutral-100 dark:bg-neutral-750 overflow-hidden"
+        class="flex items-center justify-center w-24 p-1 rounded-full bg-neutral-100 dark:bg-neutral-750 overflow-hidden gap-1 flex-shrink-0"
       >
         <button
           type="button"
