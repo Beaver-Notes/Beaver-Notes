@@ -34,15 +34,55 @@ export const Paste = Extension.create({
 
               if (html) {
                 event.preventDefault();
-                const json = generateJSON(html, [
-                  ...extensions,
-                  CollapseHeading,
-                  heading,
-                ]);
-                editor.commands.insertContent(json);
+
+                // Create a temporary container
+                const container = document.createElement('div');
+                container.innerHTML = html;
+
+                // Flatten spans inside links
+                container.querySelectorAll('a').forEach((link) => {
+                  link.querySelectorAll('span').forEach((span) => {
+                    // Merge span text into the link
+                    const textNode = document.createTextNode(
+                      span.textContent || ''
+                    );
+                    link.replaceChild(textNode, span);
+                    // Optional: store metadata as data attributes on the <a> itself
+                    for (const attr of span.attributes) {
+                      if (attr.name.startsWith('data-')) {
+                        link.setAttribute(
+                          attr.name,
+                          attr.value.replace(/&nbsp;/g, ' ')
+                        );
+                      }
+                    }
+                  });
+                });
+
+                // Replace &nbsp; in top-level text nodes
+                container.innerHTML = container.innerHTML.replace(
+                  /&nbsp;/g,
+                  ' '
+                );
+
+                const sanitizedHtml = container.innerHTML;
+
+                try {
+                  const json = generateJSON(sanitizedHtml, [
+                    ...extensions,
+                    CollapseHeading,
+                    heading,
+                  ]);
+                  editor.commands.insertContent(json);
+                } catch (error) {
+                  console.error(
+                    'Error generating JSON from sanitized HTML:',
+                    error
+                  );
+                  return false;
+                }
                 return true;
               }
-
               if (text) {
                 event.preventDefault();
                 try {

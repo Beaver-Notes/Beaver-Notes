@@ -6,6 +6,7 @@
         editor.isActive('link') ||
         editor.isActive('iframe'))
     "
+    :tippy-options="tippyOptions"
     v-bind="{ editor, tippyOptions: bubbleMenuOptions }"
     class="bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl"
   >
@@ -54,6 +55,12 @@ export default {
       return {};
     });
 
+    const tippyOptions = {
+      placement: 'bottom',
+      interactive: true,
+      hideOnClick: true,
+    };
+
     onMounted(() => {
       if (props.editor) {
         Mousetrap.bind('mod+l', () => {
@@ -73,6 +80,7 @@ export default {
 
     return {
       bubbleMenuOptions,
+      tippyOptions,
     };
   },
 };
