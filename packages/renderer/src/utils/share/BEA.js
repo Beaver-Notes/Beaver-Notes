@@ -181,7 +181,7 @@ async function processImportedNote(noteData, router, store) {
       }
     }
 
-    store.retrieve('notes', updatedNotes);
+    await store.retrieve('notes', updatedNotes);
     router.push(`/note/${noteData.id}`);
   } catch (error) {
     console.error('Error processing imported note:', error);

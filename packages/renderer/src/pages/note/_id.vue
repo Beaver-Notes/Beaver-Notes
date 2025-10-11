@@ -9,7 +9,7 @@
         (showBack && !store.inReaderMode) ||
         ($route.query.linked && !store.inReaderMode)
       "
-      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group"
+      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden"
       title="Alt+Arrow left"
       @click="goBack"
     >

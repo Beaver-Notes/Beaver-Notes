@@ -45,7 +45,7 @@ class Application {
       await this.ipcHandlers.initialize(this.windowManager);
       await this.windowManager.createWindow();
       await this.autoUpdater.initialize(this.windowManager);
-      await this.menuManager.initialize();
+      await this.menuManager.initialize(this.windowManager);
       this.fileHandler.handleStartupFile(this.windowManager);
 
       this.setupEventListeners();

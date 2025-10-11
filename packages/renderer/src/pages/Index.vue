@@ -56,7 +56,8 @@
                 dragOverFolderId === folder.id ||
                 (state.query && highlightedFolderIds.has(folder.id)),
               'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-              'ring-2 ring-secondary': selectedItems.has(`folder-${folder.id}`),
+              'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-transform duration-200 ease-in-out':
+                selectedItems.has(`folder-${folder.id}`),
             }"
             draggable="true"
             @dragstart="handleFolderDragStart($event, folder.id)"
@@ -95,7 +96,8 @@
             v-bind="{ note }"
             :class="{
               'opacity-50 transform rotate-2': draggedNoteId === note.id,
-              'ring-2 ring-secondary': selectedItems.has(`note-${note.id}`),
+              'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-transform duration-200 ease-in-out':
+                selectedItems.has(`note-${note.id}`),
             }"
             class="h-full"
             draggable="true"
@@ -435,11 +437,6 @@ export default {
       return items;
     }
 
-    function selectAll() {
-      selectedItems.value.clear();
-      getAllVisibleItems().forEach((item) => selectedItems.value.add(item));
-    }
-
     function deleteDialogCopy(count) {
       const title =
         count === 1
@@ -693,11 +690,6 @@ export default {
         }
       });
 
-      Mousetrap.bind(['command+a', 'ctrl+a'], (e) => {
-        e.preventDefault();
-        selectAll();
-      });
-
       Mousetrap.bind(['del', 'backspace'], (e) => {
         if (selectedItems.value.size > 0) {
           e.preventDefault();
@@ -737,7 +729,6 @@ export default {
       handleMouseDown,
       handleMouseMove,
       handleMouseUp,
-      selectAll,
       clearSelection,
       bulkDelete,
       bulkMove,

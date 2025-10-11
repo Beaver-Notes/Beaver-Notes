@@ -17,21 +17,38 @@ export class MenuManager {
   }
 
   async setupContextMenu() {
-    try {
-      const contextMenuModule = await import('electron-context-menu');
-      const contextMenu = contextMenuModule.default;
+    const { Menu } = require('electron');
+    const win = this.windowManager.getWindow();
 
-      contextMenu({
-        showLookUpSelection: true,
-        showSearchWithGoogle: true,
-        showCopyImage: true,
-        showSaveImageAs: true,
-        showCopyLink: true,
-        showInspectElement: true,
-      });
-    } catch (error) {
-      console.error('Failed to load context menu:', error);
-    }
+    if (!win) return;
+
+    const menu = Menu.buildFromTemplate([
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'selectAll' },
+      ...(isMac
+        ? [
+            { type: 'separator' },
+            { role: 'startSpeaking' },
+            { role: 'stopSpeaking' },
+          ]
+        : []),
+    ]);
+
+    win.webContents.on('context-menu', (_event, params) => {
+      if (params.isEditable) {
+        menu.popup({
+          window: win,
+          x: params.x,
+          y: params.y,
+          ...(isMac && { frame: win.webContents.mainFrame }),
+        });
+      }
+    });
   }
 
   async createApplicationMenu() {
