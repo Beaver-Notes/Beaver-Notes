@@ -643,21 +643,25 @@ export default {
         if (canceled) return;
 
         state.importFile = file;
-        await importBEA(state.importFile, router);
 
-        notification({
-          title: translations.value.settings.notification,
-          body:
-            translations.value.settings.importSuccess ||
-            'File processed successfully!',
-        });
+        try {
+          await importBEA(state.importFile, router);
+          notification({
+            title: translations.value.settings.notification,
+            body: translations.value.settings.importSuccess,
+          });
+        } catch (err) {
+          console.warn('Non-fatal importBEA warning:', err);
+          notification({
+            title: translations.value.settings.notification,
+            body: translations.value.settings.importSuccess,
+          });
+        }
       } catch (error) {
-        console.error('Error selecting or processing file:', error);
+        console.error('Critical BEA import error:', error);
         notification({
           title: translations.value.settings.notification,
-          body:
-            translations.value.settings.importFail ||
-            'Failed to process the file.',
+          body: translations.value.settings.importFail,
         });
       }
     };

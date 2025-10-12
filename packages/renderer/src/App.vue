@@ -222,9 +222,12 @@ export default {
     }
 
     theme.loadTheme();
-    onFileOpened((path) => {
-      console.log('File opened:', path);
-      importBEA(path, router, store);
+
+    onFileOpened(async (path) => {
+      await router.isReady();
+      while (!retrieved.value) await new Promise((r) => setTimeout(r, 100));
+      if (await importBEA(path, router, store))
+        console.log('Import + navigation OK');
     });
 
     window.electron.ipcRenderer.callMain(

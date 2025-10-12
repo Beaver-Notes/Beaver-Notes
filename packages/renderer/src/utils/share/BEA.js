@@ -1,4 +1,5 @@
 import { useStorage } from '@/composable/storage';
+import { useNoteStore } from '../../store/note';
 const { ipcRenderer, path } = window.electron;
 
 async function encodeAssets(sourcePath) {
@@ -113,15 +114,13 @@ export async function importBEA(filePath, router, store) {
     return true;
   } catch (error) {
     console.error('Error importing note:', error);
-    alert(
-      'Failed to import note. Please ensure the file is not corrupted and is in the correct format.'
-    );
-    return false;
+    return { success: false, message: error.message };
   }
 }
 
-async function processImportedNote(noteData, router, store) {
+async function processImportedNote(noteData, router) {
   const storage = useStorage();
+  const noteStore = useNoteStore();
   try {
     const currentNotes = await storage.get('notes', {});
     const dataDir = await storage.get('dataDir', '', 'settings');
@@ -151,14 +150,12 @@ async function processImportedNote(noteData, router, store) {
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
 
-      await ipcRenderer.callMain(
-        'fs:mkdir',
-        path.join(dataDir, 'notes-assets', noteData.id)
-      );
-      await ipcRenderer.callMain(
-        'fs:mkdir',
-        path.join(dataDir, 'file-assets', noteData.id)
-      );
+      await ipcRenderer.callMain('fs:mkdir', {
+        path: path.join(dataDir, 'notes-assets', noteData.id),
+      });
+      await ipcRenderer.callMain('fs:mkdir', {
+        path: path.join(dataDir, 'file-assets', noteData.id),
+      });
 
       for (const [filename, base64Data] of Object.entries(notesAssets || {})) {
         const byteArray = Uint8Array.from(atob(base64Data), (char) =>
@@ -181,7 +178,7 @@ async function processImportedNote(noteData, router, store) {
       }
     }
 
-    await store.retrieve('notes', updatedNotes);
+    await noteStore.retrieve();
     router.push(`/note/${noteData.id}`);
   } catch (error) {
     console.error('Error processing imported note:', error);
