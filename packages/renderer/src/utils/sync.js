@@ -62,6 +62,15 @@ function scheduleSync(immediate = false) {
 }
 
 export async function trackChange(key, data) {
+  if (!path || !defaultPath) {
+    return;
+  }
+
+  const autoSyncEnabled = localStorage.getItem('autoSync') === 'true';
+  if (!autoSyncEnabled) {
+    return;
+  }
+
   const metadata = await storage.get(
     'syncMetadata',
     { version: 0, isInitialized: false },
