@@ -85,6 +85,15 @@
       "contributions": [
         "design"
       ]
+    },
+    {
+      "login": "oliveltonsantos",
+      "name": "Olivelton Santos",
+      "avatar_url": "https://avatars.githubusercontent.com/u/124373744?v=4",
+      "profile": "https://olivelton.com/links",
+      "contributions": [
+        "translation"
+      ]
     }
   ],
   "contributorsPerLine": 7,
