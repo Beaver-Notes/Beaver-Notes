@@ -177,6 +177,14 @@
     fs-extra "^9.0.1"
     promise-retry "^2.0.1"
 
+"@electron/notarize@^3.1.0":
+  version "3.1.0"
+  resolved "https://registry.yarnpkg.com/@electron/notarize/-/notarize-3.1.0.tgz#43f5a6371b337fd34c8278297e80666c956cbd28"
+  integrity sha512-DHePlWvmUKTNok2+yoOp2ZZ+3ZaLlDWdWD43BfzZhRlUPrBs+EwXDBq3kTJlO+jw2KZzeC3GGlypgw4HQZTD5w==
+  dependencies:
+    debug "^4.4.0"
+    promise-retry "^2.0.1"
+
 "@electron/osx-sign@1.0.5":
   version "1.0.5"
   resolved "https://registry.yarnpkg.com/@electron/osx-sign/-/osx-sign-1.0.5.tgz#0af7149f2fce44d1a8215660fd25a9fb610454d8"
@@ -2873,7 +2881,7 @@ debug@^2.6.9:
   dependencies:
     ms "2.0.0"
 
-debug@^4.0.0:
+debug@^4.0.0, debug@^4.4.0:
   version "4.4.3"
   resolved "https://registry.yarnpkg.com/debug/-/debug-4.4.3.tgz#c6ae432d9bd9662582fce08709b038c58e9e3d6a"
   integrity sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==

@@ -165,6 +165,7 @@ const extensions = [
   }),
   Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
   Link.extend({
+    inclusive: false,
     addKeyboardShortcuts() {
       return {
         'Mod-k': () =>

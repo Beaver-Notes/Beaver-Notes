@@ -19,8 +19,8 @@
   "main": "packages/main/dist/index.cjs",
   "scripts": {
     "build": "node scripts/build.js",
-    "precompile": "cross-env MODE=production npm run build",
-    "pretest": "cross-env MODE=test npm run build",
+    "precompile": "cross-env MODE=production yarn run build",
+    "pretest": "cross-env MODE=test yarn run build",
     "test": "node tests/app.spec.js",
     "watch": "node scripts/watch.js",
     "lint": "eslint . --ext js,ts,vue",
@@ -111,6 +111,7 @@
     "vue-router": "^4.0.11"
   },
   "dependencies": {
+    "@electron/notarize": "^3.1.0",
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@tiptap/extension-color": "^2.11.5",
