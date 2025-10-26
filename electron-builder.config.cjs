@@ -1,5 +1,6 @@
 const packageJSON = require('./package.json');
 const { azuresigntool } = require('@ossign/azuresigntool');
+const path = require('path');
 
 /**
  * @type {import('electron-builder').Configuration}
@@ -7,15 +8,13 @@ const { azuresigntool } = require('@ossign/azuresigntool');
  */
 const electronBuilderConfig = {
   appId: 'com.danielerolli.beaver-notes',
-
+  productName: 'Beaver-notes',
   asar: true,
   asarUnpack: ['**/*.node'],
-
   files: [
     'packages/**/dist/**',
     'LICENSE',
     'package.json',
-    // EXCLUDES:
     '!**/*.map',
     '!**/*.d.ts',
     '!**/README.md',
@@ -27,16 +26,9 @@ const electronBuilderConfig = {
     '!**/scripts{,/**}',
     '!**/.*/**',
   ],
-
   compression: 'maximum',
-
-  extraMetadata: {
-    version: packageJSON.version,
-  },
-  directories: {
-    output: 'dist',
-    buildResources: 'buildResources',
-  },
+  extraMetadata: { version: packageJSON.version },
+  directories: { output: 'dist', buildResources: 'buildResources' },
   fileAssociations: [
     {
       ext: 'bea',
@@ -47,32 +39,24 @@ const electronBuilderConfig = {
     },
   ],
   publish: [
-    {
-      provider: 'github',
-      releaseType: 'draft',
-      vPrefixedTagName: false,
-    },
+    { provider: 'github', releaseType: 'draft', vPrefixedTagName: false },
   ],
+
   mac: {
     icon: 'buildResources/icon.icns',
-    target: [
-      {
-        target: 'default',
-        arch: ['universal'],
-      },
-    ],
+    target: [{ target: 'default', arch: ['universal'] }],
     hardenedRuntime: true,
     entitlements: 'buildResources/entitlements.mac.plist',
     entitlementsInherit: 'buildResources/entitlements.mac.plist',
     gatekeeperAssess: true,
     category: 'public.app-category.productivity',
-    extendInfo: {
-      'com.apple.security.device.audio-input': true,
-    },
+    extendInfo: { 'com.apple.security.device.audio-input': true },
     notarize: {
-      teamId: process.env.APPLE_TEAM_ID || 'none',
+      appBundleId: 'com.danielerolli.beaver-notes',
+      ascProvider: 'F8U6VTU2DJ',
     },
   },
+
   linux: {
     icon: 'buildResources/icon-linux.icns',
     target: [
@@ -84,6 +68,7 @@ const electronBuilderConfig = {
     maintainer: 'Daniele Rolli <danielerolli@proton.me>',
     category: 'Productivity',
   },
+
   win: {
     icon: 'buildResources/icon.ico',
     target: [
@@ -92,6 +77,7 @@ const electronBuilderConfig = {
     ],
     sign: process.env.AST_TD === 'SHA256' ? azuresigntool : undefined,
   },
+
   nsis: {
     oneClick: true,
     installerIcon: 'buildResources/icon.ico',
@@ -100,16 +86,13 @@ const electronBuilderConfig = {
     license: 'LICENSE',
     allowToChangeInstallationDirectory: false,
   },
-  portable: {
-    artifactName: '${productName}-${version}-portable.${ext}',
-  },
 
+  portable: { artifactName: '${productName}-${version}-portable.${ext}' },
+  afterSign: 'scripts/notarize.js',
   afterPack: async (context) => {
     const fs = require('fs');
-    const path = require('path');
     const { appOutDir, packager } = context;
     const platform = packager.platform?.name;
-
     const localesDir =
       platform === 'mac'
         ? path.join(
@@ -117,7 +100,7 @@ const electronBuilderConfig = {
             `${packager.appInfo.productFilename}.app`,
             'Contents',
             'Resources',
-            'locales'
+            'locales',
           )
         : path.join(appOutDir, 'locales');
 
@@ -137,10 +120,6 @@ const electronBuilderConfig = {
 
 module.exports = async () => {
   const envModule = await import('./env.js');
-  const loadEnv = envModule.loadEnv;
-
-  loadEnv('private');
-
-  const config = { ...electronBuilderConfig };
-  return config;
+  envModule.loadEnv('private');
+  return electronBuilderConfig;
 };
