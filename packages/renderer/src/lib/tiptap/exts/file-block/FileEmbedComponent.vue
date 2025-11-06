@@ -48,11 +48,8 @@ export default {
     }
 
     function normalizeSrc(src) {
-      const withoutQuery = src.split('?')[0]; // removes ALL ?t=
-      if (withoutQuery.startsWith('file-assets://')) {
-        return withoutQuery.replace('file-assets://', 'file-assets/');
-      }
-      return withoutQuery;
+      const [base] = src.split('?');
+      return base;
     }
 
     function refreshFileEmbed() {
@@ -73,6 +70,7 @@ export default {
     function downloadFile(event) {
       event.stopPropagation();
       let src = props.node.attrs.src;
+      console.log(src);
       src = normalizeSrc(src);
       const link = document.createElement('a');
       link.href = src;
