@@ -700,7 +700,7 @@ export default {
         },
         {
           name: 'markdown',
-          title: 'MD',
+          title: 'Mardkown',
           icon: 'riMarkdownLine',
           handler: () => shareMarkdown(),
         },
@@ -924,6 +924,13 @@ export default {
       });
     }
 
+    function printOnePage() {
+      ipcRenderer.callMain('print-pdf', {
+        pdfName: `${props.note.title}.pdf`,
+        onePage: true,
+      });
+    }
+
     onMounted(async () => {
       await useTranslation().then((trans) => {
         if (trans) {
@@ -1124,6 +1131,7 @@ export default {
       showAdavancedSettings,
       showHeadingsTree,
       printContent,
+      printOnePage,
       container,
       changeWheelDirection,
       shareNote,

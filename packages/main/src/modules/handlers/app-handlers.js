@@ -26,6 +26,15 @@ export class AppHandlers {
     });
 
     ipcMain.answerRenderer('open-file-external', async (src) => {
+      src = decodeURI(src);
+
+      if (src.startsWith('file-assets:')) {
+        src = path.join(
+          app.getPath('userData'),
+          src.replace('file-assets:', 'file-assets')
+        );
+      }
+
       const fullPath = path.isAbsolute(src)
         ? src
         : path.join(app.getPath('userData'), src);
@@ -72,7 +81,7 @@ export class AppHandlers {
     });
 
     ipcMain.answerRenderer('app:change-menu-visibility', (visibility, win) =>
-      win.setMenuBarVisibility(visibility),
+      win.setMenuBarVisibility(visibility)
     );
   }
 }

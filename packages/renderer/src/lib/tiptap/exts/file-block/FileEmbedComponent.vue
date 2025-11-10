@@ -40,22 +40,20 @@ export default {
   setup(props) {
     const fileName = ref(props.node.attrs.fileName || '');
 
-    function openDocument() {
-      ipcRenderer.callMain(
-        'open-file-external',
-        normalizeSrc(props.node.attrs.src)
-      );
-    }
-
     function normalizeSrc(src) {
       const [base] = src.split('?');
       return base;
     }
 
+    function openDocument() {
+      const src = encodeURI(normalizeSrc(props.node.attrs.src));
+      ipcRenderer.callMain('open-file-external', src);
+    }
+
     function refreshFileEmbed() {
-      const baseSrc = props.node.attrs.src.split('?')[0]; // always strip query
+      const baseSrc = props.node.attrs.src.split('?')[0];
       props.updateAttributes({
-        src: `${baseSrc}?t=${Date.now()}`, // overwrite, not append
+        src: `${baseSrc}?t=${Date.now()}`,
       });
     }
 
@@ -69,9 +67,8 @@ export default {
 
     function downloadFile(event) {
       event.stopPropagation();
-      let src = props.node.attrs.src;
-      console.log(src);
-      src = normalizeSrc(src);
+      let src = normalizeSrc(props.node.attrs.src);
+      src = encodeURI(src);
       const link = document.createElement('a');
       link.href = src;
       link.download = fileName.value;
@@ -88,10 +85,11 @@ export default {
   },
 };
 </script>
+
 <style lang="css">
 .file-name {
-  display: inline-block; /* or flex child */
-  max-width: 200px; /* adjust to fit design */
+  display: inline-block;
+  max-width: 200px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
