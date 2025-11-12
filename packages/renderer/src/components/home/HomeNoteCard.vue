@@ -1,6 +1,6 @@
 <template>
   <ui-card
-    class="hover:ring-2 hover:ring-secondary hover:bg-primary/5 group note-card transition flex flex-col"
+    class="hover:ring-2 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/5 group note-card transition flex flex-col"
     padding="p-5"
   >
     <div>
@@ -15,7 +15,7 @@
           v-for="label in note.labels"
           :key="label"
           :to="`/?label=${label}`"
-          class="inline-block hover:underline cursor-pointer p-0.5 bg-primary/10 dark:bg-primary/20 rounded-md text-sm"
+          class="inline-block hover:underline cursor-pointer px-1 bg-primary/10 dark:bg-primary/20 rounded-md text-sm"
           @click="$emit('update:label', label)"
         >
           #{{ label }}

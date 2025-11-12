@@ -1,6 +1,6 @@
 <template>
   <bubble-menu
-    v-if="
+    v-show="
       editor &&
       (editor.isActive('image') ||
         editor.isActive('link') ||
@@ -25,7 +25,7 @@
 
 <script>
 import { onMounted, onUnmounted, computed } from 'vue';
-import { BubbleMenu } from '@tiptap/vue-3';
+import { BubbleMenu } from '@tiptap/vue-3/menus';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
