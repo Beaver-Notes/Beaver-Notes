@@ -23,6 +23,7 @@ function resetCloneStyles(clone) {
   clone.style.transformOrigin = 'center center';
 
   clone.classList.remove('opacity-50', 'rotate-1', 'rotate-2', 'transform');
+  clone.classList.add('bg-neutral-50', 'dark:bg-neutral-750', 'rounded-xl');
 
   if (clone.style.opacity !== '1') {
     clone.style.setProperty('opacity', '1', 'important');
@@ -45,6 +46,8 @@ export function createFullSizeCardGhost(element, count = 1) {
     zIndex: '9999',
     transformOrigin: 'center center',
     opacity: '1',
+    backgroundColor: 'var(--color-neutral-50)',
+    background: 'var(--tw-bg-opacity) bg-neutral-50',
   });
 
   if (count === 1) {

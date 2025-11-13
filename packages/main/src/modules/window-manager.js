@@ -17,6 +17,7 @@ export class WindowManager {
     });
 
     this.mainWindow = new BrowserWindow({
+      show: false,
       x: mainWindowState.x,
       y: mainWindowState.y,
       width: mainWindowState.width,

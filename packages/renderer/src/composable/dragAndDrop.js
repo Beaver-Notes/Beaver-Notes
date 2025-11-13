@@ -1,9 +1,6 @@
 import { ref } from 'vue';
 import { useFolderStore } from '@/store/folder';
-import {
-  createFullSizeCardGhost,
-  createAnimatedStackGhost,
-} from '@/composable/ghost.js';
+import { createFullSizeCardGhost, createAnimatedStackGhost } from './ghost.js';
 
 export function useDragAndDrop({ selectedItems }) {
   const dragOverFolderId = ref(null);
