@@ -8,7 +8,7 @@ import { AutoUpdater } from './modules/auto-updater.js';
 import { MenuManager } from './modules/menu-manager.js';
 import { FileHandler } from './modules/file-handler.js';
 
-let pendingFilePath = null; 
+let pendingFilePath = null;
 
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
@@ -27,6 +27,13 @@ if (process.env.PORTABLE_EXECUTABLE_DIR) {
     path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
   );
 }
+
+app.setName('Beaver Notes');
+
+app.setPath(
+  'userData',
+  path.join(app.getPath('appData'), 'beaver-notes')
+);
 
 class Application {
   constructor() {

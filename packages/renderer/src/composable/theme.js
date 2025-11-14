@@ -48,6 +48,7 @@ function setTheme(name, isSystem = false) {
 
 function loadTheme() {
   const savedTheme = localStorage.getItem('theme') || 'system';
+  window.electron.ipcRenderer.callMain('theme:set', savedTheme);
   setTheme(savedTheme, savedTheme === 'system');
 }
 

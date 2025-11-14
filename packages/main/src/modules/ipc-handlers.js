@@ -66,5 +66,14 @@ export class IPCHandlers {
       'helper:is-dark-theme',
       () => nativeTheme.shouldUseDarkColors
     );
+
+    ipcMain.on('theme:get', (event) => {
+      event.returnValue = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    });
+
+    ipcMain.on('theme:set', (event, theme) => {
+      const color = theme === 'dark' ? '#000000' : '#FFFFFF';
+      this.windowManager.setBackgroundColor(color);
+    });
   }
 }

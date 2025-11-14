@@ -91,6 +91,11 @@ import { useTranslation } from '@/composable/translations';
 
 export default {
   setup() {
+    const translations = ref({
+      about: {},
+      settings: {},
+    });
+
     const links = [
       {
         name: 'website',
@@ -116,11 +121,6 @@ export default {
       updateStatus: null,
       updateProgress: null,
       updateStatusType: 'idle',
-    });
-
-    const translations = ref({
-      about: {},
-      settings: {},
     });
 
     const checkForUpdates = async () => {

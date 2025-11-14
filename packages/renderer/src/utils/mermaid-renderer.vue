@@ -1,11 +1,11 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <pre
+  <div
     ref="elRef"
-    :class="['mermaid', className]"
+    :class="[className]"
     @click="onClick"
     v-html="mermaidString"
-  ></pre>
+  ></div>
 </template>
 
 <script>

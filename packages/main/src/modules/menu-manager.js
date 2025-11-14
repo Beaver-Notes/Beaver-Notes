@@ -12,10 +12,17 @@ export class MenuManager {
 
   async initialize(windowManager) {
     this.windowManager = windowManager;
+
     await this.setupContextMenu();
-    await this.createApplicationMenu();
+
+    const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+    const translations = await this.getTranslations(selectedLanguage);
+
+    await this.createApplicationMenu(translations);
+    await this.createDockMenu(translations);
   }
 
+  // Context Menu
   async setupContextMenu() {
     const { Menu } = require('electron');
     const win = this.windowManager.getWindow();
@@ -51,10 +58,8 @@ export class MenuManager {
     });
   }
 
-  async createApplicationMenu() {
-    const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-    const translations = await this.getTranslations(selectedLanguage);
-
+  // Application Menu
+  async createApplicationMenu(translations) {
     const template = this.buildMenuTemplate(translations);
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
@@ -192,6 +197,18 @@ export class MenuManager {
     if (this.windowManager) {
       this.windowManager.executeJavaScript('addNote();');
     }
+  }
+
+  // Dock Menu
+  async createDockMenu(translations) {
+    const dockMenu = Menu.buildFromTemplate([
+      {
+        label: translations.commands.newNote,
+        click: () => this.addNoteFromMenu(),
+      },
+    ]);
+
+    app.dock?.setMenu(dockMenu);
   }
 
   async getTranslations(lang = 'en') {

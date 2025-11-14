@@ -8,7 +8,7 @@ const path = require('path');
  */
 const electronBuilderConfig = {
   appId: 'com.danielerolli.beaver-notes',
-  productName: 'Beaver-notes',
+  productName: 'Beaver Notes',
   asar: true,
   asarUnpack: ['**/*.node'],
   files: [

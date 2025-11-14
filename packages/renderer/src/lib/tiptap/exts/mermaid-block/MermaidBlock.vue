@@ -1,42 +1,49 @@
 <template>
   <NodeViewWrapper>
+    <div @click="openTextarea" class="relative">
+      <MermaidComponent
+        ref="mermaidRef"
+        :content="mermaidContent"
+        :class="[
+          'w-full bg-neutral-50 dark:bg-neutral-900 pointer-events-none p-2 border min-h-20',
+          showTextarea ? 'rounded-t-lg border-b-0' : 'rounded-lg',
+        ]"
+      />
+    </div>
+
     <div
-      v-if="showTextarea"
-      class="bg-neutral-50 dark:bg-neutral-900 transition rounded-lg p-2"
+      v-if="isEditing"
+      :class="[
+        'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col',
+        isEditing ? 'rounded-b-lg' : ' rounded-lg',
+      ]"
+      style="margin-top: 0; padding: 0"
     >
-      <div class="flex">
+      <div class="flex mb-2 p-2 flex-grow">
         <textarea
           ref="inputRef"
           :value="mermaidContent"
           type="textarea"
           :placeholder="translations.editor.mermaidPlaceholder || '-'"
-          class="bg-transparent min-h-24 w-full resize-y leading-tight p-2"
+          class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32"
           @input="updateContent($event)"
           @keydown.ctrl.enter="closeTextarea"
           @keydown.exact="handleKeydown"
           @scroll="syncScroll"
         ></textarea>
       </div>
-      <div class="border-t-2 p-2 flex justify-between">
-        <p style="margin: 0">
+      <div
+        class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-800/70"
+      >
+        <p class="text-sm m-0">
           <strong>{{ translations.editor.exit }}</strong>
         </p>
         <v-remixicon
           class="cursor-pointer"
           name="riCloseLine"
-          @click="() => (showTextarea = false)"
+          @click="closeTextarea"
         />
       </div>
-    </div>
-    <div
-      class="relative min-h-[6em] rounded-lg bg-neutral-50 dark:bg-neutral-900 w-full cursor-text mt-2"
-      @click="openTextarea"
-    >
-      <MermaidComponent
-        ref="mermaidRef"
-        :content="mermaidContent"
-        class="w-full overflow-visible pointer-events-none"
-      />
     </div>
   </NodeViewWrapper>
 </template>
@@ -54,6 +61,7 @@ export default {
   },
   props: nodeViewProps,
   setup(props) {
+    const isEditing = ref(false);
     const mermaidContent = ref('');
     const inputRef = ref(null);
     const showTextarea = ref(false);
@@ -69,6 +77,7 @@ export default {
     }
 
     function openTextarea() {
+      isEditing.value = true;
       showTextarea.value = true;
       setTimeout(() => {
         if (inputRef.value) {
@@ -78,6 +87,7 @@ export default {
     }
 
     function closeTextarea() {
+      isEditing.value = false;
       showTextarea.value = false;
     }
 
@@ -136,6 +146,7 @@ export default {
       updateContent,
       mermaidContent,
       inputRef,
+      isEditing,
       showTextarea,
       translations,
       openTextarea,

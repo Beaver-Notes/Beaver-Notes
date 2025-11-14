@@ -1,11 +1,27 @@
 <template>
   <node-view-wrapper>
+    <!-- Preview area -->
+    <div
+      :class="[
+        'overflow-x-auto max-w-full border bg-neutral-50 dark:bg-neutral-900 cursor-text min-h-20 p-2',
+        isEditing ? 'rounded-t-lg' : ' rounded-lg',
+      ]"
+      @click="startEditing"
+    >
+      <p ref="contentRef" class="select-none pl-2"></p>
+    </div>
+
     <!-- Editor panel -->
     <div
       v-if="isEditing"
-      class="bg-neutral-50 dark:bg-neutral-900 transition rounded-lg p-2"
+      :class="[
+        'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col',
+        isEditing ? 'rounded-b-lg' : ' rounded-lg',
+      ]"
+      style="margin-top: 0; padding: 0"
     >
-      <div class="flex mb-2">
+      <!-- Growable content area -->
+      <div class="flex mb-2 p-2 flex-grow">
         <!-- Main content textarea -->
         <textarea
           v-if="!useKatexMacros"
@@ -13,7 +29,7 @@
           :value="node.attrs.content"
           type="textarea"
           :placeholder="translations.editor.mathPlaceholder || '-'"
-          class="bg-transparent flex-1 resize-y"
+          class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32"
           style="direction: ltr"
           @input="updateContent($event, 'content', true)"
           @keydown="handleKeydown"
@@ -25,18 +41,15 @@
           ref="macrosTextarea"
           :value="node.attrs.macros"
           placeholder="KaTeX macros"
-          class="bg-transparent ml-2 pl-2 border-l flex-1 resize-y"
+          class="bg-transparent ml-2 pl-2 flex-1 resize-y"
           @input="updateContent($event, 'macros', true)"
           @keydown="handleKeydown"
         />
       </div>
 
-      <!-- Footer with toggle and exit -->
       <div
-        class="flex border-t items-center pt-2 text-neutral-600 dark:text-neutral-300"
+        class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-800/70"
       >
-        <img src="@/assets/svg/katex.svg" width="48" style="margin: 0" />
-        <div class="flex-grow"></div>
         <p class="text-sm" style="margin: 0">
           <strong>{{ translations.editor.exit }}</strong>
         </p>
@@ -48,14 +61,6 @@
           @click="toggleMacros"
         />
       </div>
-    </div>
-
-    <!-- Rendered output -->
-    <div
-      class="overflow-x-auto max-w-full p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900 cursor-text min-h-[2em]"
-      @click="startEditing"
-    >
-      <p ref="contentRef" class="select-none"></p>
     </div>
   </node-view-wrapper>
 </template>
@@ -146,13 +151,6 @@ export default {
     const handleKeydown = (event) => {
       const { ctrlKey, shiftKey, metaKey, key } = event;
       const mod = ctrlKey || metaKey;
-
-      if (mod && key.toLowerCase() === 'a') {
-        event.preventDefault();
-        stopEditing();
-        props.editor.commands.selectAll();
-        return;
-      }
       if (mod && shiftKey && key === 'M') toggleMacros();
       if (mod && key === 'Enter') {
         stopEditing();

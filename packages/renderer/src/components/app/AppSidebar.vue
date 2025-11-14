@@ -7,7 +7,7 @@
       v-tooltip:right="
         translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
       "
-      class="transition p-2 mb-4 text-primary bg-input rounded-lg focus:ring-secondary"
+      class="transition p-2 mb-4 text-secondary bg-input rounded-lg focus:ring-secondary"
       @click="addNote"
     >
       <v-remixicon name="riAddFill" />
@@ -26,7 +26,7 @@
         translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
       "
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
-      :class="{ 'text-primary': $route.name === 'Note' }"
+      :class="{ 'text-secondary': $route.name === 'Note' }"
       @click="openLastEdited"
     >
       <v-remixicon name="riEditLine" />
@@ -38,7 +38,7 @@
         `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
       "
       :class="{
-        'text-primary dark:text-secondary': $route.fullPath === nav.path,
+        'text-secondary dark:text-secondary': $route.fullPath === nav.path,
       }"
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
       @click="handleNavigation(nav)"
@@ -74,7 +74,7 @@
       v-tooltip:right="translations.settings.title + ' (' + keyBinding + '+,)'"
       to="/settings"
       class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2"
-      active-class="text-primary dark:text-secondary"
+      active-class="text-secondary dark:text-secondary"
     >
       <v-remixicon name="riSettingsLine" />
     </router-link>
