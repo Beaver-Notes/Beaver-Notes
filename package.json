@@ -40,7 +40,7 @@
   "devDependencies": {
     "@benrbray/prosemirror-math": "^0.2.2",
     "@ossign/azuresigntool": "^1.1.1",
-    "@tailwindcss/typography": "^0.5.13",
+    "@tailwindcss/typography": "^0.5.19",
     "@tiptap/extension-code": "^2.1.16",
     "@tiptap/extension-code-block-lowlight": "^2.1.16",
     "@tiptap/extension-heading": "^2.4.0",
