@@ -1,12 +1,33 @@
 // main.js
 import path from 'path';
 import { app } from 'electron';
+import { existsSync } from 'fs';
+import { copySync, removeSync } from 'fs-extra';
 import { WindowManager } from './modules/window-manager.js';
 import { ProtocolManager } from './modules/protocol-manager.js';
 import { IPCHandlers } from './modules/ipc-handlers.js';
 import { AutoUpdater } from './modules/auto-updater.js';
 import { MenuManager } from './modules/menu-manager.js';
 import { FileHandler } from './modules/file-handler.js';
+
+// Migrate old data directory from "Beaver-notes" to "Beaver Notes"
+// !!! To be removed in future versions !!!
+app.on('ready', () => {
+  const base = app.getPath('appData');
+  const oldDir = path.join(base, 'Beaver-notes');
+  const newDir = path.join(base, 'Beaver Notes');
+
+  if (existsSync(oldDir)) {
+    try {
+      copySync(oldDir, newDir, { overwrite: true });
+      removeSync(oldDir);
+    } catch (e) {
+      console.error('[Migration] Failed:', e);
+    }
+  }
+});
+
+app.setName('Beaver Notes');
 
 let pendingFilePath = null;
 
@@ -27,13 +48,6 @@ if (process.env.PORTABLE_EXECUTABLE_DIR) {
     path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
   );
 }
-
-app.setName('Beaver Notes');
-
-app.setPath(
-  'userData',
-  path.join(app.getPath('appData'), 'beaver-notes')
-);
 
 class Application {
   constructor() {
