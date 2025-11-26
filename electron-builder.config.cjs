@@ -115,8 +115,5 @@ const electronBuilderConfig = {
   },
 };
 
-module.exports = async () => {
-  const envModule = await import('./env.js');
-  envModule.loadEnv('private');
-  return electronBuilderConfig;
-};
+require('./env.js').loadEnv('private');
+module.exports = electronBuilderConfig;
