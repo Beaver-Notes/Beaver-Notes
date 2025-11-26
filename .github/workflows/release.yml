@@ -17,7 +17,7 @@ jobs:
       GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -76,6 +76,8 @@ jobs:
             yarn electron-builder build --config electron-builder.config.cjs --mac $PUBLISH_FLAG
           elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            yarn electron-builder build --config electron-builder.config.cjs --win $PUBLISH_FLAG
           fi
         env:
           USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}

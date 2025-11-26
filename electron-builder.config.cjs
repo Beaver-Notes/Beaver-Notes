@@ -51,10 +51,7 @@ const electronBuilderConfig = {
     gatekeeperAssess: true,
     category: 'public.app-category.productivity',
     extendInfo: { 'com.apple.security.device.audio-input': true },
-    notarize: {
-      appBundleId: 'com.danielerolli.beaver-notes',
-      ascProvider: 'F8U6VTU2DJ',
-    },
+    notarize: false,
   },
 
   linux: {
@@ -100,7 +97,7 @@ const electronBuilderConfig = {
             `${packager.appInfo.productFilename}.app`,
             'Contents',
             'Resources',
-            'locales',
+            'locales'
           )
         : path.join(appOutDir, 'locales');
 
