@@ -1,13 +1,13 @@
 <template>
   <app-command-prompt />
-  <app-sidebar v-if="!store.inReaderMode" />
+  <app-sidebar v-show="!store.inReaderMode" />
   <div
-    v-if="store.inReaderMode"
+    v-show="store.inReaderMode"
     class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
   ></div>
 
   <div
-    v-if="updateBanner.show"
+    v-show="updateBanner.show"
     class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
   >
     <ui-banner
@@ -23,7 +23,7 @@
     <router-view />
   </main>
   <div
-    v-if="appStore.loading"
+    v-show="appStore.loading"
     class="fixed w-full h-full top-0 left-0 z-50 flex justify-center items-center bg-opacity-40 bg-black"
   >
     <ui-spinner :size="50" />
@@ -222,9 +222,12 @@ export default {
     }
 
     theme.loadTheme();
-    onFileOpened((path) => {
-      console.log('File opened:', path);
-      importBEA(path, router, store);
+
+    onFileOpened(async (path) => {
+      await router.isReady();
+      while (!retrieved.value) await new Promise((r) => setTimeout(r, 100));
+      if (await importBEA(path, router, store))
+        console.log('Import + navigation OK');
     });
 
     window.electron.ipcRenderer.callMain(

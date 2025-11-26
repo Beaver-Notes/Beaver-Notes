@@ -341,10 +341,10 @@ export default Heading.extend({
     return ({ HTMLAttributes, node, editor }) => {
       const container = document.createElement('div');
       container.style.position = 'relative';
+      container.style.overflow = 'visible';
 
       // Create the heading element
       const content = document.createElement(`h${node.attrs.level}`);
-      content.style.marginLeft = '30px'; // Adjust based on your design
       content.style.position = 'relative';
 
       // Create the SVG indicator
@@ -353,7 +353,7 @@ export default Heading.extend({
 
       // Add styles for alignment and rotation
       indicator.style.position = 'absolute';
-      indicator.style.left = '0';
+      indicator.style.left = '-35px'; // move it *outside* the heading
       indicator.style.top = '50%';
       indicator.style.transform = 'translateY(-50%)'; // Center vertically
       indicator.style.transition = 'transform 0.3s'; // Smooth rotation transition

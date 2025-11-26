@@ -1,6 +1,7 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
+import Folder from './pages/folder/_id.vue';
 import Settings from './pages/Settings.vue';
 import SettingsIndex from './pages/settings/Index.vue';
 import SettingsAppearance from './pages/settings/Appearance.vue';
@@ -18,6 +19,11 @@ const routes = [
     path: '/note/:id',
     name: 'Note',
     component: Note,
+  },
+  {
+    path: '/folder/:id',
+    name: 'Folder',
+    component: Folder,
   },
   {
     path: '/settings',

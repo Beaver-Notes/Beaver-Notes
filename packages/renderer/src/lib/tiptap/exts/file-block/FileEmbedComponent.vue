@@ -4,16 +4,24 @@
       <div
         class="mt-2 mb-2 file-embed bg-neutral-100 dark:bg-[#353333] p-3 rounded-lg flex items-center justify-between"
       >
-        <div class="flex items-center cursor-pointer" @click="openDocument">
+        <div class="flex items-center cursor-pointer">
           <v-remixicon name="riFile2Line" class="w-6 h-6 mr-2" />
-          <span>{{ truncatedFileName }}</span>
+          <span class="file-name truncate max-w-2/3">{{ fileName }}</span>
         </div>
-        <button
-          class="download-button bg-input p-1 px-3 rounded-lg outline-none"
-          @click="downloadFile"
-        >
-          <v-remixicon name="riDownloadLine" class="w-6 h-6" />
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            class="bg-input p-1 px-3 rounded-lg outline-none"
+            @click="downloadFile"
+          >
+            <v-remixicon name="riDownloadLine" class="w-6 h-6" />
+          </button>
+          <button
+            class="bg-input p-1 px-3 rounded-lg outline-none"
+            @click="openDocument"
+          >
+            <v-remixicon name="riEyeLine" class="w-6 h-6" />
+          </button>
+        </div>
       </div>
     </div>
   </NodeViewWrapper>
@@ -21,7 +29,7 @@
 
 <script>
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { ref, computed } from 'vue';
+import { ref, onMounted } from 'vue';
 const { ipcRenderer } = window.electron;
 
 export default {
@@ -32,32 +40,35 @@ export default {
   setup(props) {
     const fileName = ref(props.node.attrs.fileName || '');
 
-    // Truncate the file name
-    const truncatedFileName = computed(() => {
-      const maxLength = 20; // Maximum characters to display
-      if (fileName.value.length > maxLength) {
-        return `${fileName.value.slice(0, maxLength)}...`;
-      }
-      return fileName.value;
-    });
-
     function normalizeSrc(src) {
-      if (src.startsWith('file-assets://')) {
-        return src.replace('file-assets://', 'file-assets/');
-      }
-      return src;
+      const [base] = src.split('?');
+      return base;
     }
 
     function openDocument() {
-      let src = props.node.attrs.src;
-      src = normalizeSrc(src);
+      const src = encodeURI(normalizeSrc(props.node.attrs.src));
       ipcRenderer.callMain('open-file-external', src);
     }
 
+    function refreshFileEmbed() {
+      const baseSrc = props.node.attrs.src.split('?')[0];
+      props.updateAttributes({
+        src: `${baseSrc}?t=${Date.now()}`,
+      });
+    }
+
+    onMounted(() => {
+      ipcRenderer.answerMain('file-updated', ({ originalPath }) => {
+        console.log('Got request from main', originalPath);
+        refreshFileEmbed();
+        return { status: 'ok' };
+      });
+    });
+
     function downloadFile(event) {
       event.stopPropagation();
-      let src = props.node.attrs.src;
-      src = normalizeSrc(src);
+      let src = normalizeSrc(props.node.attrs.src);
+      src = encodeURI(src);
       const link = document.createElement('a');
       link.href = src;
       link.download = fileName.value;
@@ -68,10 +79,19 @@ export default {
 
     return {
       fileName,
-      truncatedFileName,
       openDocument,
       downloadFile,
     };
   },
 };
 </script>
+
+<style lang="css">
+.file-name {
+  display: inline-block;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+</style>

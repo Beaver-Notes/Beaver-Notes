@@ -28,16 +28,26 @@ export class FileSystemHandlers {
     ipcMain.answerRenderer('fs:ensureDir', (path) => ensureDir(path));
     ipcMain.answerRenderer('fs:pathExists', (path) => pathExistsSync(path));
     ipcMain.answerRenderer('fs:remove', (path) => remove(path));
-    ipcMain.answerRenderer('fs:writeFile', ({ path, data }) =>
-      writeFileSync(path, data)
-    );
+    ipcMain.answerRenderer('fs:writeFile', ({ path, data, mode }) => {
+      if (mode !== undefined) {
+        writeFileSync(path, data, { mode });
+      } else {
+        writeFileSync(path, data);
+      }
+    });
+
+    ipcMain.answerRenderer('fs:mkdir', async ({ path: dirPath, mode }) => {
+      if (mode !== undefined) {
+        await mkdir(dirPath, { recursive: true, mode });
+      } else {
+        await mkdir(dirPath, { recursive: true });
+      }
+    });
+
     ipcMain.answerRenderer('fs:readFile', (path) => readFileSync(path, 'utf8'));
 
     ipcMain.answerRenderer('fs:readdir', async (dirPath) => readdir(dirPath));
     ipcMain.answerRenderer('fs:stat', async (filePath) => statSync(filePath));
-    ipcMain.answerRenderer('fs:mkdir', async (dirPath) => {
-      await mkdir(dirPath, { recursive: true });
-    });
     ipcMain.answerRenderer('fs:unlink', async (filePath) =>
       unlinkSync(filePath)
     );

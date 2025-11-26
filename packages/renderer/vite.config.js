@@ -1,23 +1,16 @@
 /* eslint-env node */
-
 import { chrome } from '../../electron-vendors.config.json';
 import { join } from 'path';
 import { builtinModules } from 'module';
 import { defineConfig } from 'vite';
 import vue from '@vitejs/plugin-vue';
 import { loadAndSetEnv } from '../../scripts/loadAndSetEnv.mjs';
+// import { visualizer } from 'rollup-plugin-visualizer';
 
 const PACKAGE_ROOT = __dirname;
 
-/**
- * Vite looks for `.env.[mode]` files only in `PACKAGE_ROOT` directory.
- * Therefore, you must manually load and set the environment variables from the root directory above
- */
 loadAndSetEnv(process.env.MODE, process.cwd());
 
-/**
- * @see https://vitejs.dev/config/
- */
 export default defineConfig({
   root: PACKAGE_ROOT,
   resolve: {
@@ -26,7 +19,16 @@ export default defineConfig({
       crypto: 'crypto-browserify',
     },
   },
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    //    visualizer({
+    //      filename: join(PACKAGE_ROOT, 'stats.html'),
+    //      template: 'treemap',
+    //     gzipSize: true,
+    //      brotliSize: true,
+    //      open: true,
+    //    }),
+  ],
   optimizeDeps: {
     exclude: ['mermaid/dist/*'],
   },
@@ -44,7 +46,8 @@ export default defineConfig({
     },
   },
   build: {
-    sourcemap: true,
+    sourcemap: false,
+    minify: 'terser',
     target: `chrome${chrome}`,
     outDir: 'dist',
     chunkSizeWarningLimit: 1600,
@@ -53,11 +56,23 @@ export default defineConfig({
       ecma: 2020,
       compress: {
         passes: 2,
+        drop_console: true,
+        drop_debugger: true,
+        pure_getters: true,
+        module: true,
       },
+      format: { comments: false },
       safari10: false,
     },
     rollupOptions: {
       external: [...builtinModules],
+      output: {
+        manualChunks: {
+          editor: ['@tiptap/core', 'prosemirror-model', 'prosemirror-view'],
+          mermaid: ['mermaid'],
+          katex: ['katex'],
+        },
+      },
     },
     emptyOutDir: true,
   },

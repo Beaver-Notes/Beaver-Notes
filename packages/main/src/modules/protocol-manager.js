@@ -19,7 +19,6 @@ export class ProtocolManager {
       ensureDir(join(app.getPath('userData'), 'notes-assets')),
       ensureDir(join(app.getPath('userData'), 'file-assets')),
     ]);
-
     this.registerProtocols();
   }
 
@@ -31,37 +30,28 @@ export class ProtocolManager {
       callback({ path: normalize(imgPath) });
     });
 
-    protocol.registerFileProtocol(
-      'file-assets',
-      (request, callback) => {
-        try {
-          const url = request.url.substr('file-assets://'.length);
-          const decodedUrl = decodeURIComponent(url);
-          const dir = store.settings.get('dataDir');
-          const filePath = join(dir, 'file-assets', decodedUrl);
-
-          if (!existsSync(filePath)) {
-            console.error(`File not found: ${filePath}`);
-            return callback({ error: -6 });
-          }
-
-          const mimeType = 'application/octet-stream';
-
-          callback({
-            path: filePath,
-            headers: {
-              'Content-Type': mimeType,
-              'Access-Control-Allow-Origin': '*',
-            },
-          });
-        } catch (err) {
-          console.error('Error handling file-assets protocol:', err);
-          callback({ error: -2 });
+    protocol.registerFileProtocol('file-assets', (request, callback) => {
+      try {
+        const url = request.url.substr('file-assets://'.length);
+        const decodedUrl = decodeURIComponent(url);
+        const dir = store.settings.get('dataDir');
+        const filePath = join(dir, 'file-assets', decodedUrl);
+        if (!existsSync(filePath)) {
+          console.error(`File not found: ${filePath}`);
+          return callback({ error: -6 });
         }
-      },
-      (error) => {
-        if (error) console.error('Failed to register protocol', error);
+        const mimeType = 'application/octet-stream';
+        callback({
+          path: filePath,
+          headers: {
+            'Content-Type': mimeType,
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      } catch (err) {
+        console.error('Error handling file-assets protocol:', err);
+        callback({ error: -2 });
       }
-    );
+    });
   }
 }

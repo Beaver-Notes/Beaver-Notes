@@ -73,4 +73,4 @@ function diffObject(source, target) {
   return [obj, diffObj];
 }
 
-showUnsynchronized('../packages/renderer/src/pages/settings/locales');
+showUnsynchronized('../packages/src/assets/locales');

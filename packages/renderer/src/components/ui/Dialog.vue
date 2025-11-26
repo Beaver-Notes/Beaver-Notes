@@ -15,15 +15,8 @@
       autofocus
       :placeholder="state.options.placeholder"
       :label="state.options.label"
+      :password="true"
       class="w-full mt-4"
-    ></ui-input>
-    <ui-input
-      v-else-if="state.type === 'auth'"
-      v-model="state.input"
-      autofocus
-      :placeholder="state.options.placeholder"
-      :label="state.options.label"
-      class="w-full mt-4 no-security-text"
     ></ui-input>
     <div v-if="isEmpty" class="text-sm text-red-500 mt-2">
       {{ translations.dialog.inputEmpty }}
@@ -82,14 +75,12 @@ export default {
     const auths = ref(allPermissions.map((p) => ({ label: p, value: false })));
     const isEmpty = ref(false);
     const translations = ref({});
-    const loadTranslations = () =>
+    onMounted(async () => {
       useTranslation().then((trans) => {
         if (trans) {
           translations.value = trans;
         }
       });
-    onMounted(async () => {
-      await loadTranslations();
     });
 
     emitter.on('show-dialog', (type, options) => {

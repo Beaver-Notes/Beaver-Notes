@@ -1,15 +1,16 @@
 <!-- eslint-disable vue/no-v-html -->
 <template>
-  <pre
+  <div
     ref="elRef"
-    :class="['mermaid', className]"
+    :class="[className]"
     @click="onClick"
     v-html="mermaidString"
-  ></pre>
+  ></div>
 </template>
 
 <script>
-import { defineComponent, ref, watch, onMounted, shallowReactive } from 'vue';
+import { defineComponent, ref, watch, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useTheme } from '@/composable/theme';
 import mermaid from 'mermaid';
 
@@ -35,7 +36,7 @@ export default defineComponent({
   setup(props) {
     const elRef = ref(null);
     const mermaidString = ref('');
-    const { currentTheme } = useTheme(); // Assuming useTheme provides currentTheme
+    const { currentTheme, isDark } = useTheme(); // Assuming useTheme provides currentTheme
     const hasSyntaxError = ref(false);
 
     function genSvgId() {
@@ -55,7 +56,7 @@ export default defineComponent({
         hasSyntaxError.value = false; // No syntax error
       } catch (e) {
         console.error('Error rendering Mermaid diagram:', e);
-        mermaidString.value = `<div class="text-red-500 text-center">${translations._idvue.error}</div>`;
+        mermaidString.value = `<div class="text-red-500 text-center">${translations.value.editor.error}</div>`;
         hasSyntaxError.value = true; // Syntax error
       }
     }
@@ -63,8 +64,7 @@ export default defineComponent({
     function initializeMermaid() {
       if (!elRef.value) return;
 
-      const isDarkMode = currentTheme.value === 'dark';
-      const theme = isDarkMode ? 'dark' : 'default';
+      const theme = isDark() ? 'dark' : 'default';
 
       mermaid.initialize({
         startOnLoad: true,
@@ -75,8 +75,7 @@ export default defineComponent({
     }
 
     function addThemeToContent(content) {
-      const isDarkMode = currentTheme.value === 'dark';
-      const theme = isDarkMode ? 'dark' : 'default';
+      const theme = isDark() ? 'dark' : 'default';
 
       return `%%{init: {'theme':'${theme}'}}%%\n${content}`;
     }
@@ -113,32 +112,18 @@ export default defineComponent({
       }
     );
 
-    const translations = shallowReactive({
-      _idvue: {
-        error: '_idvue.error',
-      },
+    const translations = ref({
+      _idvue: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
+      if (!props.editor) return;
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       elRef,

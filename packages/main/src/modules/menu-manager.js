@@ -12,32 +12,54 @@ export class MenuManager {
 
   async initialize(windowManager) {
     this.windowManager = windowManager;
+
     await this.setupContextMenu();
-    await this.createApplicationMenu();
-  }
 
-  async setupContextMenu() {
-    try {
-      const contextMenuModule = await import('electron-context-menu');
-      const contextMenu = contextMenuModule.default;
-
-      contextMenu({
-        showLookUpSelection: true,
-        showSearchWithGoogle: true,
-        showCopyImage: true,
-        showSaveImageAs: true,
-        showCopyLink: true,
-        showInspectElement: true,
-      });
-    } catch (error) {
-      console.error('Failed to load context menu:', error);
-    }
-  }
-
-  async createApplicationMenu() {
     const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
     const translations = await this.getTranslations(selectedLanguage);
 
+    await this.createApplicationMenu(translations);
+    await this.createDockMenu(translations);
+  }
+
+  // Context Menu
+  async setupContextMenu() {
+    const { Menu } = require('electron');
+    const win = this.windowManager.getWindow();
+
+    if (!win) return;
+
+    const menu = Menu.buildFromTemplate([
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      { role: 'selectAll' },
+      ...(isMac
+        ? [
+            { type: 'separator' },
+            { role: 'startSpeaking' },
+            { role: 'stopSpeaking' },
+          ]
+        : []),
+    ]);
+
+    win.webContents.on('context-menu', (_event, params) => {
+      if (params.isEditable) {
+        menu.popup({
+          window: win,
+          x: params.x,
+          y: params.y,
+          ...(isMac && { frame: win.webContents.mainFrame }),
+        });
+      }
+    });
+  }
+
+  // Application Menu
+  async createApplicationMenu(translations) {
     const template = this.buildMenuTemplate(translations);
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
@@ -86,7 +108,7 @@ export class MenuManager {
       label: 'File',
       submenu: [
         {
-          label: translations.commands.newnote,
+          label: translations.commands.newNote,
           accelerator: 'CmdOrCtrl+N',
           click: () => this.addNoteFromMenu(),
         },
@@ -177,6 +199,18 @@ export class MenuManager {
     }
   }
 
+  // Dock Menu
+  async createDockMenu(translations) {
+    const dockMenu = Menu.buildFromTemplate([
+      {
+        label: translations.commands.newNote,
+        click: () => this.addNoteFromMenu(),
+      },
+    ]);
+
+    app.dock?.setMenu(dockMenu);
+  }
+
   async getTranslations(lang = 'en') {
     const supportedLangs = [
       'en',
@@ -195,7 +229,7 @@ export class MenuManager {
 
     try {
       const translations = await import(
-        `../../../renderer/src/pages/settings/locales/${lang}.json`
+        `../../../renderer/src/assets/locales/${lang}.json`
       );
       return translations.default;
     } catch (error) {

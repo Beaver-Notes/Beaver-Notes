@@ -5,45 +5,57 @@
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button
-      v-if="$route.query.linked && !store.inReaderMode"
-      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group"
+      v-if="
+        (showBack && !store.inReaderMode) ||
+        ($route.query.linked && !store.inReaderMode)
+      "
+      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden"
       title="Alt+Arrow left"
-      @click="$router.back()"
+      @click="goBack"
     >
       <v-remixicon
         name="riArrowDownLine"
         class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
       />
-      <span>
-        {{ translations._idvue.Previousnote || '-' }}
+      <span v-if="$route.query.linked && !store.inReaderMode">
+        {{ translations.editor.previousNote || '-' }}
       </span>
     </button>
+
     <template v-if="editor && !note.isLocked">
       <note-menu v-bind="{ editor, id, note }" class="mb-6" />
-      <note-search
-        v-if="showSearch"
-        v-bind="{ editor }"
-        @keyup.esc="closeSearch"
-      />
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 translate-y-4"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0 translate-y-4"
+      >
+        <note-search
+          v-if="showSearch"
+          v-bind="{ editor }"
+          @close="closeSearch"
+          @keyup.esc="closeSearch"
+        />
+      </transition>
     </template>
     <div
       v-if="!isLocked"
+      ref="titleDiv"
       contenteditable="true"
-      :value="note.title"
       class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
-      :placeholder="translations._idvue.untitlednote || '-'"
+      :placeholder="translations.editor.untitledNote"
       @input="updateNote({ title: $event.target.innerText })"
       @keydown="disallowedEnter"
-    >
-      {{ note.title }}
-    </div>
+    ></div>
     <div v-else class="flex flex-col items-center justify-center h-screen">
       <v-remixicon
         class="w-24 h-auto text-gray-600 dark:text-white"
         name="riLockLine"
       />
       <p class="text-center pb-2 text-gray-600 dark:text-gray-200">
-        {{ translations.card.unlocktoedit }}
+        {{ translations.card.unlockToEdit }}
       </p>
       <div class="pb-2">
         <button
@@ -79,14 +91,8 @@
 </template>
 
 <script>
-import {
-  ref,
-  shallowRef,
-  computed,
-  watch,
-  onMounted,
-  shallowReactive,
-} from 'vue';
+import { ref, shallowRef, computed, watch, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
@@ -112,7 +118,6 @@ export default {
     const labelStore = useLabelStore();
     const appStore = useAppStore();
     const dialog = useDialog();
-    const userPassword = ref('');
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -134,13 +139,40 @@ export default {
       }
     );
 
+    const showBack = computed(() => {
+      const back = router.options.history.state.back;
+      if (!back) return false;
+      if (back === '/' || back.includes('/#/?')) return false;
+      return true;
+    });
+
+    function goBack() {
+      const from = router.options.history.state.back;
+
+      if (!from) {
+        router.push('/');
+        return;
+      }
+
+      if (from.includes('/folder/') || from.includes('/archive/')) {
+        router.go(-1);
+        return;
+      }
+
+      if (from.includes('/note/')) {
+        router.go(-1);
+        return;
+      }
+
+      router.push('/');
+    }
+
     const autoScroll = debounce(() => {
       if (!noteEditor.value) {
         return;
       }
       const lastChild =
         noteEditor.value.$el.querySelector('.ProseMirror').lastChild;
-      // does scrollbar appear
       if (
         !(
           document.body.scrollHeight >
@@ -150,7 +182,6 @@ export default {
         return;
       }
       const selection = window.getSelection();
-      // the anchorNode must be the child of the last child or is the last child.
       if (!lastChild.contains(selection.anchorNode)) {
         return;
       }
@@ -161,15 +192,12 @@ export default {
       const lineHeight = rect.height;
 
       const offset = Math.abs(rect.bottom - lastRect.bottom);
-      // editor must fill the viewport
       if (lastRect.top + lastRect.height <= window.innerHeight) {
         return;
       }
       if (lineHeight === 0) {
-        // empty line
         lastChild.scrollIntoView();
       } else if (offset < lineHeight) {
-        // the offset of last line will not exceed the line height
         lastChild.scrollIntoView();
       }
     }, 50);
@@ -237,40 +265,19 @@ export default {
     });
 
     // Translations
-    const translations = shallowReactive({
-      _idvue: {
-        Previousnote: '_idvue.Previousnote',
-        untitlednote: '_idvue.untitlednote',
-      },
-      card: {
-        unlocktoedit: 'card.unlocktoedit',
-        unlock: 'card.unlock',
-      },
-      index: {
-        close: 'index.close',
-      },
+    const translations = ref({
+      editor: {},
+      card: {},
+      index: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     const focusEditor = () =>
       noteEditor.value?.$el?.querySelector('*[tabindex="0"]')?.focus();
@@ -295,35 +302,54 @@ export default {
       const noteStore = useNoteStore();
 
       dialog.prompt({
-        title: translations.card.enterpasswd,
-        okText: translations.card.unlock,
-        cancelText: translations.card.Cancel,
-        placeholder: translations.card.Password,
+        title: translations.value.card.enterPasswd,
+        okText: translations.value.card.unlock,
+        cancelText: translations.value.card.cancel,
+        placeholder: translations.value.card.password,
         onConfirm: async (enteredPassword) => {
           try {
-            const isValidPassword = await passwordStore.isValidPassword(
-              enteredPassword
-            );
-            if (isValidPassword) {
-              console.log(translations.card.Passwordcorrect);
-              // Note unlocked
-              userPassword.value = '';
-              await noteStore.unlockNote(note, enteredPassword); // Pass entered password to unlockNote
-              console.log(`Note (ID: ${note}) is unlocked`);
+            const hassharedKey = await passwordStore.retrieve();
+
+            if (!hassharedKey) {
+              try {
+                console.log('test');
+                await noteStore.unlockNote(note, enteredPassword);
+                await passwordStore.setsharedKey(enteredPassword);
+              } catch (error) {
+                alert(translations.value.card.wrongPasswd);
+                return;
+              }
             } else {
-              console.log(translations.card.Passwordcorrect);
-              alert(translations.card.wrongpasswd);
+              const isValidPassword = await passwordStore.isValidPassword(
+                enteredPassword
+              );
+              if (isValidPassword) {
+                await noteStore.unlockNote(note, enteredPassword);
+              } else {
+                alert(translations.value.card.wrongPasswd);
+              }
             }
           } catch (error) {
             console.error('Error unlocking note:', error);
-            alert(translations.card.wrongpasswd);
+            alert(translations.value.card.wrongPasswd);
           }
         },
       });
     }
 
+    const titleDiv = ref(null);
+
+    onMounted(() => {
+      if (titleDiv.value && note.value.title) {
+        titleDiv.value.innerText = note.value.title;
+      }
+    });
+
     return {
       id,
+      showBack,
+      titleDiv,
+      goBack,
       noteEditor,
       note,
       translations,

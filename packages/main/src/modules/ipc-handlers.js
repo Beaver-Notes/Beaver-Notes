@@ -7,12 +7,14 @@ import { FileSystemHandlers } from './handlers/filesystem-handlers.js';
 import { StorageHandlers } from './handlers/storage-handlers.js';
 import { FontHandler } from './handlers/fonts-handler.js';
 import { PDFHandler } from './handlers/pdf-handler.js';
+import { SafeStorageHandlers } from './handlers/safeStorage-handlers.js';
 
 export class IPCHandlers {
   constructor() {
     this.appHandlers = new AppHandlers();
     this.storageHandlers = new StorageHandlers();
     this.fileSystemHandlers = new FileSystemHandlers();
+    this.safeStoreHandlers = new SafeStorageHandlers();
     this.dialogHandlers = new DialogHandlers();
     this.pdfHandler = new PDFHandler();
     this.FontHandler = new FontHandler();
@@ -32,6 +34,9 @@ export class IPCHandlers {
 
     // File system handlers
     this.fileSystemHandlers.register();
+
+    // Safe store handlers
+    this.safeStoreHandlers.register();
 
     // Dialog handlers
     this.dialogHandlers.register();
@@ -61,5 +66,14 @@ export class IPCHandlers {
       'helper:is-dark-theme',
       () => nativeTheme.shouldUseDarkColors
     );
+
+    ipcMain.on('theme:get', (event) => {
+      event.returnValue = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    });
+
+    ipcMain.on('theme:set', (event, theme) => {
+      const color = theme === 'dark' ? '#000000' : '#FFFFFF';
+      this.windowManager.setBackgroundColor(color);
+    });
   }
 }

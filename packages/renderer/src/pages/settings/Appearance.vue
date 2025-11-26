@@ -3,9 +3,9 @@
   <div class="general space-y-8 mb-14 w-full max-w-xl">
     <!-- App theme -->
     <section>
-      <p class="mb-2">{{ translations.settings.apptheme || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.appTheme || '-' }}</p>
       <div
-        class="flex ltr:space-x-4 text-gray-600 dark:text-[color:var(--selected-dark-text)]"
+        class="flex ltr:space-x-4 text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
       >
         <button
           v-for="item in themes"
@@ -18,117 +18,120 @@
         >
           <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
           <p class="capitalize text-center text-sm">
-            {{ translations.settings[item.name] || item.name }}
+            {{ translations.appearence[item.name] || item.name }}
           </p>
         </button>
       </div>
     </section>
     <!-- Accent Color -->
     <section>
-      <p class="mb-2">{{ translations.settings.colorScheme || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.colorScheme || '-' }}</p>
       <div class="w-full items-center justify-center flex gap-4">
         <button
           class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'red' }"
           @click="setColor('red')"
         ></button>
         <button
           class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'light' }"
           @click="setColor('light')"
         ></button>
         <button
           class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'green' }"
           @click="setColor('green')"
         ></button>
         <button
           class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'blue' }"
           @click="setColor('blue')"
         ></button>
         <button
           class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'purple' }"
           @click="setColor('purple')"
         ></button>
         <button
           class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'pink' }"
           @click="setColor('pink')"
         ></button>
         <button
           class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
+          :class="{ 'ring-2 ring-primary': state.accentColor === 'neutral' }"
           @click="setColor('neutral')"
         ></button>
       </div>
     </section>
     <!-- Interface size -->
     <section>
-      <p class="mb-2">{{ translations.settings.interfacesize || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.interfaceSize || '-' }}</p>
+
       <div class="grid grid-cols-4 gap-4">
         <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.2' }"
-          @click="setZoom(1.2)"
+          v-for="opt in [
+            {
+              s: 1.2,
+              key: '1.2',
+              label: translations.appearence.large || 'Large',
+            },
+            {
+              s: 1.1,
+              key: '1.1',
+              label: translations.appearence.medium || 'Medium',
+            },
+            {
+              s: 1.0,
+              key: '1.0',
+              label: translations.appearence.default || 'Default',
+            },
+            {
+              s: 0.9,
+              key: '0.9',
+              label: translations.appearence.moreSpace || 'More Space',
+            },
+          ]"
+          :key="opt.key"
+          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+          :class="{
+            'ring-2 ring-primary border-primary':
+              String(state.zoomLevel) === opt.key,
+          }"
+          :aria-pressed="String(state.zoomLevel) === opt.key"
+          type="button"
+          @click="setZoom(Number(opt.key))"
         >
-          <img
-            src="/src/assets/images/Large.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.large || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.1' }"
-          @click="setZoom(1.1)"
-        >
-          <img
-            src="/src/assets/images/Medium.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.medium || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '1.0' }"
-          @click="setZoom(1.0)"
-        >
-          <img
-            src="/src/assets/images/Default.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.default || '-' }}
-          </p>
-        </button>
-        <button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{ 'ring-2 ring-primary': state.zoomLevel === '0.9' }"
-          @click="setZoom(0.9)"
-        >
-          <img
-            src="/src/assets/images/More Space.png"
-            class="w-40 border-2 mb-1 rounded-lg"
-          />
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.morespace || '-' }}
-          </p>
+          <!-- Fixed-size preview frame -->
+          <div
+            class="w-full h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden relative"
+            :style="`--s:${opt.s}`"
+          >
+            <!-- Centered, scale-compensated wrapper (prevents clipping at any scale) -->
+            <div class="fit-scale">
+              <div class="p-1 text-center text-xs leading-4">
+                <div class="font-semibold mb-1 truncate">Lorem Ipsum</div>
+                <div
+                  class="text-neutral-600 dark:text-neutral-300 line-clamp-3"
+                >
+                  Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="capitalize text-center text-sm">{{ opt.label }}</p>
         </button>
       </div>
     </section>
     <!-- Font -->
     <section>
-      <p class="mb-2">{{ translations.settings.selectfont || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.selectFont || '-' }}</p>
       <div class="flex gap-2 items-center">
         <ui-select
           v-model="state.selectedFont"
           class="w-full"
+          :search="true"
           @change="updateFont"
         >
           <optgroup>
@@ -156,7 +159,7 @@
     </section>
     <!-- Code Font Section -->
     <section>
-      <p class="mb-2">{{ translations.settings.selectcodefont || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.selectCodeFont || '-' }}</p>
       <div class="flex items-center gap-2">
         <ui-select
           id="codeFontSelect"
@@ -177,66 +180,36 @@
         </ui-select>
       </div>
     </section>
-    <!-- Interface Direction -->
-    <section>
-      <p class="mb-2">{{ translations.settings.interfaceDirection || '-' }}</p>
-      <div class="grid grid-cols-2 gap-4">
-        <ui-button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{
-            'ring-2 ring-primary': state.directionPreference === 'ltr',
-          }"
-          @click="toggleLtr"
-        >
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.LTR || '-' }}
-          </p>
-        </ui-button>
-        <ui-button
-          class="bg-input p-2 rounded-lg focus:ring-primary transition cursor-pointer"
-          :class="{
-            'ring-2 ring-primary': state.directionPreference === 'rtl',
-          }"
-          @click="toggleRtl"
-        >
-          <p class="capitalize text-center text-sm">
-            {{ translations.settings.RTL || '-' }}
-          </p>
-        </ui-button>
-      </div>
-    </section>
     <!-- Page width -->
     <section>
       <p class="mb-2">
-        {{ translations.settings.editorSpacing || '-' }}
+        {{ translations.appearence.editorSpacing || '-' }}
       </p>
       <div class="grid grid-cols-3 gap-4">
         <!-- Normal Button -->
         <ui-button
-          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-gray-200"
+          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
           :class="{
             'outline-none ring-2 ring-primary': selectedWidth === '54rem',
           }"
           @click="setWidth('54rem')"
         >
-          {{ translations.settings.normal || '-' }}
+          {{ translations.appearence.normal || '-' }}
         </ui-button>
         <!-- Wide Button -->
         <ui-button
-          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-gray-200"
+          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
           :class="{
             'outline-none ring-2 ring-primary': selectedWidth === '68rem',
           }"
           @click="setWidth('68rem')"
         >
-          {{ translations.settings.wide || '-' }}
+          {{ translations.appearence.wide || '-' }}
         </ui-button>
-        <!-- Custom Width (takes up the remaining space) -->
         <div class="relative col-span-1">
-          <!-- Button (shown when not editing) -->
           <ui-button
             v-if="!isEditingCustomWidth"
-            class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-gray-200"
+            class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-neutral-200"
             :class="{
               'outline-none ring-2 ring-primary': selectedWidth === customWidth,
             }"
@@ -244,31 +217,30 @@
           >
             {{ customWidth }}
           </ui-button>
-          <!-- Input (shown when editing) -->
           <div v-else class="relative">
             <input
               v-model="customWidthInput"
               type="text"
               class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-2 ring-secondary"
-              placeholder="translations.settings.enterWidth"
+              placeholder="translations.appearence.enterWidth"
               style="appearance: none"
               @blur="applyCustomWidth"
               @keydown.enter="applyCustomWidth"
             />
-            <span class="absolute top-2 right-2 text-gray-500">rem</span>
+            <span class="absolute top-2 right-2 text-neutral-500">rem</span>
           </div>
         </div>
       </div>
     </section>
     <section>
-      <p class="mb-2">{{ translations.settings.interfaceOptions || '-' }}</p>
+      <p class="mb-2">{{ translations.appearence.interfaceOptions || '-' }}</p>
       <div>
         <div class="space-y-1">
           <!-- Clear Text - OLED -->
           <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
-                {{ translations.settings.clearfont || '-' }}
+                {{ translations.appearence.clearFont || '-' }}
               </span>
             </div>
             <label class="relative inline-flex cursor-pointer items-center">
@@ -280,7 +252,7 @@
                 @change="toggleClearFont"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -288,7 +260,7 @@
           <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
-                {{ translations.settings.menuBarVisibility || '-' }}
+                {{ translations.appearence.menuBarVisibility || '-' }}
               </span>
             </div>
             <label class="relative inline-flex cursor-pointer items-center">
@@ -300,7 +272,7 @@
                 @change="toggleVisibilityOfMenubar"
               />
               <div
-                class="peer h-6 w-11 rounded-full border bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
+                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
               ></div>
             </label>
           </div>
@@ -312,34 +284,37 @@
 
 <script>
 import { shallowReactive, onMounted, computed, ref } from 'vue';
+import { useTranslation } from '../../composable/translations';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
+import { useAppStore } from '../../store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import '../../assets/css/passwd.css';
-import LTRImg from '@/assets/images/LTR.png';
-import LTRImgDark from '@/assets/images/LTR-dark.png';
-import RTLImg from '@/assets/images/RTL.png';
-import RTLImgDark from '@/assets/images/RTL-dark.png';
 
 export default {
   setup() {
+    const appStore = useAppStore();
     const themes = [
       { name: 'light', img: lightImg },
       { name: 'dark', img: darkImg },
       { name: 'system', img: systemImg },
     ];
 
+    const layouts = [
+      { name: 'default', img: lightImg },
+      { name: 'columns', img: darkImg },
+    ];
+
     const theme = useTheme();
     const storage = useStorage();
 
-    // State for application settings
     const state = shallowReactive({
       dataDir: '',
       password: '',
       withPassword: false,
       lastUpdated: null,
+      accentColor: localStorage.getItem('color-scheme') || 'light',
       zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
       directionPreference: localStorage.getItem('directionPreference') || 'ltr',
       selectedFont: localStorage.getItem('selected-font') || 'Arimo',
@@ -349,68 +324,10 @@ export default {
 
     let defaultPath = '';
 
-    // Translations
-    const translations = shallowReactive({
-      settings: {
-        advancedSettings: 'settings.advancedSettings',
-        apptheme: 'settings.apptheme',
-        light: 'settings.light',
-        dark: 'settings.dark',
-        system: 'settings.system',
-        selectlanguage: 'settings.selectlanguage',
-        selectfont: 'settings.selectfont',
-        syncpath: 'settings.syncpath',
-        selectpath: 'settings.selectpath',
-        iedata: 'settings.iedata',
-        encryptwpasswd: 'settings.encryptwpasswd',
-        exportdata: 'settings.exportdata',
-        importdata: 'settings.importdata',
-        pathplaceholder: 'settings.pathplaceholder',
-        password: 'settings.password',
-        Inputpassword: 'settings.Inputpassword',
-        body: 'settings.body',
-        Import: 'settings.Import',
-        Cancel: 'settings.Cancel',
-        Password: 'settings.password',
-        Invalidpassword: 'settings.Invalidpassword',
-        relaunch: 'settings.relaunch',
-        relaunchbutton: 'settings.relaunchbutton',
-        exportmessage: 'settings.exportmessage',
-        invaliddata: 'settings.invaliddata',
-        syncreminder: 'settings.syncreminder',
-        spellcheck: 'settings.spellcheck',
-        editorSpacing: 'settings.editorSpacing',
-        normal: 'settings.normal',
-        wide: 'settings.wide',
-        enterWidth: 'settings.enterwidth',
-        interfacesize: 'settings.interfacesize',
-        large: 'settings.large',
-        medium: 'settings.medium',
-        default: 'settings.default',
-        morespace: 'settings.morespace',
-        aboutDataEncryption: 'settings.aboutDataEncryption',
-        encryptionMessage: 'settings.encryptionMessage',
-        resetPasswordTitle: 'settings.resetPasswordTitle',
-        next: 'settings.next',
-        enterNewPassword: 'settings.enterNewPassword',
-        resetPassword: 'settings.resetPassword',
-        newPassword: 'settings.newPassword',
-        security: 'settings.security',
-        utilities: 'settings.utilities',
-        wrongCurrentPassword: 'settings.wrongCurrentPassword',
-        passwordResetSuccess: 'settings.passwordResetSuccess',
-        passwordResetError: 'settings.passwordResetError',
-        menuBarVisibility: 'settings.menuBarVisibility',
-        interfaceDirection: 'settings.interfaceDirection',
-        LTR: 'settings.LTR',
-        RTL: 'settings.RTL',
-        autosync: 'settings.autosync',
-        clearfont: 'settings.clearfont',
-        selectcodefont: 'settings.selectcodefont',
-      },
+    const translations = ref({
+      appearence: {},
     });
 
-    // Computed properties
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
     );
@@ -435,6 +352,7 @@ export default {
         }
       });
       root.classList.add(color);
+      state.accentColor = color;
       localStorage.setItem('color-scheme', color);
     };
 
@@ -475,7 +393,6 @@ export default {
       }
     });
 
-    // Reactive variables for width management
     const selectedWidth = ref(localStorage.getItem('editorWidth') || '54rem');
     const customWidth = ref(
       localStorage.getItem('customEditorWidth') || '60rem'
@@ -483,12 +400,10 @@ export default {
     const customWidthInput = ref(customWidth.value.replace('rem', ''));
     const isEditingCustomWidth = ref(false);
 
-    // Lifecycle hooks and initialization
     onMounted(() => {
       defaultPath = localStorage.getItem('default-path') || '';
       state.dataDir = defaultPath;
 
-      // Set font and direction properties
       document.documentElement.style.setProperty(
         '--selected-font',
         state.selectedFont
@@ -500,28 +415,14 @@ export default {
       document.documentElement.dir = state.directionPreference;
     });
 
-    // Translation loading
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
-
     onMounted(async () => {
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
 
-    // Methods
     const toggleClearFont = () => {
       ClearFontChecked.value = !ClearFontChecked.value;
     };
@@ -531,16 +432,6 @@ export default {
         'app:change-menu-visibility',
         localStorage.getItem('visibility-menubar') !== 'true'
       );
-    };
-
-    const toggleRtl = () => {
-      localStorage.setItem('directionPreference', 'rtl');
-      window.location.reload();
-    };
-
-    const toggleLtr = () => {
-      localStorage.setItem('directionPreference', 'ltr');
-      window.location.reload();
     };
 
     const toggleDirectionPreference = () => {
@@ -574,7 +465,6 @@ export default {
       window.location.reload();
     };
 
-    // Width management methods
     const setWidth = (width) => {
       selectedWidth.value = width;
       localStorage.setItem('editorWidth', width);
@@ -599,10 +489,9 @@ export default {
       state,
       theme,
       themes,
+      layouts,
       storage,
       translations,
-      toggleRtl,
-      toggleLtr,
       toggleClearFont,
       ClearFontChecked,
       visibilityMenubar,
@@ -613,10 +502,6 @@ export default {
       isEditingCustomWidth,
       setWidth,
       applyCustomWidth,
-      LTRImg,
-      LTRImgDark,
-      RTLImg,
-      RTLImgDark,
       isMacOS,
       toggleDirectionPreference,
       updateFont,
@@ -625,7 +510,34 @@ export default {
       setColor,
       defaultFonts,
       systemFonts,
+      appStore,
     };
   },
 };
 </script>
+<style scoped>
+/* Absolutely center the preview; size-compensate so scale never overflows */
+.fit-scale {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  /* compensate size so the scaled content fits within the frame */
+  width: calc(100% / var(--s));
+  height: calc(100% / var(--s));
+  transform: translate(-50%, -50%) scale(var(--s));
+  transform-origin: center center;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* crisp rendering; avoids subpixel fuzz */
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* Optional: reduce jitter on some browsers */
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+</style>

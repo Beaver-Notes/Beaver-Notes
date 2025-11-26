@@ -64,7 +64,7 @@
           @change="toggleAutoUpdate"
         />
         <div
-          class="peer h-6 w-11 rounded-full bg-slate-200 dark:bg-[#353333] after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full peer-checked:bg-primary"
+          class="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full peer-checked:bg-primary"
         ></div>
       </label>
     </section>
@@ -86,10 +86,16 @@
 </template>
 
 <script>
-import { onMounted, shallowReactive } from 'vue';
+import { onMounted, ref, shallowReactive } from 'vue';
+import { useTranslation } from '@/composable/translations';
 
 export default {
   setup() {
+    const translations = ref({
+      about: {},
+      settings: {},
+    });
+
     const links = [
       {
         name: 'website',
@@ -116,30 +122,6 @@ export default {
       updateProgress: null,
       updateStatusType: 'idle',
     });
-
-    const translations = shallowReactive({
-      about: {
-        title: 'About.Title',
-        description: 'About.Description',
-        versionLabel: 'About.VersionLabel',
-        website: 'Links.Website',
-        github: 'Links.GitHub',
-        donate: 'Links.Donate',
-      },
-      settings: {
-        autoUpdate: 'Settings.AutoUpdate',
-      },
-    });
-
-    const loadTranslations = async () => {
-      const lang = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const { default: loaded } = await import(`./locales/${lang}.json`);
-        Object.assign(translations, loaded);
-      } catch (e) {
-        console.error('Translation load error:', e);
-      }
-    };
 
     const checkForUpdates = async () => {
       if (state.isProcessing) return;
@@ -252,7 +234,11 @@ export default {
         if (state.autoUpdateEnabled) setTimeout(checkForUpdates, 2000);
       }
 
-      await loadTranslations();
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
 
     return {

@@ -1,14 +1,11 @@
 import emitter from 'tiny-emitter/instance';
-import { useTheme } from '../composable/theme';
-import enTranslations from '../pages/settings/locales/en.json';
-import itTranslations from '../pages/settings/locales/it.json';
-import esTranslations from '../pages/settings/locales/es.json';
-import deTranslations from '../pages/settings/locales/de.json';
-import zhTranslations from '../pages/settings/locales/zh.json';
-import nlTranslations from '../pages/settings/locales/nl.json';
-import ukTranslations from '../pages/settings/locales/uk.json';
-
-const theme = useTheme();
+import enTranslations from '@/assets/locales/en.json';
+import itTranslations from '@/assets/locales/it.json';
+import esTranslations from '@/assets/locales/es.json';
+import deTranslations from '@/assets/locales/de.json';
+import zhTranslations from '@/assets/locales/zh.json';
+import nlTranslations from '@/assets/locales/nl.json';
+import ukTranslations from '@/assets/locales/uk.json';
 
 function getModifierKey() {
   return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
@@ -45,25 +42,36 @@ if (selectedLanguage === 'uk') {
 let commands = [
   {
     id: 'new-note',
-    title: translations.commands.newnote,
+    title: translations.commands.newNote,
+    icon: 'riEditLine',
     shortcut: [getModifierKey(), 'N'],
     handler: () => emitter.emit('new-note'),
   },
   {
+    id: 'new-folder',
+    title: translations.commands.newFolder,
+    icon: 'riFolder5Fill',
+    shortcut: [getModifierKey(), 'N'],
+    handler: () => emitter.emit('new-folder'),
+  },
+  {
     id: 'settings',
     title: translations.commands.settings,
+    icon: 'riSettingsLine',
     shortcut: [getModifierKey(), ','],
     handler: () => emitter.emit('open-settings'),
   },
   {
     id: 'dark-theme',
-    title: translations.commands.darktheme,
-    handler: () => theme.setTheme('dark'),
+    icon: 'riMoonClearLine',
+    title: translations.commands.darkTheme,
+    handler: () => emitter.emit('dark'),
   },
   {
     id: 'light-theme',
-    title: translations.commands.lighttheme,
-    handler: () => theme.setTheme('light'),
+    icon: 'riSunLine',
+    title: translations.commands.lightTheme,
+    handler: () => emitter.emit('light'),
   },
 ];
 

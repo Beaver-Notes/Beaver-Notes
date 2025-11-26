@@ -24,7 +24,7 @@ export const dropFile = Extension.create({
               event.stopPropagation();
 
               const { editor } = this;
-              const id = this.options.id; // Use this.options.id instead of editor.options.id
+              const id = this.options.id;
 
               if (!id) {
                 console.error('Error: Missing document ID');

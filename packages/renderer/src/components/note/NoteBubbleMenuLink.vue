@@ -1,34 +1,24 @@
 <template>
-  <expand-transition>
-    <ui-list
-      v-if="currentLinkVal.startsWith('@')"
-      class="p-2 space-y-1 border-b"
-    >
-      <ui-list-item
-        v-for="(note, index) in notes"
-        :key="note.id"
-        :active="index === selectedNoteIndex"
-        class="cursor-pointer line-clamp leading-tight"
-        @click="updateCurrentLink(note.id)"
-      >
-        <p class="text-overflow w-full">
-          {{ note.title || translations.link.untitlednote }}
-        </p>
-      </ui-list-item>
-    </ui-list>
-  </expand-transition>
   <div class="p-2">
     <div class="flex items-center space-x-2">
       <input
         id="bubble-input"
         v-model="currentLinkVal"
         type="url"
-        :placeholder="translations.link.placeholder"
+        :placeholder="translations.editor.linkPlaceholder"
         class="flex-1 bg-transparent"
         @keydown="keydownHandler"
         @keydown.esc="editor.commands.focus()"
         @keyup.enter="updateCurrentLink"
       />
+      <button
+        icon
+        class="text-neutral-600 dark:text-neutral-200"
+        title="Open link"
+        @click="handleClick"
+      >
+        <v-remixicon name="riExternalLinkLine" />
+      </button>
       <button
         icon
         class="text-neutral-600 dark:text-neutral-200"
@@ -46,15 +36,34 @@
       </button>
     </div>
     <span class="text-xs text-neutral-600 dark:text-neutral-300 leading-none">{{
-      translations.link.shortcut || '-'
+      translations.editor.linkShortcut || '-'
     }}</span>
   </div>
+  <expand-transition>
+    <ui-list
+      v-if="currentLinkVal.startsWith('@')"
+      class="p-2 space-y-1 border-b"
+    >
+      <ui-list-item
+        v-for="(note, index) in notes"
+        :key="note.id"
+        :active="index === selectedNoteIndex"
+        class="cursor-pointer line-clamp leading-tight"
+        @click="updateCurrentLink(note.id)"
+      >
+        <p class="text-overflow w-full">
+          {{ note.title || translations.editor.untitledNote }}
+        </p>
+      </ui-list-item>
+    </ui-list>
+  </expand-transition>
 </template>
 
 <script>
-import { ref, computed, watch, shallowReactive, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useTranslation } from '@/composable/translations';
 import { useNoteStore } from '@/store/note';
+import { useRoute, useRouter } from 'vue-router';
 
 export default {
   props: {
@@ -65,6 +74,7 @@ export default {
   },
   setup(props) {
     const route = useRoute();
+    const router = useRouter();
     const noteStore = useNoteStore();
 
     const selectedNoteIndex = ref(0);
@@ -105,6 +115,21 @@ export default {
         .setLink({ href: value })
         .run();
     }
+    function handleClick() {
+      const href = props.editor.getAttributes('link')?.href;
+
+      if (!href) return;
+
+      if (href.startsWith('note://')) {
+        const noteId = href.slice(7);
+        router.push({
+          params: { id: noteId },
+          query: { linked: true },
+        });
+      } else {
+        window.open(href, '_blank', 'noopener');
+      }
+    }
     function keydownHandler(event) {
       if (!currentLinkVal.value.startsWith('@')) return;
 
@@ -133,34 +158,17 @@ export default {
       { immediate: true }
     );
 
-    const translations = shallowReactive({
-      link: {
-        untitlednote: 'link.untitlednote',
-        placeholder: 'link.placeholder',
-        shortcut: 'link.shortcut',
-      },
+    const translations = ref({
+      editor: {},
     });
 
     onMounted(async () => {
-      // Load translations
-      const loadedTranslations = await loadTranslations();
-      if (loadedTranslations) {
-        Object.assign(translations, loadedTranslations);
-      }
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
     });
-
-    const loadTranslations = async () => {
-      const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      try {
-        const translationModule = await import(
-          `../../pages/settings/locales/${selectedLanguage}.json`
-        );
-        return translationModule.default;
-      } catch (error) {
-        console.error('Error loading translations:', error);
-        return null;
-      }
-    };
 
     return {
       notes,
@@ -169,6 +177,7 @@ export default {
       currentLinkVal,
       selectedNoteIndex,
       updateCurrentLink,
+      handleClick,
       keyBinding,
     };
   },

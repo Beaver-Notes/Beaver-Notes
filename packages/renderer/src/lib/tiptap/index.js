@@ -5,7 +5,6 @@ import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
 import Highlight from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
-import Underline from '@tiptap/extension-underline';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
 import markdownEngine from './exts/markdown-engine';
@@ -50,15 +49,17 @@ import Commands from './exts/commands';
 import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
-import enTranslations from '../../pages/settings/locales/en.json';
-import itTranslations from '../../pages/settings/locales/it.json';
-import deTranslations from '../../pages/settings/locales/de.json';
-import esTranslations from '../../pages/settings/locales/es.json';
-import zhTranslations from '../../pages/settings/locales/zh.json';
-import nlTranslations from '../../pages/settings/locales/nl.json';
-import ukTranslations from '../../pages/settings/locales/uk.json';
-import ruTranslations from '../../pages/settings/locales/ru.json';
-import frTranslations from '../../pages/settings/locales/fr.json';
+import { dropFile } from './exts/drop-file';
+import enTranslations from '@/assets/locales/en.json';
+import itTranslations from '@/assets/locales/it.json';
+import esTranslations from '@/assets/locales/es.json';
+import deTranslations from '@/assets/locales/de.json';
+import zhTranslations from '@/assets/locales/zh.json';
+import nlTranslations from '@/assets/locales/nl.json';
+import ukTranslations from '@/assets/locales/uk.json';
+import frTranslations from '@/assets/locales/fr.json';
+import ruTranslations from '@/assets/locales/ru.json';
+import arTranslations from '@/assets/locales/ar.json';
 
 const directionPreference = localStorage.getItem('directionPreference');
 
@@ -86,6 +87,8 @@ if (selectedLanguage === 'de') {
   translations = ukTranslations;
 } else if (selectedLanguage === 'zh') {
   translations = zhTranslations;
+} else if (selectedLanguage === 'ar') {
+  translations = arTranslations;
 }
 
 const extensions = [
@@ -95,18 +98,20 @@ const extensions = [
     text: false,
     codeBlock: false,
     code: false,
+    link: false,
+    document: false,
+  }),
+  Paste,
+  Document.extend({
+    content: 'block+ (footnotes)?',
+    allowGapCursor: true,
   }),
   Highlight.extend({ priority: 1000 }).configure({
     multicolor: true,
   }),
   Typography,
-  Document.extend({
-    content: 'block+ (footnotes)?',
-    allowGapCursor: true,
-  }),
   LiteralTab,
   Color,
-  Underline,
   blueCallout,
   yellowCallout,
   Text,
@@ -150,18 +155,19 @@ const extensions = [
   Image,
   Commands,
   Audio,
-  Paste,
   SearchAndReplace.configure(),
   TextStyle,
   markdownEngine,
   Placeholder.configure({
-    placeholder: translations.tiptap.placeholder,
+    placeholder: translations.editor.tiptapPlaceholder,
   }),
   Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
   Link.extend({
+    inclusive: false,
     addKeyboardShortcuts() {
       return {
-        'Mod-k': () => this.editor.chain().focus().toggleLink().run(),
+        'Mod-k': () =>
+          this.editor.chain().focus().toggleLink({ href: '' }).run(),
       };
     },
   }).configure({
@@ -174,10 +180,12 @@ const extensions = [
       title: 'Ctrl+Click to open URL',
     },
   }),
-  Iframe,
+  Iframe.configure({
+    placeholderText: translations.editor.embedPlaceholder,
+  }),
 ];
 
-export { extensions, CollapseHeading, heading };
+export { extensions, CollapseHeading, heading, dropFile };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

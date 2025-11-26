@@ -1,5 +1,5 @@
 // modules/window-manager.js
-import { BrowserWindow, shell } from 'electron';
+import { BrowserWindow, shell, nativeTheme } from 'electron';
 import windowStateKeeper from 'electron-window-state';
 import { join } from 'path';
 import { URL } from 'url';
@@ -17,10 +17,12 @@ export class WindowManager {
     });
 
     this.mainWindow = new BrowserWindow({
+      show: false,
       x: mainWindowState.x,
       y: mainWindowState.y,
       width: mainWindowState.width,
       height: mainWindowState.height,
+      backgroundColor: nativeTheme.shouldUseDarkColors ? '#000000' : '#FFFFFF',
       webPreferences: {
         preload: join(__dirname, '../../preload/dist/index.cjs'),
         contextIsolation: this.env.MODE !== 'test',

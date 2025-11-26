@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
 import { useAppStore } from './app';
+import { useFolderStore } from './folder';
 import { AES } from 'crypto-es/lib/aes.js';
 import { useStorage } from '../composable/storage.js';
 import { Utf8 } from 'crypto-es/lib/core.js';
@@ -69,44 +70,270 @@ export const useNoteStore = defineStore('note', {
     syncInProgress: false,
     deletedIds: {},
   }),
+
   getters: {
     notes: (state) => Object.values(state.data).filter(({ id }) => id),
+
     getById: (state) => (id) => state.data[id],
+
+    getByFolder:
+      (state) =>
+      (folderId = null) => {
+        return Object.values(state.data).filter(
+          (note) => note.folderId === folderId && note.id
+        );
+      },
+
+    getFolderContents:
+      (state) =>
+      (folderId = null) => {
+        const folderStore = useFolderStore();
+
+        const notes = Object.values(state.data)
+          .filter((note) => note.folderId === folderId && note.id)
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+
+        const folders = folderStore
+          .getByParent(folderId)
+          .sort((a, b) => a.name.localeCompare(b.name));
+
+        return { folders, notes };
+      },
+
+    searchNotes: (state) => (query) => {
+      const searchTerm = query.toLowerCase();
+      return Object.values(state.data).filter((note) => {
+        if (!note.id) return false;
+        return (
+          note.title.toLowerCase().includes(searchTerm) ||
+          JSON.stringify(note.content).toLowerCase().includes(searchTerm)
+        );
+      });
+    },
+
+    getNotesWithPath:
+      (state) =>
+      (notes = null) => {
+        const folderStore = useFolderStore();
+        const notesToProcess =
+          notes || Object.values(state.data).filter(({ id }) => id);
+
+        return notesToProcess.map((note) => ({
+          ...note,
+          folderPath: note.folderId ? folderStore.getPath(note.folderId) : [],
+        }));
+      },
+
+    getNotesCountByFolder:
+      (state) =>
+      (folderId = null) => {
+        return Object.values(state.data).filter(
+          (note) => note.folderId === folderId && note.id
+        ).length;
+      },
   },
+
   actions: {
     async retrieve() {
       try {
         const piniaData = this.data;
-        const piniaLockStatus = this.lockStatus;
-
         const localStorageData = await storage.get('notes', {});
         this.data = { ...piniaData, ...localStorageData };
 
-        const lockStatusData = await storage.get('lockStatus', {});
-        this.lockStatus = { ...piniaLockStatus, ...lockStatusData };
-
-        for (const noteId in this.data) {
-          if (this.lockStatus[noteId]) {
-            this.lockStatus[noteId] = lockStatusData[noteId];
-          } else {
-            this.lockStatus[noteId] = 'unlocked';
-          }
-        }
-
-        const isLockedData = await storage.get('isLocked', {});
-        this.isLocked = { ...isLockedData };
-
-        for (const noteId in this.data) {
-          if (this.isLocked[noteId]) {
-            this.data[noteId].isLocked = true;
-          } else {
-            this.data[noteId].isLocked = false;
-          }
+        const migrationCompleted = await storage.get(
+          'migration_completed',
+          false
+        );
+        if (!migrationCompleted) {
+          await this.migrateLockData();
+          await storage.set('migration_completed', true);
         }
 
         return this.data;
       } catch (error) {
         console.error('Error retrieving notes:', error);
+        throw error;
+      }
+    },
+
+    async migrateLockData() {
+      const lockStatusData = await storage.get('lockStatus', {});
+      const isLockedData = await storage.get('isLocked', {});
+
+      if (
+        Object.keys(lockStatusData).length === 0 &&
+        Object.keys(isLockedData).length === 0
+      ) {
+        console.log('No legacy lock data found, skipping migration');
+        return;
+      }
+
+      let hasChanges = false;
+
+      for (const noteId in this.data) {
+        const wasLocked =
+          lockStatusData[noteId] === 'locked' || isLockedData[noteId] === true;
+        const currentLockStatus = this.data[noteId].isLocked;
+
+        if (wasLocked && !currentLockStatus) {
+          this.data[noteId].isLocked = true;
+          hasChanges = true;
+          console.log(`Migrated lock status for note ${noteId}`);
+        }
+      }
+
+      if (hasChanges) {
+        for (const noteId in this.data) {
+          await storage.set(`notes.${noteId}`, this.data[noteId]);
+        }
+        await this.retrieve();
+      } else {
+        console.log('Lock data migration completed - no changes needed');
+      }
+
+      await storage.delete('lockStatus');
+      await storage.delete('isLocked');
+    },
+
+    async add(note = {}) {
+      try {
+        if (note.folderId) {
+          const folderStore = useFolderStore();
+          const folderExists = await folderStore.exists(note.folderId);
+          if (!folderExists) {
+            throw new Error('Specified folder does not exist');
+          }
+        }
+
+        const id = note.id || nanoid();
+        const newNote = {
+          id,
+          title: '',
+          content: { type: 'doc', content: [] },
+          labels: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          isBookmarked: false,
+          isArchived: false,
+          isLocked: false,
+          folderId: note.folderId || null,
+          ...note,
+        };
+
+        this.data[id] = newNote;
+
+        await storage.set(`notes.${id}`, this.data[id]);
+
+        await trackChange(`notes.${id}`, this.data[id]);
+
+        return this.data[id];
+      } catch (error) {
+        console.error('Error adding note:', error);
+        throw error;
+      }
+    },
+
+    async moveToFolder(noteId, folderId) {
+      try {
+        if (!this.data[noteId]) {
+          throw new Error('Note not found');
+        }
+
+        if (folderId) {
+          const folderStore = useFolderStore();
+          const folderExists = await folderStore.exists(folderId);
+          if (!folderExists) {
+            throw new Error('Target folder does not exist');
+          }
+        }
+
+        return await this.update(noteId, { folderId });
+      } catch (error) {
+        console.error('Error moving note to folder:', error);
+        throw error;
+      }
+    },
+
+    async moveMultipleToFolder(noteIds, folderId) {
+      try {
+        if (folderId) {
+          const folderStore = useFolderStore();
+          const folderExists = await folderStore.exists(folderId);
+          if (!folderExists) {
+            throw new Error('Target folder does not exist');
+          }
+        }
+
+        const results = [];
+        for (const noteId of noteIds) {
+          if (this.data[noteId]) {
+            const result = await this.update(noteId, { folderId });
+            results.push(result);
+          }
+        }
+        return results;
+      } catch (error) {
+        console.error('Error moving multiple notes to folder:', error);
+        throw error;
+      }
+    },
+
+    async handleFolderDeletion(deletionResult) {
+      try {
+        const {
+          deletedFolderId,
+          descendantIds,
+          moveContentsTo,
+          deleteContents,
+        } = deletionResult;
+
+        const affectedFolderIds = [deletedFolderId, ...descendantIds];
+        const affectedNotes = Object.values(this.data).filter((note) =>
+          affectedFolderIds.includes(note.folderId)
+        );
+
+        if (deleteContents) {
+          for (const note of affectedNotes) {
+            await this.delete(note.id);
+          }
+        } else {
+          for (const note of affectedNotes) {
+            await this.update(note.id, { folderId: moveContentsTo });
+          }
+        }
+
+        return affectedNotes.map((note) => note.id);
+      } catch (error) {
+        console.error('Error handling folder deletion:', error);
+        throw error;
+      }
+    },
+
+    async duplicateToFolder(noteId, targetFolderId) {
+      try {
+        const originalNote = this.data[noteId];
+        if (!originalNote) {
+          throw new Error('Note not found');
+        }
+
+        if (targetFolderId) {
+          const folderStore = useFolderStore();
+          const folderExists = await folderStore.exists(targetFolderId);
+          if (!folderExists) {
+            throw new Error('Target folder does not exist');
+          }
+        }
+
+        const duplicatedNote = await this.add({
+          ...originalNote,
+          id: undefined,
+          title: `${originalNote.title} (Copy)`,
+          folderId: targetFolderId,
+        });
+
+        return duplicatedNote;
+      } catch (error) {
+        console.error('Error duplicating note to folder:', error);
         throw error;
       }
     },
@@ -159,56 +386,24 @@ export const useNoteStore = defineStore('note', {
       return newContents;
     },
 
-    async add(note = {}) {
-      try {
-        const id = note.id || nanoid();
-        const newNote = {
-          id,
-          title: '',
-          content: { type: 'doc', content: [] },
-          labels: [],
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          isBookmarked: false,
-          isArchived: false,
-          isLocked: false,
-          ...note,
-        };
-
-        this.data[id] = newNote;
-        this.lockStatus[id] = 'unlocked';
-        this.isLocked[id] = false;
-
-        // Save to local storage
-        await storage.set('notes', this.data);
-        await storage.set('lockStatus', this.lockStatus);
-        await storage.set('isLocked', this.isLocked);
-
-        // Track the change for sync
-        await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
-
-        return this.data[id];
-      } catch (error) {
-        console.error('Error adding note:', error);
-        throw error;
-      }
-    },
-
     async update(id, data = {}) {
       try {
-        // Update note with new data
+        if (data.folderId !== undefined && data.folderId !== null) {
+          const folderStore = useFolderStore();
+          const folderExists = await folderStore.exists(data.folderId);
+          if (!folderExists) {
+            throw new Error('Specified folder does not exist');
+          }
+        }
+
         this.data[id] = {
           ...this.data[id],
           ...data,
-          updatedAt: Date.now(), // Always update the timestamp
+          updatedAt: Date.now(),
         };
 
-        // Save to local storage
         await storage.set(`notes.${id}`, this.data[id]);
 
-        // Track the change for sync
         await trackChange(`notes.${id}`, this.data[id]);
 
         return this.data[id];
@@ -232,17 +427,11 @@ export const useNoteStore = defineStore('note', {
         }
 
         delete this.data[id];
-        delete this.lockStatus[id];
-        delete this.isLocked[id];
 
         await storage.delete(`notes.${id}`);
-        await storage.set('lockStatus', this.lockStatus);
-        await storage.set('isLocked', this.isLocked);
         await storage.set('deletedIds', this.deletedIds);
 
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
         await trackChange('deletedIds', this.deletedIds);
 
         try {
@@ -294,29 +483,25 @@ export const useNoteStore = defineStore('note', {
       }
 
       try {
+        if (this.data[id].isLocked) {
+          console.log('Note is already locked');
+          return;
+        }
+
         const encryptedContent = AES.encrypt(
           JSON.stringify(this.data[id].content),
           password
         ).toString();
 
-        // Update note with encrypted content and lock status
         this.data[id].content = { type: 'doc', content: [encryptedContent] };
         this.data[id].isLocked = true;
         this.data[id].updatedAt = Date.now();
-        this.isLocked[id] = true;
-        this.lockStatus[id] = 'locked';
 
-        // Save to storage
         await storage.set(`notes.${id}`, this.data[id]);
-        await Promise.all([
-          storage.set('lockStatus', this.lockStatus),
-          storage.set('isLocked', this.isLocked),
-        ]);
 
-        // Track changes for sync
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
+
+        await this.retrieve();
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -336,67 +521,53 @@ export const useNoteStore = defineStore('note', {
           return;
         }
 
-        // Check if content is encrypted
+        if (!note.isLocked) {
+          console.log('Note is not locked');
+          return;
+        }
+
         const isEncrypted =
           typeof note.content.content[0] === 'string' &&
           note.content.content[0].trim().length > 0;
 
         if (!isEncrypted) {
-          // Content is not encrypted, update isLocked flag only
           this.data[id].isLocked = false;
           this.data[id].updatedAt = Date.now();
-          this.isLocked[id] = false;
-          this.lockStatus[id] = 'unlocked';
 
           await storage.set(`notes.${id}`, this.data[id]);
-          await Promise.all([
-            storage.set('lockStatus', this.lockStatus),
-            storage.set('isLocked', this.isLocked),
-          ]);
-
-          // Track changes for sync
           await trackChange(`notes.${id}`, this.data[id]);
-          await trackChange('lockStatus', this.lockStatus);
-          await trackChange('isLocked', this.isLocked);
           return;
         }
 
-        // Decrypt the content
         try {
           const decryptedBytes = AES.decrypt(
             this.data[id].content.content[0],
             password
           );
           const decryptedContent = decryptedBytes.toString(Utf8);
+
+          if (!decryptedContent) {
+            throw new Error('Failed to decrypt - invalid password');
+          }
+
           this.data[id].content = JSON.parse(decryptedContent);
         } catch (decryptError) {
           console.error('Failed to decrypt note:', decryptError);
           throw new Error('Incorrect password');
         }
 
-        // Update collapsible heading if needed
         const appStore = useAppStore();
         if (!appStore.setting.collapsibleHeading) {
           this.convertNote(id);
         }
 
-        // Update lock status
         this.data[id].isLocked = false;
         this.data[id].updatedAt = Date.now();
-        this.isLocked[id] = false;
-        this.lockStatus[id] = 'unlocked';
 
-        // Save to storage
         await storage.set(`notes.${id}`, this.data[id]);
-        await Promise.all([
-          storage.set('lockStatus', this.lockStatus),
-          storage.set('isLocked', this.isLocked),
-        ]);
-
-        // Track changes for sync
         await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange(`lockStatus.${id}`, this.lockStatus[id]);
-        await trackChange(`isLocked.${id}`, this.isLocked[id]);
+
+        await this.retrieve();
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
@@ -412,18 +583,14 @@ export const useNoteStore = defineStore('note', {
 
         const labelIndex = this.data[id].labels.indexOf(labelId);
         if (labelIndex !== -1) {
-          // Label already exists on this note
           return labelId;
         }
 
-        // Add the label
         this.data[id].labels.push(labelId);
         this.data[id].updatedAt = Date.now();
 
-        // Save to storage
         await storage.set(`notes.${id}`, this.data[id]);
 
-        // Track change for sync
         await trackChange(`notes.${id}`, this.data[id]);
 
         return labelId;
@@ -442,18 +609,14 @@ export const useNoteStore = defineStore('note', {
 
         const labelIndex = this.data[id].labels.indexOf(labelId);
         if (labelIndex === -1) {
-          // Label doesn't exist on this note
           return;
         }
 
-        // Remove the label
         this.data[id].labels.splice(labelIndex, 1);
         this.data[id].updatedAt = Date.now();
 
-        // Save to storage
         await storage.set(`notes.${id}`, this.data[id]);
 
-        // Track change for sync
         await trackChange(`notes.${id}`, this.data[id]);
 
         return labelId;

@@ -136,32 +136,33 @@ const FootnoteReference = Node.create({
     return {
       addFootnote:
         () =>
-        ({ state, tr }) => {
-          const node = this.type.create({
-            'data-id': uuid(),
-          });
-          tr.insert(state.selection.anchor, node);
-          return true;
-        },
+          ({ state, tr }) => {
+            const node = this.type.create({
+              'data-id': uuid(),
+            });
+            tr.insert(state.selection.anchor, node);
+            return true;
+          },
     };
   },
 
   addInputRules() {
     return [
       {
-        find: /(^|\s)\[\^(\d+)\]$/, // Adjust regex to match [^1] only at the end of a line or surrounded by whitespace
+        find: /\[\^(\d+)\]$/,
         type: this.type,
         handler({ range, match, chain }) {
           const start = range.from;
           const end = range.to;
 
-          if (match[2]) {
+          if (match[1]) {
             chain().deleteRange({ from: start, to: end }).addFootnote().run();
           }
         },
       },
     ];
   },
+
 });
 
 export default FootnoteReference;
