@@ -74,9 +74,9 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-          APPLE_TEAM_ID: ${{ secrets.apple_team_id }}
-          APPLE_ID: ${{ secrets.apple_id }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.apple_id_password }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}
 
       - name: Dispatch Windows signing
