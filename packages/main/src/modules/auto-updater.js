@@ -21,6 +21,10 @@ export class AutoUpdater {
   }
 
   async initialize(windowManager) {
+    if (process.env.MODE === 'development') {
+      return; // Skip updater in dev
+    }
+
     this.windowManager = windowManager;
     this.setupEventListeners();
     this.registerIPCHandlers();

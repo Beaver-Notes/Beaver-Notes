@@ -12,20 +12,22 @@ import { FileHandler } from './modules/file-handler.js';
 
 // Migrate old data directory from "Beaver-notes" to "Beaver Notes"
 // !!! To be removed in future versions !!!
-app.on('ready', () => {
-  const base = app.getPath('appData');
-  const oldDir = path.join(base, 'Beaver-notes');
-  const newDir = path.join(base, 'Beaver Notes');
+if (process.env.MODE !== 'development') {
+  app.on('ready', () => {
+    const base = app.getPath('appData');
+    const oldDir = path.join(base, 'Beaver-notes');
+    const newDir = path.join(base, 'Beaver Notes');
 
-  if (existsSync(oldDir)) {
-    try {
-      copySync(oldDir, newDir, { overwrite: true });
-      removeSync(oldDir);
-    } catch (e) {
-      console.error('[Migration] Failed:', e);
+    if (existsSync(oldDir)) {
+      try {
+        copySync(oldDir, newDir, { overwrite: true });
+        removeSync(oldDir);
+      } catch (e) {
+        console.error('[Migration] Failed:', e);
+      }
     }
-  }
-});
+  });
+}
 
 app.setName('Beaver Notes');
 
