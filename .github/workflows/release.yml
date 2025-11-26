@@ -10,6 +10,11 @@ permissions:
 
 jobs:
   release:
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest]
@@ -73,10 +78,6 @@ jobs:
             yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
           fi
         env:
-          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}
 
       - name: Dispatch Windows signing
