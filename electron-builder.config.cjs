@@ -90,7 +90,7 @@ const electronBuilderConfig = {
     os.platform() === 'darwin'
       ? async (context) => {
           const { default: notarizing } = await import(
-            './scripts/notarize.mjs'
+            './scripts/notarize.js'
           );
           return notarizing(context);
         }
