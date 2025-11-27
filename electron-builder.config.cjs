@@ -1,5 +1,6 @@
 const packageJSON = require('./package.json');
 const { azuresigntool } = require('@ossign/azuresigntool');
+const os = require('os');
 const path = require('path');
 
 /**
@@ -85,7 +86,15 @@ const electronBuilderConfig = {
   },
 
   portable: { artifactName: '${productName}-${version}-portable.${ext}' },
-  afterSign: 'scripts/notarize.js',
+  afterSign:
+    os.platform() === 'darwin'
+      ? async (context) => {
+          const { default: notarizing } = await import(
+            './scripts/notarize.mjs'
+          );
+          return notarizing(context);
+        }
+      : undefined,
   afterPack: async (context) => {
     const fs = require('fs');
     const { appOutDir, packager } = context;
@@ -115,5 +124,8 @@ const electronBuilderConfig = {
   },
 };
 
-require('./env.js').loadEnv('private');
-module.exports = electronBuilderConfig;
+module.exports = async () => {
+  const envModule = await import('./env.js');
+  envModule.loadEnv('private');
+  return electronBuilderConfig;
+};

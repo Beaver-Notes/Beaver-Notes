@@ -220,4 +220,9 @@
     </release>
     <release version="3.0.0" date="2024-03-18"/>
   </releases>
+  <keywords>
+    <keyword>note taking</keyword>
+    <keyword>private notes</keyword>
+    <keyword>encrypted notes</keyword>
+  </keywords>
 </component>
