@@ -37,7 +37,7 @@
 
       <span
         class="flex-1 truncate"
-        :class="{ 'text-neutral-800': isCurrentFolder }"
+        :class="{ 'text-neutral-800 dark:text-neutral-200': isCurrentFolder }"
       >
         {{ folder.name || translations.folderTree.untitledFolder }}
       </span>
