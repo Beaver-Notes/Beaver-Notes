@@ -54,18 +54,21 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: build Vite bundles
+      - name: Build Vite bundles
         run: yarn build
 
-      - name: Get latest commit message
-        id: commitmsg
-        run: echo "msg=$(git log -1 --pretty=%B | tr -d '\n')" >> "$GITHUB_OUTPUT"
-
-      - name: Determine publish flag
+      - name: Detect publish mode
         id: publishflag
         shell: bash
         run: |
-          if [[ "${{ steps.commitmsg.outputs.msg }}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.version }}" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "Using manual release version: ${{ github.event.inputs.version }}"
+            exit 0
+          fi
+
+          last_msg=$(git log -1 --pretty=%B | tr -d '\n')
+          if [[ "$last_msg" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
