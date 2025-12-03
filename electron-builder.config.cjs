@@ -1,5 +1,5 @@
 const packageJSON = require('./package.json');
-const { azuresigntool } = require('@ossign/azuresigntool');
+const { azuresigntoolSync } = require('@ossign/azuresigntool');
 const os = require('os');
 const path = require('path');
 
@@ -73,7 +73,7 @@ const electronBuilderConfig = {
       { target: 'portable', arch: ['x64', 'arm64'] },
       { target: 'nsis', arch: ['x64', 'arm64'] },
     ],
-    sign: process.env.AST_TD === 'SHA256' ? azuresigntool : undefined,
+    sign: process.env.AST_TD === 'SHA256' ? azuresigntoolSync : undefined,
   },
 
   nsis: {
