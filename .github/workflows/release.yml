@@ -4,13 +4,6 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Version to release"
-        required: false
-        type: string
-
 
 permissions:
   contents: write
@@ -54,21 +47,18 @@ jobs:
       - name: Install dependencies
         run: yarn install --frozen-lockfile
 
-      - name: Build Vite bundles
+      - name: build Vite bundles
         run: yarn build
 
-      - name: Detect publish mode
+      - name: Get latest commit message
+        id: commitmsg
+        run: echo "msg=$(git log -1 --pretty=%B | tr -d '\n')" >> "$GITHUB_OUTPUT"
+
+      - name: Determine publish flag
         id: publishflag
         shell: bash
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.version }}" ]]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "Using manual release version: ${{ github.event.inputs.version }}"
-            exit 0
-          fi
-
-          last_msg=$(git log -1 --pretty=%B | tr -d '\n')
-          if [[ "$last_msg" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          if [[ "${{ steps.commitmsg.outputs.msg }}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
             echo "publish=true" >> "$GITHUB_OUTPUT"
           else
             echo "publish=false" >> "$GITHUB_OUTPUT"
