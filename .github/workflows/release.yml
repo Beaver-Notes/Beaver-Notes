@@ -90,12 +90,12 @@ jobs:
           username: beaver-notes
           token: ${{ secrets.SIGNING_TOKEN }}
 
-        - name: Parse signed artifacts
-          if: matrix.os == 'windows-latest'
-          shell: bash
-          run: |
-            printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
-            echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
+      - name: Parse signed artifacts
+        if: matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
+          echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
 
       - name: Download signed artifacts
         if: matrix.os == 'windows-latest'
