@@ -99,11 +99,12 @@ jobs:
 
       - name: Download signed artifacts
         if: matrix.os == 'windows-latest'
+        shell: bash
         run: |
-          mkdir signed
+          mkdir -p signed
           for url in $(jq -r '.[].browser_download_url' artifacts.json); do
             echo "Downloading $url"
-            curl -L -o signed/$(basename $url) "$url"
+            curl -L -o "signed/$(basename "$url")" "$url"
           done
 
       - name: Upload signed artifacts to release
