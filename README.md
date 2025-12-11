@@ -3,91 +3,88 @@
 <!-- Core badges -->
 
 <!-- Contributors badge -->
+<div style="text-align: center;">
 
 [![All Contributors](https://img.shields.io/badge/all_contributors-8-orange.svg?style=flat)](#contributors-)
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
-![AUR Version](https://img.shields.io/aur/version/beaver-notes?style=flat&logo=archlinux&color=blue)
-![Scoop Version](https://img.shields.io/scoop/v/beaver-notes?bucket=extras&style=flat&color=orange)
 ![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat)
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat)
-[![Mastodon Follow](https://img.shields.io/mastodon/follow/110691710015859509?style=flat&color=6364FF)](https://mastodon.social/@Beavernotes)
-[![FOSSA License](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=license)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=license)
-[![FOSSA Security](https://app.fossa.com/api/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes.svg?type=shield&issueType=security)](https://app.fossa.com/projects/git%2Bgithub.com%2FDaniele-rolli%2FBeaver-Notes?ref=badge_shield&issueType=security)
+
+</div>
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
-  <p><b>Build your knowledge one log at a time</b></p>
-  <p>Developed with love ❤️ in 🇪🇺</p>
+  <p><b>Fast. Private. Local-first notes for macOS, Windows, and Linux.</b></p>
+  <p>Your notes stay on your device, no accounts, no tracking, no unnecessary complexity.</p>
 
-[🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download)  
- [🐘 Mastodon](https://mastodon.social/@Beavernotes) | [💬 Reddit](https://www.reddit.com/r/BeaverNotes/) | [🦋 Bluesky](https://bsky.app/profile/beavernotes.com) | [🧶 Threads](https://www.threads.com/@beavernotes)
-
+[🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download) | [🛣️ Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
 </div>
 
----
+# Overview
 
-Beaver Notes is a **privacy-first, local-first note-taking app** for **macOS, Windows, and GNU/Linux**. 
+Beaver Notes is a **privacy-first, local-first note-taking app** built to help you capture ideas, organize knowledge, and connect notes without ever sending your data to the cloud by default.
 
-With Beaver Notes, your notes are securely stored **on your device**, ensuring **complete privacy** and **control over your data**.
+- 🏆 **Cross-platform:** macOS, Windows, GNU/Linux  
+- 🔒 **Secure:** data stored locally, optional sync with your provider  
+- 📝 **Markdown support:** write quickly without breaking flow  
+- 🧩 **Community-driven:** open-source with contributions always welcome from everyone
+
 
 ![Beaver Notes demo](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/a7b38689-0363-49f0-8ed8-60e7358b1df6)
 
 ## 🎯 Features
 
 - 🔒 **Privacy-Respecting** — data stays on your device
-- ✨ **User-Friendly** — clean & intuitive interface
 - 📝 **Markdown Support** — write without breaking flow
-- 🏷️ **Tags** — organize your notes easily
-- 🔗 **Note Linking** — connect ideas like a graph
-- 🔐 **Locked Notes** — keep private notes secure
-- 🔄 **Flexible Sync** — use your preferred sync provider
-- 🤝 **Community-Driven** — open-source & shaped by contributors
+- 🏷️ **Tags** — organize your notes quickly
+- 🗂️ **Folders** — organize notes into structured collections
+- 🔗 **Note Linking** — connect ideas naturally  
+- 🔐 **Locked Notes** — protect sensitive information  
+- 🔄 **Flexible Sync** — choose your preferred cloud or offline workflow
+- 💻 **Open-source** — shaped by contributors like you  
 
 👉 Discover more on [our website](https://beavernotes.com).
 
+## ⬇️ Installation
+
+- Visit our [Downloads page](https://beavernotes.com/#/Download) for the latest installers  
+- Use package managers if preferred:  
+  - **AUR:** `yay -S beaver-notes`  
+  - **Flatpak:** `flatpak install flathub com.beavernotes.beavernotes`
+  - **Scoop:** `scoop install extras/beaver-notes`  
+  - **Brew:** `brew install --cask beaver-notes`
+
 ## 📱 Looking for a mobile version?
 
-Take Beaver Notes with you on the go!  
-[**Beaver Pocket**](https://beavernotes.com/#/Pocket) brings all the features you love into a **mobile experience**.  
-Currently in **release candidate** stage.
+Take Beaver Notes with you on the go with [**Beaver Pocket**](https://beavernotes.com/#/Pocket)! (Beta)
 
 📥 **Try it now:**
 
 - 📱 **iOS** → [TestFlight](https://testflight.apple.com/join/dSsmsGLY)
-- 🤖 **Android** → [Join the beta on the Playstore](https://beavernotes.com/#/pocket)
-
-## 💻 Installation
-
-- Visit our [Downloads page](https://beavernotes.com/#/Download) for installers.
-- Prefer package managers? Check the [Packages section](https://beavernotes.com/#/Packages).
+- 🤖 **Android** → [Join the beta on the Play Store](https://play.google.com/store/apps/details?id=beaver.notes.pocket)
 
 ## 💖 Contributing
 
 Beaver is made by the community, for the community.  
+
 You can help by:
 
 - 🌍 Translating
 - 💻 Coding
 - 🐛 Reporting bugs
-- ☕ Donating
+- 🎨 Designing features  
+- ☕ Supporting financially  
 
-👉 [Get Involved](<https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html>)
+**Get started:** [How to Contribute](https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html)
 
-## 🔎 Need Help?
+## Support & Community
 
-- [🐘 Mastodon](https://mastodon.social/@Beavernotes) | [🦋 Bluesky](https://bsky.app/profile/beavernotes.com) | [🧶 Threads](https://www.threads.com/@beaver_notes)
-- [💬 Reddit](https://www.reddit.com/r/BeaverNotes/)
-- [📖 Documentation](https://docs.beavernotes.com)
-- [✉️ Email us](mailto:danielerolli@proton.me)
-
-
-## 📜 Acknowledgements
-
-Beaver Notes wouldn’t be possible without these amazing open-source projects:
-
-- [tiptap-footnotes](https://github.com/buttondown/tiptap-footnotes) by [Buttondown](https://github.com/buttondown)
-- [Notething](https://github.com/Kholid060/notething) by [Kholid060](https://github.com/Kholid060) (MIT License)
+- 💬 [Reddit](https://www.reddit.com/r/BeaverNotes/)  
+- 🐘 [Mastodon](https://mastodon.social/@Beavernotes)  
+- 🦋 [Bluesky](https://bsky.app/profile/beavernotes.com)  
+- 📖 [Documentation](https://docs.beavernotes.com)  
+- ✉️ [Email](mailto:danielerolli@proton.me)  
 
 ## ✨ Contributors
 
@@ -119,10 +116,6 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- prettier-ignore-end -->
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
-
-This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification.  
-✨ Contributions of any kind are welcome!
-
 
 ## ✨ Community Contributors (outside GitHub)
 
