@@ -5,6 +5,29 @@ import Suggestion from './suggestion';
 
 const props = {
   labelKey: 'title',
+  showAdd: true,
+  onAdd: async (query, command, editor, range) => {
+    const noteStore = useNoteStore();
+
+    const note = await noteStore.add({
+      title: query.trim(),
+    });
+
+    command({
+      id: note.id,
+      label: note.title,
+    });
+
+    const { from, to } = range;
+
+    editor
+      .chain()
+      .focus()
+      .setTextSelection({ from, to: to - 1 })
+      .setLink({ href: `note://${note.id}` })
+      .setTextSelection(to)
+      .run();
+  },
   onSelect: ({ item, command, editor, range }) => {
     command({ id: item.id, label: item.title });
 

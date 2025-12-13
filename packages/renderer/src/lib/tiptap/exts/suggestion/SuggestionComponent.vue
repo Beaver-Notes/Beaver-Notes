@@ -25,7 +25,7 @@
         v-if="showAdd && query.length !== 0"
         :active="items.length === selectedIndex"
         class="text-overflow w-full"
-        @click="onAdd(query, command)"
+        @click="onAdd(query, command, editor, range)"
       >
         <v-remixicon name="riAddLine" class="mr-2" />
         {{ translations.menu.add || '-' }} "<strong class="text-overflow">
