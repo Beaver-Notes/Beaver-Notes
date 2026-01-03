@@ -1,66 +1,87 @@
 <template>
   <div class="p-2">
-    <div class="flex items-center space-x-2">
-      <input
-        id="bubble-input"
-        v-model="currentLinkVal"
-        type="url"
-        :placeholder="translations.editor.linkPlaceholder"
-        class="flex-1 bg-transparent"
-        @keydown="keydownHandler"
-        @keydown.esc="editor.commands.focus()"
-        @keyup.enter="updateCurrentLink"
-      />
+    <!-- View Mode -->
+    <div v-if="!isEditing" class="flex items-center space-x-2">
       <button
-        icon
-        class="text-neutral-600 dark:text-neutral-200"
-        title="Open link"
+        class="flex-1 min-w-0 text-left text-primary hover:underline truncate"
         @click="handleClick"
       >
-        <v-remixicon name="riExternalLinkLine" />
+        {{ displayLink }}
       </button>
       <button
         icon
-        class="text-neutral-600 dark:text-neutral-200"
+        class="flex-shrink-0 text-neutral-600 dark:text-neutral-200"
+        title="Edit link"
+        @click="startEditing"
+      >
+        <v-remixicon name="riPencilLine" />
+      </button>
+      <button
+        icon
+        class="flex-shrink-0 text-neutral-600 dark:text-neutral-200"
         title="Remove link"
         @click="editor.chain().focus().unsetLink().run()"
       >
         <v-remixicon name="riLinkUnlinkM" />
       </button>
-      <button
-        icon
-        class="text-neutral-600 -mr-1 dark:text-neutral-200"
-        @click="updateCurrentLink"
-      >
-        <v-remixicon name="riSave3Line" />
-      </button>
     </div>
-    <span class="text-xs text-neutral-600 dark:text-neutral-300 leading-none">{{
-      translations.editor.linkShortcut || '-'
-    }}</span>
-  </div>
-  <expand-transition>
-    <ui-list
-      v-if="currentLinkVal.startsWith('@')"
-      class="p-2 space-y-1 border-b"
-    >
-      <ui-list-item
-        v-for="(note, index) in notes"
-        :key="note.id"
-        :active="index === selectedNoteIndex"
-        class="cursor-pointer line-clamp leading-tight"
-        @click="updateCurrentLink(note.id)"
+
+    <!-- Edit Mode -->
+    <div v-else class="space-y-2">
+      <div class="flex items-center space-x-2">
+        <input
+          ref="inputRef"
+          v-model="currentLinkVal"
+          type="url"
+          :placeholder="translations.editor.linkPlaceholder"
+          class="flex-1 min-w-0 bg-transparent"
+          @keydown="keydownHandler"
+          @keydown.esc="cancelEditing"
+          @keyup.enter="saveAndClose"
+        />
+        <button
+          icon
+          class="flex-shrink-0 text-neutral-600 dark:text-neutral-200"
+          title="Cancel"
+          @click="cancelEditing"
+        >
+          <v-remixicon name="riCloseLine" />
+        </button>
+        <button
+          icon
+          class="flex-shrink-0 text-primary"
+          title="Done"
+          @click="saveAndClose"
+        >
+          <v-remixicon name="riCheckLine" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Note Suggestions -->
+    <expand-transition>
+      <ui-list
+        v-if="isEditing && currentLinkVal.startsWith('@')"
+        class="p-2 space-y-1 border-t mt-2"
       >
-        <p class="text-overflow w-full">
-          {{ note.title || translations.editor.untitledNote }}
-        </p>
-      </ui-list-item>
-    </ui-list>
-  </expand-transition>
+        <ui-list-item
+          v-for="(note, index) in notes"
+          :key="note.id"
+          :active="index === selectedNoteIndex"
+          class="cursor-pointer line-clamp leading-tight"
+          @click="selectNote(note.id)"
+        >
+          <p class="text-overflow w-full">
+            {{ note.title || translations.editor.untitledNote }}
+          </p>
+        </ui-list-item>
+      </ui-list>
+    </expand-transition>
+  </div>
 </template>
 
 <script>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { useTranslation } from '@/composable/translations';
 import { useNoteStore } from '@/store/note';
 import { useRoute, useRouter } from 'vue-router';
@@ -77,8 +98,11 @@ export default {
     const router = useRouter();
     const noteStore = useNoteStore();
 
+    const isEditing = ref(false);
     const selectedNoteIndex = ref(0);
     const currentLinkVal = ref('');
+    const originalLinkVal = ref('');
+    const inputRef = ref(null);
 
     const notes = computed(() => {
       if (!currentLinkVal.value.startsWith('@')) return [];
@@ -95,16 +119,54 @@ export default {
         .slice(0, 6);
     });
 
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
-    const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
+    const displayLink = computed(() => {
+      const href = props.editor.getAttributes('link')?.href;
+      if (!href) return '';
 
-    function updateCurrentLink(id) {
+      if (href.startsWith('note://')) {
+        const noteId = href.slice(7);
+        const note = noteStore.notes.find((n) => n.id === noteId);
+        return note?.title || noteId;
+      }
+
+      return href;
+    });
+
+    function startEditing() {
+      isEditing.value = true;
+      originalLinkVal.value = currentLinkVal.value;
+      nextTick(() => {
+        inputRef.value?.focus();
+        inputRef.value?.select();
+      });
+    }
+
+    function cancelEditing() {
+      if (originalLinkVal.value === '') {
+        props.editor.chain().focus().unsetLink().run();
+      } else {
+        currentLinkVal.value = originalLinkVal.value;
+        props.editor.commands.focus();
+      }
+      isEditing.value = false;
+    }
+
+    function saveAndClose() {
+      updateLink();
+      isEditing.value = false;
+      props.editor.commands.focus();
+    }
+
+    function updateLink(id) {
       let value = currentLinkVal.value;
 
       if (currentLinkVal.value.startsWith('@') || typeof id === 'string') {
         const noteId =
-          typeof id === 'string' ? id : notes.value[selectedNoteIndex.value].id;
+          typeof id === 'string'
+            ? id
+            : notes.value[selectedNoteIndex.value]?.id;
 
+        if (!noteId) return;
         value = `note://${noteId}`;
       }
 
@@ -115,6 +177,13 @@ export default {
         .setLink({ href: value })
         .run();
     }
+
+    function selectNote(id) {
+      updateLink(id);
+      isEditing.value = false;
+      props.editor.commands.focus();
+    }
+
     function handleClick() {
       const href = props.editor.getAttributes('link')?.href;
 
@@ -130,6 +199,7 @@ export default {
         window.open(href, '_blank', 'noopener');
       }
     }
+
     function keydownHandler(event) {
       if (!currentLinkVal.value.startsWith('@')) return;
 
@@ -137,12 +207,10 @@ export default {
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
-
         selectedNoteIndex.value =
           (selectedNoteIndex.value + notesLength - 1) % notesLength;
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
-
         selectedNoteIndex.value = (selectedNoteIndex.value + 1) % notesLength;
       }
     }
@@ -150,10 +218,25 @@ export default {
     watch(currentLinkVal, (value) => {
       if (value.startsWith('@')) selectedNoteIndex.value = 0;
     });
+
+    let previousHref = null;
+
     watch(
       () => props.editor.getAttributes('link'),
       (value) => {
-        currentLinkVal.value = (value?.href ?? '').replace('note://', '@');
+        const href = value?.href ?? '';
+        currentLinkVal.value = href.replace('note://', '@');
+        originalLinkVal.value = currentLinkVal.value;
+
+        // Only auto-open if link changed from non-empty to empty
+        if (href === '' && previousHref !== null && previousHref !== '') {
+          isEditing.value = true;
+          nextTick(() => {
+            inputRef.value?.focus();
+          });
+        }
+
+        previousHref = href;
       },
       { immediate: true }
     );
@@ -173,12 +256,17 @@ export default {
     return {
       notes,
       translations,
+      isEditing,
+      inputRef,
+      displayLink,
       keydownHandler,
       currentLinkVal,
       selectedNoteIndex,
-      updateCurrentLink,
+      startEditing,
+      cancelEditing,
+      saveAndClose,
+      selectNote,
       handleClick,
-      keyBinding,
     };
   },
 };
