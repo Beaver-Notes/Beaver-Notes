@@ -138,7 +138,6 @@ import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useTranslation } from '@/composable/translations';
 import { onMounted, ref } from 'vue';
-import { forceSyncNow } from '@/utils/sync.js';
 import { useDialog } from '@/composable/dialog';
 import FolderTree from './FolderTree.vue';
 import 'dayjs/locale/it';
@@ -286,10 +285,6 @@ onMounted(async () => {
       translations.value = trans;
     }
   });
-  const autoSync = localStorage.getItem('autoSync');
-  if (autoSync === 'true') {
-    forceSyncNow();
-  }
 });
 
 async function emitUpdate(payload) {

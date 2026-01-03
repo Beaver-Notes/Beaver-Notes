@@ -232,7 +232,7 @@ export default {
 
       setTimeout(() => {
         spinning.value = false;
-      }, 1000); // duration of spin animation
+      }, 1000);
     }
 
     return {

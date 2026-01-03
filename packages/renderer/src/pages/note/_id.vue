@@ -345,6 +345,16 @@ export default {
       }
     });
 
+    watch(
+      () => note.value?.id,
+      () => {
+        if (!titleDiv.value) return;
+
+        titleDiv.value.innerText = note.value?.title || '';
+      },
+      { immediate: true }
+    );
+
     return {
       id,
       showBack,

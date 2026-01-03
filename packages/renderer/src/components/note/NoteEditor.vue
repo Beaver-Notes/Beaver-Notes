@@ -60,6 +60,10 @@ export default {
       if (!editor.value) return;
       emit('init', editor.value);
 
+      if (editor.value && props.modelValue) {
+        editor.value.commands.setContent(props.modelValue);
+      }
+
       editor.value.on('update', () => {
         const data = editor.value.getJSON();
         emit('update', data);
