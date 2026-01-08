@@ -268,7 +268,7 @@ const LANGUAGE_CONFIG = {
   fr: { name: 'Français', dir: 'ltr' },
   it: { name: 'Italiano', dir: 'ltr' },
   nl: { name: 'Nederlands', dir: 'ltr' },
-  pt_BR: { name: 'Português (Brasil)', dir: 'ltr' },
+  pt: { name: 'Português', dir: 'ltr' },
   ru: { name: 'Русский', dir: 'ltr' },
   tr: { name: 'Türkçe', dir: 'ltr' },
   uk: { name: 'Українська', dir: 'ltr' },
