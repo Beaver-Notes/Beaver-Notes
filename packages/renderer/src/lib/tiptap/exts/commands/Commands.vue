@@ -368,7 +368,7 @@ export default {
     };
 
     function scrollToSelected() {
-      const container = document.querySelector('.ui-list'); // or use a ref
+      const container = document.querySelector('.ui-list');
       const selectedEl = container?.children[selectedIndex.value];
       if (selectedEl) {
         selectedEl.scrollIntoView({ block: 'nearest' });
