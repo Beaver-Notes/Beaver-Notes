@@ -15,8 +15,8 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
-  <p><b>Fast. Private. Local-first notes for macOS, Windows, and Linux.</b></p>
-  <p>Your notes stay on your device, no accounts, no tracking, no unnecessary complexity.</p>
+  <h3><b>Fast. Private. Local-first.</b></h3>
+  <p>Notes stay on your device. No sign-ups, no tracking, no unnecessary complexity.</p>
 
 [🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download) | [🛣️ Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
 </div>
