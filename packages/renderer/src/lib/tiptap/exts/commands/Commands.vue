@@ -367,15 +367,25 @@ export default {
       inputVisible.value = true;
     };
 
+    function scrollToSelected() {
+      const container = document.querySelector('.ui-list'); // or use a ref
+      const selectedEl = container?.children[selectedIndex.value];
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
     function upHandler() {
       selectedIndex.value =
         (selectedIndex.value + filteredItems.value.length - 1) %
         filteredItems.value.length;
+      scrollToSelected();
     }
 
     function downHandler() {
       selectedIndex.value =
         (selectedIndex.value + 1) % filteredItems.value.length;
+      scrollToSelected();
     }
 
     function enterHandler() {
