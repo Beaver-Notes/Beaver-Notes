@@ -233,28 +233,7 @@ export const useNoteStore = defineStore('note', {
       }
     },
 
-    async moveToFolder(noteId, folderId) {
-      try {
-        if (!this.data[noteId]) {
-          throw new Error('Note not found');
-        }
-
-        if (folderId) {
-          const folderStore = useFolderStore();
-          const folderExists = await folderStore.exists(folderId);
-          if (!folderExists) {
-            throw new Error('Target folder does not exist');
-          }
-        }
-
-        return await this.update(noteId, { folderId });
-      } catch (error) {
-        console.error('Error moving note to folder:', error);
-        throw error;
-      }
-    },
-
-    async moveMultipleToFolder(noteIds, folderId) {
+    async moveToFolder(noteIds, folderId) {
       try {
         if (folderId) {
           const folderStore = useFolderStore();
@@ -305,35 +284,6 @@ export const useNoteStore = defineStore('note', {
         return affectedNotes.map((note) => note.id);
       } catch (error) {
         console.error('Error handling folder deletion:', error);
-        throw error;
-      }
-    },
-
-    async duplicateToFolder(noteId, targetFolderId) {
-      try {
-        const originalNote = this.data[noteId];
-        if (!originalNote) {
-          throw new Error('Note not found');
-        }
-
-        if (targetFolderId) {
-          const folderStore = useFolderStore();
-          const folderExists = await folderStore.exists(targetFolderId);
-          if (!folderExists) {
-            throw new Error('Target folder does not exist');
-          }
-        }
-
-        const duplicatedNote = await this.add({
-          ...originalNote,
-          id: undefined,
-          title: `${originalNote.title} (Copy)`,
-          folderId: targetFolderId,
-        });
-
-        return duplicatedNote;
-      } catch (error) {
-        console.error('Error duplicating note to folder:', error);
         throw error;
       }
     },
