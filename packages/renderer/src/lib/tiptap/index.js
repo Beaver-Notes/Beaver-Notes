@@ -35,7 +35,7 @@ import {
   purpleCallout,
   blackCallout,
   greenCallout,
-} from './exts/callouts';
+} from './exts/Callouts';
 import { LiteralTab } from './exts/literal-tab';
 import Image from './exts/image';
 import Table from '@tiptap/extension-table';
@@ -177,6 +177,7 @@ const extensions = [
       target: '_blank',
       rel: 'noopener noreferrer nofollow',
       'tiptap-url': 'true',
+      title: 'Ctrl+Click to open URL',
     },
   }),
   Iframe.configure({
