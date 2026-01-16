@@ -118,7 +118,7 @@ function selectItem(index) {
   if (item) {
     props.onSelect({ item, ...props });
   } else if (props.showAdd && props.query !== '') {
-    props.onAdd(props.query, props.command);
+    props.onAdd(props.query, props.command, props.editor, props.range);
   }
 }
 

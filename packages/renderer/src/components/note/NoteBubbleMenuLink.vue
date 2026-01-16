@@ -1,82 +1,90 @@
 <template>
   <div class="p-2">
     <!-- View Mode -->
-    <div v-if="!isEditing" class="flex items-center space-x-2">
+    <div v-if="!isEditing" class="flex items-center gap-2">
       <button
-        class="flex-1 min-w-0 text-left text-primary hover:underline truncate"
+        class="flex-1 min-w-10 text-left text-secondary hover:text-primary hover:underline truncate px-2 py-1 rounded transition-colors"
         @click="handleClick"
       >
         {{ displayLink }}
       </button>
       <button
-        icon
-        class="flex-shrink-0 text-neutral-600 dark:text-neutral-200"
+        class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
         title="Edit link"
         @click="startEditing"
       >
-        <v-remixicon name="riPencilLine" />
+        <v-remixicon name="riPencilLine" class="size-5" />
       </button>
       <button
-        icon
-        class="flex-shrink-0 text-neutral-600 dark:text-neutral-200"
+        class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
         title="Remove link"
         @click="editor.chain().focus().unsetLink().run()"
       >
-        <v-remixicon name="riLinkUnlinkM" />
+        <v-remixicon name="riLinkUnlinkM" class="size-5" />
       </button>
     </div>
 
     <!-- Edit Mode -->
     <div v-else class="space-y-2">
-      <div class="flex items-center space-x-2">
+      <div class="flex items-center gap-2">
         <input
           ref="inputRef"
           v-model="currentLinkVal"
           type="url"
-          :placeholder="translations.editor.linkPlaceholder"
-          class="flex-1 min-w-0 bg-transparent"
+          :placeholder="
+            translations.editor.linkPlaceholder || 'Enter URL or @note'
+          "
+          class="flex-1 min-w-0 px-2 py-1 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 transition-shadow"
           @keydown="keydownHandler"
           @keydown.esc="cancelEditing"
           @keyup.enter="saveAndClose"
         />
         <button
-          icon
-          class="flex-shrink-0 text-neutral-600 dark:text-neutral-200"
+          class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
           title="Cancel"
           @click="cancelEditing"
         >
-          <v-remixicon name="riCloseLine" />
+          <v-remixicon name="riCloseLine" class="size-5" />
         </button>
         <button
-          icon
-          class="flex-shrink-0 text-primary"
-          title="Done"
+          class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
+          title="Save"
+          :disabled="!currentLinkVal.trim()"
           @click="saveAndClose"
         >
-          <v-remixicon name="riCheckLine" />
+          <v-remixicon name="riCheckLine" class="size-5" />
         </button>
       </div>
-    </div>
 
-    <!-- Note Suggestions -->
-    <expand-transition>
-      <ui-list
-        v-if="isEditing && currentLinkVal.startsWith('@')"
-        class="p-2 space-y-1 border-t mt-2"
-      >
-        <ui-list-item
-          v-for="(note, index) in notes"
-          :key="note.id"
-          :active="index === selectedNoteIndex"
-          class="cursor-pointer line-clamp leading-tight"
-          @click="selectNote(note.id)"
+      <expand-transition>
+        <div
+          v-if="currentLinkVal.startsWith('@') && notes.length > 0"
+          class="overflow-hidden"
         >
-          <p class="text-overflow w-full">
-            {{ note.title || translations.editor.untitledNote }}
-          </p>
-        </ui-list-item>
-      </ui-list>
-    </expand-transition>
+          <ui-list class="cursor-pointer space-y-1">
+            <ui-list-item
+              v-for="(note, index) in notes"
+              :key="note.id"
+              :active="index === selectedNoteIndex"
+              class="label-item w-full truncate"
+              @click="selectNote(note.id)"
+            >
+              {{
+                note.title ||
+                translations.editor.untitledNote ||
+                'Untitled Note'
+              }}
+            </ui-list-item>
+          </ui-list>
+        </div>
+        <div
+          v-else-if="currentLinkVal.startsWith('@') && notes.length === 0"
+          class="px-3 py-2 text-sm text-neutral-500 dark:text-neutral-400 italic"
+        >
+          No matching notes found
+        </div>
+      </expand-transition>
+    </div>
   </div>
 </template>
 
@@ -107,14 +115,14 @@ export default {
     const notes = computed(() => {
       if (!currentLinkVal.value.startsWith('@')) return [];
 
-      const query = currentLinkVal.value.substr(1).toLocaleLowerCase();
+      const query = currentLinkVal.value.substring(1).toLowerCase();
 
       return noteStore.notes
         .filter(
           (note) =>
             note.id !== route.params.id &&
-            (note.title.toLocaleLowerCase().includes(query) ||
-              note.id.toLocaleLowerCase().includes(query))
+            (note.title.toLowerCase().includes(query) ||
+              note.id.toLowerCase().includes(query))
         )
         .slice(0, 6);
     });
@@ -146,19 +154,24 @@ export default {
         props.editor.chain().focus().unsetLink().run();
       } else {
         currentLinkVal.value = originalLinkVal.value;
-        props.editor.commands.focus();
       }
       isEditing.value = false;
+      props.editor.commands.focus();
     }
 
     function saveAndClose() {
+      if (!currentLinkVal.value.trim()) {
+        cancelEditing();
+        return;
+      }
+
       updateLink();
       isEditing.value = false;
       props.editor.commands.focus();
     }
 
     function updateLink(id) {
-      let value = currentLinkVal.value;
+      let value = currentLinkVal.value.trim();
 
       if (currentLinkVal.value.startsWith('@') || typeof id === 'string') {
         const noteId =
@@ -196,12 +209,13 @@ export default {
           query: { linked: true },
         });
       } else {
-        window.open(href, '_blank', 'noopener');
+        window.open(href, '_blank', 'noopener,noreferrer');
       }
     }
 
     function keydownHandler(event) {
-      if (!currentLinkVal.value.startsWith('@')) return;
+      if (!currentLinkVal.value.startsWith('@') || notes.value.length === 0)
+        return;
 
       const notesLength = notes.value.length;
 
@@ -212,6 +226,14 @@ export default {
       } else if (event.key === 'ArrowDown') {
         event.preventDefault();
         selectedNoteIndex.value = (selectedNoteIndex.value + 1) % notesLength;
+      } else if (
+        event.key === 'Enter' &&
+        currentLinkVal.value.startsWith('@')
+      ) {
+        event.preventDefault();
+        if (notes.value[selectedNoteIndex.value]) {
+          selectNote(notes.value[selectedNoteIndex.value].id);
+        }
       }
     }
 
@@ -219,24 +241,20 @@ export default {
       if (value.startsWith('@')) selectedNoteIndex.value = 0;
     });
 
-    let previousHref = null;
-
     watch(
-      () => props.editor.getAttributes('link'),
-      (value) => {
-        const href = value?.href ?? '';
+      () => props.editor.getAttributes('link')?.href,
+      (newHref) => {
+        const href = newHref ?? '';
         currentLinkVal.value = href.replace('note://', '@');
         originalLinkVal.value = currentLinkVal.value;
 
-        // Only auto-open if link changed from non-empty to empty
-        if (href === '' && previousHref !== null && previousHref !== '') {
+        // Auto-open edit mode when href is empty
+        if (href === '') {
           isEditing.value = true;
           nextTick(() => {
             inputRef.value?.focus();
           });
         }
-
-        previousHref = href;
       },
       { immediate: true }
     );
