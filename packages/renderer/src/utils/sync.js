@@ -1,546 +1,258 @@
+import { toRaw } from 'vue';
 import { useStorage } from '@/composable/storage';
 import { useNoteStore } from '@/store/note.js';
 import { useFolderStore } from '@/store/folder.js';
-import { useTranslation } from '@/composable/translations';
-import { t } from '@/utils/translations';
-import { shallowReactive, ref } from 'vue';
-import { Utf8 } from 'crypto-es/lib/core';
-import { AES } from 'crypto-es/lib/aes';
-import { useDialog } from '@/composable/dialog';
 
-const { ipcRenderer, path, notification } = window.electron;
-
+const { ipcRenderer, path } = window.electron;
 const storage = useStorage();
-const dialog = useDialog();
-const translations = ref({ sidebar: {} });
 
-(async () => {
-  const trans = await useTranslation();
-  if (trans) {
-    translations.value = trans;
-  }
-})();
+let deviceId =
+  localStorage.getItem('deviceId') ||
+  (() => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    localStorage.setItem('deviceId', id);
+    return id;
+  })();
 
-const syncStatus = ref('idle');
-const defaultPath = localStorage.getItem('default-path');
-const pendingChanges = new Map();
-const state = shallowReactive({
-  dataDir: '',
-  password: '',
-  fontSize: '16',
-  withPassword: false,
-  lastSyncTime: null,
-  syncInProgress: false,
-  syncError: null,
-  remoteVersion: 0,
-  localVersion: 0,
-  isFirstSync: false,
-});
+const state = { syncing: false };
+let syncQueue = Promise.resolve(); // ensures sequential syncs
 
-function generateChangeId() {
-  return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-}
-
-let syncTimeout = null;
-let lastScheduled = 0;
-const SYNC_DEBOUNCE_MS = 60000;
-
-function scheduleSync(immediate = false) {
-  const now = Date.now();
-
-  if (immediate || now - lastScheduled > SYNC_DEBOUNCE_MS) {
-    clearTimeout(syncTimeout);
-    lastScheduled = now;
-    return syncData();
-  }
-
-  clearTimeout(syncTimeout);
-  syncTimeout = setTimeout(() => {
-    lastScheduled = Date.now();
-    syncData();
-  }, SYNC_DEBOUNCE_MS);
-}
+// ============================================================================
+// PUBLIC API
+// ============================================================================
 
 export async function trackChange(key, data) {
-  if (!path || !defaultPath) {
-    return;
-  }
+  if (localStorage.getItem('autoSync') !== 'true') return;
 
-  const autoSyncEnabled = localStorage.getItem('autoSync') === 'true';
-  if (!autoSyncEnabled) {
-    return;
-  }
-
-  const metadata = await storage.get(
-    'syncMetadata',
-    { version: 0, isInitialized: false },
-    'settings'
-  );
-
-  if (!metadata.isInitialized && !state.isFirstSync) {
-    const syncFolder = path.join(defaultPath, 'BeaverNotesSync');
-    try {
-      const remoteMetadata = await ipcRenderer.callMain(
-        'fs:read-json',
-        path.join(syncFolder, 'metadata.json')
-      );
-      if (remoteMetadata.version > 0) {
-        return null;
-      }
-    } catch {
-      // No remote data, proceed normally
-    }
-  }
-
-  metadata.version += 1;
-  metadata.lastModified = Date.now();
-  metadata.isInitialized = true;
-
-  const changeId = generateChangeId();
-  pendingChanges.set(changeId, {
-    key,
-    data,
-    version: metadata.version,
-    timestamp: Date.now(),
-  });
-
-  await storage.set('syncMetadata', metadata, 'settings');
-  state.localVersion = metadata.version;
-
-  if (!state.syncInProgress && localStorage.getItem('autoSync') === 'true') {
-    scheduleSync();
-  }
-
-  return changeId;
-}
-
-export async function syncData() {
-  if (state.syncInProgress || !defaultPath) return;
-
-  try {
-    state.syncInProgress = true;
-    syncStatus.value = 'syncing';
-    state.syncError = null;
-
-    const dataDir = await storage.get('dataDir', '', 'settings');
-    if (!dataDir) throw new Error('Data directory not set');
-
-    const syncFolder = path.join(defaultPath, 'BeaverNotesSync');
-    await ipcRenderer.callMain('fs:ensureDir', syncFolder);
-
-    const localMetadata = await storage.get(
-      'syncMetadata',
-      { version: 0, isInitialized: false },
-      'settings'
-    );
-    state.localVersion = localMetadata.version;
-
-    let remoteMetadata = { version: 0 };
-    let hasRemoteData = false;
-    try {
-      remoteMetadata = await ipcRenderer.callMain(
-        'fs:read-json',
-        path.join(syncFolder, 'metadata.json')
-      );
-      state.remoteVersion = remoteMetadata.version;
-      hasRemoteData = true;
-    } catch {
-      // No remote metadata available
-    }
-
-    if (hasRemoteData && remoteMetadata.version > 0) {
-      await pullChanges(syncFolder, remoteMetadata.version);
-    }
-
-    const newVersion = Math.max(state.localVersion, state.remoteVersion) + 1;
-    await pushChanges(syncFolder, newVersion);
-
-    await syncAssets(dataDir, syncFolder);
-
-    state.lastSyncTime = Date.now();
-    syncStatus.value = 'success';
-
-    const noteStore = useNoteStore();
-    const folderStore = useFolderStore();
-    await Promise.all([noteStore.retrieve(), folderStore.retrieve()]);
-  } catch (error) {
-    console.error('Sync error:', error);
-    syncStatus.value = 'error';
-    state.syncError = error.message;
-
-    notification({
-      title: t(translations.value.sidebar.notification),
-      body: t(translations.value.sidebar.syncFail),
-    });
-  } finally {
-    state.syncInProgress = false;
-  }
-}
-
-async function pullChanges(syncFolder, remoteVersion) {
-  const remoteDataFile = path.join(syncFolder, 'data.json');
-
-  let remoteData;
-  try {
-    remoteData = await ipcRenderer.callMain('fs:read-json', remoteDataFile);
-  } catch (error) {
-    throw new Error(
-      `${t(translations.value.settings.invaliddata)}: ${error.message}`
-    );
-  }
-
-  let importedData = remoteData.data;
-  if (typeof importedData === 'string') {
-    const { success, password } = await promptForPassword(translations);
-    if (!success) return;
-
-    try {
-      const bytes = AES.decrypt(importedData, password);
-      const decrypted = bytes.toString(Utf8);
-      importedData = JSON.parse(decrypted);
-
-      state.password = password;
-      state.withPassword = true;
-    } catch {
-      throw new Error(t(translations.value.settings.Invalidpassword));
-    }
-  } else {
-    state.withPassword = false;
-  }
-
-  if (!importedData || typeof importedData !== 'object') {
-    throw new Error(t(translations.value.settings.invaliddata));
-  }
-
-  await mergePulledData(importedData);
-
-  await storage.set(
-    'syncMetadata',
-    {
-      version: remoteVersion,
-      lastSynced: Date.now(),
-      lastPull: Date.now(),
-      isInitialized: true,
-    },
-    'settings'
-  );
-
-  state.localVersion = remoteVersion;
-  state.remoteVersion = remoteVersion;
-
-  pendingChanges.clear();
-}
-
-async function pushChanges(syncFolder, localVersion) {
-  const dataToSync = await prepareDataToSync();
-  let finalData = dataToSync;
-
-  if (state.withPassword && state.password) {
-    finalData = AES.encrypt(
-      JSON.stringify(dataToSync),
-      state.password
-    ).toString();
-  }
-
-  const metadata = {
-    version: localVersion,
-    lastSynced: Date.now(),
-    lastPush: Date.now(),
-    lastModified: Date.now(),
+  const [type, id] = key.split('.');
+  const commit = {
+    id: `${Date.now()}-${deviceId}`,
+    parent: await storage.get('lastCommitId', '', 'settings'),
+    device: deviceId,
+    ts: Date.now(),
+    ops: [
+      {
+        type,
+        id: id || type,
+        data: data ? JSON.parse(JSON.stringify(toRaw(data))) : null,
+      },
+    ],
   };
-
+  // Save commit immediately to local commits folder
+  const commitsDir = await getCommitsDir();
   await ipcRenderer.callMain('fs:output-json', {
-    path: path.join(syncFolder, 'data.json'),
-    data: { data: finalData },
+    path: path.join(commitsDir, `${commit.id}.json`),
+    data: commit,
   });
 
-  await ipcRenderer.callMain('fs:output-json', {
-    path: path.join(syncFolder, 'metadata.json'),
-    data: metadata,
-  });
+  await storage.set('lastCommitId', commit.id, 'settings');
 
-  state.remoteVersion = localVersion;
-  pendingChanges.clear();
-}
-
-async function syncAssets(localDir, remoteDir) {
-  const pairs = [
-    {
-      local: path.join(localDir, 'assets'),
-      remote: path.join(remoteDir, 'assets'),
-    },
-    {
-      local: path.join(localDir, 'file-assets'),
-      remote: path.join(remoteDir, 'file-assets'),
-    },
-  ];
-
-  for (const { local, remote } of pairs) {
-    await ipcRenderer.callMain('fs:ensureDir', local);
-    await ipcRenderer.callMain('fs:ensureDir', remote);
-
-    const [localFiles, remoteFiles] = await Promise.all([
-      ipcRenderer.callMain('fs:readdir', local),
-      ipcRenderer.callMain('fs:readdir', remote),
-    ]);
-
-    await syncFileCollections(local, remote, localFiles, remoteFiles);
-  }
-}
-
-async function syncFileCollections(
-  localDir,
-  remoteDir,
-  localFiles,
-  remoteFiles
-) {
-  const toDownload = remoteFiles.filter((f) => !localFiles.includes(f));
-  const toUpload = localFiles.filter((f) => !remoteFiles.includes(f));
-
-  for (const file of toDownload) {
-    await safeCopy(path.join(remoteDir, file), path.join(localDir, file));
-  }
-  for (const file of toUpload) {
-    await safeCopy(path.join(localDir, file), path.join(remoteDir, file));
-  }
-}
-
-async function safeCopy(source, dest) {
-  try {
-    await ipcRenderer.callMain('fs:copy', { path: source, dest });
-  } catch (error) {
-    console.error(`Failed to copy ${source} → ${dest}:`, error);
-  }
-}
-
-async function prepareDataToSync() {
-  const keys = [
-    'notes',
-    'folders',
-    'labels',
-    'lockStatus',
-    'isLocked',
-    'settings',
-    'deletedIds',
-    'deletedFolderIds',
-  ];
-  const result = {};
-
-  for (const key of keys) {
-    const defaultValue = [
-      'notes',
-      'folders',
-      'lockStatus',
-      'isLocked',
-    ].includes(key)
-      ? {}
-      : [];
-    result[key] = await storage.get(key, defaultValue);
-  }
-  return result;
-}
-
-async function mergePulledData(imported) {
-  const keys = [
-    'notes',
-    'folders',
-    'labels',
-    'lockStatus',
-    'isLocked',
-    'settings',
-    'deletedIds',
-    'deletedFolderIds',
-  ];
-
-  const currentDeletedIds = await storage.get('deletedIds', {});
-  const importedDeletedIds = imported.deletedIds || {};
-  const mergedDeletedIds = { ...currentDeletedIds };
-
-  for (const [id, timestamp] of Object.entries(importedDeletedIds)) {
-    if (!mergedDeletedIds[id] || timestamp > mergedDeletedIds[id]) {
-      mergedDeletedIds[id] = timestamp;
-    }
-  }
-
-  const currentDeletedFolderIds = await storage.get('deletedFolderIds', {});
-  const importedDeletedFolderIds = imported.deletedFolderIds || {};
-  const mergedDeletedFolderIds = { ...currentDeletedFolderIds };
-
-  for (const [id, timestamp] of Object.entries(importedDeletedFolderIds)) {
-    if (!mergedDeletedFolderIds[id] || timestamp > mergedDeletedFolderIds[id]) {
-      mergedDeletedFolderIds[id] = timestamp;
-    }
-  }
-
-  const currentNotes = await storage.get('notes', {});
-  const incomingNotes = imported.notes || {};
-
-  for (const [noteId, note] of Object.entries({
-    ...currentNotes,
-    ...incomingNotes,
-  })) {
-    if (note.folderId && mergedDeletedFolderIds[note.folderId]) {
-      const folderDeletionTime = mergedDeletedFolderIds[note.folderId];
-      const noteUpdateTime = note.updatedAt
-        ? new Date(note.updatedAt).getTime()
-        : 0;
-
-      if (folderDeletionTime > noteUpdateTime) {
-        if (currentNotes[noteId]) {
-          currentNotes[noteId] = { ...currentNotes[noteId], folderId: null };
-        }
-        if (incomingNotes[noteId]) {
-          incomingNotes[noteId] = { ...incomingNotes[noteId], folderId: null };
-        }
-      }
-    }
-  }
-
-  await storage.set('deletedIds', mergedDeletedIds);
-  await storage.set('deletedFolderIds', mergedDeletedFolderIds);
-
-  for (const key of keys) {
-    if (key === 'deletedIds' || key === 'deletedFolderIds') continue;
-
-    const current = await storage.get(
-      key,
-      ['notes', 'folders'].includes(key) ? {} : []
-    );
-    const incoming = imported[key];
-    if (!incoming) continue;
-
-    if (key === 'notes') {
-      const mergedNotes = {};
-
-      for (const [id, note] of Object.entries(currentNotes)) {
-        if (
-          mergedDeletedIds[id] &&
-          note.updatedAt &&
-          mergedDeletedIds[id] >= new Date(note.updatedAt).getTime()
-        ) {
-          continue;
-        }
-
-        if (note.folderId && mergedDeletedFolderIds[note.folderId]) {
-          note.folderId = null;
-        }
-
-        mergedNotes[id] = note;
-      }
-
-      for (const [id, incomingNote] of Object.entries(incomingNotes)) {
-        if (
-          mergedDeletedIds[id] &&
-          incomingNote.updatedAt &&
-          mergedDeletedIds[id] >= new Date(incomingNote.updatedAt).getTime()
-        ) {
-          continue;
-        }
-
-        if (
-          incomingNote.folderId &&
-          mergedDeletedFolderIds[incomingNote.folderId]
-        ) {
-          incomingNote.folderId = null;
-        }
-
-        const currentNote = mergedNotes[id];
-
-        if (
-          !currentNote ||
-          (incomingNote.updatedAt &&
-            currentNote.updatedAt &&
-            new Date(incomingNote.updatedAt) > new Date(currentNote.updatedAt))
-        ) {
-          mergedNotes[id] = incomingNote;
-        }
-      }
-
-      await storage.set('notes', mergedNotes);
-    } else if (key === 'folders') {
-      const mergedFolders = {};
-
-      for (const [id, folder] of Object.entries(current)) {
-        if (
-          mergedDeletedFolderIds[id] &&
-          folder.updatedAt &&
-          mergedDeletedFolderIds[id] >= folder.updatedAt
-        ) {
-          continue;
-        }
-        mergedFolders[id] = folder;
-      }
-
-      for (const [id, incomingFolder] of Object.entries(incoming)) {
-        if (
-          mergedDeletedFolderIds[id] &&
-          incomingFolder.updatedAt &&
-          mergedDeletedFolderIds[id] >= incomingFolder.updatedAt
-        ) {
-          continue;
-        }
-
-        const currentFolder = mergedFolders[id];
-
-        if (
-          !currentFolder ||
-          (incomingFolder.updatedAt &&
-            currentFolder.updatedAt &&
-            incomingFolder.updatedAt > currentFolder.updatedAt)
-        ) {
-          mergedFolders[id] = incomingFolder;
-        }
-      }
-
-      await storage.set('folders', mergedFolders);
-    } else if (Array.isArray(current) && Array.isArray(incoming)) {
-      await storage.set(key, [...new Set([...current, ...incoming])]);
-    } else if (typeof current === 'object' && typeof incoming === 'object') {
-      const merged = { ...current, ...incoming };
-
-      if (key === 'lockStatus') {
-        for (const id of Object.keys(mergedDeletedIds)) {
-          delete merged[id];
-        }
-        for (const id of Object.keys(mergedDeletedFolderIds)) {
-          delete merged[id];
-        }
-      }
-
-      await storage.set(key, merged);
-    }
-  }
-}
-
-function promptForPassword(translations) {
-  return new Promise((resolve) => {
-    dialog.prompt({
-      title: t(translations.settings.inputPassword),
-      body: t(translations.settings.body),
-      okText: t(translations.settings.import),
-      cancelText: t(translations.settings.cancel),
-      placeholder: t(translations.settings.password),
-      onConfirm: (password) => resolve({ success: true, password }),
-      onCancel: () => resolve({ success: false }),
-    });
-  });
-}
-
-export function configureSyncPassword(usePassword, password) {
-  state.withPassword = usePassword;
-  state.password = password;
+  enqueueSync();
 }
 
 export function forceSyncNow() {
-  return scheduleSync(true);
+  return enqueueSync(true);
 }
 
-export function getSyncStatus() {
-  return {
-    status: syncStatus.value,
-    lastSynced: state.lastSyncTime ? new Date(state.lastSyncTime) : null,
-    localVersion: state.localVersion,
-    remoteVersion: state.remoteVersion,
-    pendingChanges: pendingChanges.size,
+export async function getSyncStatus() {
+  const lastCommitId = await storage.get('lastCommitId', '', 'settings');
+  return { syncing: state.syncing, lastCommitId };
+}
+
+export async function initFromSnapshot() {
+  const snapshotPath = await getSnapshotPath();
+  if (!snapshotPath) return;
+
+  try {
+    const snap = await ipcRenderer.callMain('fs:read-json', snapshotPath);
+    await storage.set('notes', snap.data.notes);
+    await storage.set('folders', snap.data.folders);
+    await storage.set('labels', snap.data.labels);
+    await storage.set('deletedIds', snap.data.deletedIds || {});
+    await storage.set('deletedFolderIds', snap.data.deletedFolderIds || {});
+  } catch {
+    console.log('No snapshot found. Will build state from commits.');
+  }
+}
+
+// ============================================================================
+// QUEUED SYNC
+// ============================================================================
+
+function enqueueSync(force = false) {
+  syncQueue = syncQueue.then(
+    () => sync(force),
+    () => sync(force)
+  );
+  return syncQueue;
+}
+
+// ============================================================================
+// SYNC CORE
+// ============================================================================
+
+async function sync(force = false) {
+  if (state.syncing && !force) return;
+  const syncPath = localStorage.getItem('default-path');
+  if (!syncPath) return;
+
+  state.syncing = true;
+
+  try {
+    const syncDir = path.join(syncPath, 'BeaverNotesSync');
+    const commitsDir = path.join(syncDir, 'commits');
+    await ipcRenderer.callMain('fs:ensureDir', commitsDir);
+
+    // Pull remote commits
+    const localLastId = await storage.get('lastCommitId', '', 'settings');
+    const remoteCommits = await getRemoteCommits(commitsDir, localLastId);
+
+    // Apply all commits
+    for (const commit of remoteCommits) {
+      for (const op of commit.ops) await applyOp(op);
+      await storage.set('lastCommitId', commit.id, 'settings');
+    }
+
+    // Sync assets
+    const localDir = await storage.get('dataDir', '', 'settings');
+    await syncAssets(localDir, syncDir);
+
+    // Optional: compact if too many commits
+    const allFiles = await ipcRenderer.callMain('fs:readdir', commitsDir);
+    if (allFiles.length > 200) await compact(syncDir, commitsDir);
+
+    // Refresh stores
+    await Promise.all([useNoteStore().retrieve(), useFolderStore().retrieve()]);
+  } catch (err) {
+    console.error('Sync failed:', err);
+  } finally {
+    state.syncing = false;
+  }
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+async function getCommitsDir() {
+  const syncPath = localStorage.getItem('default-path');
+  if (!syncPath) return;
+  const commitsDir = path.join(syncPath, 'BeaverNotesSync', 'commits');
+  await ipcRenderer.callMain('fs:ensureDir', commitsDir);
+  return commitsDir;
+}
+
+async function getSnapshotPath() {
+  const syncPath = localStorage.getItem('default-path');
+  if (!syncPath) return null;
+  return path.join(syncPath, 'BeaverNotesSync', 'snapshot.json');
+}
+
+async function getRemoteCommits(commitsDir, lastSeen) {
+  const files = await ipcRenderer
+    .callMain('fs:readdir', commitsDir)
+    .catch(() => []);
+  const commits = [];
+
+  for (const file of files.filter((f) => f.endsWith('.json'))) {
+    const commit = await ipcRenderer.callMain(
+      'fs:read-json',
+      path.join(commitsDir, file)
+    );
+    if (commit.device === deviceId || (lastSeen && commit.id <= lastSeen))
+      continue;
+    commits.push(commit);
+  }
+
+  return commits.sort((a, b) => a.ts - b.ts);
+}
+
+async function applyOp(op) {
+  const { type, id, data } = op;
+
+  if (type === 'notes') {
+    const notes = await storage.get('notes', {});
+    if (!data) delete notes[id];
+    else {
+      const existing = notes[id];
+      if (!existing || data.updatedAt > existing.updatedAt) {
+        notes[id] = {
+          ...data,
+          content: data.content || existing?.content,
+          labels: [
+            ...new Set([...(existing?.labels || []), ...(data.labels || [])]),
+          ],
+          isBookmarked: existing?.isBookmarked || data.isBookmarked,
+          isLocked: existing?.isLocked || data.isLocked,
+        };
+      }
+    }
+    await storage.set('notes', notes);
+  } else if (type === 'folders') {
+    const folders = await storage.get('folders', {});
+    if (!data) delete folders[id];
+    else if (!folders[id] || data.updatedAt > folders[id].updatedAt)
+      folders[id] = data;
+    await storage.set('folders', folders);
+  } else if (type === 'labels') {
+    await storage.set('labels', data);
+  } else if (type === 'deletedIds' || type === 'deletedFolderIds') {
+    const current = await storage.get(type, {});
+    await storage.set(type, { ...current, ...data });
+  }
+}
+
+async function syncAssets(localDir, syncDir) {
+  const localAssets = path.join(localDir, 'assets');
+  const remoteAssets = path.join(syncDir, 'assets');
+
+  await ipcRenderer.callMain('fs:ensureDir', localAssets);
+  await ipcRenderer.callMain('fs:ensureDir', remoteAssets);
+
+  const [local, remote] = await Promise.all([
+    ipcRenderer.callMain('fs:readdir', localAssets),
+    ipcRenderer.callMain('fs:readdir', remoteAssets),
+  ]);
+
+  // Copy missing files
+  for (const file of remote.filter((f) => !local.includes(f))) {
+    await ipcRenderer
+      .callMain('fs:copy', {
+        path: path.join(remoteAssets, file),
+        dest: path.join(localAssets, file),
+      })
+      .catch(() => {});
+  }
+  for (const file of local.filter((f) => !remote.includes(f))) {
+    await ipcRenderer
+      .callMain('fs:copy', {
+        path: path.join(localAssets, file),
+        dest: path.join(remoteAssets, file),
+      })
+      .catch(() => {});
+  }
+}
+
+async function compact(syncDir, commitsDir) {
+  // Create snapshot
+  const snapshot = {
+    notes: await storage.get('notes', {}),
+    folders: await storage.get('folders', {}),
+    labels: await storage.get('labels', []),
+    deletedIds: await storage.get('deletedIds', {}),
+    deletedFolderIds: await storage.get('deletedFolderIds', {}),
   };
+
+  await ipcRenderer.callMain('fs:output-json', {
+    path: path.join(syncDir, 'snapshot.json'),
+    data: { ts: Date.now(), data: snapshot },
+  });
+
+  // Remove old commits
+  const files = await ipcRenderer.callMain('fs:readdir', commitsDir);
+  for (const file of files)
+    await ipcRenderer.callMain('fs:remove', path.join(commitsDir, file));
+
+  await storage.set('lastCommitId', '', 'settings');
+  console.log('Compacted');
 }
