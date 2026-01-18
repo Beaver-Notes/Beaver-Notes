@@ -10,7 +10,6 @@ import { AutoUpdater } from './modules/auto-updater.js';
 import { MenuManager } from './modules/menu-manager.js';
 import { FileHandler } from './modules/file-handler.js';
 
-app.setName('Beaver Notes');
 // Migrate old data directory from "Beaver-notes" to "Beaver Notes"
 // !!! To be removed in future versions !!!
 async function migrateOldData() {
@@ -27,15 +26,6 @@ async function migrateOldData() {
       console.error('[Migration] Failed:', e);
     }
   }
-}
-
-if (process.env.PORTABLE_EXECUTABLE_DIR) {
-  app.setPath(
-    'userData',
-    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
-  );
-} else {
-  app.setPath('userData', path.join(app.getPath('appData'), 'Beaver Notes'));
 }
 
 class Application {
@@ -96,6 +86,8 @@ class Application {
   }
 }
 
+app.setName('Beaver Notes');
+
 let pendingFilePath = null;
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
@@ -106,6 +98,13 @@ const isSingleInstance = app.requestSingleInstanceLock();
 if (!isSingleInstance) {
   app.quit();
   process.exit(0);
+}
+
+if (process.env.PORTABLE_EXECUTABLE_DIR) {
+  app.setPath(
+    'userData',
+    path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
+  );
 }
 
 const application = new Application();
