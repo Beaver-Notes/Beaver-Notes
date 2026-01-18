@@ -1,8 +1,8 @@
 // main.js
 import path from 'path';
 import { app } from 'electron';
-import { existsSync } from 'fs';
-import { copySync, removeSync } from 'fs-extra';
+import store from './store';
+import { copySync, removeSync, existsSync } from 'fs-extra';
 import { WindowManager } from './modules/window-manager.js';
 import { ProtocolManager } from './modules/protocol-manager.js';
 import { IPCHandlers } from './modules/ipc-handlers.js';
@@ -16,6 +16,8 @@ async function migrateOldData() {
   const base = app.getPath('appData');
   const oldDir = path.join(base, 'Beaver-notes');
   const newDir = path.join(base, 'Beaver Notes');
+
+  store.settings.set('dataDir', newDir);
 
   if (existsSync(oldDir)) {
     try {
