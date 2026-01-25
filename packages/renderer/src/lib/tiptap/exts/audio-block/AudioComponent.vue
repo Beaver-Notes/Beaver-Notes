@@ -59,7 +59,7 @@
       <input
         v-model="currentTime"
         type="range"
-        class="hidden w-full appearance-none h-2 bg-gray-200 rounded-lg cursor-pointer dark:bg-gray-700"
+        class="hidden w-full appearance-none h-2 bg-gray-200 rounded-lg dark:bg-gray-700"
         min="0"
         :max="duration"
       />

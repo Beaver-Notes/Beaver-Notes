@@ -17,7 +17,6 @@
         :key="heading.text"
         :class="paddings[heading.tag]"
         :active="index === selectedIndex"
-        class="cursor-pointer"
         @click="scrollIntoView(heading.el)"
       >
         <p class="text-overflow">{{ heading.text }}</p>

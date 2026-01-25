@@ -6,7 +6,7 @@
     style="max-width: 16rem; min-width: 6rem"
   >
     <ui-list
-      class="cursor-pointer space-y-1 overflow-y-auto no-scrollbar"
+      class="space-y-1 overflow-y-auto no-scrollbar"
       style="max-height: calc(5 * 2.5rem)"
     >
       <ui-list-item

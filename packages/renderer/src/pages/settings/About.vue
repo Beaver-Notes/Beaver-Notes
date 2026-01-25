@@ -56,7 +56,7 @@
           {{ translations.settings.autoUpdate || 'Auto Update' }}
         </p>
       </div>
-      <label class="relative inline-flex items-center cursor-pointer">
+      <label class="relative inline-flex items-center">
         <input
           v-model="state.autoUpdateEnabled"
           type="checkbox"

@@ -61,7 +61,7 @@
           v-if="currentLinkVal.startsWith('@') && notes.length > 0"
           class="overflow-hidden"
         >
-          <ui-list class="cursor-pointer space-y-1">
+          <ui-list class="space-y-1">
             <ui-list-item
               v-for="(note, index) in notes"
               :key="note.id"

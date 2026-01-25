@@ -31,7 +31,7 @@
           :class="{
             'is-active': editor.isActive('heading', { level: heading }),
           }"
-          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+          class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
           @click="
             editor.chain().focus().toggleHeading({ level: heading }).run()
           "
@@ -112,7 +112,7 @@
           <p class="text-sm pb-2">{{ translations.menu.textColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
-              class="w-8 h-8 flex items-center justify-center cursor-pointer rounded border"
+              class="w-8 h-8 flex items-center justify-center rounded border"
               @click="editor.chain().focus().unsetColor().run()"
             >
               <v-remixicon name="riFontColor" />
@@ -121,7 +121,7 @@
               v-for="color in textColors"
               :key="color"
               :class="[
-                'w-8 h-8 flex cursor-pointer rounded border  items-center justify-center',
+                'w-8 h-8 flex  rounded border  items-center justify-center',
               ]"
               @click="setTextColor(color)"
             >
@@ -131,13 +131,13 @@
           <p class="text-sm py-2">{{ translations.menu.highlighterColor }}</p>
           <div class="grid grid-cols-4 gap-2">
             <div
-              class="w-8 h-8 flex items-center justify-center cursor-pointer rounded border"
+              class="w-8 h-8 flex items-center justify-center rounded border"
               @click="editor.commands.unsetHighlight()"
             ></div>
             <div
               v-for="color in highlighterColors"
               :key="color"
-              :class="['w-8 h-8 cursor-pointer rounded', color]"
+              :class="['w-8 h-8  rounded', color]"
               @click="setHighlightColor(color)"
             ></div>
           </div>
@@ -181,7 +181,7 @@
             v-for="action in lists"
             :key="action.name"
             :class="{ 'is-active': editor.isActive(action.activeState) }"
-            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
             @click="action.handler"
           >
             <v-remixicon :name="action.icon" />
@@ -273,14 +273,10 @@
         />
         <v-remixicon
           name="riFolderOpenLine"
-          class="mr-2 cursor-pointer"
+          class="mr-2"
           @click="editorImage.select(true)"
         />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="insertImage"
-        />
+        <v-remixicon name="riSave3Line" class="mr-2" @click="insertImage" />
       </ui-popover>
       <div
         :class="[
@@ -333,7 +329,7 @@
 
             <!-- Start Recording Option -->
             <button
-              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
               @click="toggleRecording"
             >
               <v-remixicon name="riMicLine" />
@@ -350,7 +346,7 @@
 
             <!-- Upload Audio File Option -->
             <button
-              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
               @click="$refs.audioInput.click()"
             >
               <v-remixicon name="riFile2Line" />
@@ -402,7 +398,7 @@
         />
         <v-remixicon
           name="riFolderOpenLine"
-          class="mr-2 cursor-pointer"
+          class="mr-2"
           @click="$refs.fileInput.click()"
         />
         <input
@@ -412,11 +408,7 @@
           multiple
           @change="handleFileSelect"
         />
-        <v-remixicon
-          name="riSave3Line"
-          class="mr-2 cursor-pointer"
-          @click="insertFile"
-        />
+        <v-remixicon name="riSave3Line" class="mr-2" @click="insertFile" />
       </ui-popover>
       <button
         v-tooltip.group="translations.menu.table"
@@ -447,11 +439,7 @@
             :placeholder="translations.menu.embedUrl || '-'"
             @keyup.enter="addIframe"
           />
-          <v-remixicon
-            name="riSave3Line"
-            class="mr-2 cursor-pointer"
-            @click="addIframe"
-          />
+          <v-remixicon name="riSave3Line" class="mr-2" @click="addIframe" />
         </ui-popover>
         <template v-if="!isTableActive" #trigger>
           <button class="transition hoverable h-8 px-1 rounded-lg">
@@ -482,7 +470,7 @@
           />
           <v-remixicon
             name="riFolderOpenLine"
-            class="mr-2 cursor-pointer"
+            class="mr-2"
             @click="$refs.videoInput.click()"
           />
           <input
@@ -499,11 +487,7 @@
             multiple
             @change="handleFileSelect"
           />
-          <v-remixicon
-            name="riSave3Line"
-            class="mr-2 cursor-pointer"
-            @click="insertVideo"
-          />
+          <v-remixicon name="riSave3Line" class="mr-2" @click="insertVideo" />
         </ui-popover>
       </ui-popover>
       <hr class="border-r mx-2 h-6" />
@@ -520,7 +504,7 @@
           <button
             v-for="action in share"
             :key="action.name"
-            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] cursor-pointer hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
+            class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
             @click="action.handler"
           >
             <v-remixicon :name="action.icon" />

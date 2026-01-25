@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div :class="{ 'inline-block': !block }" class="ui-select cursor-pointer">
+  <div :class="{ 'inline-block': !block }" class="ui-select">
     <label
       v-if="label"
       :for="selectId"
@@ -85,7 +85,7 @@
           <div class="max-h-48 overflow-y-auto">
             <div
               v-if="placeholder && !hideePlaceholderInDropdown"
-              class="px-4 py-2 hover:bg-neutral-200 dark:hover:bg-neutral-600 cursor-pointer text-neutral-500"
+              class="px-4 py-2 hover:bg-neutral-200 dark:hover:bg-neutral-600 text-neutral-500"
               :class="{
                 'bg-neutral-200 dark:bg-neutral-600': modelValue === '',
               }"
@@ -98,7 +98,7 @@
               v-for="(option, index) in filteredOptions"
               :key="`${option.value}-${index}`"
               :ref="(el) => setOptionRef(el, index)"
-              class="px-4 py-2 hover:bg-secondary hover:bg-opacity-20 cursor-pointer transition-colors"
+              class="px-4 py-2 hover:bg-secondary hover:bg-opacity-20 transition-colors"
               :class="{
                 'bg-neutral-100 dark:bg-neutral-700':
                   option.value === String(modelValue),

@@ -38,11 +38,7 @@
         <p class="text-sm m-0">
           <strong>{{ translations.editor.exit }}</strong>
         </p>
-        <v-remixicon
-          class="cursor-pointer"
-          name="riCloseLine"
-          @click="closeTextarea"
-        />
+        <v-remixicon name="riCloseLine" @click="closeTextarea" />
       </div>
     </div>
   </NodeViewWrapper>

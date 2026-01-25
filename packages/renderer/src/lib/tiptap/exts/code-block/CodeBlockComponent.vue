@@ -1,11 +1,7 @@
 <template>
   <node-view-wrapper class="relative">
     <div class="absolute right-0">
-      <v-remixicon
-        :name="copyIcon"
-        class="cursor-pointer w-4"
-        @click="copyToClipboard"
-      />
+      <v-remixicon :name="copyIcon" class="w-4" @click="copyToClipboard" />
       <select
         v-model="selectedLanguage"
         contenteditable="false"

@@ -4,7 +4,7 @@
     padding="p-2"
     style="max-width: 16rem; min-width: 6rem"
   >
-    <ui-list class="cursor-pointer space-y-1">
+    <ui-list class="space-y-1">
       <p v-if="items.length === 0 && query.length === 0" class="text-center">
         {{ translations.menu.noData || '-' }}
       </p>
