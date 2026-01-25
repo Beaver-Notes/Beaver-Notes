@@ -284,10 +284,10 @@
 
 <script>
 import { shallowReactive, onMounted, computed, ref } from 'vue';
-import { useTranslation } from '../../composable/translations';
+import { useTranslation } from '@/composable/translations';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
-import { useAppStore } from '../../store/app';
+import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
