@@ -4,7 +4,7 @@
     padding="p-2"
     style="max-width: 16rem; min-width: 6rem"
   >
-    <ui-list class="cursor-pointer space-y-1">
+    <ui-list class="space-y-1">
       <p v-if="items.length === 0 && query.length === 0" class="text-center">
         {{ translations.menu.noData || '-' }}
       </p>
@@ -25,7 +25,7 @@
         v-if="showAdd && query.length !== 0"
         :active="items.length === selectedIndex"
         class="text-overflow w-full"
-        @click="onAdd(query, command)"
+        @click="onAdd(query, command, editor, range)"
       >
         <v-remixicon name="riAddLine" class="mr-2" />
         {{ translations.menu.add || '-' }} "<strong class="text-overflow">
@@ -118,7 +118,7 @@ function selectItem(index) {
   if (item) {
     props.onSelect({ item, ...props });
   } else if (props.showAdd && props.query !== '') {
-    props.onAdd(props.query, props.command);
+    props.onAdd(props.query, props.command, props.editor, props.range);
   }
 }
 

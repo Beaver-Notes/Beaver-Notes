@@ -56,7 +56,7 @@
           {{ translations.settings.autoUpdate || 'Auto Update' }}
         </p>
       </div>
-      <label class="relative inline-flex items-center cursor-pointer">
+      <label class="relative inline-flex items-center">
         <input
           v-model="state.autoUpdateEnabled"
           type="checkbox"
@@ -91,11 +91,6 @@ import { useTranslation } from '@/composable/translations';
 
 export default {
   setup() {
-    const translations = ref({
-      about: {},
-      settings: {},
-    });
-
     const links = [
       {
         name: 'website',
@@ -218,7 +213,17 @@ export default {
     const getIconClass = () =>
       state.updateStatusType === 'checking' ? 'animate-spin' : '';
 
+    const translations = ref({
+      about: {},
+      settings: {},
+    });
+
     onMounted(async () => {
+      await useTranslation().then((trans) => {
+        if (trans) {
+          translations.value = trans;
+        }
+      });
       setupListeners();
       const ipc = window.electron?.ipcRenderer;
       if (ipc) {
@@ -233,12 +238,6 @@ export default {
 
         if (state.autoUpdateEnabled) setTimeout(checkForUpdates, 2000);
       }
-
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
     });
 
     return {

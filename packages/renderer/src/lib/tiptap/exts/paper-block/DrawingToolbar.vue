@@ -101,7 +101,7 @@
             :ref="`${state.tool}ColorInput`"
             type="color"
             :value="state[`${state.tool}Settings`].color"
-            class="absolute inset-0 opacity-0 cursor-pointer"
+            class="absolute inset-0 opacity-0"
             @input="
               handleColorChange(`${state.tool}Settings`, $event.target.value)
             "

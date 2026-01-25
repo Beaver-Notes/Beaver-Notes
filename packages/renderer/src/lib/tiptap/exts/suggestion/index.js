@@ -19,6 +19,7 @@ export default function ({ name, props: customProps = {}, configure = {} }) {
         },
         suggestion: {
           char: '@',
+          allowSpaces: true,
           pluginKey: new PluginKey(name),
           render: () => {
             let component;

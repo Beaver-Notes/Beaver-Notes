@@ -1,6 +1,7 @@
 <template>
   <div
     class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:ring-2 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group note-card transition flex flex-row items-center p-3"
+    @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
   >
     <ui-popover padding="p-3 flex flex-col print:hidden">
       <template #trigger>
@@ -132,14 +133,14 @@
     </ui-popover>
 
     <div class="flex flex-col flex-grow min-w-0 ml-2">
-      <router-link
+      <div
         v-if="!isRenaming"
         :to="`/folder/${folder.id}`"
-        class="block group truncate font-medium hover:text-primary transition-colors"
-        @dblclick.prevent="startRenaming"
+        class="w-fit block group truncate font-medium hover:text-primary transition-colors"
+        @click.stop="startRenaming"
       >
         {{ folder.name || translations.card.untitledFolder }}
-      </router-link>
+      </div>
 
       <input
         v-else
@@ -160,7 +161,7 @@
         v-tooltip.group="translations.card.rename"
         type="button"
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="startRenaming"
+        @click.stop="startRenaming"
       >
         <v-remixicon name="riEditLine" />
       </button>
@@ -168,7 +169,7 @@
       <button
         v-tooltip.group="translations.card.moveToFolder"
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="showFolderMoveModal = true"
+        @click.stop="showFolderMoveModal = true"
       >
         <v-remixicon name="riFolderTransferLine" />
       </button>
@@ -177,7 +178,7 @@
         v-tooltip.group="translations.card.delete"
         type="button"
         class="hover:text-red-500 rtl: dark:hover:text-red-400 transition invisible group-hover:visible"
-        @click="deleteFolder"
+        @click.stop="deleteFolder"
       >
         <v-remixicon name="riDeleteBin6Line" />
       </button>

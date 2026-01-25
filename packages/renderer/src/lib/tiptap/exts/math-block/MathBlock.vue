@@ -57,7 +57,7 @@
           v-tooltip="'KaTeX Macros (Ctrl+Shift+M)'"
           :class="{ 'text-primary': useKatexMacros }"
           name="riSettings3Line"
-          class="ml-2 cursor-pointer"
+          class="ml-2"
           @click="toggleMacros"
         />
       </div>

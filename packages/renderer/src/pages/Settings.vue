@@ -16,7 +16,7 @@
             :to="item.path"
             class="block"
           >
-            <ui-list-item :active="isExactActive" class="cursor-pointer">
+            <ui-list-item :active="isExactActive">
               <v-remixicon :name="item.icon" class="ltr:mr-2 rtl:ml-2 -ml-1" />
               {{ item.name }}
             </ui-list-item>

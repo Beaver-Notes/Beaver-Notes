@@ -39,7 +39,7 @@ export default Node.create<IframeOptions>({
       },
       placeholderText: 'Click to insert embed URL',
       placeholderClasses:
-        'flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-neutral-400 cursor-pointer select-none',
+        'flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-neutral-400  select-none',
     };
   },
 
@@ -70,7 +70,7 @@ export default Node.create<IframeOptions>({
       const wrapperAttrs = {
         ...this.options.HTMLAttributes,
         style: 'width: 100%; height: 300px;',
-        class: 'flex items-center justify-center border border-gray-300 text-sm text-neutral-500 dark:text-neutral-400 cursor-pointer select-none',
+        class: 'flex items-center justify-center border border-gray-300 text-sm text-neutral-500 dark:text-neutral-400  select-none',
         'data-placeholder': 'true',
       };
 

@@ -25,7 +25,7 @@
         :key="item.id"
         :active="index === state.selectedIndex"
         :class="{ 'active-command-item': index === state.selectedIndex }"
-        class="cursor-pointer flex items-center justify-between"
+        class="flex items-center justify-between"
         @click="selectItem(item, true)"
       >
         <div class="w-full">

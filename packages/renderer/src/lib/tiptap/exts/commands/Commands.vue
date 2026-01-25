@@ -6,7 +6,7 @@
     style="max-width: 16rem; min-width: 6rem"
   >
     <ui-list
-      class="cursor-pointer space-y-1 overflow-y-auto no-scrollbar"
+      class="space-y-1 overflow-y-auto no-scrollbar"
       style="max-height: calc(5 * 2.5rem)"
     >
       <ui-list-item
@@ -367,15 +367,25 @@ export default {
       inputVisible.value = true;
     };
 
+    function scrollToSelected() {
+      const container = document.querySelector('.ui-list');
+      const selectedEl = container?.children[selectedIndex.value];
+      if (selectedEl) {
+        selectedEl.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
     function upHandler() {
       selectedIndex.value =
         (selectedIndex.value + filteredItems.value.length - 1) %
         filteredItems.value.length;
+      scrollToSelected();
     }
 
     function downHandler() {
       selectedIndex.value =
         (selectedIndex.value + 1) % filteredItems.value.length;
+      scrollToSelected();
     }
 
     function enterHandler() {

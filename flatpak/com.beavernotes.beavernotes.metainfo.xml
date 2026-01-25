@@ -40,6 +40,35 @@
   <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
   <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
   <releases>
+    <release version="4.2.0" date="2025-12-05">
+      <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.2.0</url>
+      <description>
+        <p>Release description</p>
+        <ul>
+          <li>Folders to organize notes</li>
+          <li>Upgraded to tiptap 3 and Electron 38</li>
+          <li>Added Arabic and Portuguese support</li>
+          <li>Stronger security</li>
+          <li>Fixed link and pasting issues</li>
+          <li>Improved editing of embedded files</li>
+          <li>Fixed Ctrl/Cmd+A selection</li>
+          <li>Search now finds untitled notes and folders</li>
+          <li>Audio can be added from the / menu</li>
+          <li>Added option to prevent notes from opening automatically</li>
+          <li>Command Prompt improvements (icons, UI tweaks, folder support)</li>
+          <li>Sync improvements</li>
+          <li>Added trailing node extension</li>
+          <li>Added option to insert previously recorded audio</li>
+          <li>RTL/LTR options integrated with language settings</li>
+          <li>Improved keyboard navigation in the / menu</li>
+          <li>Fixed new notes not opening automatically</li>
+          <li>Better handling of embedded files and webpages</li>
+          <li>UI polish: interface size selector, dropdowns, search bar, editor search, font size selector, text color menu, collapsible headings, checkboxes</li>
+          <li>Upgraded Flatpak runtime to 38</li>
+          <li>Select and bookmark, archive, move, or delete multiple notes</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.1.0" date="2025-07-10">
       <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.1.0</url>
       <description>

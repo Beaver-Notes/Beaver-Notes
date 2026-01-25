@@ -49,7 +49,7 @@
                 {{ translations.settings.advancedSettings || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex cursor-pointer items-center">
+            <label class="relative inline-flex items-center">
               <input
                 id="switch"
                 v-model="advancedSettings"
@@ -69,7 +69,7 @@
                 {{ translations.settings.spellCheck || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex cursor-pointer items-center">
+            <label class="relative inline-flex items-center">
               <input
                 id="switch"
                 v-model="spellcheckEnabled"
@@ -89,7 +89,7 @@
                 {{ translations.settings.autoSync || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex cursor-pointer items-center">
+            <label class="relative inline-flex items-center">
               <input
                 id="switch"
                 v-model="autoSync"
@@ -109,7 +109,7 @@
                 >{{ translations.settings.openLastEdited || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex cursor-pointer items-center">
+            <label class="relative inline-flex items-center">
               <input
                 id="switch"
                 v-model="openLastEdited"
@@ -128,7 +128,7 @@
                 >{{ translations.settings.openAfterCreation || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex cursor-pointer items-center">
+            <label class="relative inline-flex items-center">
               <input
                 id="switch"
                 v-model="openAfterCreation"
@@ -152,7 +152,7 @@
               >{{ translations.settings.collapsibleHeading || '-' }}
             </span>
           </div>
-          <label class="relative inline-flex cursor-pointer items-center">
+          <label class="relative inline-flex items-center">
             <input
               id="switch"
               v-model="collapsibleHeading"
@@ -268,7 +268,7 @@ const LANGUAGE_CONFIG = {
   fr: { name: 'Français', dir: 'ltr' },
   it: { name: 'Italiano', dir: 'ltr' },
   nl: { name: 'Nederlands', dir: 'ltr' },
-  pt_BR: { name: 'Português (Brasil)', dir: 'ltr' },
+  pt: { name: 'Português', dir: 'ltr' },
   ru: { name: 'Русский', dir: 'ltr' },
   tr: { name: 'Türkçe', dir: 'ltr' },
   uk: { name: 'Українська', dir: 'ltr' },

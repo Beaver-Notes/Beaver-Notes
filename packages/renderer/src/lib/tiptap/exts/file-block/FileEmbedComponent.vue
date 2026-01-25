@@ -4,7 +4,7 @@
       <div
         class="mt-2 mb-2 file-embed bg-neutral-100 dark:bg-[#353333] p-3 rounded-lg flex items-center justify-between"
       >
-        <div class="flex items-center cursor-pointer">
+        <div class="flex items-center">
           <v-remixicon name="riFile2Line" class="w-6 h-6 mr-2" />
           <span class="file-name truncate max-w-2/3">{{ fileName }}</span>
         </div>

@@ -20,7 +20,7 @@
     </div>
     <div
       v-else
-      class="cursor-pointer hover:opacity-80 transition-opacity"
+      class="hover:opacity-80 transition-opacity"
       @click="toggleDrawMode"
     >
       <div class="relative drawing-container">

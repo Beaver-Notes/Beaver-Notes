@@ -2,6 +2,7 @@
   <ui-card
     class="hover:ring-2 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group note-card transition flex flex-col"
     padding="p-5"
+    @click="openNote(note.id)"
   >
     <div>
       <div class="font-semibold text-lg block line-clamp leading-tight">
@@ -16,15 +17,14 @@
           :key="label"
           :to="`/?label=${label}`"
           class="inline-block hover:underline cursor-pointer px-1 bg-primary/10 dark:bg-primary/20 rounded-md text-sm"
-          @click="$emit('update:label', label)"
+          @click.stop="$emit('update:label', label)"
         >
           #{{ label }}
         </span>
       </div>
     </div>
-    <router-link
+    <div
       v-if="!note.isLocked"
-      :to="`/note/${note.id}`"
       class="text-neutral-600 block dark:text-[color:var(--selected-dark-text)] flex-1 overflow-hidden overflow-ellipsis"
       style="min-height: 64px"
     >
@@ -33,11 +33,11 @@
           ? translations.card.unlockToEdit
           : truncateText(note.content, 160) || translations.card.content
       }}
-    </router-link>
+    </div>
     <button
       v-if="note.isLocked"
       class="hover:text-neutral-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
-      @click="unlockNote(note.id)"
+      @click.stop="unlockNote(note.id)"
     >
       <v-remixicon
         class="w-24 h-auto text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
@@ -64,7 +64,7 @@
             ? 'text-primary opacity-90 hover:opacity-100'
             : 'hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition',
         ]"
-        @click="toggleBookmark(note)"
+        @click.stop="toggleBookmark(note)"
       >
         <v-remixicon
           :name="note.isBookmarked ? 'riBookmarkFill' : 'riBookmarkLine'"
@@ -77,7 +77,7 @@
             : translations.card.archive
         "
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="toggleArchive(note)"
+        @click.stop="toggleArchive(note)"
       >
         <v-remixicon
           :name="note.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'"
@@ -87,7 +87,7 @@
         v-if="!note.isLocked"
         v-tooltip.group="translations.card.lock"
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="lockNote(note.id)"
+        @click.stop="lockNote(note.id)"
       >
         <v-remixicon name="riLockLine" />
       </button>
@@ -95,7 +95,7 @@
         v-if="note.isLocked"
         v-tooltip.group="translations.card.unlock"
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="unlockNote(note.id)"
+        @click.stop="unlockNote(note.id)"
       >
         <v-remixicon
           :name="note.isLocked ? 'riLockUnlockLine' : 'riLockLine'"
@@ -104,14 +104,14 @@
       <button
         v-tooltip.group="translations.card.moveToFolder"
         class="hover:text-neutral-900 dark:hover:text-[color:var(--selected-dark-text)] transition invisible group-hover:visible"
-        @click="showMoveModal = true"
+        @click.stop="showMoveModal = true"
       >
         <v-remixicon name="riFolderTransferLine" />
       </button>
       <button
         v-tooltip.group="translations.card.delete"
         class="hover:text-red-500 rtl: dark:hover:text-red-400 transition invisible group-hover:visible"
-        @click="deleteNote(note.id)"
+        @click.stop="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" />
       </button>
@@ -138,7 +138,7 @@ import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useTranslation } from '@/composable/translations';
 import { onMounted, ref } from 'vue';
-import { forceSyncNow } from '@/utils/sync.js';
+import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import FolderTree from './FolderTree.vue';
 import 'dayjs/locale/it';
@@ -159,6 +159,7 @@ defineProps({
 });
 const emit = defineEmits(['update', 'update:label']);
 
+const router = useRouter();
 const dialog = useDialog();
 const showMoveModal = ref(false);
 
@@ -280,16 +281,16 @@ const translations = ref({
   card: {},
 });
 
+function openNote(noteId) {
+  router.push(`/note/${noteId}`);
+}
+
 onMounted(async () => {
   await useTranslation().then((trans) => {
     if (trans) {
       translations.value = trans;
     }
   });
-  const autoSync = localStorage.getItem('autoSync');
-  if (autoSync === 'true') {
-    forceSyncNow();
-  }
 });
 
 async function emitUpdate(payload) {

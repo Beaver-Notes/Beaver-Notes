@@ -1,24 +1,15 @@
 <template>
   <bubble-menu
-    v-show="
-      editor &&
-      (editor.isActive('image') ||
-        editor.isActive('link') ||
-        editor.isActive('iframe'))
-    "
-    :tippy-options="tippyOptions"
-    v-bind="{ editor, tippyOptions: bubbleMenuOptions }"
+    v-if="editor"
+    :editor="editor"
+    :tippy-options="currentTippyOptions"
+    :should-show="shouldShowMenuFn"
     class="bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl"
   >
     <component
-      :is="
-        editor.isActive('image')
-          ? 'note-bubble-menu-image'
-          : editor.isActive('iframe')
-          ? 'note-bubble-menu-embed'
-          : 'note-bubble-menu-link'
-      "
+      :is="currentMenuComponent"
       v-bind="{ editor }"
+      v-if="shouldShowMenu"
     />
   </bubble-menu>
 </template>
@@ -45,21 +36,51 @@ export default {
     },
   },
   setup(props) {
-    const bubbleMenuOptions = computed(() => {
+    const shouldShowMenuFn = ({ editor }) => {
+      if (!editor) return false;
+
+      // Check if any of the target marks/nodes are active
+      return (
+        editor.isActive('image') ||
+        editor.isActive('link') ||
+        editor.isActive('iframe')
+      );
+    };
+
+    const shouldShowMenu = computed(() => {
+      if (!props.editor) return false;
+
+      return (
+        props.editor.isActive('image') ||
+        props.editor.isActive('link') ||
+        props.editor.isActive('iframe')
+      );
+    });
+
+    const currentMenuComponent = computed(() => {
+      if (props.editor.isActive('image')) return 'note-bubble-menu-image';
+      if (props.editor.isActive('iframe')) return 'note-bubble-menu-embed';
+      if (props.editor.isActive('link')) return 'note-bubble-menu-link';
+      return null;
+    });
+
+    const currentTippyOptions = computed(() => {
+      const baseOptions = {
+        placement: 'bottom',
+        interactive: true,
+        hideOnClick: true,
+        duration: [200, 150],
+      };
+
       if (props.editor.isActive('link')) {
         const href = props.editor.getAttributes('link').href;
         if (href && href.startsWith('note://')) {
-          return { placement: 'bottom' };
+          return { ...baseOptions, placement: 'bottom' };
         }
       }
-      return {};
-    });
 
-    const tippyOptions = {
-      placement: 'bottom',
-      interactive: true,
-      hideOnClick: true,
-    };
+      return baseOptions;
+    });
 
     onMounted(() => {
       if (props.editor) {
@@ -79,8 +100,10 @@ export default {
     });
 
     return {
-      bubbleMenuOptions,
-      tippyOptions,
+      shouldShowMenuFn,
+      shouldShowMenu,
+      currentMenuComponent,
+      currentTippyOptions,
     };
   },
 };

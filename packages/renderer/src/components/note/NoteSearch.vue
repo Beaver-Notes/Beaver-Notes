@@ -85,7 +85,7 @@
         <ui-button :disabled="!state.query" @click="findPreviousResult">
           <v-remixicon
             name="riArrowUpLine"
-            class="dark:text-neutral-200 text-neutral-600 cursor-pointer"
+            class="dark:text-neutral-200 text-neutral-600"
           />
         </ui-button>
 
@@ -93,7 +93,7 @@
         <ui-button :disabled="!state.query" @click="findNextResult">
           <v-remixicon
             name="riArrowDownLine"
-            class="dark:text-neutral-200 text-neutral-600 cursor-pointer"
+            class="dark:text-neutral-200 text-neutral-600"
           />
         </ui-button>
       </div>
