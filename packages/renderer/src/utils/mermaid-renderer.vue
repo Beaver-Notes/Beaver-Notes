@@ -1,20 +1,19 @@
-<!-- eslint-disable vue/no-v-html -->
 <template>
   <div
     ref="elRef"
-    :class="[className]"
+    :class="['mermaid-viewer', className]"
     @click="onClick"
-    v-html="mermaidString"
   ></div>
 </template>
 
 <script>
-import { defineComponent, ref, watch, onMounted } from 'vue';
-import { useTranslation } from '@/composable/translations';
-import { useTheme } from '@/composable/theme';
+import { defineComponent, ref, watch, onMounted, nextTick } from 'vue';
 import mermaid from 'mermaid';
+import { useTheme } from '@/composable/theme';
+import { useTranslation } from '@/composable/translations';
 
 export default defineComponent({
+  name: 'MermaidChart',
   props: {
     content: {
       type: String,
@@ -30,108 +29,87 @@ export default defineComponent({
     },
     onClick: {
       type: Function,
-      default: null,
+      default: () => {},
     },
   },
   setup(props) {
     const elRef = ref(null);
-    const mermaidString = ref('');
-    const { currentTheme, isDark } = useTheme(); // Assuming useTheme provides currentTheme
-    const hasSyntaxError = ref(false);
+    const { isDark } = useTheme();
+    const translations = ref({});
 
-    function genSvgId() {
-      const max = 1000000;
-      return `mermaid-svg-${genId(max)}${genId(max)}`;
-
-      function genId(max) {
-        return Math.floor(Math.random() * max);
-      }
-    }
-
-    async function updateGraph(graphDefinition) {
-      const id = genSvgId();
-      try {
-        const res = await mermaid.render(id, graphDefinition);
-        mermaidString.value = res.svg;
-        hasSyntaxError.value = false; // No syntax error
-      } catch (e) {
-        console.error('Error rendering Mermaid diagram:', e);
-        mermaidString.value = `<div class="text-red-500 text-center">${translations.value.editor.error}</div>`;
-        hasSyntaxError.value = true; // Syntax error
-      }
-    }
-
-    function initializeMermaid() {
-      if (!elRef.value) return;
-
+    const initializeMermaid = () => {
       const theme = isDark() ? 'dark' : 'default';
 
       mermaid.initialize({
-        startOnLoad: true,
-        suppressErrorRendering: true,
+        startOnLoad: false,
+        securityLevel: 'loose',
         theme,
+        flowchart: { htmlLabels: true, useMaxWidth: true },
         ...props.config,
       });
-    }
+    };
 
-    function addThemeToContent(content) {
-      const theme = isDark() ? 'dark' : 'default';
+    const renderDiagram = async () => {
+      if (!props.content || !elRef.value) return;
 
-      return `%%{init: {'theme':'${theme}'}}%%\n${content}`;
-    }
+      const id = `mermaid-svg-${Math.floor(Math.random() * 1000000)}`;
 
-    onMounted(() => {
-      initializeMermaid();
-      if (props.content) {
-        const themedContent = addThemeToContent(props.content);
-        updateGraph(themedContent);
+      try {
+        const { svg, bindFunctions } = await mermaid.render(id, props.content);
+
+        elRef.value.innerHTML = svg;
+
+        await nextTick();
+        if (bindFunctions) {
+          bindFunctions(elRef.value);
+        }
+      } catch (error) {
+        console.error('Mermaid render failed:', error);
+        elRef.value.innerHTML = `<div class="error">${
+          translations.value?.editor?.error || 'Invalid Syntax'
+        }</div>`;
       }
+    };
+
+    onMounted(async () => {
+      const trans = await useTranslation();
+      if (trans) translations.value = trans;
+
+      initializeMermaid();
+      renderDiagram();
     });
 
     watch(
       () => props.content,
-      (newContent) => {
-        if (newContent) {
-          const themedContent = addThemeToContent(newContent);
-          updateGraph(themedContent);
-        } else {
-          mermaidString.value = '';
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      () => currentTheme.value,
       () => {
-        initializeMermaid();
-        if (props.content) {
-          const themedContent = addThemeToContent(props.content);
-          updateGraph(themedContent);
-        }
+        renderDiagram();
       }
     );
 
-    const translations = ref({
-      _idvue: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-      if (!props.editor) return;
-    });
+    watch(
+      () => isDark(),
+      () => {
+        initializeMermaid();
+        renderDiagram();
+      }
+    );
 
     return {
       elRef,
-      mermaidString,
-      updateGraph,
-      initializeMermaid,
-      hasSyntaxError,
     };
   },
 });
 </script>
+
+<style scoped>
+.mermaid-viewer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
+}
+
+:deep(div.label) {
+  color: inherit;
+}
+</style>
