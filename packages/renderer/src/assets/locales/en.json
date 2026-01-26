@@ -43,7 +43,7 @@
     "deleteItem": "Delete this item?",
     "deleteItems": "Delete {count} items?",
     "duplicate": "Duplicate",
-    "enterPasswd": "Enter the Password",
+    "enterPasswd": "Enter Password",
     "isLocked": "This note is locked",
     "keyFail": "Password setup cancelled. Note cannot be locked.",
     "lock": "Lock",
