@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import CryptoJS from 'crypto-js';
 import { useStorage } from '../composable/storage';
+import { useNoteStore } from './note';
 import bcryptjs from 'bcryptjs';
 import {
   encryptString,
@@ -147,12 +148,27 @@ export const usePasswordStore = defineStore('password', {
     },
 
     async resetPassword(currentPassword, newPassword) {
+      const noteStore = useNoteStore();
+
       try {
         const isCurrentPasswordValid = await this.isValidPassword(
           currentPassword
         );
         if (!isCurrentPasswordValid) {
           throw new Error('Current password is incorrect');
+        }
+
+        const lockedNotes = Object.values(noteStore.data).filter(
+          (note) => note.id && note.isLocked
+        );
+
+        for (const note of lockedNotes) {
+          try {
+            await noteStore.unlockNote(note.id, currentPassword);
+            await noteStore.lockNote(note.id, newPassword);
+          } catch (error) {
+            console.error(`Failed to re-encrypt note ${note.id}:`, error);
+          }
         }
 
         await this.setsharedKey(newPassword);

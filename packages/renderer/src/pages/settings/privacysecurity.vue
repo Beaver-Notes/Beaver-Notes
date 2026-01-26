@@ -107,10 +107,5 @@ export default {
       t,
     };
   },
-  computed: {
-    isMacOS() {
-      return window.navigator.platform.toLowerCase().includes('mac');
-    },
-  },
 };
 </script>
