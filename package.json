@@ -28,9 +28,6 @@
     "tran-util": "node scripts/translationUtil.js",
     "tran-update": "node scripts/updateTranslations.js"
   },
-  "browserslist": [
-    "Chrome 91"
-  ],
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged"
   },
@@ -69,10 +66,10 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.10.6",
     "dmg-builder": "^24.5.0",
-    "electron": "^38.2.1",
+    "electron": "^40.1.0",
     "electron-better-ipc": "^2.0.1",
     "electron-browser-storage": "^1.0.7",
-    "electron-builder": "24.10.0",
+    "electron-builder": "^26.4.0",
     "electron-fetch": "^1.9.1",
     "electron-store": "^8.0.0",
     "electron-updater": "^6.3.9",
@@ -135,6 +132,7 @@
     "emoji.json": "^16.0.0",
     "events": "^3.3.0",
     "font-list": "^1.5.1",
+    "html2canvas": "^1.4.1",
     "js-yaml": "^4.1.0",
     "marked": "^13.0.2",
     "perfect-freehand": "^1.2.2",
