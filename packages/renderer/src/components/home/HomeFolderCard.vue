@@ -1,6 +1,6 @@
 <template>
-  <div
-    class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:ring-2 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group note-card transition flex flex-row items-center p-3"
+  <ui-card
+    class="hover:ring-1 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group transition flex flex-row items-center overflow-hidden"
     @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
   >
     <ui-popover padding="p-3 flex flex-col print:hidden" @click.stop>
@@ -189,7 +189,7 @@
       :folders="[folder]"
       mode="folder"
     />
-  </div>
+  </ui-card>
 </template>
 
 <script setup>

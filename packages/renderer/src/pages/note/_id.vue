@@ -44,7 +44,7 @@
       v-if="!isLocked"
       ref="titleDiv"
       contenteditable="true"
-      class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
+      class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
       :placeholder="translations.editor.untitledNote"
       @input="updateNote({ title: $event.target.innerText })"
       @keydown="disallowedEnter"

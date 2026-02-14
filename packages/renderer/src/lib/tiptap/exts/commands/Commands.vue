@@ -422,14 +422,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-/* Hide scrollbar but keep scroll working */
-.no-scrollbar {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE and Edge */
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none !important; /* Chrome, Safari */
-}
-</style>
