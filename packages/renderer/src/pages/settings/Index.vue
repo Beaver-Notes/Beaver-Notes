@@ -273,6 +273,7 @@ const LANGUAGE_CONFIG = {
   tr: { name: 'Türkçe', dir: 'ltr' },
   uk: { name: 'Українська', dir: 'ltr' },
   zh: { name: '简体中文', dir: 'ltr' },
+  vi: { name: 'Tiếng Việt', dir: 'ltr' },
 };
 
 export const state = shallowReactive({
