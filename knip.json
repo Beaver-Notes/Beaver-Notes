@@ -1,0 +1,19 @@
+{
+  "entry": [
+    "packages/main/src/index.js",
+    "packages/preload/src/index.js",
+    "packages/renderer/src/index.js",
+    "packages/renderer/src/lib/comps-ui.js"
+  ],
+  "project": ["packages/**"],
+  "paths": {
+    "@/*": ["packages/renderer/src/*"]
+  },
+  "ignore": [
+    "vite.config.js",
+    "**/*.css",
+    "**/*.scss",
+    "**/vite.config.*",
+    "packages/renderer/src/components/ui/**"
+  ]
+}
