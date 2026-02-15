@@ -247,7 +247,6 @@ export const useNoteStore = defineStore('note', {
         const results = [];
         for (const noteId of noteIds) {
           if (this.data[noteId]) {
-            const result = await this.update(noteId, { folderId });
             const result = await this.update(noteId, {
               folderId: targetFolderId,
             });
