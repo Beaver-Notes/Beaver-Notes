@@ -39,6 +39,7 @@ import {
   getCurrentInstance,
 } from 'vue';
 import mime from 'mime';
+import dayjs from '@/lib/dayjs';
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
@@ -360,6 +361,16 @@ export default {
             })
             .run();
         },
+      },
+      {
+        icon: 'riCalendarLine',
+        name: 'todayDate',
+        action: () =>
+          props.editor
+            .chain()
+            .focus()
+            .insertContent(dayjs().format('DD-MM-YYYY'))
+            .run(),
       },
     ]);
 
