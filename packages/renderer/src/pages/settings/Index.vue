@@ -164,7 +164,7 @@
             ></div>
           </label>
         </div>
-        <!-- 今日日期格式设置 -->
+        <!-- Today Format -->
         <div class="py-2">
           <div class="mb-2">
             <span class="block text-lg align-left">
@@ -185,7 +185,7 @@
             @blur="saveTodayDateFormat"
           />
         </div>
-        <!-- 时间格式设置 -->
+        <!-- Time format -->
         <div class="py-2">
           <div class="mb-2">
             <span class="block text-lg align-left">
