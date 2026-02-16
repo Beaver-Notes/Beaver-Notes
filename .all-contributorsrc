@@ -103,6 +103,15 @@
       "contributions": [
         "platform"
       ]
+    },
+    {
+      "login": "markd91",
+      "name": "markd91",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44508986?v=4",
+      "profile": "https://github.com/markd91",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
