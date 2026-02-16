@@ -33,6 +33,7 @@
           :value="modelValue"
           @keydown="$emit('keydown', $event)"
           @input="emitValue"
+          @blur="$emit('blur', $event)"
         />
 
         <div
@@ -106,7 +107,7 @@ export default {
       default: false,
     },
   },
-  emits: ['update:modelValue', 'change', 'keydown'],
+  emits: ['update:modelValue', 'change', 'keydown', 'blur'],
   setup(props, { emit }) {
     const visible = ref(false);
 

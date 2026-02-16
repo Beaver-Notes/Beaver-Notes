@@ -365,12 +365,27 @@ export default {
       {
         icon: 'riCalendarLine',
         name: 'todayDate',
-        action: () =>
+        action: () => {
+          const customFormat =
+            localStorage.getItem('todayDateFormat') || 'DD-MM-YYYY';
           props.editor
             .chain()
             .focus()
-            .insertContent(dayjs().format('DD-MM-YYYY'))
-            .run(),
+            .insertContent(dayjs().format(customFormat))
+            .run();
+        },
+      },
+      {
+        icon: 'riTimerLine',
+        name: 'currentTime',
+        action: () => {
+          const customFormat = localStorage.getItem('timeFormat') || 'HH:mm';
+          props.editor
+            .chain()
+            .focus()
+            .insertContent(dayjs().format(customFormat))
+            .run();
+        },
       },
     ]);
 
