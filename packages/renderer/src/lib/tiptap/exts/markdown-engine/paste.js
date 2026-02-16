@@ -32,22 +32,30 @@ export const Paste = Extension.create({
                 return true;
               }
 
+              const insertIntelligently = (json) => {
+                if (
+                  json.type === 'doc' &&
+                  json.content?.length === 1 &&
+                  json.content[0].type === 'paragraph'
+                ) {
+                  return editor.commands.insertContent(
+                    json.content[0].content || []
+                  );
+                }
+                return editor.commands.insertContent(json);
+              };
+
               if (html) {
                 event.preventDefault();
-
-                // Create a temporary container
                 const container = document.createElement('div');
                 container.innerHTML = html;
 
-                // Flatten spans inside links
                 container.querySelectorAll('a').forEach((link) => {
                   link.querySelectorAll('span').forEach((span) => {
-                    // Merge span text into the link
                     const textNode = document.createTextNode(
                       span.textContent || ''
                     );
                     link.replaceChild(textNode, span);
-                    // Optional: store metadata as data attributes on the <a> itself
                     for (const attr of span.attributes) {
                       if (attr.name.startsWith('data-')) {
                         link.setAttribute(
@@ -59,12 +67,10 @@ export const Paste = Extension.create({
                   });
                 });
 
-                // Replace &nbsp; in top-level text nodes
                 container.innerHTML = container.innerHTML.replace(
                   /&nbsp;/g,
                   ' '
                 );
-
                 const sanitizedHtml = container.innerHTML;
 
                 try {
@@ -73,23 +79,21 @@ export const Paste = Extension.create({
                     CollapseHeading,
                     heading,
                   ]);
-                  editor.commands.insertContent(json);
+                  insertIntelligently(json);
                 } catch (error) {
-                  console.error(
-                    'Error generating JSON from sanitized HTML:',
-                    error
-                  );
+                  console.error('Error generating JSON from HTML:', error);
                   return false;
                 }
                 return true;
               }
+
+              // 3. Handle Plain Text / Markdown Paste
               if (text) {
                 event.preventDefault();
                 try {
-                  const md = new MarkdownIt();
-                  const normalizedText = text
-                    .replace(/\r\n?/g, '\n')
-                    .replace(/\n/g, '  \n');
+                  // FIX: Removed the .replace(/\n/g, '  \n') which was forcing hard breaks
+                  const md = new MarkdownIt({ breaks: true });
+                  const normalizedText = text.replace(/\r\n?/g, '\n');
 
                   const parsedHtml = md.render(normalizedText);
                   const json = generateJSON(parsedHtml, [
@@ -98,15 +102,14 @@ export const Paste = Extension.create({
                     heading,
                   ]);
 
-                  editor.commands.insertContent(json, {
-                    parseOptions: { preserveWhitespace: false },
-                  });
+                  insertIntelligently(json);
                 } catch (error) {
                   console.error('Error processing markdown:', error);
                   return false;
                 }
                 return true;
               }
+
               return false;
             },
           },
