@@ -81,7 +81,7 @@ export default {
 
     const isEditing = ref(false);
     const useKatexMacros = ref(false);
-    const translations = useTranslations();
+    const { translations } = useTranslations();
 
     // Render KaTeX
     const renderContent = () => {

@@ -155,7 +155,7 @@ export default {
     const focusedIndex = ref(-1);
     const searchQuery = ref('');
     const optionRefs = ref([]);
-    const translations = useTranslations();
+    const { translations } = useTranslations();
 
     const setOptionRef = (el, index) => {
       if (el) {

@@ -229,7 +229,7 @@ import { useDragAndDrop } from '@/composable/dragAndDrop';
 export default {
   components: { HomeNoteCard, HomeSearch, HomeFolderCard, FolderTree, Actions },
   setup() {
-    const translations = useTranslations();
+    const { translations } = useTranslations();
     const highlightedFolderIds = ref(new Set());
     const currentFolderId = computed(() => route.params.id);
 

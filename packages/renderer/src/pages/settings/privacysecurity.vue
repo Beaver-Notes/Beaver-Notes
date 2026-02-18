@@ -30,7 +30,7 @@ export default {
     const dialog = useDialog();
     const storage = useStorage();
     const passwordStore = usePasswordStore();
-    const translations = useTranslations();
+    const { translations } = useTranslations();
 
     let defaultPath = '';
 
