@@ -7,7 +7,7 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch, nextTick } from 'vue';
+import { defineComponent, ref, watch, nextTick, onMounted } from 'vue';
 import mermaid from 'mermaid';
 import { useTheme } from '@/composable/theme';
 import { useTranslations } from '@/composable/useTranslations';
