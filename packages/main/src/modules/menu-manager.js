@@ -1,6 +1,7 @@
 // modules/menu-manager.js
 import { Menu, app } from 'electron';
 import * as browserStorage from 'electron-browser-storage';
+import { getTranslations } from '../utils/getTranslations';
 
 const { localStorage } = browserStorage;
 const isMac = process.platform === 'darwin';
@@ -16,7 +17,7 @@ export class MenuManager {
     await this.setupContextMenu();
 
     const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-    const translations = await this.getTranslations(selectedLanguage);
+    const translations = await getTranslations(selectedLanguage);
 
     await this.createApplicationMenu(translations);
     await this.createDockMenu(translations);
@@ -209,38 +210,5 @@ export class MenuManager {
     ]);
 
     app.dock?.setMenu(dockMenu);
-  }
-
-  async getTranslations(lang = 'en') {
-    const supportedLangs = [
-      'en',
-      'de',
-      'es',
-      'fr',
-      'it',
-      'nl',
-      'tr',
-      'ru',
-      'uk',
-      'zh',
-    ];
-
-    if (!supportedLangs.includes(lang)) lang = 'en';
-
-    try {
-      const translations = await import(
-        `../../../renderer/src/assets/locales/${lang}.json`
-      );
-      return translations.default;
-    } catch (error) {
-      console.error(
-        `Failed to load translations for ${lang}, falling back to English.`,
-        error
-      );
-      const fallback = await import(
-        `../../../renderer/src/pages/settings/locales/${lang}.json`
-      );
-      return fallback.default;
-    }
   }
 }

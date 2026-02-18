@@ -1,4 +1,5 @@
 import * as browserStorage from 'electron-browser-storage';
+import { getTranslations } from '../utils/getTranslations.js';
 import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
 import { dialog } from 'electron';
@@ -124,7 +125,7 @@ export class AutoUpdater {
       }
 
       const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-      const translations = await this.getTranslations(selectedLanguage);
+      const translations = await getTranslations(selectedLanguage);
 
       const bannerData = {
         content: `${translations.settings.updateAvailable} ${info.version}`,
@@ -278,39 +279,6 @@ export class AutoUpdater {
       await ipcMain.callFocusedRenderer('update-progress-changed', progress);
     } catch (error) {
       console.error('Error sending update progress to renderer:', error);
-    }
-  }
-
-  async getTranslations(lang = 'en') {
-    const supportedLangs = [
-      'en',
-      'de',
-      'es',
-      'fr',
-      'it',
-      'nl',
-      'tr',
-      'ru',
-      'uk',
-      'zh',
-    ];
-    if (!supportedLangs.includes(lang)) lang = 'en';
-
-    try {
-      const translations = await import(
-        `../../../renderer/src/assets/locales/${lang}.json`
-      );
-      return translations.default;
-    } catch (error) {
-      console.error(
-        `Failed to load translations for ${lang}, falling back to English.`,
-        error
-      );
-
-      const fallback = await import(
-        `../../../renderer/src/assets/locales/en.json`
-      );
-      return fallback.default;
     }
   }
 }
