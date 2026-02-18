@@ -13,10 +13,12 @@
       @delete:label="deleteLabel"
     />
   </div>
+
   <div
     class="container pb-5"
     @mousedown="handleMouseDown"
     @mousemove="handleMouseMove"
+    @click="handleGridClick"
   >
     <div
       v-if="isSelecting"
@@ -24,99 +26,104 @@
       :style="selectionBoxStyle"
     />
 
-    <div
+    <template
       v-if="
         noteStore.notes.length !== 0 || folderStore.rootFolders.length !== 0
       "
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch mb-14"
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @click="handleGridClick"
     >
-      <template v-if="folders.all.length">
-        <p
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
+      <section v-if="folders.all.length" class="mb-10">
+        <h2
+          class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mb-4 font-medium px-1"
         >
           {{ translations.index.folders }}
-        </p>
+        </h2>
+
         <div
-          v-for="folder in folders.all"
-          :key="folder.id"
-          :min-height="120"
-          :data-item-id="`folder-${folder.id}`"
-          @click="
-            handleItemClick($event, 'folder', folder.id, getAllVisibleItems)
-          "
+          class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 items-stretch"
         >
-          <home-folder-card
+          <div
+            v-for="folder in folders.all"
             :key="folder.id"
-            :folder="folder"
-            :class="{
-              'ring-2 ring-secondary':
-                dragOverFolderId === folder.id ||
-                (state.query && highlightedFolderIds.has(folder.id)),
-              'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-              'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-transform duration-200 ease-in-out':
-                selectedItems.has(`folder-${folder.id}`),
-            }"
-            draggable="true"
-            @dragstart="handleFolderDragStart($event, folder.id)"
-            @dragend="handleDragEnd"
-            @dragover="handleDragOver($event, folder.id)"
-            @dragleave="handleDragLeave"
-            @drop="handleDrop($event, folder.id)"
-          />
+            :data-item-id="`folder-${folder.id}`"
+            class="w-48"
+            @click.stop="
+              handleItemClick($event, 'folder', folder.id, getAllVisibleItems)
+            "
+          >
+            <home-folder-card
+              :folder="folder"
+              :class="{
+                'ring-2 ring-secondary':
+                  dragOverFolderId === folder.id ||
+                  (state.query && highlightedFolderIds.has(folder.id)),
+                'opacity-50 transform rotate-1': draggedFolderId === folder.id,
+                'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
+                  selectedItems.has(`folder-${folder.id}`),
+              }"
+              draggable="true"
+              @dragstart="handleFolderDragStart($event, folder.id)"
+              @dragend="handleDragEnd"
+              @dragover="handleDragOver($event, folder.id)"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop($event, folder.id)"
+            />
+          </div>
         </div>
-      </template>
-      <template
+      </section>
+
+      <section
         v-for="name in $route.query.archived
           ? ['archived']
           : ['bookmarked', 'all']"
         :key="name"
+        class="mb-12"
       >
-        <p
-          v-if="notes[name].length !== 0"
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
-        >
-          {{ translations.index[name] }}
-        </p>
+        <template v-if="notes[name].length !== 0">
+          <h2
+            class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mb-4 font-medium"
+          >
+            {{ translations.index[name] }}
+          </h2>
+          <div
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
+          >
+            <div
+              v-for="note in notes[name]"
+              :key="note.id"
+              :data-item-id="`note-${note.id}`"
+              @click.stop="
+                handleItemClick($event, 'note', note.id, getAllVisibleItems)
+              "
+            >
+              <home-note-card
+                :note-id="note.id"
+                :is-locked="note.isLocked"
+                v-bind="{ note }"
+                :class="{
+                  'opacity-50 transform rotate-2': draggedNoteId === note.id,
+                  'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
+                    selectedItems.has(`note-${note.id}`),
+                }"
+                class="h-full"
+                draggable="true"
+                @dragstart="handleNoteDragStart($event, note.id)"
+                @dragend="handleDragEnd"
+                @update:label="state.activeLabel = $event"
+                @update="noteStore.update(note.id, $event)"
+              />
+            </div>
+          </div>
+        </template>
+      </section>
+    </template>
 
-        <div
-          v-for="note in notes[name]"
-          :key="note.id"
-          :min-height="180"
-          :unrender="true"
-          :data-item-id="`note-${note.id}`"
-          @click="handleItemClick($event, 'note', note.id, getAllVisibleItems)"
-        >
-          <home-note-card
-            :key="note.id"
-            :note-id="note.id"
-            :is-locked="note.isLocked"
-            v-bind="{ note }"
-            :class="{
-              'opacity-50 transform rotate-2': draggedNoteId === note.id,
-              'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-transform duration-200 ease-in-out':
-                selectedItems.has(`note-${note.id}`),
-            }"
-            class="h-full"
-            draggable="true"
-            @dragstart="handleNoteDragStart($event, note.id)"
-            @dragend="handleDragEnd"
-            @update:label="state.activeLabel = $event"
-            @update="noteStore.update(note.id, $event)"
-          />
-        </div>
-      </template>
-    </div>
-
-    <div v-else class="text-center">
+    <div v-else class="text-center py-20">
       <img
         :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
         class="mx-auto w-1/4"
       />
       <p
-        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
+        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-4"
       >
         {{ translations.index.newNote || '-' }}
       </p>
@@ -130,6 +137,7 @@
       @moved="handleMoved"
     />
   </div>
+
   <actions
     :selected-items="selectedItems"
     @delete="bulkDelete"
@@ -149,7 +157,7 @@ import {
   onUnmounted,
 } from 'vue';
 import Mousetrap from 'mousetrap';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -175,11 +183,7 @@ import { useDragAndDrop } from '@/composable/dragAndDrop';
 export default {
   components: { HomeNoteCard, HomeSearch, HomeFolderCard, FolderTree, Actions },
   setup() {
-    const translations = ref({
-      sidebar: {},
-      index: {},
-      card: {},
-    });
+    const { translations } = useTranslations();
     const highlightedFolderIds = ref(new Set());
 
     const route = useRoute();
@@ -683,12 +687,6 @@ export default {
           }
         }
       );
-
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
 
       Mousetrap.bind(['del', 'backspace'], (e) => {
         if (selectedItems.value.size > 0) {

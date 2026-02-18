@@ -67,9 +67,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed } from 'vue';
 import { useNoteStore } from '@/store/note';
-import { useTranslation } from '../../composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { parseItemId } from '@/utils/helper';
 
 const props = defineProps({
@@ -83,6 +83,7 @@ const emit = defineEmits(['clear', 'delete', 'move']);
 
 // Store
 const noteStore = useNoteStore();
+const { translations } = useTranslations();
 
 // Computed notes
 const selectedNotes = computed(() => {
@@ -122,17 +123,4 @@ async function handleToggleBookmark() {
   }
   emit('clear');
 }
-
-const translations = ref({
-  card: {},
-  index: {},
-});
-
-onMounted(async () => {
-  await useTranslation().then((trans) => {
-    if (trans) {
-      translations.value = trans;
-    }
-  });
-});
 </script>

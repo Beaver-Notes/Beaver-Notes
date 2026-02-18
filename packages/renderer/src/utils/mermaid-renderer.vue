@@ -7,10 +7,10 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch, onMounted, nextTick } from 'vue';
+import { defineComponent, ref, watch, nextTick } from 'vue';
 import mermaid from 'mermaid';
 import { useTheme } from '@/composable/theme';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default defineComponent({
   name: 'MermaidChart',
@@ -35,7 +35,7 @@ export default defineComponent({
   setup(props) {
     const elRef = ref(null);
     const { isDark } = useTheme();
-    const translations = ref({});
+    const { translations } = useTranslations();
 
     const initializeMermaid = () => {
       const theme = isDark() ? 'dark' : 'default';
@@ -72,9 +72,6 @@ export default defineComponent({
     };
 
     onMounted(async () => {
-      const trans = await useTranslation();
-      if (trans) translations.value = trans;
-
       initializeMermaid();
       renderDiagram();
     });

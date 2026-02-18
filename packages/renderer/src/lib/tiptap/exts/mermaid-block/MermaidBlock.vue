@@ -47,7 +47,7 @@
 <script>
 import { ref, watch, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import MermaidComponent from '@/utils/mermaid-renderer.vue';
 
 export default {
@@ -126,17 +126,7 @@ export default {
       }
     );
 
-    const translations = ref({
-      editor: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
+    const { translations } = useTranslations();
 
     return {
       updateContent,

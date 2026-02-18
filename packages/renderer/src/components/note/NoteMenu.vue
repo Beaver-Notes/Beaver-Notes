@@ -626,7 +626,7 @@ import { useStorage } from '@/composable/storage';
 import { exportBEA } from '../../utils/share/BEA';
 import { exportHTML } from '../../utils/share/HTML';
 import { exportMD } from '../../utils/share/MD';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 
 const { path, ipcRenderer } = window.electron;
 const filePath = '';
@@ -658,6 +658,7 @@ export default {
   },
   emits: ['update:tree'],
   setup(props) {
+    const { translations } = useTranslations();
     const {
       isRecording,
       formattedTime,
@@ -783,7 +784,6 @@ export default {
     const router = useRouter();
     const editorImage = useEditorImage(props.editor);
     const dialog = useDialog();
-    const translations = ref({ menu: {}, card: {} });
 
     useGroupTooltip();
 
@@ -956,11 +956,6 @@ export default {
     }
 
     onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
       if (!props.editor) return;
 
       props.editor.on('selectionUpdate', () => {

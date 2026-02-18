@@ -86,11 +86,12 @@
 </template>
 
 <script>
-import { onMounted, ref, shallowReactive } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { onMounted, shallowReactive } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   setup() {
+    const { translations } = useTranslations();
     const links = [
       {
         name: 'website',
@@ -213,17 +214,7 @@ export default {
     const getIconClass = () =>
       state.updateStatusType === 'checking' ? 'animate-spin' : '';
 
-    const translations = ref({
-      about: {},
-      settings: {},
-    });
-
     onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
       setupListeners();
       const ipc = window.electron?.ipcRenderer;
       if (ipc) {

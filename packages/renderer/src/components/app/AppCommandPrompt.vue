@@ -137,15 +137,8 @@
 </template>
 
 <script>
-import {
-  shallowReactive,
-  computed,
-  watch,
-  onMounted,
-  onUnmounted,
-  ref,
-} from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { shallowReactive, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -160,6 +153,7 @@ dayjs.extend(relativeTime);
 
 export default {
   setup() {
+    const { translations } = useTranslations();
     const router = useRouter();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
@@ -270,15 +264,11 @@ export default {
       }, 100)
     );
 
-    const translations = ref({ commandPrompt: {} });
-
     onMounted(async () => {
       Mousetrap.bind('mod+shift+p', () => {
         if (store.showPrompt) return clear();
         store.showPrompt = true;
       });
-      const trans = await useTranslation();
-      if (trans) translations.value = trans;
     });
 
     const escQuit = (e) => {

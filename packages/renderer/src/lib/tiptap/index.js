@@ -50,52 +50,12 @@ import TextStyle from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import { dropFile } from './exts/drop-file';
-import enTranslations from '@/assets/locales/en.json';
-import itTranslations from '@/assets/locales/it.json';
-import esTranslations from '@/assets/locales/es.json';
-import deTranslations from '@/assets/locales/de.json';
-import zhTranslations from '@/assets/locales/zh.json';
-import nlTranslations from '@/assets/locales/nl.json';
-import ukTranslations from '@/assets/locales/uk.json';
-import frTranslations from '@/assets/locales/fr.json';
-import ruTranslations from '@/assets/locales/ru.json';
-import arTranslations from '@/assets/locales/ar.json';
-import ptTranslations from '@/assets/locales/pt.json';
-import viTranslations from '@/assets/locales/vi.json';
+import { getTranslations } from '@/utils/getTranslations';
+const translations = getTranslations();
 
 const directionPreference = localStorage.getItem('directionPreference');
 
 const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
-
-const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-
-let translations = enTranslations;
-
-if (selectedLanguage === 'de') {
-  translations = deTranslations;
-} else if (selectedLanguage === 'en') {
-  translations = enTranslations;
-} else if (selectedLanguage === 'es') {
-  translations = esTranslations;
-} else if (selectedLanguage === 'fr') {
-  translations = frTranslations;
-} else if (selectedLanguage === 'it') {
-  translations = itTranslations;
-} else if (selectedLanguage === 'nl') {
-  translations = nlTranslations;
-} else if (selectedLanguage === 'ru') {
-  translations = ruTranslations;
-} else if (selectedLanguage === 'uk') {
-  translations = ukTranslations;
-} else if (selectedLanguage === 'zh') {
-  translations = zhTranslations;
-} else if (selectedLanguage === 'ar') {
-  translations = arTranslations;
-} else if (selectedLanguage === 'pt') {
-  translations = ptTranslations;
-} else if (selectedLanguage === 'vi') {
-  translations = viTranslations;
-}
 
 const extensions = [
   LabelSuggestion,

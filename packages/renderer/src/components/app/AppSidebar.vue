@@ -1,89 +1,151 @@
 <template>
   <aside
-    class="w-16 text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-neutral-50 dark:bg-neutral-800 border-r fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
+    class="w-16 text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 fixed flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
   >
-    <!-- Sidebar top icons-->
-    <button
-      v-tooltip:right="
-        translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
-      "
-      class="transition p-2 mb-4 text-primary bg-input rounded-lg focus:ring-primary"
-      @click="addNote"
-    >
-      <v-remixicon name="riAddFill" />
-    </button>
-    <button
-      v-tooltip:right="
-        translations.sidebar.newFolder + ' (' + keyBinding + '+Shift+F)'
-      "
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
-      @click="addFolder"
-    >
-      <v-remixicon name="riFolderAddLine" />
-    </button>
-    <button
-      v-tooltip:right="
-        translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
-      "
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
-      :class="{ 'text-primary': $route.name === 'Note' }"
-      @click="openLastEdited"
-    >
-      <v-remixicon name="riEditLine" />
-    </button>
-    <button
-      v-for="nav in navs"
-      :key="nav.name"
-      v-tooltip:right="
-        `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
-      "
-      :class="{
-        'text-primary dark:text-primary': $route.fullPath === nav.path,
-      }"
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2 mb-4"
-      @click="handleNavigation(nav)"
-    >
-      <v-remixicon :name="nav.icon" />
-    </button>
-    <!-- Navbar bottom icons -->
-    <div class="flex-grow"></div>
-    <button
-      v-tooltip:right="
-        translations.sidebar.toggleSync + ' (' + keyBinding + '+Shift+Y)'
-      "
-      :class="[spinning ? 'text-primary' : '']"
-      class="transition p-2 mb-4"
-      @click="manualSync"
-    >
-      <v-remixicon
-        name="riLoopRightLine"
-        :class="spinning ? 'animate-spin' : ''"
-      />
-    </button>
-    <button
-      v-tooltip:right="
-        translations.sidebar.toggleDarkTheme + ' (' + keyBinding + '+Shift+L)'
-      "
-      :class="[theme.isDark() ? 'text-primary' : '']"
-      class="transition p-2 mb-4"
-      @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
-    >
-      <v-remixicon :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'" />
-    </button>
-    <router-link
-      v-tooltip:right="translations.settings.title + ' (' + keyBinding + '+,)'"
-      to="/settings"
-      class="transition dark:hover:text-[color:var(--selected-dark-text)] hover:text-neutral-800 p-2"
-      active-class="text-primary dark:text-primary"
-    >
-      <v-remixicon name="riSettingsLine" />
-    </router-link>
+    <div class="flex flex-col items-center gap-3 w-full px-2">
+      <button
+        v-tooltip:right="
+          translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+        "
+        class="transition-all p-2.5 text-white bg-primary rounded-xl shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 flex items-center justify-center"
+        @click="addNote"
+      >
+        <v-remixicon name="riAddFill" size="20" />
+      </button>
+
+      <button
+        v-tooltip:right="
+          translations.sidebar.newFolder + ' (' + keyBinding + '+Shift+F)'
+        "
+        class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
+        @click="addFolder"
+      >
+        <v-remixicon name="riFolderAddLine" size="20" />
+      </button>
+    </div>
+
+    <hr class="w-8 border-neutral-200 dark:border-neutral-800 my-4" />
+
+    <div class="flex flex-col items-center gap-2 w-full">
+      <div class="relative flex items-center justify-center w-full">
+        <transition name="pill">
+          <div
+            v-if="$route.name === 'Note'"
+            class="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+          />
+        </transition>
+        <button
+          v-tooltip:right="
+            translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
+          "
+          class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
+          :class="[
+            $route.name === 'Note'
+              ? 'text-primary bg-primary/10'
+              : 'hover:text-neutral-900 dark:hover:text-neutral-100',
+          ]"
+          @click="openLastEdited"
+        >
+          <v-remixicon name="riEditLine" size="20" />
+        </button>
+      </div>
+
+      <div
+        v-for="nav in navs"
+        :key="nav.name"
+        class="relative flex items-center justify-center w-full"
+      >
+        <transition name="pill">
+          <div
+            v-if="$route.fullPath === nav.path"
+            class="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+          />
+        </transition>
+        <button
+          v-tooltip:right="
+            `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
+          "
+          class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
+          :class="[
+            $route.fullPath === nav.path
+              ? 'text-primary bg-primary/10'
+              : 'hover:text-neutral-900 dark:hover:text-neutral-100',
+          ]"
+          @click="handleNavigation(nav)"
+        >
+          <v-remixicon :name="nav.icon" size="20" />
+        </button>
+      </div>
+    </div>
+
+    <div class="flex-grow" />
+
+    <div class="flex flex-col items-center gap-2 w-full">
+      <button
+        v-tooltip:right="
+          translations.sidebar.toggleSync + ' (' + keyBinding + '+Shift+Y)'
+        "
+        class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
+        :class="{ 'text-primary': spinning }"
+        @click="manualSync"
+      >
+        <v-remixicon
+          name="riLoopRightLine"
+          size="20"
+          :class="{ 'animate-spin': spinning }"
+        />
+      </button>
+
+      <button
+        v-tooltip:right="
+          translations.sidebar.toggleDarkTheme + ' (' + keyBinding + '+Shift+L)'
+        "
+        class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
+        @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
+      >
+        <v-remixicon
+          size="20"
+          :class="
+            theme.isDark()
+              ? 'text-primary'
+              : 'text-neutral-500 hover:text-neutral-900'
+          "
+          :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'"
+        />
+      </button>
+
+      <hr class="w-8 border-neutral-200 dark:border-neutral-800 my-2" />
+
+      <div class="relative flex items-center justify-center w-full pb-2">
+        <transition name="pill">
+          <div
+            v-if="$route.path === '/settings'"
+            class="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
+          />
+        </transition>
+        <router-link
+          v-tooltip:right="
+            translations.settings.title + ' (' + keyBinding + '+,)'
+          "
+          to="/settings"
+          class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
+          active-class="text-primary bg-primary/10"
+          :class="[
+            $route.path !== '/settings'
+              ? 'hover:text-neutral-900 dark:hover:text-neutral-100'
+              : '',
+          ]"
+        >
+          <v-remixicon name="riSettingsLine" size="20" />
+        </router-link>
+      </div>
+    </div>
   </aside>
 </template>
 
 <script>
-import { shallowReactive, onUnmounted, onMounted, computed, ref } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { shallowReactive, onUnmounted, computed, ref } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
 import { useRouter, useRoute } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
@@ -102,8 +164,8 @@ export default {
     const appStore = useAppStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
+    const { translations } = useTranslations();
     const defaultPath = localStorage.getItem('default-path');
-
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
 
@@ -206,20 +268,6 @@ export default {
       emitter.off('open-settings', openSettings);
       state.dataDir = defaultPath;
     });
-
-    const translations = ref({
-      sidebar: {},
-      settings: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
-
     const handleNavigation = async (nav) => {
       router.push(nav.path);
       emitter.emit('clear-label');
@@ -252,10 +300,27 @@ export default {
   },
 };
 </script>
-<style>
+<style scoped>
+/* Smooth Pill Animation */
+.pill-enter-active,
+.pill-leave-active {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pill-enter-from,
+.pill-leave-to {
+  transform: scaleY(0);
+  opacity: 0;
+}
+
+/* Inner shadow for active items to give depth */
+.shadow-inner {
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.04);
+}
+
 @media print {
   .no-print {
-    visibility: hidden;
+    display: none !important;
   }
 }
 </style>

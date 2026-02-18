@@ -89,8 +89,8 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, nextTick } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { ref, computed, watch, nextTick } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -105,7 +105,7 @@ export default {
     const route = useRoute();
     const router = useRouter();
     const noteStore = useNoteStore();
-
+    const { translations } = useTranslations();
     const isEditing = ref(false);
     const selectedNoteIndex = ref(0);
     const currentLinkVal = ref('');
@@ -259,21 +259,8 @@ export default {
       { immediate: true }
     );
 
-    const translations = ref({
-      editor: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
-
     return {
       notes,
-      translations,
       isEditing,
       inputRef,
       displayLink,
@@ -285,6 +272,7 @@ export default {
       saveAndClose,
       selectNote,
       handleClick,
+      translations,
     };
   },
 };

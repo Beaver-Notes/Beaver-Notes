@@ -87,7 +87,7 @@
 <script>
 import { watch, ref, onUnmounted, onMounted, computed } from 'vue';
 import emitter from 'tiny-emitter/instance';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { useDialog } from '@/composable/dialog';
 import Mousetrap from '@/lib/mousetrap';
 
@@ -127,7 +127,7 @@ export default {
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const newLabel = ref(props.label);
 
-    const translations = ref({ filter: {} });
+    const { translations } = useTranslations();
 
     const sorts = computed(() => {
       return {
@@ -145,9 +145,6 @@ export default {
         document.querySelector('.note-search-input input')?.focus();
       });
 
-      const trans = await useTranslation();
-      if (trans) translations.value = trans;
-
       emitter.on('clear-label', () => {
         emit('update:label', '');
         newLabel.value = '';
@@ -156,14 +153,6 @@ export default {
 
     onUnmounted(() => {
       Mousetrap.unbind(isMacOS ? 'mod+f' : 'ctrl+f');
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
     });
 
     const clearSearch = () => {

@@ -11,14 +11,13 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, ref } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { shallowReactive, onMounted } from 'vue';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import { useAppStore } from '../../store/app';
-import { t } from '@/utils/translations';
+import { useTranslations } from '../../composable/useTranslations';
 
 export const state = shallowReactive({
   dataDir: '',
@@ -31,6 +30,7 @@ export default {
     const dialog = useDialog();
     const storage = useStorage();
     const passwordStore = usePasswordStore();
+    const translations = useTranslations();
 
     let defaultPath = '';
 
@@ -81,30 +81,15 @@ export default {
       });
     }
 
-    // Translations
-    const translations = ref({
-      settings: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
-
     const appStore = useAppStore();
 
     return {
       state,
       storage,
-      translations,
       resetPasswordDialog,
       defaultPath,
       appStore,
       formatTime,
-      t,
     };
   },
 };

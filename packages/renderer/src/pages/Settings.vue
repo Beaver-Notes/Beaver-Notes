@@ -28,8 +28,10 @@
   </div>
 </template>
 <script setup>
-import { onMounted, computed, ref } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { computed } from 'vue';
+import { useTranslations } from '@/composable/useTranslations.js';
+
+const { translations } = useTranslations();
 
 const settings = computed(() => ({
   Settings: {
@@ -63,16 +65,4 @@ const settings = computed(() => ({
     description: '',
   },
 }));
-
-const translations = ref({
-  settings: {},
-});
-
-onMounted(async () => {
-  await useTranslation().then((trans) => {
-    if (trans) {
-      translations.value = trans;
-    }
-  });
-});
 </script>

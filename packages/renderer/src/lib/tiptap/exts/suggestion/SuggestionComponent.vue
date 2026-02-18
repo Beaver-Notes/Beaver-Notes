@@ -37,8 +37,8 @@
 </template>
 
 <script setup>
-import { watch, ref, shallowReactive, onMounted } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { watch, ref } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 const props = defineProps({
   onSelect: { type: Function, required: true },
@@ -76,6 +76,7 @@ const props = defineProps({
   },
 });
 
+const { translations } = useTranslations();
 const selectedIndex = ref(0);
 
 function getLabel(item) {
@@ -128,20 +129,6 @@ watch(
     selectedIndex.value = 0;
   }
 );
-
-// Translations
-
-const translations = shallowReactive({
-  menu: {},
-});
-
-onMounted(async () => {
-  await useTranslation().then((trans) => {
-    if (trans) {
-      translations.value = trans;
-    }
-  });
-});
 
 defineExpose({ onKeyDown });
 </script>

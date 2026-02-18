@@ -30,17 +30,10 @@
 </template>
 
 <script>
-import {
-  onMounted,
-  ref,
-  reactive,
-  shallowRef,
-  computed,
-  getCurrentInstance,
-} from 'vue';
+import { ref, shallowRef, computed, getCurrentInstance } from 'vue';
 import mime from 'mime';
 import dayjs from '@/lib/dayjs';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
 
@@ -78,22 +71,12 @@ export default {
     const EmbedUrl = shallowRef('');
     const inputVisible = ref(false);
 
-    const translations = reactive({
-      menu: {},
-    });
+    const { translations } = useTranslations();
 
     const handleFileInputClick = () => {
       console.log(instance?.refs.fileInput);
       instance?.refs.fileInput?.click();
     };
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.menu = trans.menu || {};
-        }
-      });
-    });
 
     const filteredItems = computed(() => {
       return items.value.filter((item) =>

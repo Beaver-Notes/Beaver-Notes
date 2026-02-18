@@ -92,7 +92,7 @@
 
 <script>
 import { ref, shallowRef, computed, watch, onMounted } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
@@ -126,6 +126,7 @@ export default {
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
     const isLocked = computed(() => note.value && note.value.isLocked);
+    const { translations } = useTranslations();
 
     watch(
       id,
@@ -262,21 +263,6 @@ export default {
       });
 
       Mousetrap.unbind('mod+f');
-    });
-
-    // Translations
-    const translations = ref({
-      editor: {},
-      card: {},
-      index: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
     });
 
     const focusEditor = () =>

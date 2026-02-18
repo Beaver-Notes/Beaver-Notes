@@ -1,52 +1,10 @@
 import emitter from 'tiny-emitter/instance';
-import enTranslations from '@/assets/locales/en.json';
-import itTranslations from '@/assets/locales/it.json';
-import esTranslations from '@/assets/locales/es.json';
-import deTranslations from '@/assets/locales/de.json';
-import zhTranslations from '@/assets/locales/zh.json';
-import nlTranslations from '@/assets/locales/nl.json';
-import ukTranslations from '@/assets/locales/uk.json';
-import ptTranslations from '@/assets/locales/pt.json';
-import viTranslations from '@/assets/locales/vi.json';
+
+import { getTranslations } from '@/utils/getTranslations';
+const translations = getTranslations();
 
 function getModifierKey() {
   return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
-}
-
-const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
-
-let translations = enTranslations;
-
-if (selectedLanguage === 'it') {
-  translations = itTranslations;
-}
-
-if (selectedLanguage === 'de') {
-  translations = deTranslations;
-}
-
-if (selectedLanguage === 'zh') {
-  translations = zhTranslations;
-}
-
-if (selectedLanguage === 'nl') {
-  translations = nlTranslations;
-}
-
-if (selectedLanguage === 'es') {
-  translations = esTranslations;
-}
-
-if (selectedLanguage === 'uk') {
-  translations = ukTranslations;
-}
-
-if (selectedLanguage === 'pt') {
-  translations = ptTranslations;
-}
-
-if (selectedLanguage === 'vi') {
-  translations = viTranslations;
 }
 
 let commands = [

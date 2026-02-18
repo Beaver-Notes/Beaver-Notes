@@ -176,14 +176,19 @@
               {{ translations.settings.todayDateFormatPlaceholder || '-' }}
             </p>
           </div>
-          <ui-input
+          <ui-select
             v-model="todayDateFormat"
-            :placeholder="
-              translations.settings.todayDateFormatPlaceholder || '-'
-            "
             class="w-full"
-            @blur="saveTodayDateFormat"
-          />
+            @change="saveTodayDateFormat"
+          >
+            <option
+              v-for="format in dateFormats"
+              :key="format.value"
+              :value="format.value"
+            >
+              {{ format.label }}
+            </option>
+          </ui-select>
         </div>
         <!-- Time format -->
         <div class="py-2">
@@ -195,12 +200,19 @@
               {{ translations.settings.timeFormatPlaceholder || '-' }}
             </p>
           </div>
-          <ui-input
+          <ui-select
             v-model="timeFormat"
-            :placeholder="translations.settings.timeFormatPlaceholder || '-'"
             class="w-full"
-            @blur="saveTimeFormat"
-          />
+            @change="saveTimeFormat"
+          >
+            <option
+              v-for="format in timeFormats"
+              :key="format.value"
+              :value="format.value"
+            >
+              {{ format.label }}
+            </option>
+          </ui-select>
         </div>
       </div>
     </section>
@@ -290,13 +302,12 @@ import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import { useRouter } from 'vue-router';
 import { useAppStore } from '../../store/app';
-import { t } from '@/utils/translations';
 import { processDirectory } from '@/utils/markdown-helper';
 import { forceSyncNow } from '../../utils/sync';
 import { importBEA } from '../../utils/share/BEA';
-import { useTranslation } from '@/composable/translations';
 import { useFolderStore } from '../../store/folder';
 import { useLocalStorage } from '../../composable/storage';
+import { useTranslations } from '../../composable/useTranslations';
 
 const LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -326,6 +337,7 @@ const getLanguageDirection = (languageCode) => {
 
 export default {
   setup() {
+    const { translations } = useTranslations();
     const passwordStore = usePasswordStore();
     const advancedSettings = ref(
       localStorage.getItem('advanced-settings') === 'true'
@@ -782,45 +794,11 @@ export default {
       });
     }
 
-    // Translations
-    const translations = ref({
-      settings: {},
-      menu: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
-
     Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
       shortcuts[combo]();
     });
 
     const appStore = useAppStore();
-
-    function deleteAuth(auth) {
-      dialog.confirm({
-        body: t(translations.value.settings.confirmDelete, {
-          name: auth.name,
-          id: auth.id,
-        }),
-        onConfirm: async () => {
-          appStore.authRecords = appStore.authRecords.filter(
-            (a) => a.id !== auth.id
-          );
-          await appStore.updateToStorage();
-        },
-      });
-    }
-
-    async function toggleAuth(auth, v) {
-      auth.status = v ? 1 : 0;
-      await appStore.updateToStorage();
-    }
 
     const handleAutoSyncChange = () => {
       const exportPath = defaultPath;
@@ -920,8 +898,24 @@ export default {
       const dir = getLanguageDirection(languageCode);
       localStorage.setItem('selectedLanguage', languageCode);
       localStorage.setItem('directionPreference', dir);
-      window.location.reload(); // Optional: you might want a softer re-render
+      window.location.reload();
     };
+
+    const dateFormats = [
+      { value: 'DD-MM-YYYY', label: '17-02-2026 (DD-MM-YYYY)' },
+      { value: 'MM-DD-YYYY', label: '02-17-2026 (MM-DD-YYYY)' },
+      { value: 'YYYY-MM-DD', label: '2026-02-17 (ISO)' },
+      { value: 'DD/MM/YYYY', label: '17/02/2026 (European)' },
+      { value: 'MM/DD/YYYY', label: '02/17/2026 (US)' },
+      { value: 'D MMM YYYY', label: '17 Feb 2026' },
+      { value: 'MMMM D, YYYY', label: 'February 17, 2026' },
+    ];
+
+    const timeFormats = [
+      { value: 'HH:mm', label: '14:35 (24h)' },
+      { value: 'hh:mm A', label: '02:35 PM (12h)' },
+      { value: 'HH:mm:ss', label: '14:35:20' },
+    ];
 
     return {
       state,
@@ -942,9 +936,6 @@ export default {
       selectMarkdown,
       selectBea,
       formatTime,
-      deleteAuth,
-      toggleAuth,
-      t,
       collapsibleHeading,
       openLastEdited,
       openAfterCreation,
@@ -963,6 +954,8 @@ export default {
       saveTodayDateFormat,
       timeFormat,
       saveTimeFormat,
+      dateFormats,
+      timeFormats,
     };
   },
   computed: {

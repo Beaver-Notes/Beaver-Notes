@@ -243,8 +243,8 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, onUnmounted, ref } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { shallowReactive, onMounted, onUnmounted } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 
 export default {
@@ -260,6 +260,8 @@ export default {
   },
   emits: ['close'],
   setup(props) {
+    const { translations } = useTranslations();
+
     const state = shallowReactive({
       query: '',
       replaceWith: '',
@@ -356,18 +358,6 @@ export default {
       const text = editorState.doc.textBetween(from, to, ' ');
 
       if (text) state.query = text;
-    });
-
-    const translations = ref({
-      search: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
     });
 
     onUnmounted(() => {

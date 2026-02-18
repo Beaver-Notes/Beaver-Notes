@@ -78,11 +78,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useFolderStore } from '@/store/folder';
 import FolderTreeItem from './FolderTreeItem.vue';
 import { useNoteStore } from '@/store/note';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 
 const props = defineProps({
   notes: { type: Array, default: () => [] },
@@ -95,11 +95,7 @@ const props = defineProps({
   },
 });
 
-const translations = ref({ folderTree: {} });
-onMounted(async () => {
-  const trans = await useTranslation();
-  if (trans) translations.value = trans;
-});
+const { translations } = useTranslations();
 
 const emit = defineEmits(['update:modelValue', 'moved']);
 
@@ -120,16 +116,11 @@ const rootFolders = computed(() => {
     .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 });
 
-/** If moving notes, compute a set (usually size 1 or more) of their current folderIds (null allowed). */
 const currentFolderIds = computed(() => {
   if (props.mode !== 'note') return new Set();
   return new Set(props.notes.map((n) => n?.folderId ?? null));
 });
 
-/** Preselect a sensible target:
- *  - notes: common folder if all in same folder, else null
- *  - folders: common parent if all share a parent, else null
- */
 const commonNoteFolderId = computed(() => {
   if (props.mode !== 'note' || props.notes.length === 0) return null;
   const s = new Set(props.notes.map((n) => n?.folderId ?? null));

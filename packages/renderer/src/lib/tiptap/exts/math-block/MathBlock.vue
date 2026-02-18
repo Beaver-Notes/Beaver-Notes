@@ -68,7 +68,7 @@
 <script>
 import { ref, onMounted, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import katex from 'katex';
 
 export default {
@@ -81,7 +81,7 @@ export default {
 
     const isEditing = ref(false);
     const useKatexMacros = ref(false);
-    const translations = ref({ editor: {} });
+    const translations = useTranslations();
 
     // Render KaTeX
     const renderContent = () => {
@@ -162,9 +162,6 @@ export default {
       await nextTick();
       props.updateAttributes?.({ init: 'true' });
       renderContent();
-
-      const trans = await useTranslation();
-      if (trans) translations.value = trans;
     });
 
     return {

@@ -29,8 +29,8 @@
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { ref, watch } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -41,7 +41,7 @@ export default {
   },
   setup(props) {
     const embedUrl = ref('');
-    const translations = ref({ editor: {} });
+    const { translations } = useTranslations;
 
     const applyEmbed = () => {
       if (!embedUrl.value.trim()) return;
@@ -75,11 +75,6 @@ export default {
       },
       { immediate: true }
     );
-
-    onMounted(async () => {
-      const trans = await useTranslation();
-      if (trans) translations.value = trans;
-    });
 
     return { embedUrl, translations, applyEmbed, removeEmbed };
   },

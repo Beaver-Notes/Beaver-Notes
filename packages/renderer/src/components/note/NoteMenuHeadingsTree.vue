@@ -29,8 +29,8 @@
   </div>
 </template>
 <script>
-import { shallowRef, computed, ref, onMounted } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { shallowRef, computed } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -54,6 +54,7 @@ export default {
 
     const query = shallowRef('');
     const selectedIndex = shallowRef(0);
+    const { translations } = useTranslations();
 
     const filteredHeadings = computed(() =>
       props.headings.filter(({ text }) =>
@@ -98,20 +99,6 @@ export default {
       selectedIndex.value =
         (selectedIndex.value + 1) % filteredHeadings.value.length;
     }
-
-    // Translations
-
-    const translations = ref({
-      menu: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
     return {
       query,
       paddings,

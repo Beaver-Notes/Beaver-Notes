@@ -126,7 +126,7 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -155,11 +155,7 @@ export default {
     const focusedIndex = ref(-1);
     const searchQuery = ref('');
     const optionRefs = ref([]);
-    const translations = ref({ index: {} });
-    onMounted(async () => {
-      const trans = await useTranslation();
-      if (trans) translations.value = trans;
-    });
+    const translations = useTranslations();
 
     const setOptionRef = (el, index) => {
       if (el) {

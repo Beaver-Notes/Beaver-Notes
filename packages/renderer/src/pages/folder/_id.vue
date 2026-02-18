@@ -203,7 +203,7 @@ import {
   onUnmounted,
 } from 'vue';
 import Mousetrap from 'mousetrap';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -229,11 +229,7 @@ import { useDragAndDrop } from '@/composable/dragAndDrop';
 export default {
   components: { HomeNoteCard, HomeSearch, HomeFolderCard, FolderTree, Actions },
   setup() {
-    const translations = ref({
-      sidebar: {},
-      index: {},
-      card: {},
-    });
+    const translations = useTranslations();
     const highlightedFolderIds = ref(new Set());
     const currentFolderId = computed(() => route.params.id);
 
@@ -734,14 +730,6 @@ export default {
         if (selectedItems.value.size > 0) {
           e.preventDefault();
           bulkDelete();
-        }
-      });
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
         }
       });
     });

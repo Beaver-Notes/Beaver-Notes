@@ -59,16 +59,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useFolderStore } from '@/store/folder';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 
 const props = defineProps({
   folder: { type: Object, default: () => ({}) },
   selectedId: { type: [String, null], default: null },
-  /** For notes: may contain 0/1/many folder ids; used to mark "current" */
   currentFolderIds: { type: Object, default: () => new Set() }, // Set<string|null>
-  /** For folders: targets you cannot drop into (self/descendants) */
   disabledIds: { type: Object, default: () => new Set() }, // Set<string>
   level: { type: Number, default: 0 },
 });
@@ -76,6 +74,7 @@ const props = defineProps({
 defineEmits(['select']);
 
 const folderStore = useFolderStore();
+const { translations } = useTranslations();
 const isExpanded = ref(true);
 
 const children = computed(() =>
@@ -87,10 +86,4 @@ const isCurrentFolder = computed(() =>
   props.currentFolderIds.has(props.folder.id)
 );
 const isDisabled = computed(() => props.disabledIds.has(props.folder.id));
-
-const translations = ref({ folderTree: {} });
-onMounted(async () => {
-  const trans = await useTranslation();
-  if (trans) translations.value = trans;
-});
 </script>

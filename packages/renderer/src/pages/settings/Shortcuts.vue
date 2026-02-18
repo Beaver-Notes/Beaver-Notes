@@ -27,23 +27,11 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 
 // Translations
+const { translations } = useTranslations();
 
-const translations = ref({
-  shortcuts: {},
-  sidebar: {},
-});
-
-onMounted(async () => {
-  await useTranslation().then((trans) => {
-    if (trans) {
-      translations.value = trans;
-    }
-  });
-});
 const shortcuts = [
   {
     title: 'general',

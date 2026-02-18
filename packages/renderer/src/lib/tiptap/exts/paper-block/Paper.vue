@@ -50,8 +50,8 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted } from 'vue';
-import { useTranslation } from '../../../../composable/translations';
+import { ref, computed, watch } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 import { getStroke } from 'perfect-freehand';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import {
@@ -61,7 +61,7 @@ import {
 } from './helpers/drawHelper';
 import DrawMode from './DrawMode.vue';
 import '@/assets/css/paper.scss';
-import OverlayPortal from '../../../../components/ui/OverlayPortal.vue';
+import OverlayPortal from '@/components/ui/OverlayPortal.vue';
 
 export default {
   name: 'CustomNodeView',
@@ -77,19 +77,8 @@ export default {
     const tool = ref('pen');
     const height = ref(props.node.attrs.height || 400);
     const isDrawMode = ref(false);
-    const translations = ref({
-      paperBlock: {},
-    });
+    const { translations } = useTranslations();
 
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
-
-    // Watch for external changes to node attributes
     watch(
       () => props.node.attrs,
       (newAttrs) => {

@@ -25,8 +25,8 @@
   </div>
 </template>
 <script>
-import { watch, ref, onMounted } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { watch, ref } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/composable/editorImage';
 
 export default {
@@ -38,6 +38,7 @@ export default {
   },
   setup(props) {
     const editorImage = useEditorImage(props.editor);
+    const { translations } = useTranslations();
 
     const currentImage = ref('');
 
@@ -48,18 +49,6 @@ export default {
       },
       { immediate: true }
     );
-
-    const translations = ref({
-      image: {},
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-    });
 
     return {
       translations,

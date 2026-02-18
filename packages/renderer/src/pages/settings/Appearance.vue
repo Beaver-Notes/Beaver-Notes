@@ -284,7 +284,7 @@
 
 <script>
 import { shallowReactive, onMounted, computed, ref } from 'vue';
-import { useTranslation } from '@/composable/translations';
+import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { useAppStore } from '@/store/app';
@@ -294,6 +294,7 @@ import systemImg from '@/assets/images/system.png';
 
 export default {
   setup() {
+    const { translations } = useTranslations();
     const appStore = useAppStore();
     const themes = [
       { name: 'light', img: lightImg },
@@ -323,10 +324,6 @@ export default {
     });
 
     let defaultPath = '';
-
-    const translations = ref({
-      appearence: {},
-    });
 
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
@@ -413,14 +410,6 @@ export default {
         state.selectedCodeFont
       );
       document.documentElement.dir = state.directionPreference;
-    });
-
-    onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
     });
 
     const toggleClearFont = () => {
