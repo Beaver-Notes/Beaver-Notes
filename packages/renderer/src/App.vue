@@ -19,7 +19,7 @@
     />
   </div>
 
-  <main v-if="retrieved" :class="{ 'pl-16 print:p-2': !store.inReaderMode }">
+  <main v-if="retrieved" :class="{ 'pl-14 print:p-2': !store.inReaderMode }">
     <router-view />
   </main>
   <div
@@ -44,7 +44,6 @@ import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import Mousetrap from '@/lib/mousetrap';
 import { useAppStore } from './store/app';
-import { useTranslation } from './composable/translations';
 import { importBEA } from './utils/share/BEA';
 
 export default {
@@ -99,7 +98,6 @@ export default {
     };
 
     const appStore = useAppStore();
-    const translations = ref({ dialog: {}, settings: {} });
 
     // Handle update banner actions
     const handleUpdateInstall = () => {
@@ -128,12 +126,6 @@ export default {
     };
 
     onMounted(async () => {
-      await useTranslation().then((trans) => {
-        if (trans) {
-          translations.value = trans;
-        }
-      });
-
       document.body.style.zoom = state.zoomLevel;
 
       const platform = navigator.userAgent.toLowerCase();
