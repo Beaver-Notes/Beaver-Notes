@@ -49,18 +49,10 @@
                 {{ translations.settings.advancedSettings || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="advancedSettings"
-                type="checkbox"
-                class="peer sr-only"
-                @change="toggleAdvancedSettings"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch
+              v-model="advancedSettings"
+              @change="toggleAdvancedSettings"
+            />
           </div>
           <!-- Spellcheck -->
           <div class="flex items-center py-2 justify-between">
@@ -69,18 +61,7 @@
                 {{ translations.settings.spellCheck || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="spellcheckEnabled"
-                type="checkbox"
-                class="peer sr-only"
-                @change="toggleSpellcheck"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
           </div>
           <!-- Auto Sync -->
           <div class="flex items-center py-2 justify-between">
@@ -89,18 +70,7 @@
                 {{ translations.settings.autoSync || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="autoSync"
-                type="checkbox"
-                class="peer sr-only"
-                @change="handleAutoSyncChange"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch v-model="autoSync" @change="handleAutoSyncChange" />
           </div>
           <!-- open last edited -->
           <div class="flex items-center py-2 justify-between">
@@ -109,17 +79,7 @@
                 >{{ translations.settings.openLastEdited || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="openLastEdited"
-                type="checkbox"
-                class="peer sr-only"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch v-model="openLastEdited" />
           </div>
           <!-- show after creation -->
           <div class="flex items-center py-2 justify-between">
@@ -128,17 +88,7 @@
                 >{{ translations.settings.openAfterCreation || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="openAfterCreation"
-                type="checkbox"
-                class="peer sr-only"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch v-model="openAfterCreation" />
           </div>
         </div>
       </div>
@@ -301,13 +251,14 @@ import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { formatTime } from '@/utils/time-format';
 import { useRouter } from 'vue-router';
-import { useAppStore } from '../../store/app';
+import { useAppStore } from '@/store/app';
 import { processDirectory } from '@/utils/markdown-helper';
-import { forceSyncNow } from '../../utils/sync';
-import { importBEA } from '../../utils/share/BEA';
-import { useFolderStore } from '../../store/folder';
-import { useLocalStorage } from '../../composable/storage';
-import { useTranslations } from '../../composable/useTranslations';
+import { forceSyncNow } from '@/utils/sync';
+import { importBEA } from '@/utils/share/BEA';
+import { useFolderStore } from '@/store/folder';
+import { useLabelStore } from '@/store/label';
+import { useLocalStorage } from '@/composable/storage';
+import { useTranslations } from '@/composable/useTranslations';
 
 const LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -373,6 +324,7 @@ export default {
     const dialog = useDialog();
     const storage = useStorage();
     const folerStore = useFolderStore();
+    const labelStore = useLabelStore();
 
     const state = shallowReactive({
       dataDir: '',

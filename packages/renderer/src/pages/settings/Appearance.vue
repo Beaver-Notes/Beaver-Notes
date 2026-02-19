@@ -243,18 +243,7 @@
                 {{ translations.appearence.clearFont || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="ClearFontChecked"
-                type="checkbox"
-                class="peer sr-only"
-                @change="toggleClearFont"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch v-model="ClearFontChecked" @change="toggleClearFont" />
           </div>
           <!-- Menubar visibility -->
           <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
@@ -263,18 +252,10 @@
                 {{ translations.appearence.menuBarVisibility || '-' }}
               </span>
             </div>
-            <label class="relative inline-flex items-center">
-              <input
-                id="switch"
-                v-model="visibilityMenubar"
-                type="checkbox"
-                class="peer sr-only"
-                @change="toggleVisibilityOfMenubar"
-              />
-              <div
-                class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-              ></div>
-            </label>
+            <ui-switch
+              v-model="visibilityMenubar"
+              @change="toggleVisibilityOfMenubar"
+            />
           </div>
         </div>
       </div>
