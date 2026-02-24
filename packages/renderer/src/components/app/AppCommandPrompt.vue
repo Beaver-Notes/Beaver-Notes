@@ -5,7 +5,7 @@
   >
     <!-- Search Bar -->
     <div
-      class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-lg"
+      class="flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-lg"
     >
       <v-remixicon
         name="riSearch2Line"
@@ -36,10 +36,7 @@
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-1"
     >
-      <div
-        v-if="state.query.length > 0"
-        class="mt-2 rounded-xl overflow-hidden bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-lg"
-      >
+      <ui-card v-if="state.query.length > 0" padding="p-0" class="mt-2">
         <!-- Empty state -->
         <p
           v-if="items.length === 0"
@@ -61,9 +58,8 @@
             class="active-command-item flex items-center gap-3 mx-2 px-2 py-2 rounded-lg cursor-pointer"
             @click="selectItem(item, true)"
           >
-            <!-- Icon -->
             <div
-              class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-md bg-neutral-100 dark:bg-neutral-700"
+              class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700"
             >
               <template v-if="item.type === 'folder' && item.icon">
                 <span class="text-base leading-none">{{ item.icon }}</span>
@@ -131,7 +127,7 @@
           <span>↵ open</span>
           <span class="ml-auto">› for commands</span>
         </div>
-      </div>
+      </ui-card>
     </Transition>
   </div>
 </template>

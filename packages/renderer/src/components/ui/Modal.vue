@@ -18,9 +18,9 @@
             class="modal-ui__content shadow-lg w-full"
             :class="[contentClass]"
           >
-            <div class="mb-4">
+            <div class="p-2">
               <div class="flex items-center justify-between">
-                <span class="content-header">
+                <span class="content-header w-full">
                   <slot name="header"></slot>
                 </span>
                 <v-remixicon
@@ -67,6 +67,13 @@ export default {
     const modalContent = ref(null);
 
     function toggleBodyOverflow(value) {
+      if (value) {
+        const scrollbarWidth =
+          window.innerWidth - document.documentElement.clientWidth;
+        document.body.style.paddingRight = `${scrollbarWidth}px`;
+      } else {
+        document.body.style.paddingRight = '';
+      }
       document.body.classList.toggle('overflow-hidden', value);
     }
     function closeModal() {

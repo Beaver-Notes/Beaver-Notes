@@ -67,8 +67,6 @@
       v-model:label="state.activeLabel"
       v-model:sort-by="state.sortBy"
       v-model:sort-order="state.sortOrder"
-      v-bind="{ labels: labelStore.data, context: 'folder' }"
-      @delete:label="deleteLabel"
     />
   </div>
   <div
@@ -108,11 +106,11 @@
             :key="folder.id"
             :folder="folder"
             :class="{
-              'ring-2 ring-secondary':
+              'ring-1 ring-secondary':
                 dragOverFolderId === folder.id ||
                 (state.query && highlightedFolderIds.has(folder.id)),
               'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-              'ring-2 ring-secondary': selectedItems.has(`folder-${folder.id}`),
+              'ring-1 ring-secondary': selectedItems.has(`folder-${folder.id}`),
             }"
             draggable="true"
             @dragstart="handleFolderDragStart($event, folder.id)"
@@ -151,7 +149,7 @@
             v-bind="{ note }"
             :class="{
               'opacity-50 transform rotate-2': draggedNoteId === note.id,
-              'ring-2 ring-secondary': selectedItems.has(`note-${note.id}`),
+              'ring-1 ring-secondary': selectedItems.has(`note-${note.id}`),
             }"
             class="h-full"
             draggable="true"
@@ -693,7 +691,7 @@ export default {
 
       keyboardNavigation.value = new KeyboardNavigation({
         itemSelector: '.note-card',
-        activeClass: 'ring-2 ring-primary active-note',
+        activeClass: 'ring-1 ring-primary active-note',
         breakpoints: {
           default: 1,
           '(min-width: 768px)': 2,

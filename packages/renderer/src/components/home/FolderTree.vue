@@ -20,17 +20,28 @@
     <div>
       <!-- Root option -->
       <div
-        class="flex items-center p-2 rounded hover:bg-primary hover:bg-opacity-30 cursor-pointer transition"
-        :class="{ 'bg-primary bg-opacity-20': selectedId === null }"
+        class="group flex items-center p-2 rounded-md cursor-pointer transition-all duration-200"
+        :class="{
+          'bg-primary/10 text-primary font-medium ring-1 ring-primary/30':
+            selectedId === null,
+          'hover:bg-neutral-100 dark:hover:bg-neutral-800': selectedId !== null,
+        }"
         @click="selectedId = null"
       >
-        <v-remixicon
-          name="riHomeLine"
-          class="mr-2 text-neutral-500"
-          :class="{ 'text-primary': selectedId === null }"
-        />
-        <span>{{ translations.folderTree.root }}</span>
+        <div class="mr-2 flex items-center justify-center">
+          <v-remixicon
+            name="riFolder5Fill"
+            class="w-5 h-5"
+            :class="selectedId === null ? 'text-primary' : 'text-neutral-400'"
+          />
+        </div>
+
+        <span class="flex-1 truncate text-sm">
+          {{ translations.folderTree.root }}
+        </span>
       </div>
+
+      <hr class="my-1 border-neutral-100 dark:border-neutral-800" />
 
       <!-- Folder tree -->
       <div class="max-h-64 overflow-y-auto p-1">

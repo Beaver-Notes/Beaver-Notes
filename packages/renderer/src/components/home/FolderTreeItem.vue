@@ -1,60 +1,63 @@
 <template>
-  <div>
+  <div
+    class="relative flex items-center p-2 rounded-md cursor-pointer transition-all duration-200 group"
+    :class="{
+      'font-medium': isSelected,
+      'hover:bg-neutral-100 dark:hover:bg-neutral-800':
+        !isSelected && !isDisabled,
+      'opacity-40 grayscale pointer-events-none': isDisabled,
+    }"
+    :style="{
+      paddingLeft: level * 16 + 12 + 'px',
+      backgroundColor: isSelected
+        ? `${folder.color || '#6B7280'}1A`
+        : 'transparent',
+      boxShadow: isSelected
+        ? `inset 0 0 0 1px ${folder.color || '#6B7280'}4D`
+        : 'none',
+      color: isSelected ? folder.color || '#6B7280' : 'inherit',
+    }"
+    @click="!isDisabled && $emit('select', folder.id)"
+  >
     <div
-      class="flex items-center p-2 rounded hover:bg-primary hover:bg-opacity-30 transition"
-      :class="{
-        'bg-primary bg-opacity-20': isSelected,
-        'opacity-50': isCurrentFolder || isDisabled,
-        'pointer-events-none': isDisabled,
-      }"
-      :style="{ paddingLeft: level * 16 + 8 + 'px' }"
-      @click="!isDisabled && $emit('select', folder.id)"
+      v-if="level > 0"
+      class="absolute left-0 top-0 bottom-0 border-l border-neutral-200 dark:border-neutral-700"
+      :style="{ left: level * 16 + 'px' }"
+    ></div>
+
+    <button
+      v-if="children.length > 0"
+      class="z-10 mr-1 p-0.5 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition"
+      @click.stop="isExpanded = !isExpanded"
     >
-      <button
-        v-if="children.length > 0"
-        class="mr-1 p-0.5 hover:bg-neutral-200 dark:hover:bg-neutral-600 rounded"
-        :class="{ 'hover:bg-primary hover:bg-opacity-20': isSelected }"
-        @click.stop="isExpanded = !isExpanded"
-      >
-        <v-remixicon
-          :name="isExpanded ? 'riArrowDownSLine' : 'riArrowRightSLine'"
-          class="w-3 h-3"
-        />
-      </button>
-      <div v-else class="w-4 mr-1"></div>
+      <v-remixicon
+        :name="isExpanded ? 'riArrowDownSLine' : 'riArrowRightSLine'"
+        class="w-4 h-4"
+        :style="{ color: isSelected ? folder.color || '#6B7280' : '#9CA3AF' }"
+      />
+    </button>
+    <div v-else class="w-5 mr-1"></div>
 
-      <div class="mr-2">
-        <span v-if="folder.icon" class="text-xl select-none">{{
-          folder.icon
-        }}</span>
-        <v-remixicon
-          v-else
-          name="riFolder5Fill"
-          class="w-6 h-6"
-          :style="{ color: folder.color || '#6B7280' }"
-        />
-      </div>
-
-      <span
-        class="flex-1 truncate"
-        :class="{ 'text-neutral-800 dark:text-neutral-200': isCurrentFolder }"
-      >
-        {{ folder.name || translations.folderTree.untitledFolder }}
-      </span>
-    </div>
-
-    <div v-if="isExpanded && children.length > 0">
-      <FolderTreeItem
-        v-for="child in children"
-        :key="child.id"
-        :folder="child"
-        :selected-id="selectedId"
-        :current-folder-ids="currentFolderIds"
-        :disabled-ids="disabledIds"
-        :level="level + 1"
-        @select="$emit('select', $event)"
+    <div class="mr-2 flex items-center justify-center">
+      <span v-if="folder.icon" class="text-lg">{{ folder.icon }}</span>
+      <v-remixicon
+        v-else
+        :name="isExpanded ? 'riFolderOpenFill' : 'riFolder5Fill'"
+        class="w-5 h-5"
+        :style="{ color: isSelected ? 'inherit' : folder.color || '#6B7280' }"
       />
     </div>
+
+    <span class="flex-1 truncate text-sm">
+      {{ folder.name || translations.folderTree.untitledFolder }}
+    </span>
+
+    <span
+      v-if="isCurrentFolder"
+      class="text-[10px] uppercase tracking-wider opacity-60 ml-2"
+    >
+      Current
+    </span>
   </div>
 </template>
 

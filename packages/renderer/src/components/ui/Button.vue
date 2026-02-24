@@ -3,7 +3,7 @@
   <component
     :is="tag"
     role="button"
-    class="ui-button h-10 relative transition focus:ring-2 ring-secondary"
+    class="ui-button h-10 relative transition focus:ring-1 ring-secondary"
     :class="[
       color ? color : variants[variant],
       icon ? 'p-2' : 'py-2 px-4',
@@ -51,10 +51,9 @@ export default {
   setup() {
     const variants = {
       default: 'bg-input',
-      primary:
-        'bg-primary text-white dark:bg-secondary dark:hover:bg-primary hover:bg-secondary',
-      danger:
-        'bg-red-500 text-white dark:bg-red-600 dark:hover:bg-red-500 hover:bg-red-600',
+      primary: 'bg-primary text-white hover:bg-primary/90',
+      secondary: 'bg-secondary text-white hover:bg-secondary/90',
+      danger: 'bg-red-500 text-white hover:bg-red-500/90',
     };
 
     return {

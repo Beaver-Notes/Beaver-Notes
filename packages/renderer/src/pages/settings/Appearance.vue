@@ -11,7 +11,7 @@
           v-for="item in themes"
           :key="item.name"
           :class="{
-            'ring-2 ring-primary': theme.currentTheme.value === item.name,
+            'ring-1 ring-primary': theme.currentTheme.value === item.name,
           }"
           class="bg-input p-2 rtl:mx-2 rounded-lg transition"
           @click="theme.setTheme(item.name)"
@@ -29,37 +29,37 @@
       <div class="w-full items-center justify-center flex gap-4">
         <button
           class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'red' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'red' }"
           @click="setColor('red')"
         ></button>
         <button
           class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'light' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'light' }"
           @click="setColor('light')"
         ></button>
         <button
           class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'green' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'green' }"
           @click="setColor('green')"
         ></button>
         <button
           class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'blue' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'blue' }"
           @click="setColor('blue')"
         ></button>
         <button
           class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'purple' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'purple' }"
           @click="setColor('purple')"
         ></button>
         <button
           class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'pink' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'pink' }"
           @click="setColor('pink')"
         ></button>
         <button
           class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-2 ring-primary': state.accentColor === 'neutral' }"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'neutral' }"
           @click="setColor('neutral')"
         ></button>
       </div>
@@ -93,9 +93,9 @@
             },
           ]"
           :key="opt.key"
-          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-2 focus:ring-primary"
+          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-1 focus:ring-primary"
           :class="{
-            'ring-2 ring-primary border-primary':
+            'ring-1 ring-primary border-primary':
               String(state.zoomLevel) === opt.key,
           }"
           :aria-pressed="String(state.zoomLevel) === opt.key"
@@ -190,7 +190,7 @@
         <ui-button
           class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
           :class="{
-            'outline-none ring-2 ring-primary': selectedWidth === '54rem',
+            'outline-none ring-1 ring-primary': selectedWidth === '54rem',
           }"
           @click="setWidth('54rem')"
         >
@@ -200,7 +200,7 @@
         <ui-button
           class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
           :class="{
-            'outline-none ring-2 ring-primary': selectedWidth === '68rem',
+            'outline-none ring-1 ring-primary': selectedWidth === '68rem',
           }"
           @click="setWidth('68rem')"
         >
@@ -211,7 +211,7 @@
             v-if="!isEditingCustomWidth"
             class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-neutral-200"
             :class="{
-              'outline-none ring-2 ring-primary': selectedWidth === customWidth,
+              'outline-none ring-1 ring-primary': selectedWidth === customWidth,
             }"
             @click="isEditingCustomWidth = true"
           >
@@ -221,7 +221,7 @@
             <input
               v-model="customWidthInput"
               type="text"
-              class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-2 ring-secondary"
+              class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-1 ring-secondary"
               placeholder="translations.appearence.enterWidth"
               style="appearance: none"
               @blur="applyCustomWidth"

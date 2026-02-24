@@ -19,7 +19,7 @@
               :key="type"
               :class="`w-16 h-16 rounded-lg border transition-all ${type} ${
                 state.background === type
-                  ? 'ring-2 ring-primary scale-105'
+                  ? 'ring-1 ring-primary scale-105'
                   : 'hover:border-primary border-neutral-600'
               }`"
               @click="handleBackgroundChange(type)"
@@ -109,7 +109,7 @@
           />
           <button
             :style="{ backgroundColor: state[`${state.tool}Settings`].color }"
-            class="w-8 h-8 rounded-md border border-neutral-600 hover:ring-2 hover:ring-amber-400 transition"
+            class="w-8 h-8 rounded-md border border-neutral-600 hover:ring-1 hover:ring-amber-400 transition"
             @click="toggleColorPicker(state.tool)"
           ></button>
         </div>

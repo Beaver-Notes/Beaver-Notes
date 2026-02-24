@@ -4,6 +4,15 @@
     padding="p-0"
     @click="openNote(note.id)"
   >
+    <!-- Conflict banner -->
+    <div
+      v-if="note.isConflict"
+      class="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs"
+    >
+      <v-remixicon name="riErrorWarningLine" size="14" class="flex-shrink-0" />
+      <span class="flex-1">Conflict copy — review and delete one version</span>
+    </div>
+
     <div class="p-4 flex-1">
       <div>
         <div
@@ -18,7 +27,15 @@
           <span
             v-for="label in note.labels"
             :key="label"
-            class="inline-block hover:underline cursor-pointer px-1 bg-primary/10 dark:bg-primary/10 rounded-md text-sm"
+            class="inline-block hover:underline cursor-pointer px-1.5 py-0.5 bg-primary/10 dark:bg-primary/10 rounded-lg text-sm text-primary"
+            :style="
+              labelColor(label)
+                ? {
+                    color: labelColor(label),
+                    backgroundColor: labelColor(label) + '1a',
+                  }
+                : {}
+            "
             @click.stop="$emit('update:label', label)"
           >
             #{{ label }}
@@ -63,7 +80,7 @@
             ? translations.card.removeBookmark
             : translations.card.bookmark
         "
-        class="size-7 aspect-square flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/10"
+        class="size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
         :class="[
           note.isBookmarked
             ? 'text-primary'
@@ -83,7 +100,7 @@
             ? translations.card.unarchive
             : translations.card.archive
         "
-        class="size-7 aspect-square flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
+        class="size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
         @click.stop="toggleArchive(note)"
       >
         <v-remixicon
@@ -95,7 +112,7 @@
       <button
         v-if="!note.isLocked"
         v-tooltip.group="translations.card.lock"
-        class="size-7 aspect-square flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
+        class="size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
         @click.stop="lockNote(note.id)"
       >
         <v-remixicon name="riLockLine" class="size-5" />
@@ -104,7 +121,7 @@
       <button
         v-if="note.isLocked"
         v-tooltip.group="translations.card.unlock"
-        class="size-7 aspect-square flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
+        class="size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
         @click.stop="unlockNote(note.id)"
       >
         <v-remixicon
@@ -115,7 +132,7 @@
 
       <button
         v-tooltip.group="translations.card.moveToFolder"
-        class="size-7 aspect-square flex items-center justify-center rounded-md hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
+        class="size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition invisible group-hover:visible"
         @click.stop="showMoveModal = true"
       >
         <v-remixicon name="riFolderTransferLine" class="size-5" />
@@ -123,7 +140,7 @@
 
       <button
         v-tooltip.group="translations.card.delete"
-        class="size-7 aspect-square flex items-center justify-center rounded-md hover:bg-red-500/5 hover:text-red-500 transition invisible group-hover:visible"
+        class="size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 transition invisible group-hover:visible"
         @click.stop="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" class="size-5" />
@@ -156,6 +173,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import FolderTree from './FolderTree.vue';
+import { useLabelStore } from '@/store/label';
 
 defineProps({
   note: {
@@ -164,6 +182,13 @@ defineProps({
   },
 });
 const emit = defineEmits(['update', 'update:label']);
+
+const labelStore = useLabelStore();
+
+/** Return the stored colour for a label name, falling back to the CSS primary var */
+function labelColor(name) {
+  return labelStore.getColor(name);
+}
 
 const router = useRouter();
 const dialog = useDialog();

@@ -52,10 +52,10 @@ const settings = computed(() => ({
     path: '/settings/shortcuts',
     description: '',
   },
-  'Settings-Security': {
-    name: translations.value.settings.privacySecurity,
-    icon: 'riLockLine',
-    path: '/settings/privacysecurity',
+  'Settings-Labels': {
+    name: 'Labels',
+    icon: 'riPriceTag3Line',
+    path: '/settings/labels',
     description: '',
   },
   'Settings-About': {

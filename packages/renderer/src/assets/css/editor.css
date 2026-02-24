@@ -72,7 +72,7 @@
   @apply dark:text-purple-400 text-purple-500 !important;
 }
 img.ProseMirror-selectednode {
-  @apply ring-2 ring-primary transition;
+  @apply ring-1 ring-primary transition;
 }
 
 .ProseMirror {

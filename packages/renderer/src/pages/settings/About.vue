@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general w-full max-w-2xl mx-auto px-6 py-8 space-y-4">
+  <div class="general space-y-8 mb-14 w-full max-w-xl">
     <!-- Logo -->
     <div class="flex justify-center">
       <img

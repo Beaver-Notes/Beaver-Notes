@@ -78,7 +78,9 @@
     "settings": "Settings"
   },
   "dialog": {
-    "inputEmpty": "Input is empty."
+    "inputEmpty": "Input is empty.",
+    "confirm": "Confirm",
+    "cancel": "Cancel"
   },
   "editor": {
     "embedPlaceholder": "Click here to embed a link",

@@ -2,15 +2,17 @@
 <template>
   <div class="container pt-5">
     <h1 class="text-3xl mb-8 font-bold">
-      {{ translations.sidebar.notes || '-' }}
+      {{
+        $route.query.archived === 'true'
+          ? translations.sidebar.archive || '-'
+          : translations.sidebar.notes || '-'
+      }}
     </h1>
     <home-search
       v-model:query="state.query"
       v-model:label="state.activeLabel"
       v-model:sort-by="state.sortBy"
       v-model:sort-order="state.sortOrder"
-      v-bind="{ labels: labelStore.data, context: 'folder' }"
-      @delete:label="deleteLabel"
     />
   </div>
 
@@ -31,6 +33,7 @@
         noteStore.notes.length !== 0 || folderStore.rootFolders.length !== 0
       "
     >
+      <!-- Folders section -->
       <section v-if="folders.all.length" class="mb-10">
         <h2
           class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mb-4 font-medium px-1"
@@ -38,14 +41,14 @@
           {{ translations.index.folders }}
         </h2>
 
+        <!-- Responsive folder grid -->
         <div
-          class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 items-stretch"
+          class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
         >
           <div
             v-for="folder in folders.all"
             :key="folder.id"
             :data-item-id="`folder-${folder.id}`"
-            class="w-48"
             @click.stop="
               handleItemClick($event, 'folder', folder.id, getAllVisibleItems)
             "
@@ -53,11 +56,11 @@
             <home-folder-card
               :folder="folder"
               :class="{
-                'ring-2 ring-secondary':
+                'ring-1 ring-secondary':
                   dragOverFolderId === folder.id ||
                   (state.query && highlightedFolderIds.has(folder.id)),
                 'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-                'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
+                'ring-1 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
                   selectedItems.has(`folder-${folder.id}`),
               }"
               draggable="true"
@@ -71,6 +74,7 @@
         </div>
       </section>
 
+      <!-- Notes sections -->
       <section
         v-for="name in $route.query.archived
           ? ['archived']
@@ -85,7 +89,7 @@
             {{ translations.index[name] }}
           </h2>
           <div
-            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
+            class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
           >
             <div
               v-for="note in notes[name]"
@@ -101,7 +105,7 @@
                 v-bind="{ note }"
                 :class="{
                   'opacity-50 transform rotate-2': draggedNoteId === note.id,
-                  'ring-2 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
+                  'ring-1 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
                     selectedItems.has(`note-${note.id}`),
                 }"
                 class="h-full"
@@ -117,10 +121,11 @@
       </section>
     </template>
 
+    <!-- Empty state -->
     <div v-else class="text-center py-20">
       <img
         :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
-        class="mx-auto w-1/4"
+        class="mx-auto w-1/4 max-w-xs"
       />
       <p
         class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-4"
@@ -147,6 +152,7 @@
 </template>
 
 <script>
+// All your existing script logic stays exactly the same
 import {
   computed,
   reactive,
@@ -157,10 +163,10 @@ import {
   onUnmounted,
 } from 'vue';
 import Mousetrap from 'mousetrap';
+import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
-import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
 import {
   sortArray,
@@ -190,7 +196,6 @@ export default {
     const router = useRouter();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const labelStore = useLabelStore();
     const dialog = useDialog();
 
     const keyboardNavigation = shallowRef(null);
@@ -308,6 +313,7 @@ export default {
       });
       cachedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
     }
+
     function handleMouseDown(event) {
       if (event.button !== 0) return;
 
@@ -335,6 +341,7 @@ export default {
       pendingPointer = { x: event.clientX, y: event.clientY };
       if (rafId === null) rafId = requestAnimationFrame(tickSelection);
     }
+
     let lastReflowAtDelta = 0;
     function tickSelection() {
       rafId = null;
@@ -604,12 +611,6 @@ export default {
       return { ...note, content: text };
     }
 
-    function deleteLabel(id) {
-      labelStore.delete(id).then(() => {
-        state.activeLabel = '';
-      });
-    }
-
     function bubbleHighlight(folderId) {
       let current = folderStore.data[folderId];
       while (current?.parentId) {
@@ -655,12 +656,16 @@ export default {
     onMounted(async () => {
       window.addEventListener('mouseup', handleMouseUp);
 
+      emitter.on('set-label', (name) => {
+        state.activeLabel = name;
+      });
+
       const sortState = JSON.parse(localStorage.getItem('sort-notes'));
       if (sortState) Object.assign(state, sortState);
 
       keyboardNavigation.value = new KeyboardNavigation({
         itemSelector: '.note-card',
-        activeClass: 'ring-2 ring-primary active-note',
+        activeClass: 'ring-1 ring-primary active-note',
         breakpoints: {
           default: 1,
           '(min-width: 768px)': 2,
@@ -698,8 +703,8 @@ export default {
 
     onUnmounted(() => {
       keyboardNavigation.value?.destroy();
-
       window.removeEventListener('mouseup', handleMouseUp);
+      emitter.off('set-label');
       Mousetrap.reset();
     });
 
@@ -708,10 +713,8 @@ export default {
       state,
       noteStore,
       folderStore,
-      labelStore,
       translations,
       folders,
-      deleteLabel,
       HomeImg,
       ArchiveImg,
       draggedFolderId,
