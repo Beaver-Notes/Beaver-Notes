@@ -43,6 +43,7 @@
     <div
       v-if="!isLocked"
       ref="titleDiv"
+      data-testid="note-title-input"
       contenteditable="true"
       class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
       :placeholder="translations.editor.untitledNote"
@@ -59,14 +60,14 @@
       </p>
       <div class="pb-2">
         <button
-          class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
+          class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
           @click="unlockNote(note.id)"
         >
           {{ translations.card.unlock }}
         </button>
       </div>
       <router-link
-        class="ui-button py-2 text-center h-10 relative transition focus:ring-2 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
+        class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
         :to="`/`"
       >
         {{ translations.index.close }}
@@ -91,7 +92,7 @@
 </template>
 
 <script>
-import { ref, shallowRef, computed, watch, onMounted } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
@@ -100,6 +101,7 @@ import { useLabelStore } from '@/store/label';
 import { useStore } from '@/store';
 import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
+import { onClose } from '@/composable/onClose';
 import { debounce } from '@/utils/helper';
 import Mousetrap from '@/lib/mousetrap';
 import NoteEditor from '@/components/note/NoteEditor.vue';
@@ -203,11 +205,35 @@ export default {
       }
     }, 50);
 
-    const updateNote = debounce((data) => {
-      Object.assign(data, { updatedAt: Date.now() });
+    async function persistCurrentNote(noteId = route.params.id) {
+      if (!noteId || !noteStore.getById(noteId)) return;
 
-      noteStore.update(note.value.id, data);
-    }, 250);
+      const labels = new Set();
+      const labelEls =
+        editor.value?.options.element.querySelectorAll('[data-mention]') ?? [];
+
+      Array.from(labelEls).forEach((el) => {
+        const labelId = el.dataset.id;
+        if (labelStore.data.includes(labelId)) labels.add(labelId);
+      });
+
+      const currentContent = editor.value?.getJSON();
+      const currentTitle = titleDiv.value?.innerText ?? '';
+
+      await noteStore.update(noteId, {
+        labels: [...labels],
+        ...(currentContent ? { content: currentContent } : {}),
+        ...(currentTitle !== undefined ? { title: currentTitle } : {}),
+      });
+    }
+
+    const updateNote = (data) => {
+      const noteId = note.value?.id || route.params.id;
+      if (!noteId || !noteStore.getById(noteId)) return Promise.resolve();
+
+      Object.assign(data, { updatedAt: Date.now() });
+      return noteStore.update(noteId, data);
+    };
 
     function closeSearch() {
       showSearch.value = false;
@@ -216,7 +242,7 @@ export default {
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
-        if (oldNoteId) {
+        if (oldNoteId && noteStore.getById(oldNoteId)) {
           noteStore.update(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
           });
@@ -236,6 +262,11 @@ export default {
       { immediate: true }
     );
 
+    const handleBeforeUnload = () => {
+      // Best-effort flush for Cmd/Ctrl+R or hard renderer reload.
+      void persistCurrentNote(route.params.id);
+    };
+
     onMounted(() => {
       Mousetrap.bind(['mod+f', 'alt+left'], (event, combo) => {
         if (combo === 'mod+f') {
@@ -246,23 +277,19 @@ export default {
           router.back();
         }
       });
+      window.addEventListener('beforeunload', handleBeforeUnload);
     });
-    onBeforeRouteLeave(() => {
-      const labels = new Set();
-      const labelEls =
-        editor.value?.options.element.querySelectorAll('[data-mention]') ?? [];
 
-      Array.from(labelEls).forEach((el) => {
-        const labelId = el.dataset.id;
-
-        if (labelStore.data.includes(labelId)) labels.add(labelId);
-      });
-
-      noteStore.update(route.params.id, {
-        labels: [...labels],
-      });
-
+    onUnmounted(() => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    });
+    onBeforeRouteLeave(async () => {
+      await persistCurrentNote(route.params.id);
       Mousetrap.unbind('mod+f');
+    });
+
+    onClose(async () => {
+      await persistCurrentNote(route.params.id);
     });
 
     const focusEditor = () =>

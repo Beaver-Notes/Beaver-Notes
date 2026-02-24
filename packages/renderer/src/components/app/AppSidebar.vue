@@ -7,10 +7,11 @@
         v-tooltip:right="
           translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
         "
-        class="transition-all p-2.5 text-white bg-primary rounded-xl shadow-lg shadow-primary/20 hover:scale-110 active:scale-95 flex items-center justify-center"
+        data-testid="add-note-button"
+        class="transition-all p-2.5 text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:hover:bg-primary/60 rounded-xl flex items-center justify-center"
         @click="addNote"
       >
-        <v-remixicon name="riAddFill" size="20" />
+        <v-remixicon name="riAddFill" size="24" />
       </button>
 
       <button
@@ -20,7 +21,7 @@
         class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
         @click="addFolder"
       >
-        <v-remixicon name="riFolderAddLine" size="20" />
+        <v-remixicon name="riFolderAddLine" size="24" />
       </button>
     </div>
 
@@ -46,7 +47,7 @@
           ]"
           @click="openLastEdited"
         >
-          <v-remixicon name="riEditLine" size="20" />
+          <v-remixicon name="riEditLine" size="24" />
         </button>
       </div>
 
@@ -65,6 +66,7 @@
           v-tooltip:right="
             `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
           "
+          :data-testid="getNavTestId(nav.path)"
           class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
           :class="[
             $route.fullPath === nav.path
@@ -73,7 +75,7 @@
           ]"
           @click="handleNavigation(nav)"
         >
-          <v-remixicon :name="nav.icon" size="20" />
+          <v-remixicon :name="nav.icon" size="24" />
         </button>
       </div>
     </div>
@@ -91,7 +93,7 @@
       >
         <v-remixicon
           name="riLoopRightLine"
-          size="20"
+          size="24"
           :class="{ 'animate-spin': spinning }"
         />
       </button>
@@ -104,7 +106,7 @@
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
         <v-remixicon
-          size="20"
+          size="24"
           :class="
             theme.isDark()
               ? 'text-primary'
@@ -136,7 +138,7 @@
               : '',
           ]"
         >
-          <v-remixicon name="riSettingsLine" size="20" />
+          <v-remixicon name="riSettingsLine" size="24" />
         </router-link>
       </div>
     </div>
@@ -183,18 +185,14 @@ export default {
         path: '/',
         icon: 'riBookletLine',
         shortcut: 'mod+Shift+N',
-        action: () => {
-          router.push('/');
-        },
+        action: () => router.push('/'),
       },
       {
         name: translations.value.sidebar.archive,
         path: '/?archived=true',
         icon: 'riArchiveDrawerLine',
         shortcut: 'mod+Shift+A',
-        action: () => {
-          router.push('/?archived=true');
-        },
+        action: () => router.push('/?archived=true'),
       },
     ]);
 
@@ -268,16 +266,21 @@ export default {
       emitter.off('open-settings', openSettings);
       state.dataDir = defaultPath;
     });
+
     const handleNavigation = async (nav) => {
       router.push(nav.path);
       emitter.emit('clear-label');
     };
 
+    function getNavTestId(path) {
+      if (path === '/') return 'nav-notes-button';
+      if (path === '/?archived=true') return 'nav-archive-button';
+      return null;
+    }
+
     function manualSync() {
       spinning.value = true;
-
       forceSyncNow();
-
       setTimeout(() => {
         spinning.value = false;
       }, 1000);
@@ -296,12 +299,13 @@ export default {
       openLastEdited,
       keyBinding,
       handleNavigation,
+      getNavTestId,
     };
   },
 };
 </script>
+
 <style scoped>
-/* Smooth Pill Animation */
 .pill-enter-active,
 .pill-leave-active {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -313,9 +317,16 @@ export default {
   opacity: 0;
 }
 
-/* Inner shadow for active items to give depth */
 .shadow-inner {
   box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.04);
+}
+
+/* Hide scrollbar but keep scroll functionality */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
 @media print {

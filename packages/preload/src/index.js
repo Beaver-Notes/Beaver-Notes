@@ -34,21 +34,7 @@ const api = {
 if (import.meta.env.MODE !== 'test') {
   contextBridge.exposeInMainWorld(apiKey, api);
 } else {
-  const deepFreeze = (obj) => {
-    if (typeof obj === 'object' && obj !== null) {
-      Object.keys(obj).forEach((prop) => {
-        const val = obj[prop];
-        if (
-          (typeof val === 'object' || typeof val === 'function') &&
-          !Object.isFrozen(val)
-        ) {
-          deepFreeze(val);
-        }
-      });
-    }
-    return Object.freeze(obj);
-  };
-
-  deepFreeze(api);
+  // Test mode runs with contextIsolation disabled so Playwright can access the
+  // bridge directly. 
   window[apiKey] = api;
 }
