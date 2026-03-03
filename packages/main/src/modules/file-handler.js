@@ -1,5 +1,6 @@
 // modules/file-handler.js
 import path from 'path';
+import { grantTrustedPath } from './security/fs-access.js';
 
 export class FileHandler {
   constructor() {
@@ -8,6 +9,7 @@ export class FileHandler {
 
   handleFileOpen(event, filePath, windowManager) {
     event.preventDefault();
+    grantTrustedPath(filePath);
 
     const mainWindow = windowManager.getWindow();
     if (!mainWindow || !mainWindow.webContents) return;
@@ -29,6 +31,7 @@ export class FileHandler {
   handleStartupFile(windowManager) {
     const filePath = this.findBeaFile();
     if (!filePath) return;
+    grantTrustedPath(filePath);
 
     const mainWindow = windowManager.getWindow();
     if (!mainWindow) return;
