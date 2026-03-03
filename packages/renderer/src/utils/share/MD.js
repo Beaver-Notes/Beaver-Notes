@@ -1,10 +1,39 @@
 import { useStorage } from '@/composable/storage';
+import { useDialog } from '@/composable/dialog';
+import { useI18nStore } from '@/store/i18n';
 import { getProcessedHTML } from './html-helper';
 const { ipcRenderer, path } = window.electron;
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
 
+function getShareTranslations() {
+  try {
+    return useI18nStore().messages?.share || {};
+  } catch {
+    return {};
+  }
+}
+
+function interpolate(template, params = {}) {
+  let out = template;
+  for (const [key, value] of Object.entries(params)) {
+    out = out.split(`{${key}}`).join(String(value));
+  }
+  return out;
+}
+
+function showDialogAlert(body) {
+  const i18n = useI18nStore();
+  const dialog = useDialog();
+  dialog.alert({
+    title: i18n.messages?.settings?.alertTitle || 'Alert',
+    body,
+    okText: i18n.messages?.dialog?.close || 'Close',
+  });
+}
+
 export async function exportMD(noteId, noteTitle, editor) {
+  const share = getShareTranslations();
   let html = await getProcessedHTML(noteId, editor);
 
   const parser = new DOMParser();
@@ -63,7 +92,7 @@ export async function exportMD(noteId, noteTitle, editor) {
   let markdown = turndownService.turndown(html);
 
   const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
-    title: 'Export data',
+    title: share.exportDataDialogTitle || 'Export data',
     properties: ['openDirectory'],
   });
   if (canceled) return;
@@ -108,5 +137,10 @@ export async function exportMD(noteId, noteTitle, editor) {
     console.warn('File assets copy failed:', err.message);
   }
 
-  alert(`Exported note and assets to "${folderPath}"`);
+  showDialogAlert(
+    interpolate(
+      share.exportedNoteAndAssetsTo || 'Exported note and assets to "{path}"',
+      { path: folderPath }
+    )
+  );
 }

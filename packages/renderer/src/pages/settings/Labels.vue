@@ -4,12 +4,12 @@
     <section>
       <header class="flex items-center justify-between mb-4 px-1">
         <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">
-          Labels
+          {{ translations.labels?.title || 'Labels' }}
         </p>
         <span
           class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full"
         >
-          {{ sortedLabels.length }} total
+          {{ sortedLabels.length }} {{ translations.labels?.total || 'total' }}
         </span>
       </header>
 
@@ -17,12 +17,12 @@
         v-if="labelStore.data.length === 0"
         class="text-sm text-neutral-500 dark:text-neutral-400 py-6 border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center"
       >
-        No labels yet. Type
+        {{ translations.labels?.emptyPrefix || 'No labels yet. Type' }}
         <code
           class="bg-neutral-100 dark:bg-neutral-800 px-1 rounded text-primary"
           >#label</code
         >
-        to start.
+        {{ translations.labels?.emptySuffix || 'to start.' }}
       </p>
 
       <div v-else class="flex flex-wrap gap-2">
@@ -65,8 +65,8 @@
               class="absolute inset-0 flex items-center justify-center opacity-0 translate-y-full group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out"
             >
               <button
-                @click.stop="deleteLabel(name)"
                 class="p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded text-neutral-400 hover:text-red-500 transition-colors"
+                @click.stop="deleteLabel(name)"
               >
                 <v-remixicon name="riDeleteBin6Line" size="14" />
               </button>
@@ -83,12 +83,13 @@ import { computed, ref, onMounted } from 'vue';
 import { useLabelStore } from '@/store/label';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/composable/dialog';
+import { useTranslations } from '@/composable/useTranslations';
 
 const labelStore = useLabelStore();
 const noteStore = useNoteStore();
 const dialog = useDialog();
+const { translations } = useTranslations();
 
-const pickerRefs = ref({});
 const primaryColor = ref('#6366f1');
 
 onMounted(() => {
@@ -115,23 +116,19 @@ function noteCountFor(name) {
   return noteStore.notes.filter((n) => n.labels?.includes(name)).length;
 }
 
-function openPicker(name) {
-  pickerRefs.value[name]?.click();
-}
-
 function onColorInput(name, value) {
   labelStore.setColor(name, value);
 }
 
-function clearColor(name) {
-  labelStore.setColor(name, null);
-}
-
 function deleteLabel(name) {
+  const title = (
+    translations.value.labels?.deleteConfirm || 'Delete label "#{name}"?'
+  ).replace('{name}', name);
+
   dialog.confirm({
-    title: `Delete label "#${name}"?`,
-    okText: 'Delete',
-    cancelText: 'Cancel',
+    title,
+    okText: translations.value.card?.delete || 'Delete',
+    cancelText: translations.value.dialog?.cancel || 'Cancel',
     destructive: true,
     onConfirm: () => labelStore.delete(name),
   });

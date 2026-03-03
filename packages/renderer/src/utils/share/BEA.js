@@ -1,6 +1,34 @@
 import { useStorage } from '@/composable/storage';
+import { useDialog } from '@/composable/dialog';
 import { useNoteStore } from '../../store/note';
+import { useI18nStore } from '@/store/i18n';
 const { ipcRenderer, path } = window.electron;
+
+function getShareTranslations() {
+  try {
+    return useI18nStore().messages?.share || {};
+  } catch {
+    return {};
+  }
+}
+
+function interpolate(template, params = {}) {
+  let out = template;
+  for (const [key, value] of Object.entries(params)) {
+    out = out.split(`{${key}}`).join(String(value));
+  }
+  return out;
+}
+
+function showDialogAlert(body) {
+  const i18n = useI18nStore();
+  const dialog = useDialog();
+  dialog.alert({
+    title: i18n.messages?.settings?.alertTitle || 'Alert',
+    body,
+    okText: i18n.messages?.dialog?.close || 'Close',
+  });
+}
 
 async function encodeAssets(sourcePath) {
   const assets = {};
@@ -30,9 +58,10 @@ async function encodeAssets(sourcePath) {
 
 export async function exportBEA(noteId, noteTitle) {
   const storage = useStorage();
+  const share = getShareTranslations();
   try {
     const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
-      title: 'Export note',
+      title: share.exportNoteDialogTitle || 'Export note',
       properties: ['openDirectory'],
     });
 
@@ -46,7 +75,12 @@ export async function exportBEA(noteId, noteTitle) {
     const noteToExport = notesArray.find((note) => note.id === noteId);
 
     if (!noteToExport) {
-      alert(`Note with ID ${noteId} not found.`);
+      showDialogAlert(
+        interpolate(
+          share.noteWithIdNotFound || 'Note with ID {id} not found.',
+          { id: noteId }
+        )
+      );
       return;
     }
 
@@ -78,18 +112,29 @@ export async function exportBEA(noteId, noteTitle) {
       data: exportedData,
     });
 
-    alert(`Note "${noteToExport.title}" exported to "${outputPath}".`);
+    showDialogAlert(
+      interpolate(
+        share.noteExportedToPath || 'Note "{title}" exported to "{path}".',
+        {
+          title: noteToExport.title,
+          path: outputPath,
+        }
+      )
+    );
   } catch (error) {
     console.error(error);
   }
 }
 
 export async function importBEA(filePath, router, store) {
+  const share = getShareTranslations();
   try {
     const fileContent = await ipcRenderer.callMain('fs:read-json', filePath);
 
     if (!fileContent || !fileContent.data) {
-      throw new Error('Invalid file format or empty file.');
+      throw new Error(
+        share.invalidFileFormat || 'Invalid file format or empty file.'
+      );
     }
 
     const fileData = fileContent.data;
@@ -101,12 +146,18 @@ export async function importBEA(filePath, router, store) {
       typeof fileData.content !== 'object' ||
       !fileData.assets
     ) {
-      throw new Error('Missing essential note fields in the imported file.');
+      throw new Error(
+        share.missingEssentialFields ||
+          'Missing essential note fields in the imported file.'
+      );
     }
 
     const { notesAssets, fileAssets } = fileData.assets;
     if (typeof notesAssets !== 'object' || typeof fileAssets !== 'object') {
-      throw new Error('Invalid assets structure in the imported note.');
+      throw new Error(
+        share.invalidAssetsStructure ||
+          'Invalid assets structure in the imported note.'
+      );
     }
 
     await processImportedNote(fileData, router, store);

@@ -1,12 +1,41 @@
 import { useStorage } from '@/composable/storage';
+import { useDialog } from '@/composable/dialog';
+import { useI18nStore } from '@/store/i18n';
 import { getProcessedHTML } from './html-helper';
 const { ipcRenderer, path } = window.electron;
 
+function getShareTranslations() {
+  try {
+    return useI18nStore().messages?.share || {};
+  } catch {
+    return {};
+  }
+}
+
+function interpolate(template, params = {}) {
+  let out = template;
+  for (const [key, value] of Object.entries(params)) {
+    out = out.split(`{${key}}`).join(String(value));
+  }
+  return out;
+}
+
+function showDialogAlert(body) {
+  const i18n = useI18nStore();
+  const dialog = useDialog();
+  dialog.alert({
+    title: i18n.messages?.settings?.alertTitle || 'Alert',
+    body,
+    okText: i18n.messages?.dialog?.close || 'Close',
+  });
+}
+
 export async function exportHTML(noteId, noteTitle, editor) {
+  const share = getShareTranslations();
   const finalHtml = await getProcessedHTML(noteId, editor);
 
   const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
-    title: 'Select export folder',
+    title: share.selectExportFolderTitle || 'Select export folder',
     properties: ['openDirectory'],
   });
 
@@ -52,5 +81,12 @@ export async function exportHTML(noteId, noteTitle, editor) {
     console.warn('File assets copy failed:', err.message);
   }
 
-  alert(`Exported HTML to folder: ${folderPath}`);
+  showDialogAlert(
+    interpolate(
+      share.exportedHtmlToFolder || 'Exported HTML to folder: {path}',
+      {
+        path: folderPath,
+      }
+    )
+  );
 }

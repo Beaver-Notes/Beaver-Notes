@@ -64,11 +64,17 @@
     "untitledFolder": "Untitled folder",
     "untitledNote": "Untitled note",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
-    "wrongPasswd": "Incorrect password. Note cannot be unlocked."
+    "wrongPasswd": "Incorrect password. Note cannot be unlocked.",
+    "conflictCopy": "Conflict copy — review and delete one version"
   },
   "commandPrompt": {
     "placeholder": "Search file or type '>' to search commands",
-    "untitledNote": "Untitled note"
+    "untitledNote": "Untitled note",
+    "noResults": "No results for \"{query}\"",
+    "navigateHint": "navigate",
+    "openHint": "open",
+    "commandsHintPrefix": "Type",
+    "commandsHintSuffix": "for commands"
   },
   "commands": {
     "darkTheme": "Apply dark theme",
@@ -80,7 +86,8 @@
   "dialog": {
     "inputEmpty": "Input is empty.",
     "confirm": "Confirm",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "close": "Close"
   },
   "editor": {
     "embedPlaceholder": "Click here to embed a link",
@@ -113,7 +120,11 @@
     "newFolder": "Create a folder first to organize your notes",
     "noFolders": "No folders available",
     "root": "Root",
-    "untitledFolder": "Untitled folder"
+    "untitledFolder": "Untitled folder",
+    "noteSingular": "note",
+    "notePlural": "notes",
+    "folderSingular": "folder",
+    "folderPlural": "folders"
   },
   "image": {
     "imgUrl": "Image url"
@@ -253,7 +264,7 @@
     "emptyPathWarn": "Please select a sync path first.",
     "enable": "Enable",
     "encryptPasswd": "Encrypt with password",
-    "encryptionMessage": "Beaver Notes uses AES-128 through crypto-es",
+    "encryptionMessage": "Beaver Notes uses AES-256-GCM with PBKDF2 and keeps legacy decryption support for older data",
     "enterNewPassword": "Enter new password",
     "exportData": "Export data",
     "exportMessage": "Notes is exported in",
@@ -308,7 +319,11 @@
     "todayDateFormatPlaceholder": "Enter date format (e.g., YYYY-MM-DD)",
     "currentTime": "Current time",
     "timeFormat": "Time format",
-    "timeFormatPlaceholder": "Enter time format using dayjs syntax (e.g., HH:mm, hh:mm A, HH:mm:ss)"
+    "timeFormatPlaceholder": "Enter time format using dayjs syntax (e.g., HH:mm, hh:mm A, HH:mm:ss)",
+    "alertTitle": "Alert",
+    "selectFile": "Select file",
+    "directoryProcessedSuccess": "Directory processed successfully!",
+    "directoryProcessedFailed": "Failed to process the directory."
   },
   "shortcuts": {
     "arrowLeft": "Arrow Left",
@@ -353,5 +368,47 @@
     "notification": "Notification",
     "toggleDarkTheme": "Toggle dark theme",
     "toggleSync": "Toggle sync"
+  },
+  "labels": {
+    "title": "Labels",
+    "total": "total",
+    "emptyPrefix": "No labels yet. Type",
+    "emptySuffix": "to start.",
+    "deleteConfirm": "Delete label \"#{name}\"?"
+  },
+  "emptyState": {
+    "heading": "Ready to capture your ideas?",
+    "subheading": "Start a new note, organize your thoughts, or just jot something down.",
+    "createCta": "Create Your First Note",
+    "chipWrite": "Write something",
+    "chipCapture": "Capture ideas",
+    "chipMeeting": "Meeting notes",
+    "shortcutNewNote": "New note",
+    "shortcutNewFolder": "New folder"
+  },
+  "toolbarCustomizer": {
+    "title": "Customize Toolbar",
+    "subtitle": "Drag to reorder · toggle visibility",
+    "reset": "Reset",
+    "divider": "divider",
+    "visible": "visible",
+    "done": "Done"
+  },
+  "share": {
+    "exportNoteDialogTitle": "Export note",
+    "exportDataDialogTitle": "Export data",
+    "selectExportFolderTitle": "Select export folder",
+    "noteWithIdNotFound": "Note with ID {id} not found.",
+    "noteExportedToPath": "Note \"{title}\" exported to \"{path}\".",
+    "invalidFileFormat": "Invalid file format or empty file.",
+    "missingEssentialFields": "Missing essential note fields in the imported file.",
+    "invalidAssetsStructure": "Invalid assets structure in the imported note.",
+    "exportedNoteAndAssetsTo": "Exported note and assets to \"{path}\"",
+    "exportedHtmlToFolder": "Exported HTML to folder: {path}"
+  },
+  "app": {
+    "syncLockContent": "Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.",
+    "openSettings": "Open Settings",
+    "dismiss": "Dismiss"
   }
 }

@@ -115,7 +115,7 @@
               v-if="search && searchQuery && filteredOptions.length === 0"
               class="px-4 py-2 text-neutral-500 text-center"
             >
-              No options found
+              {{ translations.index?.notFound || 'No options found' }}
             </div>
           </div>
         </div>
