@@ -1,8 +1,5 @@
 import { contextBridge, clipboard } from 'electron';
 import { ipcRenderer } from 'electron-better-ipc';
-import { constants } from 'fs';
-import { access } from 'fs/promises';
-import path from 'path';
 
 const apiKey = 'electron';
 
@@ -16,13 +13,24 @@ ipcRenderer.answerMain('win:close', async () => {
   await Promise.allSettled(closeFnList.map((fn) => fn()));
 });
 
+const path = {
+  join: (...args) => ipcRenderer.sendSync('path:join', args),
+  dirname: (p) => ipcRenderer.sendSync('path:dirname', p),
+  basename: (p) => ipcRenderer.sendSync('path:basename', p),
+  extname: (p) => ipcRenderer.sendSync('path:extname', p),
+};
+
+function access(dir) {
+  return ipcRenderer.callMain('fs:access', dir);
+}
+
 // API object for context bridge
 const api = {
   path,
   clipboard,
   ipcRenderer,
   notification,
-  access: (dir) => access(dir, constants.R_OK | constants.W_OK),
+  access,
   versions: process.versions,
   addCloseFn: (fn) =>
     closeFnList.every((f) => f !== fn) && closeFnList.push(fn),
@@ -30,11 +38,8 @@ const api = {
     ipcRenderer.on('file-opened', (event, path) => callback(path)),
 };
 
-// Expose API to the main world
-if (import.meta.env.MODE !== 'test') {
+try {
   contextBridge.exposeInMainWorld(apiKey, api);
-} else {
-  // Test mode runs with contextIsolation disabled so Playwright can access the
-  // bridge directly. 
+} catch {
   window[apiKey] = api;
 }
