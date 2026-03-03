@@ -229,10 +229,3 @@ export function useGroupTooltip(elements, options = {}) {
 
   return singleton;
 }
-
-export function useZoom() {
-  return {
-    getZoom: () => zoomHandler.getZoom(),
-    onZoomChange: (callback) => zoomHandler.addObserver(callback),
-  };
-}
