@@ -5,9 +5,106 @@ import { useFolderStore } from './folder';
 import { AES } from 'crypto-es/lib/aes.js';
 import { useStorage } from '../composable/storage.js';
 import { Utf8 } from 'crypto-es/lib/core.js';
-import { trackChange } from '@/utils/sync.js';
+import { trackChange, trackDeletedAssets } from '@/utils/sync.js';
+import {
+  isAppEncryptionEnabled,
+  isAppKeyLoaded,
+  encryptContent,
+  decryptContent,
+  isAppEncryptedContent,
+} from '@/utils/appCrypto.js';
+import {
+  base64ToBuf,
+  bufToBase64,
+  bufToHex,
+  deriveAesGcmKeyFromPassphrase,
+  hexToBuf,
+} from '@/utils/crypto-codec.js';
 
 const storage = useStorage();
+
+
+async function _decryptNoteForMemory(note) {
+  if (!isAppEncryptedContent(note.content)) return note;
+  const decrypted = await decryptContent(note.content);
+  if (decrypted === null) return note; // key not loaded — keep encrypted in memory
+  return { ...note, content: decrypted };
+}
+
+async function _encryptNoteForStorage(note) {
+  if (!isAppEncryptionEnabled()) return note;
+  if (!isAppKeyLoaded()) {
+    throw new Error(
+      'App encryption key is locked. Unlock app encryption in Settings before editing notes.'
+    );
+  }
+  if (isAppEncryptedContent(note.content)) return note; // already encrypted
+  const encrypted = await encryptContent(note.content);
+  return { ...note, content: encrypted };
+}
+
+async function _saveNote(id, noteData) {
+  const toStore = await _encryptNoteForStorage(noteData);
+  await storage.set(`notes.${id}`, toStore);
+}
+
+
+async function _noteKey(password, saltBuf) {
+  return deriveAesGcmKeyFromPassphrase(password, saltBuf, {
+    iterations: 100_000,
+  });
+}
+
+async function _encryptNote(plaintext, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await _noteKey(password, salt);
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    new TextEncoder().encode(plaintext)
+  );
+  return JSON.stringify({
+    v: 2,
+    salt: bufToHex(salt),
+    iv: bufToHex(iv),
+    cipher: bufToBase64(new Uint8Array(ct)),
+  });
+}
+
+async function _decryptNote(ciphertext, password) {
+  // Try to parse as v2 JSON envelope first
+  let parsed = null;
+  try {
+    parsed = JSON.parse(ciphertext);
+  } catch {
+    /* legacy */
+  }
+
+  if (parsed?.v === 2) {
+    const key = await _noteKey(password, hexToBuf(parsed.salt));
+    let buf;
+    try {
+      buf = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: hexToBuf(parsed.iv) },
+        key,
+        base64ToBuf(parsed.cipher)
+      );
+    } catch {
+      throw new Error('Incorrect password');
+    }
+    return { plaintext: new TextDecoder().decode(buf), wasLegacy: false };
+  }
+
+  try {
+    const bytes = AES.decrypt(ciphertext, password);
+    const plain = bytes.toString(Utf8);
+    if (!plain) throw new Error();
+    return { plaintext: plain, wasLegacy: true };
+  } catch {
+    throw new Error('Incorrect password');
+  }
+}
 
 function findAllNodesInRange(fragment, name) {
   if (!fragment) {
@@ -138,7 +235,17 @@ export const useNoteStore = defineStore('note', {
       try {
         const piniaData = this.data;
         const localStorageData = await storage.get('notes', {});
-        this.data = { ...piniaData, ...localStorageData };
+        const merged = { ...piniaData, ...localStorageData };
+
+        if (isAppEncryptionEnabled()) {
+          await Promise.all(
+            Object.keys(merged).map(async (id) => {
+              merged[id] = await _decryptNoteForMemory(merged[id]);
+            })
+          );
+        }
+
+        this.data = merged;
 
         const migrationCompleted = await storage.get(
           'migration_completed',
@@ -153,6 +260,103 @@ export const useNoteStore = defineStore('note', {
       } catch (error) {
         console.error('Error retrieving notes:', error);
         throw error;
+      }
+    },
+
+    async decryptAllNotesForAppEncryption(options = {}) {
+      const { onProgress } = options;
+      const entries = Object.entries(this.data).filter(([id]) => !!id);
+      const total = entries.length;
+      let processed = 0;
+      const failures = [];
+
+      for (const [id, note] of entries) {
+        try {
+          const wasEncrypted = isAppEncryptedContent(note.content);
+          const decrypted = await _decryptNoteForMemory(note);
+          this.data[id] = decrypted;
+
+          if (wasEncrypted && isAppEncryptedContent(decrypted.content)) {
+            failures.push(id);
+            console.error(
+              `[note] failed to decrypt app-encrypted note ${id} for migration`
+            );
+          }
+        } catch (error) {
+          failures.push(id);
+          console.error(
+            `[note] failed to normalize note ${id} before migration:`,
+            error
+          );
+        } finally {
+          processed += 1;
+          if (typeof onProgress === 'function') {
+            onProgress({ phase: 'decrypt', processed, total, id });
+          }
+        }
+      }
+
+      if (failures.length > 0) {
+        throw new Error(
+          `Failed to decrypt ${failures.length} note(s) for app-encryption migration.`
+        );
+      }
+    },
+
+    async persistAllNotesForAppEncryption(options = {}) {
+      const { onProgress } = options;
+      const entries = Object.entries(this.data).filter(([id]) => !!id);
+      const total = entries.length;
+      let processed = 0;
+      const failures = [];
+      for (const [id, note] of entries) {
+        try {
+          await _saveNote(id, note);
+        } catch (error) {
+          failures.push(id);
+          console.error(`[note] failed to encrypt note ${id}:`, error);
+        } finally {
+          processed += 1;
+          if (typeof onProgress === 'function') {
+            onProgress({ phase: 'encrypt', processed, total, id });
+          }
+        }
+      }
+
+      if (failures.length > 0) {
+        throw new Error(
+          `Failed to encrypt ${failures.length} note(s). Please retry after unlocking encryption key.`
+        );
+      }
+    },
+
+    async persistAllNotesPlaintext(options = {}) {
+      const { onProgress } = options;
+      const entries = Object.entries(this.data).filter(([id]) => !!id);
+      const total = entries.length;
+      let processed = 0;
+      const failures = [];
+      for (const [id, note] of entries) {
+        try {
+          await storage.set(`notes.${id}`, note);
+        } catch (error) {
+          failures.push(id);
+          console.error(
+            `[note] failed to persist plaintext note ${id}:`,
+            error
+          );
+        } finally {
+          processed += 1;
+          if (typeof onProgress === 'function') {
+            onProgress({ phase: 'plaintext', processed, total, id });
+          }
+        }
+      }
+
+      if (failures.length > 0) {
+        throw new Error(
+          `Failed to write ${failures.length} note(s) in plaintext.`
+        );
       }
     },
 
@@ -184,7 +388,7 @@ export const useNoteStore = defineStore('note', {
 
       if (hasChanges) {
         for (const noteId in this.data) {
-          await storage.set(`notes.${noteId}`, this.data[noteId]);
+          await _saveNote(noteId, this.data[noteId]);
         }
         await this.retrieve();
       } else {
@@ -222,7 +426,7 @@ export const useNoteStore = defineStore('note', {
 
         this.data[id] = newNote;
 
-        await storage.set(`notes.${id}`, this.data[id]);
+        await _saveNote(id, this.data[id]);
 
         await trackChange(`notes.${id}`, this.data[id]);
 
@@ -355,7 +559,7 @@ export const useNoteStore = defineStore('note', {
           updatedAt: Date.now(),
         };
 
-        await storage.set(`notes.${id}`, this.data[id]);
+        await _saveNote(id, this.data[id]);
 
         await trackChange(`notes.${id}`, this.data[id]);
 
@@ -388,14 +592,21 @@ export const useNoteStore = defineStore('note', {
         await trackChange('deletedIds', this.deletedIds);
 
         try {
-          await ipcRenderer.callMain(
-            'fs:remove',
-            path.join(dataDir, 'notes-assets', id)
-          );
-          await ipcRenderer.callMain(
-            'fs:remove',
-            path.join(dataDir, 'file-assets', id)
-          );
+          for (const assetType of ['notes-assets', 'file-assets']) {
+            const assetDir = path.join(dataDir, assetType, id);
+            try {
+              const files = await ipcRenderer.callMain('fs:readdir', assetDir);
+              if (files?.length) {
+                await trackDeletedAssets(assetType, id, files);
+              }
+            } catch {
+              // Folder may not exist — that's fine
+            }
+            await ipcRenderer.callMain(
+              'fs:remove',
+              path.join(dataDir, assetType, id)
+            );
+          }
         } catch (fileError) {
           console.warn('Error removing note files:', fileError);
         }
@@ -441,20 +652,18 @@ export const useNoteStore = defineStore('note', {
           return;
         }
 
-        const encryptedContent = AES.encrypt(
+        const encryptedContent = await _encryptNote(
           JSON.stringify(this.data[id].content),
           password
-        ).toString();
+        );
 
         this.data[id].content = { type: 'doc', content: [encryptedContent] };
         this.data[id].isLocked = true;
         this.data[id].updatedAt = Date.now();
 
-        await storage.set(`notes.${id}`, this.data[id]);
+        await _saveNote(id, this.data[id]);
 
         await trackChange(`notes.${id}`, this.data[id]);
-
-        await this.retrieve();
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -487,26 +696,36 @@ export const useNoteStore = defineStore('note', {
           this.data[id].isLocked = false;
           this.data[id].updatedAt = Date.now();
 
-          await storage.set(`notes.${id}`, this.data[id]);
+          await _saveNote(id, this.data[id]);
           await trackChange(`notes.${id}`, this.data[id]);
           return;
         }
 
+        let decryptedContent;
+        let wasLegacy;
         try {
-          const decryptedBytes = AES.decrypt(
+          ({ plaintext: decryptedContent, wasLegacy } = await _decryptNote(
             this.data[id].content.content[0],
             password
-          );
-          const decryptedContent = decryptedBytes.toString(Utf8);
-
-          if (!decryptedContent) {
-            throw new Error('Failed to decrypt - invalid password');
-          }
-
-          this.data[id].content = JSON.parse(decryptedContent);
+          ));
         } catch (decryptError) {
           console.error('Failed to decrypt note:', decryptError);
           throw new Error('Incorrect password');
+        }
+
+        this.data[id].content = JSON.parse(decryptedContent);
+
+        if (wasLegacy) {
+          try {
+            const v2cipher = await _encryptNote(decryptedContent, password);
+            await _saveNote(id, {
+              ...this.data[id],
+              content: { type: 'doc', content: [v2cipher] },
+              isLocked: true,
+            });
+          } catch (migErr) {
+            console.warn('[note] v1→v2 migration failed (non-fatal):', migErr);
+          }
         }
 
         const appStore = useAppStore();
@@ -517,10 +736,8 @@ export const useNoteStore = defineStore('note', {
         this.data[id].isLocked = false;
         this.data[id].updatedAt = Date.now();
 
-        await storage.set(`notes.${id}`, this.data[id]);
+        await _saveNote(id, this.data[id]);
         await trackChange(`notes.${id}`, this.data[id]);
-
-        await this.retrieve();
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
@@ -542,7 +759,7 @@ export const useNoteStore = defineStore('note', {
         this.data[id].labels.push(labelId);
         this.data[id].updatedAt = Date.now();
 
-        await storage.set(`notes.${id}`, this.data[id]);
+        await _saveNote(id, this.data[id]);
 
         await trackChange(`notes.${id}`, this.data[id]);
 
@@ -568,7 +785,7 @@ export const useNoteStore = defineStore('note', {
         this.data[id].labels.splice(labelIndex, 1);
         this.data[id].updatedAt = Date.now();
 
-        await storage.set(`notes.${id}`, this.data[id]);
+        await _saveNote(id, this.data[id]);
 
         await trackChange(`notes.${id}`, this.data[id]);
 

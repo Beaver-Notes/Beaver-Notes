@@ -1,9 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { _electron as electron } from 'playwright';
-import { mkdtempSync, rmSync } from 'fs';
+import fsExtra from 'fs-extra';
 import { tmpdir } from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+const { mkdtempSync, rmSync } = fsExtra;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -234,6 +236,60 @@ test('blocks unknown storage namespaces through IPC', async () => {
     expect(result.allowed).toBe('ok');
     expect(result.blocked).toBe('fallback');
     expect(result.hasBlocked).toBe(false);
+  } finally {
+    if (run) {
+      if (run.startupErrors.length > 0) {
+        console.error('startup errors:', run.startupErrors);
+      }
+      await run.electronApp.close();
+    }
+    rmSync(portableDir, { recursive: true, force: true });
+  }
+});
+
+test('migrates legacy default-path to settings syncPath on reload', async () => {
+  const portableDir = mkdtempSync(path.join(tmpdir(), 'beaver-notes-e2e-'));
+  const legacySyncPath = path.join(portableDir, 'legacy-sync-root');
+
+  let run;
+  try {
+    run = await launchApp(portableDir);
+
+    await run.page.evaluate(async (legacyPath) => {
+      globalThis.localStorage.setItem('default-path', legacyPath);
+      await globalThis.electron.ipcRenderer.callMain('storage:delete', {
+        name: 'settings',
+        key: 'syncPath',
+      });
+    }, legacySyncPath);
+
+    await run.page.reload({ waitUntil: 'domcontentloaded' });
+
+    await expect
+      .poll(
+        async () =>
+          run.page.evaluate(() =>
+            Boolean(
+              globalThis.document.querySelector('[data-testid="app-main"]'),
+            ),
+          ),
+        { timeout: 120_000 },
+      )
+      .toBe(true);
+
+    await expect
+      .poll(
+        async () =>
+          run.page.evaluate(async () => {
+            return globalThis.electron.ipcRenderer.callMain('storage:get', {
+              name: 'settings',
+              key: 'syncPath',
+              def: '',
+            });
+          }),
+        { timeout: 60_000 },
+      )
+      .toBe(legacySyncPath);
   } finally {
     if (run) {
       if (run.startupErrors.length > 0) {

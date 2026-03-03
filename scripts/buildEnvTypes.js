@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { resolveConfig } from 'vite';
-import { writeFileSync, mkdirSync, existsSync } from 'fs';
+import { writeFileSync, ensureDirSync } from 'fs-extra';
 import { resolve, dirname } from 'path';
 
 const MODES = ['production', 'development', 'test'];
@@ -55,9 +55,7 @@ async function buildMode(modes, filePath) {
   `;
 
   const dir = dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir);
-  }
+  ensureDirSync(dir);
 
   writeFileSync(filePath, content, { encoding: 'utf-8', flag: 'w' });
 }

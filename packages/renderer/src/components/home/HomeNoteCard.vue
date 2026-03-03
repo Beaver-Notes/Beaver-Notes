@@ -10,7 +10,10 @@
       class="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-xs"
     >
       <v-remixicon name="riErrorWarningLine" size="14" class="flex-shrink-0" />
-      <span class="flex-1">Conflict copy — review and delete one version</span>
+      <span class="flex-1">{{
+        translations.card.conflictCopy ||
+        'Conflict copy — review and delete one version'
+      }}</span>
     </div>
 
     <div class="p-4 flex-1">
@@ -193,6 +196,12 @@ function labelColor(name) {
 const router = useRouter();
 const dialog = useDialog();
 const showMoveModal = ref(false);
+const showCardAlert = (message) =>
+  dialog.alert({
+    title: translations.value.settings?.alertTitle || 'Alert',
+    body: message,
+    okText: translations.value.dialog?.close || 'Close',
+  });
 
 useGroupTooltip();
 
@@ -216,10 +225,10 @@ async function lockNote(note) {
               await passwordStore.setsharedKey(newKey);
               await noteStore.lockNote(note, newKey);
             } catch (error) {
-              alert(translations.value.card.keyFail);
+              showCardAlert(translations.value.card.keyFail);
             }
           } else {
-            alert(translations.value.card.keyFail);
+            showCardAlert(translations.value.card.keyFail);
           }
         },
       });
@@ -236,7 +245,7 @@ async function lockNote(note) {
           if (isValidPassword) {
             await noteStore.lockNote(note, enteredPassword);
           } else {
-            alert(translations.value.card.wrongPasswd);
+            showCardAlert(translations.value.card.wrongPasswd);
           }
         },
       });
@@ -261,11 +270,10 @@ async function unlockNote(note) {
 
         if (!hassharedKey) {
           try {
-            console.log('test');
             await noteStore.unlockNote(note, enteredPassword);
             await passwordStore.setsharedKey(enteredPassword);
           } catch (error) {
-            alert(translations.value.card.wrongPasswd);
+            showCardAlert(translations.value.card.wrongPasswd);
             return;
           }
         } else {
@@ -275,12 +283,12 @@ async function unlockNote(note) {
           if (isValidPassword) {
             await noteStore.unlockNote(note, enteredPassword);
           } else {
-            alert(translations.value.card.wrongPasswd);
+            showCardAlert(translations.value.card.wrongPasswd);
           }
         }
       } catch (error) {
         console.error('Error unlocking note:', error);
-        alert(translations.value.card.wrongPasswd);
+        showCardAlert(translations.value.card.wrongPasswd);
       }
     },
   });

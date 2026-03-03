@@ -1,47 +1,95 @@
 import { defineStore } from 'pinia';
-import CryptoJS from 'crypto-js';
-import { useStorage } from '../composable/storage';
-import { useNoteStore } from './note';
-import bcryptjs from 'bcryptjs';
+import * as CryptoJS from 'crypto-es';
 import {
   encryptString,
   decryptString,
   isEncryptionAvailable,
 } from '../composable/safeStorage';
-const { ipcRenderer, path } = window.electron;
+import { useStorage } from '../composable/storage';
+import { useNoteStore } from './note';
+import {
+  setupSyncEncryption,
+  verifySyncPassphrase,
+  syncFolderHasEncryption,
+  isSyncEncryptionEnabled,
+  isSyncKeyLoaded,
+} from '../utils/syncCrypto.js';
+import {
+  setupAppEncryption,
+  verifyAppPassphrase,
+  appFolderHasEncryption,
+  isAppEncryptionEnabled,
+  isAppKeyLoaded,
+} from '../utils/appCrypto.js';
+import { getSyncPath } from '../utils/syncPath.js';
 
+const { SHA256, algo, PBKDF2 } = CryptoJS;
+const { ipcRenderer, path } = window.electron;
 const storage = useStorage();
-const dataDir = await storage.get('dataDir', '', 'settings');
-const filePath = path.join(dataDir, 'password.enc');
+
 const LEGACY_STORAGE_KEY = 'sharedKey';
 
-function deriveKeyFromPassword(password) {
-  const salt = CryptoJS.SHA256(password).toString().slice(0, 32);
-  return CryptoJS.PBKDF2(password, salt, {
-    keySize: 256 / 32,
-    iterations: 100000,
-    hasher: CryptoJS.algo.SHA256,
-  }).toString();
+async function _getPasswordFilePath() {
+  const dataDir = await storage.get('dataDir', '', 'settings');
+  if (!dataDir) return null;
+  return path.join(dataDir, 'password.enc');
+}
+
+async function _mirrorToEncryptionSystems(plainPassword) {
+  try {
+    if (isAppEncryptionEnabled()) {
+      if (!isAppKeyLoaded()) {
+        const alreadyInit = await appFolderHasEncryption();
+        if (alreadyInit) {
+          await verifyAppPassphrase(plainPassword);
+        } else {
+          await setupAppEncryption(plainPassword);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[passwd] app encryption mirror failed (non-fatal):', err);
+  }
+  try {
+    const syncPath = await getSyncPath();
+    if (!syncPath) return;
+
+    const folderHasEncryption = await syncFolderHasEncryption();
+
+    if (folderHasEncryption) {
+      if (!isSyncKeyLoaded()) {
+        await verifySyncPassphrase(plainPassword);
+      }
+    } else if (isSyncEncryptionEnabled()) {
+      await setupSyncEncryption(plainPassword);
+    }
+  } catch (err) {
+    console.warn('[passwd] sync encryption mirror failed (non-fatal):', err);
+  }
 }
 
 export const usePasswordStore = defineStore('password', {
   state: () => ({
     sharedKey: '',
+
+    _legacyDerivedKey: '',
   }),
 
   actions: {
-    async fileExists(file) {
+    async _fileExists(file) {
       return ipcRenderer.callMain('fs:pathExists', file);
     },
 
-    async readEncryptedFile() {
-      const exists = await this.fileExists(filePath);
-      if (!exists) return null;
-      const data = await ipcRenderer.callMain('fs:readFile', filePath);
-      return data;
+    async _readEncryptedFile() {
+      const filePath = await _getPasswordFilePath();
+      if (!filePath) return null;
+      if (!(await this._fileExists(filePath))) return null;
+      return ipcRenderer.callMain('fs:readFile', filePath);
     },
 
-    async writeEncryptedFile(data) {
+    async _writeEncryptedFile(data) {
+      const filePath = await _getPasswordFilePath();
+      if (!filePath) throw new Error('Data directory not configured.');
       await ipcRenderer.callMain('fs:writeFile', {
         path: filePath,
         data,
@@ -49,14 +97,13 @@ export const usePasswordStore = defineStore('password', {
       });
     },
 
-    async deleteLegacyStorage() {
-      const legacyKeys = [
+    async _deleteLegacyStorage() {
+      for (const key of [
         LEGACY_STORAGE_KEY,
         'sharedKey',
         'shared_password',
         'password',
-      ];
-      for (const key of legacyKeys) {
+      ]) {
         await storage.delete(key);
       }
     },
@@ -66,28 +113,23 @@ export const usePasswordStore = defineStore('password', {
         const encryptionAvailable = await isEncryptionAvailable();
 
         if (encryptionAvailable) {
-          const encryptedBase64 = await this.readEncryptedFile();
+          const encryptedBase64 = await this._readEncryptedFile();
 
           if (!encryptedBase64) {
             const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
             if (legacyPassword) {
-              await this.importSharedKey(
-                legacyPassword,
-                deriveKeyFromPassword(legacyPassword)
-              );
+              await this.importSharedKey(legacyPassword);
               return this.sharedKey;
             }
-
             this.sharedKey = '';
             return '';
           }
 
           const decrypted = await decryptString(encryptedBase64);
-
           try {
             const parsed = JSON.parse(decrypted);
             this.sharedKey = parsed.hash;
-            this.derivedKey = parsed.key;
+            if (parsed.key) this._legacyDerivedKey = parsed.key;
           } catch {
             this.sharedKey = decrypted;
           }
@@ -99,50 +141,81 @@ export const usePasswordStore = defineStore('password', {
           return legacyPassword;
         }
       } catch (error) {
-        console.error('Error retrieving global password:', error);
+        console.error('[passwd] retrieve failed:', error);
         return '';
       }
     },
 
     async setsharedKey(password) {
       try {
-        const hashedPassword = await bcryptjs.hash(password, 10);
-        const derivedKey = deriveKeyFromPassword(password);
-
+        const hashedPassword = await ipcRenderer.callMain(
+          'passwd:hash',
+          password
+        );
         this.sharedKey = hashedPassword;
+        this._legacyDerivedKey = ''; // clear stale legacy value
 
         const encryptionAvailable = await isEncryptionAvailable();
-
         if (encryptionAvailable) {
           const encrypted = await encryptString(
-            JSON.stringify({
-              hash: hashedPassword,
-              key: derivedKey,
-            })
+            JSON.stringify({ hash: hashedPassword })
           );
-          await this.writeEncryptedFile(encrypted);
-          await this.deleteLegacyStorage();
+          await this._writeEncryptedFile(encrypted);
+          await this._deleteLegacyStorage();
         } else {
           await storage.set(LEGACY_STORAGE_KEY, hashedPassword);
         }
+        await _mirrorToEncryptionSystems(password);
       } catch (error) {
-        console.error('Error setting global password:', error);
+        console.error('[passwd] setsharedKey failed:', error);
         throw error;
       }
     },
 
     async isValidPassword(enteredPassword) {
       try {
-        const validLegacy = await bcryptjs.compare(
-          enteredPassword,
-          this.sharedKey
-        );
-        if (validLegacy) return true;
+        const valid = await ipcRenderer.callMain('passwd:compare', {
+          password: enteredPassword,
+          hash: this.sharedKey,
+        });
 
-        const derivedKey = deriveKeyFromPassword(enteredPassword);
-        return derivedKey === this.derivedKey;
+        if (!valid && this._legacyDerivedKey) {
+          const salt = SHA256(enteredPassword).toString().slice(0, 32);
+          const derived = PBKDF2(enteredPassword, salt, {
+            keySize: 256 / 32,
+            iterations: 100000,
+            hasher: algo.SHA256,
+          }).toString();
+
+          if (derived !== this._legacyDerivedKey) {
+            const { warn, failCount } = await ipcRenderer.callMain(
+              'passwd:recordFailure'
+            );
+            if (warn)
+              console.warn(`[passwd] ${failCount} consecutive failures`);
+            return false;
+          }
+          try {
+            await this.setsharedKey(enteredPassword);
+          } catch (migErr) {
+            console.warn(
+              '[passwd] legacy migration failed (non-fatal):',
+              migErr
+            );
+          }
+        } else if (!valid) {
+          const { warn, failCount } = await ipcRenderer.callMain(
+            'passwd:recordFailure'
+          );
+          if (warn) console.warn(`[passwd] ${failCount} consecutive failures`);
+          return false;
+        }
+        await ipcRenderer.callMain('passwd:resetFailures');
+        await _mirrorToEncryptionSystems(enteredPassword);
+
+        return true;
       } catch (error) {
-        console.error('Error validating password:', error);
+        console.error('[passwd] isValidPassword failed:', error);
         throw error;
       }
     },
@@ -150,47 +223,35 @@ export const usePasswordStore = defineStore('password', {
     async resetPassword(currentPassword, newPassword) {
       const noteStore = useNoteStore();
 
-      try {
-        const isCurrentPasswordValid = await this.isValidPassword(
-          currentPassword
-        );
-        if (!isCurrentPasswordValid) {
-          throw new Error('Current password is incorrect');
-        }
-
-        const lockedNotes = Object.values(noteStore.data).filter(
-          (note) => note.id && note.isLocked
-        );
-
-        for (const note of lockedNotes) {
-          try {
-            await noteStore.unlockNote(note.id, currentPassword);
-            await noteStore.lockNote(note.id, newPassword);
-          } catch (error) {
-            console.error(`Failed to re-encrypt note ${note.id}:`, error);
-          }
-        }
-
-        await this.setsharedKey(newPassword);
-
-        return true;
-      } catch (error) {
-        console.error('Error resetting password:', error);
-        throw error;
+      if (!(await this.isValidPassword(currentPassword))) {
+        throw new Error('Current password is incorrect');
       }
+
+      const lockedNotes = Object.values(noteStore.data).filter(
+        (note) => note.id && note.isLocked
+      );
+
+      for (const note of lockedNotes) {
+        try {
+          await noteStore.unlockNote(note.id, currentPassword);
+          await noteStore.lockNote(note.id, newPassword);
+        } catch (err) {
+          console.error(`[passwd] failed to re-encrypt note ${note.id}:`, err);
+        }
+      }
+      await this.setsharedKey(newPassword);
+      return true;
     },
 
     async importSharedKey(hash, derivedKey = null) {
       this.sharedKey = hash;
-      this.derivedKey = derivedKey;
+      this._legacyDerivedKey = derivedKey ?? '';
 
       const encryptionAvailable = await isEncryptionAvailable();
       if (encryptionAvailable) {
-        const encrypted = await encryptString(
-          JSON.stringify({ hash, key: derivedKey })
-        );
-        await this.writeEncryptedFile(encrypted);
-        await this.deleteLegacyStorage();
+        const encrypted = await encryptString(JSON.stringify({ hash }));
+        await this._writeEncryptedFile(encrypted);
+        await this._deleteLegacyStorage();
       } else {
         await storage.set(LEGACY_STORAGE_KEY, hash);
       }

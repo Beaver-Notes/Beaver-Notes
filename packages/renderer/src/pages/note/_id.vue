@@ -22,7 +22,7 @@
       </span>
     </button>
 
-    <template v-if="editor && !note.isLocked">
+    <template v-if="editor && !isLocked">
       <note-menu v-bind="{ editor, id, note }" class="mb-6" />
       <transition
         enter-active-class="transition duration-200 ease-out"
@@ -56,14 +56,27 @@
         name="riLockLine"
       />
       <p class="text-center pb-2 text-gray-600 dark:text-gray-200">
-        {{ translations.card.unlockToEdit }}
+        {{
+          appEncryptedLocked
+            ? translations.settings?.unlockAppEncryption ||
+              'This note is encrypted at rest. Unlock app encryption in Settings to edit it.'
+            : translations.card.unlockToEdit
+        }}
       </p>
       <div class="pb-2">
         <button
           class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
-          @click="unlockNote(note.id)"
+          @click="
+            appEncryptedLocked
+              ? openSettingsForAppUnlock()
+              : unlockNote(note.id)
+          "
         >
-          {{ translations.card.unlock }}
+          {{
+            appEncryptedLocked
+              ? translations.app?.openSettings || 'Open Settings'
+              : translations.card.unlock
+          }}
         </button>
       </div>
       <router-link
@@ -108,6 +121,7 @@ import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import { useAppStore } from '../../store/app';
+import { isAppEncryptedContent } from '@/utils/appCrypto';
 
 export default {
   components: { NoteEditor, NoteMenu, NoteSearch },
@@ -127,7 +141,12 @@ export default {
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
-    const isLocked = computed(() => note.value && note.value.isLocked);
+    const appEncryptedLocked = computed(
+      () => !!note.value && isAppEncryptedContent(note.value.content)
+    );
+    const isLocked = computed(
+      () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
+    );
     const { translations } = useTranslations();
 
     watch(
@@ -206,6 +225,7 @@ export default {
     }, 50);
 
     async function persistCurrentNote(noteId = route.params.id) {
+      if (appEncryptedLocked.value) return;
       if (!noteId || !noteStore.getById(noteId)) return;
 
       const labels = new Set();
@@ -228,6 +248,7 @@ export default {
     }
 
     const updateNote = (data) => {
+      if (appEncryptedLocked.value) return Promise.resolve();
       const noteId = note.value?.id || route.params.id;
       if (!noteId || !noteStore.getById(noteId)) return Promise.resolve();
 
@@ -313,6 +334,12 @@ export default {
     async function unlockNote(note) {
       const passwordStore = usePasswordStore();
       const noteStore = useNoteStore();
+      const showWrongPassword = () =>
+        dialog.alert({
+          title: translations.value.settings?.alertTitle || 'Alert',
+          body: translations.value.card.wrongPasswd,
+          okText: translations.value.dialog?.close || 'Close',
+        });
 
       dialog.prompt({
         title: translations.value.card.enterPasswd,
@@ -325,11 +352,10 @@ export default {
 
             if (!hassharedKey) {
               try {
-                console.log('test');
                 await noteStore.unlockNote(note, enteredPassword);
                 await passwordStore.setsharedKey(enteredPassword);
               } catch (error) {
-                alert(translations.value.card.wrongPasswd);
+                showWrongPassword();
                 return;
               }
             } else {
@@ -339,15 +365,19 @@ export default {
               if (isValidPassword) {
                 await noteStore.unlockNote(note, enteredPassword);
               } else {
-                alert(translations.value.card.wrongPasswd);
+                showWrongPassword();
               }
             }
           } catch (error) {
             console.error('Error unlocking note:', error);
-            alert(translations.value.card.wrongPasswd);
+            showWrongPassword();
           }
         },
       });
+    }
+
+    function openSettingsForAppUnlock() {
+      router.push('/settings');
     }
 
     const titleDiv = ref(null);
@@ -378,6 +408,8 @@ export default {
       translations,
       store,
       unlockNote,
+      openSettingsForAppUnlock,
+      appEncryptedLocked,
       editor,
       showSearch,
       updateNote,
