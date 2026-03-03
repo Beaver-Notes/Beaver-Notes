@@ -53,7 +53,7 @@ const settings = computed(() => ({
     description: '',
   },
   'Settings-Labels': {
-    name: 'Labels',
+    name: translations.value.labels?.title || 'Labels',
     icon: 'riPriceTag3Line',
     path: '/settings/labels',
     description: '',
