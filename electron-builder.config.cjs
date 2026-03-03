@@ -73,7 +73,9 @@ const electronBuilderConfig = {
       { target: 'portable', arch: ['x64', 'arm64'] },
       { target: 'nsis', arch: ['x64', 'arm64'] },
     ],
-    sign: process.env.AST_TD === 'SHA256' ? azuresigntoolSync : undefined,
+    ...(process.env.AST_TD === 'SHA256'
+      ? { signtoolOptions: { sign: azuresigntoolSync } }
+      : {}),
   },
 
   nsis: {
