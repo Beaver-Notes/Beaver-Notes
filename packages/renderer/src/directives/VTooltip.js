@@ -28,7 +28,11 @@ export default {
       instance._tooltipGroup.push(tooltip);
     }
   },
-  updated(el, { value, arg = 'top' }) {
+  updated(el, { value, arg = 'top', oldValue }) {
+    if (!el._tippy) return;
+
+    if (value === oldValue && arg === el._tippy.props.placement) return;
+
     const content = getContent(value);
 
     el._tippy.setProps({

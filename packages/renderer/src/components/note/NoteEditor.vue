@@ -11,8 +11,9 @@
 </template>
 
 <script>
-import { onMounted, onBeforeUnmount, watch } from 'vue';
+import { onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
+import { isAppEncryptedContent } from '@/utils/appCrypto.js';
 import { useRouter } from 'vue-router';
 import { extensions, CollapseHeading, heading, dropFile } from '@/lib/tiptap';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
@@ -33,8 +34,12 @@ export default {
     const exts = [...extensions, dropFile.configure({ id: props.id })];
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
+    const safeContent = computed(() =>
+      isAppEncryptedContent(props.modelValue) ? '' : props.modelValue
+    );
+
     const editor = useEditor({
-      content: props.modelValue,
+      content: safeContent.value,
       autofocus: props.cursorPosition,
       extensions: exts,
       editorProps: { handleClick },
@@ -60,8 +65,8 @@ export default {
       if (!editor.value) return;
       emit('init', editor.value);
 
-      if (editor.value && props.modelValue) {
-        editor.value.commands.setContent(props.modelValue);
+      if (safeContent.value) {
+        editor.value.commands.setContent(safeContent.value);
       }
 
       editor.value.on('update', () => {
@@ -69,6 +74,14 @@ export default {
         emit('update', data);
         emit('update:modelValue', data);
       });
+    });
+
+    watch(safeContent, (val) => {
+      if (!editor.value || !val) return;
+      const isEmpty = editor.value.isEmpty;
+      if (isEmpty) {
+        editor.value.commands.setContent(val);
+      }
     });
 
     onBeforeUnmount(() => {

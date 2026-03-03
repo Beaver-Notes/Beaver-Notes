@@ -6,7 +6,7 @@
       class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
-      <div class="hidden sm:flex items-center p-2 space-x-2">
+      <div class="hidden md:flex items-center p-2 space-x-2">
         <!-- Regex Toggle Button -->
         <ui-button
           v-tooltip="translations.search.useRegex"
@@ -99,7 +99,7 @@
       </div>
 
       <!-- Mobile Layout -->
-      <div class="sm:hidden">
+      <div class="md:hidden">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
           <!-- Search Term Input -->

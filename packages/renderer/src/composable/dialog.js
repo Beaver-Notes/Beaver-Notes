@@ -1,6 +1,10 @@
 import emitter from 'tiny-emitter/instance';
 
 export function useDialog() {
+  function alert(options) {
+    emitter.emit('show-dialog', 'alert', options);
+  }
+
   function confirm(options) {
     emitter.emit('show-dialog', 'confirm', options);
   }
@@ -14,6 +18,7 @@ export function useDialog() {
   }
 
   return {
+    alert,
     prompt,
     confirm,
     auth,

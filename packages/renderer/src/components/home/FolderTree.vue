@@ -7,13 +7,9 @@
       <p class="text-xs text-neutral-500 mt-1">
         <!-- tiny hint showing selection type/count -->
         <span v-if="props.mode === 'note'"
-          >{{ notes.length }} note{{ notes.length !== 1 ? 's' : '' }}</span
+          >{{ notes.length }} {{ noteCountLabel }}</span
         >
-        <span v-else
-          >{{ folders.length }} folder{{
-            folders.length !== 1 ? 's' : ''
-          }}</span
-        >
+        <span v-else>{{ folders.length }} {{ folderCountLabel }}</span>
       </p>
     </template>
 
@@ -197,6 +193,18 @@ const moveLabel = computed(() => {
     ? translations.value.folderTree.moveToFolder
     : translations.value.folderTree.moveItemsToFolder.replace('{count}', n);
 });
+
+const noteCountLabel = computed(() =>
+  props.notes.length === 1
+    ? translations.value.folderTree?.noteSingular || 'note'
+    : translations.value.folderTree?.notePlural || 'notes'
+);
+
+const folderCountLabel = computed(() =>
+  props.folders.length === 1
+    ? translations.value.folderTree?.folderSingular || 'folder'
+    : translations.value.folderTree?.folderPlural || 'folders'
+);
 
 async function handleMove() {
   if (isMoving.value) return;

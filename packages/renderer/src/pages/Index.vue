@@ -56,11 +56,11 @@
             <home-folder-card
               :folder="folder"
               :class="{
-                'ring-1 ring-secondary':
+                'transform scale-105':
                   dragOverFolderId === folder.id ||
                   (state.query && highlightedFolderIds.has(folder.id)),
                 'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-                'ring-1 ring-secondary bg-primary/5 transform scale-[0.99] transition-all duration-200':
+                'transform scale-105 transition-all duration-200':
                   selectedItems.has(`folder-${folder.id}`),
               }"
               draggable="true"
@@ -121,18 +121,11 @@
       </section>
     </template>
 
-    <!-- Empty state -->
-    <div v-else class="text-center py-20">
-      <img
-        :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
-        class="mx-auto w-1/4 max-w-xs"
-      />
-      <p
-        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-4"
-      >
-        {{ translations.index.newNote || '-' }}
-      </p>
-    </div>
+    <empty-state
+      v-if="
+        noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
+      "
+    />
 
     <folder-tree
       v-model="showMoveModal"
@@ -176,18 +169,24 @@ import {
 } from '@/utils/helper';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
-import HomeImg from '@/assets/images/home.png';
-import ArchiveImg from '@/assets/images/archive.png';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
 import HomeSearch from '../components/home/HomeSearch.vue';
 import FolderTree from '../components/home/FolderTree.vue';
 import Actions from '../components/home/Actions.vue';
-import { useSelection } from '@/composable/selection';
+import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
+import EmptyState from '../components/app/EmptyState.vue';
 
 export default {
-  components: { HomeNoteCard, HomeSearch, HomeFolderCard, FolderTree, Actions },
+  components: {
+    HomeNoteCard,
+    HomeSearch,
+    HomeFolderCard,
+    FolderTree,
+    Actions,
+    EmptyState,
+  },
   setup() {
     const { translations } = useTranslations();
     const highlightedFolderIds = ref(new Set());
@@ -206,15 +205,11 @@ export default {
     const showMoveModal = ref(false);
     const baseSelection = ref(new Set());
     const cachedItems = [];
-    const dragAccumulated = ref(null);
+    let dragAccumulated = null;
     let cachedScrollY = 0;
 
     let rafId = null;
     let pendingPointer = null;
-    function patchSelectionSet(target, source) {
-      for (const v of Array.from(target)) if (!source.has(v)) target.delete(v);
-      for (const v of source) if (!target.has(v)) target.add(v);
-    }
 
     const {
       selectedItems,
@@ -332,7 +327,7 @@ export default {
       }
       baseSelection.value = new Set(selectedItems.value);
 
-      dragAccumulated.value = new Set(baseSelection.value);
+      dragAccumulated = new Set(baseSelection.value);
     }
 
     function handleMouseMove(event) {
@@ -393,12 +388,12 @@ export default {
         const [type] = id.split('-');
         if (!detectedType) detectedType = type;
         if (type === detectedType) {
-          dragAccumulated.value.add(id);
+          dragAccumulated.add(id);
         }
       }
 
-      if (!areSetsEqual(dragAccumulated.value, selectedItems.value)) {
-        patchSelectionSet(selectedItems.value, dragAccumulated.value);
+      if (!areSetsEqual(dragAccumulated, selectedItems.value)) {
+        patchSelectionSet(selectedItems.value, dragAccumulated);
       }
     }
 
@@ -415,7 +410,7 @@ export default {
       }
 
       isSelecting.value = false;
-      dragAccumulated.value = null;
+      dragAccumulated = null;
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
@@ -715,8 +710,6 @@ export default {
       folderStore,
       translations,
       folders,
-      HomeImg,
-      ArchiveImg,
       draggedFolderId,
       handleNoteDragStart,
       handleFolderDragStart,

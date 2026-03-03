@@ -27,16 +27,38 @@
       }}</ui-checkbox>
     </div>
     <div class="mt-8 flex space-x-2 rtl:space-x-0">
-      <ui-button class="w-6/12 rtl:ml-2" @click="fireCallback('onCancel')">
-        {{ state.options.cancelText }}
-      </ui-button>
       <ui-button
-        class="w-6/12"
+        v-if="state.type === 'alert'"
+        class="w-full"
         :variant="state.options.okVariant"
         @click="fireCallback('onConfirm')"
       >
-        {{ state.options.okText }}
+        {{
+          state.options.okText !== 'Confirm'
+            ? state.options.okText
+            : translations.dialog.close || 'Close'
+        }}
       </ui-button>
+      <template v-else>
+        <ui-button class="w-6/12 rtl:ml-2" @click="fireCallback('onCancel')">
+          {{
+            state.options.cancelText !== 'Cancel'
+              ? state.options.cancelText
+              : translations.dialog.cancel
+          }}
+        </ui-button>
+        <ui-button
+          class="w-6/12"
+          :variant="state.options.okVariant"
+          @click="fireCallback('onConfirm')"
+        >
+          {{
+            state.options.okText !== 'Confirm'
+              ? state.options.okText
+              : translations.dialog.confirm
+          }}
+        </ui-button>
+      </template>
     </div>
   </ui-modal>
 </template>

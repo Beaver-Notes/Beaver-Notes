@@ -1,11 +1,13 @@
 <template>
   <div
     v-if="store.showPrompt"
-    class="fixed left-1/2 -translate-x-1/2 top-14 z-50 w-full max-w-lg px-4"
+    class="fixed left-1/2 -translate-x-1/2 top-14 z-[60] w-full max-w-lg px-4"
+    role="combobox"
+    aria-haspopup="listbox"
+    :aria-expanded="items.length > 0"
   >
-    <!-- Search Bar -->
     <div
-      class="flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-lg"
+      class="flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl"
     >
       <v-remixicon
         name="riSearch2Line"
@@ -16,18 +18,16 @@
       <input
         v-model="state.query"
         v-autofocus
+        type="text"
         class="flex-1 bg-transparent text-sm text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 outline-none"
         :placeholder="
           translations.commandPrompt.placeholder ||
           'Search notes, folders, or type › for commands…'
         "
-        @keyup.enter="selectItem"
-        @keyup.esc="clear"
         @keydown="keydownHandler"
       />
     </div>
 
-    <!-- Results Panel -->
     <Transition
       enter-active-class="transition duration-150 ease-out"
       enter-from-class="opacity-0 -translate-y-2"
@@ -36,27 +36,42 @@
       leave-from-class="opacity-100 translate-y-0"
       leave-to-class="opacity-0 -translate-y-1"
     >
-      <ui-card v-if="state.query.length > 0" padding="p-0" class="mt-2">
-        <!-- Empty state -->
+      <ui-card
+        v-if="state.query.length > 0"
+        padding="p-0"
+        class="mt-2 overflow-hidden"
+      >
         <p
           v-if="items.length === 0"
           class="px-4 py-6 text-center text-sm text-neutral-400"
         >
-          No results for "{{ state.query }}"
+          {{
+            (
+              translations.commandPrompt.noResults || 'No results for "{query}"'
+            ).replace('{query}', state.query)
+          }}
         </p>
 
-        <!-- List -->
-        <ul v-else class="max-h-80 overflow-y-auto py-1.5 no-scrollbar">
+        <ul
+          v-else
+          ref="listRef"
+          role="listbox"
+          class="max-h-80 overflow-y-auto py-1.5 no-scrollbar scroll-py-1.5"
+        >
           <li
             v-for="(item, index) in items"
-            :key="item.id"
+            :key="item.id || index"
+            :ref="(el) => (itemRefs[index] = el)"
+            role="option"
+            :aria-selected="index === state.selectedIndex"
+            class="flex items-center gap-3 mx-2 px-2 py-2 rounded-lg cursor-pointer transition-colors"
             :class="
               index === state.selectedIndex
                 ? 'bg-neutral-100 dark:bg-neutral-700'
                 : 'hover:bg-neutral-50 dark:hover:bg-neutral-700/50'
             "
-            class="active-command-item flex items-center gap-3 mx-2 px-2 py-2 rounded-lg cursor-pointer"
-            @click="selectItem(item, true)"
+            @click="selectItem(item)"
+            @mouseenter="state.selectedIndex = index"
           >
             <div
               class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg bg-neutral-100 dark:bg-neutral-700"
@@ -65,32 +80,18 @@
                 <span class="text-base leading-none">{{ item.icon }}</span>
               </template>
               <v-remixicon
-                v-else-if="item.type === 'folder'"
-                name="riFolder5Fill"
+                v-else
+                :name="getIconName(item)"
                 size="15"
-                :style="{ color: item.color || '#6B7280' }"
-              />
-              <v-remixicon
-                v-else-if="item.type === 'note' && item.isLocked"
-                name="riLockLine"
-                size="15"
-                class="text-secondary"
-              />
-              <v-remixicon
-                v-else-if="item.type === 'note'"
-                name="riFile2Line"
-                size="15"
-                class="text-neutral-500"
-              />
-              <v-remixicon
-                v-else-if="item.type === 'command'"
-                :name="item.icon || 'riCodeLine'"
-                size="15"
-                class="text-primary"
+                :class="getIconClass(item)"
+                :style="
+                  item.type === 'folder'
+                    ? { color: item.color || '#6B7280' }
+                    : {}
+                "
               />
             </div>
 
-            <!-- Text -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center justify-between gap-2">
                 <span
@@ -103,14 +104,14 @@
                   }}
                 </span>
                 <span
-                  v-if="!isCommand && item.type !== 'command'"
+                  v-if="item.type !== 'command'"
                   class="flex-shrink-0 text-xs text-neutral-400"
                 >
                   {{ formatDate(item.updatedAt || item.createdAt) }}
                 </span>
               </div>
               <p
-                v-if="!isCommand && !item.isLocked && item.type === 'note'"
+                v-if="item.type === 'note' && !item.isLocked"
                 class="text-xs text-neutral-400 truncate mt-0.5"
               >
                 {{ item.content }}
@@ -119,172 +120,187 @@
           </li>
         </ul>
 
-        <!-- Footer -->
         <div
-          class="flex items-center gap-3 px-4 py-2 border-t border-neutral-100 dark:border-neutral-700 text-xs text-neutral-400"
+          class="flex items-center gap-4 px-4 py-2 border-t border-neutral-100 dark:border-neutral-700 text-[10px] uppercase tracking-wider font-semibold text-neutral-400"
         >
-          <span>↑↓ navigate</span>
-          <span>↵ open</span>
-          <span class="ml-auto">› for commands</span>
+          <span class="flex items-center gap-1.5"
+            ><kbd class="font-sans">↑↓</kbd>
+            {{ translations.commandPrompt.navigateHint || 'navigate' }}</span
+          >
+          <span class="flex items-center gap-1.5"
+            ><kbd class="font-sans">↵</kbd>
+            {{ translations.commandPrompt.openHint || 'open' }}</span
+          >
+          <span class="ml-auto flex items-center gap-1.5"
+            >{{ translations.commandPrompt.commandsHintPrefix || 'Type' }}
+            <kbd class="font-sans">›</kbd>
+            {{
+              translations.commandPrompt.commandsHintSuffix || 'for commands'
+            }}</span
+          >
         </div>
       </ui-card>
     </Transition>
   </div>
 </template>
 
-<script>
-import { shallowReactive, computed, watch, onMounted, onUnmounted } from 'vue';
-import { useTranslations } from '@/composable/useTranslations';
+<script setup>
+import {
+  shallowReactive,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  ref,
+  nextTick,
+} from 'vue';
 import { useRouter } from 'vue-router';
+import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { debounce } from '@/utils/helper';
+import { useStore } from '@/store';
 import Mousetrap from '@/lib/mousetrap';
 import commands from '@/utils/commands';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { useStore } from '@/store';
 
 dayjs.extend(relativeTime);
 
-export default {
-  setup() {
-    const { translations } = useTranslations();
-    const router = useRouter();
-    const noteStore = useNoteStore();
-    const folderStore = useFolderStore();
-    const store = useStore();
+const router = useRouter();
+const { translations } = useTranslations();
+const noteStore = useNoteStore();
+const folderStore = useFolderStore();
+const store = useStore();
 
-    const formatDate = (timestamp) => {
-      if (!timestamp) return '';
-      const d = dayjs(timestamp);
-      const diffDays = dayjs().diff(d, 'day');
-      if (diffDays === 0) return d.fromNow();
-      if (diffDays < 7) return d.format('ddd');
-      if (diffDays < 365) return d.format('MMM D');
-      return d.format('MMM D, YYYY');
-    };
+const listRef = ref(null);
+const itemRefs = ref([]);
+const state = shallowReactive({
+  query: '',
+  selectedIndex: 0,
+});
 
-    const state = shallowReactive({ query: '', selectedIndex: 0 });
-
-    store.showPrompt = false;
-
-    const mergeContent = (content) => {
-      if (typeof content === 'string') return content;
-      if (Array.isArray(content))
-        return content.map((c) => mergeContent(c)).join('');
-      if (content == null) return '';
-      if ('content' in content) return mergeContent(content.content);
-      if (content.type.toLocaleLowerCase().includes('label'))
-        return `#${content.attrs.id}`;
-      return content.label ?? content.text ?? '';
-    };
-
-    const isCommand = computed(() => state.query.startsWith('>'));
-    const queryTerm = computed(() => {
-      const q = state.query.toLocaleLowerCase();
-      return (isCommand.value ? q.substr(1) : q).trim();
-    });
-
-    const items = computed(() => {
-      if (isCommand.value) {
-        return commands
-          .map((item) => ({ ...item, type: 'command' }))
-          .filter(({ title }) =>
-            title.toLocaleLowerCase().includes(queryTerm.value)
-          );
-      }
-
-      const notesWithType = noteStore.notes.map((note) => ({
-        ...note,
-        type: 'note',
-        content: mergeContent(note.content),
-      }));
-
-      const foldersWithType = (folderStore.folders || []).map((folder) => ({
-        ...folder,
-        type: 'folder',
-        title: folder.name || folder.title,
-      }));
-
-      return [...notesWithType, ...foldersWithType].filter(
-        ({ title, name, content }) => {
-          const t = (title || name || '').toLocaleLowerCase();
-          return (
-            t.includes(queryTerm.value) ||
-            (content && content.toLocaleLowerCase().includes(queryTerm.value))
-          );
-        }
-      );
-    });
-
-    function keydownHandler(event) {
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        state.selectedIndex =
-          (state.selectedIndex + items.value.length - 1) % items.value.length;
-      } else if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        state.selectedIndex = (state.selectedIndex + 1) % items.value.length;
-      }
-    }
-
-    function selectItem(item, isItem) {
-      const selected = isItem ? item : items.value[state.selectedIndex];
-      if (!selected) return;
-      if (selected.handler) selected.handler();
-      else if (selected.type === 'folder')
-        router.push(`/folder/${selected.id}`);
-      else if (selected.type === 'note')
-        selected.id && router.push(`/note/${selected.id}`);
-      clear();
-    }
-
-    function clear() {
-      store.showPrompt = false;
-      state.query = '';
-      state.selectedIndex = 0;
-    }
-
-    watch(items, () => {
-      state.selectedIndex = 0;
-    });
-
-    watch(
-      () => state.selectedIndex,
-      debounce(() => {
-        if (items.value.length <= 6) return;
-        document
-          .querySelector('.active-command-item')
-          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100)
-    );
-
-    onMounted(async () => {
-      Mousetrap.bind('mod+shift+p', () => {
-        if (store.showPrompt) return clear();
-        store.showPrompt = true;
-      });
-    });
-
-    const escQuit = (e) => {
-      if (e.code === 'Escape') clear();
-    };
-    onMounted(() => document.addEventListener('keyup', escQuit));
-    onUnmounted(() => document.removeEventListener('keyup', escQuit));
-
-    return {
-      items,
-      translations,
-      store,
-      state,
-      isCommand,
-      clear,
-      selectItem,
-      keydownHandler,
-      formatDate,
-      mergeContent,
-    };
-  },
+// Helper: Extract plain text from complex content structures
+const mergeContent = (content) => {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.map(mergeContent).join('');
+  if (!content) return '';
+  if (content.content) return mergeContent(content.content);
+  return content.label ?? content.text ?? '';
 };
+
+const isCommand = computed(() => state.query.startsWith('>'));
+const queryTerm = computed(() =>
+  (isCommand.value ? state.query.slice(1) : state.query).toLowerCase().trim()
+);
+
+const items = computed(() => {
+  if (isCommand.value) {
+    return commands
+      .map((cmd) => ({ ...cmd, type: 'command' }))
+      .filter((c) => c.title.toLowerCase().includes(queryTerm.value));
+  }
+
+  const notes = noteStore.notes.map((n) => ({
+    ...n,
+    type: 'note',
+    content: mergeContent(n.content),
+  }));
+
+  const folders = (folderStore.folders || []).map((f) => ({
+    ...f,
+    type: 'folder',
+    title: f.name || f.title,
+  }));
+
+  return [...notes, ...folders].filter((i) => {
+    const title = (i.title || i.name || '').toLowerCase();
+    const content = (i.content || '').toLowerCase();
+    return title.includes(queryTerm.value) || content.includes(queryTerm.value);
+  });
+});
+
+// Icon Mapping Logic
+const getIconName = (item) => {
+  if (item.type === 'folder') return 'riFolder5Fill';
+  if (item.type === 'command') return item.icon || 'riCodeLine';
+  return item.isLocked ? 'riLockLine' : 'riFile2Line';
+};
+
+const getIconClass = (item) => {
+  if (item.type === 'command') return 'text-primary';
+  if (item.type === 'note' && item.isLocked) return 'text-secondary';
+  return 'text-neutral-500';
+};
+
+const formatDate = (ts) => {
+  if (!ts) return '';
+  const d = dayjs(ts);
+  const diff = dayjs().diff(d, 'day');
+  if (diff === 0) return d.fromNow();
+  if (diff < 7) return d.format('ddd');
+  return d.format(diff < 365 ? 'MMM D' : 'MMM D, YYYY');
+};
+
+const clear = () => {
+  store.showPrompt = false;
+  state.query = '';
+  state.selectedIndex = 0;
+};
+
+const selectItem = (item = items.value[state.selectedIndex]) => {
+  if (!item) return;
+  if (item.handler) item.handler();
+  else if (item.type === 'folder') router.push(`/folder/${item.id}`);
+  else if (item.type === 'note' && item.id) router.push(`/note/${item.id}`);
+  clear();
+};
+
+const keydownHandler = (e) => {
+  if (e.key === 'Escape') clear();
+  if (items.value.length === 0) return;
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    state.selectedIndex = (state.selectedIndex + 1) % items.value.length;
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    state.selectedIndex =
+      (state.selectedIndex - 1 + items.value.length) % items.value.length;
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    selectItem();
+  }
+};
+
+// Scroll active item into view
+watch(
+  () => state.selectedIndex,
+  async (idx) => {
+    await nextTick();
+    const el = itemRefs.value[idx];
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }
+);
+
+// Reset index on search
+watch(
+  () => state.query,
+  () => {
+    state.selectedIndex = 0;
+    itemRefs.value = []; // Clear refs cache
+  }
+);
+
+onMounted(() => {
+  Mousetrap.bind(['mod+shift+p', 'mod+k'], (e) => {
+    e.preventDefault();
+    store.showPrompt ? clear() : (store.showPrompt = true);
+  });
+});
+
+onUnmounted(() => {
+  Mousetrap.unbind(['mod+shift+p', 'mod+k']);
+});
 </script>
