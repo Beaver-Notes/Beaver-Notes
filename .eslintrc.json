@@ -6,7 +6,7 @@
     "browser": false
   },
   "extends": ["eslint:recommended"],
-  "parser": "babel-eslint",
+  "parser": "espree",
   "parserOptions": {
     "ecmaVersion": 12,
     "sourceType": "module"

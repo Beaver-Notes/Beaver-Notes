@@ -81,6 +81,7 @@ async function _cryptoDir() {
   }
 }
 
+// ─── Setup (first device / first enable) ─────────────────────────────────────
 
 export async function setupAppEncryption(passphrase) {
   if (!passphrase?.trim())
@@ -122,6 +123,7 @@ export async function setupAppEncryption(passphrase) {
   }
 }
 
+// ─── Verify ───────────────────────────────────────────────────────────────────
 
 export async function verifyAppPassphrase(passphrase) {
   const dir = await _cryptoDir();
@@ -180,12 +182,14 @@ export async function verifyAppPassphrase(passphrase) {
   }
 }
 
+/** Try to restore the app key silently from safeStorage on startup. */
 export async function tryRestoreAppKeyFromSafeStorage() {
   if (!isAppEncryptionEnabled()) return false;
   const result = await verifyAppPassphrase(); // passphrase comes from safeStorage
   return result.ok;
 }
 
+/** Returns true if the dataDir already has app-crypto salt+keycheck files. */
 export async function appFolderHasEncryption() {
   const dir = await _cryptoDir();
   if (!dir) return false;
@@ -196,6 +200,7 @@ export async function appFolderHasEncryption() {
   }
 }
 
+// ─── Disable ──────────────────────────────────────────────────────────────────
 
 export async function disableAppEncryption() {
   _appKey = null;
@@ -207,17 +212,36 @@ export async function disableAppEncryption() {
     // ignore
   }
   // Note: existing ae:1-encrypted notes will be decrypted and re-saved
+  // by passwd.js / the caller after calling this function (key still in
+  // memory for that one pass before being nulled here — so the caller
+  // should pass the key as an argument or do the re-save before calling this).
 }
 
+// ─── Note content encryption / decryption ────────────────────────────────────
 
+/**
+ * Encrypt serialised note content for at-rest storage.
+ * Returns the original string unchanged if app encryption is off or key not
+ * loaded (graceful degradation — no silent data loss).
+ */
 export async function encryptContent(contentObj) {
   if (!_appKey) return contentObj;
   const plaintext =
     typeof contentObj === 'string' ? contentObj : JSON.stringify(contentObj);
   const { iv, cipher } = await _gcmEncrypt(plaintext, _appKey);
+  // Return an object so it fits the note.content schema slot without JSON-parsing issues
   return { ae: 1, iv, cipher };
 }
 
+/**
+ * Decrypt a note content value from storage.
+ *
+ * • { ae:1, iv, cipher }  → decrypted, parsed object
+ * • anything else         → returned as-is (backward compat, plain notes)
+ * • ae:1 but no key       → returns null (caller must show "locked" UI)
+ *
+ * This function never throws; failures are returned as null.
+ */
 export async function decryptContent(contentVal) {
   if (!contentVal) return contentVal;
 
@@ -245,6 +269,7 @@ export async function decryptContent(contentVal) {
   }
 }
 
+/** Returns true if the given content value is an app-encrypted envelope. */
 export function isAppEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
   return contentVal.ae === 1;
