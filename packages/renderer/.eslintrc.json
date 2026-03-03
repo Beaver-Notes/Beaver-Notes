@@ -10,7 +10,7 @@
   ],
   "ignorePatterns": ["**/*.ts", "**/*.tsx"],
   "parserOptions": {
-    "parser": "babel-eslint",
+    "parser": "espree",
     "ecmaVersion": 12,
     "sourceType": "module"
   }
