@@ -55,7 +55,7 @@ export class AutoUpdater {
 
           const selectedLanguage =
             localStorage.getItem('selectedLanguage') || 'en';
-          const translations = await this.getTranslations(selectedLanguage);
+          const translations = await getTranslations(selectedLanguage);
 
           await dialog.showMessageBox(window, {
             type: 'info',

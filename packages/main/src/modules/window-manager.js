@@ -18,6 +18,7 @@ export class WindowManager {
 
     this.mainWindow = new BrowserWindow({
       show: false,
+      paintWhenInitiallyHidden: false,
       x: mainWindowState.x,
       y: mainWindowState.y,
       width: mainWindowState.width,
@@ -29,6 +30,7 @@ export class WindowManager {
         enableRemoteModule: this.env.MODE === 'test',
         nodeIntegration: this.env.MODE === 'test',
         spellcheck: true,
+        backgroundThrottling: false,
       },
     });
 
