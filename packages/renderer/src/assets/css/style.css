@@ -41,7 +41,7 @@ option {
 }
 
 .tippy-box[data-theme~='tooltip-theme'] {
-  background-color: #191919;
+  background-color: theme('colors.neutral.900');
   color: white;
   @apply px-2 py-1 text-sm text-neutral-200 rounded-md;
 }
