@@ -8,6 +8,7 @@ import SettingsAppearance from './pages/settings/Appearance.vue';
 import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
+import SettingsSecurity from './pages/settings/Security.vue';
 
 const routes = [
   {
@@ -54,6 +55,11 @@ const routes = [
         path: 'labels',
         name: 'Settings-Labels',
         component: SettingsLabels,
+      },
+      {
+        path: 'security',
+        name: 'Settings-Security',
+        component: SettingsSecurity,
       },
     ],
   },

@@ -18,7 +18,7 @@ export function debounce(callback, time = 200) {
 export function sortArray({ data, key, order = 'asc' }) {
   if (!Array.isArray(data)) return console.error(`Data must be an array`);
 
-  const sortedData = data.sort((a, b) => {
+  const sortedData = [...data].sort((a, b) => {
     let comparison = 0;
     const varA = typeof a[key] === 'string' ? a[key].toUpperCase() : a[key];
     const varB = typeof b[key] === 'string' ? b[key].toUpperCase() : b[key];
@@ -33,6 +33,8 @@ export function sortArray({ data, key, order = 'asc' }) {
 }
 
 export function truncateText(str, limit) {
+  if (typeof str !== 'string') return '';
+
   const truncated = str.slice(0, limit);
 
   return truncated + (str.length > limit ? '...' : '');
@@ -63,6 +65,24 @@ export function extractNoteText(content) {
   }
 
   return text;
+}
+
+export function getPlainTextFromNoteContent(content) {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return extractNoteText(content);
+  }
+
+  if (content && typeof content === 'object') {
+    return extractNoteText(
+      Array.isArray(content.content) ? content.content : content
+    );
+  }
+
+  return '';
 }
 
 export function parseItemId(itemKey) {

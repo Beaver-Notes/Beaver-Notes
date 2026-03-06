@@ -1,308 +1,220 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 mb-14 w-full max-w-xl">
-    <section>
-      <div>
-        <p class="mb-2">{{ translations.settings.selectLanguage || '-' }}</p>
-        <ui-select
-          v-model="selectedLanguage"
-          class="w-full"
-          :search="true"
-          @change="updateLanguage"
+  <div class="mb-14 w-full max-w-xl space-y-6">
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
+        {{ translations.settings.selectLanguage || 'Language &amp; sync' }}
+      </p>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
         >
-          <option
-            v-for="language in languages"
-            :key="language.code"
-            :value="language.code"
-          >
-            {{ language.name }}
-          </option>
-        </ui-select>
-      </div>
-    </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.syncPath || '-' }}</p>
-      <div class="flex items-center ltr:space-x-2">
-        <ui-input
-          v-model="state.dataDir"
-          readonly
-          :placeholder="translations.settings.pathPlaceholder || '-'"
-          class="w-full"
-          @click="chooseDefaultPath"
-        />
-        <ui-button class="w-full rtl:mx-2" @click="chooseDefaultPath">
-          {{ translations.settings.selectPath || '-' }}
-        </ui-button>
-        <ui-button @click="clearPath">
-          <v-remixicon name="riDeleteBin6Line" />
-        </ui-button>
-      </div>
-    </section>
-    <!-- ── Security ────────────────────────────────────────────────── -->
-    <section>
-      <p class="mb-1 font-medium">
-        {{ translations.settings.security || 'Security' }}
-      </p>
-      <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-        {{
-          translations.settings.securityDesc ||
-          'One password powers note locking, app-wide encryption, and sync encryption independently.'
-        }}
-      </p>
-
-      <!-- Global password management -->
-      <div class="mb-4">
-        <template v-if="hasPassword">
-          <div class="flex items-center gap-2">
-            <span class="flex-1 text-sm text-neutral-600 dark:text-neutral-300">
-              <v-remixicon
-                name="riShieldCheckLine"
-                class="inline mr-1 text-primary"
-                size="16"
-              />
-              {{
-                translations.settings.passwordSet || 'Global password is set'
-              }}
-            </span>
-            <ui-button class="text-sm" @click="changePasswordDialog">
-              {{ translations.settings.changePassword || 'Change' }}
-            </ui-button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="flex items-center gap-2">
-            <ui-input
-              v-model="passwordInput"
-              type="password"
-              class="flex-1"
-              :placeholder="
-                translations.settings.choosePassword || 'Choose a password…'
-              "
-              @keyup.enter="setGlobalPassword"
-            />
-            <ui-button :disabled="!passwordInput" @click="setGlobalPassword">
-              {{ translations.settings.setPassword || 'Set password' }}
-            </ui-button>
-          </div>
-          <p v-if="securityError" class="text-sm text-red-500 mt-1">
-            {{ securityError }}
-          </p>
-        </template>
-      </div>
-
-      <!-- App-wide encryption toggle -->
-      <div class="py-3 border-t border-neutral-200 dark:border-neutral-700">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <span class="block text-base">
-              {{
-                translations.settings.appEncryption || 'Encrypt notes on disk'
-              }}
-            </span>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {{
-                translations.settings.appEncryptionDesc ||
-                'All notes are encrypted at rest. Requires your password on each startup.'
-              }}
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.selectLanguage || 'Language' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Choose the interface language. Changing this will reload the app.
             </p>
           </div>
-          <ui-switch
-            v-model="appEncryptionEnabled"
-            :disabled="appEncryptionBusy"
-            @change="toggleAppEncryption"
-          />
-        </div>
-        <p v-if="appEncryptionError" class="text-xs text-red-500 mt-2">
-          {{ appEncryptionError }}
-        </p>
-        <div
-          v-if="appEncryptionBusy"
-          class="mt-2 rounded-md border border-primary/60 bg-primary/80 p-2 dark:border-primary/40 dark:bg-primary/10"
-        >
-          <p class="text-xs text-primary">
-            {{ appEncryptionProgressLabel }}:
-            {{ appEncryptionProgress.processed }} /
-            {{ appEncryptionProgress.total }}
-            ({{ appEncryptionProgressPercent }}%)
-          </p>
-          <p class="text-xs text-primary dark:text-primary/80 mt-1">
-            {{
-              translations.settings.keepSettingsOpen ||
-              'Keep this page open until migration completes.'
-            }}
-          </p>
-          <div class="mt-2 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
-            <div
-              class="h-1.5 rounded bg-primary dark:bg-primary/80 transition-all duration-200"
-              :style="{ width: `${appEncryptionProgressPercent}%` }"
-            />
-          </div>
-        </div>
-        <!-- Password confirmation shown when enabling app encryption for the first time -->
-        <div
-          v-if="appEncryptionEnabled && !appKeyLoaded"
-          class="flex items-center gap-2 mt-2"
-        >
-          <ui-input
-            v-model="appConfirmInput"
-            type="password"
-            class="flex-1"
-            :disabled="appEncryptionBusy"
-            :placeholder="translations.settings.password || 'Password…'"
-            @keyup.enter="confirmAppEncryption"
-          />
-          <ui-button
-            :disabled="!appConfirmInput || appEncryptionBusy"
-            @click="confirmAppEncryption"
+          <ui-select
+            v-model="selectedLanguage"
+            class="w-full sm:w-44 sm:flex-shrink-0"
+            :search="true"
+            @change="updateLanguage"
           >
-            {{ translations.settings.unlock || 'Unlock' }}
-          </ui-button>
+            <option
+              v-for="language in languages"
+              :key="language.code"
+              :value="language.code"
+            >
+              {{ language.name }}
+            </option>
+          </ui-select>
         </div>
-      </div>
 
-      <!-- Sync encryption toggle -->
-      <div class="py-3 border-t border-neutral-200 dark:border-neutral-700">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <span class="block text-base">
-              {{
-                translations.settings.syncEncryption || 'Encrypt sync folder'
-              }}
-            </span>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {{
-                translations.settings.syncEncryptionDesc ||
-                'Commits and assets in your sync folder are encrypted. Same password, independent key.'
-              }}
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.syncPath || 'Sync folder' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              The folder where your notes and assets are stored on disk.
             </p>
           </div>
-          <ui-switch
-            v-model="syncEncryptionEnabled"
-            :disabled="!hasSyncFolder"
-            @change="toggleSyncEncryption"
-          />
-        </div>
-        <p
-          v-if="!hasSyncFolder"
-          class="text-xs text-amber-600 dark:text-amber-400 mt-2"
-        >
-          {{
-            translations.settings.syncPathRequired ||
-            'Set a sync folder above to enable sync encryption.'
-          }}
-        </p>
-        <template
-          v-if="hasSyncFolder && syncEncryptionEnabled && !syncKeyLoaded"
-        >
-          <div class="flex items-center gap-2 mt-2">
-            <ui-input
-              v-model="syncPassphraseInput"
-              type="password"
-              class="flex-1"
-              :placeholder="translations.settings.password || 'Password…'"
-              @keyup.enter="verifySyncKey"
-            />
-            <ui-button :disabled="!syncPassphraseInput" @click="verifySyncKey">
-              {{ translations.settings.unlock || 'Unlock' }}
-            </ui-button>
-          </div>
-        </template>
-        <p v-if="syncCryptoError" class="text-xs text-red-500 mt-2">
-          {{ syncCryptoError }}
-        </p>
-      </div>
-    </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.utilities || '-' }}</p>
-      <div>
-        <div class="space-y-1">
-          <!-- advanced settings -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left">
-                {{ translations.settings.advancedSettings || '-' }}
-              </span>
-            </div>
-            <ui-switch
-              v-model="advancedSettings"
-              @change="toggleAdvancedSettings"
-            />
-          </div>
-          <!-- Spellcheck -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left">
-                {{ translations.settings.spellCheck || '-' }}
-              </span>
-            </div>
-            <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
-          </div>
-          <!-- Auto Sync -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left">
-                {{ translations.settings.autoSync || '-' }}
-              </span>
-            </div>
-            <ui-switch v-model="autoSync" @change="handleAutoSyncChange" />
-          </div>
-          <!-- open last edited -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left"
-                >{{ translations.settings.openLastEdited || '-' }}
-              </span>
-            </div>
-            <ui-switch v-model="openLastEdited" />
-          </div>
-          <!-- show after creation -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left"
-                >{{ translations.settings.openAfterCreation || '-' }}
-              </span>
-            </div>
-            <ui-switch v-model="openAfterCreation" />
+          <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+            <span
+              class="max-w-[220px] truncate rounded-md bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+              >{{
+                state.dataDir ||
+                translations.settings.pathPlaceholder ||
+                'Not set'
+              }}</span
+            >
+            <ui-button @click="chooseDefaultPath">{{
+              translations.settings.selectPath || 'Browse'
+            }}</ui-button>
+            <ui-button @click="clearPath"
+              ><v-remixicon name="riDeleteBin6Line"
+            /></ui-button>
           </div>
         </div>
       </div>
     </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.editor || '-' }}</p>
-      <div class="space-y-1">
-        <div class="flex items-center py-2 justify-between">
-          <div>
-            <span class="block text-lg align-left"
-              >{{ translations.settings.collapsibleHeading || '-' }}
-            </span>
+
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
+        {{ translations.settings.utilities || 'Behavior' }}
+      </p>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.spellCheck || 'Spell check' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Underline spelling errors in the editor as you type.
+            </p>
           </div>
-          <label class="relative inline-flex items-center">
-            <input
-              id="switch"
-              v-model="collapsibleHeading"
-              type="checkbox"
-              class="peer sr-only"
-            />
-            <div
-              class="peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] rtl:after:right-[22px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full rtl:peer-checked:after:border-white peer-focus:ring-green-300"
-            ></div>
-          </label>
+          <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
         </div>
-        <!-- Today Format -->
-        <div class="py-2">
-          <div class="mb-2">
-            <span class="block text-lg align-left">
+
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.autoSync || 'Auto sync' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Automatically sync notes to the sync folder whenever a change is
+              detected.
+            </p>
+          </div>
+          <ui-switch v-model="autoSync" @change="handleAutoSyncChange" />
+        </div>
+
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{
+                translations.settings.openLastEdited || 'Open last edited note'
+              }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              When the app launches, reopen the note you were last editing.
+            </p>
+          </div>
+          <ui-switch v-model="openLastEdited" />
+        </div>
+
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{
+                translations.settings.openAfterCreation ||
+                'Open note after creation'
+              }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Immediately navigate to a note after creating it.
+            </p>
+          </div>
+          <ui-switch v-model="openAfterCreation" />
+        </div>
+      </div>
+    </section>
+
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
+        {{ translations.settings.editor || 'Editor' }}
+      </p>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{
+                translations.settings.collapsibleHeading ||
+                'Collapsible headings'
+              }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Allow headings to be folded so their content is hidden below.
+            </p>
+          </div>
+          <ui-switch v-model="collapsibleHeading" />
+        </div>
+
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
               {{
                 translations.settings.todayDateFormat || "Today's date format"
               }}
-            </span>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-              {{ translations.settings.todayDateFormatPlaceholder || '-' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Format used when inserting today's date via the /today command.
             </p>
           </div>
           <ui-select
             v-model="todayDateFormat"
-            class="w-full"
+            class="w-full sm:w-52 sm:flex-shrink-0"
             @change="saveTodayDateFormat"
           >
             <option
@@ -314,19 +226,25 @@
             </option>
           </ui-select>
         </div>
-        <!-- Time format -->
-        <div class="py-2">
-          <div class="mb-2">
-            <span class="block text-lg align-left">
-              {{ translations.settings.timeFormat || '-' }}
-            </span>
-            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-              {{ translations.settings.timeFormatPlaceholder || '-' }}
+
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.timeFormat || 'Time format' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Format used when inserting the current time via the /time command.
             </p>
           </div>
           <ui-select
             v-model="timeFormat"
-            class="w-full"
+            class="w-full sm:w-40 sm:flex-shrink-0"
             @change="saveTimeFormat"
           >
             <option
@@ -340,71 +258,126 @@
         </div>
       </div>
     </section>
-    <section>
-      <p class="mb-2">{{ translations.settings.ieData || '-' }}</p>
-      <div class="flex ltr:space-x-4">
-        <div class="bg-input rtl:ml-4 transition w-6/12 rounded-lg p-4">
-          <div class="text-center mb-8 dark:text-neutral-300 text-neutral-600">
-            <span
-              class="p-5 rounded-full bg-black dark:bg-white dark:bg-opacity-5 bg-opacity-5 inline-block"
+
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
+        {{ translations.settings.data || 'Data' }}
+      </p>
+      <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
+        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
-              <v-remixicon size="36" name="riFileUploadLine" />
-            </span>
-          </div>
-          <ui-checkbox v-model="state.withPassword">
-            {{ translations.settings.encryptPasswd || '-' }}
-          </ui-checkbox>
-          <expand-transition>
-            <ui-input
-              v-if="state.withPassword"
-              v-model="state.password"
-              :placeholder="translations.settings.password || '-'"
-              class="mt-2 w-fill"
-              style="-webkit-text-security: disc"
-              autofocus
-              @keyup.enter="forceSyncNow"
-            />
-          </expand-transition>
-          <ui-button class="w-full mt-4" @click="exportData(defaultPath)">
-            {{ translations.settings.exportData || '-' }}</ui-button
-          >
-        </div>
-        <div class="bg-input transition w-6/12 rounded-lg p-4 flex flex-col">
-          <div class="text-center mb-6 dark:text-neutral-300 text-neutral-600">
-            <span
-              class="p-5 rounded-full bg-black dark:bg-white dark:bg-opacity-5 bg-opacity-5 inline-block"
+              {{ translations.settings.exportData || 'Export data' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
             >
-              <v-remixicon size="36" name="riFileDownloadLine" />
-            </span>
+              Save a full backup of all notes, folders, and labels as a dated
+              archive.
+            </p>
           </div>
-          <div class="flex-grow"></div>
-          <ui-button class="w-full mt-6" @click="importData(defaultPath)">
-            {{ translations.settings.importData || '-' }}
-          </ui-button>
-        </div>
+          <div class="mt-auto space-y-2 pt-2">
+            <label
+              class="editor-checkbox text-sm text-neutral-700 dark:text-neutral-200"
+            >
+              <input v-model="state.withPassword" type="checkbox" />
+              <span>{{
+                translations.settings.encryptPasswd || 'Encrypt'
+              }}</span>
+            </label>
+            <expand-transition>
+              <ui-input
+                v-if="state.withPassword"
+                v-model="state.password"
+                :placeholder="translations.settings.password || 'Password'"
+                class="w-full"
+                style="-webkit-text-security: disc"
+                autofocus
+              />
+            </expand-transition>
+            <ui-button class="w-full" @click="exportData(defaultPath)">{{
+              translations.settings.exportData || 'Export'
+            }}</ui-button>
+          </div>
+        </ui-card>
+
+        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.importData || 'Import data' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Restore notes from a previously exported Beaver Notes backup
+              archive.
+            </p>
+          </div>
+          <div class="mt-auto pt-2">
+            <ui-button class="w-full" @click="importData(defaultPath)">{{
+              translations.settings.importData || 'Import'
+            }}</ui-button>
+          </div>
+        </ui-card>
+
+        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.markdownArchive || 'Import Markdown' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Import a folder of .md files as notes. Folder structure is
+              preserved.
+            </p>
+          </div>
+          <div class="mt-auto pt-2">
+            <ui-button class="w-full" @click="selectMarkdown">{{
+              translations.settings.markdownArchive || 'Select folder'
+            }}</ui-button>
+          </div>
+        </ui-card>
+
+        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.menu.bea || 'Import .bea' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Import notes from a Beaver Notes .bea export archive.
+            </p>
+          </div>
+          <div class="mt-auto pt-2">
+            <ui-button class="w-full" @click="selectBea">{{
+              translations.menu.bea || 'Select file'
+            }}</ui-button>
+          </div>
+        </ui-card>
       </div>
-      <div class="flex items-center">
-        <v-remixicon
-          name="riQuestionLine"
-          class="inline-block align-middle mr-1 mt-2"
-        />
-        <p class="text-sm relative text-neutral-500 mt-2">
+
+      <div class="flex items-center gap-1.5 px-1 text-neutral-500">
+        <v-remixicon name="riQuestionLine" size="14" />
+        <p class="text-xs">
           <span v-tooltip:right="translations.settings.encryptionMessage">
-            {{ translations.settings.aboutDataEncryption || '-' }}
+            {{
+              translations.settings.aboutDataEncryption ||
+              'About data encryption'
+            }}
           </span>
         </p>
-      </div>
-    </section>
-    <!-- Import data from other apps -->
-    <section>
-      <p class="mb-2">{{ translations.settings.importFile || '-' }}</p>
-      <div class="flex items-center ltr:space-x-2">
-        <ui-button class="w-full rtl:mx-2" @click="selectMarkdown">
-          {{ translations.settings.markdownArchive || '-' }}
-        </ui-button>
-        <ui-button class="w-full rtl:mx-2" @click="selectBea">
-          {{ translations.menu.bea || '-' }}
-        </ui-button>
       </div>
     </section>
   </div>
@@ -1459,3 +1432,42 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.editor-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.editor-checkbox input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  border: 2px solid #ccc;
+  cursor: pointer;
+  position: relative;
+  margin: 0;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.editor-checkbox input[type='checkbox']:checked {
+  @apply bg-primary border-primary;
+}
+
+.editor-checkbox input[type='checkbox']:checked::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='white'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  transform: translate(-50%, -50%);
+}
+</style>
