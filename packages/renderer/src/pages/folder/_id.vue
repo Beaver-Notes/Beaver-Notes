@@ -72,7 +72,7 @@
   <div
     class="container pb-5"
     @mousedown="handleMouseDown"
-    @mousemove="handleMouseMove"
+    @click="handleGridClick"
   >
     <div
       v-if="isSelecting"
@@ -80,87 +80,104 @@
       :style="selectionBoxStyle"
     />
 
-    <div
-      v-if="noteStore.notes.length !== 0 || folders.all.length !== 0"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch mb-14"
-      @mousedown="handleMouseDown"
-      @mousemove="handleMouseMove"
-      @click="handleGridClick"
-    >
-      <template v-if="folders.all.length">
+    <template v-if="noteStore.notes.length !== 0 || folders.all.length !== 0">
+      <section v-if="folders.all.length" class="mb-10">
         <p
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
+          class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2 mb-4"
         >
           {{ translations.index.folders }}
         </p>
-        <div
-          v-for="folder in folders.all"
-          :key="folder.id"
-          :min-height="120"
-          :data-item-id="`folder-${folder.id}`"
-          @click="
-            handleItemClick($event, 'folder', folder.id, getAllVisibleItems)
-          "
+        <TransitionGroup
+          tag="div"
+          :css="isSorting"
+          :name="isSorting ? 'sort-cards' : undefined"
+          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
         >
-          <home-folder-card
-            :key="folder.id"
-            :folder="folder"
-            :class="{
-              'ring-1 ring-secondary':
-                dragOverFolderId === folder.id ||
-                (state.query && highlightedFolderIds.has(folder.id)),
-              'opacity-50 transform rotate-1': draggedFolderId === folder.id,
-              'ring-1 ring-secondary': selectedItems.has(`folder-${folder.id}`),
-            }"
-            draggable="true"
-            @dragstart="handleFolderDragStart($event, folder.id)"
-            @dragend="handleDragEnd"
-            @dragover="handleDragOver($event, folder.id)"
-            @dragleave="handleDragLeave"
-            @drop="handleDrop($event, folder.id)"
-          />
-        </div>
-      </template>
-      <template
+          <div
+            v-for="childFolder in folders.all"
+            :key="childFolder.id"
+            :min-height="120"
+            :data-item-id="`folder-${childFolder.id}`"
+            @click="
+              handleItemClick(
+                $event,
+                'folder',
+                childFolder.id,
+                getAllVisibleItems
+              )
+            "
+          >
+            <home-folder-card
+              :key="childFolder.id"
+              :folder="childFolder"
+              :class="{
+                'transform scale-[1.02]':
+                  dragOverFolderId === childFolder.id ||
+                  (state.query && highlightedFolderIds.has(childFolder.id)),
+                'transform scale-[1.02] transition-transform duration-200':
+                  selectedItems.has(`folder-${childFolder.id}`),
+              }"
+              style="contain: layout style"
+              draggable="true"
+              @dragstart="handleFolderDragStart($event, childFolder.id)"
+              @dragend="handleDragEnd"
+              @dragover="handleDragOver($event, childFolder.id)"
+              @dragleave="handleDragLeave"
+              @drop="handleDrop($event, childFolder.id)"
+            />
+          </div>
+        </TransitionGroup>
+      </section>
+      <section
         v-for="name in $route.query.archived
           ? ['archived']
           : ['bookmarked', 'all']"
         :key="name"
+        class="mb-12"
       >
-        <p
-          v-if="notes[name].length !== 0"
-          class="col-span-full text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2"
-        >
-          {{ translations.index[name] }}
-        </p>
+        <template v-if="notes[name].length !== 0">
+          <p
+            class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2 mb-4"
+          >
+            {{ translations.index[name] }}
+          </p>
 
-        <div
-          v-for="note in notes[name]"
-          :key="note.id"
-          :min-height="180"
-          :unrender="true"
-          :data-item-id="`note-${note.id}`"
-          @click="handleItemClick($event, 'note', note.id, getAllVisibleItems)"
-        >
-          <home-note-card
-            :key="note.id"
-            :note-id="note.id"
-            :is-locked="note.isLocked"
-            v-bind="{ note }"
-            :class="{
-              'opacity-50 transform rotate-2': draggedNoteId === note.id,
-              'ring-1 ring-secondary': selectedItems.has(`note-${note.id}`),
-            }"
-            class="h-full"
-            draggable="true"
-            @dragstart="handleNoteDragStart($event, note.id)"
-            @dragend="handleDragEnd"
-            @update:label="state.activeLabel = $event"
-            @update="noteStore.update(note.id, $event)"
-          />
-        </div>
-      </template>
-    </div>
+          <TransitionGroup
+            tag="div"
+            :css="isSorting"
+            :name="isSorting ? 'sort-cards' : undefined"
+            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
+          >
+            <div
+              v-for="note in notes[name]"
+              :key="note.id"
+              :min-height="180"
+              :unrender="true"
+              :data-item-id="`note-${note.id}`"
+              @click="handleItemClick($event, 'note', note.id, getAllVisibleItems)"
+            >
+              <home-note-card
+                :key="note.id"
+                :note-id="note.id"
+                :is-locked="note.isLocked"
+                v-bind="{ note }"
+                :class="{
+                  'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
+                    selectedItems.has(`note-${note.id}`),
+                }"
+                class="h-full"
+                draggable="true"
+                style="contain: layout style"
+                @dragstart="handleNoteDragStart($event, note.id)"
+                @dragend="handleDragEnd"
+                @update:label="state.activeLabel = $event"
+                @update="noteStore.update(note.id, $event)"
+              />
+            </div>
+          </TransitionGroup>
+        </template>
+      </section>
+    </template>
 
     <div v-else class="text-center">
       <img
@@ -208,7 +225,7 @@ import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
 import {
   sortArray,
-  extractNoteText,
+  getPlainTextFromNoteContent,
   parseItemId,
   areSetsEqual,
 } from '@/utils/helper';
@@ -221,7 +238,7 @@ import { useFolderStore } from '@/store/folder';
 import HomeSearch from '@/components/home/HomeSearch.vue';
 import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
-import { useSelection } from '@/composable/selection';
+import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
 
 export default {
@@ -242,19 +259,19 @@ export default {
     const suppressNextClick = ref(false);
     const SCROLL_ZONE_SIZE = 80;
     const SCROLL_SPEED = 5;
+    const isSorting = ref(false);
 
     const showMoveModal = ref(false);
     const baseSelection = ref(new Set());
     const cachedItems = [];
-    const dragAccumulated = ref(null);
+    let dragAccumulated = null;
     let cachedScrollY = 0;
 
     let rafId = null;
     let pendingPointer = null;
-    function patchSelectionSet(target, source) {
-      for (const v of Array.from(target)) if (!source.has(v)) target.delete(v);
-      for (const v of source) if (!target.has(v)) target.add(v);
-    }
+    let mouseMoveListener = null;
+    let sortTimer = null;
+    let enableSortMotion = false;
 
     const {
       selectedItems,
@@ -264,12 +281,11 @@ export default {
       selectionBoxStyle,
       handleItemClick,
       clearSelection,
+      selectAllItems,
     } = useSelection({ suppressNextClick });
 
     const {
       dragOverFolderId,
-      draggedNoteId,
-      draggedFolderId,
       handleNoteDragStart,
       handleFolderDragStart,
       handleDragEnd,
@@ -278,16 +294,16 @@ export default {
     } = useDragAndDrop({ selectedItems, clearSelection });
 
     const state = reactive({
-      notes: [],
       query: '',
       activeLabel: '',
       sortBy: 'createdAt',
       sortOrder: 'asc',
     });
+    const noteSearchCache = new Map();
 
     const sortedNotes = computed(() =>
       sortArray({
-        data: state.notes,
+        data: noteStore.notes,
         order: state.sortOrder,
         key: state.sortBy,
       })
@@ -366,7 +382,9 @@ export default {
       }
       baseSelection.value = new Set(selectedItems.value);
 
-      dragAccumulated.value = new Set(baseSelection.value);
+      dragAccumulated = new Set(baseSelection.value);
+      mouseMoveListener = handleMouseMove;
+      document.addEventListener('mousemove', mouseMoveListener);
     }
 
     function handleMouseMove(event) {
@@ -426,12 +444,12 @@ export default {
         const [type] = id.split('-');
         if (!detectedType) detectedType = type;
         if (type === detectedType) {
-          dragAccumulated.value.add(id);
+          dragAccumulated.add(id);
         }
       }
 
-      if (!areSetsEqual(dragAccumulated.value, selectedItems.value)) {
-        patchSelectionSet(selectedItems.value, dragAccumulated.value);
+      if (!areSetsEqual(dragAccumulated, selectedItems.value)) {
+        patchSelectionSet(selectedItems.value, dragAccumulated);
       }
     }
 
@@ -448,10 +466,14 @@ export default {
       }
 
       isSelecting.value = false;
-      dragAccumulated.value = null;
+      dragAccumulated = null;
       if (rafId !== null) {
         cancelAnimationFrame(rafId);
         rafId = null;
+      }
+      if (mouseMoveListener) {
+        document.removeEventListener('mousemove', mouseMoveListener);
+        mouseMoveListener = null;
       }
     }
 
@@ -482,8 +504,7 @@ export default {
     }
 
     function selectAll() {
-      selectedItems.value.clear();
-      getAllVisibleItems().forEach((item) => selectedItems.value.add(item));
+      selectAllItems(getAllVisibleItems);
     }
 
     function deleteDialogCopy(count) {
@@ -579,10 +600,12 @@ export default {
         archived: [],
         bookmarked: [],
       };
+      const queryLower = state.query.toLocaleLowerCase();
+      const isLabelQuery = queryLower.startsWith('#');
+      const labelQuery = isLabelQuery ? queryLower.slice(1) : queryLower;
 
       notes.forEach((note) => {
-        let { title, content, isArchived, isBookmarked, labels, folderId } =
-          note;
+        let { title, isArchived, isBookmarked, labels, folderId } = note;
 
         if (folderId !== currentFolderId.value) {
           return;
@@ -593,29 +616,30 @@ export default {
             ? title
             : translations.value.card?.untitledNote || '';
 
-        labels = labels.sort((a, b) => a.localeCompare(b));
+        labels = [...labels].sort((a, b) => a.localeCompare(b));
 
         const labelFilter = state.activeLabel
           ? labels.includes(state.activeLabel)
           : true;
 
-        const queryLower = state.query.toLocaleLowerCase();
-        const isMatch = queryLower.startsWith('#')
+        const isMatch = isLabelQuery
           ? labels.some((label) =>
-              label.toLocaleLowerCase().includes(queryLower.substr(1))
+              label.toLocaleLowerCase().includes(labelQuery)
             )
           : labels.some((label) =>
               label.toLocaleLowerCase().includes(queryLower)
             ) ||
             normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
-            content.toLocaleLowerCase().includes(queryLower);
+            getNoteSearchText(note).includes(queryLower);
 
         if (isMatch && labelFilter) {
-          if (isArchived) return filteredNotes.archived.push(note);
+          const noteCard = { ...note, content: getNoteSearchText(note) };
+
+          if (isArchived) return filteredNotes.archived.push(noteCard);
 
           isBookmarked
-            ? filteredNotes.bookmarked.push(note)
-            : filteredNotes.all.push(note);
+            ? filteredNotes.bookmarked.push(noteCard)
+            : filteredNotes.all.push(noteCard);
         }
       });
 
@@ -638,9 +662,18 @@ export default {
       });
     }
 
-    function extractNoteContent(note) {
-      const text = extractNoteText(note.content.content).toLocaleLowerCase();
-      return { ...note, content: text };
+    function getNoteSearchText(note) {
+      const cacheKey = `${note.id}:${note.updatedAt || 0}`;
+      const cached = noteSearchCache.get(note.id);
+      if (cached?.key === cacheKey) {
+        return cached.value;
+      }
+
+      const text = getPlainTextFromNoteContent(
+        note.content
+      ).toLocaleLowerCase();
+      noteSearchCache.set(note.id, { key: cacheKey, value: text });
+      return text;
     }
 
     function deleteLabel(id) {
@@ -648,14 +681,6 @@ export default {
         state.activeLabel = '';
       });
     }
-
-    watch(
-      () => noteStore.notes,
-      (notes) => {
-        state.notes = notes.map(extractNoteContent);
-      },
-      { immediate: true }
-    );
 
     watch(
       () => route.query.label,
@@ -674,6 +699,14 @@ export default {
           'sort-notes',
           JSON.stringify({ sortBy, sortOrder })
         );
+
+        if (!enableSortMotion) return;
+
+        clearTimeout(sortTimer);
+        isSorting.value = true;
+        sortTimer = setTimeout(() => {
+          isSorting.value = false;
+        }, 400);
       }
     );
 
@@ -688,6 +721,7 @@ export default {
 
       const sortState = JSON.parse(localStorage.getItem('sort-notes'));
       if (sortState) Object.assign(state, sortState);
+      enableSortMotion = true;
 
       keyboardNavigation.value = new KeyboardNavigation({
         itemSelector: '.note-card',
@@ -724,6 +758,13 @@ export default {
         selectAll();
       });
 
+      Mousetrap.bind('esc', (e) => {
+        if (selectedItems.value.size > 0) {
+          e.preventDefault();
+          clearSelection();
+        }
+      });
+
       Mousetrap.bind(['del', 'backspace'], (e) => {
         if (selectedItems.value.size > 0) {
           e.preventDefault();
@@ -736,7 +777,12 @@ export default {
       keyboardNavigation.value?.destroy();
 
       window.removeEventListener('mouseup', handleMouseUp);
+      clearTimeout(sortTimer);
       Mousetrap.reset();
+      if (mouseMoveListener) {
+        document.removeEventListener('mousemove', mouseMoveListener);
+        mouseMoveListener = null;
+      }
     });
 
     const folder = computed(() => {
@@ -777,7 +823,6 @@ export default {
       deleteLabel,
       HomeImg,
       ArchiveImg,
-      draggedFolderId,
       handleNoteDragStart,
       handleFolderDragStart,
       handleDragOver,
@@ -797,11 +842,11 @@ export default {
       handleMoved,
       showMoveModal,
       moveMode,
+      isSorting,
       isSelecting,
       selectionBoxStyle,
       selectedNotes,
       selectedFolders,
-      draggedNoteId,
       handleDragEnd,
       dragOverFolderId,
       getAllVisibleItems,
@@ -812,3 +857,32 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+.sort-cards-move {
+  transition: transform 0.01ms linear;
+}
+
+.sort-cards-enter-active {
+  transition:
+    opacity 0.01ms linear,
+    transform 0.01ms linear;
+}
+
+.sort-cards-enter-from {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sort-cards-move {
+    transition: transform 320ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .sort-cards-enter-active {
+    transition:
+      opacity 200ms ease,
+      transform 200ms ease;
+  }
+}
+</style>
