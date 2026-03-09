@@ -1,0 +1,63 @@
+{
+  "productName": "Beaver Notes",
+  "identifier": "com.danielerolli.beaver-notes",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeDevCommand": "vite --config vite.config.js",
+    "beforeBuildCommand": "vite build --config vite.config.js"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Beaver Notes",
+        "width": 1000,
+        "height": 800,
+        "minWidth": 600,
+        "minHeight": 400,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "../buildResources/32x32.png",
+      "../buildResources/128x128.png",
+      "../buildResources/128x128@2x.png",
+      "../buildResources/icon.icns",
+      "../buildResources/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["bea"],
+        "name": "Beaver Notes",
+        "description": "Beaver Notes File",
+        "mimeType": "application/x-beaver-notes"
+      }
+    ],
+    "macOS": {
+      "entitlements": "../buildResources/entitlements.mac.plist",
+      "signingIdentity": null,
+      "providerShortName": null
+    },
+    "linux": {
+      "deb": { "depends": [] },
+      "rpm": { "depends": [] }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/Beaver-Notes/Beaver-Notes/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
+  }
+}

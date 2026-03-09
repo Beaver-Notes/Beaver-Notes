@@ -3,7 +3,6 @@ import { loadEnv } from '../env.js';
 
 import fs from 'node:fs';
 import path from 'node:path';
-import fetch from 'node-fetch';
 import readline from 'node:readline';
 
 loadEnv('private');
@@ -11,7 +10,7 @@ const API_BASE_URL = 'https://translate-beaver.duckdns.org/api/v1';
 const PROJECT_ID = process.env.PROJECT_ID.trim();
 const CLIENT_ID = process.env.CLIENT_ID.trim();
 const CLIENT_SECRET = process.env.CLIENT_SECRET.trim();
-const LOCALES_DIR = './packages/renderer/src/assets/locales';
+const LOCALES_DIR = './src/assets/locales';
 
 async function getAuthToken() {
   const response = await fetch(`${API_BASE_URL}/auth/token`, {

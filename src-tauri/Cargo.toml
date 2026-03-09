@@ -1,0 +1,44 @@
+[package]
+name = "beaver-notes"
+version = "4.4.0"
+description = "Beaver Notes"
+authors = ["Daniele Rolli"]
+license = "MIT"
+repository = "https://github.com/Beaver-Notes/Beaver-Notes"
+edition = "2021"
+rust-version = "1.77.2"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-notification = "2"
+tauri-plugin-store = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-os = "2"
+tauri-plugin-clipboard-manager = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-stronghold = "2"
+iota_stronghold = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+bcrypt = "0.15"
+aes-gcm = "0.10"
+pbkdf2 = { version = "0.12", features = ["hmac"] }
+sha2 = "0.10"
+rand = "0.8"
+hex = "0.4"
+base64 = "0.22"
+keyring = "2"
+font-kit = "0.13"
+tokio = { version = "1", features = ["full"] }
+http = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+urlencoding = "2"
+
+[patch.crates-io]
+mac-notification-sys = { path = "../vendor/mac-notification-sys" }

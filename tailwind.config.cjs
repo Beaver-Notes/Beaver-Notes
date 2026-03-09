@@ -3,15 +3,14 @@ const { createThemes } = require('tw-colors');
 
 module.exports = {
   mode: 'jit',
-  content: [
-    './public/**/*.html',
-    './packages/renderer/**/*.{js,jsx,ts,tsx,vue,html}',
-  ],
+  content: ['./index.html', './src/**/*.{js,jsx,ts,tsx,vue,html}'],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
-        'neutral-750': '#333333',
+        neutral: {
+          750: '#333333',
+        },
       },
       container: {
         center: true,

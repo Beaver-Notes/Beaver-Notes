@@ -1,0 +1,33 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "$APPDATA/Beaver Notes/**",
+        "$APPDATA/com.danielerolli.beaver-notes/**",
+        "$DOCUMENT/**",
+        "$DESKTOP/**",
+        "$TEMP/beaver-notes*/**"
+      ],
+      "deny": [
+        "$HOME/.ssh/**",
+        "$HOME/.gnupg/**"
+      ]
+    },
+    "opener:default",
+    "notification:default",
+    "store:default",
+    "updater:default",
+    "os:default",
+    "clipboard-manager:default"
+  ]
+}

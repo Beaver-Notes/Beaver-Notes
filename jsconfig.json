@@ -3,10 +3,13 @@
     "module": "esnext",
     "target": "esnext",
     "sourceMap": true,
-    "moduleResolution": "Node",
+    "moduleResolution": "Bundler",
     "skipLibCheck": true,
     "strict": true,
     "isolatedModules": true,
-    "lib": ["ESNext"]
+    "lib": ["ESNext", "DOM"],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   }
 }
