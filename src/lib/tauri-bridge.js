@@ -6,6 +6,8 @@ const closeFnList = [];
 
 const commandAliases = {
   'app:info': 'app_info',
+  'migration:status': 'migration_status',
+  'migration:run': 'migration_run',
   'app:spellcheck': 'set_spellcheck',
   'app:set-zoom': 'set_zoom',
   'app:get-zoom': 'get_zoom',
@@ -50,6 +52,8 @@ const commandAliases = {
   'helper:relaunch': 'helper_relaunch',
   'helper:get-path': 'helper_get_path',
   'helper:is-dark-theme': 'helper_is_dark_theme',
+  'import:evernote': 'import_evernote',
+  'import:apple-notes': 'import_apple_notes',
   'show-edit-context-menu': 'show_edit_context_menu',
 };
 
@@ -295,6 +299,15 @@ export const backend = {
   },
   resolve(channel, payload) {
     return pathCache[channel]?.(payload);
+  },
+};
+
+export const ipcRenderer = {
+  callMain(channel, payload) {
+    return backend.invoke(channel, payload);
+  },
+  on(channel, callback) {
+    return backend.listen(channel, callback);
   },
 };
 

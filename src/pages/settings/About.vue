@@ -82,16 +82,30 @@
         <span>{{ translations.about[link.name] || '-' }}</span>
       </a>
     </section>
+
+    <section class="bg-input p-4 rounded-xl space-y-3">
+      <div>
+        <p class="text-sm font-medium">Show onboarding again</p>
+        <p class="text-xs text-neutral-500 dark:text-neutral-400">
+          Reopen the first-run migration and setup screen without clearing your
+          current notes.
+        </p>
+      </div>
+      <ui-button @click="showOnboarding"> Show onboarding </ui-button>
+    </section>
   </div>
 </template>
 
 <script>
 import { onMounted, shallowReactive } from 'vue';
+import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
+import { setSetting } from '@/composable/settings';
 import { backend } from '@/lib/tauri-bridge';
 
 export default {
   setup() {
+    const router = useRouter();
     const { translations } = useTranslations();
     const links = [
       {
@@ -153,6 +167,11 @@ export default {
     const installUpdate = () =>
       backend.invoke('install-update').catch(console.error);
 
+    const showOnboarding = async () => {
+      await setSetting('onboardingCompleted', false);
+      await router.push('/onboarding');
+    };
+
     const handleUpdateAction = () => {
       const type = state.updateStatusType;
       if (['idle', 'not-available', 'error'].includes(type)) checkForUpdates();
@@ -162,10 +181,6 @@ export default {
 
     const toggleAutoUpdate = async () => {
       try {
-        localStorage.setItem(
-          'autoUpdateEnabled',
-          JSON.stringify(state.autoUpdateEnabled)
-        );
         await backend.invoke('toggle-auto-update', state.autoUpdateEnabled);
         if (state.autoUpdateEnabled && state.updateStatusType === 'idle')
           setTimeout(checkForUpdates, 1000);
@@ -233,6 +248,7 @@ export default {
       translations,
       handleUpdateAction,
       toggleAutoUpdate,
+      showOnboarding,
       getUpdateIcon,
       getIconClass,
     };

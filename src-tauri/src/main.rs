@@ -46,6 +46,8 @@ fn main() {
   )
   .invoke_handler(tauri::generate_handler![
     commands::app_info,
+    commands::migration_status,
+    commands::migration_run,
     commands::show_notification,
     commands::set_spellcheck,
     commands::open_file_external,
@@ -109,6 +111,8 @@ fn main() {
     commands::helper_relaunch,
     commands::helper_get_path,
     commands::helper_is_dark_theme,
+    commands::import_evernote,
+    commands::import_apple_notes,
     commands::show_edit_context_menu
   ])
   .on_menu_event(menu::handle_menu_event)

@@ -267,6 +267,7 @@
 import { shallowReactive, onMounted, computed, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
+import { getSettingSync, setSetting } from '@/composable/settings';
 import { useStorage } from '@/composable/storage';
 import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
@@ -297,12 +298,11 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
-      accentColor: localStorage.getItem('color-scheme') || 'light',
-      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
-      directionPreference: localStorage.getItem('directionPreference') || 'ltr',
-      selectedFont: localStorage.getItem('selected-font') || 'Arimo',
-      selectedCodeFont:
-        localStorage.getItem('selected-font-code') || 'JetBrains Mono',
+      accentColor: getSettingSync('colorScheme'),
+      zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
+      directionPreference: getSettingSync('directionPreference'),
+      selectedFont: getSettingSync('selectedFont'),
+      selectedCodeFont: getSettingSync('selectedCodeFont'),
     });
 
     let defaultPath = '';
@@ -312,9 +312,9 @@ export default {
     );
 
     const ClearFontChecked = computed({
-      get: () => localStorage.getItem('selected-dark-text') === '#CCCCCC',
+      get: () => getSettingSync('selectedDarkText') === '#CCCCCC',
       set: (value) => {
-        localStorage.setItem('selected-dark-text', value ? '#CCCCCC' : 'white');
+        void setSetting('selectedDarkText', value ? '#CCCCCC' : 'white');
         document.documentElement.style.setProperty(
           'selected-dark-text',
           value ? '#CCCCCC' : 'white'
@@ -332,13 +332,13 @@ export default {
       });
       root.classList.add(color);
       state.accentColor = color;
-      localStorage.setItem('color-scheme', color);
+      void setSetting('colorScheme', color);
     };
 
     const visibilityMenubar = computed({
-      get: () => localStorage.getItem('visibility-menubar') === 'true',
+      get: () => getSettingSync('visibilityMenubar'),
       set: (val) => {
-        localStorage.setItem('visibility-menubar', val.toString());
+        void setSetting('visibilityMenubar', val);
       },
     });
 
@@ -364,18 +364,14 @@ export default {
 
     onMounted(async () => {
       try {
-        systemFonts.value = await backend.invoke(
-          'get-system-fonts'
-        );
+        systemFonts.value = await backend.invoke('get-system-fonts');
       } catch (e) {
         console.error('Failed to fetch system fonts', e);
       }
     });
 
-    const selectedWidth = ref(localStorage.getItem('editorWidth') || '54rem');
-    const customWidth = ref(
-      localStorage.getItem('customEditorWidth') || '60rem'
-    );
+    const selectedWidth = ref(getSettingSync('editorWidth'));
+    const customWidth = ref(getSettingSync('customEditorWidth'));
     const customWidthInput = ref(customWidth.value.replace('rem', ''));
     const isEditingCustomWidth = ref(false);
 
@@ -401,19 +397,19 @@ export default {
     const toggleVisibilityOfMenubar = async () => {
       await backend.invoke(
         'app:change-menu-visibility',
-        localStorage.getItem('visibility-menubar') !== 'true'
+        !getSettingSync('visibilityMenubar')
       );
     };
 
     const toggleDirectionPreference = () => {
       state.directionPreference =
         state.directionPreference === 'rtl' ? 'ltr' : 'rtl';
-      localStorage.setItem('directionPreference', state.directionPreference);
+      void setSetting('directionPreference', state.directionPreference);
       document.documentElement.dir = state.directionPreference;
     };
 
     const updateFont = () => {
-      localStorage.setItem('selected-font', state.selectedFont);
+      void setSetting('selectedFont', state.selectedFont);
       document.documentElement.style.setProperty(
         '--selected-font',
         state.selectedFont
@@ -421,7 +417,7 @@ export default {
     };
 
     const updateCodeFont = () => {
-      localStorage.setItem('selected-font-code', state.selectedCodeFont);
+      void setSetting('selectedCodeFont', state.selectedCodeFont);
       document.documentElement.style.setProperty(
         '--selected-font-code',
         state.selectedCodeFont
@@ -432,13 +428,13 @@ export default {
       console.log('Setting zoom level to:', newZoomLevel);
       backend.invoke('app:set-zoom', newZoomLevel);
       state.zoomLevel = newZoomLevel.toFixed(1);
-      localStorage.setItem('zoomLevel', state.zoomLevel);
+      void setSetting('zoomLevel', state.zoomLevel);
       window.location.reload();
     };
 
     const setWidth = (width) => {
       selectedWidth.value = width;
-      localStorage.setItem('editorWidth', width);
+      void setSetting('editorWidth', width);
       document.documentElement.style.setProperty('--selected-width', width);
     };
 
@@ -446,8 +442,8 @@ export default {
       if (customWidthInput.value) {
         customWidth.value = `${customWidthInput.value}rem`;
         selectedWidth.value = customWidth.value;
-        localStorage.setItem('customEditorWidth', customWidth.value);
-        localStorage.setItem('editorWidth', customWidth.value);
+        void setSetting('customEditorWidth', customWidth.value);
+        void setSetting('editorWidth', customWidth.value);
         document.documentElement.style.setProperty(
           '--selected-width',
           customWidth.value

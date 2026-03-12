@@ -2,7 +2,9 @@
   <div
     ref="container"
     class="bg-white dark:bg-neutral-800 border overflow-x-auto z-20 top-2 w-fit max-w-full mx-auto p-1 sticky rounded-lg shadow-lg no-print no-scrollbar"
-    :class="{ 'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode }"
+    :class="{
+      'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
+    }"
     @wheel.passive="changeWheelDirection"
   >
     <div class="flex items-center justify-start w-max h-full gap-0.5 px-1">
@@ -606,8 +608,8 @@
         </template>
 
         <component
-          v-else-if="item.meta?.component"
           :is="item.meta.component"
+          v-else-if="item.meta?.component"
           :editor="editor"
         />
       </template>
@@ -659,6 +661,7 @@ import {
   shallowReactive,
   ref,
 } from 'vue';
+import { getSettingSync, setSetting } from '@/composable/settings';
 import useAudioRecorder from '@/utils/record';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
@@ -998,15 +1001,15 @@ export default {
 
     // ── Reader mode ───────────────────────────────────────────────────────────
     const state = shallowReactive({
-      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
+      zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
     });
     function setZoom(level) {
       backend.invoke('app:set-zoom', level);
       state.zoomLevel = level.toFixed(1);
-      localStorage.setItem('zoomLevel', state.zoomLevel);
+      void setSetting('zoomLevel', state.zoomLevel);
     }
     function toggleReaderMode() {
-      const stored = parseFloat(localStorage.getItem('zoomLevel'));
+      const stored = parseFloat(getSettingSync('zoomLevel'));
       setZoom(isNaN(stored) ? 1.0 : stored);
       store.inReaderMode = !store.inReaderMode;
       if (store.inReaderMode) {
@@ -1032,8 +1035,8 @@ export default {
       });
     }
 
-    const showAdvancedSettings = computed(
-      () => localStorage.getItem('advanced-settings') === 'true'
+    const showAdvancedSettings = computed(() =>
+      getSettingSync('advancedSettings')
     );
 
     // ── Print ─────────────────────────────────────────────────────────────────

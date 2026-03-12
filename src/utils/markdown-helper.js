@@ -1,5 +1,3 @@
-import { ref } from 'vue';
-import { useNoteStore } from '@/store/note';
 import { marked } from 'marked';
 import { v4 as uuidv4 } from 'uuid';
 import { useStorage } from '@/composable/storage';
@@ -7,12 +5,7 @@ import { backend, path } from '@/lib/tauri-bridge';
 
 const storage = useStorage('settings');
 
-const notes = ref([]);
-const labels = ref('');
-const isBookmarked = ref(false);
-const isArchived = ref(false);
-
-const readMarkdownFile = async (filePath) => {
+export const readMarkdownFile = async (filePath) => {
   try {
     const markdown = await backend.invoke('fs:readFile', filePath);
     return markdown;
@@ -22,7 +15,7 @@ const readMarkdownFile = async (filePath) => {
   }
 };
 
-const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
+export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const footnoteDefinitions = [];
   const referenceNumberToId = {};
 
@@ -715,74 +708,5 @@ const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       content: footnoteDefinitions,
     });
   }
-
   return { title, content: json };
-};
-
-export const processDirectory = async (directoryPath) => {
-  notes.value = [];
-  const noteStore = useNoteStore();
-  const errorLog = []; // Array to collect error messages
-
-  try {
-    const files = await backend.invoke('fs:readdir', directoryPath);
-
-    const processingPromises = files.map(async (fileName) => {
-      if (fileName === '.DS_Store') {
-        console.log(`Skipping .DS_Store file`);
-        return; // Skip processing .DS_Store file
-      }
-
-      const filePath = path.join(directoryPath, fileName);
-
-      if (fileName.toLowerCase().endsWith('.md')) {
-        try {
-          const markdown = await readMarkdownFile(filePath);
-          console.log('Markdown:', markdown);
-
-          const id = uuidv4();
-          const { title, content } = await convertMarkdownToTiptap(
-            markdown,
-            id,
-            directoryPath
-          );
-
-          // Automatically add notes
-          const labelArray = labels.value
-            .split(',')
-            .map((label) => label.trim())
-            .filter((label) => label !== '');
-          const newNote = {
-            id,
-            title: title || fileName.replace('.md', ''),
-            content,
-            labels: labelArray,
-            isBookmarked: isBookmarked.value,
-            isArchived: isArchived.value,
-          };
-
-          await noteStore.add(newNote);
-          console.log('Note added:', newNote);
-          notes.value.push(newNote);
-        } catch (error) {
-          // Log errors related to individual file processing
-          errorLog.push(`Error processing file ${fileName}: ${error.message}`);
-        }
-      } else {
-        console.log(`Skipping file: ${filePath}`);
-      }
-    });
-
-    await Promise.all(processingPromises);
-  } catch (error) {
-    errorLog.push(`Error listing directory: ${error.message}`);
-  }
-
-  // Log all collected errors
-  if (errorLog.length > 0) {
-    console.error('Processing completed with errors:');
-    errorLog.forEach((error) => console.error(error));
-  } else {
-    console.log('All files processed successfully.');
-  }
 };

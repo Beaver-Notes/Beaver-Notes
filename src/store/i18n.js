@@ -2,6 +2,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import dayjs from '@/lib/dayjs';
+import { getSettingSync, setSetting } from '@/composable/settings';
 
 const localeFiles = import.meta.glob('@/assets/locales/*.json', {
   eager: true,
@@ -10,7 +11,7 @@ const localeFiles = import.meta.glob('@/assets/locales/*.json', {
 const dayjsLocales = import.meta.glob('../../node_modules/dayjs/locale/*.js');
 
 export const useI18nStore = defineStore('i18n', () => {
-  const lang = ref(localStorage.getItem('selectedLanguage') || 'en');
+  const lang = ref(getSettingSync('selectedLanguage'));
 
   const messages = computed(() => {
     const fallback = localeFiles[`/src/assets/locales/en.json`]?.default ?? {};
@@ -22,7 +23,7 @@ export const useI18nStore = defineStore('i18n', () => {
 
   async function setLanguage(newLang) {
     lang.value = newLang;
-    localStorage.setItem('selectedLanguage', newLang);
+    await setSetting('selectedLanguage', newLang);
     if (newLang !== 'en') {
       try {
         await dayjsLocales[`../../node_modules/dayjs/locale/${newLang}.js`]?.();
@@ -33,7 +34,9 @@ export const useI18nStore = defineStore('i18n', () => {
     dayjs.locale(newLang);
   }
 
-  setLanguage(lang.value);
+  setLanguage(lang.value).catch((error) => {
+    console.error('[i18n] failed to initialize language:', error);
+  });
 
   return { lang, messages, setLanguage };
 });

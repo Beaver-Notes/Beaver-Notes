@@ -174,6 +174,7 @@ import { useNoteStore } from '@/store/note';
 import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
+import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
@@ -309,7 +310,7 @@ async function deleteNote(note) {
   });
 }
 
-const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+const selectedLanguage = getSettingSync('selectedLanguage');
 
 dayjs.locale(selectedLanguage);
 

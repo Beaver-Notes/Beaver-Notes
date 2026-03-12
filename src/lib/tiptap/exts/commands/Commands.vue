@@ -33,6 +33,7 @@
 import { ref, shallowRef, computed, getCurrentInstance } from 'vue';
 import mime from 'mime';
 import dayjs from '@/lib/dayjs';
+import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
@@ -348,8 +349,7 @@ export default {
         icon: 'riCalendarLine',
         name: 'todayDate',
         action: () => {
-          const customFormat =
-            localStorage.getItem('todayDateFormat') || 'DD-MM-YYYY';
+          const customFormat = getSettingSync('todayDateFormat');
           props.editor
             .chain()
             .focus()
@@ -361,7 +361,7 @@ export default {
         icon: 'riTimerLine',
         name: 'currentTime',
         action: () => {
-          const customFormat = localStorage.getItem('timeFormat') || 'HH:mm';
+          const customFormat = getSettingSync('timeFormat');
           props.editor
             .chain()
             .focus()

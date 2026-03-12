@@ -79,6 +79,26 @@ pub(crate) struct WindowStateSnapshot {
   pub(crate) maximized: bool,
 }
 
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LegacyMigrationStatus {
+  pub(crate) legacy_dir: Option<String>,
+  pub(crate) app_data_dir: Option<String>,
+  pub(crate) has_legacy_data: bool,
+  pub(crate) already_migrated: bool,
+  pub(crate) target_has_data: bool,
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct LegacyMigrationResult {
+  pub(crate) legacy_dir: Option<String>,
+  pub(crate) app_data_dir: Option<String>,
+  pub(crate) merged_store_files: Vec<String>,
+  pub(crate) copied_asset_dirs: Vec<String>,
+  pub(crate) marker_written: bool,
+}
+
 #[derive(Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OpenDialogOptions {
@@ -238,6 +258,12 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, String> {
 }
 
 pub(crate) fn ensure_store(app: &AppHandle, path: &str) -> Result<Arc<tauri_plugin_store::Store<Wry>>, String> {
+  let app_data_dir = app.path().app_data_dir().map_err(to_error)?;
+  fs::create_dir_all(&app_data_dir).map_err(to_error)?;
+  let store_path = app_data_dir.join(path);
+  if !store_path.exists() {
+    fs::write(&store_path, b"{}\n").map_err(to_error)?;
+  }
   app.store(path).map_err(to_error)
 }
 

@@ -51,9 +51,10 @@ import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import { dropFile } from './exts/drop-file';
 import { getTranslations } from '@/utils/getTranslations';
+import { getSettingSync } from '@/composable/settings';
 const translations = getTranslations();
 
-const directionPreference = localStorage.getItem('directionPreference');
+const directionPreference = getSettingSync('directionPreference');
 
 const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
 

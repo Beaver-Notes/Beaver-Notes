@@ -1,4 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
+import { getSettingSync, setSetting } from './settings';
 const currentTheme = ref('');
 
 let mediaQueryListener = null;
@@ -28,11 +29,7 @@ function setTheme(name, isSystem = false) {
     rootElement.classList.remove('dark');
   }
 
-  if (isSystem) {
-    localStorage.removeItem('theme');
-  } else {
-    localStorage.theme = name;
-  }
+  void setSetting('theme', currentTheme.value);
 
   if (currentTheme.value === 'system') {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
@@ -46,7 +43,7 @@ function setTheme(name, isSystem = false) {
 }
 
 function loadTheme() {
-  const savedTheme = localStorage.getItem('theme') || 'system';
+  const savedTheme = getSettingSync('theme');
   setTheme(savedTheme, savedTheme === 'system');
 }
 

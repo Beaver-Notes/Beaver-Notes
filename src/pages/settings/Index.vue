@@ -263,6 +263,292 @@
       <p
         class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
       >
+        Export
+      </p>
+      <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
+        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              Export as Markdown
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Export all notes as .md files with YAML frontmatter. Compatible
+              with Obsidian, Bear, and most Markdown editors.
+            </p>
+          </div>
+          <div class="mt-auto space-y-2 pt-2">
+            <ui-button
+              class="w-full"
+              :loading="exportMdState.running"
+              :disabled="exportMdState.running"
+              @click="exportAllMarkdownHandler"
+            >
+              Export Markdown
+            </ui-button>
+            <p
+              v-if="exportMdState.running && exportMdState.total"
+              class="text-xs text-neutral-500 dark:text-neutral-400"
+            >
+              Exporting {{ exportMdState.done }} of {{ exportMdState.total }}…
+            </p>
+            <template v-else-if="exportMdState.result">
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                Exported {{ exportMdState.result.exported }} notes<span
+                  v-if="exportMdState.result.skipped.length"
+                >
+                  . {{ exportMdState.result.skipped.length }} skipped.</span
+                ><span v-else>.</span>
+              </p>
+              <details
+                v-if="exportMdState.result.skipped.length"
+                class="text-xs text-neutral-500 dark:text-neutral-400"
+              >
+                <summary class="cursor-pointer select-none">
+                  Show skipped ({{ exportMdState.result.skipped.length }})
+                </summary>
+                <ul class="mt-2 space-y-1 pl-4">
+                  <li
+                    v-for="item in exportMdState.result.skipped"
+                    :key="`md-${item.title}`"
+                  >
+                    {{ item.title }}
+                  </li>
+                </ul>
+              </details>
+            </template>
+          </div>
+        </ui-card>
+
+        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
+          <div class="space-y-0.5">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              Export as HTML
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Export all notes as .html files preserving folder structure. Open
+              any file in a browser.
+            </p>
+          </div>
+          <div class="mt-auto space-y-2 pt-2">
+            <ui-button
+              class="w-full"
+              :loading="exportHtmlState.running"
+              :disabled="exportHtmlState.running"
+              @click="exportAllHTMLHandler"
+            >
+              Export HTML
+            </ui-button>
+            <p
+              v-if="exportHtmlState.running && exportHtmlState.total"
+              class="text-xs text-neutral-500 dark:text-neutral-400"
+            >
+              Exporting {{ exportHtmlState.done }} of
+              {{ exportHtmlState.total }}…
+            </p>
+            <template v-else-if="exportHtmlState.result">
+              <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                Exported {{ exportHtmlState.result.exported }} notes<span
+                  v-if="exportHtmlState.result.skipped.length"
+                >
+                  . {{ exportHtmlState.result.skipped.length }} skipped.</span
+                ><span v-else>.</span>
+              </p>
+              <details
+                v-if="exportHtmlState.result.skipped.length"
+                class="text-xs text-neutral-500 dark:text-neutral-400"
+              >
+                <summary class="cursor-pointer select-none">
+                  Show skipped ({{ exportHtmlState.result.skipped.length }})
+                </summary>
+                <ul class="mt-2 space-y-1 pl-4">
+                  <li
+                    v-for="item in exportHtmlState.result.skipped"
+                    :key="`html-${item.title}`"
+                  >
+                    {{ item.title }}
+                  </li>
+                </ul>
+              </details>
+            </template>
+          </div>
+        </ui-card>
+      </div>
+    </section>
+
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
+        Import
+      </p>
+      <ui-card padding="p-4" class="flex flex-col gap-4">
+        <div class="space-y-1">
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            Import notes
+          </p>
+          <p
+            class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            Pick the app you are migrating from, then follow the source-specific
+            import steps in one place. Markdown exports, direct app imports, and
+            ENEX files all use the same flow here.
+          </p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <ui-button class="sm:w-auto" @click="openImportModal()">
+            Choose import source
+          </ui-button>
+          <p
+            class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            Supports Obsidian, Notion, Bear, Simplenote, Markdown folders,
+            Evernote, and Apple Notes on macOS.
+          </p>
+        </div>
+      </ui-card>
+
+      <ui-modal v-model="showImportModal" content-class="max-w-3xl">
+        <template #header>
+          <div>
+            <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
+              Import Notes
+            </h3>
+            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+              Choose a source, review the instructions, then run the import.
+            </p>
+          </div>
+        </template>
+
+        <div
+          class="grid grid-cols-1 border-t border-neutral-100 md:grid-cols-[13rem_minmax(0,1fr)] dark:border-neutral-800"
+        >
+          <aside class="p-4 md:p-5">
+            <div class="space-y-0.5">
+              <button
+                v-for="source in importSources"
+                :key="source.key"
+                type="button"
+                class="w-full rounded-md px-2.5 py-2 text-left text-sm transition-colors"
+                :class="
+                  selectedImportSource === source.key
+                    ? 'bg-primary/10 font-medium text-primary'
+                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'
+                "
+                @click="selectImportSource(source.key)"
+              >
+                <span class="flex items-center gap-2">
+                  <v-remixicon :name="source.icon" size="16" />
+                  <span>{{ source.title }}</span>
+                </span>
+              </button>
+            </div>
+          </aside>
+
+          <div
+            v-if="activeImportSource"
+            class="min-w-0 p-4 md:flex md:min-h-[20rem] md:flex-col md:p-5"
+          >
+            <div class="flex flex-1 flex-col gap-4">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <v-remixicon
+                    :name="activeImportSource.icon"
+                    size="18"
+                    class="text-neutral-500 dark:text-neutral-400"
+                  />
+                  <p
+                    class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                  >
+                    {{ activeImportSource.title }}
+                  </p>
+                </div>
+                <p
+                  class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                >
+                  {{ activeImportSource.description }}
+                </p>
+              </div>
+
+              <div v-if="selectedImportSource === 'evernote'" class="space-y-1">
+                <label
+                  class="text-xs font-medium text-neutral-700 dark:text-neutral-300"
+                >
+                  Notebook name
+                </label>
+                <ui-input
+                  v-model="importState.evernote.notebookName"
+                  placeholder="Notebook name (optional)"
+                  class="w-full"
+                />
+              </div>
+
+              <div class="mt-auto space-y-3">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <p
+                    v-if="activeImportState.running && activeImportState.total"
+                    class="text-xs text-neutral-500 dark:text-neutral-400"
+                  >
+                    Importing {{ activeImportState.done }} of
+                    {{ activeImportState.total }}…
+                  </p>
+                  <ui-button
+                    class="sm:ml-auto sm:w-auto"
+                    :loading="activeImportState.running"
+                    :disabled="activeImportState.running"
+                    @click="startSelectedImport"
+                  >
+                    {{ activeImportSource.buttonLabel }}
+                  </ui-button>
+                </div>
+
+                <div
+                  v-if="activeImportState.result"
+                  class="space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-700"
+                >
+                  <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                    Imported {{ activeImportState.result.imported }} notes
+                    across {{ activeImportState.result.folders }} folders.
+                  </p>
+                  <details
+                    v-if="activeImportState.result.errors.length"
+                    class="space-y-2 text-xs text-neutral-500 dark:text-neutral-400"
+                  >
+                    <summary class="cursor-pointer select-none">
+                      Show issues ({{ activeImportState.result.errors.length }})
+                    </summary>
+                    <ui-button
+                      class="w-full sm:w-auto"
+                      variant="secondary"
+                      @click="copyImportIssues(selectedImportSource)"
+                    >
+                      Copy to clipboard
+                    </ui-button>
+                    <div
+                      class="max-h-56 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap dark:bg-neutral-950"
+                    >
+                      {{ activeImportIssuesText }}
+                    </div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ui-modal>
+    </section>
+
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
         {{ translations.settings.data || 'Data' }}
       </p>
       <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
@@ -325,47 +611,6 @@
             }}</ui-button>
           </div>
         </ui-card>
-
-        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
-          <div class="space-y-0.5">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.settings.markdownArchive || 'Import Markdown' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Import a folder of .md files as notes. Folder structure is
-              preserved.
-            </p>
-          </div>
-          <div class="mt-auto pt-2">
-            <ui-button class="w-full" @click="selectMarkdown">{{
-              translations.settings.markdownArchive || 'Select folder'
-            }}</ui-button>
-          </div>
-        </ui-card>
-
-        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
-          <div class="space-y-0.5">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.menu.bea || 'Import .bea' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Import notes from a Beaver Notes .bea export archive.
-            </p>
-          </div>
-          <div class="mt-auto pt-2">
-            <ui-button class="w-full" @click="selectBea">{{
-              translations.menu.bea || 'Select file'
-            }}</ui-button>
-          </div>
-        </ui-card>
       </div>
 
       <div class="flex items-center gap-1.5 px-1 text-neutral-500">
@@ -398,11 +643,17 @@ import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { formatTime } from '@/utils/time-format';
-import { useRouter } from 'vue-router';
 import { useAppStore } from '../../store/app';
-import { processDirectory } from '@/utils/markdown-helper';
 import { forceSyncNow } from '../../utils/sync';
-import { importBEA } from '../../utils/share/BEA';
+import { exportAllMarkdown, exportAllHTML } from '@/utils/share/ExportBulk';
+import {
+  importObsidian,
+  importNotion,
+  importBear,
+  importSimplenote,
+  importGenericMarkdown,
+} from '@/utils/import/importers';
+import { startRustImport } from '@/utils/import/importRustBridge';
 import { useFolderStore } from '../../store/folder';
 import {
   isSyncEncryptionEnabled,
@@ -422,9 +673,9 @@ import {
   appFolderHasEncryption,
 } from '@/utils/appCrypto.js';
 import { getSyncPath, setSyncPath } from '@/utils/syncPath.js';
-import { useLocalStorage } from '../../composable/storage';
+import { getSettingSync, setSetting } from '../../composable/settings';
 import { useTranslations } from '../../composable/useTranslations';
-import { backend, showNotification, path } from '@/lib/tauri-bridge';
+import { backend, clipboard, ipcRenderer, path } from '@/lib/tauri-bridge';
 
 const LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -451,15 +702,10 @@ export default {
     const { translations } = useTranslations();
     const passwordStore = usePasswordStore();
     const noteStore = useNoteStore();
-    const advancedSettings = ref(
-      localStorage.getItem('advanced-settings') === 'true'
-    );
+    const advancedSettings = ref(getSettingSync('advancedSettings'));
 
-    const spellcheckEnabled = ref(
-      localStorage.getItem('spellcheckEnabled') === 'true' &&
-        localStorage.getItem('spellcheckEnabled') != null
-    );
-    const autoSync = ref(localStorage.getItem('autoSync') === 'true');
+    const spellcheckEnabled = ref(getSettingSync('spellcheckEnabled'));
+    const autoSync = ref(getSettingSync('autoSync'));
     const syncEncryptionEnabled = ref(isSyncEncryptionEnabled());
     const syncKeyLoaded = ref(isSyncKeyLoaded());
     const syncPassphraseInput = ref('');
@@ -477,12 +723,10 @@ export default {
     const passwordInput = ref('');
     const securityError = ref('');
     const hasPassword = ref(!!passwordStore.sharedKey);
-    const selectedFont = ref(localStorage.getItem('selected-font') || 'Arimo');
-    const selectedLanguage = ref(
-      localStorage.getItem('selectedLanguage') || 'en'
-    );
+    const selectedFont = ref(getSettingSync('selectedFont'));
+    const selectedLanguage = ref(getSettingSync('selectedLanguage'));
     const directionPreference = ref(
-      localStorage.getItem('directionPreference') ||
+      getSettingSync('directionPreference') ||
         getLanguageDirection(selectedLanguage.value)
     );
     const languages = Object.entries(LANGUAGE_CONFIG).map(
@@ -496,10 +740,10 @@ export default {
       { name: 'dark', img: darkImg },
       { name: 'system', img: systemImg },
     ];
-    const router = useRouter();
     const theme = useTheme();
     const dialog = useDialog();
     const storage = useStorage();
+    const folderStore = useFolderStore();
     const folerStore = useFolderStore();
 
     const state = shallowReactive({
@@ -507,10 +751,437 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
-      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
+      zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
     });
+    const exportMdState = shallowReactive({
+      running: false,
+      done: 0,
+      total: 0,
+      result: null,
+    });
+    const exportHtmlState = shallowReactive({
+      running: false,
+      done: 0,
+      total: 0,
+      result: null,
+    });
+    const importState = shallowReactive({
+      obsidian: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+      notion: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+      bear: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+      evernote: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+        notebookName: '',
+      }),
+      appleNotes: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+      simplenote: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+      genericMd: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+    });
+    const showImportModal = ref(false);
+    const selectedImportSource = ref('obsidian');
+    const isMacOS = computed(() =>
+      window.navigator.platform.toLowerCase().includes('mac')
+    );
 
     let defaultPath = '';
+
+    async function exportAllMarkdownHandler() {
+      if (exportMdState.running) return;
+
+      const previousState = {
+        done: exportMdState.done,
+        total: exportMdState.total,
+        result: exportMdState.result,
+      };
+
+      exportMdState.running = true;
+      exportMdState.result = null;
+      exportMdState.done = 0;
+      exportMdState.total = 0;
+
+      try {
+        const result = await exportAllMarkdown(({ done, total }) => {
+          exportMdState.done = done;
+          exportMdState.total = total;
+        });
+
+        if (result === null) {
+          exportMdState.done = previousState.done;
+          exportMdState.total = previousState.total;
+          exportMdState.result = previousState.result;
+          return;
+        }
+
+        exportMdState.result = result;
+      } finally {
+        exportMdState.running = false;
+      }
+    }
+
+    async function exportAllHTMLHandler() {
+      if (exportHtmlState.running) return;
+
+      const previousState = {
+        done: exportHtmlState.done,
+        total: exportHtmlState.total,
+        result: exportHtmlState.result,
+      };
+
+      exportHtmlState.running = true;
+      exportHtmlState.result = null;
+      exportHtmlState.done = 0;
+      exportHtmlState.total = 0;
+
+      try {
+        const result = await exportAllHTML(({ done, total }) => {
+          exportHtmlState.done = done;
+          exportHtmlState.total = total;
+        });
+
+        if (result === null) {
+          exportHtmlState.done = previousState.done;
+          exportHtmlState.total = previousState.total;
+          exportHtmlState.result = previousState.result;
+          return;
+        }
+
+        exportHtmlState.result = result;
+      } finally {
+        exportHtmlState.running = false;
+      }
+    }
+
+    async function runImport(key, fn) {
+      if (importState[key].running) return;
+
+      const state = importState[key];
+      state.running = true;
+      state.result = null;
+      state.done = 0;
+      state.total = 0;
+
+      try {
+        const result = await fn(({ done, total }) => {
+          state.done = done;
+          state.total = total;
+        });
+        state.result = result;
+      } finally {
+        state.running = false;
+      }
+    }
+
+    function getImportIssuesText(key) {
+      const issues = importState[key]?.result?.errors || [];
+      return issues
+        .map(
+          (issue) =>
+            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`
+        )
+        .join('\n');
+    }
+
+    async function copyImportIssues(key) {
+      const text = getImportIssuesText(key);
+      if (!text) return;
+      await clipboard.writeText(text);
+    }
+
+    async function importObsidianHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select Obsidian Vault',
+          properties: ['openDirectory'],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+      const dataDir = await storage.get('dataDir', '');
+      await runImport('obsidian', (onProgress) =>
+        importObsidian(
+          filePaths[0],
+          noteStore,
+          folderStore,
+          dataDir,
+          onProgress
+        )
+      );
+    }
+
+    async function importNotionHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select Notion Export',
+          properties: ['openDirectory'],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+      const dataDir = await storage.get('dataDir', '');
+      await runImport('notion', (onProgress) =>
+        importNotion(filePaths[0], noteStore, folderStore, dataDir, onProgress)
+      );
+    }
+
+    async function importBearHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select Bear Export',
+          properties: ['openDirectory'],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+      const dataDir = await storage.get('dataDir', '');
+      await runImport('bear', (onProgress) =>
+        importBear(filePaths[0], noteStore, folderStore, dataDir, onProgress)
+      );
+    }
+
+    async function importEvernoteHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select ENEX File',
+          properties: ['openFile'],
+          filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+
+      await runImport('evernote', async (onProgress) => {
+        const pending = startRustImport('evernote', onProgress);
+        await ipcRenderer.callMain('import:evernote', {
+          enexPath: filePaths[0],
+          enex_path: filePaths[0],
+          notebookName: importState.evernote.notebookName?.trim() || null,
+          notebook_name: importState.evernote.notebookName?.trim() || null,
+        });
+        return pending;
+      });
+    }
+
+    async function importAppleNotesHandler() {
+      await runImport('appleNotes', async (onProgress) => {
+        const pending = startRustImport('apple-notes', onProgress);
+        await ipcRenderer.callMain('import:apple-notes', {});
+        return pending;
+      });
+    }
+
+    async function importSimplenoteHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select notes.json',
+          properties: ['openFile'],
+          filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+      await runImport('simplenote', (onProgress) =>
+        importSimplenote(filePaths[0], noteStore, onProgress)
+      );
+    }
+
+    async function importGenericMarkdownHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select Markdown Folder',
+          properties: ['openDirectory'],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+      const dataDir = await storage.get('dataDir', '');
+      await runImport('genericMd', (onProgress) =>
+        importGenericMarkdown(
+          filePaths[0],
+          noteStore,
+          folderStore,
+          dataDir,
+          onProgress
+        )
+      );
+    }
+
+    const importSourceGroups = computed(() => {
+      const groups = [
+        {
+          label: 'Markdown-based',
+          items: [
+            {
+              key: 'obsidian',
+              title: 'Obsidian',
+              icon: 'obsidian',
+              group: 'Markdown',
+              description:
+                'Point Beaver Notes at your Obsidian vault folder. Your folder structure and notes will be imported as-is.',
+              buttonLabel: 'Select Vault Folder',
+            },
+            {
+              key: 'notion',
+              title: 'Notion',
+              icon: 'riNotionFill',
+              group: 'Markdown',
+              description:
+                'In Notion, go to Settings → Export content → Markdown & CSV. Download and unzip the export, then select the unzipped folder.',
+              buttonLabel: 'Select Notion Export',
+            },
+            {
+              key: 'bear',
+              title: 'Bear',
+              icon: 'bear',
+              group: 'Markdown',
+              description:
+                'In Bear, go to File → Export Notes → Markdown. Select the exported folder below.',
+              buttonLabel: 'Select Bear Export',
+            },
+            {
+              key: 'genericMd',
+              title: 'Markdown Folder',
+              icon: 'riMarkdownLine',
+              group: 'Markdown',
+              description:
+                'Import any folder of .md files. Subfolders become Beaver Notes folders.',
+              buttonLabel: 'Select Folder',
+            },
+          ],
+        },
+        {
+          label: 'Direct import',
+          items: [
+            {
+              key: 'simplenote',
+              title: 'Simplenote',
+              icon: 'simpleNote',
+              group: 'Direct',
+              description:
+                'In Simplenote, go to Settings → Export and download notes.json. Select the file below.',
+              buttonLabel: 'Select notes.json',
+            },
+            {
+              key: 'evernote',
+              title: 'Evernote',
+              icon: 'riEvernoteFill',
+              group: 'Direct',
+              description:
+                'In Evernote, right-click a notebook and choose Export Notes. Save as .enex format. You can optionally enter the notebook name to create a matching folder.',
+              buttonLabel: 'Select ENEX File',
+            },
+          ],
+        },
+      ];
+
+      if (isMacOS.value) {
+        groups[1].items.push({
+          key: 'appleNotes',
+          title: 'Apple Notes',
+          icon: 'riAppleFill',
+          group: 'Direct',
+          description:
+            "Beaver Notes will read your notes directly from Apple Notes. You'll see a permission prompt — click OK to allow access.",
+          buttonLabel: 'Import from Apple Notes',
+        });
+      }
+
+      return groups;
+    });
+
+    const importSourceMap = computed(() =>
+      importSourceGroups.value.reduce((acc, group) => {
+        group.items.forEach((item) => {
+          acc[item.key] = item;
+        });
+        return acc;
+      }, {})
+    );
+    const importSources = computed(() =>
+      importSourceGroups.value.flatMap((group) => group.items)
+    );
+
+    const activeImportSource = computed(
+      () => importSourceMap.value[selectedImportSource.value] || null
+    );
+    const activeImportState = computed(
+      () => importState[selectedImportSource.value] || importState.obsidian
+    );
+    const activeImportIssuesText = computed(() =>
+      getImportIssuesText(selectedImportSource.value)
+    );
+
+    function openImportModal(key = selectedImportSource.value) {
+      if (importSourceMap.value[key]) {
+        selectedImportSource.value = key;
+      }
+      showImportModal.value = true;
+    }
+
+    function selectImportSource(key) {
+      if (!importSourceMap.value[key]) return;
+      selectedImportSource.value = key;
+    }
+
+    async function startSelectedImport() {
+      switch (selectedImportSource.value) {
+        case 'obsidian':
+          await importObsidianHandler();
+          break;
+        case 'notion':
+          await importNotionHandler();
+          break;
+        case 'bear':
+          await importBearHandler();
+          break;
+        case 'evernote':
+          await importEvernoteHandler();
+          break;
+        case 'appleNotes':
+          await importAppleNotesHandler();
+          break;
+        case 'simplenote':
+          await importSimplenoteHandler();
+          break;
+        case 'genericMd':
+          await importGenericMarkdownHandler();
+          break;
+        default:
+          break;
+      }
+    }
 
     async function changeDataDir() {
       try {
@@ -803,71 +1474,6 @@ export default {
       }
     }
 
-    const selectMarkdown = async () => {
-      try {
-        const {
-          canceled,
-          filePaths: [dir],
-        } = await backend.invoke('dialog:open', {
-          title: translations.value.settings.selectPath,
-          properties: ['openDirectory'],
-        });
-
-        if (canceled) return;
-
-        state.importDir = dir;
-        await processDirectory(state.importDir);
-        await storage.set('importDir', state.importDir);
-
-        showNotification({
-          title: translations.value.settings.notification,
-          body: translations.value.settings.directoryProcessedSuccess,
-        });
-      } catch (error) {
-        console.error('Error selecting or processing directory:', error);
-        showNotification({
-          title: translations.value.settings.notification,
-          body: translations.value.settings.directoryProcessedFailed,
-        });
-      }
-    };
-
-    const selectBea = async () => {
-      try {
-        const {
-          canceled,
-          filePaths: [file],
-        } = await backend.invoke('dialog:open', {
-          title: translations.value.settings.selectFile,
-          properties: ['openFile'],
-        });
-
-        if (canceled) return;
-
-        state.importFile = file;
-
-        try {
-          await importBEA(state.importFile, router);
-          showNotification({
-            title: translations.value.settings.notification,
-            body: translations.value.settings.importSuccess,
-          });
-        } catch (err) {
-          console.warn('Non-fatal importBEA warning:', err);
-          showNotification({
-            title: translations.value.settings.notification,
-            body: translations.value.settings.importSuccess,
-          });
-        }
-      } catch (error) {
-        console.error('Critical BEA import error:', error);
-        showNotification({
-          title: translations.value.settings.notification,
-          body: translations.value.settings.importFail,
-        });
-      }
-    };
-
     async function chooseDefaultPath() {
       try {
         const {
@@ -979,9 +1585,9 @@ export default {
         return;
       }
 
-      const currentValue = localStorage.getItem('autoSync');
-      const newAutoSyncValue = currentValue === 'true' ? 'false' : 'true';
-      localStorage.setItem('autoSync', newAutoSyncValue);
+      const newAutoSyncValue = !autoSync.value;
+      autoSync.value = newAutoSyncValue;
+      void setSetting('autoSync', newAutoSyncValue);
     };
 
     const collapsibleHeading = computed({
@@ -1011,43 +1617,30 @@ export default {
       },
     });
 
-    const timeStorage = {
-      date: useLocalStorage('todayDateFormat', {
-        defaultValue: 'DD-MM-YYYY',
-        parse: (value) => value,
-      }),
-      time: useLocalStorage('timeFormat', {
-        defaultValue: 'HH:mm',
-        parse: (value) => value,
-      }),
-    };
-    const todayDateFormat = ref(timeStorage.date.get());
+    const todayDateFormat = ref(getSettingSync('todayDateFormat'));
 
-    const timeFormat = ref(timeStorage.time.get());
+    const timeFormat = ref(getSettingSync('timeFormat'));
 
     const saveTodayDateFormat = () => {
       if (todayDateFormat.value.trim() === '') {
         todayDateFormat.value = 'DD-MM-YYYY';
       }
-      timeStorage.date.set(todayDateFormat.value);
+      void setSetting('todayDateFormat', todayDateFormat.value);
     };
 
     const saveTimeFormat = () => {
       if (timeFormat.value.trim() === '') {
         timeFormat.value = 'HH:mm';
       }
-      timeStorage.time.set(timeFormat.value);
+      void setSetting('timeFormat', timeFormat.value);
     };
 
     const toggleAdvancedSettings = () => {
-      localStorage.setItem(
-        'advanced-settings',
-        advancedSettings.value.toString()
-      );
+      void setSetting('advancedSettings', advancedSettings.value);
     };
 
     const toggleSpellcheck = () => {
-      localStorage.setItem('spellcheckEnabled', spellcheckEnabled.value);
+      void setSetting('spellcheckEnabled', spellcheckEnabled.value);
       applySpellcheckAttribute();
     };
 
@@ -1064,9 +1657,10 @@ export default {
     const updateLanguage = () => {
       const languageCode = selectedLanguage.value;
       const dir = getLanguageDirection(languageCode);
-      localStorage.setItem('selectedLanguage', languageCode);
-      localStorage.setItem('directionPreference', dir);
-      window.location.reload();
+      void Promise.all([
+        setSetting('selectedLanguage', languageCode),
+        setSetting('directionPreference', dir),
+      ]).then(() => window.location.reload());
     };
 
     const dateFormats = [
@@ -1379,6 +1973,31 @@ export default {
       storage,
       translations,
       exportData,
+      exportMdState,
+      exportHtmlState,
+      exportAllMarkdownHandler,
+      exportAllHTMLHandler,
+      importState,
+      showImportModal,
+      selectedImportSource,
+      importSourceGroups,
+      importSources,
+      activeImportSource,
+      activeImportState,
+      activeImportIssuesText,
+      openImportModal,
+      selectImportSource,
+      startSelectedImport,
+      runImport,
+      copyImportIssues,
+      getImportIssuesText,
+      importObsidianHandler,
+      importNotionHandler,
+      importBearHandler,
+      importEvernoteHandler,
+      importAppleNotesHandler,
+      importSimplenoteHandler,
+      importGenericMarkdownHandler,
       forceSyncNow,
       importData,
       resetPasswordDialog,
@@ -1388,8 +2007,6 @@ export default {
       clearPath,
       defaultPath,
       appStore,
-      selectMarkdown,
-      selectBea,
       formatTime,
       collapsibleHeading,
       openLastEdited,
@@ -1434,12 +2051,8 @@ export default {
       saveTimeFormat,
       dateFormats,
       timeFormats,
+      isMacOS,
     };
-  },
-  computed: {
-    isMacOS() {
-      return window.navigator.platform.toLowerCase().includes('mac');
-    },
   },
 };
 </script>

@@ -825,9 +825,7 @@ export default {
 }
 
 .sort-cards-enter-active {
-  transition:
-    opacity 0.01ms linear,
-    transform 0.01ms linear;
+  transition: opacity 0.01ms linear, transform 0.01ms linear;
 }
 
 .sort-cards-enter-from {
@@ -845,9 +843,7 @@ export default {
   }
 
   .sort-cards-enter-active {
-    transition:
-      opacity 200ms ease,
-      transform 200ms ease;
+    transition: opacity 200ms ease, transform 200ms ease;
   }
 
   @keyframes filterPulse {

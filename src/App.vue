@@ -1,6 +1,6 @@
 <template>
   <app-command-prompt />
-  <app-sidebar v-show="!store.inReaderMode" />
+  <app-sidebar v-show="showSidebar" />
   <div
     v-show="store.inReaderMode"
     class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
@@ -36,7 +36,7 @@
   <main
     v-if="retrieved"
     data-testid="app-main"
-    :class="{ 'pl-16 print:p-2': !store.inReaderMode }"
+    :class="{ 'pl-16 print:p-2': showSidebar }"
   >
     <router-view />
   </main>
@@ -52,13 +52,16 @@
 
 <script>
 import { ref, onMounted, onUnmounted, reactive, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useTheme } from './composable/theme';
+import { useStorage } from './composable/storage';
+import {
+  getSettingSync,
+  hydrateSettingsStore,
+  setSetting,
+} from './composable/settings';
 import { useStore } from './store';
-import { useNoteStore } from './store/note';
-import { useLabelStore } from './store/label';
 import { useTranslations } from './composable/useTranslations';
-import notes from './utils/notes';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import Mousetrap from '@/lib/mousetrap';
@@ -83,9 +86,10 @@ export default {
     const { translations } = useTranslations();
     const theme = useTheme();
     const store = useStore();
+    const route = useRoute();
     const router = useRouter();
-    const noteStore = useNoteStore();
-    const labelStore = useLabelStore();
+    const settingsStorage = useStorage('settings');
+    const dataStorage = useStorage('data');
     const retrieved = ref(false);
 
     // Update banner state
@@ -107,14 +111,15 @@ export default {
       primaryText: translations.value.app?.openSettings || 'Open Settings',
       secondaryText: translations.value.app?.dismiss || 'Dismiss',
     }));
+    const showSidebar = computed(
+      () => !store.inReaderMode && route.name !== 'Onboarding'
+    );
 
-    const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
-    const selectedCodeFont =
-      localStorage.getItem('selected-font-code') || 'JetBrains Mono';
-    const selectedDarkText =
-      localStorage.getItem('selected-dark-text') || 'white';
-    const colorScheme = localStorage.getItem('color-scheme') || 'light';
-    const editorWidth = localStorage.getItem('editorWidth') || '54rem';
+    const selectedFont = getSettingSync('selectedFont');
+    const selectedCodeFont = getSettingSync('selectedCodeFont');
+    const selectedDarkText = getSettingSync('selectedDarkText');
+    const colorScheme = getSettingSync('colorScheme');
+    const editorWidth = getSettingSync('editorWidth');
 
     document.documentElement.style.setProperty('--selected-font', selectedFont);
     document.documentElement.style.setProperty(
@@ -129,9 +134,9 @@ export default {
     document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const zoom = async () => {
-      const zoomLevel = localStorage.getItem('zoomLevel');
+      const zoomLevel = getSettingSync('zoomLevel');
       if (!zoomLevel) {
-        localStorage.setItem('zoomLevel', '1.0');
+        void setSetting('zoomLevel', '1.0');
         backend.invoke('app:set-zoom', 1.0);
       }
     };
@@ -162,13 +167,70 @@ export default {
 
     const refreshSyncLockBanner = async () => {
       const inSettings = router.currentRoute.value.path.startsWith('/settings');
-      if (inSettings || syncLockBanner.dismissed) {
+      if (
+        inSettings ||
+        syncLockBanner.dismissed ||
+        route.name === 'Onboarding'
+      ) {
         syncLockBanner.show = false;
         return;
       }
 
       const folderEncrypted = await syncFolderHasEncryption();
       syncLockBanner.show = folderEncrypted && !isSyncKeyLoaded();
+    };
+
+    const restoreEncryptionKeys = async () => {
+      await getSyncPath();
+      await Promise.allSettled([
+        tryRestoreKeyFromSafeStorage(),
+        tryRestoreAppKeyFromSafeStorage(),
+      ]);
+    };
+
+    const hasExistingWorkspaceData = async () => {
+      const [notesData, foldersData] = await Promise.all([
+        dataStorage.get('notes', {}),
+        dataStorage.get('folders', {}),
+      ]);
+
+      return (
+        Object.keys(notesData || {}).length > 0 ||
+        Object.keys(foldersData || {}).length > 0
+      );
+    };
+
+    const initializeWorkspace = async () => {
+      await hydrateSettingsStore();
+      await setSetting(
+        'spellcheckEnabled',
+        getSettingSync('spellcheckEnabled')
+      );
+
+      const [hasData, onboardingCompleted] = await Promise.all([
+        hasExistingWorkspaceData(),
+        settingsStorage.get('onboardingCompleted', false),
+      ]);
+
+      if (!hasData && !onboardingCompleted) {
+        retrieved.value = true;
+        if (route.name !== 'Onboarding') {
+          await router.replace('/onboarding');
+        }
+        return;
+      }
+
+      await restoreEncryptionKeys();
+      await store.retrieve();
+      retrieved.value = true;
+      await refreshSyncLockBanner();
+
+      if (appStore.setting.openLastEdited) {
+        const lastNoteEdit = localStorage.getItem('lastNoteEdit');
+        if (lastNoteEdit && route.name !== 'Onboarding') {
+          router.push(`/note/${lastNoteEdit}`);
+        }
+      }
     };
 
     onMounted(async () => {
@@ -251,6 +313,13 @@ export default {
         console.error('Error checking auto-update status:', error);
       }
 
+      try {
+        await initializeWorkspace();
+      } catch (error) {
+        console.error('Error initializing workspace:', error);
+        retrieved.value = true;
+      }
+
       void refreshSyncLockBanner();
       removeRouteGuard = router.afterEach(() => {
         void refreshSyncLockBanner();
@@ -258,7 +327,6 @@ export default {
     });
 
     onUnmounted(() => {
-      appStore.updateToStorage();
       if (removeRouteGuard) removeRouteGuard();
       unlistenFns.forEach((subscription) => {
         Promise.resolve(subscription)
@@ -266,53 +334,6 @@ export default {
           .catch(() => {});
       });
     });
-
-    const isFirstTime = localStorage.getItem('first-time');
-
-    if (!isFirstTime) {
-      const promises = Promise.allSettled(
-        Object.values(notes).map(({ title, content, id }) =>
-          noteStore.add({ id, title, content: JSON.parse(content) })
-        )
-      );
-
-      labelStore.add('Introduction');
-      labelStore.add('Tutorial');
-
-      promises.then(() => {
-        const note = noteStore.notes.find(
-          ({ title }) => title === 'Welcome to Beaver Notes'
-        );
-
-        if (note) router.push(`/note/${note.id}`);
-
-        localStorage.setItem('first-time', false);
-        localStorage.setItem('spellcheckEnabled', 'true');
-        retrieved.value = true;
-      });
-    } else {
-      // Restore encryption keys BEFORE loading notes so _decryptNoteForMemory
-      // has the app key available. Without this, notes load as { ae:1 }
-      // envelopes because the key hasn't been restored from safeStorage yet
-      // when retrieve() runs, and the editor crashes parsing them.
-      void (async () => {
-        await getSyncPath();
-        await Promise.allSettled([
-          tryRestoreKeyFromSafeStorage(),
-          tryRestoreAppKeyFromSafeStorage(),
-        ]);
-        await store.retrieve();
-        retrieved.value = true;
-        await refreshSyncLockBanner();
-      })();
-
-      if (appStore.setting.openLastEdited) {
-        const lastNoteEdit = localStorage.getItem('lastNoteEdit');
-        if (lastNoteEdit) {
-          router.push(`/note/${lastNoteEdit}`);
-        }
-      }
-    }
 
     theme.loadTheme();
 
@@ -323,20 +344,20 @@ export default {
         console.log('Import + navigation OK');
     });
 
-    backend.invoke('app:set-zoom', +localStorage.getItem('zoomLevel') || 1);
+    backend.invoke('app:set-zoom', +getSettingSync('zoomLevel') || 1);
     backend.invoke(
       'app:change-menu-visibility',
-      localStorage.getItem('visibility-menubar') !== 'true' || false
+      !getSettingSync('visibilityMenubar')
     );
 
     const state = reactive({
-      zoomLevel: parseFloat(localStorage.getItem('zoomLevel')) || 1.0,
+      zoomLevel: parseFloat(getSettingSync('zoomLevel')) || 1.0,
     });
 
     const setZoom = (newZoomLevel) => {
       backend.invoke('app:set-zoom', newZoomLevel);
       state.zoomLevel = newZoomLevel.toFixed(1);
-      localStorage.setItem('zoomLevel', state.zoomLevel);
+      void setSetting('zoomLevel', state.zoomLevel);
       document.body.style.zoom = state.zoomLevel;
     };
 
@@ -354,6 +375,7 @@ export default {
       syncLockBannerCopy,
       openSyncSettings,
       dismissSyncBanner,
+      showSidebar,
     };
   },
 };

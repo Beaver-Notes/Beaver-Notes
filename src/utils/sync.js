@@ -12,6 +12,7 @@ import {
 } from './syncCrypto.js';
 import { isAppEncryptionEnabled, isAppKeyLoaded } from './appCrypto.js';
 import { getSyncPath } from './syncPath.js';
+import { getSettingSync } from '@/composable/settings';
 import { useStorage } from '@/composable/storage';
 import { useNoteStore } from '@/store/note.js';
 import { useFolderStore } from '@/store/folder.js';
@@ -32,7 +33,7 @@ let localClock = null;
 let localClockInitPromise = null;
 
 export async function trackChange(key, data) {
-  if (localStorage.getItem('autoSync') !== 'true') return;
+  if (!getSettingSync('autoSync')) return;
   const syncPath = await getSyncPath();
   if (!syncPath) return;
 

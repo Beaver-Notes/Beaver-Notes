@@ -12,6 +12,7 @@ use tauri::{
 use crate::{commands, menu, shared::*};
 
 const WINDOW_STATE_KEY: &str = "windowStateMain";
+const LEGACY_DATA_FILES: &[&str] = &["config.json", "data.json"];
 
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
   grant_trusted_path(state, Path::new(&path));
@@ -88,7 +89,7 @@ fn restore_window_state(app: &AppHandle) -> Result<(), String> {
   Ok(())
 }
 
-fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
+pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
   #[cfg(target_os = "macos")]
   {
     return app
@@ -176,39 +177,167 @@ fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), String> {
   Ok(())
 }
 
-pub(crate) fn migrate_legacy_store_data(app: &AppHandle) {
-  let Ok(new_dir) = app.path().app_data_dir() else {
-    return;
+fn copy_file_if_missing(source: &Path, target: &Path) -> Result<(), String> {
+  if !source.exists() || target.exists() {
+    return Ok(());
+  }
+
+  if let Some(parent) = target.parent() {
+    fs::create_dir_all(parent).map_err(to_error)?;
+  }
+
+  fs::copy(source, target).map_err(to_error)?;
+  Ok(())
+}
+
+fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), String> {
+  if !auth_path.exists() {
+    return Ok(());
+  }
+
+  let auth_text = fs::read_to_string(auth_path).map_err(to_error)?;
+  let auth_json = serde_json::from_str::<serde_json::Value>(&auth_text).map_err(to_error)?;
+  let Some(auth_map) = auth_json.as_object() else {
+    return Ok(());
   };
-  let Some(old_dir) = legacy_store_dir(app) else {
-    return;
-  };
+
+  let legacy_blob_map = auth_map
+    .get("blobs")
+    .and_then(|value| value.as_object());
+
+  for key in ALLOWED_BLOB_KEYS {
+    let Some(blob) = auth_map
+      .get(*key)
+      .and_then(|value| value.as_str())
+      .or_else(|| {
+        legacy_blob_map
+          .and_then(|blob_map| blob_map.get(*key))
+          .and_then(|value| value.as_str())
+      })
+    else {
+      continue;
+    };
+
+    let has_existing = stronghold_get_record(app, key)?
+      .and_then(|value| String::from_utf8(value).ok())
+      .filter(|value| !value.is_empty())
+      .is_some()
+      || keyring_entry(key)
+        .ok()
+        .and_then(|entry| entry.get_password().ok())
+        .filter(|value| !value.is_empty())
+        .is_some();
+
+    if has_existing {
+      continue;
+    }
+
+    let _ = stronghold_save_record(app, key, blob.as_bytes().to_vec());
+    let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(to_error));
+  }
+
+  Ok(())
+}
+
+fn dir_has_any_legacy_content(path: &Path) -> bool {
+  LEGACY_DATA_FILES
+    .iter()
+    .any(|name| path.join(name).exists())
+    || [SETTINGS_STORE, AUTH_STORE]
+      .iter()
+      .any(|name| path.join(name).exists())
+    || ["notes-assets", "file-assets"]
+      .iter()
+      .any(|name| path.join(name).exists())
+}
+
+pub(crate) fn get_legacy_migration_status(
+  app: &AppHandle,
+) -> Result<LegacyMigrationStatus, String> {
+  let app_data_dir = app.path().app_data_dir().map_err(to_error)?;
+  let marker = app_data_dir.join(".legacy-store-migrated");
+  let legacy_dir = legacy_store_dir(app);
+  let has_legacy_data = legacy_dir
+    .as_ref()
+    .map(|dir| dir.exists() && dir_has_any_legacy_content(dir))
+    .unwrap_or(false);
+  let target_has_data = dir_has_any_legacy_content(&app_data_dir);
+
+  Ok(LegacyMigrationStatus {
+    legacy_dir: legacy_dir.map(|path| path.to_string_lossy().to_string()),
+    app_data_dir: Some(app_data_dir.to_string_lossy().to_string()),
+    has_legacy_data,
+    already_migrated: marker.exists(),
+    target_has_data,
+  })
+}
+
+pub(crate) fn run_legacy_store_data_migration(
+  app: &AppHandle,
+) -> Result<LegacyMigrationResult, String> {
+  let new_dir = app.path().app_data_dir().map_err(to_error)?;
+  let old_dir = legacy_store_dir(app)
+    .filter(|dir| dir.exists() && dir_has_any_legacy_content(dir))
+    .ok_or_else(|| "No legacy Electron data found".to_string())?;
   let marker = new_dir.join(".legacy-store-migrated");
 
-  if marker.exists() || !old_dir.exists() {
-    return;
+  fs::create_dir_all(&new_dir).map_err(to_error)?;
+
+  let mut merged_store_files = Vec::new();
+  for legacy_name in LEGACY_DATA_FILES {
+    let old = old_dir.join(legacy_name);
+    if old.exists() {
+      merge_store_file(&old, &new_dir.join(DATA_STORE))?;
+      merged_store_files.push((*legacy_name).to_string());
+    }
   }
 
-  if fs::create_dir_all(&new_dir).is_err() {
-    return;
+  let old_auth = old_dir.join(AUTH_STORE);
+  if old_auth.exists() {
+    merge_store_file(&old_auth, &new_dir.join(AUTH_STORE))?;
+    merged_store_files.push(AUTH_STORE.to_string());
   }
 
-  for name in [DATA_STORE, SETTINGS_STORE, AUTH_STORE] {
-    let old = old_dir.join(name);
-    let _ = merge_store_file(&old, &new_dir.join(name));
+  let old_settings = old_dir.join(SETTINGS_STORE);
+  if old_settings.exists() {
+    merge_store_file(&old_settings, &new_dir.join(SETTINGS_STORE))?;
+    merged_store_files.push(SETTINGS_STORE.to_string());
   }
+
+  let mut copied_asset_dirs = Vec::new();
   for folder in ["notes-assets", "file-assets"] {
     let old = old_dir.join(folder);
     if old.exists() {
-      let _ = copy_directory_missing(&old, &new_dir.join(folder));
+      copy_directory_missing(&old, &new_dir.join(folder))?;
+      copied_asset_dirs.push(folder.to_string());
     }
   }
+
+  let legacy_password_file = old_dir.join("password.enc");
+  if legacy_password_file.exists() {
+    let _ = copy_file_if_missing(&legacy_password_file, &new_dir.join("password.enc"));
+  }
+
+  let legacy_app_crypto_dir = old_dir.join("app-crypto");
+  if legacy_app_crypto_dir.exists() {
+    let _ = copy_directory_missing(&legacy_app_crypto_dir, &new_dir.join("app-crypto"));
+  }
+
+  let _ = import_legacy_auth_blobs(app, &old_dir.join(AUTH_STORE));
 
   // Intentionally non-destructive while migration is being tested.
   // Do not remove or mutate the legacy Electron directory here.
   // let _ = fs::remove_dir_all(&old_dir);
 
-  let _ = fs::write(marker, b"ok");
+  fs::write(&marker, b"ok").map_err(to_error)?;
+
+  Ok(LegacyMigrationResult {
+    legacy_dir: Some(old_dir.to_string_lossy().to_string()),
+    app_data_dir: Some(new_dir.to_string_lossy().to_string()),
+    merged_store_files,
+    copied_asset_dirs,
+    marker_written: true,
+  })
 }
 
 pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::Builder<Wry> {
@@ -300,7 +429,6 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
 }
 
 pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
-  migrate_legacy_store_data(app.handle());
   let state = app.state::<AppState>();
   sync_roots_from_settings(app.handle(), &state);
   grant_trusted_path(&state, &app.path().app_data_dir().map_err(to_error)?);

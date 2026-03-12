@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Folder from './pages/folder/_id.vue';
+import Onboarding from './pages/Onboarding.vue';
 import Settings from './pages/Settings.vue';
 import SettingsIndex from './pages/settings/Index.vue';
 import SettingsAppearance from './pages/settings/Appearance.vue';
@@ -15,6 +16,11 @@ const routes = [
     path: '/',
     name: 'Home',
     component: Home,
+  },
+  {
+    path: '/onboarding',
+    name: 'Onboarding',
+    component: Onboarding,
   },
   {
     path: '/note/:id',

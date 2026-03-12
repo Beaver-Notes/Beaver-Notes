@@ -1,50 +1,26 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { useLocalStorage } from '../composable/storage';
+import { getSettingSync, setSetting } from '../composable/settings';
 
 export const useAppStore = defineStore('appStore', () => {
-  const settingStorage = {
-    collapsibleHeading: useLocalStorage('collapsibleHeading', {
-      defaultValue: true,
-      parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
-    }),
-    openLastEdited: useLocalStorage('openLastEdited', {
-      defaultValue: true,
-      parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
-    }),
-    openAfterCreation: useLocalStorage('openAfterCreation', {
-      defaultValue: true,
-      parse: (v) => (typeof v === 'boolean' ? v : v === 'true'),
-    }),
-    // Toolbar order/visibility — raw JSON array, logic lives in useToolbarConfig
-    toolbarConfig: useLocalStorage('toolbarConfig', {
-      defaultValue: null,
-      parse: (v) => {
-        try {
-          const parsed = typeof v === 'string' ? JSON.parse(v) : v;
-          return Array.isArray(parsed) ? parsed : null;
-        } catch {
-          return null;
-        }
-      },
-    }),
-  };
-
   const setting = ref({
-    collapsibleHeading: settingStorage.collapsibleHeading.get(),
-    openLastEdited: settingStorage.openLastEdited.get(),
-    openAfterCreation: settingStorage.openAfterCreation.get(),
+    collapsibleHeading: getSettingSync('collapsibleHeading'),
+    openLastEdited: getSettingSync('openLastEdited'),
+    openAfterCreation: getSettingSync('openAfterCreation'),
   });
 
   const loading = ref(false);
 
   return {
     setting,
-    setSettingStorage: (key, value) => {
-      settingStorage[key]?.set(value);
+    setSettingStorage: async (key, value) => {
+      await setSetting(key, value);
       setting.value[key] = value;
     },
-    toolbarStorage: settingStorage.toolbarConfig,
+    toolbarStorage: {
+      get: () => getSettingSync('toolbarConfig'),
+      set: (value) => setSetting('toolbarConfig', value),
+    },
     loading,
   };
 });
