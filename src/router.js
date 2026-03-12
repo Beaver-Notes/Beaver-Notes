@@ -90,4 +90,13 @@ const routes = [
 export default createRouter({
   routes,
   history: createWebHashHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition;
+
+    if (to.path !== from.path || to.fullPath !== from.fullPath) {
+      return { top: 0, left: 0 };
+    }
+
+    return undefined;
+  },
 });

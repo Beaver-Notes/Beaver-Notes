@@ -74,4 +74,3 @@ const pageTitle = computed(() => {
   return settings.value[route.name]?.name || '-';
 });
 </script>
-

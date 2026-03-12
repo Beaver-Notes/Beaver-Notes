@@ -116,12 +116,12 @@ import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
 import { onClose } from '@/composable/onClose';
 import { debounce } from '@/utils/helper';
-import Mousetrap from '@/lib/mousetrap';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import { useAppStore } from '../../store/app';
 import { isAppEncryptedContent } from '@/utils/appCrypto';
+import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 export default {
   components: { NoteEditor, NoteMenu, NoteSearch },
@@ -306,21 +306,37 @@ export default {
 
       const currentContent = editor.value?.getJSON();
       const currentTitle = titleDiv.value?.innerText ?? '';
+      const currentCursorPosition = editor.value?.state.selection.to;
 
       return {
         labels: [...labels],
         ...(currentContent ? { content: currentContent } : {}),
         ...(currentTitle !== undefined ? { title: currentTitle } : {}),
+        ...(Number.isFinite(currentCursorPosition)
+          ? { lastCursorPosition: currentCursorPosition }
+          : {}),
         updatedAt: Date.now(),
       };
     }
 
-    async function persistCurrentNote(noteId = route.params.id) {
+    async function persistCurrentNote(
+      noteId = route.params.id,
+      { wait = true } = {}
+    ) {
       if (appEncryptedLocked.value) return;
       if (!noteId || !noteStore.getById(noteId)) return;
 
       noteStore.patchLocal(noteId, buildCurrentNotePatch());
-      await flushScheduledPersist(noteId);
+      const persistPromise = flushScheduledPersist(noteId);
+
+      if (!wait) {
+        persistPromise.catch((error) => {
+          console.error('Error persisting note during navigation:', error);
+        });
+        return;
+      }
+
+      await persistPromise;
     }
 
     const updateNote = (data) => {
@@ -349,14 +365,13 @@ export default {
 
     watch(
       () => route.params.id,
-      async (noteId, oldNoteId) => {
-        if (oldNoteId) {
-          await flushScheduledPersist(oldNoteId);
-        }
-
-        if (oldNoteId && noteStore.getById(oldNoteId)) {
-          noteStore.update(oldNoteId, {
+      (noteId, oldNoteId) => {
+        if (oldNoteId && noteId && noteStore.getById(oldNoteId)) {
+          noteStore.patchLocal(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
+          });
+          void flushScheduledPersist(oldNoteId).catch((error) => {
+            console.error('Error persisting previous note:', error);
           });
         }
 
@@ -378,26 +393,29 @@ export default {
       // Best-effort flush for Cmd/Ctrl+R or hard renderer reload.
       void persistCurrentNote(route.params.id);
     };
+    let removeGlobalShortcuts = () => {};
 
     onMounted(() => {
-      Mousetrap.bind(['mod+f', 'alt+left'], (event, combo) => {
-        if (combo === 'mod+f') {
+      removeGlobalShortcuts = bindGlobalShortcuts({
+        'mod+f': () => {
           document.querySelector('.editor-search input')?.focus();
-
           showSearch.value = true;
-        } else if (route.query.linked) {
+        },
+        'alt+left': () => {
+          if (!route.query.linked) return false;
           router.back();
-        }
+        },
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
     });
 
     onUnmounted(() => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      removeGlobalShortcuts();
     });
-    onBeforeRouteLeave(async () => {
-      await persistCurrentNote(route.params.id);
-      Mousetrap.unbind('mod+f');
+    onBeforeRouteLeave(() => {
+      void persistCurrentNote(route.params.id, { wait: false });
+      removeGlobalShortcuts();
     });
 
     onClose(async () => {

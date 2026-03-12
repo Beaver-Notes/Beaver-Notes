@@ -160,7 +160,7 @@ import {
   onMounted,
   onUnmounted,
 } from 'vue';
-import Mousetrap from 'mousetrap';
+import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';

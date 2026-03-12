@@ -146,16 +146,16 @@
 </template>
 
 <script>
-import { shallowReactive, onUnmounted, computed, ref } from 'vue';
+import { shallowReactive, onMounted, onUnmounted, computed, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
 import { useRouter, useRoute } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
-import Mousetrap from '@/lib/mousetrap';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '../../store/folder';
 import { forceSyncNow } from '@/utils/sync';
 import { useAppStore } from '../../store/app';
+import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 export default {
   setup() {
@@ -206,16 +206,16 @@ export default {
       'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
       'mod+shift+y': () => manualSync(),
     };
+    const enableDarkTheme = () => theme.setTheme('dark');
+    const enableLightTheme = () => theme.setTheme('light');
 
     emitter.on('new-note', addNote);
     emitter.on('new-folder', addFolder);
     emitter.on('open-settings', openSettings);
-    emitter.on('dark', () => theme.setTheme('dark'));
-    emitter.on('light', () => theme.setTheme('light'));
+    emitter.on('dark', enableDarkTheme);
+    emitter.on('light', enableLightTheme);
 
-    Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
-      shortcuts[combo]();
-    });
+    let removeGlobalShortcuts = () => {};
 
     function openSettings() {
       router.push('/settings');
@@ -261,9 +261,23 @@ export default {
       window.addNote = addNote;
     }
 
+    onMounted(() => {
+      removeGlobalShortcuts = bindGlobalShortcuts({
+        ...shortcuts,
+        'mod+shift+f': (_, combo) => {
+          if (route.name === 'Note') return false;
+          return shortcuts[combo]();
+        },
+      });
+    });
+
     onUnmounted(() => {
       emitter.off('new-note', addNote);
+      emitter.off('new-folder', addFolder);
       emitter.off('open-settings', openSettings);
+      emitter.off('dark', enableDarkTheme);
+      emitter.off('light', enableLightTheme);
+      removeGlobalShortcuts();
       state.dataDir = defaultPath;
     });
 

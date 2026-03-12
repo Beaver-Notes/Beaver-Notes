@@ -217,7 +217,7 @@ import {
   onMounted,
   onUnmounted,
 } from 'vue';
-import Mousetrap from 'mousetrap';
+import Mousetrap from '@/lib/mousetrap';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';

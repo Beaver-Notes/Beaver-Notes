@@ -1,6 +1,7 @@
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useNoteStore } from '../../store/note';
+import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
 import { backend, path } from '@/lib/tauri-bridge';
 
@@ -172,20 +173,27 @@ export async function importBEA(filePath, router, store) {
 async function processImportedNote(noteData, router) {
   const storage = useStorage();
   const noteStore = useNoteStore();
+  const labelStore = useLabelStore();
   try {
-    const currentNotes = await storage.get('notes', {});
     const dataDir = await storage.get('dataDir', '', 'settings');
 
-    const updatedNotes = {
-      ...currentNotes,
-      [noteData.id]: {
-        id: noteData.id,
-        title: noteData.title,
-        content: noteData.content,
-        labels: noteData.labels || [],
-      },
+    for (const label of noteData.labels || []) {
+      if (!labelStore.data.includes(label)) {
+        await labelStore.add(label);
+      }
+    }
+
+    const notePayload = {
+      id: noteData.id,
+      title: noteData.title,
+      content: noteData.content,
+      labels: noteData.labels || [],
     };
-    await storage.set('notes', updatedNotes);
+    if (noteStore.data[noteData.id]) {
+      await noteStore.update(noteData.id, notePayload);
+    } else {
+      await noteStore.add(notePayload);
+    }
 
     if (noteData.lockedNotes) {
       const existingLockedNotes = JSON.parse(

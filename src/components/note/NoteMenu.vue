@@ -564,7 +564,7 @@
         </ui-popover>
 
         <button
-          v-else-if="item.id === 'delete' && showAdvancedSettings"
+          v-else-if="item.id === 'delete'"
           v-tooltip.group="translations.menu.delete"
           class="hoverable h-8 px-1 rounded-lg"
           @click="deleteNode"
@@ -667,19 +667,19 @@ import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
 import { saveFile } from '../../utils/copy-doc';
 import { useEditorImage } from '@/composable/editorImage';
-import Mousetrap from '@/lib/mousetrap';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
-import { exportBEA } from '../../utils/share/BEA';
 import { exportHTML } from '../../utils/share/HTML';
 import { exportMD } from '../../utils/share/MD';
+import { exportDOCX } from '../../utils/share/DOCX';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { backend, path } from '@/lib/tauri-bridge';
+import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 const storage = useStorage('settings');
 
 export default {
@@ -786,12 +786,6 @@ export default {
 
     const shareActions = computed(() => [
       {
-        name: 'bea',
-        title: 'BEA',
-        icon: 'riFileTextFill',
-        handler: () => exportBEA(props.id, props.note.title),
-      },
-      {
         name: 'html',
         title: 'HTML',
         icon: 'riPagesLine',
@@ -808,6 +802,12 @@ export default {
         title: 'Markdown',
         icon: 'riMarkdownLine',
         handler: () => exportMD(props.id, props.note.title, props.editor),
+      },
+      {
+        name: 'docx',
+        title: 'Word',
+        icon: 'riFileWord2Line',
+        handler: () => exportDOCX(props.id, props.note.title, props.editor),
       },
     ]);
 
@@ -1035,10 +1035,6 @@ export default {
       });
     }
 
-    const showAdvancedSettings = computed(() =>
-      getSettingSync('advancedSettings')
-    );
-
     // ── Print ─────────────────────────────────────────────────────────────────
     function printContent() {
       backend.invoke('print-pdf', { pdfName: `${props.note.title}.pdf` });
@@ -1051,8 +1047,11 @@ export default {
       'mod+shift+f': toggleReaderMode,
       'mod+p': printContent,
     };
-    Mousetrap.bind(Object.keys(shortcuts), (_, combo) => shortcuts[combo]());
-    onUnmounted(() => Mousetrap.unbind(Object.keys(shortcuts)));
+    let removeGlobalShortcuts = () => {};
+    onMounted(() => {
+      removeGlobalShortcuts = bindGlobalShortcuts(shortcuts);
+    });
+    onUnmounted(() => removeGlobalShortcuts());
 
     // ── Wheel → horizontal scroll ─────────────────────────────────────────────
     const container = ref();
@@ -1106,7 +1105,6 @@ export default {
       pauseResume,
       toggleReaderMode,
       deleteNode,
-      showAdvancedSettings,
       printContent,
       container,
       changeWheelDirection,

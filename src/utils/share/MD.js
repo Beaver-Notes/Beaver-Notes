@@ -1,10 +1,9 @@
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
-import { getProcessedHTML } from './html-helper';
-import TurndownService from 'turndown';
-import { gfm } from 'turndown-plugin-gfm';
-import { backend, path } from '@/lib/tauri-bridge';
+import { useNoteStore } from '@/store/note';
+import { ipcRenderer, path } from '@/lib/tauri-bridge';
+import { tiptapToMarkdown, buildFrontmatter } from './ExportBulk';
 
 function getShareTranslations() {
   try {
@@ -34,108 +33,58 @@ function showDialogAlert(body) {
 
 export async function exportMD(noteId, noteTitle, editor) {
   const share = getShareTranslations();
-  let html = await getProcessedHTML(noteId, editor);
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const noteStore = useNoteStore();
+  const note = noteStore.data[noteId];
 
-  const callouts = doc.querySelectorAll(
-    'blockquote.callout, blockquote[class^="callout-"]'
-  );
-  callouts.forEach((el) => {
-    el.removeAttribute('class');
-  });
+  const tiptapJson = editor.getJSON();
+  const markdownBody = tiptapToMarkdown(tiptapJson, { noteId });
+  const frontmatter = note ? buildFrontmatter(note, '') : '';
 
-  html = doc.body.innerHTML;
+  const markdown = frontmatter
+    ? `${frontmatter}\n${markdownBody}`
+    : markdownBody;
 
-  const turndownService = new TurndownService({
-    headingStyle: 'atx',
-    codeBlockStyle: 'fenced',
-    bulletListMarker: '-',
-  });
-
-  turndownService.use(gfm);
-
-  turndownService.addRule('audioTag', {
-    filter: 'audio',
-    replacement: (content, node) => {
-      const src = node.getAttribute('src');
-      return `![:audio](${src})`;
-    },
-  });
-
-  turndownService.addRule('videoTag', {
-    filter: 'video',
-    replacement: (content, node) => {
-      const src = node.getAttribute('src');
-      return `![:video](${src})`;
-    },
-  });
-
-  turndownService.addRule('iframeTag', {
-    filter: 'iframe',
-    replacement: (content, node) => {
-      // Keep iframe as raw HTML in markdown
-      const src = node.getAttribute('src') || '';
-      const width = node.getAttribute('width') || '560';
-      const height = node.getAttribute('height') || '315';
-      const frameborder = node.getAttribute('frameborder') || '0';
-      const allow = node.getAttribute('allow') || '';
-      const allowfullscreen = node.hasAttribute('allowfullscreen')
-        ? 'allowfullscreen'
-        : '';
-
-      return `<iframe src="${src}" width="${width}" height="${height}" frameborder="${frameborder}" allow="${allow}" ${allowfullscreen}></iframe>`;
-    },
-  });
-
-  let markdown = turndownService.turndown(html);
-
-  const { canceled, filePaths } = await backend.invoke('dialog:open', {
-    title: share.exportDataDialogTitle || 'Export data',
+  const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
+    title: share.exportDataDialogTitle || 'Export note',
     properties: ['openDirectory'],
   });
   if (canceled) return;
 
-  const folderName = noteTitle.replace(/[/\\?%*:|"<>]/g, '-') || 'ExportedNote';
-  const folderPath = path.join(filePaths[0], folderName);
+  const storage = useStorage('settings');
+  const dataDir = await storage.get('dataDir', '');
 
-  await backend.invoke('fs:ensureDir', folderPath);
+  const safeName = sanitize(noteTitle) || 'ExportedNote';
+  const folderPath = path.join(filePaths[0], safeName);
 
-  await backend.invoke('fs:writeFile', {
-    path: path.join(folderPath, `${noteTitle}.md`),
+  await ipcRenderer.callMain('fs:ensureDir', folderPath);
+
+  await ipcRenderer.callMain('fs:writeFile', {
+    path: path.join(folderPath, `${safeName}.md`),
     data: markdown,
   });
 
-  const storage = useStorage();
-  const dataDir = await storage.get('dataDir', '', 'settings');
-
   const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
   const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
-
   const notesAssetsDest = path.join(folderPath, 'assets');
   const fileAssetsDest = path.join(folderPath, 'file-assets');
 
-  await backend.invoke('fs:ensureDir', notesAssetsDest);
-  await backend.invoke('fs:ensureDir', fileAssetsDest);
+  await ipcRenderer.callMain('fs:ensureDir', notesAssetsDest);
+  await ipcRenderer.callMain('fs:ensureDir', fileAssetsDest);
 
   try {
-    await backend.invoke('fs:copy', {
+    await ipcRenderer.callMain('fs:copy', {
       path: noteAssetsSource,
       dest: notesAssetsDest,
     });
-  } catch (err) {
-    console.warn('Note assets copy failed:', err.message);
-  }
+  } catch {}
 
   try {
-    await backend.invoke('fs:copy', {
+    await ipcRenderer.callMain('fs:copy', {
       path: fileAssetsSource,
       dest: fileAssetsDest,
     });
-  } catch (err) {
-    console.warn('File assets copy failed:', err.message);
-  }
+  } catch {}
 
   showDialogAlert(
     interpolate(
@@ -143,4 +92,8 @@ export async function exportMD(noteId, noteTitle, editor) {
       { path: folderPath }
     )
   );
+}
+
+function sanitize(name) {
+  return (name || '').replace(/[/\\?%*:|"<>]/g, '-').trim();
 }

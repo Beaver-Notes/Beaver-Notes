@@ -7,6 +7,15 @@ import { buildFolderIdFromPath } from './importUtils';
 
 const storage = useStorage('settings');
 
+async function ensureDataDir() {
+  const stored = await storage.get('dataDir', '');
+  if (typeof stored === 'string' && stored.trim()) {
+    return stored.trim();
+  }
+  const userDataDir = await ipcRenderer.callMain('helper:get-path', 'userData');
+  return typeof userDataDir === 'string' ? userDataDir.trim() : '';
+}
+
 function applyMarkToNode(node, mark) {
   if (!node) return node;
   if (Array.isArray(node)) {
@@ -258,7 +267,7 @@ async function convertHtmlNodeToTiptap(node, noteId, resources = []) {
 async function processRustImportNote(note, state) {
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
-  const dataDir = await storage.get('dataDir', '');
+  const dataDir = await ensureDataDir();
   const id = uuidv4();
   let folderId = null;
 

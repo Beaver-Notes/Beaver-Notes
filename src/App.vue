@@ -38,7 +38,17 @@
     data-testid="app-main"
     :class="{ 'pl-16 print:p-2': showSidebar }"
   >
-    <router-view />
+    <div class="route-stage">
+      <router-view v-slot="{ Component, route: viewRoute }">
+        <transition :name="animateRouteChange ? 'route-stage' : undefined">
+          <component
+            :is="Component"
+            :key="getTopLevelRouteKey(viewRoute)"
+            class="route-stage__page"
+          />
+        </transition>
+      </router-view>
+    </div>
   </main>
   <div
     v-show="appStore.loading"
@@ -114,6 +124,12 @@ export default {
     const showSidebar = computed(
       () => !store.inReaderMode && route.name !== 'Onboarding'
     );
+    const getTopLevelRouteKey = (viewRoute) =>
+      viewRoute?.matched?.[0]?.path || viewRoute?.path || route.path;
+    const animateRouteChange = ref(true);
+    const isNoteRoute = (viewRoute) => viewRoute?.name === 'Note';
+    const shouldAnimateRouteChange = (from, to) =>
+      !isNoteRoute(from) && !isNoteRoute(to);
 
     const selectedFont = getSettingSync('selectedFont');
     const selectedCodeFont = getSettingSync('selectedCodeFont');
@@ -143,6 +159,7 @@ export default {
 
     const appStore = useAppStore();
     let removeRouteGuard = null;
+    let removeBeforeRouteGuard = null;
     const unlistenFns = [];
 
     // Handle update banner actions
@@ -321,12 +338,17 @@ export default {
       }
 
       void refreshSyncLockBanner();
+      removeBeforeRouteGuard = router.beforeEach((to, from, next) => {
+        animateRouteChange.value = shouldAnimateRouteChange(from, to);
+        next();
+      });
       removeRouteGuard = router.afterEach(() => {
         void refreshSyncLockBanner();
       });
     });
 
     onUnmounted(() => {
+      if (removeBeforeRouteGuard) removeBeforeRouteGuard();
       if (removeRouteGuard) removeRouteGuard();
       unlistenFns.forEach((subscription) => {
         Promise.resolve(subscription)
@@ -376,6 +398,8 @@ export default {
       openSyncSettings,
       dismissSyncBanner,
       showSidebar,
+      getTopLevelRouteKey,
+      animateRouteChange,
     };
   },
 };

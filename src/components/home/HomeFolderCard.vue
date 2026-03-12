@@ -370,11 +370,11 @@ function cancelRename() {
 }
 
 function selectEmoji(emoji) {
-  folderStore.update(props.folder.id, { icon: emoji, color: null });
+  folderStore.update(props.folder.id, { icon: emoji });
 }
 
 function selectColorIcon(color) {
-  folderStore.update(props.folder.id, { color: color, icon: null });
+  folderStore.update(props.folder.id, { color });
 }
 
 function deleteFolder() {

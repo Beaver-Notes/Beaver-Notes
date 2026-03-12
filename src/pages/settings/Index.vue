@@ -409,8 +409,8 @@
           <p
             class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Supports Obsidian, Notion, Bear, Simplenote, Markdown folders,
-            Evernote, and Apple Notes on macOS.
+            Supports Obsidian, Notion, Bear, Simplenote, Word documents,
+            Markdown folders, Evernote, and Apple Notes on macOS.
           </p>
         </div>
       </ui-card>
@@ -629,7 +629,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, computed, ref } from 'vue';
+import { shallowReactive, onMounted, onUnmounted, computed, ref } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
@@ -639,7 +639,6 @@ import dayjs from '@/lib/dayjs';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import Mousetrap from '@/lib/mousetrap';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { formatTime } from '@/utils/time-format';
@@ -652,6 +651,7 @@ import {
   importBear,
   importSimplenote,
   importGenericMarkdown,
+  importWordDocuments,
 } from '@/utils/import/importers';
 import { startRustImport } from '@/utils/import/importRustBridge';
 import { useFolderStore } from '../../store/folder';
@@ -676,6 +676,7 @@ import { getSyncPath, setSyncPath } from '@/utils/syncPath.js';
 import { getSettingSync, setSetting } from '../../composable/settings';
 import { useTranslations } from '../../composable/useTranslations';
 import { backend, clipboard, ipcRenderer, path } from '@/lib/tauri-bridge';
+import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 const LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -798,6 +799,12 @@ export default {
         result: null,
       }),
       simplenote: shallowReactive({
+        running: false,
+        done: 0,
+        total: 0,
+        result: null,
+      }),
+      word: shallowReactive({
         running: false,
         done: 0,
         total: 0,
@@ -1038,6 +1045,28 @@ export default {
       );
     }
 
+    async function importWordHandler() {
+      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
+        'dialog:open',
+        {
+          title: 'Select Word Documents',
+          properties: ['openFile', 'multiSelections'],
+          filters: [{ name: 'Word Document', extensions: ['docx'] }],
+        }
+      );
+      if (canceled || !filePaths.length) return;
+      const dataDir = await storage.get('dataDir', '');
+      await runImport('word', (onProgress) =>
+        importWordDocuments(
+          filePaths,
+          noteStore,
+          folderStore,
+          dataDir,
+          onProgress
+        )
+      );
+    }
+
     const importSourceGroups = computed(() => {
       const groups = [
         {
@@ -1092,6 +1121,15 @@ export default {
               description:
                 'In Simplenote, go to Settings → Export and download notes.json. Select the file below.',
               buttonLabel: 'Select notes.json',
+            },
+            {
+              key: 'word',
+              title: 'Word',
+              icon: 'riFileWord2Line',
+              group: 'Direct',
+              description:
+                'Select one or more .docx files. Beaver Notes will import document text, links, tables, and embedded images.',
+              buttonLabel: 'Select .docx files',
             },
             {
               key: 'evernote',
@@ -1174,6 +1212,9 @@ export default {
           break;
         case 'simplenote':
           await importSimplenoteHandler();
+          break;
+        case 'word':
+          await importWordHandler();
           break;
         case 'genericMd':
           await importGenericMarkdownHandler();
@@ -1571,8 +1612,9 @@ export default {
       });
     }
 
-    Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
-      shortcuts[combo]();
+    let removeGlobalShortcuts = () => {};
+    onMounted(() => {
+      removeGlobalShortcuts = bindGlobalShortcuts(shortcuts);
     });
 
     const appStore = useAppStore();
@@ -1634,6 +1676,10 @@ export default {
       }
       void setSetting('timeFormat', timeFormat.value);
     };
+
+    onUnmounted(() => {
+      removeGlobalShortcuts();
+    });
 
     const toggleAdvancedSettings = () => {
       void setSetting('advancedSettings', advancedSettings.value);
@@ -1997,6 +2043,7 @@ export default {
       importEvernoteHandler,
       importAppleNotesHandler,
       importSimplenoteHandler,
+      importWordHandler,
       importGenericMarkdownHandler,
       forceSyncNow,
       importData,

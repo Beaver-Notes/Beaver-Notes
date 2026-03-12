@@ -159,8 +159,8 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStore } from '@/store';
-import Mousetrap from '@/lib/mousetrap';
 import commands from '@/utils/commands';
+import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -178,6 +178,7 @@ const state = shallowReactive({
   query: '',
   selectedIndex: 0,
 });
+let removeGlobalShortcuts = () => {};
 
 // Helper: Extract plain text from complex content structures
 const mergeContent = (content) => {
@@ -294,13 +295,21 @@ watch(
 );
 
 onMounted(() => {
-  Mousetrap.bind(['mod+shift+p', 'mod+k'], (e) => {
-    e.preventDefault();
+  const togglePrompt = (_, combo) => {
+    const editorFocused = Boolean(
+      document.activeElement?.closest('.ProseMirror')
+    );
+    if (combo === 'mod+k' && editorFocused) return false;
     store.showPrompt ? clear() : (store.showPrompt = true);
+  };
+
+  removeGlobalShortcuts = bindGlobalShortcuts({
+    'mod+shift+p': togglePrompt,
+    'mod+k': togglePrompt,
   });
 });
 
 onUnmounted(() => {
-  Mousetrap.unbind(['mod+shift+p', 'mod+k']);
+  removeGlobalShortcuts();
 });
 </script>

@@ -89,24 +89,41 @@ export default {
       }
     });
 
-    onBeforeUnmount(() => {
-      if (editor.value) {
+    function destroyEditor({ defer = false } = {}) {
+      const instance = editor.value;
+      if (!instance) return;
+
+      editor.value = null;
+
+      const teardown = () => {
         try {
-          editor.value.destroy();
+          instance.destroy();
         } catch {
           //do nothing
         }
-        editor.value = null;
+      };
+
+      if (defer) {
+        if (typeof window !== 'undefined' && window.requestIdleCallback) {
+          window.requestIdleCallback(teardown, { timeout: 250 });
+          return;
+        }
+
+        setTimeout(teardown, 0);
+        return;
       }
+
+      teardown();
+    }
+
+    onBeforeUnmount(() => {
+      destroyEditor({ defer: true });
     });
 
     watch(
       () => props.id,
       () => {
-        if (editor.value) {
-          editor.value.destroy();
-          editor.value = null;
-        }
+        destroyEditor();
       }
     );
 

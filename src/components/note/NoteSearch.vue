@@ -347,7 +347,9 @@ export default {
       enter: findNextResult,
     };
 
-    Mousetrap.bind(Object.keys(shortcuts), (event, combo) => {
+    const shortcutKeys = Object.keys(shortcuts);
+    Mousetrap.bind(shortcutKeys, (event, combo) => {
+      event.preventDefault();
       shortcuts[combo]();
     });
 
@@ -367,7 +369,7 @@ export default {
       props.editor.commands.setSearchTerm('');
       props.editor.commands.setReplaceTerm('');
       props.editor.commands.resetIndex();
-      Mousetrap.unbind(Object.keys(shortcuts));
+      Mousetrap.unbind(shortcutKeys);
     });
 
     return {
