@@ -181,6 +181,68 @@ img.ProseMirror-selectednode {
     margin-top: 0 !important;
     margin-bottom: 0 !important;
   }
+  .bn-image-node {
+    margin-top: 1em !important;
+    margin-bottom: 1em !important;
+    max-width: 100%;
+  }
+  .bn-image-frame {
+    position: relative;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    max-width: 100%;
+    box-sizing: border-box;
+    transition:
+      box-shadow 180ms ease,
+      transform 180ms ease;
+  }
+  .bn-image-frame img {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    border-radius: 1rem;
+  }
+  .bn-image-node.is-selected .bn-image-frame img {
+    @apply ring-1 ring-primary ring-opacity-20;
+  }
+  .bn-image-resize-handle {
+    position: absolute;
+    top: 50%;
+    width: 0.5rem;
+    height: 4.2rem;
+    border: 0;
+    border-radius: 999px;
+    @apply bg-primary bg-opacity-45 dark:bg-primary dark:bg-opacity-40;
+    box-shadow:
+      0 6px 18px rgba(148, 163, 184, 0.26),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+    cursor: ew-resize;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-50%) scale(0.92);
+    transition:
+      opacity 180ms ease,
+      transform 180ms ease,
+      background-color 180ms ease;
+    z-index: 2;
+    touch-action: none;
+  }
+  .bn-image-resize-handle:hover {
+    @apply bg-primary bg-opacity-70 dark:bg-opacity-70;
+  }
+  .bn-image-resize-handle--left {
+    left: 0.5rem;
+  }
+  .bn-image-resize-handle--right {
+    right: 0.5rem;
+  }
+  .bn-image-node.is-selected .bn-image-resize-handle,
+  .bn-image-node.is-resizing .bn-image-resize-handle {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(-50%) scale(1);
+  }
   .ProseMirror-selectednode {
     margin-top: 1em;
     margin-bottom: 1em;
@@ -189,9 +251,34 @@ img.ProseMirror-selectednode {
       margin-bottom: 0 !important;
     }
   }
+  .bn-image-node:has(img) {
+    margin-top: 1em;
+    margin-bottom: 1em;
+  }
+  .bn-image-frame:has(img) {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
   div:has(img) {
     margin-top: 1em;
     margin-bottom: 1em;
+  }
+}
+
+@media (max-width: 720px) {
+  .ProseMirror .bn-image-node[data-layout='wrap-left'],
+  .ProseMirror .bn-image-node[data-layout='wrap-right'] {
+    display: block !important;
+    float: none !important;
+    clear: both !important;
+    width: 100% !important;
+  }
+
+  .ProseMirror .bn-image-node[data-layout='wrap-left'] .bn-image-frame,
+  .ProseMirror .bn-image-node[data-layout='wrap-right'] .bn-image-frame {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto 0.75rem !important;
   }
 }
 

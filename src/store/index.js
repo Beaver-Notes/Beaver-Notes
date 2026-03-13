@@ -11,30 +11,22 @@ export const useStore = defineStore('main', {
     showPrompt: false,
   }),
   actions: {
-    retrieve() {
-      return new Promise((resolve) => {
-        const noteStore = useNoteStore();
-        const labelStore = useLabelStore();
-        const folderStore = useFolderStore();
-        const passwordStore = usePasswordStore();
+    async retrieve() {
+      const noteStore = useNoteStore();
+      const labelStore = useLabelStore();
+      const folderStore = useFolderStore();
+      const passwordStore = usePasswordStore();
 
-        const promises = Promise.allSettled([
-          noteStore.retrieve(),
-          labelStore.retrieve(),
-          folderStore.retrieve(),
-          passwordStore.retrieve(),
-        ]);
+      const values = await Promise.allSettled([
+        noteStore.retrieve(),
+        labelStore.retrieve(),
+        folderStore.retrieve(),
+        passwordStore.retrieve(),
+      ]);
 
-        promises.then((values) => {
-          const result = [];
-
-          values.forEach(({ value, status }) => {
-            if (status === 'fulfilled') result.push(value);
-          });
-
-          resolve(result);
-        });
-      });
+      return values
+        .filter(({ status }) => status === 'fulfilled')
+        .map(({ value }) => value);
     },
   },
 });

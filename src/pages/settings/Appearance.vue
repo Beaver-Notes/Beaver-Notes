@@ -269,6 +269,11 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { useStorage } from '@/composable/storage';
+import {
+  formatZoomLevel,
+  getStoredZoomLevel,
+  setStoredZoomLevel,
+} from '@/composable/zoom';
 import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
@@ -299,7 +304,7 @@ export default {
       withPassword: false,
       lastUpdated: null,
       accentColor: getSettingSync('colorScheme'),
-      zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
+      zoomLevel: formatZoomLevel(getStoredZoomLevel()),
       directionPreference: getSettingSync('directionPreference'),
       selectedFont: getSettingSync('selectedFont'),
       selectedCodeFont: getSettingSync('selectedCodeFont'),
@@ -425,11 +430,7 @@ export default {
     };
 
     const setZoom = (newZoomLevel) => {
-      console.log('Setting zoom level to:', newZoomLevel);
-      backend.invoke('app:set-zoom', newZoomLevel);
-      state.zoomLevel = newZoomLevel.toFixed(1);
-      void setSetting('zoomLevel', state.zoomLevel);
-      window.location.reload();
+      state.zoomLevel = setStoredZoomLevel(newZoomLevel, { reload: true });
     };
 
     const setWidth = (width) => {

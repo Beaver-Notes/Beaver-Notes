@@ -635,6 +635,7 @@ import { Utf8 } from 'crypto-es/lib/core';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
+import { useImportExport } from '@/composable/useImportExport';
 import dayjs from '@/lib/dayjs';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
@@ -644,16 +645,6 @@ import { useNoteStore } from '@/store/note';
 import { formatTime } from '@/utils/time-format';
 import { useAppStore } from '../../store/app';
 import { forceSyncNow } from '../../utils/sync';
-import { exportAllMarkdown, exportAllHTML } from '@/utils/share/ExportBulk';
-import {
-  importObsidian,
-  importNotion,
-  importBear,
-  importSimplenote,
-  importGenericMarkdown,
-  importWordDocuments,
-} from '@/utils/import/importers';
-import { startRustImport } from '@/utils/import/importRustBridge';
 import { useFolderStore } from '../../store/folder';
 import {
   isSyncEncryptionEnabled,
@@ -745,7 +736,6 @@ export default {
     const dialog = useDialog();
     const storage = useStorage();
     const folderStore = useFolderStore();
-    const folerStore = useFolderStore();
 
     const state = shallowReactive({
       dataDir: '',
@@ -754,475 +744,48 @@ export default {
       lastUpdated: null,
       zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
     });
-    const exportMdState = shallowReactive({
-      running: false,
-      done: 0,
-      total: 0,
-      result: null,
-    });
-    const exportHtmlState = shallowReactive({
-      running: false,
-      done: 0,
-      total: 0,
-      result: null,
-    });
-    const importState = shallowReactive({
-      obsidian: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-      notion: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-      bear: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-      evernote: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-        notebookName: '',
-      }),
-      appleNotes: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-      simplenote: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-      word: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-      genericMd: shallowReactive({
-        running: false,
-        done: 0,
-        total: 0,
-        result: null,
-      }),
-    });
-    const showImportModal = ref(false);
-    const selectedImportSource = ref('obsidian');
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
     );
 
-    let defaultPath = '';
-
-    async function exportAllMarkdownHandler() {
-      if (exportMdState.running) return;
-
-      const previousState = {
-        done: exportMdState.done,
-        total: exportMdState.total,
-        result: exportMdState.result,
-      };
-
-      exportMdState.running = true;
-      exportMdState.result = null;
-      exportMdState.done = 0;
-      exportMdState.total = 0;
-
-      try {
-        const result = await exportAllMarkdown(({ done, total }) => {
-          exportMdState.done = done;
-          exportMdState.total = total;
-        });
-
-        if (result === null) {
-          exportMdState.done = previousState.done;
-          exportMdState.total = previousState.total;
-          exportMdState.result = previousState.result;
-          return;
-        }
-
-        exportMdState.result = result;
-      } finally {
-        exportMdState.running = false;
-      }
-    }
-
-    async function exportAllHTMLHandler() {
-      if (exportHtmlState.running) return;
-
-      const previousState = {
-        done: exportHtmlState.done,
-        total: exportHtmlState.total,
-        result: exportHtmlState.result,
-      };
-
-      exportHtmlState.running = true;
-      exportHtmlState.result = null;
-      exportHtmlState.done = 0;
-      exportHtmlState.total = 0;
-
-      try {
-        const result = await exportAllHTML(({ done, total }) => {
-          exportHtmlState.done = done;
-          exportHtmlState.total = total;
-        });
-
-        if (result === null) {
-          exportHtmlState.done = previousState.done;
-          exportHtmlState.total = previousState.total;
-          exportHtmlState.result = previousState.result;
-          return;
-        }
-
-        exportHtmlState.result = result;
-      } finally {
-        exportHtmlState.running = false;
-      }
-    }
-
-    async function runImport(key, fn) {
-      if (importState[key].running) return;
-
-      const state = importState[key];
-      state.running = true;
-      state.result = null;
-      state.done = 0;
-      state.total = 0;
-
-      try {
-        const result = await fn(({ done, total }) => {
-          state.done = done;
-          state.total = total;
-        });
-        state.result = result;
-      } finally {
-        state.running = false;
-      }
-    }
-
-    function getImportIssuesText(key) {
-      const issues = importState[key]?.result?.errors || [];
-      return issues
-        .map(
-          (issue) =>
-            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`
-        )
-        .join('\n');
-    }
-
-    async function copyImportIssues(key) {
-      const text = getImportIssuesText(key);
-      if (!text) return;
-      await clipboard.writeText(text);
-    }
-
-    async function importObsidianHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select Obsidian Vault',
-          properties: ['openDirectory'],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-      const dataDir = await storage.get('dataDir', '');
-      await runImport('obsidian', (onProgress) =>
-        importObsidian(
-          filePaths[0],
-          noteStore,
-          folderStore,
-          dataDir,
-          onProgress
-        )
-      );
-    }
-
-    async function importNotionHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select Notion Export',
-          properties: ['openDirectory'],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-      const dataDir = await storage.get('dataDir', '');
-      await runImport('notion', (onProgress) =>
-        importNotion(filePaths[0], noteStore, folderStore, dataDir, onProgress)
-      );
-    }
-
-    async function importBearHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select Bear Export',
-          properties: ['openDirectory'],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-      const dataDir = await storage.get('dataDir', '');
-      await runImport('bear', (onProgress) =>
-        importBear(filePaths[0], noteStore, folderStore, dataDir, onProgress)
-      );
-    }
-
-    async function importEvernoteHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select ENEX File',
-          properties: ['openFile'],
-          filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-
-      await runImport('evernote', async (onProgress) => {
-        const pending = startRustImport('evernote', onProgress);
-        await ipcRenderer.callMain('import:evernote', {
-          enexPath: filePaths[0],
-          enex_path: filePaths[0],
-          notebookName: importState.evernote.notebookName?.trim() || null,
-          notebook_name: importState.evernote.notebookName?.trim() || null,
-        });
-        return pending;
-      });
-    }
-
-    async function importAppleNotesHandler() {
-      await runImport('appleNotes', async (onProgress) => {
-        const pending = startRustImport('apple-notes', onProgress);
-        await ipcRenderer.callMain('import:apple-notes', {});
-        return pending;
-      });
-    }
-
-    async function importSimplenoteHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select notes.json',
-          properties: ['openFile'],
-          filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-      await runImport('simplenote', (onProgress) =>
-        importSimplenote(filePaths[0], noteStore, onProgress)
-      );
-    }
-
-    async function importGenericMarkdownHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select Markdown Folder',
-          properties: ['openDirectory'],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-      const dataDir = await storage.get('dataDir', '');
-      await runImport('genericMd', (onProgress) =>
-        importGenericMarkdown(
-          filePaths[0],
-          noteStore,
-          folderStore,
-          dataDir,
-          onProgress
-        )
-      );
-    }
-
-    async function importWordHandler() {
-      const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-        'dialog:open',
-        {
-          title: 'Select Word Documents',
-          properties: ['openFile', 'multiSelections'],
-          filters: [{ name: 'Word Document', extensions: ['docx'] }],
-        }
-      );
-      if (canceled || !filePaths.length) return;
-      const dataDir = await storage.get('dataDir', '');
-      await runImport('word', (onProgress) =>
-        importWordDocuments(
-          filePaths,
-          noteStore,
-          folderStore,
-          dataDir,
-          onProgress
-        )
-      );
-    }
-
-    const importSourceGroups = computed(() => {
-      const groups = [
-        {
-          label: 'Markdown-based',
-          items: [
-            {
-              key: 'obsidian',
-              title: 'Obsidian',
-              icon: 'obsidian',
-              group: 'Markdown',
-              description:
-                'Point Beaver Notes at your Obsidian vault folder. Your folder structure and notes will be imported as-is.',
-              buttonLabel: 'Select Vault Folder',
-            },
-            {
-              key: 'notion',
-              title: 'Notion',
-              icon: 'riNotionFill',
-              group: 'Markdown',
-              description:
-                'In Notion, go to Settings → Export content → Markdown & CSV. Download and unzip the export, then select the unzipped folder.',
-              buttonLabel: 'Select Notion Export',
-            },
-            {
-              key: 'bear',
-              title: 'Bear',
-              icon: 'bear',
-              group: 'Markdown',
-              description:
-                'In Bear, go to File → Export Notes → Markdown. Select the exported folder below.',
-              buttonLabel: 'Select Bear Export',
-            },
-            {
-              key: 'genericMd',
-              title: 'Markdown Folder',
-              icon: 'riMarkdownLine',
-              group: 'Markdown',
-              description:
-                'Import any folder of .md files. Subfolders become Beaver Notes folders.',
-              buttonLabel: 'Select Folder',
-            },
-          ],
-        },
-        {
-          label: 'Direct import',
-          items: [
-            {
-              key: 'simplenote',
-              title: 'Simplenote',
-              icon: 'simpleNote',
-              group: 'Direct',
-              description:
-                'In Simplenote, go to Settings → Export and download notes.json. Select the file below.',
-              buttonLabel: 'Select notes.json',
-            },
-            {
-              key: 'word',
-              title: 'Word',
-              icon: 'riFileWord2Line',
-              group: 'Direct',
-              description:
-                'Select one or more .docx files. Beaver Notes will import document text, links, tables, and embedded images.',
-              buttonLabel: 'Select .docx files',
-            },
-            {
-              key: 'evernote',
-              title: 'Evernote',
-              icon: 'riEvernoteFill',
-              group: 'Direct',
-              description:
-                'In Evernote, right-click a notebook and choose Export Notes. Save as .enex format. You can optionally enter the notebook name to create a matching folder.',
-              buttonLabel: 'Select ENEX File',
-            },
-          ],
-        },
-      ];
-
-      if (isMacOS.value) {
-        groups[1].items.push({
-          key: 'appleNotes',
-          title: 'Apple Notes',
-          icon: 'riAppleFill',
-          group: 'Direct',
-          description:
-            "Beaver Notes will read your notes directly from Apple Notes. You'll see a permission prompt — click OK to allow access.",
-          buttonLabel: 'Import from Apple Notes',
-        });
-      }
-
-      return groups;
+    const {
+      activeImportIssuesText,
+      activeImportSource,
+      activeImportState,
+      copyImportIssues,
+      exportAllHTMLHandler,
+      exportAllMarkdownHandler,
+      exportHtmlState,
+      exportMdState,
+      getImportIssuesText,
+      importAppleNotesHandler,
+      importBearHandler,
+      importGenericMarkdownHandler,
+      importEvernoteHandler,
+      importNotionHandler,
+      importObsidianHandler,
+      importSimplenoteHandler,
+      importSourceGroups,
+      importSources,
+      importState,
+      importWordHandler,
+      openImportModal,
+      runImport,
+      selectImportSource,
+      selectedImportSource,
+      showImportModal,
+      startSelectedImport,
+    } = useImportExport({
+      clipboard,
+      folderStore,
+      ipcRenderer,
+      isMacOS,
+      noteStore,
+      storage,
+      translations,
     });
 
-    const importSourceMap = computed(() =>
-      importSourceGroups.value.reduce((acc, group) => {
-        group.items.forEach((item) => {
-          acc[item.key] = item;
-        });
-        return acc;
-      }, {})
-    );
-    const importSources = computed(() =>
-      importSourceGroups.value.flatMap((group) => group.items)
-    );
-
-    const activeImportSource = computed(
-      () => importSourceMap.value[selectedImportSource.value] || null
-    );
-    const activeImportState = computed(
-      () => importState[selectedImportSource.value] || importState.obsidian
-    );
-    const activeImportIssuesText = computed(() =>
-      getImportIssuesText(selectedImportSource.value)
-    );
-
-    function openImportModal(key = selectedImportSource.value) {
-      if (importSourceMap.value[key]) {
-        selectedImportSource.value = key;
-      }
-      showImportModal.value = true;
-    }
-
-    function selectImportSource(key) {
-      if (!importSourceMap.value[key]) return;
-      selectedImportSource.value = key;
-    }
-
-    async function startSelectedImport() {
-      switch (selectedImportSource.value) {
-        case 'obsidian':
-          await importObsidianHandler();
-          break;
-        case 'notion':
-          await importNotionHandler();
-          break;
-        case 'bear':
-          await importBearHandler();
-          break;
-        case 'evernote':
-          await importEvernoteHandler();
-          break;
-        case 'appleNotes':
-          await importAppleNotesHandler();
-          break;
-        case 'simplenote':
-          await importSimplenoteHandler();
-          break;
-        case 'word':
-          await importWordHandler();
-          break;
-        case 'genericMd':
-          await importGenericMarkdownHandler();
-          break;
-        default:
-          break;
-      }
-    }
+    let defaultPath = '';
 
     async function changeDataDir() {
       try {
@@ -1379,7 +942,7 @@ export default {
           }
 
           await storage.set(key, mergedData);
-          await folerStore.retrieve();
+          await folderStore.retrieve();
         }
       } catch (error) {
         console.error(error);

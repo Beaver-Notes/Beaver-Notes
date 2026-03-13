@@ -938,6 +938,7 @@ import {
 import { useRoute, useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useStorage } from '@/composable/storage';
+import { useImportExport } from '@/composable/useImportExport';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -951,19 +952,21 @@ import {
   openOnboardingWorkspace,
   runOnboardingMigration,
 } from '@/utils/onboarding';
-import {
-  importObsidian,
-  importNotion,
-  importBear,
-  importSimplenote,
-  importGenericMarkdown,
-} from '@/utils/import/importers';
-import { startRustImport } from '@/utils/import/importRustBridge';
 import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import logoUrl from '@/assets/images/logo-transparent.png';
+
+const ONBOARDING_IMPORT_SOURCE_MAP = {
+  obsidian: 'obsidian',
+  notion: 'notion',
+  bear: 'bear',
+  simplenote: 'simplenote',
+  markdown: 'genericMd',
+  evernote: 'evernote',
+  'apple-notes': 'appleNotes',
+};
 
 export default {
   name: 'AppOnboarding',
@@ -1034,6 +1037,14 @@ export default {
         typeof window !== 'undefined' &&
         window.navigator.platform.toLowerCase().includes('mac')
     );
+    const { runImportSource } = useImportExport({
+      clipboard,
+      folderStore,
+      ipcRenderer,
+      isMacOS,
+      noteStore,
+      storage: settingsStorage,
+    });
 
     const prefersReducedMotion = () =>
       typeof window !== 'undefined' &&
@@ -1293,16 +1304,23 @@ export default {
       }
     }
 
-    async function runImporterWithProgress(fn) {
-      const dataDir = await settingsStorage.get('dataDir', '');
-      return fn(dataDir, ({ done, total, current }) => {
-        state.migrationProgress = total
-          ? Math.max(5, Math.round((done / total) * 100))
-          : 10;
-        state.migrationStatus = total
-          ? `Importing ${done} of ${total}…`
-          : 'Importing…';
-        state.migrationCurrent = current || '';
+    function handleImportProgress({ done, total, current }) {
+      state.migrationProgress = total
+        ? Math.max(5, Math.round((done / total) * 100))
+        : 10;
+      state.migrationStatus = total
+        ? `Importing ${done} of ${total}…`
+        : 'Importing…';
+      state.migrationCurrent = current || '';
+    }
+
+    async function runImporterWithProgress(sourceKey, options = {}) {
+      return runImportSource(sourceKey, {
+        ...options,
+        onProgress: ({ done, total, current }) => {
+          handleImportProgress({ done, total, current });
+          options.onProgress?.({ done, total, current });
+        },
       });
     }
 
@@ -1322,138 +1340,12 @@ export default {
       state.migrationIssuesText = '';
 
       try {
-        let result = null;
-        const handleImportProgress = ({ done, total, current }) => {
-          state.migrationProgress = total
-            ? Math.max(5, Math.round((done / total) * 100))
-            : 10;
-          state.migrationStatus = total
-            ? `Importing ${done} of ${total}…`
-            : 'Importing…';
-          state.migrationCurrent = current || '';
-        };
-
-        if (migrationPlatform.value === 'obsidian') {
-          const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-            'dialog:open',
-            {
-              title: 'Select Obsidian Vault',
-              properties: ['openDirectory'],
-            }
-          );
-          if (canceled || !filePaths.length) return;
-          result = await runImporterWithProgress((dataDir, onProgress) =>
-            importObsidian(
-              filePaths[0],
-              noteStore,
-              folderStore,
-              dataDir,
-              onProgress
-            )
-          );
-        } else if (migrationPlatform.value === 'notion') {
-          const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-            'dialog:open',
-            {
-              title: 'Select Notion Export',
-              properties: ['openDirectory'],
-            }
-          );
-          if (canceled || !filePaths.length) return;
-          result = await runImporterWithProgress((dataDir, onProgress) =>
-            importNotion(
-              filePaths[0],
-              noteStore,
-              folderStore,
-              dataDir,
-              onProgress
-            )
-          );
-        } else if (migrationPlatform.value === 'bear') {
-          const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-            'dialog:open',
-            {
-              title: 'Select Bear Export',
-              properties: ['openDirectory'],
-            }
-          );
-          if (canceled || !filePaths.length) return;
-          result = await runImporterWithProgress((dataDir, onProgress) =>
-            importBear(
-              filePaths[0],
-              noteStore,
-              folderStore,
-              dataDir,
-              onProgress
-            )
-          );
-        } else if (migrationPlatform.value === 'simplenote') {
-          const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-            'dialog:open',
-            {
-              title: 'Select notes.json',
-              properties: ['openFile'],
-              filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
-            }
-          );
-          if (canceled || !filePaths.length) return;
-          result = await importSimplenote(
-            filePaths[0],
-            noteStore,
-            handleImportProgress
-          );
-        } else if (migrationPlatform.value === 'markdown') {
-          const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-            'dialog:open',
-            {
-              title: 'Select Markdown Folder',
-              properties: ['openDirectory'],
-            }
-          );
-          if (canceled || !filePaths.length) return;
-          result = await runImporterWithProgress((dataDir, onProgress) =>
-            importGenericMarkdown(
-              filePaths[0],
-              noteStore,
-              folderStore,
-              dataDir,
-              onProgress
-            )
-          );
-        } else if (migrationPlatform.value === 'evernote') {
-          const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-            'dialog:open',
-            {
-              title: 'Select ENEX File',
-              properties: ['openFile'],
-              filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
-            }
-          );
-          if (canceled || !filePaths.length) return;
-          const pending = startRustImport('evernote', handleImportProgress);
-          await ipcRenderer.callMain('import:evernote', {
-            enexPath: filePaths[0],
-            enex_path: filePaths[0],
-            notebookName: state.evernoteNotebookName?.trim() || null,
-            notebook_name: state.evernoteNotebookName?.trim() || null,
-          });
-          result = await pending;
-        } else if (migrationPlatform.value === 'apple-notes') {
-          const pending = startRustImport(
-            'apple-notes',
-            ({ done, total, current }) => {
-              state.migrationProgress = total
-                ? Math.max(5, Math.round((done / total) * 100))
-                : 10;
-              state.migrationStatus = total
-                ? `Importing ${done} of ${total}…`
-                : 'Importing…';
-              state.migrationCurrent = current || '';
-            }
-          );
-          await ipcRenderer.callMain('import:apple-notes', {});
-          result = await pending;
-        }
+        const sourceKey = ONBOARDING_IMPORT_SOURCE_MAP[migrationPlatform.value];
+        const result = sourceKey
+          ? await runImporterWithProgress(sourceKey, {
+              notebookName: state.evernoteNotebookName?.trim() || null,
+            })
+          : null;
 
         if (!result) return;
 

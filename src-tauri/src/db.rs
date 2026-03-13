@@ -48,6 +48,7 @@ pub(crate) fn db_set(pool: &DbPool, key: &str, value: &str) -> Result<(), String
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn db_delete(pool: &DbPool, key: &str) -> Result<(), String> {
     let conn = pool.get().map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM kv WHERE key = ?1", params![key])

@@ -4,7 +4,7 @@
     :editor="editor"
     :tippy-options="currentTippyOptions"
     :should-show="shouldShowMenuFn"
-    class="bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl"
+    :class="menuClass"
   >
     <component
       :is="currentMenuComponent"
@@ -72,6 +72,13 @@ export default {
         duration: [200, 150],
       };
 
+      if (props.editor.isActive('image')) {
+        return {
+          ...baseOptions,
+          offset: [0, 18],
+        };
+      }
+
       if (props.editor.isActive('link')) {
         const href = props.editor.getAttributes('link').href;
         if (href && href.startsWith('note://')) {
@@ -81,6 +88,12 @@ export default {
 
       return baseOptions;
     });
+
+    const menuClass = computed(() =>
+      props.editor?.isActive('image')
+        ? 'max-w-none border-0 bg-transparent shadow-none'
+        : 'bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl'
+    );
 
     onMounted(() => {
       if (props.editor) {
@@ -104,6 +117,7 @@ export default {
       shouldShowMenu,
       currentMenuComponent,
       currentTippyOptions,
+      menuClass,
     };
   },
 };

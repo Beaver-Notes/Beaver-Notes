@@ -15,7 +15,7 @@
     "url": "https://github.com/Beaver-Notes/Beaver-Notes"
   },
   "scripts": {
-    "watch": "tauri dev",
+    "watch": "node scripts/watch.mjs",
     "build": "tauri build",
     "test": "node e2e-tests/desktop.smoke.mjs",
     "test:desktop": "node e2e-tests/desktop.smoke.mjs",

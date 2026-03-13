@@ -653,19 +653,10 @@
 </template>
 
 <script>
-import {
-  shallowRef,
-  onUnmounted,
-  onMounted,
-  computed,
-  shallowReactive,
-  ref,
-} from 'vue';
-import { getSettingSync, setSetting } from '@/composable/settings';
+import { ref } from 'vue';
 import useAudioRecorder from '@/utils/record';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
-import { saveFile } from '../../utils/copy-doc';
 import { useEditorImage } from '@/composable/editorImage';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
@@ -673,13 +664,11 @@ import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
-import { exportHTML } from '../../utils/share/HTML';
-import { exportMD } from '../../utils/share/MD';
-import { exportDOCX } from '../../utils/share/DOCX';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
+import { useNoteMenuActions } from '@/composable/useNoteMenuActions';
+import { useNoteMenuState } from '@/composable/useNoteMenuState';
 import { backend, path } from '@/lib/tauri-bridge';
-import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 const storage = useStorage('settings');
 
 export default {
@@ -705,14 +694,6 @@ export default {
       pauseResume,
     } = useAudioRecorder(props, backend, storage, path);
 
-    const fontSize = ref(16);
-    const imgUrl = shallowRef('');
-    const fileUrl = shallowRef('');
-    const VideoUrl = shallowRef('');
-    const EmbedUrl = shallowRef('');
-    const headingsTree = shallowRef([]);
-    const showHeadingsTree = shallowRef(false);
-
     const store = useStore();
     const noteStore = useNoteStore();
     const router = useRouter();
@@ -720,352 +701,57 @@ export default {
     const editorImage = useEditorImage(props.editor);
     useGroupTooltip();
 
-    // ── Computed lookups ──────────────────────────────────────────────────────
-    const isTableActive = computed(
-      () =>
-        props.editor.isActive('tableCell') ||
-        props.editor.isActive('tableHeader')
-    );
-
-    const fmtMap = computed(() => ({
-      bold: {
-        title: translations.value.menu.bold,
-        icon: 'riBold',
-        state: 'bold',
-        run: () => props.editor.chain().focus().toggleBold().run(),
-      },
-      italic: {
-        title: translations.value.menu.italic,
-        icon: 'riItalic',
-        state: 'italic',
-        run: () => props.editor.chain().focus().toggleItalic().run(),
-      },
-      underline: {
-        title: translations.value.menu.underline,
-        icon: 'riUnderline',
-        state: 'underline',
-        run: () => props.editor.chain().focus().toggleUnderline().run(),
-      },
-      strikethrough: {
-        title: translations.value.menu.strikethrough,
-        icon: 'riStrikethrough',
-        state: 'strike',
-        run: () => props.editor.chain().focus().toggleStrike().run(),
-      },
-      inlineCode: {
-        title: translations.value.menu.inlineCode,
-        icon: 'riCodeLine',
-        state: 'code',
-        run: () => props.editor.chain().focus().toggleCode().run(),
-      },
-    }));
-
-    const lists = computed(() => [
-      {
-        name: 'ol',
-        title: translations.value.menu.orderedList,
-        icon: 'riListOrdered',
-        state: 'orderedList',
-        run: () => props.editor.chain().focus().toggleOrderedList().run(),
-      },
-      {
-        name: 'ul',
-        title: translations.value.menu.bulletList,
-        icon: 'riListUnordered',
-        state: 'bulletList',
-        run: () => props.editor.chain().focus().toggleBulletList().run(),
-      },
-      {
-        name: 'cl',
-        title: translations.value.menu.checkList,
-        icon: 'riListCheck2',
-        state: 'taskList',
-        run: () => props.editor.chain().focus().toggleTaskList().run(),
-      },
-    ]);
-
-    const shareActions = computed(() => [
-      {
-        name: 'html',
-        title: 'HTML',
-        icon: 'riPagesLine',
-        handler: () => exportHTML(props.id, props.note.title, props.editor),
-      },
-      {
-        name: 'pdf',
-        title: 'PDF',
-        icon: 'riArticleLine',
-        handler: printContent,
-      },
-      {
-        name: 'markdown',
-        title: 'Markdown',
-        icon: 'riMarkdownLine',
-        handler: () => exportMD(props.id, props.note.title, props.editor),
-      },
-      {
-        name: 'docx',
-        title: 'Word',
-        icon: 'riFileWord2Line',
-        handler: () => exportDOCX(props.id, props.note.title, props.editor),
-      },
-    ]);
-
-    const tableActions = computed(() => [
-      {
-        name: 'addRowAbove',
-        label: translations.value.menu.addRowAbove,
-        icon: 'riInsertRowTop',
-        run: () => props.editor.chain().focus().addRowBefore().run(),
-      },
-      {
-        name: 'addRowBelow',
-        label: translations.value.menu.addRowBelow,
-        icon: 'riInsertRowBottom',
-        run: () => props.editor.chain().focus().addRowAfter().run(),
-      },
-      {
-        name: 'deleteRow',
-        label: translations.value.menu.deleteRow,
-        icon: 'riDeleteRow',
-        run: () => props.editor.chain().focus().deleteRow().run(),
-      },
-      {
-        name: 'addColLeft',
-        label: translations.value.menu.addColumnLeft,
-        icon: 'riInsertColumnLeft',
-        run: () => props.editor.chain().focus().addColumnBefore().run(),
-      },
-      {
-        name: 'addColRight',
-        label: translations.value.menu.addColumnRight,
-        icon: 'riInsertColumnRight',
-        run: () => props.editor.chain().focus().addColumnAfter().run(),
-      },
-      {
-        name: 'deleteCol',
-        label: translations.value.menu.deleteColumn,
-        icon: 'riDeleteColumn',
-        run: () => props.editor.chain().focus().deleteColumn().run(),
-      },
-      {
-        name: 'mergeOrSplit',
-        label: translations.value.menu.mergeOrSplit,
-        icon: 'riSplitCellsHorizontal',
-        run: () => props.editor.chain().focus().mergeOrSplit().run(),
-      },
-      {
-        name: 'toggleHeader',
-        label: translations.value.menu.toggleHeader,
-        icon: 'riBrush2Fill',
-        run: () => props.editor.chain().focus().toggleHeaderCell().run(),
-      },
-      {
-        name: 'deleteTable',
-        label: translations.value.menu.deleteTable,
-        icon: 'riDeleteBin6Line',
-        run: () => props.editor.chain().focus().deleteTable().run(),
-      },
-    ]);
-
-    // ── Colors ────────────────────────────────────────────────────────────────
-    const highlighterColors = [
-      'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
-      'bg-[#E3B324]/30 dark:bg-[#E3B324]/40',
-      'bg-[#4CAF50]/30 dark:bg-[#4CAF50]/40',
-      'bg-[#3A8EE6]/30 dark:bg-[#3A8EE6]/40',
-      'bg-[#9B5EE6]/30 dark:bg-[#9B5EE6]/40',
-      'bg-[#E67EA4]/30 dark:bg-[#E67EA4]/40',
-      'bg-[#E75C5C]/30 dark:bg-[#E75C5C]/40',
-    ];
-    const textColors = [
-      '#DC8D42',
-      '#E3B324',
-      '#4CAF50',
-      '#3A8EE6',
-      '#9B5EE6',
-      '#E67EA4',
-      '#E75C5C',
-    ];
-
-    const currentTextColor = computed(() =>
-      props.editor.isActive('textStyle')
-        ? props.editor.getAttributes('textStyle')?.color || null
-        : null
-    );
-
-    function setHighlightColor(color) {
-      props.editor.isActive('highlight', { color })
-        ? props.editor.commands.unsetHighlight()
-        : props.editor.commands.setHighlight({ color });
-    }
-    function setTextColor(color) {
-      props.editor.isActive('textStyle', { color })
-        ? props.editor
-            .chain()
-            .focus()
-            .updateAttributes('textStyle', { color: null })
-            .run()
-        : props.editor.commands.setColor(color);
-    }
-
-    // ── Font size ─────────────────────────────────────────────────────────────
-    function updateFontSize() {
-      if (props.editor)
-        props.editor.chain().focus().setFontSize(`${fontSize.value}pt`).run();
-    }
-    function getCurrentFontSize() {
-      if (!props.editor) return null;
-      const attrs = props.editor.getAttributes('textStyle');
-      if (attrs.fontSize) return parseInt(attrs.fontSize);
-      const node = window.getSelection()?.anchorNode;
-      if (!node) return null;
-      const el = node.nodeType === 3 ? node.parentElement : node;
-      const px = parseFloat(window.getComputedStyle(el).fontSize);
-      return Math.round(px * (72 / 96));
-    }
-
-    // ── Insert helpers ────────────────────────────────────────────────────────
-    const norm = (p) => p.replace(/\\/g, '');
-    function insertImage() {
-      editorImage.set(norm(imgUrl.value));
-      imgUrl.value = '';
-      props.editor.commands.focus();
-    }
-    function insertFile() {
-      const url = norm(fileUrl.value);
-      props.editor.commands.setFileEmbed(
-        url,
-        url.substring(url.lastIndexOf('/') + 1)
-      );
-      fileUrl.value = '';
-    }
-    function insertVideo() {
-      props.editor.commands.setVideo(norm(VideoUrl.value));
-      VideoUrl.value = '';
-    }
-    function addIframe() {
-      if (!EmbedUrl.value.trim()) return;
-      let url = EmbedUrl.value.trim();
-      if (url.includes('youtube.com/watch?v=')) {
-        let id = url.split('v=')[1];
-        const amp = id.indexOf('&');
-        if (amp !== -1) id = id.substring(0, amp);
-        url = `https://www.youtube.com/embed/${id}`;
-      }
-      props.editor.chain().focus().setIframe({ src: url }).run();
-      EmbedUrl.value = '';
-    }
-
-    // ── File pickers ──────────────────────────────────────────────────────────
-    async function handleFileSelect(e) {
-      for (const file of e.target.files) {
-        const { fileName, relativePath } = await saveFile(file, props.id);
-        props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
-      }
-    }
-    async function handleAudioSelect(e) {
-      for (const file of e.target.files) {
-        const { fileName, relativePath } = await saveFile(file, props.id);
-        props.editor.commands.setAudio(`${relativePath}`, fileName);
-      }
-    }
-    async function handleVideoSelect(e) {
-      for (const file of e.target.files) {
-        const { relativePath } = await saveFile(file, props.id);
-        props.editor.commands.setVideo(`${relativePath}`);
-      }
-    }
-
-    // ── Headings tree ─────────────────────────────────────────────────────────
-    function getHeadingsTree() {
-      const el = props.editor.options.element;
-      headingsTree.value = Array.from(el.querySelectorAll('h1,h2,h3,h4')).map(
-        (h) => {
-          let pos = null;
-          try {
-            pos = props.editor.view.posAtDOM(h, 0);
-          } catch {
-            pos = null;
-          }
-          return {
-            el: h,
-            tag: h.tagName,
-            top: h.offsetTop,
-            text: h.innerText.slice(0, 120),
-            pos,
-          };
-        }
-      );
-    }
-
-    // ── Reader mode ───────────────────────────────────────────────────────────
-    const state = shallowReactive({
-      zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
+    const {
+      currentTextColor,
+      fmtMap,
+      highlighterColors,
+      isTableActive,
+      lists,
+      printContent,
+      setHighlightColor,
+      setTextColor,
+      shareActions,
+      tableActions,
+      textColors,
+    } = useNoteMenuActions({
+      editor: props.editor,
+      noteId: props.id,
+      noteTitle: props.note.title,
+      translations,
+      backend,
     });
-    function setZoom(level) {
-      backend.invoke('app:set-zoom', level);
-      state.zoomLevel = level.toFixed(1);
-      void setSetting('zoomLevel', state.zoomLevel);
-    }
-    function toggleReaderMode() {
-      const stored = parseFloat(getSettingSync('zoomLevel'));
-      setZoom(isNaN(stored) ? 1.0 : stored);
-      store.inReaderMode = !store.inReaderMode;
-      if (store.inReaderMode) {
-        document.documentElement.requestFullscreen();
-        props.editor.commands.focus();
-        props.editor.setOptions({ editable: false });
-      } else {
-        document.exitFullscreen();
-        props.editor.setOptions({ editable: true });
-      }
-    }
 
-    // ── Delete ────────────────────────────────────────────────────────────────
-    function deleteNode() {
-      dialog.confirm({
-        title: translations.value.card.confirmPrompt,
-        okText: translations.value.card.confirm,
-        cancelText: translations.value.card.cancel,
-        onConfirm: async () => {
-          await noteStore.delete(props.id);
-          router.push('/');
-        },
-      });
-    }
-
-    // ── Print ─────────────────────────────────────────────────────────────────
-    function printContent() {
-      backend.invoke('print-pdf', { pdfName: `${props.note.title}.pdf` });
-    }
-
-    // ── Shortcuts ─────────────────────────────────────────────────────────────
-    const shortcuts = {
-      'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
-      'mod+shift+d': deleteNode,
-      'mod+shift+f': toggleReaderMode,
-      'mod+p': printContent,
-    };
-    let removeGlobalShortcuts = () => {};
-    onMounted(() => {
-      removeGlobalShortcuts = bindGlobalShortcuts(shortcuts);
-    });
-    onUnmounted(() => removeGlobalShortcuts());
-
-    // ── Wheel → horizontal scroll ─────────────────────────────────────────────
-    const container = ref();
-    function changeWheelDirection(e) {
-      if (container.value) container.value.scrollLeft += e.deltaY + e.deltaX;
-    }
-
-    // ── Font size sync on selection ───────────────────────────────────────────
-    onMounted(() => {
-      if (!props.editor) return;
-      props.editor.on('selectionUpdate', () => {
-        const size = getCurrentFontSize();
-        if (size) fontSize.value = parseInt(size);
-      });
+    const {
+      addIframe,
+      changeWheelDirection,
+      container,
+      deleteNode,
+      embedUrl: EmbedUrl,
+      fileUrl,
+      fontSize,
+      getHeadingsTree,
+      handleAudioSelect,
+      handleFileSelect,
+      handleVideoSelect,
+      headingsTree,
+      imgUrl,
+      insertFile,
+      insertImage,
+      insertVideo,
+      showHeadingsTree,
+      toggleReaderMode,
+      updateFontSize,
+      videoUrl: VideoUrl,
+    } = useNoteMenuState({
+      dialog,
+      editor: props.editor,
+      editorImage,
+      noteId: props.id,
+      noteStore,
+      printContent,
+      router,
+      store,
+      translations,
     });
 
     return {
