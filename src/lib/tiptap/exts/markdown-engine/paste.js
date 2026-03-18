@@ -3,6 +3,7 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import MarkdownIt from 'markdown-it';
 import { generateJSON } from '@tiptap/core';
 import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
+import { sanitizeImportedHtml } from '@/utils/contentSecurity';
 
 export const Paste = Extension.create({
   name: 'paste',
@@ -48,7 +49,7 @@ export const Paste = Extension.create({
               if (html) {
                 event.preventDefault();
                 const container = document.createElement('div');
-                container.innerHTML = html;
+                container.innerHTML = sanitizeImportedHtml(html);
 
                 container.querySelectorAll('a').forEach((link) => {
                   link.querySelectorAll('span').forEach((span) => {

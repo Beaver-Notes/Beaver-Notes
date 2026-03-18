@@ -1,6 +1,6 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="inline-block input-ui">
+  <div class="inline-block input-ui w-full">
     <label class="relative w-full">
       <span
         v-if="label"
@@ -8,43 +8,54 @@
       >
         {{ label }}
       </span>
-      <div class="flex items-center relative">
+
+      <div
+        class="flex items-center gap-2 rounded-lg w-full bg-input bg-transparent transition border focus-within:ring-1 ring-secondary px-3 py-2"
+        :class="{ 'opacity-75 pointer-events-none': disabled }"
+        @click="focusInput"
+      >
         <slot name="prepend">
           <v-remixicon
             v-if="prependIcon"
-            class="ml-2 dark:text-neutral-200 text-neutral-600 absolute left-0"
+            class="shrink-0 dark:text-neutral-200 text-neutral-600"
             :name="prependIcon"
           />
         </slot>
 
-        <input
-          v-autofocus="autofocus"
-          v-bind="{
-            readonly: disabled || readonly || null,
-            placeholder,
-            type: inputType,
-          }"
-          class="py-2 px-4 rounded-lg w-full bg-input bg-transparent transition border focus:ring-1 ring-secondary"
-          :class="{
-            'opacity-75 pointer-events-none': disabled,
-            'pl-10': prependIcon || $slots.prepend,
-            'pr-24': hasRightButtons, // Enough padding for both buttons
-          }"
-          :value="modelValue"
-          @keydown="$emit('keydown', $event)"
-          @input="emitValue"
-          @blur="$emit('blur', $event)"
-        />
+        <div class="flex items-center gap-2 flex-1 min-w-0 flex-wrap">
+          <slot name="before" />
+
+          <div class="relative flex-1 min-w-[120px]">
+            <slot name="overlay" />
+
+            <input
+              ref="inputRef"
+              v-autofocus="autofocus"
+              v-bind="{
+                readonly: disabled || readonly || null,
+                placeholder,
+                type: inputType,
+              }"
+              class="w-full bg-transparent outline-none border-0 p-0"
+              :value="modelValue"
+              @keydown="$emit('keydown', $event)"
+              @input="emitValue"
+              @blur="$emit('blur', $event)"
+            />
+          </div>
+        </div>
 
         <div
-          v-if="hasRightButtons"
-          class="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-2"
+          v-if="hasRightButtons || $slots.append"
+          class="flex items-center gap-2 shrink-0"
         >
+          <slot name="append" />
+
           <button
             v-if="password"
             type="button"
             class="text-sm text-secondary"
-            @click="toggleVisibility"
+            @click.stop="toggleVisibility"
           >
             <v-remixicon
               :name="visible ? 'riEyeCloseLine' : 'riEyeLine'"
@@ -56,7 +67,7 @@
             v-if="clearable && modelValue"
             type="button"
             class="text-neutral-600 dark:text-neutral-200"
-            @click="clearInput"
+            @click.stop="clearInput"
           >
             <v-remixicon name="riDeleteBackLine" />
           </button>
@@ -108,8 +119,9 @@ export default {
     },
   },
   emits: ['update:modelValue', 'change', 'keydown', 'blur'],
-  setup(props, { emit }) {
+  setup(props, { emit, expose }) {
     const visible = ref(false);
+    const inputRef = ref(null);
 
     const inputType = computed(() => {
       if (props.password) {
@@ -136,16 +148,25 @@ export default {
     function clearInput() {
       emit('update:modelValue', '');
       emit('change', '');
+      focusInput();
     }
 
     function toggleVisibility() {
       visible.value = !visible.value;
     }
 
+    function focusInput() {
+      inputRef.value?.focus();
+    }
+
+    expose({ focus: focusInput });
+
     return {
+      inputRef,
       emitValue,
       clearInput,
       toggleVisibility,
+      focusInput,
       visible,
       inputType,
       hasRightButtons,

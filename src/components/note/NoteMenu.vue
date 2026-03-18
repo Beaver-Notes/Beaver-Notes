@@ -459,33 +459,6 @@
           <v-remixicon name="riTableLine" />
         </button>
 
-        <ui-popover
-          v-else-if="item.id === 'embed'"
-          padding="p-2 flex items-center gap-2"
-        >
-          <template #trigger>
-            <button
-              v-tooltip.group="translations.menu.embed"
-              class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
-            >
-              <v-remixicon name="riPagesLine" />
-            </button>
-          </template>
-
-          <input
-            v-model="EmbedUrl"
-            class="bg-transparent text-sm w-40"
-            :placeholder="translations.menu.embedUrl || 'URL'"
-            @keyup.enter="addIframe"
-          />
-
-          <v-remixicon
-            name="riSave3Line"
-            class="cursor-pointer opacity-60 hover:opacity-100"
-            @click="addIframe"
-          />
-        </ui-popover>
-
         <button
           v-else-if="item.id === 'draw'"
           v-tooltip.group="translations.menu.draw"
@@ -722,11 +695,9 @@ export default {
     });
 
     const {
-      addIframe,
       changeWheelDirection,
       container,
       deleteNode,
-      embedUrl: EmbedUrl,
       fileUrl,
       fontSize,
       getHeadingsTree,
@@ -762,11 +733,9 @@ export default {
       imgUrl,
       fileUrl,
       VideoUrl,
-      EmbedUrl,
       insertImage,
       insertFile,
       insertVideo,
-      addIframe,
       handleFileSelect,
       handleAudioSelect,
       handleVideoSelect,

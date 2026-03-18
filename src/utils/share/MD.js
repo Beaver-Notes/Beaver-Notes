@@ -48,6 +48,7 @@ export async function exportMD(noteId, noteTitle, editor) {
   const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
     title: share.exportDataDialogTitle || 'Export note',
     properties: ['openDirectory'],
+    useScopedStorage: true,
   });
   if (canceled) return;
 

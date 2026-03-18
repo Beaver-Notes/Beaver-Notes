@@ -1,10 +1,9 @@
 <template>
   <div
-    class="flex items-center rounded-2xl border border-primary/15 bg-white/90 px-2 py-1.5 text-neutral-700 backdrop-blur dark:border-primary/20 dark:bg-neutral-800/90 dark:text-[color:var(--selected-dark-text)]"
+    class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-1 rounded-lg shadow-lg no-print flex items-center"
   >
     <button
-      type="button"
-      class="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold text-neutral-500 transition hover:bg-primary/10 hover:text-primary dark:text-neutral-300 dark:hover:bg-primary/15 dark:hover:text-primary"
+      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
       :class="
         currentLayout === 'wrap-left'
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
@@ -13,11 +12,10 @@
       title="Wrap text on the right"
       @click="setLayout('wrap-left')"
     >
-      <span>L</span>
+      <v-remixicon name="riAlignLeft" class="text-sm" />
     </button>
     <button
-      type="button"
-      class="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold text-neutral-500 transition hover:bg-primary/10 hover:text-primary dark:text-neutral-300 dark:hover:bg-primary/15 dark:hover:text-primary"
+      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
       :class="
         currentLayout === 'block'
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
@@ -26,11 +24,10 @@
       title="Keep image on its own line"
       @click="setLayout('block')"
     >
-      <span>C</span>
+      <v-remixicon name="riAlignCenter" class="text-sm" />
     </button>
     <button
-      type="button"
-      class="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-semibold text-neutral-500 transition hover:bg-primary/10 hover:text-primary dark:text-neutral-300 dark:hover:bg-primary/15 dark:hover:text-primary"
+      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
       :class="
         currentLayout === 'wrap-right'
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
@@ -39,21 +36,19 @@
       title="Wrap text on the left"
       @click="setLayout('wrap-right')"
     >
-      <span>R</span>
+      <v-remixicon name="riAlignRight" class="text-sm" />
     </button>
-    <span class="mx-1 h-8 w-px rounded-full bg-primary/15 dark:bg-primary/20" />
+    <span class="border-r mx-1 h-6" />
     <button
-      type="button"
-      class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-500 transition hover:bg-primary/10 hover:text-primary dark:text-neutral-300 dark:hover:bg-primary/15 dark:hover:text-primary"
+      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
       title="Download image"
       @click="downloadImage"
     >
       <v-remixicon name="riDownload2Line" />
     </button>
-    <span class="mx-1 h-8 w-px rounded-full bg-primary/15 dark:bg-primary/20" />
+    <span class="border-r mx-1 h-6" />
     <button
-      type="button"
-      class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-500 transition hover:bg-red-50 hover:text-red-500 dark:text-neutral-300 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
       :title="deleteTitle"
       @click="removeImage"
     >

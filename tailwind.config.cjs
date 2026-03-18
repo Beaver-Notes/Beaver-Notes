@@ -26,6 +26,9 @@ module.exports = {
   },
   plugins: [
     require('@tailwindcss/typography'),
+    require('@eioluseyi/tailwind-fade')({
+      prefix: 'eio-',
+    }),
     createThemes({
       light: {
         primary: colors.amber['400'],

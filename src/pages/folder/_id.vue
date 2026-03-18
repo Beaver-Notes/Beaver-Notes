@@ -70,7 +70,7 @@
     />
   </div>
   <div
-    class="container pb-5"
+    class="container md:pb-5"
     @mousedown="handleMouseDown"
     @click="handleGridClick"
   >
@@ -142,39 +142,29 @@
             {{ translations.index[name] }}
           </p>
 
-          <TransitionGroup
-            tag="div"
-            :css="isSorting"
-            :name="isSorting ? 'sort-cards' : undefined"
-            class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
-          >
-            <div
-              v-for="note in notes[name]"
-              :key="note.id"
-              :min-height="180"
-              :unrender="true"
-              :data-item-id="`note-${note.id}`"
-              @click="handleItemClick($event, 'note', note.id, getAllVisibleItems)"
-            >
-              <home-note-card
-                :key="note.id"
-                :note-id="note.id"
-                :is-locked="note.isLocked"
-                v-bind="{ note }"
-                :class="{
-                  'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
-                    selectedItems.has(`note-${note.id}`),
-                }"
-                class="h-full"
-                draggable="true"
-                style="contain: layout style"
-                @dragstart="handleNoteDragStart($event, note.id)"
-                @dragend="handleDragEnd"
-                @update:label="state.activeLabel = $event"
-                @update="noteStore.update(note.id, $event)"
-              />
-            </div>
-          </TransitionGroup>
+          <home-note-masonry
+            :notes="notes[name]"
+            :selected-items="selectedItems"
+            :gap-px="16"
+            :breakpoints="[
+              { min: 0, cols: 1 },
+              { min: 768, cols: 2 },
+              { min: 1024, cols: 3 },
+              { min: 1280, cols: 4 },
+            ]"
+            @item-click="
+              handleItemClick(
+                $event.event,
+                'note',
+                $event.noteId,
+                getAllVisibleItems
+              )
+            "
+            @dragstart="handleNoteDragStart($event.event, $event.noteId)"
+            @dragend="handleDragEnd($event.event)"
+            @update:label="state.activeLabel = $event"
+            @update="noteStore.update($event.noteId, $event.payload)"
+          />
         </template>
       </section>
     </template>
@@ -229,7 +219,7 @@ import {
   parseItemId,
   areSetsEqual,
 } from '@/utils/helper';
-import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
+import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
 import HomeImg from '@/assets/images/home.png';
 import ArchiveImg from '@/assets/images/archive.png';
@@ -242,7 +232,13 @@ import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
 
 export default {
-  components: { HomeNoteCard, HomeSearch, HomeFolderCard, FolderTree, Actions },
+  components: {
+    HomeNoteMasonry,
+    HomeSearch,
+    HomeFolderCard,
+    FolderTree,
+    Actions,
+  },
   setup() {
     const { translations } = useTranslations();
     const highlightedFolderIds = ref(new Set());
@@ -864,9 +860,7 @@ export default {
 }
 
 .sort-cards-enter-active {
-  transition:
-    opacity 0.01ms linear,
-    transform 0.01ms linear;
+  transition: opacity 0.01ms linear, transform 0.01ms linear;
 }
 
 .sort-cards-enter-from {
@@ -880,9 +874,7 @@ export default {
   }
 
   .sort-cards-enter-active {
-    transition:
-      opacity 200ms ease,
-      transform 200ms ease;
+    transition: opacity 200ms ease, transform 200ms ease;
   }
 }
 </style>

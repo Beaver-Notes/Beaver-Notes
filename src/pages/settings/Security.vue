@@ -1,181 +1,188 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="general space-y-8 mb-14 w-full max-w-xl">
-    <section>
-      <p class="mb-1 font-medium">
-        {{ translations.settings.security || 'Security' }}
-      </p>
-      <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
-        {{
-          translations.settings.securityDesc ||
-          'One password powers note locking, app-wide encryption, and sync encryption independently.'
-        }}
-      </p>
-
-      <div class="mb-4">
-        <template v-if="hasPassword">
-          <div class="flex items-center gap-2">
-            <span class="flex-1 text-sm text-neutral-600 dark:text-neutral-300">
-              <v-remixicon
-                name="riShieldCheckLine"
-                class="inline mr-1 text-primary"
-                size="16"
-              />
-              {{
-                translations.settings.passwordSet || 'Global password is set'
-              }}
-            </span>
-            <ui-button class="text-sm" @click="changePasswordDialog">
-              {{ translations.settings.changePassword || 'Change' }}
-            </ui-button>
-          </div>
-        </template>
-        <template v-else>
-          <div class="flex items-center gap-2">
-            <ui-input
-              v-model="passwordInput"
-              type="password"
-              class="flex-1"
-              :placeholder="
-                translations.settings.choosePassword || 'Choose a password...'
-              "
-              @keyup.enter="setGlobalPassword"
-            />
-            <ui-button :disabled="!passwordInput" @click="setGlobalPassword">
-              {{ translations.settings.setPassword || 'Set password' }}
-            </ui-button>
-          </div>
-          <p v-if="securityError" class="text-sm text-red-500 mt-1">
-            {{ securityError }}
-          </p>
-        </template>
-      </div>
-
-      <div class="py-3 border-t border-neutral-200 dark:border-neutral-700">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <span class="block text-base">
-              {{
-                translations.settings.appEncryption || 'Encrypt notes on disk'
-              }}
-            </span>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {{
-                translations.settings.appEncryptionDesc ||
-                'All notes are encrypted at rest. Requires your password on each startup.'
-              }}
-            </p>
-          </div>
-          <ui-switch
-            v-model="appEncryptionEnabled"
-            :disabled="appEncryptionBusy"
-            @change="toggleAppEncryption"
-          />
-        </div>
-        <p v-if="appEncryptionError" class="text-xs text-red-500 mt-2">
-          {{ appEncryptionError }}
+  <div class="mb-14 w-full max-w-xl space-y-6">
+    <ui-card class="general space-y-8 mb-14 w-full max-w-xl">
+      <section>
+        <p class="mb-1 font-medium">
+          {{ translations.settings.security || 'Security' }}
         </p>
-        <transition name="setting-fade">
-          <div
-            v-if="appEncryptionBusy"
-            class="mt-2 rounded-md border border-primary/60 bg-primary/80 p-2 dark:border-primary/40 dark:bg-primary/10"
-          >
-            <p class="text-xs text-primary">
-              {{ appEncryptionProgressLabel }}:
-              {{ appEncryptionProgress.processed }} /
-              {{ appEncryptionProgress.total }}
-              ({{ appEncryptionProgressPercent }}%)
-            </p>
-            <p class="text-xs text-primary dark:text-primary/80 mt-1">
-              {{
-                translations.settings.keepSettingsOpen ||
-                'Keep this page open until migration completes.'
-              }}
-            </p>
-            <div class="mt-2 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
-              <div
-                class="app-encryption-progress-bar h-1.5 rounded bg-primary dark:bg-primary/80"
-                :style="{ width: `${appEncryptionProgressPercent}%` }"
-              />
-            </div>
-          </div>
-        </transition>
-
-        <transition name="setting-fade">
-          <div
-            v-if="appEncryptionEnabled && !appKeyLoaded"
-            class="flex items-center gap-2 mt-2"
-          >
-            <ui-input
-              v-model="appConfirmInput"
-              type="password"
-              class="flex-1"
-              :disabled="appEncryptionBusy"
-              :placeholder="translations.settings.password || 'Password...'"
-              @keyup.enter="confirmAppEncryption"
-            />
-            <ui-button
-              :disabled="!appConfirmInput || appEncryptionBusy"
-              @click="confirmAppEncryption"
-            >
-              {{ translations.settings.unlock || 'Unlock' }}
-            </ui-button>
-          </div>
-        </transition>
-      </div>
-
-      <div class="py-3 border-t border-neutral-200 dark:border-neutral-700">
-        <div class="flex items-start justify-between gap-4">
-          <div class="flex-1 min-w-0">
-            <span class="block text-base">
-              {{
-                translations.settings.syncEncryption || 'Encrypt sync folder'
-              }}
-            </span>
-            <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {{
-                translations.settings.syncEncryptionDesc ||
-                'Commits and assets in your sync folder are encrypted. Same password, independent key.'
-              }}
-            </p>
-          </div>
-          <ui-switch
-            v-model="syncEncryptionEnabled"
-            :disabled="!hasSyncFolder"
-            @change="toggleSyncEncryption"
-          />
-        </div>
-        <p
-          v-if="!hasSyncFolder"
-          class="text-xs text-amber-600 dark:text-amber-400 mt-2"
-        >
+        <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
           {{
-            translations.settings.syncPathRequired ||
-            'Set a sync folder in General to enable sync encryption.'
+            translations.settings.securityDesc ||
+            'One password powers note locking, app-wide encryption, and sync encryption independently.'
           }}
         </p>
-        <transition name="setting-fade">
-          <div
-            v-if="hasSyncFolder && syncEncryptionEnabled && !syncKeyLoaded"
-            class="flex items-center gap-2 mt-2"
-          >
-            <ui-input
-              v-model="syncPassphraseInput"
-              type="password"
-              class="flex-1"
-              :placeholder="translations.settings.password || 'Password...'"
-              @keyup.enter="verifySyncKey"
+
+        <div class="mb-4">
+          <template v-if="hasPassword">
+            <div class="flex items-center gap-2">
+              <span
+                class="flex-1 text-sm text-neutral-600 dark:text-neutral-300"
+              >
+                <v-remixicon
+                  name="riShieldCheckLine"
+                  class="inline mr-1 text-primary"
+                  size="16"
+                />
+                {{
+                  translations.settings.passwordSet || 'Global password is set'
+                }}
+              </span>
+              <ui-button class="text-sm" @click="changePasswordDialog">
+                {{ translations.settings.changePassword || 'Change' }}
+              </ui-button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="flex items-center gap-2">
+              <ui-input
+                v-model="passwordInput"
+                type="password"
+                class="flex-1"
+                :placeholder="
+                  translations.settings.choosePassword || 'Choose a password...'
+                "
+                @keyup.enter="setGlobalPassword"
+              />
+              <ui-button :disabled="!passwordInput" @click="setGlobalPassword">
+                {{ translations.settings.setPassword || 'Set password' }}
+              </ui-button>
+            </div>
+            <p v-if="securityError" class="text-sm text-red-500 mt-1">
+              {{ securityError }}
+            </p>
+          </template>
+        </div>
+
+        <div class="py-3">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <span class="block text-base">
+                {{
+                  translations.settings.appEncryption || 'Encrypt notes on disk'
+                }}
+              </span>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {{
+                  translations.settings.appEncryptionDesc ||
+                  'All notes are encrypted at rest. Requires your password on each startup.'
+                }}
+              </p>
+            </div>
+            <ui-switch
+              v-model="appEncryptionEnabled"
+              :disabled="appEncryptionBusy"
+              @change="toggleAppEncryption"
             />
-            <ui-button :disabled="!syncPassphraseInput" @click="verifySyncKey">
-              {{ translations.settings.unlock || 'Unlock' }}
-            </ui-button>
           </div>
-        </transition>
-        <p v-if="syncCryptoError" class="text-xs text-red-500 mt-2">
-          {{ syncCryptoError }}
-        </p>
-      </div>
-    </section>
+          <p v-if="appEncryptionError" class="text-xs text-red-500 mt-2">
+            {{ appEncryptionError }}
+          </p>
+          <transition name="setting-fade">
+            <div
+              v-if="appEncryptionBusy"
+              class="mt-2 rounded-md dark:bg-primary/10"
+            >
+              <p class="text-xs text-primary">
+                {{ appEncryptionProgressLabel }}:
+                {{ appEncryptionProgress.processed }} /
+                {{ appEncryptionProgress.total }}
+                ({{ appEncryptionProgressPercent }}%)
+              </p>
+              <p class="text-xs text-primary dark:text-primary/80 mt-1">
+                {{
+                  translations.settings.keepSettingsOpen ||
+                  'Keep this page open until migration completes.'
+                }}
+              </p>
+              <div class="mt-2 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
+                <div
+                  class="app-encryption-progress-bar h-1.5 rounded bg-primary dark:bg-primary/80"
+                  :style="{ width: `${appEncryptionProgressPercent}%` }"
+                />
+              </div>
+            </div>
+          </transition>
+
+          <transition name="setting-fade">
+            <div
+              v-if="appEncryptionEnabled && !appKeyLoaded"
+              class="flex items-center gap-2 mt-2"
+            >
+              <ui-input
+                v-model="appConfirmInput"
+                type="password"
+                class="flex-1"
+                :disabled="appEncryptionBusy"
+                :placeholder="translations.settings.password || 'Password...'"
+                @keyup.enter="confirmAppEncryption"
+              />
+              <ui-button
+                :disabled="!appConfirmInput || appEncryptionBusy"
+                @click="confirmAppEncryption"
+              >
+                {{ translations.settings.unlock || 'Unlock' }}
+              </ui-button>
+            </div>
+          </transition>
+        </div>
+
+        <div class="py-3">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+              <span class="block text-base">
+                {{
+                  translations.settings.syncEncryption || 'Encrypt sync folder'
+                }}
+              </span>
+              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                {{
+                  translations.settings.syncEncryptionDesc ||
+                  'Commits and assets in your sync folder are encrypted. Same password, independent key.'
+                }}
+              </p>
+            </div>
+            <ui-switch
+              v-model="syncEncryptionEnabled"
+              :disabled="!hasSyncFolder"
+              @change="toggleSyncEncryption"
+            />
+          </div>
+          <p
+            v-if="!hasSyncFolder"
+            class="text-xs text-amber-600 dark:text-amber-400 mt-2"
+          >
+            {{
+              translations.settings.syncPathRequired ||
+              'Set a sync folder in General to enable sync encryption.'
+            }}
+          </p>
+          <transition name="setting-fade">
+            <div
+              v-if="hasSyncFolder && syncEncryptionEnabled && !syncKeyLoaded"
+              class="flex items-center gap-2 mt-2"
+            >
+              <ui-input
+                v-model="syncPassphraseInput"
+                type="password"
+                class="flex-1"
+                :placeholder="translations.settings.password || 'Password...'"
+                @keyup.enter="verifySyncKey"
+              />
+              <ui-button
+                :disabled="!syncPassphraseInput"
+                @click="verifySyncKey"
+              >
+                {{ translations.settings.unlock || 'Unlock' }}
+              </ui-button>
+            </div>
+          </transition>
+          <p v-if="syncCryptoError" class="text-xs text-red-500 mt-2">
+            {{ syncCryptoError }}
+          </p>
+        </div>
+      </section>
+    </ui-card>
   </div>
 </template>
 
@@ -488,7 +495,9 @@ async function toggleAppEncryption(enabled) {
       }
 
       await runAppEncryptionMigration({ encryptAtRest: false });
-      await disableAppEncryption();
+      await disableAppEncryption(async () => {
+        await noteStore.persistAllNotesPlaintext();
+      });
       refreshAppKeyLoaded();
       appEncryptionEnabled.value = false;
       appConfirmInput.value = '';
@@ -588,9 +597,7 @@ onMounted(async () => {
 
 .setting-fade-enter-active,
 .setting-fade-leave-active {
-  transition:
-    opacity 180ms ease,
-    transform 180ms ease;
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 
 .setting-fade-enter-from,

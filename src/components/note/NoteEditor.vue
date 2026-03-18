@@ -14,6 +14,7 @@
 import { onMounted, onBeforeUnmount, watch, computed } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { isAppEncryptedContent } from '@/utils/appCrypto.js';
+import { sanitizeNoteContent } from '@/utils/contentSecurity';
 import { useRouter } from 'vue-router';
 import { extensions, CollapseHeading, heading, dropFile } from '@/lib/tiptap';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
@@ -35,7 +36,9 @@ export default {
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
     const safeContent = computed(() =>
-      isAppEncryptedContent(props.modelValue) ? '' : props.modelValue
+      isAppEncryptedContent(props.modelValue)
+        ? ''
+        : sanitizeNoteContent(props.modelValue)
     );
 
     const editor = useEditor({

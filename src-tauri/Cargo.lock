@@ -427,7 +427,7 @@ dependencies = [
 
 [[package]]
 name = "beaver-notes"
-version = "4.4.0"
+version = "5.0.0"
 dependencies = [
  "aes-gcm",
  "base64 0.22.1",
@@ -444,6 +444,7 @@ dependencies = [
  "r2d2_sqlite",
  "rand 0.8.5",
  "rusqlite",
+ "rustls",
  "serde",
  "serde_json",
  "sha2",
@@ -455,9 +456,12 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
+ "tauri-plugin-safe-area-insets-css",
+ "tauri-plugin-scoped-storage",
  "tauri-plugin-single-instance",
  "tauri-plugin-store",
  "tauri-plugin-stronghold",
+ "tauri-plugin-swipe-back-ios",
  "tauri-plugin-updater",
  "tokio",
  "urlencoding",
@@ -5781,6 +5785,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-safe-area-insets-css"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "245c374d1f8b4f68b4b14596a8d4252c3410eb0591685cc21d2d34158aab3949"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "tauri-plugin-scoped-storage"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3fad5a55f3e866c404db4f901ff80fb073bf94de742fa068814c0d529aa72ac7"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "tauri-plugin-single-instance"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5830,6 +5858,18 @@ dependencies = [
  "tauri-plugin",
  "thiserror 2.0.18",
  "zeroize",
+]
+
+[[package]]
+name = "tauri-plugin-swipe-back-ios"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f67ec8853ef654cd3cadf61d6e01716836bcc0505dc2694832c959b403879fcf"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -6129,9 +6169,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
- "signal-hook-registry",
  "socket2 0.6.3",
  "tokio-macros",
  "windows-sys 0.61.2",

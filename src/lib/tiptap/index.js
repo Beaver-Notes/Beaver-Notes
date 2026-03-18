@@ -3,7 +3,7 @@ import heading from './exts/headings';
 import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
 import StarterKit from '@tiptap/starter-kit';
-import Highlight from './exts/highlight';
+import { Highlight } from './exts/highlight';
 import Typography from '@tiptap/extension-typography';
 import Link from '@tiptap/extension-link';
 import Code from '@tiptap/extension-code';
@@ -25,7 +25,6 @@ import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
-import Iframe from './exts/embed-block/iframe';
 import CollapseHeading from './exts/collapse-heading';
 import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
 import {
@@ -38,7 +37,7 @@ import {
 } from './exts/callouts';
 import { LiteralTab } from './exts/literal-tab';
 import Image from './exts/image';
-import Table from '@tiptap/extension-table';
+import { Table } from '@tiptap/extension-table/table';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import TableRow from '@tiptap/extension-table-row';
@@ -46,7 +45,7 @@ import Footnote from './exts/footnote-block/footnote';
 import Footnotes from './exts/footnote-block/footnotes';
 import FootnoteReference from './exts/footnote-block/reference';
 import Commands from './exts/commands';
-import TextStyle from '@tiptap/extension-text-style';
+import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import { dropFile } from './exts/drop-file';
@@ -146,9 +145,6 @@ const extensions = [
       rel: 'noopener noreferrer nofollow',
       'tiptap-url': 'true',
     },
-  }),
-  Iframe.configure({
-    placeholderText: translations.editor.embedPlaceholder,
   }),
 ];
 

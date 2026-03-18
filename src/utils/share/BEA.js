@@ -4,6 +4,7 @@ import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
 import { backend, path } from '@/lib/tauri-bridge';
+import { sanitizeNoteContent } from '@/utils/contentSecurity';
 
 function getShareTranslations() {
   try {
@@ -64,6 +65,7 @@ export async function exportBEA(noteId, noteTitle) {
     const { canceled, filePaths } = await backend.invoke('dialog:open', {
       title: share.exportNoteDialogTitle || 'Export note',
       properties: ['openDirectory'],
+      useScopedStorage: true,
     });
 
     if (canceled) return;
@@ -186,7 +188,7 @@ async function processImportedNote(noteData, router) {
     const notePayload = {
       id: noteData.id,
       title: noteData.title,
-      content: noteData.content,
+      content: sanitizeNoteContent(noteData.content),
       labels: noteData.labels || [],
     };
     if (noteStore.data[noteData.id]) {

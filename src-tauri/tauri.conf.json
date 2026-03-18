@@ -1,10 +1,12 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "Beaver Notes",
+  "version": "5.0.0",
   "identifier": "com.danielerolli.beaver-notes",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeDevCommand": "vite --config vite.config.js",
+    "beforeDevCommand": "node scripts/tauri-dev-server.mjs",
     "beforeBuildCommand": "vite build --config vite.config.js"
   },
   "app": {
@@ -20,13 +22,13 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' assets: data: blob: https:; media-src 'self' assets: file-assets: blob: https:; font-src 'self' data:; frame-src 'none'; object-src 'none'; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
     "createUpdaterArtifacts": true,
+    "category": "Productivity",
     "icon": [
       "../buildResources/32x32.png",
       "../buildResources/128x128.png",
@@ -43,9 +45,7 @@
       }
     ],
     "macOS": {
-      "entitlements": "../buildResources/entitlements.mac.plist",
-      "signingIdentity": null,
-      "providerShortName": null
+      "entitlements": "../buildResources/entitlements.mac.plist"
     },
     "linux": {
       "deb": { "depends": [] },
@@ -57,7 +57,7 @@
       "endpoints": [
         "https://github.com/Beaver-Notes/Beaver-Notes/releases/latest/download/latest.json"
       ],
-      "pubkey": ""
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc0NjAyRTYyRDczQUY3QzkKUldUSjl6clhZaTVnZEgzLzBOOHNyYUdMOHkrRDBFY0ZkU3FRQUs2Z2YrbUVqTUt3VWFDWW5WSU8K"
     }
   }
 }

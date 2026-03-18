@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex items-center space-x-4 bg-[#F8F8F7] dark:bg-[#353333] rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4"
+    class="flex items-center space-x-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4"
   >
     <v-remixicon name="riDownloadLine" class="text-lg text-primary" />
 

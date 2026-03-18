@@ -1,6 +1,7 @@
 <template>
   <app-command-prompt />
-  <app-sidebar v-show="showSidebar" />
+  <app-navbar v-show="showMobileNavbar" class="block md:hidden" />
+  <app-sidebar v-show="showSidebar" class="hidden md:flex" />
   <div
     v-show="store.inReaderMode"
     class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
@@ -9,6 +10,7 @@
   <div
     v-show="updateBanner.show"
     class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
+    :style="bottomBannerStyle"
   >
     <ui-banner
       :content="updateBanner.content"
@@ -23,6 +25,7 @@
     v-show="syncLockBanner.show"
     class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
     :class="updateBanner.show ? 'mb-16' : ''"
+    :style="bottomBannerStyle"
   >
     <ui-banner
       :content="syncLockBannerCopy.content"
@@ -36,7 +39,8 @@
   <main
     v-if="retrieved"
     data-testid="app-main"
-    :class="{ 'pl-16 print:p-2': showSidebar }"
+    :class="{ 'md:pl-16 print:p-2': showSidebar }"
+    :style="mainStyle"
   >
     <div class="route-stage">
       <router-view v-slot="{ Component, route: viewRoute }">
@@ -64,11 +68,13 @@
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useAppShell } from './composable/useAppShell';
+import AppNavbar from './components/app/AppNavbar.vue';
 
 export default {
   components: {
     AppSidebar,
     AppCommandPrompt,
+    AppNavbar,
   },
   setup() {
     return useAppShell();

@@ -22,7 +22,6 @@ export function useNoteMenuState({
   const imgUrl = shallowRef('');
   const fileUrl = shallowRef('');
   const videoUrl = shallowRef('');
-  const embedUrl = shallowRef('');
   const headingsTree = shallowRef([]);
   const showHeadingsTree = shallowRef(false);
   const container = ref();
@@ -59,19 +58,6 @@ export function useNoteMenuState({
   function insertVideo() {
     editor.commands.setVideo(normalizePath(videoUrl.value));
     videoUrl.value = '';
-  }
-
-  function addIframe() {
-    if (!embedUrl.value.trim()) return;
-    let url = embedUrl.value.trim();
-    if (url.includes('youtube.com/watch?v=')) {
-      let id = url.split('v=')[1];
-      const amp = id.indexOf('&');
-      if (amp !== -1) id = id.substring(0, amp);
-      url = `https://www.youtube.com/embed/${id}`;
-    }
-    editor.chain().focus().setIframe({ src: url }).run();
-    embedUrl.value = '';
   }
 
   async function handleFileSelect(event) {
@@ -179,11 +165,9 @@ export function useNoteMenuState({
   });
 
   return {
-    addIframe,
     changeWheelDirection,
     container,
     deleteNode,
-    embedUrl,
     fileUrl,
     fontSize,
     getHeadingsTree,

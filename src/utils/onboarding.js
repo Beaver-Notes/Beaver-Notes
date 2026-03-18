@@ -62,10 +62,22 @@ export async function markOnboardingCompleted(settingsStorage) {
 }
 
 export async function getOnboardingMigrationStatus() {
+  if (backend.isMobileRuntime?.()) {
+    return {
+      legacyDir: null,
+      appDataDir: null,
+      hasLegacyData: false,
+      alreadyMigrated: false,
+      targetHasData: false,
+    };
+  }
   return backend.invoke('migration:status');
 }
 
 export async function runOnboardingMigration() {
+  if (backend.isMobileRuntime?.()) {
+    throw new Error('Legacy migration is only available on desktop.');
+  }
   await backend.invoke('migration:run');
 }
 

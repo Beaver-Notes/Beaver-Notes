@@ -915,6 +915,7 @@ export async function exportAllMarkdown(onProgress) {
   const { canceled, filePaths = [] } = await backend.invoke('dialog:open', {
     title: 'Select export folder',
     properties: ['openDirectory'],
+    useScopedStorage: true,
   });
 
   if (canceled || !filePaths.length) {
@@ -975,6 +976,7 @@ export async function exportAllHTML(onProgress) {
   const { canceled, filePaths = [] } = await backend.invoke('dialog:open', {
     title: 'Select export folder',
     properties: ['openDirectory'],
+    useScopedStorage: true,
   });
 
   if (canceled || !filePaths.length) {

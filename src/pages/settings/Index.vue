@@ -2,32 +2,23 @@
 <template>
   <div class="mb-14 w-full max-w-xl space-y-6">
     <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
-        {{ translations.settings.selectLanguage || 'Language &amp; sync' }}
-      </p>
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
       >
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex gap-3 px-4 py-3.5 sm:flex-col sm:items-start sm:justify-between"
         >
-          <div class="min-w-0 flex-1">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.settings.selectLanguage || 'Language' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Choose the interface language. Changing this will reload the app.
-            </p>
-          </div>
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            {{ translations.settings.selectLanguage || 'Language' }}
+          </p>
+          <p
+            class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            Choose the interface language. Changing this will reload the app.
+          </p>
           <ui-select
             v-model="selectedLanguage"
-            class="w-full sm:w-44 sm:flex-shrink-0"
+            class="w-full sm:flex-shrink-0"
             :search="true"
             @change="updateLanguage"
           >
@@ -40,11 +31,15 @@
             </option>
           </ui-select>
         </div>
+      </div>
+    </section>
 
-        <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
-        >
-          <div class="min-w-0 flex-1">
+    <section class="space-y-2">
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div class="flex flex-col gap-3 px-4 py-3.5">
+          <div class="min-w-0">
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
@@ -56,7 +51,7 @@
               The folder where your notes and assets are stored on disk.
             </p>
           </div>
-          <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+          <div class="flex flex-wrap items-center gap-2 justify-between">
             <span
               class="max-w-[220px] truncate rounded-md bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
               >{{
@@ -65,17 +60,18 @@
                 'Not set'
               }}</span
             >
-            <ui-button @click="chooseDefaultPath">{{
-              translations.settings.selectPath || 'Browse'
-            }}</ui-button>
-            <ui-button @click="clearPath"
-              ><v-remixicon name="riDeleteBin6Line"
-            /></ui-button>
+            <div class="flex gap-2">
+              <ui-button @click="chooseDefaultPath">{{
+                translations.settings.selectPath || 'Browse'
+              }}</ui-button>
+              <ui-button @click="clearPath"
+                ><v-remixicon name="riDeleteBin6Line"
+              /></ui-button>
+            </div>
           </div>
         </div>
       </div>
     </section>
-
     <section class="space-y-2">
       <p
         class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
@@ -397,21 +393,14 @@
           <p
             class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Pick the app you are migrating from, then follow the source-specific
-            import steps in one place. Markdown exports, direct app imports, and
-            ENEX files all use the same flow here.
+            Import data from Obsidian, Notion, Bear, Simplenote, Word documents,
+            Markdown folders, Evernote, and Apple Notes on macOS.
           </p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <ui-button class="sm:w-auto" @click="openImportModal()">
-            Choose import source
+          <ui-button class="w-full" @click="openImportModal()">
+            Import
           </ui-button>
-          <p
-            class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-          >
-            Supports Obsidian, Notion, Bear, Simplenote, Word documents,
-            Markdown folders, Evernote, and Apple Notes on macOS.
-          </p>
         </div>
       </ui-card>
 
@@ -851,6 +840,7 @@ export default {
         const { canceled, filePaths } = await backend.invoke('dialog:open', {
           title: translations.value.settings.exportData,
           properties: ['openDirectory'],
+          useScopedStorage: true,
         });
 
         if (canceled) return;
@@ -958,6 +948,7 @@ export default {
         } = await backend.invoke('dialog:open', {
           title: translations.value.settings.importData,
           properties: ['openDirectory'],
+          useScopedStorage: true,
         });
 
         if (canceled) return;
@@ -1086,6 +1077,7 @@ export default {
         } = await backend.invoke('dialog:open', {
           title: translations.value.settings.selectPath,
           properties: ['openDirectory'],
+          useScopedStorage: true,
         });
 
         if (canceled) return;
@@ -1495,7 +1487,9 @@ export default {
             return;
           }
           await runAppEncryptionMigration({ encryptAtRest: false });
-          await disableAppEncryption();
+          await disableAppEncryption(async () => {
+            await noteStore.persistAllNotesPlaintext();
+          });
           refreshAppKeyLoaded();
           appEncryptionEnabled.value = false;
           appConfirmInput.value = '';

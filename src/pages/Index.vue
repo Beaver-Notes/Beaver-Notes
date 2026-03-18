@@ -88,39 +88,31 @@
             >
               {{ translations.index[name] }}
             </h2>
-            <TransitionGroup
-              tag="div"
-              :css="isSorting"
-              :name="isSorting ? 'sort-cards' : undefined"
-              :class="{ 'filter-pulse': isFiltering }"
-              class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 xl:gap-6 items-stretch"
-            >
-              <div
-                v-for="note in notes[name]"
-                :key="note.id"
-                :data-item-id="`note-${note.id}`"
-                @click.stop="
-                  handleItemClick($event, 'note', note.id, getAllVisibleItems)
-                "
-              >
-                <home-note-card
-                  :note-id="note.id"
-                  :is-locked="note.isLocked"
-                  v-bind="{ note }"
-                  :class="{
-                    'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
-                      selectedItems.has(`note-${note.id}`),
-                  }"
-                  class="h-full"
-                  draggable="true"
-                  style="contain: layout style"
-                  @dragstart="handleNoteDragStart($event, note.id)"
-                  @dragend="handleDragEnd"
-                  @update:label="state.activeLabel = $event"
-                  @update="noteStore.update(note.id, $event)"
-                />
-              </div>
-            </TransitionGroup>
+            <home-note-masonry
+              :notes="notes[name]"
+              :selected-items="selectedItems"
+              :pulse="isFiltering"
+              :gap-px="24"
+              :breakpoints="[
+                { min: 0, cols: 1 },
+                { min: 640, cols: 2 },
+                { min: 768, cols: 2 },
+                { min: 1024, cols: 3 },
+                { min: 1280, cols: 4 },
+              ]"
+              @item-click="
+                handleItemClick(
+                  $event.event,
+                  'note',
+                  $event.noteId,
+                  getAllVisibleItems
+                )
+              "
+              @dragstart="handleNoteDragStart($event.event, $event.noteId)"
+              @dragend="handleDragEnd($event.event)"
+              @update:label="state.activeLabel = $event"
+              @update="noteStore.update($event.noteId, $event.payload)"
+            />
           </template>
         </section>
       </template>
@@ -172,7 +164,7 @@ import {
   parseItemId,
   areSetsEqual,
 } from '@/utils/helper';
-import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
+import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import KeyboardNavigation from '@/utils/keyboard-navigation';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
@@ -185,7 +177,7 @@ import EmptyState from '../components/app/EmptyState.vue';
 
 export default {
   components: {
-    HomeNoteCard,
+    HomeNoteMasonry,
     HomeSearch,
     HomeFolderCard,
     FolderTree,
@@ -592,7 +584,7 @@ export default {
             return;
           }
 
-          const noteCard = { ...note, content: getNoteSearchText(note) };
+          const noteCard = { ...note, content: note.content };
 
           if (isArchived) return filteredNotes.archived.push(noteCard);
           isBookmarked

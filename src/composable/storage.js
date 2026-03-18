@@ -18,8 +18,8 @@ export function useStorage(name = 'data') {
       invokeEvent('replace', { name: storeName || name, data }),
     delete: (key, storeName) =>
       invokeEvent('delete', { name: storeName || name, key }),
-    clear: (storeName) => invokeEvent('clear', storeName || name),
-    store: (storeName) => invokeEvent('store', storeName || name),
+    clear: (storeName) => invokeEvent('clear', { name: storeName || name }),
+    store: (storeName) => invokeEvent('store', { name: storeName || name }),
   };
 }
 

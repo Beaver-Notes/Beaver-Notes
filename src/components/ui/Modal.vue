@@ -114,13 +114,15 @@ export default {
 <style>
 .modal-enter-active,
 .modal-leave-active {
-  transition: opacity 0.3s ease;
+  transition: opacity var(--motion-fast) var(--ease-standard);
 }
 
 .modal-enter-active .modal-ui__content,
 .modal-leave-active .modal-ui__content {
-  transition: transform 0.3s ease;
-  transform: translateY(0px);
+  transition: opacity var(--motion-base) var(--ease-standard),
+    transform var(--motion-base) var(--ease-standard);
+  transform: translate3d(0, 0, 0) scale(1);
+  opacity: 1;
 }
 
 .modal-enter-from,
@@ -130,7 +132,12 @@ export default {
 
 .modal-enter-from .modal-ui__content,
 .modal-leave-to .modal-ui__content {
-  transform: translateY(30px);
+  transform: translate3d(0, 14px, 0) scale(0.985);
+  opacity: 0;
+}
+
+.modal-leave-active .modal-ui__content {
+  transition-timing-function: var(--ease-exit);
 }
 
 .modal-ui__content-container {
@@ -139,5 +146,42 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
+}
+
+.modal-ui__content {
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+@media (max-width: 767px) {
+  .modal-ui__content-container {
+    padding-right: 1rem;
+    padding-bottom: calc(1rem + var(--app-safe-area-bottom));
+    padding-left: 1rem;
+  }
+
+  .modal-ui__content {
+    transform-origin: center bottom;
+  }
+
+  .modal-enter-from .modal-ui__content,
+  .modal-leave-to .modal-ui__content {
+    transform: translate3d(0, 10px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-enter-active,
+  .modal-leave-active,
+  .modal-enter-active .modal-ui__content,
+  .modal-leave-active .modal-ui__content {
+    transition-duration: 0.01ms;
+  }
+
+  .modal-enter-from .modal-ui__content,
+  .modal-leave-to .modal-ui__content {
+    transform: none;
+    opacity: 1;
+  }
 }
 </style>

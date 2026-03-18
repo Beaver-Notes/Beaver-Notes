@@ -15,7 +15,6 @@
       <!-- Prepend icon -->
       <v-remixicon
         v-if="prependIcon"
-        size="20"
         :name="prependIcon"
         class="absolute text-neutral-600 dark:text-neutral-200 left-0 ml-2 rtl:left-auto rtl:right-0 rtl:mr-2 rtl:ml-0"
       />
@@ -46,10 +45,9 @@
 
       <!-- Dropdown Arrow (rotate only when open, not for RTL) -->
       <v-remixicon
-        size="28"
-        name="riArrowDropDownLine"
+        name="riArrowDownSLine"
         :class="{ 'rotate-180': isOpen }"
-        class="absolute text-neutral-600 dark:text-neutral-200 mr-2 right-0 rtl:right-auto rtl:left-0 rtl:ml-2 rtl:mr-0 transition-transform duration-200 pointer-events-none"
+        class="absolute right-2 rtl:right-auto rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
       />
 
       <!-- Dropdown Menu -->
@@ -64,13 +62,10 @@
         <div
           v-if="isOpen"
           ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-neutral-100 dark:bg-neutral-700 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-lg z-50 overflow-hidden"
+          class="absolute top-full left-0 right-0 mt-1 bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-lg z-50 overflow-hidden"
         >
           <!-- Search Input -->
-          <div
-            v-if="search"
-            class="p-2 border-b border-neutral-300 dark:border-neutral-600"
-          >
+          <div v-if="search" class="p-2">
             <ui-input
               ref="searchInput"
               v-model="searchQuery"

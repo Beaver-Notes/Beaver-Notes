@@ -61,12 +61,19 @@ export default {
 <style>
 .expand-enter-active,
 .expand-leave-active {
-  transition: height 0.2s ease-in-out;
+  transition: height var(--motion-base) var(--ease-standard);
   overflow: hidden;
 }
 
 .expand-enter,
 .expand-leave-to {
   height: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expand-enter-active,
+  .expand-leave-active {
+    transition-duration: 0.01ms;
+  }
 }
 </style>

@@ -9,6 +9,7 @@
     "core:default",
     "dialog:default",
     "fs:default",
+    "scoped-storage:default",
     {
       "identifier": "fs:scope",
       "allow": [

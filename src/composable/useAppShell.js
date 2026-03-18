@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTheme } from './theme';
 import { useStorage } from './storage';
@@ -20,7 +20,6 @@ import { backend, onFileOpened } from '@/lib/tauri-bridge';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
-const NOTE_ROUTE_NAME = 'Note';
 const SETTINGS_ROUTE_PREFIX = '/settings';
 
 function applyDocumentSettings() {
@@ -41,10 +40,6 @@ function applyDocumentSettings() {
     '--selected-width',
     getSettingSync('editorWidth')
   );
-}
-
-function isNoteRoute(viewRoute) {
-  return viewRoute?.name === NOTE_ROUTE_NAME;
 }
 
 export function useAppShell() {
@@ -85,6 +80,22 @@ export function useAppShell() {
   const showSidebar = computed(
     () => !store.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
   );
+  const showMobileNavbar = computed(
+    () => showSidebar.value && route.name !== 'Note'
+  );
+  const useMobileBottomDockSpacing = computed(
+    () => backend.isMobileRuntime() && showMobileNavbar.value
+  );
+  const mainStyle = computed(() =>
+    useMobileBottomDockSpacing.value
+      ? { paddingBottom: 'var(--app-mobile-content-offset)' }
+      : undefined
+  );
+  const bottomBannerStyle = computed(() =>
+    useMobileBottomDockSpacing.value
+      ? { bottom: 'var(--app-mobile-floating-offset)' }
+      : undefined
+  );
 
   let removeRouteGuard = null;
   let removeBeforeRouteGuard = null;
@@ -92,8 +103,20 @@ export function useAppShell() {
 
   applyDocumentSettings();
 
+  watch(
+    showMobileNavbar,
+    (visible) => {
+      if (typeof document === 'undefined' || !backend.isMobileRuntime()) return;
+      document.documentElement.style.setProperty(
+        '--app-mobile-dock-height-active',
+        visible ? 'var(--app-mobile-dock-height)' : '0px'
+      );
+    },
+    { immediate: true }
+  );
+
   const getTopLevelRouteKey = (viewRoute) =>
-    viewRoute?.matched?.[0]?.path || viewRoute?.path || route.path;
+    viewRoute?.fullPath || viewRoute?.path || route.fullPath;
 
   const setZoom = (newZoomLevel) => {
     state.zoomLevel = setStoredZoomLevel(newZoomLevel, {
@@ -273,7 +296,8 @@ export function useAppShell() {
 
     void refreshSyncLockBanner();
     removeBeforeRouteGuard = router.beforeEach((to, from, next) => {
-      animateRouteChange.value = !isNoteRoute(from) && !isNoteRoute(to);
+      animateRouteChange.value =
+        Boolean(from.name) && to.fullPath !== from.fullPath;
       next();
     });
     removeRouteGuard = router.afterEach(() => {
@@ -310,12 +334,15 @@ export function useAppShell() {
   return {
     animateRouteChange,
     appStore,
+    bottomBannerStyle,
     dismissSyncBanner,
     getTopLevelRouteKey,
     handleUpdateDismiss,
     handleUpdateInstall,
+    mainStyle,
     openSyncSettings,
     retrieved,
+    showMobileNavbar,
     showSidebar,
     state,
     store,

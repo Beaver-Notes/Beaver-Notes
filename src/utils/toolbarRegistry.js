@@ -151,13 +151,6 @@ const BUILTIN_ITEMS = [
   },
   { id: 'table', label: 'Table', icon: 'riTableLine', group: 'media' },
   {
-    id: 'embed',
-    label: 'Embed',
-    icon: 'riPagesLine',
-    group: 'media',
-    defaultVisible: false,
-  },
-  {
     id: 'draw',
     label: 'Draw',
     icon: 'riBrushLine',

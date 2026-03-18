@@ -20,14 +20,12 @@ import { BubbleMenu } from '@tiptap/vue-3/menus';
 import Mousetrap from '@/lib/mousetrap';
 import NoteBubbleMenuLink from './NoteBubbleMenuLink.vue';
 import NoteBubbleMenuImage from './NoteBubbleMenuImage.vue';
-import NoteBubbleMenuEmbed from './NoteBubbleMenuEmbed.vue';
 
 export default {
   components: {
     BubbleMenu,
     NoteBubbleMenuLink,
     NoteBubbleMenuImage,
-    NoteBubbleMenuEmbed,
   },
   props: {
     editor: {
@@ -40,26 +38,17 @@ export default {
       if (!editor) return false;
 
       // Check if any of the target marks/nodes are active
-      return (
-        editor.isActive('image') ||
-        editor.isActive('link') ||
-        editor.isActive('iframe')
-      );
+      return editor.isActive('image') || editor.isActive('link');
     };
 
     const shouldShowMenu = computed(() => {
       if (!props.editor) return false;
 
-      return (
-        props.editor.isActive('image') ||
-        props.editor.isActive('link') ||
-        props.editor.isActive('iframe')
-      );
+      return props.editor.isActive('image') || props.editor.isActive('link');
     });
 
     const currentMenuComponent = computed(() => {
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
-      if (props.editor.isActive('iframe')) return 'note-bubble-menu-embed';
       if (props.editor.isActive('link')) return 'note-bubble-menu-link';
       return null;
     });

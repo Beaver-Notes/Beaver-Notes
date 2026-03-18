@@ -2,6 +2,11 @@ import { marked } from 'marked';
 import { v4 as uuidv4 } from 'uuid';
 import { useStorage } from '@/composable/storage';
 import { backend, path } from '@/lib/tauri-bridge';
+import {
+  createMediaFallbackNode,
+  sanitizeImageSource,
+  sanitizeMediaSource,
+} from '@/utils/contentSecurity';
 
 const storage = useStorage('settings');
 
@@ -362,38 +367,11 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           text: element.textContent,
         };
       case 'A': {
-        const href = element.getAttribute('href');
+        const href = element.getAttribute('href') || '';
         const imgElement = element.querySelector('img');
-        const isYouTube =
-          href.includes('youtube.com') || href.includes('youtu.be');
 
         if (imgElement) {
-          const src = imgElement.getAttribute('src');
-          if (src.includes('img.youtube.com')) {
-            const videoId = href.split('watch?v=')[1];
-            const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-            return {
-              type: 'iframe',
-              attrs: {
-                src: embedUrl,
-                frameborder: 0,
-                allowfullscreen: true,
-              },
-            };
-          }
-        }
-
-        if (isYouTube) {
-          const videoId = href.split('v=')[1] || href.split('youtu.be/')[1];
-          const embedUrl = `https://www.youtube.com/embed/${videoId}`;
-          return {
-            type: 'iframe',
-            attrs: {
-              src: embedUrl,
-              frameborder: 0,
-              allowfullscreen: true,
-            },
-          };
+          return convertElementToTiptap(imgElement);
         }
 
         if (href.startsWith('http://') || href.startsWith('https://')) {
@@ -469,64 +447,30 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           marks: [{ type: 'subscript' }],
           text: element.textContent,
         };
-      case 'IFRAME': {
-        const src = element.getAttribute('src');
-        return {
-          type: 'iframe',
-          attrs: {
-            src,
-            frameborder: element.getAttribute('frameborder') || 0,
-            allowfullscreen: element.hasAttribute('allowfullscreen'),
-          },
-        };
-      }
+      case 'IFRAME':
+        return createMediaFallbackNode(
+          'iframe',
+          { src: element.getAttribute('src') },
+          element.parentElement?.tagName?.toLowerCase()
+        );
       case 'VIDEO': {
-        const src = element.querySelector('source')?.getAttribute('src');
+        const src =
+          element.getAttribute('src') ||
+          element.querySelector('source')?.getAttribute('src') ||
+          '';
 
         // Check if the src starts with http or https
         if (src.startsWith('http://') || src.startsWith('https://')) {
-          // Handle YouTube URLs
-          if (src.includes('youtube.com/watch?v=')) {
-            let EmbedId = src.split('v=')[1];
-            const ampersandPosition = EmbedId.indexOf('&');
-            if (ampersandPosition !== -1) {
-              EmbedId = EmbedId.substring(0, ampersandPosition);
-            }
-            // Convert to the embed format
-            return {
-              type: 'iframe',
-              attrs: {
-                src: `https://www.youtube.com/embed/${EmbedId}`,
-                frameborder: 0,
-                allowfullscreen: true,
-              },
-            };
-          } else if (src.includes('youtu.be/')) {
-            let EmbedId = src.split('youtu.be/')[1];
-            const queryPosition = EmbedId.indexOf('?');
-            if (queryPosition !== -1) {
-              EmbedId = EmbedId.substring(0, queryPosition);
-            }
-            // Convert to the embed format
-            return {
-              type: 'iframe',
-              attrs: {
-                src: `https://www.youtube.com/embed/${EmbedId}`,
-                frameborder: 0,
-                allowfullscreen: true,
-              },
-            };
-          } else {
-            // Handle other URLs
-            return {
-              type: 'iframe',
-              attrs: {
-                src: src,
-                frameborder: 0,
-                allowfullscreen: true,
-              },
-            };
-          }
+          const safeSrc = sanitizeMediaSource(src);
+          return safeSrc
+            ? {
+                type: 'Video',
+                attrs: {
+                  src: safeSrc,
+                  fileName: null,
+                },
+              }
+            : createMediaFallbackNode('video', { src });
         }
 
         // Handle local file sources
@@ -553,17 +497,23 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         }
       }
       case 'AUDIO': {
-        const src = element.querySelector('source')?.getAttribute('src');
+        const src =
+          element.getAttribute('src') ||
+          element.querySelector('source')?.getAttribute('src') ||
+          '';
 
         // Check if the src starts with http or https
         if (src.startsWith('http://') || src.startsWith('https://')) {
-          return {
-            type: 'Audio',
-            attrs: {
-              src,
-              fileName: null,
-            },
-          };
+          const safeSrc = sanitizeMediaSource(src);
+          return safeSrc
+            ? {
+                type: 'Audio',
+                attrs: {
+                  src: safeSrc,
+                  fileName: null,
+                },
+              }
+            : createMediaFallbackNode('audio', { src });
         }
 
         const dataDir = await storage.get('dataDir');
@@ -589,19 +539,21 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         }
       }
       case 'IMG': {
-        const src = element.getAttribute('src');
-        const alt = element.getAttribute('alt');
+        const src = element.getAttribute('src') || '';
+        const alt = element.getAttribute('alt') || '';
 
         // Check if the image src is an HTTP or HTTPS URL
         if (src.startsWith('http://') || src.startsWith('https://')) {
-          // If it is, simply return the src without copying the image
-          return {
-            type: 'image',
-            attrs: {
-              src,
-              alt,
-            },
-          };
+          const safeSrc = sanitizeImageSource(src);
+          return safeSrc
+            ? {
+                type: 'image',
+                attrs: {
+                  src: safeSrc,
+                  alt,
+                },
+              }
+            : createMediaFallbackNode('image', { src, alt });
         }
 
         // Proceed with local file handling for non-HTTP URLs

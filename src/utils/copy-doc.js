@@ -3,7 +3,30 @@ import { backend, path } from '@/lib/tauri-bridge';
 
 const storage = useStorage('settings');
 
+function base64ToUint8Array(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return bytes;
+}
+
+function sourceFileName(file) {
+  if (typeof file === 'string') {
+    return path.basename(file);
+  }
+  return file?.name || 'file';
+}
+
 async function readFile(file) {
+  if (typeof file === 'string') {
+    const base64 = await backend.invoke('fs:readData', file);
+    return base64ToUint8Array(base64);
+  }
+
   return new Promise((resolve, reject) => {
     const fileReader = new FileReader();
     fileReader.onload = () => {
@@ -18,7 +41,7 @@ async function readFile(file) {
 
 async function createFileName(file, id) {
   const dataDir = await storage.get('dataDir');
-  const { ext, name } = path.parse(file.name);
+  const { ext, name } = path.parse(sourceFileName(file));
   const fileName = `${name}${ext}`;
   const assetsPath = path.join(dataDir, 'file-assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);

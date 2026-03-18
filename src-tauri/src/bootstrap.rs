@@ -4,12 +4,22 @@ use std::{
 };
 
 use http::StatusCode;
+
+#[cfg(desktop)]
 use serde_json::json;
-use tauri::{App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WindowEvent, Wry};
+use tauri::{App, AppHandle, Emitter, Manager, Wry};
 
-use crate::{commands, menu, shared::*};
+#[cfg(desktop)]
+use tauri::{PhysicalPosition, PhysicalSize, WindowEvent};
 
+use crate::{commands, shared::*};
+
+#[cfg(desktop)]
+use crate::menu;
+
+#[cfg(desktop)]
 const WINDOW_STATE_KEY: &str = "windowStateMain";
+#[cfg(desktop)]
 const LEGACY_DATA_FILES: &[&str] = &["config.json", "data.json"];
 
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
@@ -33,6 +43,7 @@ fn bootstrap_file_open_from_argv(app: &AppHandle, state: &AppState) {
 }
 
 pub(crate) fn focus_main_window(app: &AppHandle) {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         if window.is_minimized().unwrap_or(false) {
             let _ = window.unminimize();
@@ -42,12 +53,14 @@ pub(crate) fn focus_main_window(app: &AppHandle) {
     }
 }
 
+#[cfg(desktop)]
 fn load_window_state(app: &AppHandle, state: &AppState) -> Option<WindowStateSnapshot> {
     let pool = settings_pool(app, state).ok()?;
     let raw = crate::db::db_get(pool, WINDOW_STATE_KEY).ok()??;
     serde_json::from_str(&raw).ok()
 }
 
+#[cfg(desktop)]
 fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), String> {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         return Ok(());
@@ -68,6 +81,7 @@ fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), String> {
     crate::db::db_set(pool, WINDOW_STATE_KEY, &serialized)
 }
 
+#[cfg(desktop)]
 fn restore_window_state(app: &AppHandle, state: &AppState) -> Result<(), String> {
     let Some(snapshot) = load_window_state(app, state) else {
         return Ok(());
@@ -122,6 +136,7 @@ pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
     None
 }
 
+#[cfg(desktop)]
 fn merge_json_preserving_target(target: &mut serde_json::Value, source: serde_json::Value) {
     match (target, source) {
         (serde_json::Value::Object(target_map), serde_json::Value::Object(source_map)) => {
@@ -139,6 +154,7 @@ fn merge_json_preserving_target(target: &mut serde_json::Value, source: serde_js
     }
 }
 
+#[cfg(desktop)]
 fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), String> {
     if !source_path.exists() {
         return Ok(());
@@ -161,6 +177,7 @@ fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), String
     fs::write(target_path, format!("{serialized}\n")).map_err(to_error)
 }
 
+#[cfg(desktop)]
 fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<bool, String> {
     if !path.exists() {
         return Ok(false);
@@ -178,6 +195,7 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
     Ok(true)
 }
 
+#[cfg(desktop)]
 fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), String> {
     fs::create_dir_all(target).map_err(to_error)?;
 
@@ -196,6 +214,7 @@ fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(desktop)]
 fn copy_file_if_missing(source: &Path, target: &Path) -> Result<(), String> {
     if !source.exists() || target.exists() {
         return Ok(());
@@ -209,6 +228,7 @@ fn copy_file_if_missing(source: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(desktop)]
 fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), String> {
     if !auth_path.exists() {
         return Ok(());
@@ -256,6 +276,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
     Ok(())
 }
 
+#[cfg(desktop)]
 fn dir_has_any_legacy_content(path: &Path) -> bool {
     LEGACY_DATA_FILES
         .iter()
@@ -268,6 +289,7 @@ fn dir_has_any_legacy_content(path: &Path) -> bool {
             .any(|name| path.join(name).exists())
 }
 
+#[cfg(desktop)]
 pub(crate) fn get_legacy_migration_status(
     app: &AppHandle,
 ) -> Result<LegacyMigrationStatus, String> {
@@ -289,6 +311,7 @@ pub(crate) fn get_legacy_migration_status(
     })
 }
 
+#[cfg(desktop)]
 pub(crate) fn run_legacy_store_data_migration(
     app: &AppHandle,
     state: &AppState,
@@ -463,42 +486,55 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
         current_version: Some(app.package_info().version.to_string()),
         ..Default::default()
     };
-    let menu = menu::build_app_menu(app.handle())?;
-    app.set_menu(menu).map_err(to_error)?;
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        restore_window_state(app.handle(), state.inner())?;
-        let app_handle = app.handle().clone();
-        window.on_window_event(move |event| {
-            if matches!(
-                event,
-                WindowEvent::Moved(_)
-                    | WindowEvent::Resized(_)
-                    | WindowEvent::CloseRequested { .. }
-                    | WindowEvent::Destroyed
-            ) {
-                let state = app_handle.state::<AppState>();
-                let _ = save_window_state(&app_handle, state.inner());
+    #[cfg(desktop)]
+    {
+        let menu = menu::build_app_menu(app.handle())?;
+        app.set_menu(menu).map_err(to_error)?;
+        if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+            restore_window_state(app.handle(), state.inner())?;
+            let app_handle = app.handle().clone();
+            window.on_window_event(move |event| {
+                if let WindowEvent::ThemeChanged(theme) = event {
+                    let _ = app_handle.emit_to(
+                        MAIN_WINDOW_LABEL,
+                        "system-theme-changed",
+                        json!({
+                            "dark": matches!(theme, tauri::Theme::Dark)
+                        }),
+                    );
+                }
+
+                if matches!(
+                    event,
+                    WindowEvent::Moved(_)
+                        | WindowEvent::Resized(_)
+                        | WindowEvent::CloseRequested { .. }
+                        | WindowEvent::Destroyed
+                ) {
+                    let state = app_handle.state::<AppState>();
+                    let _ = save_window_state(&app_handle, state.inner());
+                }
+            });
+            let _ = window.eval(
+                r#"
+            if (!window.__beaverContextMenuBound) {
+              window.__beaverContextMenuBound = true;
+              window.addEventListener('contextmenu', (event) => {
+                const target = event.target;
+                const editable = target && (
+                  target.closest('[contenteditable="true"]') ||
+                  ['INPUT', 'TEXTAREA'].includes(target.tagName)
+                );
+                if (!editable) return;
+                event.preventDefault();
+                if (window.__TAURI_INTERNALS__?.invoke) {
+                  window.__TAURI_INTERNALS__.invoke('show_edit_context_menu');
+                }
+              });
             }
-        });
-        let _ = window.eval(
-            r#"
-        if (!window.__beaverContextMenuBound) {
-          window.__beaverContextMenuBound = true;
-          window.addEventListener('contextmenu', (event) => {
-            const target = event.target;
-            const editable = target && (
-              target.closest('[contenteditable="true"]') ||
-              ['INPUT', 'TEXTAREA'].includes(target.tagName)
+          "#,
             );
-            if (!editable) return;
-            event.preventDefault();
-            if (window.__TAURI_INTERNALS__?.invoke) {
-              window.__TAURI_INTERNALS__.invoke('show_edit_context_menu');
-            }
-          });
         }
-      "#,
-        );
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
     Ok(())

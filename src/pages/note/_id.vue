@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="note"
-    class="editor mx-auto relative px-4 lg:px-0 pb-6"
+    class="editor mx-auto relative px-4 pb-0 lg:px-0 md:pb-6"
     :style="{ 'padding-bottom': isLocked ? 0 : null }"
   >
     <button

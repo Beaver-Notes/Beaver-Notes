@@ -1,6 +1,6 @@
 [package]
 name = "beaver-notes"
-version = "4.4.0"
+version = "5.0.0"
 description = "Beaver Notes"
 authors = ["Daniele Rolli"]
 license = "MIT"
@@ -8,12 +8,17 @@ repository = "https://github.com/Beaver-Notes/Beaver-Notes"
 edition = "2021"
 rust-version = "1.77.2"
 
+[lib]
+name = "beaver_notes"
+crate-type = ["staticlib", "cdylib", "lib"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-fs = "2"
+tauri-plugin-scoped-storage = "0.1.2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -23,6 +28,7 @@ tauri-plugin-os = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-stronghold = "2"
+tauri-plugin-safe-area-insets-css = "0.2"
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -38,11 +44,28 @@ hex = "0.4"
 base64 = "0.22"
 md5 = "0.7"
 keyring = "2"
-font-kit = "0.13"
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros"] }
 http = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 urlencoding = "2"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+tauri-plugin-swipe-back-ios = "1.0.0"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+font-kit = "0.13"
 
 [patch.crates-io]
 mac-notification-sys = { path = "../vendor/mac-notification-sys" }
+
+[profile.dev]
+opt-level = 0
+debug = 1
+incremental = true
+codegen-units = 256
+
+[profile.dev.package.iota_stronghold]
+opt-level = 3
+[profile.dev.package.rusqlite]
+opt-level = 3
+[profile.dev.package.aes-gcm]
+opt-level = 3

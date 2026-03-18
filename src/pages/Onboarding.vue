@@ -1,6 +1,6 @@
 <template>
   <div
-    class="relative min-h-screen overflow-hidden flex items-center justify-center font-sans antialiased select-none"
+    class="ob-shell relative overflow-hidden flex items-center justify-center font-sans antialiased select-none"
     :class="isDark ? 'ob-dark' : 'ob-light'"
   >
     <!-- Background -->
@@ -11,7 +11,7 @@
       <div
         v-if="step === 'welcome'"
         key="welcome"
-        class="relative z-10 flex flex-col items-center justify-center min-h-screen w-full p-6"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
       >
         <div
           class="flex flex-col items-center gap-6 text-center max-w-md w-full"
@@ -69,7 +69,10 @@
         </div>
 
         <!-- Legacy button pinned to bottom centre -->
-        <div v-if="state.status?.hasLegacyData" class="fixed bottom-6 z-20">
+        <div
+          v-if="state.status?.hasLegacyData"
+          class="ob-floating-action fixed z-20"
+        >
           <ui-button @click="openMigrationFlow">
             <v-remixicon name="riSendPlaneFill" class="mr-1" />
             Import from Beaver Notes (Legacy)
@@ -81,7 +84,7 @@
       <div
         v-else-if="step === 'path'"
         key="path"
-        class="relative z-10 flex flex-col items-center justify-center min-h-screen w-full p-6"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
       >
         <ui-card class="w-full max-w-lg">
           <div class="flex flex-col items-center gap-2 my-8 text-center">
@@ -163,7 +166,7 @@
       <div
         v-else-if="step === 'setup'"
         key="setup"
-        class="relative z-10 flex flex-col items-center justify-center min-h-screen w-full p-6"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
       >
         <ui-card class="w-full max-w-lg">
           <div class="flex flex-col items-center gap-2 my-8 text-center">
@@ -293,7 +296,7 @@
       <div
         v-else-if="step === 'platform'"
         key="platform"
-        class="relative z-10 flex flex-col items-center justify-center min-h-screen w-full p-6"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
       >
         <ui-card class="w-full max-w-lg">
           <div class="flex flex-col items-center gap-2 my-8 text-center">
@@ -646,7 +649,7 @@
       <div
         v-else-if="step === 'migration'"
         key="migration"
-        class="relative z-10 flex flex-col items-center justify-center min-h-screen w-full p-6"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
       >
         <ui-card class="w-full max-w-lg">
           <div class="flex flex-col items-center gap-2 my-8 text-center">
@@ -854,7 +857,7 @@
       <div
         v-else
         key="finish"
-        class="relative z-10 flex flex-col items-center justify-center min-h-screen w-full p-6"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
       >
         <div
           class="flex flex-col items-center gap-5 text-center max-w-md w-full ob-finish"
@@ -903,7 +906,7 @@
     <Transition name="ob-toast">
       <div
         v-if="state.error"
-        class="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg px-4 py-3 rounded-xl text-sm text-center backdrop-blur bg-red-50/80 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800"
+        class="ob-toast-card fixed left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg px-4 py-3 rounded-xl text-sm text-center backdrop-blur bg-red-50/80 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800"
       >
         {{ state.error }}
       </div>
@@ -1025,12 +1028,8 @@ export default {
       system: translations.value.appearence?.system || 'System',
     }));
 
-    const isDark = computed(
-      () =>
-        fresh.theme === 'dark' ||
-        (fresh.theme === 'system' &&
-          typeof window !== 'undefined' &&
-          window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+    const isDark = computed(() =>
+      fresh.theme === 'system' ? theme.isDark() : fresh.theme === 'dark'
     );
     const isMacOS = computed(
       () =>
@@ -1426,6 +1425,7 @@ export default {
         }, 1020);
       }
       theme.loadTheme();
+      fresh.theme = theme.currentTheme.value || fresh.theme;
       try {
         await refreshStatus();
       } catch (e) {
@@ -1521,25 +1521,46 @@ export default {
   );
 }
 
+.ob-shell {
+  min-height: 100dvh;
+  padding-top: var(--app-safe-area-top);
+  padding-right: var(--app-safe-area-right);
+  padding-bottom: var(--app-safe-area-bottom);
+  padding-left: var(--app-safe-area-left);
+}
+
+.ob-screen {
+  min-height: calc(
+    100dvh - var(--app-safe-area-top) - var(--app-safe-area-bottom)
+  );
+  padding: 1.5rem;
+}
+
+.ob-floating-action {
+  bottom: calc(var(--app-safe-area-bottom) + 1.5rem);
+}
+
+.ob-toast-card {
+  bottom: calc(var(--app-safe-area-bottom) + 5rem);
+}
+
 /* ── Page transitions ── */
 .ob-page-enter-active {
-  animation: ob-in 0.55s cubic-bezier(0.16, 1, 0.3, 1) 0.05s both;
+  animation: ob-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .ob-page-leave-active {
-  animation: ob-out 0.35s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: ob-out 0.18s ease both;
   position: absolute;
   width: 100%;
 }
 @keyframes ob-in {
   from {
     opacity: 0;
-    transform: translateY(28px) scale(0.98);
-    filter: blur(4px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 @keyframes ob-out {
@@ -1549,16 +1570,16 @@ export default {
   }
   to {
     opacity: 0;
-    transform: translateY(-16px) scale(0.98);
+    transform: translateY(-6px);
   }
 }
 
 /* ── Welcome entrance ── */
 .ob-logo {
   opacity: 0;
-  transform: translateY(-32px) scale(0.85);
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translateY(-14px) scale(0.985);
+  transition: opacity 0.28s ease,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-logo--in {
   opacity: 1;
@@ -1566,22 +1587,23 @@ export default {
 }
 .ob-eyebrow {
   transform: translateY(110%);
-  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-headline--in .ob-eyebrow {
   transform: translateY(0);
 }
 .ob-title {
   transform: translateY(110%);
-  transition: transform 0.75s cubic-bezier(0.16, 1, 0.3, 1) 0.06s;
+  transition: transform 0.48s cubic-bezier(0.22, 1, 0.36, 1) 0.04s;
 }
 .ob-headline--in .ob-title {
   transform: translateY(0);
 }
 .ob-below {
   opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(10px);
+  transition: opacity 0.26s ease,
+    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-below--in {
   opacity: 1;
@@ -1591,8 +1613,9 @@ export default {
 /* ── Finish entrance ── */
 .ob-finish {
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(12px);
+  transition: opacity 0.3s ease,
+    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-finish--in {
   opacity: 1;
@@ -1607,7 +1630,7 @@ export default {
 .ob-toast-enter-from,
 .ob-toast-leave-to {
   opacity: 0;
-  transform: translateX(-50%) translateY(8px);
+  transform: translateX(-50%) translateY(4px);
 }
 
 /* ── Confetti ── */
@@ -1638,6 +1661,25 @@ export default {
     opacity: 0;
     transform: translate(var(--cx), calc(-1 * var(--cy))) rotate(var(--cr))
       scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ob-page-enter-active,
+  .ob-page-leave-active,
+  .ob-confetti__bit {
+    animation-duration: 0.01ms;
+    animation-delay: 0ms;
+  }
+
+  .ob-logo,
+  .ob-eyebrow,
+  .ob-title,
+  .ob-below,
+  .ob-finish,
+  .ob-toast-enter-active,
+  .ob-toast-leave-active {
+    transition-duration: 0.01ms;
   }
 }
 </style>

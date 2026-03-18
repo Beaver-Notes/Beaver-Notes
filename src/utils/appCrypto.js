@@ -28,9 +28,7 @@ const KEYCHECK_PLAINTEXT = 'BeaverNotes-app-v1';
 const LS_FLAG = 'appEncryptionEnabled';
 const BLOB_KEY = 'appPassphraseBlob';
 
-
 let _appKey = null; // Web Crypto CryptoKey, AES-GCM 256-bit, set once per session
-
 
 export function isAppEncryptionEnabled() {
   return localStorage.getItem(LS_FLAG) === 'true';
@@ -39,7 +37,6 @@ export function isAppEncryptionEnabled() {
 export function isAppKeyLoaded() {
   return _appKey !== null;
 }
-
 
 async function _deriveKey(passphrase, saltBuf) {
   return deriveAesGcmKeyFromPassphrase(passphrase, saltBuf, {
@@ -65,7 +62,6 @@ async function _gcmDecrypt(ivHex, cipherB64, key) {
   );
   return new TextDecoder().decode(buf);
 }
-
 
 async function _cryptoDir() {
   try {
@@ -132,10 +128,7 @@ export async function verifyAppPassphrase(passphrase) {
   try {
     let saltHex, keycheckRaw;
     try {
-      saltHex = await backend.invoke(
-        'fs:readFile',
-        path.join(dir, 'salt')
-      );
+      saltHex = await backend.invoke('fs:readFile', path.join(dir, 'salt'));
       keycheckRaw = await backend.invoke(
         'fs:readFile',
         path.join(dir, 'keycheck')
@@ -203,6 +196,9 @@ export async function appFolderHasEncryption() {
 // ─── Disable ──────────────────────────────────────────────────────────────────
 
 export async function disableAppEncryption() {
+  if (beforeKeyCleared) {
+    await beforeKeyCleared();
+  }
   _appKey = null;
   localStorage.removeItem(LS_FLAG);
   await clearSecureBlob(BLOB_KEY);

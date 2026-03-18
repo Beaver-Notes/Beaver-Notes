@@ -4,6 +4,11 @@ import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/composable/storage';
 import { buildFolderIdFromPath } from './importUtils';
+import {
+  createMediaFallbackNode,
+  sanitizeImageSource,
+  sanitizeImportedHtml,
+} from '@/utils/contentSecurity';
 
 const storage = useStorage('settings');
 
@@ -199,18 +204,29 @@ async function convertHtmlNodeToTiptap(node, noteId, resources = []) {
       );
       return { type: 'table', content: rows };
     }
-    case 'IMG':
+    case 'IMG': {
+      const src = resolveRelativeAssetValue(
+        node.getAttribute('src'),
+        noteId,
+        resources
+      );
+      const safeSrc = sanitizeImageSource(src);
+
+      if (!safeSrc) {
+        return createMediaFallbackNode('image', {
+          src: node.getAttribute('src'),
+          alt: node.getAttribute('alt') || '',
+        });
+      }
+
       return {
         type: 'image',
         attrs: {
-          src: resolveRelativeAssetValue(
-            node.getAttribute('src'),
-            noteId,
-            resources
-          ),
+          src: safeSrc,
           alt: node.getAttribute('alt') || '',
         },
       };
+    }
     case 'STRONG':
       return content.map((child) => applyMarkToNode(child, { type: 'bold' }));
     case 'EM':
@@ -243,14 +259,11 @@ async function convertHtmlNodeToTiptap(node, noteId, resources = []) {
     case 'HR':
       return { type: 'horizontalRule' };
     case 'IFRAME':
-      return {
-        type: 'iframe',
-        attrs: {
-          src: node.getAttribute('src'),
-          frameborder: node.getAttribute('frameborder') || 0,
-          allowfullscreen: node.hasAttribute('allowfullscreen'),
-        },
-      };
+      return createMediaFallbackNode(
+        'iframe',
+        { src: node.getAttribute('src') },
+        node.parentElement?.tagName?.toLowerCase()
+      );
     case 'BR':
       return { type: 'hardBreak' };
     default: {
@@ -387,7 +400,10 @@ export function base64ToUint8Array(base64) {
 
 export async function htmlToTiptap(html, noteId, _dataDir, options = {}) {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(html || '', 'text/html');
+  const doc = parser.parseFromString(
+    sanitizeImportedHtml(html, { allowRelative: true }),
+    'text/html'
+  );
   const content = flattenNodes(
     (
       await Promise.all(

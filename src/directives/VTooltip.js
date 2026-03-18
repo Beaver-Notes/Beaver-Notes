@@ -1,3 +1,4 @@
+import { backend } from '@/lib/tauri-bridge';
 import createTippy from '@/lib/tippy';
 
 function getContent(content) {
@@ -14,6 +15,7 @@ function getContent(content) {
 
 export default {
   mounted(el, { value, arg = 'top', instance, modifiers }) {
+    if (backend.isMobileRuntime()) return;
     const content = getContent(value);
 
     const tooltip = createTippy(el, {

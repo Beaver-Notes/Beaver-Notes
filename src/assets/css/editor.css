@@ -132,7 +132,10 @@ img.ProseMirror-selectednode {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: all 0.2s ease;
+        transition:
+          background-color 0.2s ease,
+          border-color 0.2s ease,
+          box-shadow 0.2s ease;
         margin: 0;
         position: relative;
       }
@@ -176,11 +179,6 @@ img.ProseMirror-selectednode {
     pointer-events: none;
     height: 0;
   }
-  img {
-    @apply rounded;
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-  }
   .bn-image-node {
     margin-top: 1em !important;
     margin-bottom: 1em !important;
@@ -192,16 +190,14 @@ img.ProseMirror-selectednode {
     margin-bottom: 0 !important;
     max-width: 100%;
     box-sizing: border-box;
-    transition:
-      box-shadow 180ms ease,
-      transform 180ms ease;
+    transition: box-shadow 180ms ease, transform 180ms ease;
   }
   .bn-image-frame img {
     display: block;
     width: 100%;
     max-width: 100%;
     height: auto;
-    border-radius: 1rem;
+    @apply rounded-xl;
   }
   .bn-image-node.is-selected .bn-image-frame img {
     @apply ring-1 ring-primary ring-opacity-20;
@@ -214,16 +210,13 @@ img.ProseMirror-selectednode {
     border: 0;
     border-radius: 999px;
     @apply bg-primary bg-opacity-45 dark:bg-primary dark:bg-opacity-40;
-    box-shadow:
-      0 6px 18px rgba(148, 163, 184, 0.26),
+    box-shadow: 0 6px 18px rgba(148, 163, 184, 0.26),
       inset 0 0 0 1px rgba(255, 255, 255, 0.35);
     cursor: ew-resize;
     opacity: 0;
     pointer-events: none;
     transform: translateY(-50%) scale(0.92);
-    transition:
-      opacity 180ms ease,
-      transform 180ms ease,
+    transition: opacity 180ms ease, transform 180ms ease,
       background-color 180ms ease;
     z-index: 2;
     touch-action: none;
@@ -250,18 +243,6 @@ img.ProseMirror-selectednode {
       margin-top: 0 !important;
       margin-bottom: 0 !important;
     }
-  }
-  .bn-image-node:has(img) {
-    margin-top: 1em;
-    margin-bottom: 1em;
-  }
-  .bn-image-frame:has(img) {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
-  }
-  div:has(img) {
-    margin-top: 1em;
-    margin-bottom: 1em;
   }
 }
 

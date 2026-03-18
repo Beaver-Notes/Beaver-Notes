@@ -112,11 +112,14 @@ export default {
 
     const handleFileSelect = async () => {
       try {
-        const filePaths = await backend.invoke('dialog:open', {
-          properties: ['openFile', 'multiSelections'],
-        });
+        const { canceled, filePaths = [] } = await backend.invoke(
+          'dialog:open',
+          {
+            properties: ['openFile', 'multiSelections'],
+          }
+        );
 
-        if (!filePaths || filePaths.length === 0) return;
+        if (canceled || filePaths.length === 0) return;
 
         for (const path of filePaths) {
           const { fileName, relativePath } = await saveFile(path, props.id);
@@ -138,12 +141,15 @@ export default {
 
     const handleVideoSelect = async () => {
       try {
-        const filePaths = await backend.invoke('dialog:open', {
-          properties: ['openFile', 'multiSelections'],
-          // no filters → user can pick anything
-        });
+        const { canceled, filePaths = [] } = await backend.invoke(
+          'dialog:open',
+          {
+            properties: ['openFile', 'multiSelections'],
+            // no filters → user can pick anything
+          }
+        );
 
-        if (!filePaths?.length) return;
+        if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
           const { relativePath } = await saveFile(path, props.id);
@@ -169,12 +175,15 @@ export default {
     // Audio handler
     const handleAudioSelect = async () => {
       try {
-        const filePaths = await backend.invoke('dialog:open', {
-          properties: ['openFile', 'multiSelections'],
-          // no filters → user can pick anything
-        });
+        const { canceled, filePaths = [] } = await backend.invoke(
+          'dialog:open',
+          {
+            properties: ['openFile', 'multiSelections'],
+            // no filters → user can pick anything
+          }
+        );
 
-        if (!filePaths?.length) return;
+        if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
           const { relativePath } = await saveFile(path, props.id);
@@ -330,19 +339,6 @@ export default {
         name: 'audio',
         action: () => {
           handleAudioSelect();
-        },
-      },
-      {
-        icon: 'riPagesLine',
-        name: 'embed',
-        action: () => {
-          props.editor
-            .chain()
-            .focus()
-            .setIframe({
-              src: '',
-            })
-            .run();
         },
       },
       {

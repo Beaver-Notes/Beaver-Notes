@@ -11,19 +11,22 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use bcrypt::{hash, verify, DEFAULT_COST};
+#[cfg(not(target_os = "android"))]
 use font_kit::source::SystemSource;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State, Theme};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+use tauri_plugin_dialog::{DialogExt, FilePath, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 
-use crate::{
-    bootstrap::{get_legacy_migration_status, run_legacy_store_data_migration},
-    menu::build_context_menu,
-    shared::*,
-};
+use crate::shared::*;
+
+#[cfg(desktop)]
+use crate::bootstrap::{get_legacy_migration_status, run_legacy_store_data_migration};
+
+#[cfg(desktop)]
+use crate::menu::build_context_menu;
 
 #[tauri::command]
 pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
@@ -35,7 +38,16 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
 
 #[tauri::command]
 pub(crate) fn migration_status(app: AppHandle) -> Result<LegacyMigrationStatus, String> {
-    get_legacy_migration_status(&app)
+    #[cfg(desktop)]
+    {
+        get_legacy_migration_status(&app)
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = app;
+        Ok(LegacyMigrationStatus::default())
+    }
 }
 
 #[tauri::command]
@@ -43,7 +55,16 @@ pub(crate) fn migration_run(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<LegacyMigrationResult, String> {
-    run_legacy_store_data_migration(&app, state.inner())
+    #[cfg(desktop)]
+    {
+        run_legacy_store_data_migration(&app, state.inner())
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, state);
+        Err("Legacy migration is only available on desktop".into())
+    }
 }
 
 #[tauri::command]
@@ -82,6 +103,7 @@ pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, String> {
 
 #[tauri::command]
 pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
+    #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         if visible {
             window.show_menu().map_err(to_error)?;
@@ -89,6 +111,8 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
             window.hide_menu().map_err(to_error)?;
         }
     }
+    #[cfg(not(desktop))]
+    let _ = (app, visible);
     Ok(())
 }
 
@@ -646,7 +670,7 @@ pub(crate) async fn dialog_open(
     let app_clone = app.clone();
     let window = app.get_webview_window(MAIN_WINDOW_LABEL);
     let props_clone = props.clone();
-    let result = tokio::task::spawn_blocking(move || {
+    let result = tokio::task::spawn_blocking(move || -> Result<Vec<FilePath>, String> {
         let builder =
             configure_file_dialog(app_clone.dialog().file(), &props_clone, window.as_ref());
         let properties = props_clone.properties.unwrap_or_default();
@@ -656,40 +680,54 @@ pub(crate) async fn dialog_open(
         let wants_directory = props_clone
             .directory
             .unwrap_or_else(|| properties.iter().any(|p| p == "openDirectory"));
-        if wants_directory {
-            if multiple {
-                builder
-                    .blocking_pick_folders()
-                    .map(dialog_file_paths_to_strings)
-                    .unwrap_or_default()
+
+        #[cfg(desktop)]
+        {
+            let result = if wants_directory {
+                if multiple {
+                    builder.blocking_pick_folders().unwrap_or_default()
+                } else {
+                    builder
+                        .blocking_pick_folder()
+                        .map(|path| vec![path])
+                        .unwrap_or_default()
+                }
+            } else if multiple {
+                builder.blocking_pick_files().unwrap_or_default()
             } else {
                 builder
-                    .blocking_pick_folder()
-                    .and_then(dialog_file_path_to_string)
+                    .blocking_pick_file()
                     .map(|path| vec![path])
                     .unwrap_or_default()
+            };
+            Ok(result)
+        }
+
+        #[cfg(not(desktop))]
+        {
+            if wants_directory {
+                return Err("Native directory picking is unavailable on mobile".into());
             }
-        } else if multiple {
-            builder
-                .blocking_pick_files()
-                .map(dialog_file_paths_to_strings)
-                .unwrap_or_default()
-        } else {
-            builder
-                .blocking_pick_file()
-                .and_then(dialog_file_path_to_string)
-                .map(|path| vec![path])
-                .unwrap_or_default()
+
+            let result = if multiple {
+                builder.blocking_pick_files().unwrap_or_default()
+            } else {
+                builder
+                    .blocking_pick_file()
+                    .map(|path| vec![path])
+                    .unwrap_or_default()
+            };
+            Ok(result)
         }
     })
     .await
-    .map_err(to_error)?;
+    .map_err(to_error)??;
 
-    let trusted = result.iter().map(PathBuf::from).collect::<Vec<_>>();
+    let trusted = dialog_file_paths_to_trusted_paths(&result);
     grant_dialog_paths(&state, &trusted);
     Ok(DialogResult {
         canceled: result.is_empty(),
-        file_paths: result,
+        file_paths: dialog_file_paths_to_strings(result),
     })
 }
 
@@ -750,6 +788,7 @@ pub(crate) async fn dialog_save(
                 builder = builder.set_directory(default_path);
             }
         }
+        #[cfg(desktop)]
         if let Some(window) = window.as_ref() {
             builder = builder.set_parent(window);
         }
@@ -763,31 +802,40 @@ pub(crate) async fn dialog_save(
                 builder = builder.add_filter(filter.name, &exts);
             }
         }
-        builder
-            .blocking_save_file()
-            .and_then(dialog_file_path_to_string)
+        builder.blocking_save_file()
     })
     .await
     .map_err(to_error)?;
 
-    if let Some(path) = &file_path {
-        grant_dialog_paths(&state, &[PathBuf::from(path)]);
+    if let Some(path) = file_path
+        .as_ref()
+        .and_then(dialog_file_path_to_trusted_path)
+    {
+        grant_dialog_paths(&state, &[path]);
     }
 
     Ok(SaveDialogResult {
         canceled: file_path.is_none(),
-        file_path,
+        file_path: file_path.and_then(dialog_file_path_to_string),
     })
 }
 
 #[tauri::command]
 pub(crate) fn get_system_fonts() -> Result<Vec<String>, String> {
-    let fonts = SystemSource::new()
-        .all_families()
-        .map_err(to_error)?
-        .into_iter()
-        .collect::<Vec<_>>();
-    Ok(fonts)
+    #[cfg(target_os = "android")]
+    {
+        return Ok(Vec::new());
+    }
+
+    #[cfg(not(target_os = "android"))]
+    {
+        let fonts = SystemSource::new()
+            .all_families()
+            .map_err(to_error)?
+            .into_iter()
+            .collect::<Vec<_>>();
+        Ok(fonts)
+    }
 }
 
 #[tauri::command]
@@ -1168,9 +1216,20 @@ pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, String> {
 
 #[tauri::command]
 pub(crate) fn show_edit_context_menu(app: AppHandle) -> Result<(), String> {
-    let window = app
-        .get_webview_window(MAIN_WINDOW_LABEL)
-        .ok_or_else(|| "Main window not found".to_string())?;
-    let menu = build_context_menu(&app)?;
-    window.popup_menu(&menu).map_err(to_error)
+    #[cfg(desktop)]
+    {
+        let window = app
+            .get_webview_window(MAIN_WINDOW_LABEL)
+            .ok_or_else(|| "Main window not found".to_string())?;
+        let menu = build_context_menu(&app)?;
+        return window.popup_menu(&menu).map_err(to_error);
+    }
+
+    #[cfg(not(desktop))]
+    let _ = app;
+
+    #[cfg(not(desktop))]
+    {
+        Ok(())
+    }
 }

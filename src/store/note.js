@@ -21,8 +21,34 @@ import {
   hexToBuf,
 } from '@/utils/crypto-codec.js';
 import { backend, path } from '@/lib/tauri-bridge';
+import { buildCardPreview, EMPTY_CARD_PREVIEW } from '@/utils/cardPreview.js';
 
 const storage = useStorage();
+
+function _stripTransientNoteFields(note) {
+  if (!note || typeof note !== 'object') return note;
+  const { cardPreview, ...persistedNote } = note;
+  return persistedNote;
+}
+
+function _hydrateNoteForMemory(note) {
+  if (!note || typeof note !== 'object') return note;
+
+  const persistedNote = _stripTransientNoteFields(note);
+  const shouldHidePreview =
+    persistedNote.isLocked || isAppEncryptedContent(persistedNote.content);
+
+  return {
+    ...persistedNote,
+    cardPreview: shouldHidePreview
+      ? EMPTY_CARD_PREVIEW
+      : buildCardPreview(persistedNote.content),
+  };
+}
+
+async function _trackNoteChange(id, note) {
+  await trackChange(`notes.${id}`, _stripTransientNoteFields(note));
+}
 
 async function _decryptNoteForMemory(note) {
   if (!isAppEncryptedContent(note.content)) return note;
@@ -44,7 +70,9 @@ async function _encryptNoteForStorage(note) {
 }
 
 async function _saveNote(id, noteData) {
-  const toStore = await _encryptNoteForStorage(noteData);
+  const toStore = await _encryptNoteForStorage(
+    _stripTransientNoteFields(noteData)
+  );
   await storage.set(`notes.${id}`, toStore);
 }
 
@@ -232,16 +260,21 @@ export const useNoteStore = defineStore('note', {
   actions: {
     async retrieve() {
       try {
-        const piniaData = this.data;
         const localStorageData = await storage.get('notes', {});
-        const merged = { ...piniaData, ...localStorageData };
+        const piniaData = this.data;
+        const merged = { ...localStorageData, ...piniaData };
 
         if (isAppEncryptionEnabled()) {
           await Promise.all(
             Object.keys(merged).map(async (id) => {
               merged[id] = await _decryptNoteForMemory(merged[id]);
+              merged[id] = _hydrateNoteForMemory(merged[id]);
             })
           );
+        } else {
+          Object.keys(merged).forEach((id) => {
+            merged[id] = _hydrateNoteForMemory(merged[id]);
+          });
         }
 
         this.data = merged;
@@ -273,7 +306,7 @@ export const useNoteStore = defineStore('note', {
         try {
           const wasEncrypted = isAppEncryptedContent(note.content);
           const decrypted = await _decryptNoteForMemory(note);
-          this.data[id] = decrypted;
+          this.data[id] = _hydrateNoteForMemory(decrypted);
 
           if (wasEncrypted && isAppEncryptedContent(decrypted.content)) {
             failures.push(id);
@@ -337,7 +370,7 @@ export const useNoteStore = defineStore('note', {
       const failures = [];
       for (const [id, note] of entries) {
         try {
-          await storage.set(`notes.${id}`, note);
+          await storage.set(`notes.${id}`, _stripTransientNoteFields(note));
         } catch (error) {
           failures.push(id);
           console.error(
@@ -379,7 +412,10 @@ export const useNoteStore = defineStore('note', {
         const currentLockStatus = this.data[noteId].isLocked;
 
         if (wasLocked && !currentLockStatus) {
-          this.data[noteId].isLocked = true;
+          this.data[noteId] = _hydrateNoteForMemory({
+            ...this.data[noteId],
+            isLocked: true,
+          });
           hasChanges = true;
           console.log(`Migrated lock status for note ${noteId}`);
         }
@@ -423,11 +459,11 @@ export const useNoteStore = defineStore('note', {
           ...note,
         };
 
-        this.data[id] = newNote;
+        this.data[id] = _hydrateNoteForMemory(newNote);
 
         await _saveNote(id, this.data[id]);
 
-        await trackChange(`notes.${id}`, this.data[id]);
+        await _trackNoteChange(id, this.data[id]);
 
         return this.data[id];
       } catch (error) {
@@ -504,6 +540,7 @@ export const useNoteStore = defineStore('note', {
       if (footnotes.length > 0) {
         unCollapsedFootnotes(note, footnotes);
       }
+      this.data[id] = _hydrateNoteForMemory(note);
     },
 
     uncollapseHeading(contents, footnotes) {
@@ -570,6 +607,8 @@ export const useNoteStore = defineStore('note', {
         updatedAt: data.updatedAt ?? Date.now(),
       };
 
+      this.data[id] = _hydrateNoteForMemory(this.data[id]);
+
       return this.data[id];
     },
 
@@ -577,7 +616,7 @@ export const useNoteStore = defineStore('note', {
       if (!this.data[id]) return null;
 
       await _saveNote(id, this.data[id]);
-      await trackChange(`notes.${id}`, this.data[id]);
+      await _trackNoteChange(id, this.data[id]);
 
       return this.data[id];
     },
@@ -594,13 +633,13 @@ export const useNoteStore = defineStore('note', {
           this.deletedIds[id] = Date.now();
         }
 
+        await trackChange(`notes.${id}`, null);
+        await trackChange('deletedIds', this.deletedIds);
+
         delete this.data[id];
 
         await storage.delete(`notes.${id}`);
         await storage.set('deletedIds', this.deletedIds);
-
-        await trackChange(`notes.${id}`, this.data[id]);
-        await trackChange('deletedIds', this.deletedIds);
 
         try {
           for (const assetType of ['notes-assets', 'file-assets']) {
@@ -631,7 +670,7 @@ export const useNoteStore = defineStore('note', {
       }
     },
 
-    cleanupDeletedIds(days = 30) {
+    async cleanupDeletedIds(days = 30) {
       const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
       const toDelete = [];
 
@@ -645,8 +684,8 @@ export const useNoteStore = defineStore('note', {
         delete this.deletedIds[id];
       }
 
-      storage.set('deletedIds', this.deletedIds);
-      trackChange('deletedIds', this.deletedIds);
+      await storage.set('deletedIds', this.deletedIds);
+      await trackChange('deletedIds', this.deletedIds);
 
       return toDelete;
     },
@@ -671,10 +710,11 @@ export const useNoteStore = defineStore('note', {
         this.data[id].content = { type: 'doc', content: [encryptedContent] };
         this.data[id].isLocked = true;
         this.data[id].updatedAt = Date.now();
+        this.data[id] = _hydrateNoteForMemory(this.data[id]);
 
         await _saveNote(id, this.data[id]);
 
-        await trackChange(`notes.${id}`, this.data[id]);
+        await _trackNoteChange(id, this.data[id]);
       } catch (error) {
         console.error('Error locking note:', error);
         throw error;
@@ -704,11 +744,14 @@ export const useNoteStore = defineStore('note', {
           note.content.content[0].trim().length > 0;
 
         if (!isEncrypted) {
-          this.data[id].isLocked = false;
-          this.data[id].updatedAt = Date.now();
+          this.data[id] = _hydrateNoteForMemory({
+            ...this.data[id],
+            isLocked: false,
+            updatedAt: Date.now(),
+          });
 
           await _saveNote(id, this.data[id]);
-          await trackChange(`notes.${id}`, this.data[id]);
+          await _trackNoteChange(id, this.data[id]);
           return;
         }
 
@@ -744,11 +787,14 @@ export const useNoteStore = defineStore('note', {
           this.convertNote(id);
         }
 
-        this.data[id].isLocked = false;
-        this.data[id].updatedAt = Date.now();
+        this.data[id] = _hydrateNoteForMemory({
+          ...this.data[id],
+          isLocked: false,
+          updatedAt: Date.now(),
+        });
 
         await _saveNote(id, this.data[id]);
-        await trackChange(`notes.${id}`, this.data[id]);
+        await _trackNoteChange(id, this.data[id]);
       } catch (error) {
         console.error('Error unlocking note:', error);
         throw error;
@@ -772,7 +818,7 @@ export const useNoteStore = defineStore('note', {
 
         await _saveNote(id, this.data[id]);
 
-        await trackChange(`notes.${id}`, this.data[id]);
+        await _trackNoteChange(id, this.data[id]);
 
         return labelId;
       } catch (error) {
@@ -798,7 +844,7 @@ export const useNoteStore = defineStore('note', {
 
         await _saveNote(id, this.data[id]);
 
-        await trackChange(`notes.${id}`, this.data[id]);
+        await _trackNoteChange(id, this.data[id]);
 
         return labelId;
       } catch (error) {

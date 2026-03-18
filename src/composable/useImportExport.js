@@ -129,6 +129,7 @@ export function useImportExport({
       {
         title: 'Select Obsidian Vault',
         properties: ['openDirectory'],
+        useScopedStorage: true,
       }
     );
     if (canceled || !filePaths.length) return;
@@ -153,6 +154,7 @@ export function useImportExport({
       {
         title: 'Select Notion Export',
         properties: ['openDirectory'],
+        useScopedStorage: true,
       }
     );
     if (canceled || !filePaths.length) return;
@@ -171,6 +173,7 @@ export function useImportExport({
       {
         title: 'Select Bear Export',
         properties: ['openDirectory'],
+        useScopedStorage: true,
       }
     );
     if (canceled || !filePaths.length) return;
@@ -248,6 +251,7 @@ export function useImportExport({
       {
         title: 'Select Markdown Folder',
         properties: ['openDirectory'],
+        useScopedStorage: true,
       }
     );
     if (canceled || !filePaths.length) return;

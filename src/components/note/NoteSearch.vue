@@ -1,6 +1,6 @@
 <template>
   <div
-    class="pl-16 fixed inset-x-0 z-40 transition-all duration-300 ease-out mx-2 bottom-4"
+    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-out bottom-[var(--app-mobile-floating-offset)] md:bottom-4 md:pl-16"
   >
     <div
       class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"

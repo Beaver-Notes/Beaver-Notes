@@ -37,6 +37,7 @@ export async function exportHTML(noteId, noteTitle, editor) {
   const { canceled, filePaths } = await backend.invoke('dialog:open', {
     title: share.selectExportFolderTitle || 'Select export folder',
     properties: ['openDirectory'],
+    useScopedStorage: true,
   });
 
   if (canceled || !filePaths.length) return;

@@ -19,7 +19,7 @@ export default defineConfig({
   plugins: [vue()],
   base: '',
   server: {
-    host: '127.0.0.1',
+    host: process.env.TAURI_DEV_HOST || '127.0.0.1',
     port: 5173,
     strictPort: true,
   },

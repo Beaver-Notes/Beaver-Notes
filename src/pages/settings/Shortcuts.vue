@@ -1,8 +1,10 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general space-y-8 mb-14 w-full max-w-xl">
-    <section v-for="shortcut in shortcuts" :key="shortcut.title">
-      <p class="mb-2">{{ translations.shortcuts[shortcut.title] || '-' }}</p>
+    <ui-card v-for="shortcut in shortcuts" :key="shortcut.title">
+      <p class="mb-1 font-medium">
+        {{ translations.shortcuts[shortcut.title] || '-' }}
+      </p>
       <ui-list class="rounded-lg">
         <ui-list-item v-for="item in shortcut.items" :key="item.name">
           <p class="flex-1">
@@ -22,7 +24,7 @@
           </kbd>
         </ui-list-item>
       </ui-list>
-    </section>
+    </ui-card>
   </div>
 </template>
 

@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="w-16 text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 fixed flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
+    class="w-16 text-neutral-500 dark:text-neutral-400 bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 fixed flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
   >
     <div class="flex flex-col items-center gap-3 w-full px-2">
       <button

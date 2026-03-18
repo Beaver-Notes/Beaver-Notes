@@ -1,4 +1,5 @@
 import { getCurrentInstance, onMounted, onUnmounted, shallowRef } from 'vue';
+import { backend } from '@/lib/tauri-bridge';
 import { createSingleton } from 'tippy.js';
 import createTippy, { defaultOptions } from '@/lib/tippy';
 
@@ -181,6 +182,7 @@ export function useGroupTooltip(elements, options = {}) {
   let cleanupZoomListener = null;
 
   onMounted(() => {
+    if (backend.isMobileRuntime()) return;
     let tippyInstances = [];
 
     if (Array.isArray(elements)) {

@@ -160,10 +160,7 @@ export const usePasswordStore = defineStore('password', {
 
     async setsharedKey(password) {
       try {
-        const hashedPassword = await backend.invoke(
-          'passwd:hash',
-          password
-        );
+        const hashedPassword = await backend.invoke('passwd:hash', password);
         this.sharedKey = hashedPassword;
         this._legacyDerivedKey = ''; // clear stale legacy value
 
