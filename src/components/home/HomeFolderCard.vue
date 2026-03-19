@@ -1,56 +1,55 @@
 <template>
   <div
-    class="folder-card relative group cursor-pointer h-40 w-48"
+    class="relative w-full max-w-[216px] group cursor-pointer transition-all duration-300 active:scale-95"
+    style="aspect-ratio: 1 / 1"
     @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
   >
-    <div
-      class="absolute top-4 left-0 z-0 h-8 w-16 rounded-tl-xl rounded-tr-md transition-colors"
-      :style="{ backgroundColor: folder.color || '#f59e0b' }"
-    ></div>
+    <!-- Folder background shape -->
+    <svg
+      class="absolute inset-0 w-full h-full"
+      viewBox="0 0 192 192"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+    >
+      <path
+        :fill="folder.color || '#6366f1'"
+        d="M32,0 L80,0 C92,0 95,3 100,15 L160,15 C185,15 192,22 192,45 L192,160 C192,185 175,192 160,192 L32,192 C15,192 0,185 0,160 L0,32 C0,15 15,0 32,0 Z"
+        class="transition-colors duration-500"
+      />
+    </svg>
 
-    <div
-      class="absolute top-8 left-0 z-0 h-28 w-full rounded-xl rounded-tl-none transition-colors shadow-sm"
-      :style="{ backgroundColor: folder.color || '#f59e0b' }"
-    ></div>
-
+    <!-- Floating papers -->
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute top-6 left-6 z-10 h-20 w-36 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 shadow-sm"
-    >
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
-      <div class="h-1 w-2/3 rounded-full bg-gray-100"></div>
-    </div>
+      class="absolute w-1/2 h-2/3 bg-white/80 rounded-lg shadow-sm -rotate-12 transition-transform group-hover:-translate-y-3"
+      style="bottom: 10%; left: 16.67%"
+    ></div>
 
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute top-9 left-9 z-10 h-20 w-36 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 shadow-md"
-    >
-      <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
-      <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
-      <div class="h-1 w-4/5 rounded-full bg-gray-200"></div>
-    </div>
+      class="absolute w-1/2 h-2/3 bg-white rounded-lg shadow-md rotate-6 z-10 transition-transform group-hover:-translate-y-5"
+      style="bottom: 10%; left: 33.33%"
+    ></div>
 
+    <!-- Folder front panel with content -->
     <div
-      class="folder-card__body absolute bottom-0 left-0 z-20 flex h-28 w-full flex-col justify-between rounded-xl p-3 shadow-sm"
+      class="absolute bottom-0 left-0 w-full border-t border-white/20 rounded-b-[2rem] z-20 flex flex-col justify-between"
+      style="height: 58%; padding: 6.25% 8.33%"
       :style="{
-        background: `linear-gradient(to bottom, ${folder.color || '#fbbf24'}, ${
-          folder.color || '#f59e0b'
-        })`,
-        filter: 'brightness(1.2) saturate(0.9)',
+        backgroundColor: folder.color ? `${folder.color}f2` : '#4f46e5f2',
       }"
     >
-      <div class="flex justify-between items-start gap-2">
-        <div class="flex-grow min-w-0">
-          <div v-if="!isRenaming" class="flex flex-col">
+      <div class="flex justify-between items-start gap-2 min-h-0">
+        <div class="flex-grow min-w-0 overflow-hidden">
+          <div v-if="!isRenaming" class="flex flex-col min-h-0">
             <h3
-              class="text-white font-bold text-sm truncate leading-tight drop-shadow-sm"
+              class="text-white font-bold text-base sm:text-lg tracking-tight truncate leading-tight"
               @click.stop="startRenaming"
             >
               {{ folder.name || translations.card.untitledFolder }}
             </h3>
-            <p class="text-white/80 text-[10px] font-medium">
+            <p class="text-white/70 text-xs font-medium truncate">
               {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
             </p>
           </div>
@@ -59,7 +58,8 @@
             v-else
             ref="renameInput"
             v-model="newName"
-            class="w-full bg-white/20 text-white rounded px-1 focus:outline-none font-bold text-sm"
+            class="w-full bg-white/20 text-white rounded px-1 focus:outline-none font-bold text-base sm:text-lg"
+            autofocus
             @click.stop
             @keydown.enter.prevent="saveRename"
             @keydown.esc.prevent="cancelRename"
@@ -70,28 +70,43 @@
         <ui-popover padding="p-3 flex flex-col print:hidden" @click.stop>
           <template #trigger>
             <button
-              class="folder-card__icon-button size-7 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg text-white"
+              class="size-8 sm:size-10 aspect-square flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white flex-shrink-0"
             >
-              <span v-if="folder.icon" class="text-base leading-none">{{
-                folder.icon
-              }}</span>
-              <v-remixicon v-else name="riFolder5Fill" class="size-4" />
+              <span
+                v-if="folder.icon"
+                class="text-lg sm:text-xl leading-none select-none"
+              >
+                {{ folder.icon }}
+              </span>
+              <v-remixicon
+                v-else
+                name="riFolder5Fill"
+                class="size-5 sm:size-6"
+              />
             </button>
           </template>
 
-          <div class="flex mb-4 border-b w-full relative">
+          <div
+            class="flex mb-4 border-b border-neutral-200 dark:border-neutral-700 w-full relative"
+          >
             <button
-              class="flex-1 px-4 py-2 font-medium text-sm"
+              class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
               @click="activeTab = 'icon'"
             >
               {{ translations.card.colors }}
             </button>
             <button
-              class="flex-1 px-4 py-2 font-medium text-sm"
+              class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
+              :class="{
+                'text-primary': activeTab === 'emoji',
+                'text-neutral-600 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200':
+                  activeTab !== 'emoji',
+              }"
               @click="activeTab = 'emoji'"
             >
               Emojis
             </button>
+
             <div
               class="absolute bottom-0 h-0.5 bg-primary transition-all duration-300"
               :style="{
@@ -105,7 +120,7 @@
             <button
               v-for="color in iconColors"
               :key="color"
-              class="p-2 rounded-lg hover:bg-neutral-100"
+              class="p-2 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800"
               @click="selectColorIcon(color)"
             >
               <v-remixicon
@@ -187,21 +202,22 @@
       </div>
 
       <div
-        class="folder-card__actions flex gap-1 opacity-0 group-hover:opacity-100"
+        class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
       >
         <button
           v-tooltip.group="translations.card.moveToFolder"
-          class="folder-card__action size-6 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded text-white"
+          class="size-7 sm:size-8 aspect-square flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg text-white transition-all"
           @click.stop="showFolderMoveModal = true"
         >
-          <v-remixicon name="riFolderTransferLine" class="size-3.5" />
+          <v-remixicon name="riFolderTransferLine" class="size-4 sm:size-5" />
         </button>
+
         <button
           v-tooltip.group="translations.card.delete"
-          class="folder-card__action size-6 flex items-center justify-center bg-white/20 hover:bg-red-500/40 rounded text-white"
+          class="size-7 sm:size-8 aspect-square flex items-center justify-center bg-white/20 hover:bg-red-500/30 rounded-lg text-white hover:text-red-100 transition-all"
           @click.stop="deleteFolder"
         >
-          <v-remixicon name="riDeleteBin6Line" class="size-3.5" />
+          <v-remixicon name="riDeleteBin6Line" class="size-4 sm:size-5" />
         </button>
       </div>
     </div>
@@ -354,11 +370,11 @@ function cancelRename() {
 }
 
 function selectEmoji(emoji) {
-  folderStore.update(props.folder.id, { icon: emoji });
+  folderStore.update(props.folder.id, { icon: emoji, color: null });
 }
 
 function selectColorIcon(color) {
-  folderStore.update(props.folder.id, { color });
+  folderStore.update(props.folder.id, { color: color, icon: null });
 }
 
 function deleteFolder() {
@@ -371,86 +387,3 @@ function deleteFolder() {
 
 const { translations } = useTranslations();
 </script>
-
-<style>
-.folder-card {
-  transform: translate3d(0, 0, 0) scale(1);
-  transition: transform var(--motion-fast) var(--ease-standard);
-  will-change: transform;
-}
-
-.folder-card__sheet,
-.folder-card__body,
-.folder-card__actions,
-.folder-card__action,
-.folder-card__icon-button {
-  transition: transform var(--motion-fast) var(--ease-standard),
-    opacity var(--motion-fast) var(--ease-standard),
-    background-color var(--motion-fast) var(--ease-standard),
-    box-shadow var(--motion-fast) var(--ease-standard);
-}
-
-.folder-card__sheet {
-  will-change: transform;
-}
-
-.folder-card__sheet--rear {
-  transform: translate3d(0, 0, 0) rotate(-1deg);
-}
-
-.folder-card__sheet--front {
-  transform: translate3d(0, 0, 0) rotate(2deg);
-}
-
-.folder-card__body {
-  transform: translate3d(0, 0, 0);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .folder-card:hover {
-    transform: translate3d(0, -1px, 0);
-  }
-
-  .folder-card:hover .folder-card__sheet--rear {
-    transform: translate3d(0, -4px, 0) rotate(-2deg);
-  }
-
-  .folder-card:hover .folder-card__sheet--front {
-    transform: translate3d(0, -6px, 0) rotate(1deg);
-  }
-
-  .folder-card:hover .folder-card__body {
-    transform: translate3d(0, -1px, 0);
-  }
-}
-
-.folder-card:active {
-  transform: scale(0.992);
-}
-
-.folder-card__action:active,
-.folder-card__icon-button:active {
-  transform: scale(0.96);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .folder-card,
-  .folder-card__sheet,
-  .folder-card__body,
-  .folder-card__actions,
-  .folder-card__action,
-  .folder-card__icon-button {
-    transition-duration: 0.01ms;
-  }
-
-  .folder-card:hover,
-  .folder-card:active,
-  .folder-card:hover .folder-card__sheet--rear,
-  .folder-card:hover .folder-card__sheet--front,
-  .folder-card:hover .folder-card__body,
-  .folder-card__action:active,
-  .folder-card__icon-button:active {
-    transform: none;
-  }
-}
-</style>
