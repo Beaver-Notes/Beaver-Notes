@@ -3,9 +3,10 @@
     class="bg-neutral-50 dark:bg-neutral-750 transform rounded-xl transition-transform ui-card overflow-hidden hover:ring-2 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group note-card transition flex flex-row items-center p-3"
     @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
   >
-    <ui-popover padding="p-3 flex flex-col print:hidden">
+    <ui-popover padding="p-3 flex flex-col print:hidden" @click.stop>
       <template #trigger>
         <button
+          type="button"
           class="transition hoverable h-10 w-10 rounded-lg flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
         >
           <span v-if="folder.icon" class="text-2xl select-none">{{
