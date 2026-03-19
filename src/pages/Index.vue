@@ -44,12 +44,13 @@
             tag="div"
             :css="isSorting"
             :name="isSorting ? 'sort-cards' : undefined"
-            class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4"
+            class="folder-grid"
           >
             <div
               v-for="folder in folders.all"
               :key="folder.id"
               :data-item-id="`folder-${folder.id}`"
+              class="folder-grid__item"
               @click.stop="
                 handleItemClick($event, 'folder', folder.id, getAllVisibleItems)
               "
@@ -810,6 +811,22 @@ export default {
 <style scoped>
 .filter-pulse {
   opacity: 1;
+}
+
+.folder-grid {
+  --folder-card-max: 216px;
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, 180px), var(--folder-card-max))
+  );
+  justify-content: start;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.folder-grid__item {
+  width: 100%;
 }
 
 .sort-cards-move {

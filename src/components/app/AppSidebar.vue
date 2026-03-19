@@ -307,7 +307,7 @@ export default {
       translations,
       theme,
       spinning,
-      FolderId,
+      currentFolderId,
       addNote,
       addFolder,
       noteStore,

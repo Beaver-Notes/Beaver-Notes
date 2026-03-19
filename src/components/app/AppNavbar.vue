@@ -205,7 +205,7 @@ export default {
     return {
       navs,
       translations,
-      FolderId,
+      currentFolderId,
       addNote,
       addFolder,
       noteStore,

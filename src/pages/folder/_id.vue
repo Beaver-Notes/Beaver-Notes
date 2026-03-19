@@ -91,13 +91,14 @@
           tag="div"
           :css="isSorting"
           :name="isSorting ? 'sort-cards' : undefined"
-          class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-stretch"
+          class="folder-grid"
         >
           <div
             v-for="childFolder in folders.all"
             :key="childFolder.id"
             :min-height="120"
             :data-item-id="`folder-${childFolder.id}`"
+            class="folder-grid__item"
             @click="
               handleItemClick(
                 $event,
@@ -855,6 +856,22 @@ export default {
 </script>
 
 <style scoped>
+.folder-grid {
+  --folder-card-max: 216px;
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, 180px), var(--folder-card-max))
+  );
+  justify-content: start;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.folder-grid__item {
+  width: 100%;
+}
+
 .sort-cards-move {
   transition: transform 0.01ms linear;
 }
