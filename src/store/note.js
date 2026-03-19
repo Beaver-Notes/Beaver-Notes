@@ -76,6 +76,15 @@ async function _saveNote(id, noteData) {
   await storage.set(`notes.${id}`, toStore);
 }
 
+async function _resolveFolderId(folderId) {
+  if (folderId === undefined || folderId === null) {
+    return null;
+  }
+
+  const folderStore = useFolderStore();
+  return folderStore.exists(folderId) ? folderId : null;
+}
+
 async function _noteKey(password, saltBuf) {
   return deriveAesGcmKeyFromPassphrase(password, saltBuf, {
     iterations: 100_000,
@@ -436,13 +445,7 @@ export const useNoteStore = defineStore('note', {
 
     async add(note = {}) {
       try {
-        if (note.folderId) {
-          const folderStore = useFolderStore();
-          const folderExists = await folderStore.exists(note.folderId);
-          if (!folderExists) {
-            throw new Error('Specified folder does not exist');
-          }
-        }
+        const folderId = await _resolveFolderId(note.folderId);
 
         const id = note.id || nanoid();
         const newNote = {
@@ -455,8 +458,9 @@ export const useNoteStore = defineStore('note', {
           isBookmarked: false,
           isArchived: false,
           isLocked: false,
-          folderId: note.folderId || null,
+          folderId,
           ...note,
+          folderId,
         };
 
         this.data[id] = _hydrateNoteForMemory(newNote);
@@ -619,6 +623,21 @@ export const useNoteStore = defineStore('note', {
       await _trackNoteChange(id, this.data[id]);
 
       return this.data[id];
+    },
+
+    async normalizeInvalidFolderIds() {
+      const folderStore = useFolderStore();
+      const notesWithInvalidFolderId = Object.values(this.data).filter(
+        (note) =>
+          note?.id && note.folderId && !folderStore.exists(note.folderId)
+      );
+
+      for (const note of notesWithInvalidFolderId) {
+        this.patchLocal(note.id, { folderId: null });
+        await this.persist(note.id);
+      }
+
+      return notesWithInvalidFolderId.map((note) => note.id);
     },
 
     async delete(id) {

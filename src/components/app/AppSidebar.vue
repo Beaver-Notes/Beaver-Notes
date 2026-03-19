@@ -226,13 +226,15 @@ export default {
       if (noteId) router.push(`/note/${noteId}`);
     }
 
-    const FolderId = computed(() => route.params.id ?? null);
+    const currentFolderId = computed(() =>
+      route.name === 'Folder' ? route.params.id ?? null : null
+    );
 
     async function addNote() {
-      const currentFolderId = FolderId.value;
       const folderId =
-        currentFolderId && (await folderStore.exists(currentFolderId))
-          ? currentFolderId
+        currentFolderId.value &&
+        (await folderStore.exists(currentFolderId.value))
+          ? currentFolderId.value
           : null;
 
       noteStore.add({ folderId }).then(({ id }) => {
@@ -246,10 +248,10 @@ export default {
     }
 
     async function addFolder() {
-      const currentFolderId = FolderId.value;
       const parentId =
-        currentFolderId && (await folderStore.exists(currentFolderId))
-          ? currentFolderId
+        currentFolderId.value &&
+        (await folderStore.exists(currentFolderId.value))
+          ? currentFolderId.value
           : null;
 
       folderStore.add({ parentId }).then(({ id }) => {

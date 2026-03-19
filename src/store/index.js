@@ -24,6 +24,13 @@ export const useStore = defineStore('main', {
         passwordStore.retrieve(),
       ]);
 
+      if (
+        values[0]?.status === 'fulfilled' &&
+        values[2]?.status === 'fulfilled'
+      ) {
+        await noteStore.normalizeInvalidFolderIds();
+      }
+
       return values
         .filter(({ status }) => status === 'fulfilled')
         .map(({ value }) => value);
