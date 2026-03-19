@@ -1,121 +1,361 @@
-name: Build and Package
+name: Release
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
+      - '[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+
 jobs:
-  release:
-    env:
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-    strategy:
-      matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  validate:
+    name: Validate versions
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag_name: ${{ steps.tag.outputs.tag_name }}
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      # Node Setup
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install Apple code signing certificate
-        if: matrix.os == 'macos-latest'
-        run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/cert.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-          echo -n "${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
-
-          security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security import $CERTIFICATE_PATH -P "${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychains -s $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile
-
-      - name: build Vite bundles
-        run: yarn build
-
-      - name: Get latest commit message
-        id: commitmsg
-        run: echo "msg=$(git log -1 --pretty=%B | tr -d '\n')" >> "$GITHUB_OUTPUT"
-
-      - name: Determine publish flag
-        id: publishflag
+      - name: Enable Corepack
         shell: bash
         run: |
-          if [[ "${{ steps.commitmsg.outputs.msg }}" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
+          corepack enable
+          corepack prepare yarn@stable --activate
+
+      # package.json is the source of truth for the release version.
+      - name: Read version from package.json
+        id: version
+        shell: bash
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # If this is a tag push, use that tag. Otherwise build one from package.json.
+      - name: Determine release tag
+        id: tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           else
-            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "tag_name=v${{ steps.version.outputs.version }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build and conditionally publish Electron app
+      # Fail if package.json, tauri.conf.json, and Cargo.toml disagree.
+      - name: Fail on version drift
         shell: bash
         run: |
-          PUBLISH_FLAG=""
-          if [[ "${{ steps.publishflag.outputs.publish }}" == "true" ]]; then
-            PUBLISH_FLAG="--publish always"
-          fi
+          set -euo pipefail
 
-          if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --mac $PUBLISH_FLAG
-          elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --linux $PUBLISH_FLAG
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            yarn electron-builder build --config electron-builder.config.cjs --win $PUBLISH_FLAG
-          fi
-        env:
-          USE_HARD_LINKS: ${{ matrix.os == 'macos-latest' && 'false' || '' }}
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAURI_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('./src-tauri/tauri.conf.json', 'utf8')).version)")"
+          CARGO_VERSION="$(node - <<'NODE'
+          const fs = require('fs');
+          const txt = fs.readFileSync('./src-tauri/Cargo.toml', 'utf8');
+          const m = txt.match(/^\s*version\s*=\s*"(.*?)"/m);
+          console.log(m ? m[1] : '');
+          NODE
+          )"
 
-      - name: Dispatch Windows signing
-        if: matrix.os == 'windows-latest'
-        uses: ossign/actions/workflow/dispatch@main
-        id: dispatch
+          echo "package.json: $PKG_VERSION"
+          echo "tauri.conf.json: $TAURI_VERSION"
+          echo "Cargo.toml: $CARGO_VERSION"
+
+          test "$PKG_VERSION" = "$TAURI_VERSION"
+          test "$PKG_VERSION" = "$CARGO_VERSION"
+
+  desktop:
+    name: Build ${{ matrix.id }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Universal mac build
+          - id: macos-universal
+            runner: macos-latest
+            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            tauri_target: 'universal-apple-darwin'
+            bundle_args: '--bundles app,dmg'
+            asset_suffix: 'macos-universal'
+
+          # Linux x64 bundles: AppImage, deb, rpm and tarball
+          - id: linux-x64
+            runner: ubuntu-24.04
+            rust_targets: 'x86_64-unknown-linux-gnu'
+            tauri_target: 'x86_64-unknown-linux-gnu'
+            bundle_args: '--bundles appimage,deb,rpm'
+            asset_suffix: 'linux-x64'
+
+          # Linux ARM64 bundles
+          - id: linux-arm64
+            runner: ubuntu-24.04-arm
+            rust_targets: 'aarch64-unknown-linux-gnu'
+            tauri_target: 'aarch64-unknown-linux-gnu'
+            bundle_args: '--bundles appimage,deb,rpm'
+            asset_suffix: 'linux-arm64'
+
+          # Windows is build
+          - id: windows-x64
+            runner: windows-latest
+            rust_targets: 'x86_64-pc-windows-msvc'
+            tauri_target: 'x86_64-pc-windows-msvc'
+            bundle_args: '--bundles nsis'
+            asset_suffix: 'windows-x64'
+
+          # ARM64 Windows build
+          - id: windows-arm64
+            runner: windows-11-arm
+            rust_targets: 'aarch64-pc-windows-msvc'
+            tauri_target: 'aarch64-pc-windows-msvc'
+            bundle_args: '--bundles nsis'
+            asset_suffix: 'windows-arm64'
+
+    steps:
+      # Pull source
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Use cache on GitHub runners, skipped in local ACT runs
+      - name: Setup Node with Yarn cache
+        if: ${{ !env.ACT }}
+        uses: actions/setup-node@v4
         with:
-          username: beaver-notes
-          token: ${{ secrets.SIGNING_TOKEN }}
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
 
-      - name: Parse signed artifacts
-        if: matrix.os == 'windows-latest'
+      - name: Setup Node without cache
+        if: ${{ env.ACT }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Use same yarn version everywhere
+      - name: Enable Corepack
         shell: bash
         run: |
-          printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
-          echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
+          corepack enable
+          corepack prepare yarn@stable --activate
+          yarn --version
 
-      - name: Download signed artifacts
-        if: matrix.os == 'windows-latest'
+      # Install the Rust targets needed for each matrix job
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      # Rust artifacts cache
+      - name: Rust cache
+        if: ${{ !env.ACT }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      # Install Linux deps
+      - name: Install Linux dependencies
+        if: ${{ startsWith(matrix.id, 'linux-') }}
         shell: bash
         run: |
-          mkdir -p signed
-          for url in $(jq -r '.[].browser_download_url' artifacts.json); do
-            echo "Downloading $url"
-            curl -L -o "signed/$(basename "$url")" "$url"
-          done
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            gnupg
 
-      - name: Upload signed artifacts to release
-        if: matrix.os == 'windows-latest' && steps.publishflag.outputs.publish == 'true'
+      # Install JS deps
+      - name: Install JS dependencies
+        shell: bash
+        run: |
+          yarn install --frozen-lockfile
+
+      # Linux AppImage signing
+      - name: Import Linux GPG key
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.LINUX_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      # macOS signing and notarization
+      - name: Build macOS bundles
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        env:
+          CI: 'true'
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          yarn tauri build \
+            --target "${{ matrix.tauri_target }}" \
+            ${{ matrix.bundle_args }} \
+            --ci
+
+      # Linux gets updater signing, AppImage signing, and RPM signing
+      # deb is still built, but not package-signing
+      - name: Build Linux bundles
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        env:
+          CI: 'true'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          SIGN: '1'
+          SIGN_KEY: ${{ secrets.LINUX_GPG_KEY_ID }}
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
+          APPIMAGETOOL_FORCE_SIGN: '1'
+          TAURI_SIGNING_RPM_KEY: ${{ secrets.TAURI_SIGNING_RPM_KEY }}
+          TAURI_SIGNING_RPM_KEY_PASSPHRASE: ${{ secrets.TAURI_SIGNING_RPM_KEY_PASSPHRASE }}
+        run: |
+          yarn tauri build \
+            --target "${{ matrix.tauri_target }}" \
+            ${{ matrix.bundle_args }} \
+            --ci
+
+      # Windows build singing TBA
+      - name: Build Windows bundles
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: bash
+        env:
+          CI: 'true'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          yarn tauri build \
+            --target "${{ matrix.tauri_target }}" \
+            ${{ matrix.bundle_args }} \
+            --ci \
+            --no-sign
+
+      # macOS release assets: DMG plus updater files
+      - name: Stage macOS assets
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET="${{ matrix.tauri_target }}"
+          OUT="release-assets"
+          mkdir -p "$OUT"
+
+          find "src-tauri/target/${TARGET}/release/bundle" -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.sig" -o -name "latest.json" \) \
+            -exec cp {} "$OUT"/ \;
+
+      # Linux release assets: native packages plus a simple portable tarball
+      - name: Stage Linux assets
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ needs.validate.outputs.version }}"
+          TARGET="${{ matrix.tauri_target }}"
+          OUT="release-assets"
+          BIN_NAME="beaver-notes"
+          BIN_PATH="src-tauri/target/${TARGET}/release/${BIN_NAME}"
+          TAR_NAME="Beaver Notes-${VERSION}-${{ matrix.asset_suffix }}.tar.gz"
+
+          mkdir -p "$OUT"
+
+          find "src-tauri/target/${TARGET}/release/bundle" -type f \
+            \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.sig" -o -name "latest.json" \) \
+            -exec cp {} "$OUT"/ \;
+
+          mkdir -p portable-root
+          cp "$BIN_PATH" portable-root/
+          tar -czf "$OUT/$TAR_NAME" -C portable-root .
+
+      # Windows release assets: installer artifacts plus a portable zip
+      - name: Stage Windows assets
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $Version = "${{ needs.validate.outputs.version }}"
+          $Target = "${{ matrix.tauri_target }}"
+          $OutDir = "release-assets"
+          New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+
+          Get-ChildItem "src-tauri/target/$Target/release/bundle" -Recurse -File |
+            Where-Object { $_.Extension -in ".exe", ".msi", ".sig", ".json", ".zip" } |
+            ForEach-Object { Copy-Item $_.FullName -Destination $OutDir -Force }
+
+          $Binary = "src-tauri/target/$Target/release/beaver-notes.exe"
+          $PortableName = "Beaver Notes-$Version-portable-${{ matrix.asset_suffix }}.zip"
+          Compress-Archive -Path $Binary -DestinationPath (Join-Path $OutDir $PortableName) -Force
+
+      # Ship each platform's files to the publish job
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish draft release
+    needs:
+      - validate
+      - desktop
+    runs-on: ubuntu-latest
+
+    steps:
+      # Gather all artifacts from every build job
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+          merge-multiple: true
+
+      # Helpful when checking exactly what made it into the draft release
+      - name: Inspect downloaded artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -R dist-artifacts
+
+      # Create or update the GitHub draft release with everything attached
+      - name: Create or update draft release
         uses: softprops/action-gh-release@v2
         with:
-          files: signed/*
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          name: Beaver Notes ${{ needs.validate.outputs.version }}
+          draft: true
+          prerelease: false
+          files: dist-artifacts/*
+          fail_on_unmatched_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN }}
-
-      - name: Clean up keychain
-        if: matrix.os == 'macos-latest'
-        run: |
-          security delete-keychain $RUNNER_TEMP/app-signing.keychain-db
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
