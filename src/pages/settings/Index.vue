@@ -70,35 +70,6 @@
             </div>
           </div>
         </div>
-      </div>
-    </section>
-    <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
-        {{ translations.settings.utilities || 'Behavior' }}
-      </p>
-      <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
-      >
-        <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
-        >
-          <div class="min-w-0 flex-1">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.settings.spellCheck || 'Spell check' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Underline spelling errors in the editor as you type.
-            </p>
-          </div>
-          <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
-        </div>
-
         <div
           class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
         >
@@ -117,7 +88,17 @@
           </div>
           <ui-switch v-model="autoSync" @change="handleAutoSyncChange" />
         </div>
-
+      </div>
+    </section>
+    <section class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
+      >
+        {{ translations.settings.behavior || 'Behavior' }}
+      </p>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
         <div
           class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
         >
@@ -170,6 +151,23 @@
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
       >
+        <div
+          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings.spellCheck || 'Spell check' }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Underline spelling errors in the editor as you type.
+            </p>
+          </div>
+          <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
+        </div>
         <div
           class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
         >
