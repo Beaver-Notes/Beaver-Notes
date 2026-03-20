@@ -39,6 +39,7 @@ import {
   getCurrentInstance,
 } from 'vue';
 import mime from 'mime';
+import dayjs from '@/lib/dayjs';
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
@@ -361,6 +362,31 @@ export default {
             .run();
         },
       },
+      {
+        icon: 'riCalendarLine',
+        name: 'todayDate',
+        action: () => {
+          const customFormat =
+            localStorage.getItem('todayDateFormat') || 'DD-MM-YYYY';
+          props.editor
+            .chain()
+            .focus()
+            .insertContent(dayjs().format(customFormat))
+            .run();
+        },
+      },
+      {
+        icon: 'riTimerLine',
+        name: 'currentTime',
+        action: () => {
+          const customFormat = localStorage.getItem('timeFormat') || 'HH:mm';
+          props.editor
+            .chain()
+            .focus()
+            .insertContent(dayjs().format(customFormat))
+            .run();
+        },
+      },
     ]);
 
     const showInput = () => {
@@ -422,14 +448,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-/* Hide scrollbar but keep scroll working */
-.no-scrollbar {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE and Edge */
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none !important; /* Chrome, Safari */
-}
-</style>

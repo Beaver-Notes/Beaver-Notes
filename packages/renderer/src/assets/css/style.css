@@ -9,10 +9,11 @@
 body {
   position: relative;
   font-family: var(--selected-font);
-  @apply bg-white dark:bg-neutral-800 dark:text-[color:var(--selected-dark-text)];
+  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
 }
+
 .dark * {
-  border-color: rgba(255, 255, 255, 0.1);
+  @apply border-neutral-750;
 }
 
 button,
@@ -76,4 +77,14 @@ option {
 
 .no-security-text input {
   -webkit-text-security: none !important;
+}
+
+/* Hide scrollbar but keep scroll working */
+.no-scrollbar {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari */
 }

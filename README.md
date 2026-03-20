@@ -108,6 +108,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
       <td align="center" valign="top" width="14.28%"><a href="http://rianorie.com"><img src="https://avatars.githubusercontent.com/u/2292861?v=4?s=100" width="100px;" alt="Rian Orie"/><br /><sub><b>Rian Orie</b></sub></a><br /><a href="#design-rianorie" title="Design">🎨</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://olivelton.com/links"><img src="https://avatars.githubusercontent.com/u/124373744?v=4?s=100" width="100px;" alt="Olivelton Santos"/><br /><sub><b>Olivelton Santos</b></sub></a><br /><a href="#translation-oliveltonsantos" title="Translation">🌍</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/razzeee"><img src="https://avatars.githubusercontent.com/u/5943908?v=4?s=100" width="100px;" alt="Kolja"/><br /><sub><b>Kolja</b></sub></a><br /><a href="#platform-razzeee" title="Packaging/porting to new platform">📦</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/markd91"><img src="https://avatars.githubusercontent.com/u/44508986?v=4?s=100" width="100px;" alt="markd91"/><br /><sub><b>markd91</b></sub></a><br /><a href="https://github.com/Beaver-Notes/Beaver-Notes/commits?author=markd91" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
