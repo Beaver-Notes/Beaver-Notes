@@ -6,6 +6,7 @@
     <ui-popover padding="p-3 flex flex-col print:hidden" @click.stop>
       <template #trigger>
         <button
+          type="button"
           class="transition hoverable h-10 w-10 rounded-lg flex items-center justify-center bg-neutral-100 dark:bg-neutral-700"
         >
           <span v-if="folder.icon" class="text-2xl select-none">{{

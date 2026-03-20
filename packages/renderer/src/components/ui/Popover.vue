@@ -75,7 +75,7 @@ export default {
 
     onMounted(() => {
       const target = props.to
-        ? typeof to === 'string'
+        ? typeof props.to === 'string'
           ? document.querySelector(props.to)
           : props.to
         : targetEl.value;
