@@ -700,6 +700,8 @@ pub(crate) fn content_type_for_path(path: &Path) -> &'static str {
     "mp3" => "audio/mpeg",
     "wav" => "audio/wav",
     "ogg" => "audio/ogg",
+    "m4a" => "audio/mp4",
+    "aac" => "audio/aac",
     "mp4" => "video/mp4",
     "webm" => "video/webm",
     "json" => "application/json",

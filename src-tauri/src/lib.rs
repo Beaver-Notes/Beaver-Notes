@@ -35,6 +35,7 @@ pub fn run() {
         .plugin(updater.build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        .plugin(tauri_plugin_audio_recorder::init())
         .manage(state);
 
     #[cfg(mobile)]

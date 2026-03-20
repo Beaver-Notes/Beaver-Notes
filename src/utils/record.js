@@ -1,5 +1,13 @@
 import { ref, computed, onUnmounted } from 'vue';
-import RecordRTC from 'recordrtc';
+import {
+  checkPermission,
+  getStatus,
+  pauseRecording,
+  requestPermission,
+  resumeRecording,
+  startRecording,
+  stopRecording,
+} from 'tauri-plugin-audio-recorder-api';
 
 function useAudioRecorder(props, backend, storage, path) {
   const isRecording = ref(false);
@@ -7,12 +15,7 @@ function useAudioRecorder(props, backend, storage, path) {
   const minutes = ref(0);
   const seconds = ref(0);
 
-  let recorder = null;
-  let stream = null;
-  let recordingInterval = null;
-  let recordingStartTime = null;
-  let totalPausedTime = 0;
-  let pauseStartTime = null;
+  let statusInterval = null;
 
   const formattedTime = computed(() => {
     return `${String(minutes.value).padStart(2, '0')}:${String(
@@ -20,124 +23,137 @@ function useAudioRecorder(props, backend, storage, path) {
     ).padStart(2, '0')}`;
   });
 
-  function generateRandomFilename(extension = 'ogg') {
-    const randomString = Math.random().toString(36).substring(2, 15);
+  function generateRecordingStem() {
+    const randomString = Math.random().toString(36).slice(2, 15);
     const timestamp = Date.now();
-    return `${timestamp}_${randomString}.${extension}`;
+    return `${timestamp}_${randomString}`;
   }
 
-  function updateElapsedTime() {
-    if (isRecording.value && !isPaused.value) {
-      const now = Date.now();
-      const rawElapsedTime = now - recordingStartTime - totalPausedTime;
-      const elapsedSeconds = Math.floor(rawElapsedTime / 1000);
-      minutes.value = Math.floor(elapsedSeconds / 60);
-      seconds.value = elapsedSeconds % 60;
+  function setElapsedTime(durationMs = 0) {
+    const elapsedSeconds = Math.max(
+      0,
+      Math.floor(Number(durationMs || 0) / 1000)
+    );
+    minutes.value = Math.floor(elapsedSeconds / 60);
+    seconds.value = elapsedSeconds % 60;
+  }
+
+  function resetState() {
+    isRecording.value = false;
+    isPaused.value = false;
+    setElapsedTime(0);
+  }
+
+  function stopStatusPolling() {
+    if (statusInterval) {
+      clearInterval(statusInterval);
+      statusInterval = null;
     }
+  }
+
+  function startStatusPolling() {
+    stopStatusPolling();
+    statusInterval = setInterval(async () => {
+      try {
+        const status = await getStatus();
+        isRecording.value = status.state !== 'idle';
+        isPaused.value = status.state === 'paused';
+        setElapsedTime(status.durationMs);
+
+        if (status.state === 'idle') {
+          stopStatusPolling();
+        }
+      } catch (error) {
+        console.error('Failed to read recorder status.', error);
+        stopStatusPolling();
+      }
+    }, 250);
+  }
+
+  async function ensurePermission() {
+    const permission = await checkPermission();
+    if (permission?.granted) return true;
+
+    if (!permission?.canRequest) return false;
+
+    const requested = await requestPermission();
+    return Boolean(requested?.granted);
   }
 
   async function toggleRecording() {
     if (isRecording.value) {
-      recorder.stopRecording(async () => {
-        const blob = recorder.getBlob();
-        const filename = generateRandomFilename('ogg');
-        await handleBlob(blob, filename);
-        cleanup();
-      });
-      isRecording.value = false;
-      isPaused.value = false;
-      clearInterval(recordingInterval);
-      recordingInterval = null;
-
-      // Reset timing variables
-      recordingStartTime = null;
-      totalPausedTime = 0;
-      pauseStartTime = null;
-      minutes.value = 0;
-      seconds.value = 0;
-    } else {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: false,
-        });
-        recorder = RecordRTC(stream, {
-          type: 'audio',
-          mimeType: 'audio/ogg',
-          recorderType: RecordRTC.StereoAudioRecorder,
-        });
-        recorder.startRecording();
-        isRecording.value = true;
-        isPaused.value = false;
+        const result = await stopRecording();
+        stopStatusPolling();
+        resetState();
 
-        // Initialize timing variables
-        recordingStartTime = Date.now();
-        totalPausedTime = 0;
-        pauseStartTime = null;
-
-        recordingInterval = setInterval(updateElapsedTime, 1000);
-      } catch (err) {
-        console.error('Error accessing media devices.', err);
+        if (result?.filePath) {
+          const filename = path.basename(result.filePath);
+          const audioPath = `file-assets://${props.id}/${filename}`;
+          props.editor.commands.setAudio(audioPath);
+        }
+      } catch (error) {
+        console.error('Failed to stop recording.', error);
       }
+      return;
     }
-  }
 
-  function pauseResume() {
-    if (!recorder || !isRecording.value) return;
-
-    if (isPaused.value) {
-      // Resuming - calculate how long we were paused and add to total
-      if (pauseStartTime) {
-        totalPausedTime += Date.now() - pauseStartTime;
-        pauseStartTime = null;
+    try {
+      const hasPermission = await ensurePermission();
+      if (!hasPermission) {
+        console.error('Microphone permission denied.');
+        return;
       }
-      recorder.resumeRecording();
+
+      const dataDir = await storage.get('dataDir');
+      const assetsPath = path.join(dataDir, 'file-assets', props.id);
+      await backend.invoke('fs:ensureDir', assetsPath);
+
+      await startRecording({
+        outputPath: path.join(assetsPath, generateRecordingStem()),
+        quality: 'medium',
+        maxDuration: 0,
+      });
+
+      isRecording.value = true;
       isPaused.value = false;
-    } else {
-      // Pausing - mark when we started the pause
-      pauseStartTime = Date.now();
-      recorder.pauseRecording();
-      isPaused.value = true;
+      setElapsedTime(0);
+      startStatusPolling();
+    } catch (error) {
+      console.error('Failed to start recording.', error);
+      resetState();
+      stopStatusPolling();
     }
   }
 
-  async function handleBlob(blob, filename) {
-    const dataDir = await storage.get('dataDir');
-    const assetsPath = path.join(dataDir, 'file-assets', props.id);
-    await backend.invoke('fs:ensureDir', assetsPath);
-    const destPath = path.join(assetsPath, filename);
-    const contentUint8Array = await readFile(blob);
-    await backend.invoke('fs:writeFile', {
-      path: destPath,
-      data: contentUint8Array,
-    });
-    const audioPath = `file-assets://${props.id}/${filename}`;
-    props.editor.commands.setAudio(audioPath);
-  }
+  async function pauseResume() {
+    if (!isRecording.value) return;
 
-  function readFile(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(new Uint8Array(reader.result));
-      reader.onerror = reject;
-      reader.readAsArrayBuffer(blob);
-    });
+    try {
+      if (isPaused.value) {
+        await resumeRecording();
+        isPaused.value = false;
+      } else {
+        await pauseRecording();
+        isPaused.value = true;
+      }
+    } catch (error) {
+      console.error('Failed to change recording state.', error);
+    }
   }
 
   function cleanup() {
-    if (recordingInterval) clearInterval(recordingInterval);
-    if (recorder) {
-      if (recorder.stream) {
-        recorder.stream.getTracks().forEach((track) => track.stop());
-        recorder.stream = null;
-      }
-      if (typeof recorder.destroy === 'function') recorder.destroy();
-      recorder = null;
-    }
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      stream = null;
-    }
+    stopStatusPolling();
+    void getStatus()
+      .then((status) => {
+        if (status.state !== 'idle') {
+          return stopRecording().catch(() => {});
+        }
+        return null;
+      })
+      .finally(() => {
+        resetState();
+      });
   }
 
   onUnmounted(cleanup);

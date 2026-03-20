@@ -83,19 +83,36 @@ export function useAppShell() {
   const showMobileNavbar = computed(
     () => showSidebar.value && route.name !== 'Note'
   );
+  const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const useMobileBottomDockSpacing = computed(
-    () => backend.isMobileRuntime() && showMobileNavbar.value
+    () => isMobileRuntime.value && showMobileNavbar.value
   );
-  const mainStyle = computed(() =>
-    useMobileBottomDockSpacing.value
-      ? { paddingBottom: 'var(--app-mobile-content-offset)' }
-      : undefined
-  );
-  const bottomBannerStyle = computed(() =>
-    useMobileBottomDockSpacing.value
-      ? { bottom: 'var(--app-mobile-floating-offset)' }
-      : undefined
-  );
+  const mainStyle = computed(() => {
+    if (!isMobileRuntime.value) return undefined;
+
+    return {
+      paddingTop: 'var(--app-safe-area-top)',
+      paddingBottom: useMobileBottomDockSpacing.value
+        ? 'var(--app-mobile-content-offset)'
+        : 'var(--app-safe-area-bottom)',
+    };
+  });
+  const bottomBannerStyle = computed(() => {
+    if (!isMobileRuntime.value) return undefined;
+
+    return {
+      bottom: useMobileBottomDockSpacing.value
+        ? 'var(--app-mobile-floating-offset)'
+        : 'var(--app-safe-area-bottom)',
+    };
+  });
+  const mobileNavbarStyle = computed(() => {
+    if (!isMobileRuntime.value || !showMobileNavbar.value) return undefined;
+
+    return {
+      bottom: 'var(--app-safe-area-bottom)',
+    };
+  });
 
   let removeRouteGuard = null;
   let removeBeforeRouteGuard = null;
@@ -106,7 +123,7 @@ export function useAppShell() {
   watch(
     showMobileNavbar,
     (visible) => {
-      if (typeof document === 'undefined' || !backend.isMobileRuntime()) return;
+      if (typeof document === 'undefined' || !isMobileRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-mobile-dock-height-active',
         visible ? 'var(--app-mobile-dock-height)' : '0px'
@@ -117,6 +134,44 @@ export function useAppShell() {
 
   const getTopLevelRouteKey = (viewRoute) =>
     viewRoute?.fullPath || viewRoute?.path || route.fullPath;
+
+  const initializeSafeAreaInsets = async () => {
+    if (!isMobileRuntime.value) return;
+
+    try {
+      const { getTopInset, getBottomInset, onKeyboardShown, onKeyboardHidden } =
+        await import('@saurl/tauri-plugin-safe-area-insets-css-api');
+
+      const topInset = await getTopInset();
+      const bottomInset = await getBottomInset();
+      const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
+
+      document.documentElement.style.setProperty(
+        '--safe-area-inset-top',
+        `${topInset?.inset ?? 0}px`
+      );
+      document.documentElement.style.setProperty(
+        '--safe-area-inset-bottom',
+        bottomInsetValue
+      );
+
+      await onKeyboardShown(() => {
+        document.documentElement.style.setProperty(
+          '--safe-area-inset-bottom',
+          '0px'
+        );
+      });
+
+      await onKeyboardHidden(() => {
+        document.documentElement.style.setProperty(
+          '--safe-area-inset-bottom',
+          bottomInsetValue
+        );
+      });
+    } catch (error) {
+      console.warn('Safe area inset CSS plugin failed to initialize:', error);
+    }
+  };
 
   const setZoom = (newZoomLevel) => {
     state.zoomLevel = setStoredZoomLevel(newZoomLevel, {
@@ -264,6 +319,7 @@ export function useAppShell() {
 
     try {
       await backend.invoke('app-ready');
+      await initializeSafeAreaInsets();
     } catch (error) {
       console.error(
         'Error notifying the Tauri backend that the app is ready:',
@@ -340,6 +396,7 @@ export function useAppShell() {
     handleUpdateDismiss,
     handleUpdateInstall,
     mainStyle,
+    mobileNavbarStyle,
     openSyncSettings,
     retrieved,
     showMobileNavbar,

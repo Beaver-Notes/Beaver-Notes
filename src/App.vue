@@ -1,6 +1,12 @@
 <template>
   <app-command-prompt />
-  <app-navbar v-show="showMobileNavbar" class="block md:hidden" />
+  <div
+    v-show="showMobileNavbar"
+    class="fixed inset-x-0 z-40 flex justify-center px-4 no-print block md:hidden"
+    :style="mobileNavbarStyle"
+  >
+    <app-navbar />
+  </div>
   <app-sidebar v-show="showSidebar" class="hidden md:flex" />
   <div
     v-show="store.inReaderMode"
@@ -10,7 +16,6 @@
   <div
     v-show="updateBanner.show"
     class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
-    :style="bottomBannerStyle"
   >
     <ui-banner
       :content="updateBanner.content"

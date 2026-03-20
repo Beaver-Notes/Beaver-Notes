@@ -685,6 +685,13 @@
   resolved "https://registry.yarnpkg.com/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.59.0.tgz#4584a8a87b29188a4c1fe987a9fcf701e256d86c"
   integrity sha512-2HRCml6OztYXyJXAvdDXPKcawukWY2GpR5/nxKp4iBgiO3wcoEGkAaqctIbZcNB6KlUQBIqt8VYkNSj2397EfA==
 
+"@saurl/tauri-plugin-safe-area-insets-css-api@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@saurl/tauri-plugin-safe-area-insets-css-api/-/tauri-plugin-safe-area-insets-css-api-0.1.0.tgz#68a3e36afa1aca81b983fae92806a8a74d21df8b"
+  integrity sha512-cZbOexV7OSBvgGECrqInA7daoCRLG5wGcUy/zrRIDaqXVKP6THdLWwsC5Ho6UD0lsxr8O4+zd1PPFJwrlHxTYg==
+  dependencies:
+    "@tauri-apps/api" "^2.5.0"
+
 "@sereneinserenade/tiptap-search-and-replace@^0.1.1":
   version "0.1.1"
   resolved "https://registry.yarnpkg.com/@sereneinserenade/tiptap-search-and-replace/-/tiptap-search-and-replace-0.1.1.tgz#7f73ce1b80f2bd067829858dfb08aa8baa5254ae"
@@ -697,7 +704,7 @@
   dependencies:
     postcss-selector-parser "6.0.10"
 
-"@tauri-apps/api@^2", "@tauri-apps/api@^2.0.0", "@tauri-apps/api@^2.8.0", "@tauri-apps/api@^2.9.1":
+"@tauri-apps/api@^2", "@tauri-apps/api@^2.0.0", "@tauri-apps/api@^2.5.0", "@tauri-apps/api@^2.8.0", "@tauri-apps/api@^2.9.1":
   version "2.10.1"
   resolved "https://registry.yarnpkg.com/@tauri-apps/api/-/api-2.10.1.tgz#57c1bae6114ec33d977eb2b50dfefc25fa84fc93"
   integrity sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==
@@ -4199,10 +4206,10 @@ tauri-plugin-audio-recorder-api@^0.1.0:
   dependencies:
     "@tauri-apps/api" "^2.9.1"
 
-tauri-plugin-scoped-storage-api@0.1.2:
-  version "0.1.2"
-  resolved "https://registry.yarnpkg.com/tauri-plugin-scoped-storage-api/-/tauri-plugin-scoped-storage-api-0.1.2.tgz#8740320d820d2021d620903d7c2a79526f467005"
-  integrity sha512-sr75OPmut8eluutSEIfq5yqwMLldY6TTH6xQRDmTfuz6zcvGO2RulPxRg6sar4pynNL1WcXnjS1EfozdYC2CwA==
+tauri-plugin-scoped-storage-api@^0.1.3:
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/tauri-plugin-scoped-storage-api/-/tauri-plugin-scoped-storage-api-0.1.3.tgz#c83134e3add724381f7d9e93ecf39f8e82ce761d"
+  integrity sha512-RnvmoLYq2eCf9U/8+MYbt37da8kCJQTWinqo3rztCwwSbeyXlMDz/J2QTXun3Zsi1Toa2CaZ/yIWgBm7rwXWQg==
   dependencies:
     "@tauri-apps/api" "^2.0.0"
 

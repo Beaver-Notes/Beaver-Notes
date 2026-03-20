@@ -1,54 +1,30 @@
 <template>
-  <nav class="fixed inset-x-0 z-40 flex justify-center px-4 no-print bottom-0">
-    <div class="flex max-w-[32rem] items-end gap-3">
+  <nav class="w-full">
+    <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <div
-        class="flex items-center rounded-full border border-white/45 bg-white/75 p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:border-white/10 dark:bg-neutral-900/80 dark:text-neutral-300 dark:shadow-xl"
+        class="flex items-center rounded-full border bg-white/75 p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:bg-neutral-900/80 dark:text-neutral-300 dark:shadow-xl"
       >
-        <div class="flex items-center gap-1.5">
+        <div ref="navRailRef" class="relative flex items-center gap-1.5">
+          <div
+            class="pointer-events-none absolute inset-y-0 rounded-full bg-primary/15 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-white/60 transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-primary/20 dark:ring-white/10"
+            :style="activePillStyle"
+          />
           <button
-            v-tooltip:right="
-              translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
-            "
-            class="flex h-[2.9rem] w-[2.9rem] items-center justify-center rounded-full text-inherit transition-[background-color,color,transform] duration-200 ease-out active:bg-white/50 active:text-neutral-900 dark:active:bg-white/10 dark:active:text-neutral-100"
-            :class="{
-              'bg-primary/15 text-primary dark:bg-primary/20':
-                $route.name === 'Note',
-            }"
-            @click="openLastEdited"
-          >
-            <v-remixicon name="riEditLine" size="22" />
-          </button>
-
-          <button
-            v-for="nav in navs"
+            v-for="nav in navItems"
             :key="nav.name"
             v-tooltip:right="
               `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
             "
             :data-testid="getNavTestId(nav.path)"
-            class="flex h-[2.9rem] w-[2.9rem] items-center justify-center rounded-full text-inherit transition-[background-color,color,transform] duration-200 ease-out active:bg-white/50 active:text-neutral-900 dark:active:bg-white/10 dark:active:text-neutral-100"
+            :ref="(element) => setNavItemRef(nav.path, element)"
+            class="relative z-10 flex h-12 w-16 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97]"
             :class="{
-              'bg-primary/15 text-primary dark:bg-primary/20':
-                $route.fullPath === nav.path,
+              'text-primary': isActivePath(nav.path),
             }"
             @click="handleNavigation(nav)"
           >
             <v-remixicon :name="nav.icon" size="22" />
           </button>
-
-          <router-link
-            v-tooltip:right="
-              translations.settings.title + ' (' + keyBinding + '+,)'
-            "
-            to="/settings"
-            class="flex h-[2.9rem] w-[2.9rem] items-center justify-center rounded-full text-inherit transition-[background-color,color,transform] duration-200 ease-out active:bg-white/50 active:text-neutral-900 dark:active:bg-white/10 dark:active:text-neutral-100"
-            :class="{
-              'bg-primary/15 text-primary dark:bg-primary/20':
-                $route.path === '/settings',
-            }"
-          >
-            <v-remixicon name="riSettingsLine" size="22" />
-          </router-link>
         </div>
       </div>
       <button
@@ -56,7 +32,7 @@
           translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
         "
         data-testid="add-note-button"
-        class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all hover:bg-primary/90 dark:bg-primary/50 dark:hover:bg-primary/60"
+        class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
         @click="addNote"
       >
         <v-remixicon name="riAddFill" size="24" />
@@ -66,7 +42,16 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, onUnmounted, computed, ref } from 'vue';
+import {
+  shallowReactive,
+  onMounted,
+  onUnmounted,
+  computed,
+  ref,
+  reactive,
+  watch,
+  nextTick,
+} from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter, useRoute } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
@@ -86,6 +71,13 @@ export default {
     const defaultPath = localStorage.getItem('default-path');
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
+    const navRailRef = ref(null);
+    const navItemRefs = new Map();
+    const activePill = reactive({
+      width: 0,
+      x: 0,
+      visible: false,
+    });
 
     const state = shallowReactive({
       dataDir: '',
@@ -95,7 +87,7 @@ export default {
       lastUpdated: null,
     });
 
-    const navs = computed(() => [
+    const navItems = computed(() => [
       {
         name: translations.value.sidebar.notes,
         path: '/',
@@ -109,6 +101,13 @@ export default {
         icon: 'riArchiveDrawerLine',
         shortcut: 'mod+Shift+A',
         action: () => router.push('/?archived=true'),
+      },
+      {
+        name: translations.value.settings.title,
+        path: '/settings',
+        icon: 'riSettingsLine',
+        shortcut: 'mod+,',
+        action: () => router.push('/settings'),
       },
     ]);
 
@@ -181,6 +180,9 @@ export default {
           return shortcuts[combo]();
         },
       });
+
+      void updateActivePill();
+      window.addEventListener('resize', updateActivePill);
     });
 
     onUnmounted(() => {
@@ -188,8 +190,68 @@ export default {
       emitter.off('new-folder', addFolder);
       emitter.off('open-settings', openSettings);
       removeGlobalShortcuts();
+      window.removeEventListener('resize', updateActivePill);
+      navItemRefs.clear();
       state.dataDir = defaultPath;
     });
+
+    watch(
+      () => route.fullPath,
+      () => {
+        void updateActivePill();
+      },
+      { flush: 'post' }
+    );
+
+    watch(
+      navItems,
+      () => {
+        void updateActivePill();
+      },
+      { flush: 'post' }
+    );
+
+    function getActiveNavPath() {
+      if (route.path.startsWith('/settings')) return '/settings';
+      if (route.query.archived === 'true') return '/?archived=true';
+      return '/';
+    }
+
+    function isActivePath(path) {
+      return getActiveNavPath() === path;
+    }
+
+    function setNavItemRef(path, element) {
+      if (!element) {
+        navItemRefs.delete(path);
+        return;
+      }
+
+      navItemRefs.set(path, element);
+    }
+
+    async function updateActivePill() {
+      await nextTick();
+
+      const activePath = getActiveNavPath();
+      const activeElement = activePath ? navItemRefs.get(activePath) : null;
+      const railElement = navRailRef.value;
+
+      if (!activeElement || !railElement) {
+        activePill.visible = false;
+        return;
+      }
+
+      activePill.width = activeElement.offsetWidth;
+      activePill.x = activeElement.offsetLeft;
+      activePill.visible = true;
+    }
+
+    const activePillStyle = computed(() => ({
+      width: `${activePill.width}px`,
+      transform: `translate3d(${activePill.x}px, 0, 0)`,
+      opacity: activePill.visible ? 1 : 0,
+    }));
 
     const handleNavigation = async (nav) => {
       router.push(nav.path);
@@ -203,7 +265,7 @@ export default {
     }
 
     return {
-      navs,
+      navItems,
       translations,
       currentFolderId,
       addNote,
@@ -213,6 +275,10 @@ export default {
       keyBinding,
       handleNavigation,
       getNavTestId,
+      isActivePath,
+      setNavItemRef,
+      navRailRef,
+      activePillStyle,
     };
   },
 };

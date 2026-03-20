@@ -18,7 +18,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-fs = "2"
-tauri-plugin-scoped-storage = "0.1.2"
+tauri-plugin-scoped-storage = "0.1.3"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -26,6 +26,7 @@ tauri-plugin-store = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-os = "2"
 tauri-plugin-clipboard-manager = "2"
+tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-stronghold = "2"
 tauri-plugin-safe-area-insets-css = "0.2"
