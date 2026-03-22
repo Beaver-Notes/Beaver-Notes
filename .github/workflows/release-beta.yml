@@ -1,0 +1,321 @@
+name: Release Beta
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'beta-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-beta
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '22'
+  BETA_TAG: beta
+
+jobs:
+  validate:
+    name: Validate beta versions
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare yarn@stable --activate
+
+      - name: Read version from package.json
+        id: version
+        shell: bash
+        run: |
+          echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Fail on version drift
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          TAURI_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('./src-tauri/tauri.beta.conf.json', 'utf8')).version)")"
+          CARGO_VERSION="$(node - <<'NODE'
+          const fs = require('fs');
+          const txt = fs.readFileSync('./src-tauri/Cargo.toml', 'utf8');
+          const m = txt.match(/^\s*version\s*=\s*"(.*?)"/m);
+          console.log(m ? m[1] : '');
+          NODE
+          )"
+
+          echo "package.json: $PKG_VERSION"
+          echo "tauri.beta.conf.json: $TAURI_VERSION"
+          echo "Cargo.toml: $CARGO_VERSION"
+
+          test "$PKG_VERSION" = "$TAURI_VERSION"
+          test "$PKG_VERSION" = "$CARGO_VERSION"
+
+  desktop:
+    name: Build beta ${{ matrix.id }}
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: macos-universal
+            runner: macos-latest
+            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
+            tauri_target: 'universal-apple-darwin'
+            bundle_args: '--bundles app,dmg'
+            asset_suffix: 'macos-universal'
+          - id: linux-x64
+            runner: ubuntu-24.04
+            rust_targets: 'x86_64-unknown-linux-gnu'
+            tauri_target: 'x86_64-unknown-linux-gnu'
+            bundle_args: '--bundles appimage,deb,rpm'
+            asset_suffix: 'linux-x64'
+          - id: linux-arm64
+            runner: ubuntu-24.04-arm
+            rust_targets: 'aarch64-unknown-linux-gnu'
+            tauri_target: 'aarch64-unknown-linux-gnu'
+            bundle_args: '--bundles appimage,deb,rpm'
+            asset_suffix: 'linux-arm64'
+          - id: windows-x64
+            runner: windows-latest
+            rust_targets: 'x86_64-pc-windows-msvc'
+            tauri_target: 'x86_64-pc-windows-msvc'
+            bundle_args: '--bundles nsis'
+            asset_suffix: 'windows-x64'
+          - id: windows-arm64
+            runner: windows-11-arm
+            rust_targets: 'aarch64-pc-windows-msvc'
+            tauri_target: 'aarch64-pc-windows-msvc'
+            bundle_args: '--bundles nsis'
+            asset_suffix: 'windows-arm64'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node with Yarn cache
+        if: ${{ !env.ACT }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
+
+      - name: Setup Node without cache
+        if: ${{ env.ACT }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Enable Corepack
+        shell: bash
+        run: |
+          corepack enable
+          corepack prepare yarn@stable --activate
+          yarn --version
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Rust cache
+        if: ${{ !env.ACT }}
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            src-tauri -> target
+
+      - name: Install Linux dependencies
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils \
+            gnupg
+
+      - name: Install JS dependencies
+        shell: bash
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Import Linux GPG key
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "${{ secrets.LINUX_GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --list-secret-keys --keyid-format LONG
+
+      - name: Build macOS beta bundles
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        env:
+          CI: 'true'
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          yarn tauri build \
+            --config src-tauri/tauri.beta.conf.json \
+            --target "${{ matrix.tauri_target }}" \
+            ${{ matrix.bundle_args }} \
+            --ci
+
+      - name: Build Linux beta bundles
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        env:
+          CI: 'true'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          SIGN: '1'
+          SIGN_KEY: ${{ secrets.LINUX_GPG_KEY_ID }}
+          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
+          APPIMAGETOOL_FORCE_SIGN: '1'
+          TAURI_SIGNING_RPM_KEY: ${{ secrets.TAURI_SIGNING_RPM_KEY }}
+          TAURI_SIGNING_RPM_KEY_PASSPHRASE: ${{ secrets.TAURI_SIGNING_RPM_KEY_PASSPHRASE }}
+        run: |
+          yarn tauri build \
+            --config src-tauri/tauri.beta.conf.json \
+            --target "${{ matrix.tauri_target }}" \
+            ${{ matrix.bundle_args }} \
+            --ci
+
+      - name: Build Windows beta bundles
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: bash
+        env:
+          CI: 'true'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          yarn tauri build \
+            --config src-tauri/tauri.beta.conf.json \
+            --target "${{ matrix.tauri_target }}" \
+            ${{ matrix.bundle_args }} \
+            --ci \
+            --no-sign
+
+      - name: Stage macOS beta assets
+        if: ${{ matrix.id == 'macos-universal' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TARGET="${{ matrix.tauri_target }}"
+          OUT="release-assets"
+          mkdir -p "$OUT"
+
+          find "src-tauri/target/${TARGET}/release/bundle" -type f \
+            \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.sig" -o -name "latest.json" \) \
+            -exec cp {} "$OUT"/ \;
+
+      - name: Stage Linux beta assets
+        if: ${{ startsWith(matrix.id, 'linux-') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ needs.validate.outputs.version }}"
+          TARGET="${{ matrix.tauri_target }}"
+          OUT="release-assets"
+          BIN_NAME="beaver-notes"
+          BIN_PATH="src-tauri/target/${TARGET}/release/${BIN_NAME}"
+          TAR_NAME="Beaver Notes Beta-${VERSION}-${{ matrix.asset_suffix }}.tar.gz"
+
+          mkdir -p "$OUT"
+
+          find "src-tauri/target/${TARGET}/release/bundle" -type f \
+            \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.sig" -o -name "latest.json" \) \
+            -exec cp {} "$OUT"/ \;
+
+          mkdir -p portable-root
+          cp "$BIN_PATH" portable-root/
+          tar -czf "$OUT/$TAR_NAME" -C portable-root .
+
+      - name: Stage Windows beta assets
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $Version = "${{ needs.validate.outputs.version }}"
+          $Target = "${{ matrix.tauri_target }}"
+          $OutDir = "release-assets"
+          New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+
+          Get-ChildItem "src-tauri/target/$Target/release/bundle" -Recurse -File |
+            Where-Object { $_.Extension -in ".exe", ".msi", ".sig", ".json", ".zip" } |
+            ForEach-Object { Copy-Item $_.FullName -Destination $OutDir -Force }
+
+          $Binary = "src-tauri/target/$Target/release/beaver-notes.exe"
+          $PortableName = "Beaver Notes Beta-$Version-portable-${{ matrix.asset_suffix }}.zip"
+          Compress-Archive -Path $Binary -DestinationPath (Join-Path $OutDir $PortableName) -Force
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-${{ matrix.id }}
+          path: release-assets/*
+          if-no-files-found: error
+
+  publish:
+    name: Publish beta prerelease
+    needs:
+      - validate
+      - desktop
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-artifacts
+          merge-multiple: true
+
+      - name: Inspect downloaded artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -R dist-artifacts
+
+      - name: Create or update beta prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.BETA_TAG }}
+          name: Beaver Notes Beta ${{ needs.validate.outputs.version }}
+          draft: false
+          prerelease: true
+          files: dist-artifacts/*
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
