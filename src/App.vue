@@ -2,12 +2,12 @@
   <app-command-prompt />
   <div
     v-show="showMobileNavbar"
-    class="fixed inset-x-0 z-40 flex justify-center px-4 no-print block md:hidden"
+    class="fixed inset-x-0 z-40 flex justify-center px-4 no-print mobile:block hidden"
     :style="mobileNavbarStyle"
   >
     <app-navbar />
   </div>
-  <app-sidebar v-show="showSidebar" class="hidden md:flex" />
+  <app-sidebar v-show="showSidebar" class="mobile:hidden" />
   <div
     v-show="store.inReaderMode"
     class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
@@ -44,7 +44,7 @@
   <main
     v-if="retrieved"
     data-testid="app-main"
-    :class="{ 'md:pl-16 print:p-2': showSidebar }"
+    :class="{ 'pl-16 mobile:pl-0 print:p-2': showSidebar }"
     :style="mainStyle"
   >
     <div class="route-stage">

@@ -3,9 +3,16 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import compsUi from './lib/comps-ui';
+import { backend } from './lib/tauri-bridge';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
+
+const isMobileRuntime = backend.isMobileRuntime();
+document.documentElement.classList.toggle('runtime-mobile', isMobileRuntime);
+document.documentElement.dataset.runtime = isMobileRuntime
+  ? 'mobile'
+  : 'desktop';
 
 const app = createApp(App);
 

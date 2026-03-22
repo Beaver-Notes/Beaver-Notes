@@ -33,11 +33,27 @@ export function useSelection({ suppressNextClick } = {}) {
   const selectionEnd = ref({ x: 0, y: 0 });
 
   const selectionBoxStyle = computed(() => {
-    const left = Math.min(selectionStart.value.x, selectionEnd.value.x);
-    const top = Math.min(selectionStart.value.y, selectionEnd.value.y);
-    const width = Math.abs(selectionEnd.value.x - selectionStart.value.x);
-    const height = Math.abs(selectionEnd.value.y - selectionStart.value.y);
+    // Use document-relative coordinates (clientY + scrollY) so the box is
+    // positioned with `position: absolute` on a body-level portal element.
+    // This avoids the `position: fixed` bug where ancestors with
+    // `will-change: transform`, `isolation: isolate`, or `overflow: clip`
+    // (all present on .route-stage / .route-stage__page) create a new
+    // containing block and make `fixed` act like `absolute` relative to them.
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const scrollX = window.scrollX || document.documentElement.scrollLeft || 0;
+
+    const x1 = selectionStart.value.x + scrollX;
+    const y1 = selectionStart.value.y + scrollY;
+    const x2 = selectionEnd.value.x + scrollX;
+    const y2 = selectionEnd.value.y + scrollY;
+
+    const left = Math.min(x1, x2);
+    const top = Math.min(y1, y2);
+    const width = Math.abs(x2 - x1);
+    const height = Math.abs(y2 - y1);
+
     return {
+      position: 'absolute',
       left: `${left}px`,
       top: `${top}px`,
       width: `${width}px`,

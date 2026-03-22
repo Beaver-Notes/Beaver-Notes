@@ -5,6 +5,7 @@ import copyImage from '@/utils/copy-image';
 import { writeImageFile } from '@/utils/copy-image';
 
 const HANDLE_SIDES = ['left', 'right'];
+const IMAGE_LAYOUTS = new Set(['block', 'wrap-left', 'wrap-right']);
 
 function clampWidth(width, limits = {}) {
   const minWidth = Number.isFinite(limits.minWidth) ? limits.minWidth : 96;
@@ -19,31 +20,45 @@ function clampWidth(width, limits = {}) {
   return clampedWidth;
 }
 
-function getDefaultContainerStyle(inline, width) {
-  const baseStyle = `width: ${width || '100%'}; height: auto;`;
-  const inlineStyle = inline ? 'display: inline-block;' : '';
-  return `${baseStyle} ${inlineStyle}`.trim();
-}
-
-function getDefaultWrapperStyle(inline) {
-  return inline ? 'display: inline-block;' : 'display: block;';
-}
-
 function extractWidthFromStyle(style = '') {
   const width = style.match(/width:\s*([0-9.]+)px/);
   return width ? Number(width[1]) : null;
 }
 
-function getLayoutModeFromWrapperStyle(style = '') {
+function extractWidthValue(attrs = {}) {
+  const numericWidth = Number(attrs.width);
+
+  if (Number.isFinite(numericWidth) && numericWidth > 0) {
+    return `${numericWidth}px`;
+  }
+
+  if (!attrs.containerStyle) {
+    return null;
+  }
+
+  const width = attrs.containerStyle.match(/width:\s*([^;]+)/);
+  return width ? width[1].trim() : null;
+}
+
+function getLayoutModeFromWrapperStyle(style = '', fallback = 'block') {
   if (style.includes('float: left')) return 'wrap-left';
   if (style.includes('float: right')) return 'wrap-right';
+  if (style.includes('display: block')) return 'block';
 
-  return 'block';
+  return fallback;
+}
+
+function resolveImageLayout(attrs = {}) {
+  if (IMAGE_LAYOUTS.has(attrs.layout)) {
+    return attrs.layout;
+  }
+
+  return getLayoutModeFromWrapperStyle(attrs.wrapperStyle);
 }
 
 function applyImageAttributes(nodeAttrs, imgElement) {
   Object.entries(nodeAttrs).forEach(([key, value]) => {
-    if (key === 'containerStyle' || key === 'wrapperStyle') return;
+    if (['containerStyle', 'wrapperStyle', 'layout'].includes(key)) return;
 
     if (value === undefined || value === null) {
       imgElement.removeAttribute(key);
@@ -60,20 +75,21 @@ function applyImageAttributes(nodeAttrs, imgElement) {
 }
 
 class ImageNodeView {
-  constructor({ node, editor, getPos, inline, resizeLimits }) {
+  constructor({ node, editor, getPos, resizeLimits }) {
     this.node = node;
     this.editor = editor;
     this.getPos = getPos;
-    this.inline = inline;
     this.resizeLimits = resizeLimits;
     this.resizeState = null;
 
     this.wrapper = document.createElement('div');
     this.wrapper.className = 'bn-image-node';
+    this.wrapper.draggable = false;
     this.dom = this.wrapper;
 
     this.container = document.createElement('div');
     this.container.className = 'bn-image-frame';
+    this.container.draggable = false;
 
     this.img = document.createElement('img');
     this.img.draggable = false;
@@ -91,17 +107,20 @@ class ImageNodeView {
   }
 
   setupDOM() {
-    const wrapperStyle =
-      this.node.attrs.wrapperStyle || getDefaultWrapperStyle(this.inline);
-    const containerStyle =
-      this.node.attrs.containerStyle ||
-      getDefaultContainerStyle(this.inline, this.node.attrs.width);
+    const layout = resolveImageLayout(this.node.attrs);
+    const widthValue = extractWidthValue(this.node.attrs);
 
-    this.wrapper.setAttribute('style', wrapperStyle);
-    this.container.setAttribute('style', containerStyle);
-    this.wrapper.dataset.layout = getLayoutModeFromWrapperStyle(wrapperStyle);
+    this.wrapper.removeAttribute('style');
+    this.wrapper.dataset.layout = layout;
+    this.container.removeAttribute('style');
+    this.container.classList.toggle('has-explicit-width', Boolean(widthValue));
 
     applyImageAttributes(this.node.attrs, this.img);
+
+    if (widthValue) {
+      this.container.style.width = widthValue;
+    }
+
     this.applyResizeLimits();
   }
 
@@ -216,8 +235,8 @@ class ImageNodeView {
     });
     const nextWidthPx = `${nextWidth}px`;
 
+    this.container.classList.add('has-explicit-width');
     this.container.style.width = nextWidthPx;
-    this.img.style.width = nextWidthPx;
     this.img.setAttribute('width', String(nextWidth));
   }
 
@@ -245,8 +264,9 @@ class ImageNodeView {
     const nextAttrs = {
       ...this.node.attrs,
       width: width ?? this.node.attrs.width,
-      containerStyle: this.container.style.cssText,
-      wrapperStyle: this.wrapper.style.cssText,
+      layout: resolveImageLayout(this.node.attrs),
+      containerStyle: null,
+      wrapperStyle: null,
     };
 
     this.editor.commands.command(({ state, dispatch }) => {
@@ -363,6 +383,7 @@ const handleImagePaste = new Plugin({
 
 export default Image.extend({
   name: 'image',
+  draggable: false,
 
   addOptions() {
     return {
@@ -374,12 +395,24 @@ export default Image.extend({
   },
 
   addAttributes() {
-    const inline = this.options.inline;
-
     return {
       ...this.parent?.(),
+      layout: {
+        default: 'block',
+        rendered: false,
+        parseHTML: (element) => {
+          const layout = element.getAttribute('data-layout');
+          return IMAGE_LAYOUTS.has(layout)
+            ? layout
+            : getLayoutModeFromWrapperStyle(
+                element.getAttribute('wrapperstyle') || '',
+                'block'
+              );
+        },
+      },
       containerStyle: {
         default: null,
+        rendered: false,
         parseHTML: (element) => {
           const containerStyle = element.getAttribute('containerstyle');
 
@@ -387,15 +420,13 @@ export default Image.extend({
             return containerStyle;
           }
 
-          const width = element.getAttribute('width');
-
-          return width
-            ? getDefaultContainerStyle(inline, `${width}px`)
-            : element.style.cssText;
+          return element.style.cssText || null;
         },
       },
       wrapperStyle: {
-        default: getDefaultWrapperStyle(inline),
+        default: null,
+        rendered: false,
+        parseHTML: (element) => element.getAttribute('wrapperstyle'),
       },
     };
   },
@@ -406,7 +437,6 @@ export default Image.extend({
         node,
         editor,
         getPos: typeof getPos === 'function' ? getPos : undefined,
-        inline: this.options.inline,
         resizeLimits: {
           minWidth: this.options.minWidth,
           maxWidth: this.options.maxWidth,

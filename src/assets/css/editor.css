@@ -179,25 +179,62 @@ img.ProseMirror-selectednode {
     pointer-events: none;
     height: 0;
   }
+  & > :not(p):not(.bn-image-node) {
+    clear: both;
+  }
   .bn-image-node {
+    display: block;
+    clear: both;
+    max-width: 100%;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
     margin-top: 1em !important;
     margin-bottom: 1em !important;
-    max-width: 100%;
+    text-align: center;
+  }
+  .bn-image-node[data-layout='wrap-left'],
+  .bn-image-node[data-layout='wrap-right'] {
+    clear: none;
+    width: auto;
+    max-width: calc(100% - 1rem);
+    text-align: left;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0.35em !important;
+    margin-bottom: 0.75em !important;
+  }
+  .bn-image-node[data-layout='wrap-left'] {
+    float: left;
+    margin-right: 1rem !important;
+  }
+  .bn-image-node[data-layout='wrap-right'] {
+    float: right;
+    margin-left: 1rem !important;
   }
   .bn-image-frame {
     position: relative;
+    display: inline-block;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
     margin-top: 0 !important;
     margin-bottom: 0 !important;
     max-width: 100%;
     box-sizing: border-box;
     transition: box-shadow 180ms ease, transform 180ms ease;
+    vertical-align: top;
   }
   .bn-image-frame img {
     display: block;
-    width: 100%;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
     max-width: 100%;
     height: auto;
     @apply rounded-xl;
+  }
+  .bn-image-frame.has-explicit-width img {
+    width: 100%;
   }
   .bn-image-node.is-selected .bn-image-frame img {
     @apply ring-1 ring-primary ring-opacity-20;
@@ -253,6 +290,10 @@ img.ProseMirror-selectednode {
     float: none !important;
     clear: both !important;
     width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    text-align: center !important;
   }
 
   .ProseMirror .bn-image-node[data-layout='wrap-left'] .bn-image-frame,

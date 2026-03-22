@@ -98,44 +98,39 @@ function getFileName(src) {
   }
 }
 
-function getWidthStyle(attrs) {
-  if (attrs?.containerStyle) {
-    const width = attrs.containerStyle.match(/width:\s*([^;]+)/);
-
-    if (width) {
-      return width[1].trim();
-    }
-  }
-
-  if (attrs?.width) {
-    return `${attrs.width}px`;
-  }
-
-  return '100%';
-}
-
 function getNumericWidth(attrs) {
-  if (attrs?.containerStyle) {
-    const width = attrs.containerStyle.match(/width:\s*([0-9.]+)px/);
+  const width = Number(attrs?.width);
 
-    if (width) {
-      return Number(width[1]);
+  if (Number.isFinite(width) && width > 0) {
+    return width;
+  }
+
+  if (attrs?.containerStyle) {
+    const legacyWidth = attrs.containerStyle.match(/width:\s*([0-9.]+)px/);
+
+    if (legacyWidth) {
+      return Number(legacyWidth[1]);
     }
   }
 
-  return Number(attrs?.width) || null;
+  return null;
 }
+
 function getSuggestedWrapWidth(attrs) {
   const currentWidth = getNumericWidth(attrs);
 
   if (currentWidth) {
-    return `${Math.min(currentWidth, 420)}px`;
+    return Math.min(currentWidth, 420);
   }
 
-  return '62%';
+  return 420;
 }
 
 function getLayoutMode(attrs = {}) {
+  if (['block', 'wrap-left', 'wrap-right'].includes(attrs.layout)) {
+    return attrs.layout;
+  }
+
   const wrapperStyle = attrs.wrapperStyle || '';
 
   if (wrapperStyle.includes('float: left')) return 'wrap-left';
@@ -200,21 +195,27 @@ export default {
 
     function setLayout(mode) {
       const attrs = props.editor.getAttributes('image');
-      const width =
-        mode === 'block' ? getWidthStyle(attrs) : getSuggestedWrapWidth(attrs);
+      const nextWidth =
+        mode === 'block' ? getNumericWidth(attrs) : getSuggestedWrapWidth(attrs);
 
       const layouts = {
         block: {
-          wrapperStyle: 'display: block; clear: both;',
-          containerStyle: `width: ${width}; height: auto; margin: 0 auto;`,
+          layout: 'block',
+          width: nextWidth,
+          wrapperStyle: null,
+          containerStyle: null,
         },
         'wrap-left': {
-          wrapperStyle: 'display: block; float: left;',
-          containerStyle: `width: ${width}; height: auto; margin: 0 1rem 0.75rem 0;`,
+          layout: 'wrap-left',
+          width: nextWidth,
+          wrapperStyle: null,
+          containerStyle: null,
         },
         'wrap-right': {
-          wrapperStyle: 'display: block; float: right;',
-          containerStyle: `width: ${width}; height: auto; margin: 0 0 0.75rem 1rem;`,
+          layout: 'wrap-right',
+          width: nextWidth,
+          wrapperStyle: null,
+          containerStyle: null,
         },
       };
 
@@ -242,7 +243,6 @@ export default {
     });
 
     return {
-      translations,
       currentLayout,
       deleteTitle,
       downloadImage,
@@ -252,3 +252,11 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+@media print {
+  .no-print {
+    visibility: hidden;
+  }
+}
+</style>

@@ -18,7 +18,8 @@
         "minWidth": 600,
         "minHeight": 400,
         "decorations": true,
-        "transparent": false
+        "transparent": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {
@@ -30,9 +31,7 @@
     "createUpdaterArtifacts": true,
     "category": "Productivity",
     "icon": [
-      "../buildResources/32x32.png",
-      "../buildResources/128x128.png",
-      "../buildResources/128x128@2x.png",
+      "../buildResources/icon.png",
       "../buildResources/icon.icns",
       "../buildResources/icon.ico"
     ],

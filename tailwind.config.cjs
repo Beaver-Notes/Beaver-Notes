@@ -25,6 +25,9 @@ module.exports = {
     extend: {},
   },
   plugins: [
+    function ({ addVariant }) {
+      addVariant('mobile', '.runtime-mobile &');
+    },
     require('@tailwindcss/typography'),
     require('@eioluseyi/tailwind-fade')({
       prefix: 'eio-',

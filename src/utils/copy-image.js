@@ -1,5 +1,6 @@
 import { SHA256 } from 'crypto-es/lib/sha256';
 import { useStorage } from '@/composable/storage';
+import { isAppEncryptionEnabled } from '@/utils/appCrypto';
 import { backend, path } from '@/lib/tauri-bridge';
 
 const storage = useStorage('settings');
@@ -46,38 +47,24 @@ async function createFileName(filePath, id, timestamp) {
  * @param {string} id
  **/
 export async function writeImageFile(file, id, timestamp) {
-  try {
-    const content = await readFile(file);
-    const { fileName, destPath } = await createFileName(
-      file.name,
-      id,
-      timestamp
-    );
-    await backend.invoke('fs:writeFile', {
-      data: content,
-      path: destPath,
-    });
-    return { fileName, destPath };
-  } catch (e) {
-    console.error(e);
-  }
+  const content = await readFile(file);
+  const { fileName, destPath } = await createFileName(file.name, id, timestamp);
+  await backend.invoke('fs:writeFile', {
+    data: content,
+    path: destPath,
+    skipAssetEncryption: !isAppEncryptionEnabled(),
+  });
+  return { fileName, destPath };
 }
 
 export default async function (filePath, id, timestamp) {
-  try {
-    const { fileName, destPath } = await createFileName(
-      filePath,
-      id,
-      timestamp
-    );
+  const { fileName, destPath } = await createFileName(filePath, id, timestamp);
 
-    await backend.invoke('fs:copy', {
-      path: filePath,
-      dest: destPath,
-    });
+  await backend.invoke('fs:copy', {
+    path: filePath,
+    dest: destPath,
+    skipAssetEncryption: !isAppEncryptionEnabled(),
+  });
 
-    return { destPath, fileName };
-  } catch (error) {
-    console.error(error);
-  }
+  return { destPath, fileName };
 }

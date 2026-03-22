@@ -9,7 +9,7 @@
         (showBack && !store.inReaderMode) ||
         ($route.query.linked && !store.inReaderMode)
       "
-      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden"
+      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden mobile:hidden"
       title="Alt+Arrow left"
       @click="goBack"
     >
@@ -23,7 +23,12 @@
     </button>
 
     <template v-if="editor && !isLocked">
-      <note-menu v-bind="{ editor, id, note }" class="mb-6" />
+      <note-menu v-bind="{ editor, id, note }" class="mb-6 mobile:hidden" />
+      <note-actions-mobile class="hidden mobile:flex" />
+      <note-menu-mobile
+        v-bind="{ editor, id, note }"
+        class="hidden mobile:flex"
+      />
       <transition
         enter-active-class="transition duration-200 ease-out"
         enter-from-class="opacity-0 translate-y-4"
@@ -116,6 +121,8 @@ import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
 import { onClose } from '@/composable/onClose';
 import { debounce } from '@/utils/helper';
+import NoteMenuMobile from '@/components/note/NoteMenuMobile.vue';
+import NoteActionsMobile from '@/components/note/NoteActionsMobile.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
@@ -124,7 +131,13 @@ import { isAppEncryptedContent } from '@/utils/appCrypto';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 export default {
-  components: { NoteEditor, NoteMenu, NoteSearch },
+  components: {
+    NoteEditor,
+    NoteMenu,
+    NoteSearch,
+    NoteMenuMobile,
+    NoteActionsMobile,
+  },
   setup() {
     const store = useStore();
     const route = useRoute();

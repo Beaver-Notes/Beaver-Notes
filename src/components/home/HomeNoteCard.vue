@@ -163,7 +163,7 @@
     </div>
 
     <div
-      class="bg-neutral-500/5 dark:bg-white/5 flex z-10 items-center text-neutral-600 dark:text-neutral-200 gap-1 p-2 px-4 bottom-0"
+      class="bg-neutral-500/5 dark:bg-white/5 flex z-10 items-center text-neutral-600 dark:text-neutral-200 gap-1 p-2 px-4 bottom-0 mobile:hidden"
     >
       <button
         v-if="!note.isArchived"
@@ -232,6 +232,37 @@
         @click.stop="deleteNote(note.id)"
       >
         <v-remixicon name="riDeleteBin6Line" class="size-5" />
+      </button>
+
+      <div class="flex-grow"></div>
+
+      <p class="text-overflow text-sm opacity-70">
+        {{
+          note.isLocked
+            ? translations.card.isLocked
+            : formatDate(note.createdAt)
+        }}
+      </p>
+    </div>
+
+    <div
+      class="bg-neutral-500/5 dark:bg-white/5 flex z-10 items-center text-neutral-600 dark:text-neutral-200 gap-1 p-2 px-4 bottom-0 hidden mobile:flex"
+    >
+      <button
+        v-if="!note.isArchived"
+        v-tooltip.group="
+          note.isBookmarked
+            ? translations.card.removeBookmark
+            : translations.card.bookmark
+        "
+        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
+        :class="[note.isBookmarked ? 'text-primary' : 'hover:text-neutral-900']"
+        @click.stop="toggleBookmark(note)"
+      >
+        <v-remixicon
+          :name="note.isBookmarked ? 'riBookmarkFill' : 'riBookmarkLine'"
+          class="size-5"
+        />
       </button>
 
       <div class="flex-grow"></div>

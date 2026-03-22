@@ -561,9 +561,15 @@ pub(crate) fn current_asset_passphrase(
     return Ok(passphrase);
   }
 
-  let passphrase = keyring_entry(APP_PASSPHRASE_ACCOUNT)?.get_password().map_err(to_error)?;
-  let _ = stronghold_save_record(app, APP_PASSPHRASE_ACCOUNT, passphrase.as_bytes().to_vec());
-  Ok(passphrase)
+  match keyring_entry(APP_PASSPHRASE_ACCOUNT)?.get_password() {
+    Ok(passphrase) if !passphrase.is_empty() => {
+      let _ = stronghold_save_record(app, APP_PASSPHRASE_ACCOUNT, passphrase.as_bytes().to_vec());
+      Ok(passphrase)
+    }
+    Ok(_) => Ok(String::new()),
+    Err(keyring::Error::NoEntry) => Ok(String::new()),
+    Err(error) => Err(to_error(error)),
+  }
 }
 
 pub(crate) fn maybe_encrypt_asset(

@@ -1,4 +1,5 @@
 import { useStorage } from '@/composable/storage';
+import { isAppEncryptionEnabled } from '@/utils/appCrypto';
 import { backend, path } from '@/lib/tauri-bridge';
 
 const storage = useStorage('settings');
@@ -57,6 +58,7 @@ export async function saveFile(file, id) {
     await backend.invoke('fs:writeFile', {
       data: contentUint8Array,
       path: destPath,
+      skipAssetEncryption: !isAppEncryptionEnabled(),
     });
     return { fileName, relativePath }; // Return relative path instead of destPath
   } catch (error) {

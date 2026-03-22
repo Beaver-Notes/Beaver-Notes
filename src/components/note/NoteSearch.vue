@@ -1,12 +1,12 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-out bottom-[var(--app-mobile-floating-offset)] md:bottom-4 md:pl-16"
+    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-out bottom-4 md:pl-16 mobile:bottom-[var(--app-mobile-floating-offset)]"
   >
     <div
       class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
-      <div class="hidden md:flex items-center p-2 space-x-2">
+      <div class="flex items-center p-2 space-x-2 max-md:flex-wrap mobile:hidden">
         <!-- Regex Toggle Button -->
         <ui-button
           v-tooltip="translations.search.useRegex"
@@ -99,7 +99,7 @@
       </div>
 
       <!-- Mobile Layout -->
-      <div class="md:hidden">
+      <div class="hidden mobile:block">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
           <!-- Search Term Input -->

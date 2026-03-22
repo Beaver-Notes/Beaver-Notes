@@ -7,7 +7,7 @@
     <div
       class="note-masonry__columns"
       :style="{
-        '--note-masonry-gap': `${gapPx}px`,
+        '--note-masonry-gap': `${resolvedGap}px`,
         gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
       }"
     >
@@ -84,7 +84,7 @@ const props = defineProps({
   breakpoints: {
     type: Array,
     default: () => [
-      { min: 0, cols: 1 },
+      { min: 0, cols: 2 },
       { min: 640, cols: 2 },
       { min: 768, cols: 2 },
       { min: 1024, cols: 3 },
@@ -149,11 +149,11 @@ const columnCount = computed(() => {
   const width =
     typeof window !== 'undefined' ? window.innerWidth : containerWidth.value;
 
-  let columns = 1;
+  let columns = 2;
   for (const point of props.breakpoints) {
     if (width >= point.min) columns = point.cols;
   }
-  return Math.max(1, columns);
+  return Math.max(2, columns);
 });
 
 const layout = computed(() => {
@@ -318,6 +318,13 @@ onBeforeUnmount(() => {
     cancelAnimationFrame(measureFrame);
     measureFrame = null;
   }
+});
+
+const resolvedGap = computed(() => {
+  const width = containerWidth.value;
+
+  if (width < 640) return 10; // small screens
+  return props.gapPx; // default gap otherwise
 });
 </script>
 
