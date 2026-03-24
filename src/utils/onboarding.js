@@ -1,5 +1,6 @@
 import { setSetting } from '@/composable/settings';
 import { backend } from '@/lib/tauri-bridge';
+import { getMigrationStatus, runMigration } from '@/lib/native/app';
 import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
 import { getSyncPath } from '@/utils/syncPath';
 import { tryRestoreKeyFromSafeStorage } from '@/utils/syncCrypto';
@@ -71,14 +72,14 @@ export async function getOnboardingMigrationStatus() {
       targetHasData: false,
     };
   }
-  return backend.invoke('migration:status');
+  return getMigrationStatus();
 }
 
 export async function runOnboardingMigration() {
   if (backend.isMobileRuntime?.()) {
     throw new Error('Legacy migration is only available on desktop.');
   }
-  await backend.invoke('migration:run');
+  await runMigration();
 }
 
 export async function openOnboardingWorkspace({ store, noteStore, router }) {

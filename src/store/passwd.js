@@ -22,7 +22,14 @@ import {
   isAppKeyLoaded,
 } from '../utils/appCrypto.js';
 import { getSyncPath } from '../utils/syncPath.js';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { pathExists, readFile, writeFile } from '@/lib/native/fs';
+import {
+  comparePassword,
+  hashPassword,
+  recordPasswordFailure,
+  resetPasswordFailures,
+} from '@/lib/native/security';
 
 const { SHA256, algo, PBKDF2 } = CryptoJS;
 const storage = useStorage();
@@ -77,24 +84,20 @@ export const usePasswordStore = defineStore('password', {
 
   actions: {
     async _fileExists(file) {
-      return backend.invoke('fs:pathExists', file);
+      return pathExists(file);
     },
 
     async _readEncryptedFile() {
       const filePath = await _getPasswordFilePath();
       if (!filePath) return null;
       if (!(await this._fileExists(filePath))) return null;
-      return backend.invoke('fs:readFile', filePath);
+      return readFile(filePath);
     },
 
     async _writeEncryptedFile(data) {
       const filePath = await _getPasswordFilePath();
       if (!filePath) throw new Error('Data directory not configured.');
-      await backend.invoke('fs:writeFile', {
-        path: filePath,
-        data,
-        mode: 0o600,
-      });
+      await writeFile(filePath, data, { mode: 0o600 });
     },
 
     async _deleteLegacyStorage() {
@@ -160,7 +163,7 @@ export const usePasswordStore = defineStore('password', {
 
     async setsharedKey(password) {
       try {
-        const hashedPassword = await backend.invoke('passwd:hash', password);
+        const hashedPassword = await hashPassword(password);
         this.sharedKey = hashedPassword;
         this._legacyDerivedKey = ''; // clear stale legacy value
 
@@ -183,10 +186,7 @@ export const usePasswordStore = defineStore('password', {
 
     async isValidPassword(enteredPassword) {
       try {
-        const valid = await backend.invoke('passwd:compare', {
-          password: enteredPassword,
-          hash: this.sharedKey,
-        });
+        const valid = await comparePassword(enteredPassword, this.sharedKey);
 
         if (!valid && this._legacyDerivedKey) {
           const salt = SHA256(enteredPassword).toString().slice(0, 32);
@@ -197,9 +197,7 @@ export const usePasswordStore = defineStore('password', {
           }).toString();
 
           if (derived !== this._legacyDerivedKey) {
-            const { warn, failCount } = await backend.invoke(
-              'passwd:recordFailure'
-            );
+            const { warn, failCount } = await recordPasswordFailure();
             if (warn)
               console.warn(`[passwd] ${failCount} consecutive failures`);
             return false;
@@ -213,13 +211,11 @@ export const usePasswordStore = defineStore('password', {
             );
           }
         } else if (!valid) {
-          const { warn, failCount } = await backend.invoke(
-            'passwd:recordFailure'
-          );
+          const { warn, failCount } = await recordPasswordFailure();
           if (warn) console.warn(`[passwd] ${failCount} consecutive failures`);
           return false;
         }
-        await backend.invoke('passwd:resetFailures');
+        await resetPasswordFailures();
         await _mirrorToEncryptionSystems(enteredPassword);
 
         return true;

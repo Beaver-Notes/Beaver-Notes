@@ -9,6 +9,8 @@ import {
   importWordDocuments,
 } from '@/utils/import/importers';
 import { startRustImport } from '@/utils/import/importRustBridge';
+import { openDialog } from '@/lib/native/dialog';
+import { importAppleNotes, importEvernote } from '@/lib/native/imports';
 
 function createProgressState(extra = {}) {
   return shallowReactive({
@@ -25,7 +27,6 @@ export function useImportExport({
   noteStore,
   folderStore,
   clipboard,
-  ipcRenderer,
   isMacOS,
 }) {
   const exportMdState = createProgressState();
@@ -107,6 +108,12 @@ export function useImportExport({
     }
   }
 
+  async function pickDialogPaths(props) {
+    const { canceled, filePaths = [] } = await openDialog(props);
+    if (canceled || !filePaths.length) return null;
+    return filePaths;
+  }
+
   function getImportIssuesText(key) {
     const issues = importState[key]?.result?.errors || [];
     return issues
@@ -124,15 +131,12 @@ export function useImportExport({
   }
 
   async function importObsidianHandler(options = {}) {
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select Obsidian Vault',
-        properties: ['openDirectory'],
-        useScopedStorage: true,
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select Obsidian Vault',
+      properties: ['openDirectory'],
+      useScopedStorage: true,
+    });
+    if (!filePaths) return;
     const dataDir = await storage.get('dataDir', '');
     return runImport(
       'obsidian',
@@ -149,15 +153,12 @@ export function useImportExport({
   }
 
   async function importNotionHandler(options = {}) {
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select Notion Export',
-        properties: ['openDirectory'],
-        useScopedStorage: true,
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select Notion Export',
+      properties: ['openDirectory'],
+      useScopedStorage: true,
+    });
+    if (!filePaths) return;
     const dataDir = await storage.get('dataDir', '');
     return runImport(
       'notion',
@@ -168,15 +169,12 @@ export function useImportExport({
   }
 
   async function importBearHandler(options = {}) {
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select Bear Export',
-        properties: ['openDirectory'],
-        useScopedStorage: true,
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select Bear Export',
+      properties: ['openDirectory'],
+      useScopedStorage: true,
+    });
+    if (!filePaths) return;
     const dataDir = await storage.get('dataDir', '');
     return runImport(
       'bear',
@@ -188,15 +186,12 @@ export function useImportExport({
 
   async function importEvernoteHandler(options = {}) {
     const { notebookName } = options;
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select ENEX File',
-        properties: ['openFile'],
-        filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select ENEX File',
+      properties: ['openFile'],
+      filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
+    });
+    if (!filePaths) return;
 
     return runImport(
       'evernote',
@@ -204,7 +199,7 @@ export function useImportExport({
         const pending = startRustImport('evernote', onProgress);
         const resolvedNotebookName =
           notebookName ?? (importState.evernote.notebookName?.trim() || null);
-        await ipcRenderer.callMain('import:evernote', {
+        await importEvernote({
           enexPath: filePaths[0],
           enex_path: filePaths[0],
           notebookName: resolvedNotebookName,
@@ -221,7 +216,7 @@ export function useImportExport({
       'appleNotes',
       async (onProgress) => {
         const pending = startRustImport('apple-notes', onProgress);
-        await ipcRenderer.callMain('import:apple-notes', {});
+        await importAppleNotes();
         return pending;
       },
       options
@@ -229,15 +224,12 @@ export function useImportExport({
   }
 
   async function importSimplenoteHandler(options = {}) {
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select notes.json',
-        properties: ['openFile'],
-        filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select notes.json',
+      properties: ['openFile'],
+      filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
+    });
+    if (!filePaths) return;
     return runImport(
       'simplenote',
       (onProgress) => importSimplenote(filePaths[0], noteStore, onProgress),
@@ -246,15 +238,12 @@ export function useImportExport({
   }
 
   async function importGenericMarkdownHandler(options = {}) {
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select Markdown Folder',
-        properties: ['openDirectory'],
-        useScopedStorage: true,
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select Markdown Folder',
+      properties: ['openDirectory'],
+      useScopedStorage: true,
+    });
+    if (!filePaths) return;
     const dataDir = await storage.get('dataDir', '');
     return runImport(
       'genericMd',
@@ -271,15 +260,12 @@ export function useImportExport({
   }
 
   async function importWordHandler(options = {}) {
-    const { canceled, filePaths = [] } = await ipcRenderer.callMain(
-      'dialog:open',
-      {
-        title: 'Select Word Documents',
-        properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Word Document', extensions: ['docx'] }],
-      }
-    );
-    if (canceled || !filePaths.length) return;
+    const filePaths = await pickDialogPaths({
+      title: 'Select Word Documents',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: 'Word Document', extensions: ['docx'] }],
+    });
+    if (!filePaths) return;
     const dataDir = await storage.get('dataDir', '');
     return runImport(
       'word',

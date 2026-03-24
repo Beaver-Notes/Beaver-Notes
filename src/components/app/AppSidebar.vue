@@ -254,9 +254,7 @@ export default {
           ? currentFolderId.value
           : null;
 
-      folderStore.add({ parentId }).then(({ id }) => {
-        console.log(`${id}`);
-      });
+      folderStore.add({ parentId });
     }
 
     if (typeof window !== 'undefined') {

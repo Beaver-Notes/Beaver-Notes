@@ -20,7 +20,8 @@ import {
   deriveAesGcmKeyFromPassphrase,
   hexToBuf,
 } from '@/utils/crypto-codec.js';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { readDir, removePath } from '@/lib/native/fs';
 import { buildCardPreview, EMPTY_CARD_PREVIEW } from '@/utils/cardPreview.js';
 
 const storage = useStorage();
@@ -664,17 +665,14 @@ export const useNoteStore = defineStore('note', {
           for (const assetType of ['notes-assets', 'file-assets']) {
             const assetDir = path.join(dataDir, assetType, id);
             try {
-              const files = await backend.invoke('fs:readdir', assetDir);
+              const files = await readDir(assetDir);
               if (files?.length) {
                 await trackDeletedAssets(assetType, id, files);
               }
             } catch {
               // Folder may not exist — that's fine
             }
-            await backend.invoke(
-              'fs:remove',
-              path.join(dataDir, assetType, id)
-            );
+            await removePath(path.join(dataDir, assetType, id));
           }
         } catch (fileError) {
           console.warn('Error removing note files:', fileError);

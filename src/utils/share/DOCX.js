@@ -19,7 +19,12 @@ import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { useNoteStore } from '@/store/note';
-import { ipcRenderer, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import {
+  readExportData,
+  saveExportFile,
+  writeExportFile,
+} from '@/lib/native/exports';
 
 let collectedFootnotes = [];
 let footnoteNumbers = new Map();
@@ -343,7 +348,7 @@ async function loadImageAsBase64(src, noteId, dataDir) {
   if (!extension) return null;
 
   try {
-    const base64 = await ipcRenderer.callMain('fs:readData', filePath);
+    const base64 = await readExportData(filePath);
     return {
       data: base64ToUint8Array(base64),
       extension,
@@ -1055,17 +1060,14 @@ export async function exportDOCX(noteId, noteTitle, editor) {
   const arrayBuffer = await blob.arrayBuffer();
   const uint8Array = new Uint8Array(arrayBuffer);
 
-  const { canceled, filePath } = await ipcRenderer.callMain('dialog:save', {
+  const { canceled, filePath } = await saveExportFile({
     title: share.exportDataDialogTitle || 'Save as Word document',
     defaultPath: `${sanitize(noteTitle) || 'ExportedNote'}.docx`,
     filters: [{ name: 'Word Document', extensions: ['docx'] }],
   });
   if (canceled || !filePath) return;
 
-  await ipcRenderer.callMain('fs:writeFile', {
-    path: filePath,
-    data: uint8Array,
-  });
+  await writeExportFile(filePath, uint8Array);
 
   showDialogAlert(
     interpolate(share.exportedDocx || 'Exported "{title}" as Word document.', {

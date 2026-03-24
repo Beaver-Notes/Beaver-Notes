@@ -1,8 +1,14 @@
-import dayjs from '@/lib/dayjs';
 import { useStorage } from '@/composable/storage';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import {
+  chooseRootExportDir,
+  copyNoteAssetDirectories,
+  createDatedExportRoot,
+  ensureExportFolder,
+  writeTextExportFile,
+} from './export-staging';
 
 const INVALID_FILE_CHARS = /[\/\\:*?"<>|]/g;
 const CALLOUT_STYLES = `
@@ -739,29 +745,8 @@ function buildHtmlDocument(note, body) {
 </html>`;
 }
 
-async function copyNoteAssetDir(sourcePath, destPath) {
-  try {
-    await backend.invoke('fs:ensureDir', destPath);
-    await backend.invoke('fs:copy', {
-      path: sourcePath,
-      dest: destPath,
-    });
-  } catch (error) {
-    console.warn('Asset copy failed:', error);
-  }
-}
-
 async function copyNoteAssets(dataDir, noteId, outputDir) {
-  if (!dataDir) return;
-
-  await copyNoteAssetDir(
-    path.join(dataDir, 'notes-assets', noteId),
-    path.join(outputDir, 'assets', noteId)
-  );
-  await copyNoteAssetDir(
-    path.join(dataDir, 'file-assets', noteId),
-    path.join(outputDir, 'file-assets', noteId)
-  );
+  await copyNoteAssetDirectories(dataDir, noteId, outputDir);
 }
 
 function buildOutputDir(rootDir, folderPath) {
@@ -912,15 +897,8 @@ export function resolveAssetSrc(src, noteId) {
 }
 
 export async function exportAllMarkdown(onProgress) {
-  const { canceled, filePaths = [] } = await backend.invoke('dialog:open', {
-    title: 'Select export folder',
-    properties: ['openDirectory'],
-    useScopedStorage: true,
-  });
-
-  if (canceled || !filePaths.length) {
-    return null;
-  }
+  const rootDir = await chooseRootExportDir('Select export folder');
+  if (!rootDir) return null;
 
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
@@ -928,12 +906,10 @@ export async function exportAllMarkdown(onProgress) {
   const dataDir = await storage.get('dataDir', '');
   const notes = normalizeNotes(noteStore);
   const folderMap = buildFolderTree(normalizeFolders(folderStore));
-  const outputRoot = path.join(
-    filePaths[0],
-    `Beaver Notes Export ${dayjs().format('YYYY-MM-DD')}`
+  const outputRoot = await createDatedExportRoot(
+    rootDir,
+    'Beaver Notes Export'
   );
-
-  await backend.invoke('fs:ensureDir', outputRoot);
 
   const skipped = [];
   let exported = 0;
@@ -956,11 +932,11 @@ export async function exportAllMarkdown(onProgress) {
     const markdownBody = tiptapToMarkdown(note?.content, { noteId: note?.id });
     const fileName = `${sanitizeFileName(note?.title)}.md`;
 
-    await backend.invoke('fs:ensureDir', outputDir);
-    await backend.invoke('fs:writeFile', {
-      path: path.join(outputDir, fileName),
-      data: `${frontmatter}\n\n${markdownBody}`.trimEnd(),
-    });
+    await ensureExportFolder(outputDir);
+    await writeTextExportFile(
+      path.join(outputDir, fileName),
+      `${frontmatter}\n\n${markdownBody}`.trimEnd()
+    );
 
     await copyNoteAssets(dataDir, note.id, outputDir);
 
@@ -973,15 +949,8 @@ export async function exportAllMarkdown(onProgress) {
 }
 
 export async function exportAllHTML(onProgress) {
-  const { canceled, filePaths = [] } = await backend.invoke('dialog:open', {
-    title: 'Select export folder',
-    properties: ['openDirectory'],
-    useScopedStorage: true,
-  });
-
-  if (canceled || !filePaths.length) {
-    return null;
-  }
+  const rootDir = await chooseRootExportDir('Select export folder');
+  if (!rootDir) return null;
 
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
@@ -989,12 +958,10 @@ export async function exportAllHTML(onProgress) {
   const dataDir = await storage.get('dataDir', '');
   const notes = normalizeNotes(noteStore);
   const folderMap = buildFolderTree(normalizeFolders(folderStore));
-  const outputRoot = path.join(
-    filePaths[0],
-    `Beaver Notes Export ${dayjs().format('YYYY-MM-DD')}`
+  const outputRoot = await createDatedExportRoot(
+    rootDir,
+    'Beaver Notes Export'
   );
-
-  await backend.invoke('fs:ensureDir', outputRoot);
 
   const skipped = [];
   let exported = 0;
@@ -1016,11 +983,11 @@ export async function exportAllHTML(onProgress) {
     const body = tiptapToHTML(note?.content, { noteId: note?.id });
     const fileName = `${sanitizeFileName(note?.title)}.html`;
 
-    await backend.invoke('fs:ensureDir', outputDir);
-    await backend.invoke('fs:writeFile', {
-      path: path.join(outputDir, fileName),
-      data: buildHtmlDocument(note, body),
-    });
+    await ensureExportFolder(outputDir);
+    await writeTextExportFile(
+      path.join(outputDir, fileName),
+      buildHtmlDocument(note, body)
+    );
 
     await copyNoteAssets(dataDir, note.id, outputDir);
 

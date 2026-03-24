@@ -2,7 +2,9 @@ import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { useNoteStore } from '@/store/note';
-import { ipcRenderer, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { openDialog } from '@/lib/native/dialog';
+import { copyPath, ensureDir, writeFile } from '@/lib/native/fs';
 import { tiptapToMarkdown, buildFrontmatter } from './ExportBulk';
 
 function getShareTranslations() {
@@ -45,7 +47,7 @@ export async function exportMD(noteId, noteTitle, editor) {
     ? `${frontmatter}\n${markdownBody}`
     : markdownBody;
 
-  const { canceled, filePaths } = await ipcRenderer.callMain('dialog:open', {
+  const { canceled, filePaths } = await openDialog({
     title: share.exportDataDialogTitle || 'Export note',
     properties: ['openDirectory'],
     useScopedStorage: true,
@@ -58,33 +60,24 @@ export async function exportMD(noteId, noteTitle, editor) {
   const safeName = sanitize(noteTitle) || 'ExportedNote';
   const folderPath = path.join(filePaths[0], safeName);
 
-  await ipcRenderer.callMain('fs:ensureDir', folderPath);
+  await ensureDir(folderPath);
 
-  await ipcRenderer.callMain('fs:writeFile', {
-    path: path.join(folderPath, `${safeName}.md`),
-    data: markdown,
-  });
+  await writeFile(path.join(folderPath, `${safeName}.md`), markdown);
 
   const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
   const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
   const notesAssetsDest = path.join(folderPath, 'assets');
   const fileAssetsDest = path.join(folderPath, 'file-assets');
 
-  await ipcRenderer.callMain('fs:ensureDir', notesAssetsDest);
-  await ipcRenderer.callMain('fs:ensureDir', fileAssetsDest);
+  await ensureDir(notesAssetsDest);
+  await ensureDir(fileAssetsDest);
 
   try {
-    await ipcRenderer.callMain('fs:copy', {
-      path: noteAssetsSource,
-      dest: notesAssetsDest,
-    });
+    await copyPath(noteAssetsSource, notesAssetsDest);
   } catch {}
 
   try {
-    await ipcRenderer.callMain('fs:copy', {
-      path: fileAssetsSource,
-      dest: fileAssetsDest,
-    });
+    await copyPath(fileAssetsSource, fileAssetsDest);
   } catch {}
 
   showDialogAlert(

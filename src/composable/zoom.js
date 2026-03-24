@@ -1,5 +1,5 @@
-import { backend } from '@/lib/tauri-bridge';
 import { getSettingSync, setSetting } from './settings';
+import { setZoomLevel } from '@/lib/native/app';
 
 const DEFAULT_ZOOM_LEVEL = 1.0;
 
@@ -16,7 +16,7 @@ export function setStoredZoomLevel(
   newZoomLevel,
   { syncDocument = false, reload = false } = {}
 ) {
-  backend.invoke('app:set-zoom', newZoomLevel);
+  setZoomLevel(newZoomLevel);
 
   const formattedZoomLevel = formatZoomLevel(newZoomLevel);
   void setSetting('zoomLevel', formattedZoomLevel);

@@ -1,6 +1,17 @@
 import { v4 as uuidv4 } from 'uuid';
 import mammoth from 'mammoth';
-import { ipcRenderer, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { getHelperPath } from '@/lib/native/app';
+import {
+  copyPath,
+  ensureDir,
+  isFile as nativeIsFile,
+  pathExists as nativePathExists,
+  readData,
+  readDir,
+  readFile,
+  writeFile,
+} from '@/lib/native/fs';
 import { convertMarkdownToTiptap } from '@/utils/markdown-helper';
 import {
   parseFrontmatter,
@@ -56,13 +67,13 @@ async function ensureDataDir(dataDir) {
   if (typeof stored === 'string' && stored.trim()) {
     return stored.trim();
   }
-  const userDataDir = await ipcRenderer.callMain('helper:get-path', 'userData');
+  const userDataDir = await getHelperPath('userData');
   return typeof userDataDir === 'string' ? userDataDir.trim() : '';
 }
 
 async function pathExists(targetPath) {
   try {
-    return await ipcRenderer.callMain('fs:pathExists', targetPath);
+    return await nativePathExists(targetPath);
   } catch {
     return false;
   }
@@ -70,7 +81,7 @@ async function pathExists(targetPath) {
 
 async function isFile(targetPath) {
   try {
-    return await ipcRenderer.callMain('fs:isFile', targetPath);
+    return await nativeIsFile(targetPath);
   } catch {
     return false;
   }
@@ -110,7 +121,7 @@ function parseDataUri(value) {
 }
 
 async function convertWordToHtml(filePath) {
-  const fileBase64 = await ipcRenderer.callMain('fs:readData', filePath);
+  const fileBase64 = await readData(filePath);
   const fileBytes = base64ToUint8Array(fileBase64);
   const arrayBuffer = fileBytes.buffer.slice(
     fileBytes.byteOffset,
@@ -140,7 +151,7 @@ async function storeWordImages(html, noteId, dataDir) {
   }
 
   const noteAssetsDir = path.join(dataDir, 'notes-assets', noteId);
-  await ipcRenderer.callMain('fs:ensureDir', noteAssetsDir);
+  await ensureDir(noteAssetsDir);
 
   let imageIndex = 1;
 
@@ -152,10 +163,7 @@ async function storeWordImages(html, noteId, dataDir) {
     const fileName = `word-image-${imageIndex}.${extension}`;
     imageIndex += 1;
 
-    await ipcRenderer.callMain('fs:writeFile', {
-      path: path.join(noteAssetsDir, fileName),
-      data: parsed.data,
-    });
+    await writeFile(path.join(noteAssetsDir, fileName), parsed.data);
     image.setAttribute('src', `assets://${noteId}/${fileName}`);
   }
 
@@ -167,7 +175,7 @@ async function listFilesRecursive(rootPath, extensions, options = {}) {
   const { ignoreDirs = [], ignoreHidden = false } = options;
 
   async function walk(currentPath) {
-    const entries = await ipcRenderer.callMain('fs:readdir', currentPath);
+    const entries = await readDir(currentPath);
     for (const entry of entries) {
       if (ignoreHidden && entry.startsWith('.')) continue;
       if (ignoreDirs.includes(entry)) continue;
@@ -195,11 +203,8 @@ async function listFilesRecursive(rootPath, extensions, options = {}) {
 async function copyDirectoryContents(sourcePath, destPath) {
   if (!(await pathExists(sourcePath))) return;
   try {
-    await ipcRenderer.callMain('fs:ensureDir', destPath);
-    await ipcRenderer.callMain('fs:copy', {
-      path: sourcePath,
-      dest: destPath,
-    });
+    await ensureDir(destPath);
+    await copyPath(sourcePath, destPath);
   } catch (error) {
     console.warn('Asset copy failed:', error);
   }
@@ -209,20 +214,14 @@ async function prepareMarkdownStaging(noteId, dataDir, assetDirs = []) {
   const stagingRoot = path.join(dataDir, '.import-staging', noteId);
   const noteAssetsDir = path.join(stagingRoot, 'notes-assets');
   const fileAssetsDir = path.join(stagingRoot, 'file-assets');
-  await ipcRenderer.callMain('fs:ensureDir', noteAssetsDir);
-  await ipcRenderer.callMain('fs:ensureDir', fileAssetsDir);
+  await ensureDir(noteAssetsDir);
+  await ensureDir(fileAssetsDir);
 
   for (const assetDir of assetDirs) {
     if (!(await pathExists(assetDir))) continue;
     try {
-      await ipcRenderer.callMain('fs:copy', {
-        path: assetDir,
-        dest: noteAssetsDir,
-      });
-      await ipcRenderer.callMain('fs:copy', {
-        path: assetDir,
-        dest: fileAssetsDir,
-      });
+      await copyPath(assetDir, noteAssetsDir);
+      await copyPath(assetDir, fileAssetsDir);
     } catch (error) {
       console.warn('Staging asset copy failed:', error);
     }
@@ -310,7 +309,7 @@ async function importMarkdownFile({
   folderPartsTransform = (parts) => parts,
   titleTransform = (value) => value,
 }) {
-  const rawMarkdown = await ipcRenderer.callMain('fs:readFile', filePath);
+  const rawMarkdown = await readFile(filePath);
   const { meta, body } = parseFrontmatter(rawMarkdown);
   const id = uuidv4();
   const fileName = path.basename(filePath);
@@ -373,7 +372,7 @@ export async function importObsidian(
 
   for (const filePath of files) {
     try {
-      const markdown = await ipcRenderer.callMain('fs:readFile', filePath);
+      const markdown = await readFile(filePath);
       const { meta } = parseFrontmatter(markdown);
       const fallbackTitle = stripExtension(path.basename(filePath));
       const title = meta.title || fallbackTitle || 'Untitled';
@@ -455,7 +454,7 @@ export async function importNotion(
           titleTransform: (value) => stripNotionId(value),
         });
       } else {
-        const html = await ipcRenderer.callMain('fs:readFile', filePath);
+        const html = await readFile(filePath);
         const id = uuidv4();
         const folderId =
           folderParts.length > 0
@@ -506,7 +505,7 @@ export async function importBear(
   onProgress
 ) {
   const resolvedDataDir = await ensureDataDir(dataDir);
-  const entries = await ipcRenderer.callMain('fs:readdir', exportPath);
+  const entries = await readDir(exportPath);
   const files = entries
     .filter((entry) => entry.toLowerCase().endsWith('.md'))
     .map((entry) => path.join(exportPath, entry));
@@ -516,7 +515,7 @@ export async function importBear(
 
   for (const filePath of files) {
     try {
-      const rawMarkdown = await ipcRenderer.callMain('fs:readFile', filePath);
+      const rawMarkdown = await readFile(filePath);
       const { labels: inlineLabels, body: bodyWithoutTags } =
         extractBearTags(rawMarkdown);
       const { meta, body } = parseFrontmatter(bodyWithoutTags);
@@ -566,7 +565,7 @@ export async function importBear(
 }
 
 export async function importSimplenote(jsonPath, noteStore, onProgress) {
-  const raw = await ipcRenderer.callMain('fs:readFile', jsonPath);
+  const raw = await readFile(jsonPath);
   const parsed = JSON.parse(raw);
   const notes = Array.isArray(parsed.activeNotes) ? parsed.activeNotes : [];
   const errors = [];

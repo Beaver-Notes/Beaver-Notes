@@ -1,7 +1,6 @@
 import * as CryptoJS from 'crypto-es';
 import {
   base64ToBuf,
-  bufToBase64,
   bufToHex,
   deriveAesGcmKeyFromPassphrase,
   hexToBuf,
@@ -12,7 +11,24 @@ import {
   storeSecureBlob,
 } from './safeStorageBlob.js';
 import { getSyncPath } from './syncPath.js';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { writeSyncFile } from '@/lib/native/sync';
+import {
+  decryptLegacyCiphertext,
+  gcmDecryptBin,
+  gcmDecryptStr,
+  gcmEncryptBin,
+  gcmEncryptStr,
+} from './sync/sync-crypto-codec.js';
+import {
+  ensureSyncCryptoDir,
+  getSyncCryptoDir,
+  readLocalAssetData,
+  readSyncCryptoFile,
+  removeSyncCryptoDir,
+  syncCryptoFileExists,
+  writeSyncCryptoFile,
+} from './sync/sync-crypto-storage.js';
 const { AES: _CBC, enc: _enc, algo: _algo, PBKDF2: _PBKDF2 } = CryptoJS;
 
 const PBKDF2_ITERATIONS = 100_000;
@@ -32,41 +48,6 @@ async function _deriveKey(passphrase, saltBuf) {
   return deriveAesGcmKeyFromPassphrase(passphrase, saltBuf, {
     iterations: PBKDF2_ITERATIONS,
   });
-}
-async function _gcmEncryptStr(plaintext, key) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    new TextEncoder().encode(plaintext)
-  );
-  return JSON.stringify({ v: 2, iv: bufToHex(iv), enc: bufToBase64(ct) });
-}
-async function _gcmDecryptStr(jsonStr, key) {
-  const { v, iv, enc } = JSON.parse(jsonStr);
-  if (v !== 2) throw new Error('Unsupported envelope version');
-  const plain = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: hexToBuf(iv) },
-    key,
-    base64ToBuf(enc)
-  );
-  return new TextDecoder().decode(plain);
-}
-async function _gcmEncryptBin(data, key) {
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
-  const merged = new Uint8Array(12 + ct.byteLength);
-  merged.set(iv, 0);
-  merged.set(new Uint8Array(ct), 12);
-  return bufToBase64(merged);
-}
-async function _gcmDecryptBin(b64, key) {
-  const merged = base64ToBuf(b64);
-  const iv = merged.slice(0, 12);
-  const ct = merged.slice(12);
-  return new Uint8Array(
-    await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
-  );
 }
 
 export function isSyncEncryptionEnabled() {
@@ -90,21 +71,14 @@ export async function setupSyncEncryption(passphrase) {
   if (!syncPath) return { ok: false, error: 'Choose a sync folder first.' };
 
   try {
-    const cryptoDir = _cryptoDir(syncPath);
-    await backend.invoke('fs:ensureDir', cryptoDir);
+    await ensureSyncCryptoDir(syncPath);
 
     const salt = crypto.getRandomValues(new Uint8Array(32));
     const saltHex = bufToHex(salt);
     const key = await _deriveKey(passphrase, salt);
-    await backend.invoke('fs:writeFile', {
-      path: path.join(cryptoDir, 'salt'),
-      data: saltHex,
-    });
-    const keycheck = await _gcmEncryptStr(KEYCHECK_PLAINTEXT, key);
-    await backend.invoke('fs:writeFile', {
-      path: path.join(cryptoDir, 'keycheck'),
-      data: keycheck,
-    });
+    await writeSyncCryptoFile(syncPath, 'salt', saltHex);
+    const keycheck = await gcmEncryptStr(KEYCHECK_PLAINTEXT, key);
+    await writeSyncCryptoFile(syncPath, 'keycheck', keycheck);
 
     _key = key;
     _setSyncEncryptionEnabled(true);
@@ -122,18 +96,10 @@ export async function verifySyncPassphrase(passphrase) {
   if (!syncPath) return { ok: false, error: 'No sync folder configured.' };
 
   try {
-    const cryptoDir = _cryptoDir(syncPath);
-
     let saltHex, keycheck;
     try {
-      saltHex = await backend.invoke(
-        'fs:readFile',
-        path.join(cryptoDir, 'salt')
-      );
-      keycheck = await backend.invoke(
-        'fs:readFile',
-        path.join(cryptoDir, 'keycheck')
-      );
+      saltHex = await readSyncCryptoFile(syncPath, 'salt');
+      keycheck = await readSyncCryptoFile(syncPath, 'keycheck');
     } catch {
       return {
         ok: false,
@@ -157,7 +123,7 @@ export async function verifySyncPassphrase(passphrase) {
 
     if (kc.startsWith('{')) {
       try {
-        const plain = await _gcmDecryptStr(kc, key);
+        const plain = await gcmDecryptStr(kc, key);
         verified = plain === KEYCHECK_PLAINTEXT;
       } catch {
         return { ok: false, error: 'Wrong passphrase.' };
@@ -188,11 +154,8 @@ export async function verifySyncPassphrase(passphrase) {
       await storeSecureBlob(SYNC_BLOB_KEY, passphrase, 'syncCrypto');
     if (isLegacyKeycheck) {
       try {
-        const newKeycheck = await _gcmEncryptStr(KEYCHECK_PLAINTEXT, key);
-        await backend.invoke('fs:writeFile', {
-          path: path.join(cryptoDir, 'keycheck'),
-          data: newKeycheck,
-        });
+        const newKeycheck = await gcmEncryptStr(KEYCHECK_PLAINTEXT, key);
+        await writeSyncCryptoFile(syncPath, 'keycheck', newKeycheck);
       } catch (upgradeErr) {
         console.warn(
           '[syncCrypto] keycheck upgrade failed (non-fatal):',
@@ -245,7 +208,7 @@ export async function disableSyncEncryption(removeCryptoFiles = false) {
     const syncPath = await getSyncPath();
     if (syncPath) {
       try {
-        await backend.invoke('fs:remove', _cryptoDir(syncPath));
+        await removeSyncCryptoDir(syncPath);
         _clearFolderEncryptionCache();
       } catch (err) {
         console.warn('[syncCrypto] could not remove crypto dir:', err);
@@ -269,10 +232,7 @@ export async function syncFolderHasEncryption(options = {}) {
       return _folderEncryptionCache.hasCrypto;
     }
 
-    const hasCrypto = await backend.invoke(
-      'fs:pathExists',
-      path.join(_cryptoDir(syncPath), 'salt')
-    );
+    const hasCrypto = await syncCryptoFileExists(syncPath, 'salt');
     _folderEncryptionCache = {
       syncPath,
       checkedAt: now,
@@ -288,7 +248,7 @@ export async function syncFolderHasEncryption(options = {}) {
 export async function encryptJSON(obj) {
   await ensureSyncKeyReadyForWrite();
   if (!_key) return JSON.stringify(obj);
-  return _gcmEncryptStr(JSON.stringify(obj), _key);
+  return gcmEncryptStr(JSON.stringify(obj), _key);
 }
 
 export async function decryptJSON(raw) {
@@ -303,7 +263,7 @@ export async function decryptJSON(raw) {
         );
         return null;
       }
-      return JSON.parse(await _gcmDecryptStr(raw, _key));
+      return JSON.parse(await gcmDecryptStr(raw, _key));
     }
 
     if (parsed?.v === 1) {
@@ -343,10 +303,10 @@ export function localAssetName(syncFilename) {
 }
 
 export async function readAndEncryptAsset(localFilePath) {
-  const base64 = await backend.invoke('fs:readData', localFilePath);
+  const base64 = await readLocalAssetData(localFilePath);
   if (!_key) return base64;
   const raw = new TextEncoder().encode(base64);
-  return _gcmEncryptBin(raw, _key);
+  return gcmEncryptBin(raw, _key);
 }
 export async function decryptAndWriteAsset(
   cipherOrBase64,
@@ -358,14 +318,12 @@ export async function decryptAndWriteAsset(
 
   if (_key) {
     try {
-      const decrypted = await _gcmDecryptBin(cipherOrBase64, _key);
+      const decrypted = await gcmDecryptBin(cipherOrBase64, _key);
       base64 = new TextDecoder().decode(decrypted);
     } catch {
       if (_legacyCBCKey) {
         try {
-          base64 = _CBC
-            .decrypt(cipherOrBase64, _legacyCBCKey)
-            .toString(_enc.Utf8);
+          base64 = decryptLegacyCiphertext(cipherOrBase64, _legacyCBCKey);
         } catch {
           base64 = null;
         }
@@ -393,15 +351,13 @@ export async function decryptAndWriteAsset(
     );
   }
 
-  await backend.invoke('fs:writeFile', {
-    path: destPath,
-    data: base64ToBuf(base64),
+  await writeSyncFile(destPath, base64ToBuf(base64), {
     skipAssetEncryption,
   });
 }
 
 function _cryptoDir(syncPath) {
-  return path.join(syncPath, 'BeaverNotesSync', 'crypto');
+  return getSyncCryptoDir(syncPath);
 }
 
 function _clearFolderEncryptionCache() {

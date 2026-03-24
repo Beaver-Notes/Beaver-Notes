@@ -459,8 +459,13 @@
           <v-remixicon name="riTableLine" />
         </button>
 
+        <DrawModeToggle
+          v-else-if="item.id === 'draw-overlay'"
+          v-tooltip.group="translations.menu.drawOverlay || 'Draw on note'"
+        />
+
         <button
-          v-else-if="item.id === 'draw'"
+          v-else-if="item.id === 'draw-block'"
           v-tooltip.group="translations.menu.draw"
           class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           @click="editor.commands.insertPaper"
@@ -633,6 +638,7 @@ import { useStore } from '@/store';
 import { useEditorImage } from '@/composable/editorImage';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
+import DrawModeToggle from '@/components/overlay/DrawModeToggle.vue';
 import { useNoteStore } from '../../store/note';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
@@ -645,7 +651,7 @@ import { backend, path } from '@/lib/tauri-bridge';
 const storage = useStorage('settings');
 
 export default {
-  components: { NoteMenuHeadingsTree, ToolbarCustomizer },
+  components: { NoteMenuHeadingsTree, ToolbarCustomizer, DrawModeToggle },
   props: {
     editor: { type: Object, default: () => ({}) },
     tree: { type: Boolean, default: false },

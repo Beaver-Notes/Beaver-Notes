@@ -17,6 +17,12 @@ import {
 import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
 import { getSyncPath } from '@/utils/syncPath';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
+import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
+import {
+  checkForUpdates,
+  getAutoUpdateStatus,
+  installUpdate,
+} from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
@@ -186,7 +192,7 @@ export function useAppShell() {
   };
 
   const handleUpdateInstall = () => {
-    backend.invoke('install-update');
+    installUpdate();
     updateBanner.show = false;
   };
 
@@ -299,8 +305,19 @@ export function useAppShell() {
       backend.listen('print-pdf-request', (event, payload) => {
         const pdfName = payload?.pdfName || payload?.pdf_name || 'Beaver Notes';
         const previousTitle = document.title;
+        let overlayStyle = document.getElementById('beaver-overlay-print');
+
+        if (!overlayStyle) {
+          overlayStyle = document.createElement('style');
+          overlayStyle.id = 'beaver-overlay-print';
+          overlayStyle.textContent =
+            '.overlay-canvas-root { position: absolute !important; pointer-events: none !important; opacity: 1 !important; }';
+          document.head.appendChild(overlayStyle);
+        }
+
         const restoreTitle = () => {
           document.title = previousTitle;
+          document.getElementById('beaver-overlay-print')?.remove();
           window.removeEventListener('afterprint', restoreTitle);
         };
         window.addEventListener('afterprint', restoreTitle);
@@ -318,7 +335,7 @@ export function useAppShell() {
     );
 
     try {
-      await backend.invoke('app-ready');
+      await appReady();
       await initializeSafeAreaInsets();
     } catch (error) {
       console.error(
@@ -328,12 +345,12 @@ export function useAppShell() {
     }
 
     try {
-      const autoUpdateEnabled = await backend.invoke('get-auto-update-status');
+      const autoUpdateEnabled = await getAutoUpdateStatus();
 
       if (autoUpdateEnabled) {
         setTimeout(async () => {
           try {
-            await backend.invoke('check-for-updates');
+            await checkForUpdates();
           } catch (error) {
             console.warn('Auto-update check failed:', error);
           }
@@ -377,15 +394,11 @@ export function useAppShell() {
     await router.isReady();
     while (!retrieved.value)
       await new Promise((resolve) => setTimeout(resolve, 100));
-    if (await importBEA(path, router, store))
-      console.log('Import + navigation OK');
+    await importBEA(path, router, store);
   });
 
-  backend.invoke('app:set-zoom', getStoredZoomLevel());
-  backend.invoke(
-    'app:change-menu-visibility',
-    !getSettingSync('visibilityMenubar')
-  );
+  setZoomLevel(getStoredZoomLevel());
+  setMenuVisibility(!getSettingSync('visibilityMenubar'));
 
   return {
     animateRouteChange,

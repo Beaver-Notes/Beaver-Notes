@@ -211,7 +211,7 @@ import {
   appFolderHasEncryption,
 } from '@/utils/appCrypto.js';
 import { getSyncPath } from '@/utils/syncPath.js';
-import { backend, path } from '@/lib/tauri-bridge';
+import { listAssetFiles, rewriteAssetFile } from '@/lib/native/security';
 
 const { translations } = useTranslations();
 const dialog = useDialog();
@@ -349,46 +349,6 @@ function updateAppEncryptionProgress(progress) {
   };
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
-
-function isIgnoredAssetEntry(name) {
-  return !name || name.startsWith('.') || name === 'Thumbs.db';
-}
-
-async function listAssetFiles(dataDir) {
-  const roots = ['notes-assets', 'file-assets'];
-  const files = [];
-
-  for (const root of roots) {
-    const rootDir = path.join(dataDir, root);
-    const noteDirs = await backend
-      .invoke('fs:readdir', rootDir)
-      .catch(() => []);
-
-    for (const noteDir of noteDirs) {
-      if (isIgnoredAssetEntry(noteDir)) continue;
-      const fullNoteDir = path.join(rootDir, noteDir);
-      const assetNames = await backend
-        .invoke('fs:readdir', fullNoteDir)
-        .catch(() => []);
-
-      for (const assetName of assetNames) {
-        if (isIgnoredAssetEntry(assetName)) continue;
-        files.push(path.join(fullNoteDir, assetName));
-      }
-    }
-  }
-
-  return files;
-}
-
 async function migrateAssetsForAppEncryption({ encryptAtRest }) {
   const dataDir = await storage.get('dataDir', '', 'settings');
   if (!dataDir) return;
@@ -401,14 +361,9 @@ async function migrateAssetsForAppEncryption({ encryptAtRest }) {
 
   for (const filePath of files) {
     try {
-      const base64 = await backend.invoke('fs:readData', filePath);
-      if (base64) {
-        await backend.invoke('fs:writeFile', {
-          path: filePath,
-          data: base64ToUint8Array(base64),
-          skipAssetEncryption: !encryptAtRest,
-        });
-      }
+      await rewriteAssetFile(filePath, {
+        skipAssetEncryption: !encryptAtRest,
+      });
     } catch (error) {
       failures.push(filePath);
     } finally {

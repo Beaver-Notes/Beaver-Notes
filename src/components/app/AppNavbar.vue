@@ -12,11 +12,11 @@
           <button
             v-for="nav in navItems"
             :key="nav.name"
+            :ref="(element) => setNavItemRef(nav.path, element)"
             v-tooltip:right="
               `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
             "
             :data-testid="getNavTestId(nav.path)"
-            :ref="(element) => setNavItemRef(nav.path, element)"
             class="relative z-10 flex h-12 w-16 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97]"
             :class="{
               'text-primary': isActivePath(nav.path),
@@ -163,9 +163,7 @@ export default {
           ? currentFolderId.value
           : null;
 
-      folderStore.add({ parentId }).then(({ id }) => {
-        console.log(`${id}`);
-      });
+      folderStore.add({ parentId });
     }
 
     if (typeof window !== 'undefined') {

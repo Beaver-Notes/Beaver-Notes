@@ -654,6 +654,8 @@ import { getSyncPath, setSyncPath } from '@/utils/syncPath.js';
 import { getSettingSync, setSetting } from '../../composable/settings';
 import { useTranslations } from '../../composable/useTranslations';
 import { backend, clipboard, ipcRenderer, path } from '@/lib/tauri-bridge';
+import { showMessage } from '@/lib/native/dialog';
+import { getHelperPath, setSpellcheck } from '@/lib/native/app';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 const LANGUAGE_CONFIG = {
@@ -806,7 +808,7 @@ export default {
     }
 
     function showAlert(message, options = {}) {
-      backend.invoke('dialog:message', {
+      showMessage({
         type: 'error',
         title: translations.value.settings.alertTitle || 'Alert',
         message,
@@ -828,7 +830,7 @@ export default {
         return storedDataDir.trim();
       }
 
-      const userDataDir = await backend.invoke('helper:get-path', 'userData');
+      const userDataDir = await getHelperPath('userData');
       return typeof userDataDir === 'string' ? userDataDir.trim() : '';
     }
 
@@ -1017,8 +1019,6 @@ export default {
                   path: path.join(dirPath, 'file-assets'),
                   dest: path.join(dataDir, 'file-assets'),
                 });
-
-                console.log('Assets copied successfully.');
               } catch (error) {
                 showAlert(translations.value.settings.invalidPassword);
                 return false;
@@ -1138,7 +1138,6 @@ export default {
                   if (newPassword) {
                     try {
                       await passwordStore.setsharedKey(newPassword);
-                      console.log('Password reset successful');
                       showDialogAlert(
                         translations.value.settings.passwordResetSuccess
                       );
@@ -1249,7 +1248,7 @@ export default {
       );
       inputElements.forEach((element) => {
         element.setAttribute('spellcheck', spellcheckEnabled.value);
-        backend.invoke('app:spellcheck', spellcheckEnabled.value);
+        setSpellcheck(spellcheckEnabled.value);
       });
     };
 

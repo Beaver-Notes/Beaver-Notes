@@ -1,12 +1,12 @@
-import { backend } from '@/lib/tauri-bridge';
+import {
+  deleteStoredValue,
+  getStoredValue,
+  setStoredValue,
+} from '@/lib/native/storage';
 
 async function getPersistedSyncPath() {
   try {
-    const value = await backend.invoke('storage:get', {
-      name: 'settings',
-      key: 'syncPath',
-      def: '',
-    });
+    const value = await getStoredValue('settings', 'syncPath', '');
     return typeof value === 'string' ? value.trim() : '';
   } catch {
     return '';
@@ -15,11 +15,7 @@ async function getPersistedSyncPath() {
 
 async function persistSyncPath(pathValue) {
   try {
-    await backend.invoke('storage:set', {
-      name: 'settings',
-      key: 'syncPath',
-      value: pathValue,
-    });
+    await setStoredValue('settings', 'syncPath', pathValue);
   } catch {
     // non-fatal
   }
@@ -27,10 +23,7 @@ async function persistSyncPath(pathValue) {
 
 async function clearPersistedSyncPath() {
   try {
-    await backend.invoke('storage:delete', {
-      name: 'settings',
-      key: 'syncPath',
-    });
+    await deleteStoredValue('settings', 'syncPath');
   } catch {
     // non-fatal
   }

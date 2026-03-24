@@ -1,7 +1,10 @@
 import mime from 'mime';
 import { useStorage } from '@/composable/storage';
 import { getStroke } from 'perfect-freehand';
-import { getSvgPathFromStroke } from '@/lib/tiptap/exts/paper-block/helpers/drawHelper.js';
+import {
+  getStrokeOptions,
+  getSvgPathFromStroke,
+} from '@/lib/tiptap/exts/paper-block/helpers/drawHelper.js';
 import { backend, path } from '@/lib/tauri-bridge';
 
 const storage = useStorage('settings');
@@ -13,10 +16,70 @@ export async function getProcessedHTML(noteId, editor) {
   const doc = parser.parseFromString(html, 'text/html');
 
   await parseCustomBlocks(doc, noteId);
+  injectOverlayDrawing(doc, editor);
 
   injectCalloutStyles(doc);
 
   return doc.documentElement.outerHTML;
+}
+
+function injectOverlayDrawing(doc, editor) {
+  let strokes = editor?.commands?.getOverlayStrokes?.() || [];
+
+  if (!Array.isArray(strokes) && editor?.state?.doc) {
+    strokes = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === 'overlayDrawing') {
+        strokes = Array.isArray(node.attrs.strokes) ? node.attrs.strokes : [];
+        return false;
+      }
+
+      return true;
+    });
+  }
+
+  if (!Array.isArray(strokes) || strokes.length === 0) return;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute(
+    'style',
+    'position:absolute; top:0; left:0; width:100%; height:100vh; pointer-events:none; overflow:visible'
+  );
+
+  strokes.forEach((strokeData) => {
+    if (!Array.isArray(strokeData?.points) || strokeData.points.length < 2) {
+      return;
+    }
+
+    const stroke = getStroke(strokeData.points, getStrokeOptions(strokeData));
+    const pathData = getSvgPathFromStroke(stroke);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', pathData);
+
+    if (strokeData.tool === 'highlighter') {
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', strokeData.color || '#fbbf24');
+      path.setAttribute('stroke-width', String(strokeData.size || 14));
+      path.setAttribute('opacity', '0.38');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+    } else {
+      path.setAttribute('fill', strokeData.color || '#1a1a1a');
+      path.setAttribute('stroke', 'none');
+    }
+
+    svg.appendChild(path);
+  });
+
+  const wrapper = document.createElement('div');
+  wrapper.setAttribute('style', 'position:relative');
+
+  while (doc.body.firstChild) {
+    wrapper.appendChild(doc.body.firstChild);
+  }
+
+  wrapper.appendChild(svg);
+  doc.body.appendChild(wrapper);
 }
 
 function normalizeAssetPath(url) {

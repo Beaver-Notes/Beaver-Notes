@@ -1,9 +1,35 @@
-import { backend } from '@/lib/tauri-bridge';
+import {
+  clearStore,
+  deleteStoredValue,
+  getStore,
+  getStoredValue,
+  hasStoredValue,
+  replaceStore,
+  setStoredValue,
+} from '@/lib/native/storage';
 
 function invokeEvent(name, param) {
   if (param.value) param.value = JSON.parse(JSON.stringify(param.value));
+  const { name: storeName, key, def, value, data } = param;
 
-  return backend.invoke(`storage:${name}`, param);
+  switch (name) {
+    case 'get':
+      return getStoredValue(storeName, key, def);
+    case 'set':
+      return setStoredValue(storeName, key, value);
+    case 'has':
+      return hasStoredValue(storeName, key);
+    case 'replace':
+      return replaceStore(storeName, data);
+    case 'delete':
+      return deleteStoredValue(storeName, key);
+    case 'clear':
+      return clearStore(storeName);
+    case 'store':
+      return getStore(storeName);
+    default:
+      throw new Error(`Unknown storage action: ${name}`);
+  }
 }
 
 export function useStorage(name = 'data') {

@@ -102,6 +102,14 @@ import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { setSetting } from '@/composable/settings';
 import { backend } from '@/lib/tauri-bridge';
+import { getAppInfo } from '@/lib/native/app';
+import {
+  checkForUpdates as runUpdateCheck,
+  downloadUpdate as runUpdateDownload,
+  getAutoUpdateStatus,
+  installUpdate,
+  toggleAutoUpdate as setAutoUpdateEnabled,
+} from '@/lib/native/updates';
 
 export default {
   setup() {
@@ -141,7 +149,7 @@ export default {
       state.updateStatusType = 'checking';
 
       try {
-        await backend.invoke('check-for-updates');
+        await runUpdateCheck();
       } catch (e) {
         state.updateStatus = 'Error';
         state.updateStatusType = 'error';
@@ -157,15 +165,14 @@ export default {
       state.updateStatusType = 'downloading';
 
       try {
-        await backend.invoke('download-update');
+        await runUpdateDownload();
       } catch (e) {
         state.updateStatus = 'Download error';
         state.updateStatusType = 'error';
       }
     };
 
-    const installUpdate = () =>
-      backend.invoke('install-update').catch(console.error);
+    const installPendingUpdate = () => installUpdate().catch(console.error);
 
     const showOnboarding = async () => {
       await setSetting('onboardingCompleted', false);
@@ -176,12 +183,12 @@ export default {
       const type = state.updateStatusType;
       if (['idle', 'not-available', 'error'].includes(type)) checkForUpdates();
       else if (type === 'available') downloadUpdate();
-      else if (type === 'ready') installUpdate();
+      else if (type === 'ready') installPendingUpdate();
     };
 
     const toggleAutoUpdate = async () => {
       try {
-        await backend.invoke('toggle-auto-update', state.autoUpdateEnabled);
+        await setAutoUpdateEnabled(state.autoUpdateEnabled);
         if (state.autoUpdateEnabled && state.updateStatusType === 'idle')
           setTimeout(checkForUpdates, 1000);
       } catch {
@@ -230,10 +237,8 @@ export default {
       const bridge = backend;
       if (bridge) {
         try {
-          Object.assign(state, await bridge.invoke('app:info'));
-          state.autoUpdateEnabled = await bridge.invoke(
-            'get-auto-update-status'
-          );
+          Object.assign(state, await getAppInfo());
+          state.autoUpdateEnabled = await getAutoUpdateStatus();
         } catch (e) {
           console.error('Bridge error:', e);
         }

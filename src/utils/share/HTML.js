@@ -2,7 +2,13 @@ import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { getProcessedHTML } from './html-helper';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import {
+  writeTextExportFile,
+  chooseRootExportDir,
+  ensureExportFolder,
+  copyNoteAssetDirectories,
+} from './export-staging';
 
 function getShareTranslations() {
   try {
@@ -34,23 +40,19 @@ export async function exportHTML(noteId, noteTitle, editor) {
   const share = getShareTranslations();
   const finalHtml = await getProcessedHTML(noteId, editor);
 
-  const { canceled, filePaths } = await backend.invoke('dialog:open', {
-    title: share.selectExportFolderTitle || 'Select export folder',
-    properties: ['openDirectory'],
-    useScopedStorage: true,
-  });
-
-  if (canceled || !filePaths.length) return;
+  const rootDir = await chooseRootExportDir(
+    share.selectExportFolderTitle || 'Select export folder'
+  );
+  if (!rootDir) return;
 
   const folderName = noteTitle.replace(/[/\\?%*:|"<>]/g, '-') || 'ExportedNote';
-  const folderPath = path.join(filePaths[0], folderName);
+  const folderPath = path.join(rootDir, folderName);
 
-  await backend.invoke('fs:ensureDir', folderPath);
-
-  await backend.invoke('fs:writeFile', {
-    path: path.join(folderPath, `${noteTitle}.html`),
-    data: finalHtml,
-  });
+  await ensureExportFolder(folderPath);
+  await writeTextExportFile(
+    path.join(folderPath, `${noteTitle}.html`),
+    finalHtml
+  );
 
   const storage = useStorage();
   const dataDir = await storage.get('dataDir', '', 'settings');
@@ -58,29 +60,7 @@ export async function exportHTML(noteId, noteTitle, editor) {
   const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
   const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
 
-  const notesAssetsDest = path.join(folderPath, 'assets');
-  const fileAssetsDest = path.join(folderPath, 'file-assets');
-
-  await backend.invoke('fs:ensureDir', notesAssetsDest);
-  await backend.invoke('fs:ensureDir', fileAssetsDest);
-
-  try {
-    await backend.invoke('fs:copy', {
-      path: noteAssetsSource,
-      dest: notesAssetsDest,
-    });
-  } catch (err) {
-    console.warn('Note assets copy failed:', err.message);
-  }
-
-  try {
-    await backend.invoke('fs:copy', {
-      path: fileAssetsSource,
-      dest: fileAssetsDest,
-    });
-  } catch (err) {
-    console.warn('File assets copy failed:', err.message);
-  }
+  await copyNoteAssetDirectories(dataDir, noteId, folderPath);
 
   showDialogAlert(
     interpolate(

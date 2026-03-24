@@ -21,7 +21,13 @@ import {
   loadSecureBlob,
   storeSecureBlob,
 } from './safeStorageBlob.js';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { ensureDir, pathExists, readFile, writeFile } from '@/lib/native/fs';
+import {
+  clearAssetPassphrase,
+  setAssetPassphrase,
+} from '@/lib/native/security';
+import { getStoredValue } from '@/lib/native/storage';
 
 const PBKDF2_ITERATIONS = 100_000;
 const KEYCHECK_PLAINTEXT = 'BeaverNotes-app-v1';
@@ -65,11 +71,7 @@ async function _gcmDecrypt(ivHex, cipherB64, key) {
 
 async function _cryptoDir() {
   try {
-    const dataDir = await backend.invoke('storage:get', {
-      name: 'settings',
-      key: 'dataDir',
-      def: '',
-    });
+    const dataDir = await getStoredValue('settings', 'dataDir', '');
     if (!dataDir) return null;
     return path.join(dataDir, 'app-crypto');
   } catch {
@@ -87,28 +89,25 @@ export async function setupAppEncryption(passphrase) {
   if (!dir) return { ok: false, error: 'Data directory not configured.' };
 
   try {
-    await backend.invoke('fs:ensureDir', dir);
+    await ensureDir(dir);
 
     const salt = crypto.getRandomValues(new Uint8Array(32));
     const saltHex = bufToHex(salt);
     const key = await _deriveKey(passphrase, salt);
 
-    await backend.invoke('fs:writeFile', {
-      path: path.join(dir, 'salt'),
-      data: saltHex,
-    });
+    await writeFile(path.join(dir, 'salt'), saltHex);
 
     const { iv, cipher } = await _gcmEncrypt(KEYCHECK_PLAINTEXT, key);
-    await backend.invoke('fs:writeFile', {
-      path: path.join(dir, 'keycheck'),
-      data: JSON.stringify({ v: 1, iv, cipher }),
-    });
+    await writeFile(
+      path.join(dir, 'keycheck'),
+      JSON.stringify({ v: 1, iv, cipher })
+    );
 
     _appKey = key;
     localStorage.setItem(LS_FLAG, 'true');
     await storeSecureBlob(BLOB_KEY, passphrase, 'appCrypto');
     try {
-      await backend.invoke('assetCrypto:setAppPassphrase', passphrase);
+      await setAssetPassphrase(passphrase);
     } catch {
       // non-fatal
     }
@@ -128,11 +127,8 @@ export async function verifyAppPassphrase(passphrase) {
   try {
     let saltHex, keycheckRaw;
     try {
-      saltHex = await backend.invoke('fs:readFile', path.join(dir, 'salt'));
-      keycheckRaw = await backend.invoke(
-        'fs:readFile',
-        path.join(dir, 'keycheck')
-      );
+      saltHex = await readFile(path.join(dir, 'salt'));
+      keycheckRaw = await readFile(path.join(dir, 'keycheck'));
     } catch {
       return {
         ok: false,
@@ -164,7 +160,7 @@ export async function verifyAppPassphrase(passphrase) {
     localStorage.setItem(LS_FLAG, 'true');
     if (passphrase) await storeSecureBlob(BLOB_KEY, passphrase, 'appCrypto');
     try {
-      await backend.invoke('assetCrypto:setAppPassphrase', pass);
+      await setAssetPassphrase(pass);
     } catch {
       // non-fatal
     }
@@ -187,7 +183,7 @@ export async function appFolderHasEncryption() {
   const dir = await _cryptoDir();
   if (!dir) return false;
   try {
-    return await backend.invoke('fs:pathExists', path.join(dir, 'salt'));
+    return await pathExists(path.join(dir, 'salt'));
   } catch {
     return false;
   }
@@ -203,7 +199,7 @@ export async function disableAppEncryption() {
   localStorage.removeItem(LS_FLAG);
   await clearSecureBlob(BLOB_KEY);
   try {
-    await backend.invoke('assetCrypto:clearAppPassphrase');
+    await clearAssetPassphrase();
   } catch {
     // ignore
   }

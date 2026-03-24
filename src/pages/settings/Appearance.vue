@@ -278,7 +278,7 @@ import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import { backend } from '@/lib/tauri-bridge';
+import { getSystemFonts, setMenuVisibility } from '@/lib/native/app';
 
 export default {
   setup() {
@@ -369,7 +369,7 @@ export default {
 
     onMounted(async () => {
       try {
-        systemFonts.value = await backend.invoke('get-system-fonts');
+        systemFonts.value = await getSystemFonts();
       } catch (e) {
         console.error('Failed to fetch system fonts', e);
       }
@@ -400,10 +400,7 @@ export default {
     };
 
     const toggleVisibilityOfMenubar = async () => {
-      await backend.invoke(
-        'app:change-menu-visibility',
-        !getSettingSync('visibilityMenubar')
-      );
+      await setMenuVisibility(!getSettingSync('visibilityMenubar'));
     };
 
     const toggleDirectionPreference = () => {

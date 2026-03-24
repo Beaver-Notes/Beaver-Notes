@@ -3,7 +3,15 @@ import { useDialog } from '@/composable/dialog';
 import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
-import { backend, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { readDir } from '@/lib/native/fs';
+import { chooseRootExportDir, ensureExportFolder } from './export-staging';
+import {
+  readExportData,
+  readImportJson,
+  writeExportJson,
+  writeExportFile,
+} from '@/lib/native/exports';
 import { sanitizeNoteContent } from '@/utils/contentSecurity';
 
 function getShareTranslations() {
@@ -36,12 +44,12 @@ async function encodeAssets(sourcePath) {
   const assets = {};
 
   try {
-    const files = await backend.invoke('fs:readdir', sourcePath);
+    const files = await readDir(sourcePath);
 
     for (const file of files) {
       const filePath = path.join(sourcePath, file);
 
-      const base64Data = await backend.invoke('fs:readData', filePath);
+      const base64Data = await readExportData(filePath);
 
       if (!base64Data) {
         console.warn(`File ${file} could not be read or is empty.`);
@@ -62,13 +70,10 @@ export async function exportBEA(noteId, noteTitle) {
   const storage = useStorage();
   const share = getShareTranslations();
   try {
-    const { canceled, filePaths } = await backend.invoke('dialog:open', {
-      title: share.exportNoteDialogTitle || 'Export note',
-      properties: ['openDirectory'],
-      useScopedStorage: true,
-    });
-
-    if (canceled) return;
+    const rootDir = await chooseRootExportDir(
+      share.exportNoteDialogTitle || 'Export note'
+    );
+    if (!rootDir) return;
 
     const allNotes = await storage.store();
     const notesArray = Array.isArray(allNotes)
@@ -108,12 +113,9 @@ export async function exportBEA(noteId, noteTitle) {
     };
 
     const outputFileName = `${noteTitle}.bea`;
-    const outputPath = path.join(filePaths[0], outputFileName);
+    const outputPath = path.join(rootDir, outputFileName);
 
-    await backend.invoke('fs:output-json', {
-      path: outputPath,
-      data: exportedData,
-    });
+    await writeExportJson(outputPath, exportedData);
 
     showDialogAlert(
       interpolate(
@@ -132,7 +134,7 @@ export async function exportBEA(noteId, noteTitle) {
 export async function importBEA(filePath, router, store) {
   const share = getShareTranslations();
   try {
-    const fileContent = await backend.invoke('fs:read-json', filePath);
+    const fileContent = await readImportJson(filePath);
 
     if (!fileContent || !fileContent.data) {
       throw new Error(
@@ -211,31 +213,27 @@ async function processImportedNote(noteData, router) {
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
 
-      await backend.invoke('fs:mkdir', {
-        path: path.join(dataDir, 'notes-assets', noteData.id),
-      });
-      await backend.invoke('fs:mkdir', {
-        path: path.join(dataDir, 'file-assets', noteData.id),
-      });
+      await ensureExportFolder(path.join(dataDir, 'notes-assets', noteData.id));
+      await ensureExportFolder(path.join(dataDir, 'file-assets', noteData.id));
 
       for (const [filename, base64Data] of Object.entries(notesAssets || {})) {
         const byteArray = Uint8Array.from(atob(base64Data), (char) =>
           char.charCodeAt(0)
         );
-        await backend.invoke('fs:writeFile', {
-          path: path.join(dataDir, 'notes-assets', noteData.id, filename),
-          data: byteArray,
-        });
+        await writeExportFile(
+          path.join(dataDir, 'notes-assets', noteData.id, filename),
+          byteArray
+        );
       }
 
       for (const [filename, base64Data] of Object.entries(fileAssets || {})) {
         const byteArray = Uint8Array.from(atob(base64Data), (char) =>
           char.charCodeAt(0)
         );
-        await backend.invoke('fs:writeFile', {
-          path: path.join(dataDir, 'file-assets', noteData.id, filename),
-          data: byteArray,
-        });
+        await writeExportFile(
+          path.join(dataDir, 'file-assets', noteData.id, filename),
+          byteArray
+        );
       }
     }
 

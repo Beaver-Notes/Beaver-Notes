@@ -1,5 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { ipcRenderer, path } from '@/lib/tauri-bridge';
+import { path } from '@/lib/tauri-bridge';
+import { getHelperPath } from '@/lib/native/app';
+import { ensureDir, writeFile } from '@/lib/native/fs';
+import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/composable/storage';
@@ -17,7 +20,7 @@ async function ensureDataDir() {
   if (typeof stored === 'string' && stored.trim()) {
     return stored.trim();
   }
-  const userDataDir = await ipcRenderer.callMain('helper:get-path', 'userData');
+  const userDataDir = await getHelperPath('userData');
   return typeof userDataDir === 'string' ? userDataDir.trim() : '';
 }
 
@@ -299,14 +302,14 @@ async function processRustImportNote(note, state) {
   }
 
   const noteAssetDir = path.join(dataDir, 'notes-assets', id);
-  await ipcRenderer.callMain('fs:ensureDir', noteAssetDir);
+  await ensureDir(noteAssetDir);
 
   for (const resource of note.resources || []) {
     try {
-      await ipcRenderer.callMain('fs:writeFile', {
-        path: path.join(noteAssetDir, resource.filename || resource.hash),
-        data: base64ToUint8Array(resource.data || ''),
-      });
+      await writeFile(
+        path.join(noteAssetDir, resource.filename || resource.hash),
+        base64ToUint8Array(resource.data || '')
+      );
     } catch (error) {
       console.warn('Resource write failed:', error);
     }
@@ -341,51 +344,45 @@ export function startRustImport(source, onProgress) {
     let completionErrors = [];
     let processing = Promise.resolve();
 
-    const unlistenProgress = await ipcRenderer.on(
-      'import-progress',
-      async (_, payload) => {
-        if (payload.source !== source) return;
+    const unlistenProgress = await onImportProgress(async (_, payload) => {
+      if (payload.source !== source) return;
 
-        if (typeof onProgress === 'function') {
-          onProgress({
-            done: payload.done,
-            total: payload.total,
-            current: payload.current,
-          });
-        }
-
-        if (payload.note) {
-          processing = processing.then(async () => {
-            try {
-              await processRustImportNote(payload.note, state);
-            } catch (error) {
-              state.errors.push({
-                title: payload.note.title || 'Untitled',
-                reason: error?.message || String(error),
-              });
-            }
-          });
-        }
-      }
-    );
-
-    const unlistenComplete = await ipcRenderer.on(
-      'import-complete',
-      async (_, payload) => {
-        if (payload.source !== source) return;
-
-        completionErrors = [...(payload.errors || [])];
-        unlistenProgress();
-        unlistenComplete();
-        await processing;
-
-        resolve({
-          imported: state.imported,
-          folders: state.folderIds.size,
-          errors: [...completionErrors, ...state.errors],
+      if (typeof onProgress === 'function') {
+        onProgress({
+          done: payload.done,
+          total: payload.total,
+          current: payload.current,
         });
       }
-    );
+
+      if (payload.note) {
+        processing = processing.then(async () => {
+          try {
+            await processRustImportNote(payload.note, state);
+          } catch (error) {
+            state.errors.push({
+              title: payload.note.title || 'Untitled',
+              reason: error?.message || String(error),
+            });
+          }
+        });
+      }
+    });
+
+    const unlistenComplete = await onImportComplete(async (_, payload) => {
+      if (payload.source !== source) return;
+
+      completionErrors = [...(payload.errors || [])];
+      unlistenProgress();
+      unlistenComplete();
+      await processing;
+
+      resolve({
+        imported: state.imported,
+        folders: state.folderIds.size,
+        errors: [...completionErrors, ...state.errors],
+      });
+    });
   });
 }
 

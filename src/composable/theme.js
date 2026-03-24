@@ -1,6 +1,7 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { getSettingSync, setSetting } from './settings';
 import { backend } from '@/lib/tauri-bridge';
+import { getNativeDarkTheme } from '@/lib/native/app';
 const currentTheme = ref('');
 const resolvedDarkTheme = ref(
   typeof document !== 'undefined' &&
@@ -51,7 +52,7 @@ async function syncSystemThemeFromNative() {
   if (currentTheme.value !== 'system') return;
 
   try {
-    const nativeDark = await backend.invoke('helper:is-dark-theme');
+    const nativeDark = await getNativeDarkTheme();
     applyResolvedTheme(nativeDark);
   } catch {
     applyResolvedTheme(getBrowserDarkPreference());
