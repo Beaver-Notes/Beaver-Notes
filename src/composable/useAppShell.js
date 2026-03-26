@@ -1,4 +1,4 @@
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useTheme } from './theme';
 import { useStorage } from './storage';
@@ -8,12 +8,10 @@ import { useTranslations } from './useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
+import { useAppShellLayout } from './useAppShellLayout';
+import { useAppShellBanners } from './useAppShellBanners';
 import { importBEA } from '@/utils/share/BEA';
-import {
-  tryRestoreKeyFromSafeStorage,
-  syncFolderHasEncryption,
-  isSyncKeyLoaded,
-} from '@/utils/syncCrypto';
+import { tryRestoreKeyFromSafeStorage } from '@/utils/syncCrypto';
 import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
 import { getSyncPath } from '@/utils/syncPath';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
@@ -26,7 +24,6 @@ import {
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
-const SETTINGS_ROUTE_PREFIX = '/settings';
 
 function applyDocumentSettings() {
   document.documentElement.style.setProperty(
@@ -60,154 +57,45 @@ export function useAppShell() {
 
   const retrieved = ref(false);
   const animateRouteChange = ref(true);
-  const keyboardVisible = ref(false);
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
-
-  const updateBanner = reactive({
-    show: false,
-    content: '',
-    primaryText: '',
-    secondaryText: '',
-    version: '',
+  const {
+    bottomBannerStyle,
+    initializeMobileKeyboardTracking,
+    initializeSafeAreaInsets,
+    mainStyle,
+    mobileNavbarStyle,
+    showMobileNavbar,
+    showSidebar,
+  } = useAppShellLayout({
+    backend,
+    route,
+    store,
   });
-  const syncLockBanner = reactive({
-    show: false,
-    dismissed: false,
-  });
-
-  const syncLockBannerCopy = computed(() => ({
-    content:
-      translations.value.app?.syncLockContent ||
-      'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
-    primaryText: translations.value.app?.openSettings || 'Open Settings',
-    secondaryText: translations.value.app?.dismiss || 'Dismiss',
-  }));
-  const showSidebar = computed(
-    () => !store.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
-  );
-  const showMobileNavbar = computed(
-    () =>
-      showSidebar.value &&
-      route.name !== 'Note' &&
-      (!isMobileRuntime.value || !keyboardVisible.value)
-  );
-  const isMobileRuntime = computed(() => backend.isMobileRuntime());
-  const useMobileBottomDockSpacing = computed(
-    () => isMobileRuntime.value && showMobileNavbar.value
-  );
-  const mainStyle = computed(() => {
-    if (!isMobileRuntime.value) return undefined;
-
-    return {
-      paddingTop: 'var(--app-safe-area-top)',
-      paddingBottom: useMobileBottomDockSpacing.value
-        ? 'var(--app-mobile-content-offset)'
-        : 'var(--app-safe-area-bottom)',
-    };
-  });
-  const bottomBannerStyle = computed(() => {
-    if (!isMobileRuntime.value) return undefined;
-
-    return {
-      bottom: useMobileBottomDockSpacing.value
-        ? 'var(--app-mobile-floating-offset)'
-        : 'var(--app-safe-area-bottom)',
-    };
-  });
-  const mobileNavbarStyle = computed(() => {
-    if (!isMobileRuntime.value || !showMobileNavbar.value) return undefined;
-
-    return {
-      bottom: 'var(--app-safe-area-bottom)',
-    };
+  const {
+    dismissSyncBanner,
+    handleUpdateDismiss,
+    handleUpdateInstall,
+    openSyncSettings,
+    refreshSyncLockBanner,
+    syncLockBanner,
+    syncLockBannerCopy,
+    updateBanner,
+  } = useAppShellBanners({
+    route,
+    router,
+    translations,
   });
 
   let removeRouteGuard = null;
   let removeBeforeRouteGuard = null;
   const unlistenFns = [];
-  let maxVisualViewportHeight = 0;
-  let pendingBlurTimeout = null;
-
-  const isEditableElement = (element) => {
-    if (!element || typeof element !== 'object') return false;
-
-    const tagName = element.tagName?.toLowerCase?.() || '';
-    if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
-      return true;
-    }
-
-    return Boolean(element.isContentEditable);
-  };
-
-  const syncKeyboardVisibility = () => {
-    if (
-      typeof window === 'undefined' ||
-      !isMobileRuntime.value ||
-      !window.visualViewport
-    ) {
-      return;
-    }
-
-    const viewportHeight = window.visualViewport.height;
-    if (viewportHeight > maxVisualViewportHeight) {
-      maxVisualViewportHeight = viewportHeight;
-    }
-
-    const activeElement = document.activeElement;
-    const hasEditableFocus = isEditableElement(activeElement);
-    const keyboardDelta = maxVisualViewportHeight - viewportHeight;
-    const likelyKeyboardOpen = hasEditableFocus && keyboardDelta > 120;
-
-    keyboardVisible.value = likelyKeyboardOpen;
-  };
 
   applyDocumentSettings();
 
-  watch(
-    showMobileNavbar,
-    (visible) => {
-      if (typeof document === 'undefined' || !isMobileRuntime.value) return;
-      document.documentElement.style.setProperty(
-        '--app-mobile-dock-height-active',
-        visible ? 'var(--app-mobile-dock-height)' : '0px'
-      );
-    },
-    { immediate: true }
-  );
-
   const getTopLevelRouteKey = (viewRoute) =>
     viewRoute?.fullPath || viewRoute?.path || route.fullPath;
-
-  const initializeSafeAreaInsets = async () => {
-    if (!isMobileRuntime.value) return;
-
-    try {
-      const { getTopInset, getBottomInset } = await import(
-        '@saurl/tauri-plugin-safe-area-insets-css-api'
-      );
-
-      const topInset = await getTopInset();
-      const bottomInset = await getBottomInset();
-      const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
-      const rootStyle = document.documentElement.style;
-
-      rootStyle.setProperty(
-        '--safe-area-inset-top',
-        `${topInset?.inset ?? 0}px`
-      );
-      rootStyle.setProperty('--app-keyboard-inset-bottom', '0px');
-      rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
-      rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
-      rootStyle.setProperty(
-        '--app-note-page-padding',
-        `calc(54px + ${bottomInsetValue} + 0.75rem)`
-      );
-    } catch (error) {
-      console.warn('Safe area inset CSS plugin failed to initialize:', error);
-    }
-  };
 
   const setZoom = (newZoomLevel) => {
     state.zoomLevel = setStoredZoomLevel(newZoomLevel, {
@@ -219,42 +107,6 @@ export function useAppShell() {
     const currentZoomLevel = parseFloat(state.zoomLevel);
     const nextZoomLevel = Math.min(Math.max(currentZoomLevel + delta, 0.5), 3);
     setZoom(nextZoomLevel);
-  };
-
-  const handleUpdateInstall = () => {
-    installUpdate();
-    updateBanner.show = false;
-  };
-
-  const handleUpdateDismiss = () => {
-    updateBanner.show = false;
-  };
-
-  const openSyncSettings = () => {
-    syncLockBanner.show = false;
-    router.push(SETTINGS_ROUTE_PREFIX);
-  };
-
-  const dismissSyncBanner = () => {
-    syncLockBanner.dismissed = true;
-    syncLockBanner.show = false;
-  };
-
-  const refreshSyncLockBanner = async () => {
-    const inSettings = router.currentRoute.value.path.startsWith(
-      SETTINGS_ROUTE_PREFIX
-    );
-    if (
-      inSettings ||
-      syncLockBanner.dismissed ||
-      route.name === ONBOARDING_ROUTE_NAME
-    ) {
-      syncLockBanner.show = false;
-      return;
-    }
-
-    const folderEncrypted = await syncFolderHasEncryption();
-    syncLockBanner.show = folderEncrypted && !isSyncKeyLoaded();
   };
 
   const restoreEncryptionKeys = async () => {
@@ -374,63 +226,7 @@ export function useAppShell() {
       );
     }
 
-    if (isMobileRuntime.value) {
-      unlistenFns.push(
-        backend.listen('keyboard_shown', () => {
-          keyboardVisible.value = true;
-        }),
-        backend.listen('keyboard_hidden', () => {
-          keyboardVisible.value = false;
-        })
-      );
-
-      maxVisualViewportHeight =
-        window.visualViewport?.height ?? window.innerHeight ?? 0;
-
-      const handleFocusIn = () => {
-        if (pendingBlurTimeout) {
-          clearTimeout(pendingBlurTimeout);
-          pendingBlurTimeout = null;
-        }
-
-        requestAnimationFrame(syncKeyboardVisibility);
-      };
-
-      const handleFocusOut = () => {
-        pendingBlurTimeout = window.setTimeout(() => {
-          syncKeyboardVisibility();
-          pendingBlurTimeout = null;
-        }, 180);
-      };
-
-      const handleViewportChange = () => {
-        requestAnimationFrame(syncKeyboardVisibility);
-      };
-
-      document.addEventListener('focusin', handleFocusIn);
-      document.addEventListener('focusout', handleFocusOut);
-      window.visualViewport?.addEventListener('resize', handleViewportChange);
-      window.visualViewport?.addEventListener('scroll', handleViewportChange);
-
-      unlistenFns.push(() => {
-        document.removeEventListener('focusin', handleFocusIn);
-        document.removeEventListener('focusout', handleFocusOut);
-        window.visualViewport?.removeEventListener(
-          'resize',
-          handleViewportChange
-        );
-        window.visualViewport?.removeEventListener(
-          'scroll',
-          handleViewportChange
-        );
-        if (pendingBlurTimeout) {
-          clearTimeout(pendingBlurTimeout);
-          pendingBlurTimeout = null;
-        }
-      });
-
-      syncKeyboardVisibility();
-    }
+    initializeMobileKeyboardTracking(unlistenFns);
 
     try {
       const autoUpdateEnabled = await getAutoUpdateStatus();
@@ -495,7 +291,7 @@ export function useAppShell() {
     dismissSyncBanner,
     getTopLevelRouteKey,
     handleUpdateDismiss,
-    handleUpdateInstall,
+    handleUpdateInstall: () => handleUpdateInstall(installUpdate),
     mainStyle,
     mobileNavbarStyle,
     openSyncSettings,
