@@ -213,29 +213,14 @@
 </template>
 
 <script>
-import {
-  computed,
-  reactive,
-  watch,
-  ref,
-  shallowRef,
-  onMounted,
-  onUnmounted,
-} from 'vue';
-import Mousetrap from '@/lib/mousetrap';
+import { computed, reactive, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
-import {
-  sortArray,
-  getPlainTextFromNoteContent,
-  parseItemId,
-  areSetsEqual,
-} from '@/utils/helper';
+import { sortArray, getPlainTextFromNoteContent } from '@/utils/helper';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
-import KeyboardNavigation from '@/utils/keyboard-navigation';
 import HomeImg from '@/assets/images/home.png';
 import ArchiveImg from '@/assets/images/archive.png';
 import HomeFolderCard from '@/components/home/HomeFolderCard.vue';
@@ -243,8 +228,7 @@ import { useFolderStore } from '@/store/folder';
 import HomeSearch from '@/components/home/HomeSearch.vue';
 import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
-import { useSelection, patchSelectionSet } from '@/composable/selection';
-import { useDragAndDrop } from '@/composable/dragAndDrop';
+import { useNotesBrowser } from '@/composable/useNotesBrowser';
 
 export default {
   components: {
@@ -257,76 +241,20 @@ export default {
   setup() {
     const { translations } = useTranslations();
     const highlightedFolderIds = ref(new Set());
-    const currentFolderId = computed(() => route.params.id);
-
     const route = useRoute();
     const router = useRouter();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const labelStore = useLabelStore();
     const dialog = useDialog();
-
-    const keyboardNavigation = shallowRef(null);
-    const suppressNextClick = ref(false);
-    const SCROLL_ZONE_SIZE = 80;
-    const SCROLL_SPEED = 5;
-    const isSorting = ref(false);
-
-    const showMoveModal = ref(false);
-    const baseSelection = ref(new Set());
-    const cachedItems = [];
-    let dragAccumulated = null;
-    let cachedScrollY = 0;
-
-    let rafId = null;
-    let pendingPointer = null;
-    let mouseMoveListener = null;
-    let sortTimer = null;
-    let enableSortMotion = false;
-
-    const {
-      selectedItems,
-      isSelecting,
-      selectionStart,
-      selectionEnd,
-      selectionBoxStyle,
-      handleItemClick,
-      selectionMode,
-      enterSelectionMode,
-      clearSelection,
-      selectAllItems,
-    } = useSelection({ suppressNextClick });
-
-    const {
-      dragOverFolderId,
-      handleNoteDragStart,
-      handleFolderDragStart,
-      handleDragEnd,
-      handleDragOver,
-      handleDragLeave,
-      handleDrop,
-      startTouchDrag,
-      updateTouchDrag,
-      finishTouchDrag,
-      cancelTouchDrag,
-    } = useDragAndDrop({ selectedItems, clearSelection });
-
     const state = reactive({
       query: '',
       activeLabel: '',
       sortBy: 'createdAt',
       sortOrder: 'asc',
     });
+    const currentFolderId = computed(() => route.params.id);
     const noteSearchCache = new Map();
-    const LONG_PRESS_MS = 360;
-    const TOUCH_CANCEL_DISTANCE = 10;
-    const TOUCH_DRAG_DISTANCE = 8;
-
-    let longPressTimer = null;
-    let touchStartPoint = null;
-    let touchPressItem = null;
-    let touchLongPressTriggered = false;
-    let touchDragStarted = false;
 
     const sortedNotes = computed(() =>
       sortArray({
@@ -350,360 +278,6 @@ export default {
         archived: [],
       };
     });
-
-    const selectedNotes = computed(() => {
-      return Array.from(selectedItems.value)
-        .map(parseItemId)
-        .filter(({ type, id }) => type === 'note' && id)
-        .map(({ id }) => noteStore.getById(id))
-        .filter(Boolean);
-    });
-
-    const selectedFolders = computed(() => {
-      return Array.from(selectedItems.value)
-        .map(parseItemId)
-        .filter(({ type, id }) => type === 'folder' && id)
-        .map(({ id }) => folderStore.getById(id))
-        .filter(Boolean);
-    });
-
-    const moveMode = computed(() => {
-      if (selectedNotes.value.length > 0 && selectedFolders.value.length > 0) {
-        return null;
-      } else if (selectedNotes.value.length > 0) {
-        return 'note';
-      } else if (selectedFolders.value.length > 0) {
-        return 'folder';
-      }
-      return null;
-    });
-
-    function cacheItemRects() {
-      cachedItems.length = 0;
-      const nodes = document.querySelectorAll('[data-item-id]');
-      nodes.forEach((el) => {
-        const id = el.getAttribute('data-item-id');
-        const r = el.getBoundingClientRect();
-        cachedItems.push({
-          id,
-          rect: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
-        });
-      });
-      cachedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    }
-    function handleMouseDown(event) {
-      if (event.button !== 0) return;
-
-      const clickedInsideItem = event.target.closest('[data-item-id]');
-      if (clickedInsideItem) return;
-
-      event.preventDefault();
-
-      cacheItemRects();
-      isSelecting.value = true;
-      selectionStart.value = { x: event.clientX, y: event.clientY };
-      selectionEnd.value = { x: event.clientX, y: event.clientY };
-
-      if (!event.ctrlKey && !event.metaKey) {
-        selectedItems.value.clear();
-      }
-      baseSelection.value = new Set(selectedItems.value);
-
-      dragAccumulated = new Set(baseSelection.value);
-      mouseMoveListener = handleMouseMove;
-      document.addEventListener('mousemove', mouseMoveListener);
-    }
-
-    function handleMouseMove(event) {
-      if (!isSelecting.value) return;
-      event.preventDefault();
-      pendingPointer = { x: event.clientX, y: event.clientY };
-      if (rafId === null) rafId = requestAnimationFrame(tickSelection);
-    }
-    let lastReflowAtDelta = 0;
-    function tickSelection() {
-      rafId = null;
-      const H = window.innerHeight;
-      let dy = 0;
-      if (pendingPointer.y < SCROLL_ZONE_SIZE) dy = -SCROLL_SPEED;
-      else if (pendingPointer.y > H - SCROLL_ZONE_SIZE) dy = SCROLL_SPEED;
-
-      if (dy !== 0) window.scrollBy(0, dy);
-
-      selectionEnd.value = pendingPointer;
-
-      const currentDelta =
-        (window.scrollY || document.documentElement.scrollTop || 0) -
-        cachedScrollY;
-
-      if (Math.abs(currentDelta - lastReflowAtDelta) >= 64) {
-        cacheItemRects();
-        lastReflowAtDelta = currentDelta;
-      }
-
-      updateSelection();
-      if (isSelecting.value) rafId = requestAnimationFrame(tickSelection);
-    }
-
-    function updateSelection() {
-      const left = Math.min(selectionStart.value.x, selectionEnd.value.x);
-      const top = Math.min(selectionStart.value.y, selectionEnd.value.y);
-      const right = Math.max(selectionStart.value.x, selectionEnd.value.x);
-      const bottom = Math.max(selectionStart.value.y, selectionEnd.value.y);
-
-      const scrollDelta =
-        (window.scrollY || document.documentElement.scrollTop || 0) -
-        cachedScrollY;
-
-      let detectedType = null;
-      for (const { id, rect: r } of cachedItems) {
-        const rTop = r.top - scrollDelta;
-        const rBottom = r.bottom - scrollDelta;
-
-        const isIntersecting = !(
-          r.right < left ||
-          r.left > right ||
-          rBottom < top ||
-          rTop > bottom
-        );
-        if (!isIntersecting) continue;
-
-        const [type] = id.split('-');
-        if (!detectedType) detectedType = type;
-        if (type === detectedType) {
-          dragAccumulated.add(id);
-        }
-      }
-
-      if (!areSetsEqual(dragAccumulated, selectedItems.value)) {
-        patchSelectionSet(selectedItems.value, dragAccumulated);
-      }
-    }
-
-    function handleMouseUp(event) {
-      if (!isSelecting.value) return;
-
-      const dx = Math.abs(selectionEnd.value.x - selectionStart.value.x);
-      const dy = Math.abs(selectionEnd.value.y - selectionStart.value.y);
-
-      if (dx >= 5 || dy >= 5) {
-        suppressNextClick.value = true;
-        event.preventDefault();
-        event.stopPropagation();
-      }
-
-      isSelecting.value = false;
-      dragAccumulated = null;
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-        rafId = null;
-      }
-      if (mouseMoveListener) {
-        document.removeEventListener('mousemove', mouseMoveListener);
-        mouseMoveListener = null;
-      }
-    }
-
-    function handleGridClick(event) {
-      if (suppressNextClick.value) {
-        suppressNextClick.value = false;
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-
-      if (event.target === event.currentTarget && !isSelecting.value) {
-        clearSelection();
-      }
-    }
-
-    function getTouchPoint(event) {
-      return event.touches?.[0] || event.changedTouches?.[0] || null;
-    }
-
-    function resetTouchInteraction() {
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-      touchStartPoint = null;
-      touchPressItem = null;
-      touchLongPressTriggered = false;
-      touchDragStarted = false;
-    }
-
-    function touchDistanceFromStart(touch) {
-      if (!touch || !touchStartPoint) return 0;
-      return Math.hypot(
-        touch.clientX - touchStartPoint.x,
-        touch.clientY - touchStartPoint.y
-      );
-    }
-
-    function handleItemTouchStart(event, type, id) {
-      const touch = getTouchPoint(event);
-      if (!touch) return;
-
-      resetTouchInteraction();
-      touchPressItem = { type, id, key: `${type}-${id}` };
-      touchStartPoint = { x: touch.clientX, y: touch.clientY };
-
-      longPressTimer = setTimeout(() => {
-        touchLongPressTriggered = true;
-        suppressNextClick.value = true;
-
-        if (
-          !selectionMode.value ||
-          !selectedItems.value.has(touchPressItem.key)
-        ) {
-          enterSelectionMode(touchPressItem.key);
-        }
-      }, LONG_PRESS_MS);
-    }
-
-    function handleItemTouchMove(event) {
-      const touch = getTouchPoint(event);
-      if (!touchPressItem || !touch) return;
-
-      const distance = touchDistanceFromStart(touch);
-
-      if (!touchLongPressTriggered) {
-        if (distance > TOUCH_CANCEL_DISTANCE) {
-          resetTouchInteraction();
-        }
-        return;
-      }
-
-      if (!touchDragStarted && distance >= TOUCH_DRAG_DISTANCE) {
-        const sourceElement = document.querySelector(
-          `[data-item-id="${touchPressItem.key}"]`
-        );
-        if (sourceElement) {
-          startTouchDrag(
-            touchPressItem.type,
-            touchPressItem.id,
-            touch,
-            sourceElement
-          );
-          touchDragStarted = true;
-        }
-      }
-
-      if (touchDragStarted) {
-        event.preventDefault();
-        updateTouchDrag(touch);
-      }
-    }
-
-    function handleItemTouchEnd(event, type, id) {
-      const itemKey = `${type}-${id}`;
-      if (touchPressItem?.key !== itemKey) return;
-
-      clearTimeout(longPressTimer);
-      longPressTimer = null;
-
-      if (touchDragStarted) {
-        event.preventDefault();
-        const didMove = finishTouchDrag();
-        if (didMove) clearSelection();
-        resetTouchInteraction();
-        return;
-      }
-
-      if (touchLongPressTriggered) {
-        event.preventDefault();
-        resetTouchInteraction();
-      }
-    }
-
-    function handleItemTouchCancel() {
-      if (touchDragStarted) {
-        cancelTouchDrag();
-      }
-      resetTouchInteraction();
-    }
-
-    function handleDocumentSelectionBoundary(event) {
-      if (!selectionMode.value) return;
-
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      if (
-        target.closest('[data-item-id]') ||
-        target.closest('[data-selection-keep]')
-      ) {
-        return;
-      }
-
-      clearSelection();
-    }
-
-    function getAllVisibleItems() {
-      const items = [];
-      folders.value.all.forEach((folder) => items.push(`folder-${folder.id}`));
-      ['bookmarked', 'all', 'archived'].forEach((category) => {
-        if (notes.value[category]) {
-          notes.value[category].forEach((note) =>
-            items.push(`note-${note.id}`)
-          );
-        }
-      });
-      return items;
-    }
-
-    function selectAll() {
-      selectAllItems(getAllVisibleItems);
-    }
-
-    function deleteDialogCopy(count) {
-      const title =
-        count === 1
-          ? translations.value.card.deleteItem
-          : translations.value.card.deleteItems.replace('{count}', count);
-      return { title };
-    }
-
-    async function bulkDelete() {
-      const count = selectedItems.value.size;
-      const { title } = deleteDialogCopy(count);
-
-      dialog.confirm({
-        title,
-        okText: translations.value.card.delete,
-        cancelText: translations.value.card.cancel,
-        destructive: true,
-        onConfirm: async () => {
-          for (const item of selectedItems.value) {
-            const { type, id } = parseItemId(item);
-            if (type === 'note') await noteStore.delete(id);
-            else if (type === 'folder') await folderStore.delete(id);
-          }
-          clearSelection();
-        },
-      });
-    }
-
-    function bulkMove() {
-      if (selectedItems.value.size > 0) {
-        showMoveModal.value = true;
-      }
-    }
-
-    function handleMoved(result) {
-      const targetFolderId = result.folderId;
-
-      for (const item of selectedItems.value) {
-        const { type, id } = parseItemId(item);
-        if (type === 'note') {
-          noteStore.update(id, { folderId: targetFolderId });
-        } else if (type === 'folder') {
-          if (!folderStore.wouldCreateCircularReference(id, targetFolderId)) {
-            folderStore.update(id, { parentId: targetFolderId });
-          }
-        }
-      }
-
-      clearSelection();
-      showMoveModal.value = false;
-    }
 
     function filterNotes(notes) {
       const filteredNotes = {
@@ -793,124 +367,16 @@ export default {
       });
     }
 
-    watch(
-      () => route.query.label,
-      (label) => {
-        if (label) {
-          state.activeLabel = decodeURIComponent(label);
-        }
-      },
-      { immediate: true }
-    );
-
-    watch(
-      () => [state.sortBy, state.sortOrder],
-      ([sortBy, sortOrder]) => {
-        localStorage.setItem(
-          'sort-notes',
-          JSON.stringify({ sortBy, sortOrder })
-        );
-
-        if (!enableSortMotion) return;
-
-        clearTimeout(sortTimer);
-        isSorting.value = true;
-        sortTimer = setTimeout(() => {
-          isSorting.value = false;
-        }, 400);
-      }
-    );
-
-    watch(notes, () => {
-      setTimeout(() => {
-        keyboardNavigation.value.refresh();
-      }, 250);
-    });
-
-    onMounted(() => {
-      window.addEventListener('mouseup', handleMouseUp);
-      document.addEventListener('click', handleDocumentSelectionBoundary, true);
-      document.addEventListener(
-        'touchstart',
-        handleDocumentSelectionBoundary,
-        true
-      );
-
-      const sortState = JSON.parse(localStorage.getItem('sort-notes'));
-      if (sortState) Object.assign(state, sortState);
-      enableSortMotion = true;
-
-      keyboardNavigation.value = new KeyboardNavigation({
-        itemSelector: '.note-card',
-        activeClass: 'ring-1 ring-primary active-note',
-        breakpoints: {
-          default: 1,
-          '(min-width: 768px)': 2,
-          '(min-width: 1024px)': 3,
-          '(min-width: 1280px)': 4,
-        },
-      });
-
-      keyboardNavigation.value.on(
-        'keydown',
-        ({ event: { key }, activeItem }) => {
-          const noteId = activeItem?.getAttribute('note-id');
-          if (!noteId) return;
-
-          if (key === 'Enter') {
-            router.push(`/note/${noteId}`);
-          } else if (['Backspace', 'Delete'].includes(key)) {
-            dialog.confirm({
-              title: translations.value.card.confirmPrompt,
-              okText: translations.value.card.confirm,
-              cancelText: translations.value.card.cancel,
-              onConfirm: async () => await noteStore.delete(noteId),
-            });
-          }
-        }
-      );
-
-      Mousetrap.bind(['command+a', 'ctrl+a'], (e) => {
-        e.preventDefault();
-        selectAll();
-      });
-
-      Mousetrap.bind('esc', (e) => {
-        if (selectedItems.value.size > 0) {
-          e.preventDefault();
-          clearSelection();
-        }
-      });
-
-      Mousetrap.bind(['del', 'backspace'], (e) => {
-        if (selectedItems.value.size > 0) {
-          e.preventDefault();
-          bulkDelete();
-        }
-      });
-    });
-
-    onUnmounted(() => {
-      keyboardNavigation.value?.destroy();
-
-      window.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener(
-        'click',
-        handleDocumentSelectionBoundary,
-        true
-      );
-      document.removeEventListener(
-        'touchstart',
-        handleDocumentSelectionBoundary,
-        true
-      );
-      clearTimeout(sortTimer);
-      clearTimeout(longPressTimer);
-      Mousetrap.reset();
-      if (mouseMoveListener) {
-        document.removeEventListener('mousemove', mouseMoveListener);
-        mouseMoveListener = null;
-      }
+    const pageController = useNotesBrowser({
+      state,
+      route,
+      router,
+      noteStore,
+      folderStore,
+      dialog,
+      translations,
+      notes,
+      folders,
     });
 
     const folder = computed(() => {
@@ -951,41 +417,11 @@ export default {
       deleteLabel,
       HomeImg,
       ArchiveImg,
-      handleNoteDragStart,
-      handleFolderDragStart,
-      handleDragOver,
-      handleDragLeave,
-      handleDrop,
       highlightedFolderIds,
-      selectedItems,
-      selectionMode,
-      handleItemClick,
-      handleGridClick,
-      handleMouseDown,
-      handleMouseMove,
-      handleMouseUp,
-      handleItemTouchStart,
-      handleItemTouchMove,
-      handleItemTouchEnd,
-      handleItemTouchCancel,
-      selectAll,
-      clearSelection,
-      bulkDelete,
-      bulkMove,
-      handleMoved,
-      showMoveModal,
-      moveMode,
-      isSorting,
-      isSelecting,
-      selectionBoxStyle,
-      selectedNotes,
-      selectedFolders,
-      handleDragEnd,
-      dragOverFolderId,
-      getAllVisibleItems,
       childFolders,
       notesInFolder,
       folderPath,
+      ...pageController,
     };
   },
 };
