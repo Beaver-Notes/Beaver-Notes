@@ -77,6 +77,15 @@ export default {
         editor.value.commands.setContent(safeContent.value);
       }
 
+      if (props.cursorPosition) {
+        const { state, view } = editor.value;
+        const pos = Math.min(props.cursorPosition, state.doc.content.size);
+        const tr = state.tr.setSelection(
+          state.selection.constructor.near(state.doc.resolve(pos))
+        );
+        view.dispatch(tr);
+      }
+
       editor.value.on('update', () => {
         const data = editor.value.getJSON();
         emit('update', data);

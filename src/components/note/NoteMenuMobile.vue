@@ -1,17 +1,14 @@
 <template>
   <teleport to="body">
     <div
-      class="fixed left-0 right-0 z-[200] print:hidden flex justify-center px-3 transition-opacity duration-300 pointer-events-none hidden mobile:flex"
+      class="note-menu-mobile-shell fixed inset-x-0 z-50 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
         store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
       "
-      :style="{ bottom: 'calc(var(--app-safe-area-bottom) + 18px)' }"
     >
-      <!-- Outer shell — pill shape, clips the scrollable inner track -->
       <div
-        class="pointer-events-auto relative h-[54px] max-w-full bg-white dark:bg-neutral-800 border border-black/10 dark:border-white/10 rounded-[18px] shadow-[0_2px_8px_rgba(0,0,0,0.06),0_8px_28px_rgba(0,0,0,0.10)] dark:shadow-[0_2px_8px_rgba(0,0,0,0.30),0_8px_28px_rgba(0,0,0,0.40)] overflow-hidden"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
       >
-        <!-- Scroll track — touch-scrollable, hides scrollbar -->
         <div
           ref="container"
           class="relative h-full overflow-x-auto overflow-y-hidden scrollbar-hide scroll-smooth"
@@ -27,11 +24,12 @@
           <!-- ── MAIN PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('main'),
             ]"
           >
             <button
+              v-if="isItemVisible('paragraph')"
               :class="tbBtn(editor.isActive('paragraph'))"
               v-tooltip.group="translations.menu.paragraph"
               @click="openSub('paragraph')"
@@ -40,6 +38,7 @@
             </button>
 
             <button
+              v-if="isItemVisible('headings')"
               :class="tbBtn(editor.isActive('heading'))"
               v-tooltip.group="translations.menu.headings"
               @click="openSub('headings')"
@@ -48,29 +47,34 @@
             </button>
 
             <button
+              v-if="isItemVisible('fontSize')"
               :class="tbBtn()"
               v-tooltip.group="translations.menu.fontSize"
               @click="openSub('fontSize')"
             >
               <span
-                class="text-[11px] font-semibold pointer-events-none leading-none"
+                class="pointer-events-none text-xs font-semibold leading-none"
                 >{{ fontSize || 'Aa' }}</span
               >
             </button>
 
-            <span class="tb-divider" />
+            <span
+              v-if="hasTextControls && hasFormattingControls"
+              class="tb-divider"
+            />
 
             <button
-              v-for="fmt in inlineFmts"
-              :key="fmt"
-              v-tooltip.group="fmtMap[fmt]?.title"
-              :class="tbBtn(editor.isActive(fmtMap[fmt]?.state))"
-              @click="fmtMap[fmt]?.run()"
+              v-for="item in visibleInlineFormatItems"
+              :key="item.id"
+              v-tooltip.group="fmtMap[item.fmt]?.title"
+              :class="tbBtn(editor.isActive(fmtMap[item.fmt]?.state))"
+              @click="fmtMap[item.fmt]?.run()"
             >
-              <v-remixicon :name="fmtMap[fmt]?.icon" />
+              <v-remixicon :name="fmtMap[item.fmt]?.icon" />
             </button>
 
             <button
+              v-if="isItemVisible('color')"
               v-tooltip.group="translations.menu.highlight"
               :class="
                 tbBtn(
@@ -85,10 +89,13 @@
               />
             </button>
 
-            <span class="tb-divider" />
+            <span
+              v-if="hasFormattingControls && hasBlockControls"
+              class="tb-divider"
+            />
 
             <button
-              v-if="!isTableActive"
+              v-if="!isTableActive && isItemVisible('lists')"
               v-tooltip.group="translations.menu.lists"
               :class="
                 tbBtn(
@@ -103,7 +110,7 @@
             </button>
 
             <button
-              v-if="!isTableActive"
+              v-if="!isTableActive && isItemVisible('blockquote')"
               v-tooltip.group="translations.menu.blockQuote"
               :class="tbBtn(editor.isActive('blockquote'))"
               @click="editor.chain().focus().toggleBlockquote().run()"
@@ -112,7 +119,7 @@
             </button>
 
             <button
-              v-if="!isTableActive"
+              v-if="!isTableActive && isItemVisible('codeBlock')"
               v-tooltip.group="translations.menu.codeBlock"
               :class="tbBtn(editor.isActive('codeBlock'))"
               @click="editor.chain().focus().toggleCodeBlock().run()"
@@ -132,9 +139,13 @@
               </button>
             </template>
 
-            <span class="tb-divider" />
+            <span
+              v-if="hasBlockControls && hasMediaControls"
+              class="tb-divider"
+            />
 
             <button
+              v-if="isItemVisible('link')"
               v-tooltip.group="translations.menu.link"
               :class="tbBtn(editor.isActive('link'))"
               @click="editor.chain().focus().toggleLink({ href: '' }).run()"
@@ -142,6 +153,7 @@
               <v-remixicon name="riLink" />
             </button>
             <button
+              v-if="isItemVisible('image')"
               v-tooltip.group="translations.menu.image"
               :class="tbBtn()"
               @click="openSub('image')"
@@ -149,6 +161,7 @@
               <v-remixicon name="riImageLine" />
             </button>
             <button
+              v-if="isItemVisible('file')"
               v-tooltip.group="translations.menu.file"
               :class="tbBtn()"
               @click="openSub('file')"
@@ -156,6 +169,7 @@
               <v-remixicon name="riFile2Line" />
             </button>
             <button
+              v-if="isItemVisible('video')"
               v-tooltip.group="translations.menu.video"
               :class="tbBtn()"
               @click="openSub('video')"
@@ -163,6 +177,7 @@
               <v-remixicon name="riMovieLine" />
             </button>
             <button
+              v-if="isItemVisible('table')"
               v-tooltip.group="translations.menu.table"
               :class="tbBtn()"
               @click="
@@ -176,6 +191,7 @@
               <v-remixicon name="riTableLine" />
             </button>
             <button
+              v-if="isItemVisible('draw-block')"
               v-tooltip.group="translations.menu.draw"
               :class="tbBtn()"
               @click="editor.commands.insertPaper"
@@ -183,7 +199,10 @@
               <v-remixicon name="riBrushLine" />
             </button>
 
-            <span class="tb-divider" />
+            <span
+              v-if="hasMediaControls && isItemVisible('audio')"
+              class="tb-divider"
+            />
 
             <!-- Audio -->
             <div class="flex items-center gap-0.5">
@@ -196,7 +215,7 @@
                   <v-remixicon name="riStopCircleLine" />
                 </button>
                 <span
-                  class="text-xs font-semibold tabular-nums text-red-500 min-w-[42px] px-1"
+                  class="min-w-10 px-1 text-xs font-semibold tabular-nums text-red-500"
                   >{{ formattedTime }}</span
                 >
                 <button :class="tbBtn()" @click="pauseResume">
@@ -207,6 +226,7 @@
               </template>
               <template v-else>
                 <button
+                  v-if="isItemVisible('audio')"
                   v-tooltip.group="translations.menu.record"
                   :class="tbBtn()"
                   @click="openSub('audio')"
@@ -216,10 +236,16 @@
               </template>
             </div>
 
-            <span class="tb-divider" />
+            <span
+              v-if="
+                (hasMediaControls || isItemVisible('audio')) &&
+                hasActionControls
+              "
+              class="tb-divider"
+            />
 
             <button
-              v-if="!isTableActive"
+              v-if="!isTableActive && isItemVisible('share')"
               v-tooltip.group="translations.menu.share"
               :class="tbBtn()"
               @click="openSub('share')"
@@ -227,6 +253,7 @@
               <v-remixicon name="riShare2Line" />
             </button>
             <button
+              v-if="isItemVisible('readerMode')"
               v-tooltip.group="translations.menu.readerMode"
               :class="tbBtn(store.inReaderMode)"
               @click="toggleReaderMode"
@@ -234,6 +261,7 @@
               <v-remixicon name="riArticleLine" />
             </button>
             <button
+              v-if="isItemVisible('delete')"
               v-tooltip.group="translations.menu.delete"
               :class="[tbBtn(), 'hover:!text-red-500 hover:!bg-red-500/10']"
               @click="deleteNode"
@@ -241,7 +269,10 @@
               <v-remixicon name="riDeleteBin6Line" />
             </button>
 
-            <span class="tb-divider" />
+            <span
+              v-if="hasActionControls || visibleItems.length"
+              class="tb-divider"
+            />
 
             <button
               v-tooltip.group="'Customize toolbar'"
@@ -268,7 +299,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.headings }}</span>
@@ -302,7 +333,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.fontSize }}</span>
@@ -322,7 +353,7 @@
                 v-model.number="fontSize"
                 type="number"
                 min="1"
-                class="w-8 text-center bg-transparent text-[13px] font-medium text-neutral-800 dark:text-white border-0 outline-none no-spinner"
+                class="w-8 border-0 bg-transparent text-center text-sm font-medium text-neutral-800 outline-none dark:text-white no-spinner"
                 @change="updateFontSize"
               />
               <button
@@ -372,7 +403,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.textColor }}</span>
@@ -388,7 +419,7 @@
             <button
               v-for="c in textColors"
               :key="'tc-' + c"
-              class="w-[26px] h-[26px] shrink-0 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+              class="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
               :style="{ background: c + '33' }"
               @click="
                 setTextColor(c);
@@ -418,7 +449,7 @@
               v-for="c in highlighterColors"
               :key="'hl-' + c"
               :class="[
-                'w-[26px] h-[26px] shrink-0 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 active:scale-95 transition-transform',
+                'h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 active:scale-95 transition-transform',
                 c,
               ]"
               @click="
@@ -436,7 +467,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.lists }}</span>
@@ -461,7 +492,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.image }}</span>
@@ -496,7 +527,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.file }}</span>
@@ -538,7 +569,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
@@ -580,7 +611,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.record }}</span>
@@ -624,7 +655,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.share }}</span>
@@ -649,7 +680,7 @@
             ]"
           >
             <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftSLine" />
+              <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">Align</span>
@@ -714,7 +745,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
 import useAudioRecorder from '@/utils/record';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
@@ -740,6 +771,7 @@ export default {
     tree: { type: Boolean, default: false },
     id: { type: String, default: '' },
     note: { type: Object, required: true },
+    showSearch: { type: Boolean, default: false },
   },
   emits: ['update:tree'],
 
@@ -899,7 +931,50 @@ export default {
       ];
     }
 
-    const inlineFmts = ['bold', 'italic', 'underline', 'strike', 'code'];
+    const inlineFormatItems = [
+      { id: 'bold', fmt: 'bold' },
+      { id: 'italic', fmt: 'italic' },
+      { id: 'underline', fmt: 'underline' },
+      { id: 'strikethrough', fmt: 'strikethrough' },
+      { id: 'inlineCode', fmt: 'inlineCode' },
+    ];
+    const visibleItemIds = computed(
+      () => new Set(visibleItems.value.map((item) => item.id))
+    );
+    const isItemVisible = (id) => visibleItemIds.value.has(id);
+    const visibleInlineFormatItems = computed(() =>
+      inlineFormatItems.filter((item) => isItemVisible(item.id))
+    );
+    const hasTextControls = computed(
+      () =>
+        isItemVisible('paragraph') ||
+        isItemVisible('headings') ||
+        isItemVisible('fontSize')
+    );
+    const hasFormattingControls = computed(
+      () => visibleInlineFormatItems.value.length > 0 || isItemVisible('color')
+    );
+    const hasBlockControls = computed(
+      () =>
+        isItemVisible('lists') ||
+        isItemVisible('blockquote') ||
+        isItemVisible('codeBlock')
+    );
+    const hasMediaControls = computed(
+      () =>
+        isItemVisible('link') ||
+        isItemVisible('image') ||
+        isItemVisible('file') ||
+        isItemVisible('video') ||
+        isItemVisible('table') ||
+        isItemVisible('draw-block')
+    );
+    const hasActionControls = computed(
+      () =>
+        isItemVisible('share') ||
+        isItemVisible('readerMode') ||
+        isItemVisible('delete')
+    );
 
     return {
       store,
@@ -945,7 +1020,13 @@ export default {
       openSub,
       closeSub,
       panelClass,
-      inlineFmts,
+      visibleInlineFormatItems,
+      isItemVisible,
+      hasTextControls,
+      hasFormattingControls,
+      hasBlockControls,
+      hasMediaControls,
+      hasActionControls,
       tbBtn,
       tbChip,
       scrolledLeft,
@@ -965,11 +1046,24 @@ export default {
   display: none; /* Chrome/Safari/WebKit */
 }
 
+.note-menu-mobile-shell {
+  bottom: calc(var(--app-toolbar-bottom) + 0.75rem);
+}
+
 /* ── Panel morph animation states ─────────────────────────────────────── */
 .tb-panel {
+  max-width: min(calc(100vw - 2rem), 42rem);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
     transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
   will-change: opacity, transform;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tb-panel::-webkit-scrollbar {
+  display: none;
 }
 
 /* Hidden: shifted right, invisible, out of flow */
@@ -999,12 +1093,12 @@ export default {
 
 /* ── Back button ────────────────────────────────────────────────────────── */
 .tb-back {
-  @apply shrink-0 w-9 h-11 rounded-xl border-0 bg-transparent cursor-pointer
+  @apply shrink-0 h-11 w-9 rounded-xl border-0 bg-transparent cursor-pointer
          flex items-center justify-center
          text-neutral-500 dark:text-neutral-400
-         hover:bg-black/[0.06] dark:hover:bg-white/[0.08]
+         hover:bg-black/5 dark:hover:bg-white/10
          hover:text-neutral-800 dark:hover:text-white
-         active:scale-[0.88]
+         active:scale-90
          transition-all duration-150 select-none touch-manipulation;
 }
 
@@ -1016,16 +1110,15 @@ export default {
 
 /* ── Sub-panel section label ────────────────────────────────────────────── */
 .sub-label {
-  @apply text-[10px] font-semibold tracking-widest uppercase
-         text-neutral-400 dark:text-neutral-500
-         px-1 shrink-0 select-none;
+  @apply px-1 shrink-0 select-none text-[10px] font-semibold uppercase tracking-wider
+         text-neutral-400 dark:text-neutral-500;
 }
 
 /* ── URL text input ─────────────────────────────────────────────────────── */
 .tb-input {
-  @apply h-[38px] min-w-[140px] max-w-[200px] px-3
-         rounded-xl border border-black/[0.14] dark:border-white/[0.12]
-         bg-transparent text-[13px] outline-none
+  @apply h-10 min-w-[10rem] max-w-[14rem] px-3
+         rounded-xl border border-black/10 dark:border-white/10
+         bg-transparent text-sm outline-none
          text-neutral-800 dark:text-white
          placeholder:text-neutral-400 dark:placeholder:text-neutral-500
          focus:border-primary dark:focus:border-secondary

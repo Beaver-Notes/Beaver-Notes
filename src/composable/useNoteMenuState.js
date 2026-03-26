@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import { saveFile } from '@/utils/copy-doc';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/composable/zoom';
-import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
+import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 
 function normalizePath(value) {
   return value.replace(/\\/g, '');
@@ -144,23 +144,20 @@ export function useNoteMenuState({
     }
   };
 
-  let removeGlobalShortcuts = () => {};
+  useGlobalShortcuts(() => ({
+    'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
+    'mod+shift+d': deleteNode,
+    'mod+shift+f': toggleReaderMode,
+    'mod+p': printContent,
+  }));
 
   onMounted(() => {
-    removeGlobalShortcuts = bindGlobalShortcuts({
-      'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
-      'mod+shift+d': deleteNode,
-      'mod+shift+f': toggleReaderMode,
-      'mod+p': printContent,
-    });
-
     if (editor) {
       editor.on('selectionUpdate', handleSelectionUpdate);
     }
   });
 
   onUnmounted(() => {
-    removeGlobalShortcuts();
     editor?.off?.('selectionUpdate', handleSelectionUpdate);
   });
 

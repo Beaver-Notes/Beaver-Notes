@@ -20,6 +20,7 @@ import TextDirection from 'tiptap-text-direction';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Paper from './exts/paper-block';
+import OverlayDrawing from './exts/overlay-drawing';
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
@@ -89,6 +90,7 @@ const extensions = [
   LinkNote,
   FileEmbed,
   Paper,
+  OverlayDrawing,
   Footnotes,
   FootnoteReference,
   Footnote,

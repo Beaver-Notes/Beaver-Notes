@@ -653,9 +653,18 @@ import {
 import { getSyncPath, setSyncPath } from '@/utils/syncPath.js';
 import { getSettingSync, setSetting } from '../../composable/settings';
 import { useTranslations } from '../../composable/useTranslations';
-import { backend, clipboard, ipcRenderer, path } from '@/lib/tauri-bridge';
-import { showMessage } from '@/lib/native/dialog';
+import { clipboard, ipcRenderer, path } from '@/lib/tauri-bridge';
+import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getHelperPath, setSpellcheck } from '@/lib/native/app';
+import {
+  copyPath,
+  ensureDir,
+  readData,
+  readDir,
+  readJson,
+  writeFile,
+  writeJson,
+} from '@/lib/native/fs';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 const LANGUAGE_CONFIG = {
@@ -781,7 +790,7 @@ export default {
         const {
           canceled,
           filePaths: [dir],
-        } = await backend.invoke('dialog:open', {
+        } = await openDialog({
           title: translations.value.settings.selectPath,
           properties: ['openDirectory'],
         });
@@ -837,7 +846,7 @@ export default {
     async function exportData() {
       try {
         const dataDir = await getEffectiveDataDir();
-        const { canceled, filePaths } = await backend.invoke('dialog:open', {
+        const { canceled, filePaths } = await openDialog({
           title: translations.value.settings.exportData,
           properties: ['openDirectory'],
           useScopedStorage: true,
@@ -863,39 +872,27 @@ export default {
         const containsGvfs = folderPath.includes('gvfs');
 
         if (containsGvfs) {
-          await backend.invoke('fs:ensureDir', folderPath);
-          await backend.invoke('fs:output-json', {
-            path: path.join(folderPath, 'data.json'),
-            data: { data },
-          });
+          await ensureDir(folderPath);
+          await writeJson(path.join(folderPath, 'data.json'), { data });
 
           const notesAssetsSource = path.join(dataDir, 'notes-assets');
           const notesAssetsDest = path.join(folderPath, 'assets');
-          await backend.invoke('fs:copy', {
-            path: notesAssetsSource,
-            dest: notesAssetsDest,
-          });
+          await copyPath(notesAssetsSource, notesAssetsDest);
 
           const fileAssetsSource = path.join(dataDir, 'file-assets');
           const fileAssetsDest = path.join(folderPath, 'file-assets');
-          await backend.invoke('fs:copy', {
-            path: fileAssetsSource,
-            dest: fileAssetsDest,
-          });
+          await copyPath(fileAssetsSource, fileAssetsDest);
         } else {
-          await backend.invoke('fs:ensureDir', folderPath);
-          await backend.invoke('fs:output-json', {
-            path: path.join(folderPath, 'data.json'),
-            data: { data },
-          });
-          await backend.invoke('fs:copy', {
-            path: path.join(dataDir, 'notes-assets'),
-            dest: path.join(folderPath, 'assets'),
-          });
-          await backend.invoke('fs:copy', {
-            path: path.join(dataDir, 'file-assets'),
-            dest: path.join(folderPath, 'file-assets'),
-          });
+          await ensureDir(folderPath);
+          await writeJson(path.join(folderPath, 'data.json'), { data });
+          await copyPath(
+            path.join(dataDir, 'notes-assets'),
+            path.join(folderPath, 'assets')
+          );
+          await copyPath(
+            path.join(dataDir, 'file-assets'),
+            path.join(folderPath, 'file-assets')
+          );
 
           showDialogAlert(
             `${translations.value.settings.exportMessage}"${folderName}"`
@@ -945,7 +942,7 @@ export default {
         const {
           canceled,
           filePaths: [dirPath],
-        } = await backend.invoke('dialog:open', {
+        } = await openDialog({
           title: translations.value.settings.importData,
           properties: ['openDirectory'],
           useScopedStorage: true,
@@ -953,10 +950,7 @@ export default {
 
         if (canceled) return;
 
-        let { data } = await backend.invoke(
-          'fs:read-json',
-          path.join(dirPath, 'data.json')
-        );
+        let { data } = await readJson(path.join(dirPath, 'data.json'));
 
         if (!data) return showAlert(translations.value.settings.invalidData);
 
@@ -1010,15 +1004,15 @@ export default {
                   );
                 }
 
-                await backend.invoke('fs:copy', {
-                  path: path.join(dirPath, 'assets'),
-                  dest: path.join(dataDir, 'notes-assets'),
-                });
+                await copyPath(
+                  path.join(dirPath, 'assets'),
+                  path.join(dataDir, 'notes-assets')
+                );
 
-                await backend.invoke('fs:copy', {
-                  path: path.join(dirPath, 'file-assets'),
-                  dest: path.join(dataDir, 'file-assets'),
-                });
+                await copyPath(
+                  path.join(dirPath, 'file-assets'),
+                  path.join(dataDir, 'file-assets')
+                );
               } catch (error) {
                 showAlert(translations.value.settings.invalidPassword);
                 return false;
@@ -1052,15 +1046,15 @@ export default {
             localStorage.setItem('isLocked', JSON.stringify(importedIsLocked));
           }
 
-          await backend.invoke('fs:copy', {
-            path: path.join(dirPath, 'assets'),
-            dest: path.join(dataDir, 'notes-assets'),
-          });
+          await copyPath(
+            path.join(dirPath, 'assets'),
+            path.join(dataDir, 'notes-assets')
+          );
 
-          await backend.invoke('fs:copy', {
-            path: path.join(dirPath, 'file-assets'),
-            dest: path.join(dataDir, 'file-assets'),
-          });
+          await copyPath(
+            path.join(dirPath, 'file-assets'),
+            path.join(dataDir, 'file-assets')
+          );
         }
       } catch (error) {
         console.error(error);
@@ -1072,7 +1066,7 @@ export default {
         const {
           canceled,
           filePaths: [dir],
-        } = await backend.invoke('dialog:open', {
+        } = await openDialog({
           title: translations.value.settings.selectPath,
           properties: ['openDirectory'],
           useScopedStorage: true,
@@ -1352,15 +1346,11 @@ export default {
       const files = [];
       for (const root of roots) {
         const rootDir = path.join(dataDir, root);
-        const noteDirs = await backend
-          .invoke('fs:readdir', rootDir)
-          .catch(() => []);
+        const noteDirs = await readDir(rootDir).catch(() => []);
         for (const noteDir of noteDirs) {
           if (isIgnoredAssetEntry(noteDir)) continue;
           const fullNoteDir = path.join(rootDir, noteDir);
-          const assetNames = await backend
-            .invoke('fs:readdir', fullNoteDir)
-            .catch(() => []);
+          const assetNames = await readDir(fullNoteDir).catch(() => []);
           for (const assetName of assetNames) {
             if (isIgnoredAssetEntry(assetName)) continue;
             files.push(path.join(fullNoteDir, assetName));
@@ -1382,11 +1372,9 @@ export default {
 
       for (const filePath of files) {
         try {
-          const base64 = await backend.invoke('fs:readData', filePath);
+          const base64 = await readData(filePath);
           if (base64) {
-            await backend.invoke('fs:writeFile', {
-              path: filePath,
-              data: base64ToUint8Array(base64),
+            await writeFile(filePath, base64ToUint8Array(base64), {
               skipAssetEncryption: !encryptAtRest,
             });
           }

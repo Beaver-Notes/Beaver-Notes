@@ -21,18 +21,18 @@
       <div>
         <div
           data-testid="note-card-title"
-          class="text-md font-semibold text-lg block line-clamp leading-tight"
+          class="text-md font-semibold text-lg block line-clamp leading-tight note-card__title"
         >
           {{ note.title || translations.card.untitledNote }}
         </div>
         <div
           v-if="note.labels.length !== 0"
-          class="text-primary dark:text-primary mt-2 mb-1 line-clamp w-full space-x-1"
+          class="text-primary dark:text-primary mt-2 mb-1 w-full flex flex-wrap gap-1"
         >
           <span
             v-for="label in note.labels"
             :key="label"
-            class="inline-block hover:underline cursor-pointer px-1.5 py-0.5 bg-primary/10 dark:bg-primary/10 rounded-lg text-sm text-primary"
+            class="note-card__label inline-flex max-w-full hover:underline cursor-pointer px-1.5 py-0.5 bg-primary/10 dark:bg-primary/10 rounded-lg text-sm text-primary"
             :style="
               labelColor(label)
                 ? {
@@ -299,6 +299,10 @@ const props = defineProps({
     type: Object,
     default: () => ({}),
   },
+  disableOpen: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(['update', 'update:label']);
@@ -447,6 +451,7 @@ function formatDate(date) {
 }
 
 function openNote(noteId) {
+  if (props.disableOpen) return;
   router.push(`/note/${noteId}`);
 }
 
@@ -488,12 +493,25 @@ function mediaIcon(tone) {
 .note-card {
   content-visibility: auto;
   contain-intrinsic-size: 320px;
+  min-width: 0;
   transform: translate3d(0, 0, 0) scale(1);
   transition: transform var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
     background-color var(--motion-fast) var(--ease-standard),
     border-color var(--motion-fast) var(--ease-standard);
   will-change: transform;
+}
+
+.note-card__title {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.note-card__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .note-card.active-note .group-hover\:visible {

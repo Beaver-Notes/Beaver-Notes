@@ -82,7 +82,6 @@ export function isCircle(points, tolerance = 10, closureTolerance = 20) {
 }
 
 export function recognizeShape(points) {
-  console.log('Recognizing shape for points:', points);
   if (isLine(points)) return 'line';
   if (isCircle(points)) return 'circle';
   return null;

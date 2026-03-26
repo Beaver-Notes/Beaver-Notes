@@ -12,6 +12,51 @@ let mediaQuery = null;
 let mediaQueryListener = null;
 let cleanupThemeSync = null;
 let themeComposableUsers = 0;
+let themeSurfaceSyncFrame = null;
+
+function ensureThemeColorMeta() {
+  if (typeof document === 'undefined') return null;
+
+  let meta = document.querySelector('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.setAttribute('name', 'theme-color');
+    document.head.appendChild(meta);
+  }
+
+  return meta;
+}
+
+function syncDocumentThemeSurface() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+  if (themeSurfaceSyncFrame !== null) {
+    window.cancelAnimationFrame(themeSurfaceSyncFrame);
+  }
+
+  themeSurfaceSyncFrame = window.requestAnimationFrame(() => {
+    themeSurfaceSyncFrame = null;
+
+    const rootElement = document.documentElement;
+    const body = document.body;
+    const appBackground =
+      window
+        .getComputedStyle(rootElement)
+        .getPropertyValue('--app-theme-background')
+        .trim() || window.getComputedStyle(rootElement).backgroundColor;
+
+    rootElement.style.colorScheme = resolvedDarkTheme.value ? 'dark' : 'light';
+
+    if (body && appBackground) {
+      body.style.backgroundColor = appBackground;
+    }
+
+    const meta = ensureThemeColorMeta();
+    if (meta && appBackground) {
+      meta.setAttribute('content', appBackground);
+    }
+  });
+}
 
 function getBrowserDarkPreference() {
   if (typeof window === 'undefined') return false;
@@ -31,9 +76,16 @@ function applyResolvedTheme(isDarkTheme) {
   } else {
     rootElement.classList.remove('dark');
   }
+
+  syncDocumentThemeSurface();
 }
 
 function clearSystemThemeSync() {
+  if (themeSurfaceSyncFrame !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(themeSurfaceSyncFrame);
+    themeSurfaceSyncFrame = null;
+  }
+
   if (mediaQuery && mediaQueryListener) {
     if (typeof mediaQuery.removeEventListener === 'function') {
       mediaQuery.removeEventListener('change', mediaQueryListener);

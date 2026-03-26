@@ -60,7 +60,8 @@
 <script>
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
-import { backend } from '@/lib/tauri-bridge';
+import { saveDialog } from '@/lib/native/dialog';
+import { readData, writeFile } from '@/lib/native/fs';
 
 function normalizeSrc(src) {
   return String(src || '').split('?')[0];
@@ -163,20 +164,18 @@ export default {
 
       if (!src) return;
 
-      const { canceled, filePath } = await backend.invoke('dialog:save', {
+      const { canceled, filePath } = await saveDialog({
         defaultPath: getFileName(src),
       });
 
       if (canceled || !filePath) return;
 
       if (isLocalAsset(src)) {
-        const base64 = await backend.invoke('fs:readData', encodeURI(src));
+        const base64 = await readData(encodeURI(src));
 
         if (!base64) return;
 
-        await backend.invoke('fs:writeFile', {
-          path: filePath,
-          data: base64ToUint8Array(base64),
+        await writeFile(filePath, base64ToUint8Array(base64), {
           skipAssetEncryption: true,
         });
 
@@ -186,9 +185,7 @@ export default {
       const response = await fetch(src);
       const payload = new Uint8Array(await response.arrayBuffer());
 
-      await backend.invoke('fs:writeFile', {
-        path: filePath,
-        data: payload,
+      await writeFile(filePath, payload, {
         skipAssetEncryption: true,
       });
     }
@@ -196,7 +193,9 @@ export default {
     function setLayout(mode) {
       const attrs = props.editor.getAttributes('image');
       const nextWidth =
-        mode === 'block' ? getNumericWidth(attrs) : getSuggestedWrapWidth(attrs);
+        mode === 'block'
+          ? getNumericWidth(attrs)
+          : getSuggestedWrapWidth(attrs);
 
       const layouts = {
         block: {

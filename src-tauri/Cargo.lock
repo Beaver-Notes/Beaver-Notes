@@ -6034,8 +6034,6 @@ dependencies = [
 [[package]]
 name = "tauri-plugin-safe-area-insets-css"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "245c374d1f8b4f68b4b14596a8d4252c3410eb0591685cc21d2d34158aab3949"
 dependencies = [
  "serde",
  "tauri",

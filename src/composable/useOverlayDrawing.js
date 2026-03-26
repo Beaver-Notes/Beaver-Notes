@@ -1,5 +1,6 @@
-import { computed, reactive, ref, shallowRef } from 'vue';
+import { computed, reactive, ref, shallowRef, watch } from 'vue';
 import { getStroke } from 'perfect-freehand';
+import { setScribbleSuppressed } from '@/lib/native/scribble';
 import {
   getStrokeOptions,
   getSvgPathFromStroke,
@@ -105,6 +106,14 @@ export function useOverlayDrawing() {
 
     return getSvgPathFromStroke(stroke);
   });
+
+  watch(
+    mode,
+    (nextMode) => {
+      setScribbleSuppressed('overlay-drawing', nextMode === 'drawing');
+    },
+    { immediate: true }
+  );
 
   function pushUndoSnapshot() {
     undoStack.value.push(cloneStrokes(strokes.value));

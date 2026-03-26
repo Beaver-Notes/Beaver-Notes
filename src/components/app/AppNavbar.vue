@@ -43,32 +43,32 @@
 
 <script>
 import {
-  shallowReactive,
+  computed,
   onMounted,
   onUnmounted,
-  computed,
   ref,
   reactive,
   watch,
   nextTick,
 } from 'vue';
-import { useTranslations } from '@/composable/useTranslations';
-import { useRouter, useRoute } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
-import { useNoteStore } from '@/store/note';
-import { useFolderStore } from '../../store/folder';
-import { useAppStore } from '../../store/app';
-import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
+import { useRoute } from 'vue-router';
+import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { useAppShellActions } from '@/composable/useAppShellActions';
 
 export default {
   setup() {
     const route = useRoute();
-    const router = useRouter();
-    const appStore = useAppStore();
-    const noteStore = useNoteStore();
-    const folderStore = useFolderStore();
-    const { translations } = useTranslations();
-    const defaultPath = localStorage.getItem('default-path');
+    const {
+      translations,
+      navItems,
+      addNote,
+      addFolder,
+      openSettings,
+      openLastEdited,
+      handleNavigation,
+      createShortcutMap,
+    } = useAppShellActions({ includeSettingsNav: true });
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const navRailRef = ref(null);
@@ -79,118 +79,27 @@ export default {
       visible: false,
     });
 
-    const state = shallowReactive({
-      dataDir: '',
-      password: '',
-      fontSize: '16',
-      withPassword: false,
-      lastUpdated: null,
-    });
-
-    const navItems = computed(() => [
-      {
-        name: translations.value.sidebar.notes,
-        path: '/',
-        icon: 'riBookletLine',
-        shortcut: 'mod+Shift+N',
-        action: () => router.push('/'),
-      },
-      {
-        name: translations.value.sidebar.archive,
-        path: '/?archived=true',
-        icon: 'riArchiveDrawerLine',
-        shortcut: 'mod+Shift+A',
-        action: () => router.push('/?archived=true'),
-      },
-      {
-        name: translations.value.settings.title,
-        path: '/settings',
-        icon: 'riSettingsLine',
-        shortcut: 'mod+,',
-        action: () => router.push('/settings'),
-      },
-    ]);
-
-    const shortcuts = {
-      'mod+n': addNote,
-      'mod+,': openSettings,
-      'mod+shift+f': addFolder,
-      'mod+shift+w': openLastEdited,
-      'mod+shift+n': () => router.push('/'),
-      'mod+shift+a': () => router.push('/?archived=true'),
-    };
-
     emitter.on('new-note', addNote);
     emitter.on('new-folder', addFolder);
     emitter.on('open-settings', openSettings);
-
-    let removeGlobalShortcuts = () => {};
-
-    function openSettings() {
-      router.push('/settings');
-    }
-
-    function openLastEdited() {
-      const noteId = localStorage.getItem('lastNoteEdit');
-      if (noteId) router.push(`/note/${noteId}`);
-    }
-
-    const currentFolderId = computed(() =>
-      route.name === 'Folder' ? route.params.id ?? null : null
-    );
-
-    async function addNote() {
-      const folderId =
-        currentFolderId.value &&
-        (await folderStore.exists(currentFolderId.value))
-          ? currentFolderId.value
-          : null;
-
-      noteStore.add({ folderId }).then(({ id }) => {
-        if (appStore.setting.openAfterCreation) {
-          const target = `/note/${id}`;
-          if (router.currentRoute.value.path !== target) {
-            router.push(target);
-          }
-        }
-      });
-    }
-
-    async function addFolder() {
-      const parentId =
-        currentFolderId.value &&
-        (await folderStore.exists(currentFolderId.value))
-          ? currentFolderId.value
-          : null;
-
-      folderStore.add({ parentId });
-    }
 
     if (typeof window !== 'undefined') {
       window.addNote = addNote;
     }
 
-    onMounted(() => {
-      removeGlobalShortcuts = bindGlobalShortcuts({
-        ...shortcuts,
-        'mod+shift+f': (_, combo) => {
-          if (route.name === 'Note') return false;
-          return shortcuts[combo]();
-        },
-      });
+    useGlobalShortcuts(() => createShortcutMap());
 
-      void updateActivePill();
+    onMounted(() => {
       window.addEventListener('resize', updateActivePill);
+      void updateActivePill();
     });
 
     onUnmounted(() => {
       emitter.off('new-note', addNote);
       emitter.off('new-folder', addFolder);
       emitter.off('open-settings', openSettings);
-      removeGlobalShortcuts();
       window.removeEventListener('resize', updateActivePill);
       navItemRefs.clear();
-      state.dataDir = defaultPath;
     });
 
     watch(
@@ -251,11 +160,6 @@ export default {
       opacity: activePill.visible ? 1 : 0,
     }));
 
-    const handleNavigation = async (nav) => {
-      router.push(nav.path);
-      emitter.emit('clear-label');
-    };
-
     function getNavTestId(path) {
       if (path === '/') return 'nav-notes-button';
       if (path === '/?archived=true') return 'nav-archive-button';
@@ -265,10 +169,8 @@ export default {
     return {
       navItems,
       translations,
-      currentFolderId,
       addNote,
       addFolder,
-      noteStore,
       openLastEdited,
       keyBinding,
       handleNavigation,

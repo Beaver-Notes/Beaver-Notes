@@ -143,22 +143,14 @@
 </template>
 
 <script setup>
-import {
-  shallowReactive,
-  computed,
-  watch,
-  onMounted,
-  onUnmounted,
-  ref,
-  nextTick,
-} from 'vue';
+import { shallowReactive, computed, watch, ref, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStore } from '@/store';
 import commands from '@/utils/commands';
-import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
+import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -176,7 +168,6 @@ const state = shallowReactive({
   query: '',
   selectedIndex: 0,
 });
-let removeGlobalShortcuts = () => {};
 
 const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -298,7 +289,7 @@ watch(
   }
 );
 
-onMounted(() => {
+useGlobalShortcuts(() => {
   const togglePrompt = (_, combo) => {
     const editorFocused = Boolean(
       document.activeElement?.closest('.ProseMirror')
@@ -307,14 +298,10 @@ onMounted(() => {
     store.showPrompt ? clear() : (store.showPrompt = true);
   };
 
-  removeGlobalShortcuts = bindGlobalShortcuts({
+  return {
     'mod+shift+p': togglePrompt,
     'mod+k': togglePrompt,
-  });
-});
-
-onUnmounted(() => {
-  removeGlobalShortcuts();
+  };
 });
 </script>
 

@@ -1,8 +1,11 @@
 <template>
   <div
     v-if="note"
-    class="editor mx-auto relative px-4 pb-0 lg:px-0 md:pb-6"
-    :style="{ 'padding-bottom': isLocked ? 0 : null }"
+    class="editor note-editor-page mx-auto relative px-4 pb-0 lg:px-0 md:pb-6"
+    :class="{ 'mobile-search-open': showSearch }"
+    :style="{
+      'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
+    }"
   >
     <button
       v-if="
@@ -24,10 +27,10 @@
 
     <template v-if="editor && !isLocked">
       <note-menu v-bind="{ editor, id, note }" class="mb-6 mobile:hidden" />
-      <note-actions-mobile class="hidden mobile:flex" />
-      <note-menu-mobile
-        v-bind="{ editor, id, note }"
+      <editor-actions-mobile
+        v-bind="{ editor, id, note, goBack, showSearch }"
         class="hidden mobile:flex"
+        @toggle-search="showSearch = !showSearch"
       />
       <transition
         enter-active-class="transition duration-200 ease-out"
@@ -44,6 +47,7 @@
           @keyup.esc="closeSearch"
         />
       </transition>
+      <note-menu-mobile v-bind="{ editor, id, note, showSearch }" />
     </template>
     <div
       v-if="!isLocked"
@@ -103,14 +107,20 @@
         autoScroll();
         handleContentUpdate($event);
       "
-      @init="editor = $event"
+      @init="
+        editor = $event;
+        drawing.syncFromEditor($event);
+      "
       @keyup.down="autoScroll"
     />
+    <OverlayCanvas />
+    <OverlayToolbar />
   </div>
 </template>
 
 <script>
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
@@ -122,10 +132,13 @@ import { useStorage } from '@/composable/storage';
 import { onClose } from '@/composable/onClose';
 import { debounce } from '@/utils/helper';
 import NoteMenuMobile from '@/components/note/NoteMenuMobile.vue';
-import NoteActionsMobile from '@/components/note/NoteActionsMobile.vue';
+import EditorActionsMobile from '@/components/note/EditorActionsMobile.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
+import OverlayCanvas from '@/components/overlay/OverlayCanvas.vue';
+import OverlayToolbar from '@/components/overlay/OverlayToolbar.vue';
+import { useOverlayDrawing } from '@/composable/useOverlayDrawing';
 import { useAppStore } from '../../store/app';
 import { isAppEncryptedContent } from '@/utils/appCrypto';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
@@ -136,7 +149,9 @@ export default {
     NoteMenu,
     NoteSearch,
     NoteMenuMobile,
-    NoteActionsMobile,
+    EditorActionsMobile,
+    OverlayCanvas,
+    OverlayToolbar,
   },
   setup() {
     const store = useStore();
@@ -147,6 +162,7 @@ export default {
     const labelStore = useLabelStore();
     const appStore = useAppStore();
     const dialog = useDialog();
+    const drawing = useOverlayDrawing();
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -379,6 +395,9 @@ export default {
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
+        drawing.exitDrawMode();
+        drawing.syncFromEditor(null);
+
         if (oldNoteId && noteId && noteStore.getById(oldNoteId)) {
           noteStore.patchLocal(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
@@ -427,6 +446,8 @@ export default {
       removeGlobalShortcuts();
     });
     onBeforeRouteLeave(() => {
+      drawing.exitDrawMode();
+      drawing.syncFromEditor(null);
       void persistCurrentNote(route.params.id, { wait: false });
       removeGlobalShortcuts();
     });
@@ -435,8 +456,24 @@ export default {
       await persistCurrentNote(route.params.id);
     });
 
-    const focusEditor = () =>
-      noteEditor.value?.$el?.querySelector('*[tabindex="0"]')?.focus();
+    const focusEditor = () => {
+      if (editor.value?.commands?.focus) {
+        editor.value.commands.focus(undefined, { scrollIntoView: false });
+        return;
+      }
+
+      const focusTarget =
+        noteEditor.value?.$el?.querySelector('*[tabindex="0"]');
+
+      if (!focusTarget?.focus) return;
+
+      try {
+        focusTarget.focus({ preventScroll: true });
+      } catch {
+        focusTarget.focus();
+      }
+    };
+
     const disallowedEnter = (event) => {
       if (event && event.key === 'Enter') {
         focusEditor();
@@ -541,6 +578,7 @@ export default {
       disallowedEnter,
       autoScroll,
       isLocked,
+      drawing,
     };
   },
 };
@@ -558,5 +596,15 @@ export default {
 
 .editor {
   max-width: var(--selected-width);
+}
+
+@media (max-width: 767px) {
+  .note-editor-page {
+    padding-top: 0;
+  }
+
+  .note-editor-page.mobile-search-open {
+    padding-top: 0;
+  }
 }
 </style>

@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-set-scribble-enabled"
+description = "Enables the set_scribble_enabled command without any pre-configured scope."
+commands.allow = ["set_scribble_enabled"]
+
+[[permission]]
+identifier = "deny-set-scribble-enabled"
+description = "Denies the set_scribble_enabled command without any pre-configured scope."
+commands.deny = ["set_scribble_enabled"]

@@ -60,6 +60,7 @@ export function useAppShell() {
 
   const retrieved = ref(false);
   const animateRouteChange = ref(true);
+  const keyboardVisible = ref(false);
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
@@ -87,7 +88,10 @@ export function useAppShell() {
     () => !store.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
   );
   const showMobileNavbar = computed(
-    () => showSidebar.value && route.name !== 'Note'
+    () =>
+      showSidebar.value &&
+      route.name !== 'Note' &&
+      (!isMobileRuntime.value || !keyboardVisible.value)
   );
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const useMobileBottomDockSpacing = computed(
@@ -123,6 +127,41 @@ export function useAppShell() {
   let removeRouteGuard = null;
   let removeBeforeRouteGuard = null;
   const unlistenFns = [];
+  let maxVisualViewportHeight = 0;
+  let pendingBlurTimeout = null;
+
+  const isEditableElement = (element) => {
+    if (!element || typeof element !== 'object') return false;
+
+    const tagName = element.tagName?.toLowerCase?.() || '';
+    if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
+      return true;
+    }
+
+    return Boolean(element.isContentEditable);
+  };
+
+  const syncKeyboardVisibility = () => {
+    if (
+      typeof window === 'undefined' ||
+      !isMobileRuntime.value ||
+      !window.visualViewport
+    ) {
+      return;
+    }
+
+    const viewportHeight = window.visualViewport.height;
+    if (viewportHeight > maxVisualViewportHeight) {
+      maxVisualViewportHeight = viewportHeight;
+    }
+
+    const activeElement = document.activeElement;
+    const hasEditableFocus = isEditableElement(activeElement);
+    const keyboardDelta = maxVisualViewportHeight - viewportHeight;
+    const likelyKeyboardOpen = hasEditableFocus && keyboardDelta > 120;
+
+    keyboardVisible.value = likelyKeyboardOpen;
+  };
 
   applyDocumentSettings();
 
@@ -145,35 +184,26 @@ export function useAppShell() {
     if (!isMobileRuntime.value) return;
 
     try {
-      const { getTopInset, getBottomInset, onKeyboardShown, onKeyboardHidden } =
-        await import('@saurl/tauri-plugin-safe-area-insets-css-api');
+      const { getTopInset, getBottomInset } = await import(
+        '@saurl/tauri-plugin-safe-area-insets-css-api'
+      );
 
       const topInset = await getTopInset();
       const bottomInset = await getBottomInset();
       const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
+      const rootStyle = document.documentElement.style;
 
-      document.documentElement.style.setProperty(
+      rootStyle.setProperty(
         '--safe-area-inset-top',
         `${topInset?.inset ?? 0}px`
       );
-      document.documentElement.style.setProperty(
-        '--safe-area-inset-bottom',
-        bottomInsetValue
+      rootStyle.setProperty('--app-keyboard-inset-bottom', '0px');
+      rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
+      rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
+      rootStyle.setProperty(
+        '--app-note-page-padding',
+        `calc(54px + ${bottomInsetValue} + 0.75rem)`
       );
-
-      await onKeyboardShown(() => {
-        document.documentElement.style.setProperty(
-          '--safe-area-inset-bottom',
-          '0px'
-        );
-      });
-
-      await onKeyboardHidden(() => {
-        document.documentElement.style.setProperty(
-          '--safe-area-inset-bottom',
-          bottomInsetValue
-        );
-      });
     } catch (error) {
       console.warn('Safe area inset CSS plugin failed to initialize:', error);
     }
@@ -342,6 +372,64 @@ export function useAppShell() {
         'Error notifying the Tauri backend that the app is ready:',
         error
       );
+    }
+
+    if (isMobileRuntime.value) {
+      unlistenFns.push(
+        backend.listen('keyboard_shown', () => {
+          keyboardVisible.value = true;
+        }),
+        backend.listen('keyboard_hidden', () => {
+          keyboardVisible.value = false;
+        })
+      );
+
+      maxVisualViewportHeight =
+        window.visualViewport?.height ?? window.innerHeight ?? 0;
+
+      const handleFocusIn = () => {
+        if (pendingBlurTimeout) {
+          clearTimeout(pendingBlurTimeout);
+          pendingBlurTimeout = null;
+        }
+
+        requestAnimationFrame(syncKeyboardVisibility);
+      };
+
+      const handleFocusOut = () => {
+        pendingBlurTimeout = window.setTimeout(() => {
+          syncKeyboardVisibility();
+          pendingBlurTimeout = null;
+        }, 180);
+      };
+
+      const handleViewportChange = () => {
+        requestAnimationFrame(syncKeyboardVisibility);
+      };
+
+      document.addEventListener('focusin', handleFocusIn);
+      document.addEventListener('focusout', handleFocusOut);
+      window.visualViewport?.addEventListener('resize', handleViewportChange);
+      window.visualViewport?.addEventListener('scroll', handleViewportChange);
+
+      unlistenFns.push(() => {
+        document.removeEventListener('focusin', handleFocusIn);
+        document.removeEventListener('focusout', handleFocusOut);
+        window.visualViewport?.removeEventListener(
+          'resize',
+          handleViewportChange
+        );
+        window.visualViewport?.removeEventListener(
+          'scroll',
+          handleViewportChange
+        );
+        if (pendingBlurTimeout) {
+          clearTimeout(pendingBlurTimeout);
+          pendingBlurTimeout = null;
+        }
+      });
+
+      syncKeyboardVisibility();
     }
 
     try {

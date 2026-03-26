@@ -1,0 +1,3 @@
+[default]
+description = "Default permissions for the plugin"
+permissions = ["allow-get-bottom-inset","allow-get-top-inset","allow-set-scribble-enabled","allow-registerListener", "allow-unregister-listener"]

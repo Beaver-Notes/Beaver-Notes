@@ -3,6 +3,7 @@
   --selected-font: 'Arimo', sans-serif;
   --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;
+  --app-theme-background: theme('colors.neutral.50');
   --motion-fast: 140ms;
   --motion-base: 220ms;
   --motion-slow: 300ms;
@@ -24,6 +25,9 @@
     --safe-area-inset-left,
     env(safe-area-inset-left, 0px)
   );
+  --app-keyboard-inset-bottom: 0px;
+  --app-toolbar-bottom: var(--app-safe-area-bottom);
+  --app-note-page-padding: calc(54px + var(--app-safe-area-bottom) + 0.75rem);
   --app-mobile-dock-height: 4.75rem;
   --app-mobile-dock-height-active: var(--app-mobile-dock-height);
   --app-mobile-content-offset: calc(
@@ -35,10 +39,31 @@
   @apply dark:text-[color:var(--selected-dark-text)];
 }
 
+:root.dark {
+  --app-theme-background: theme('colors.neutral.900');
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+  background-color: var(--app-theme-background);
+}
+
+html {
+  @apply bg-neutral-50 dark:bg-neutral-900;
+}
+
 body {
   position: relative;
   font-family: var(--selected-font);
-  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
+  min-height: 100dvh;
+  @apply bg-neutral-50 dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
+}
+
+#app {
+  min-height: 100dvh;
+  background-color: inherit;
 }
 
 .dark * {

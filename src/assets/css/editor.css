@@ -19,6 +19,7 @@
 .ProseMirror {
   font-size: 1.065rem;
   line-height: 1.5;
+  scroll-margin-top: calc(var(--app-safe-area-top) + 1.5rem);
 }
 .ProseMirror a {
   @apply text-primary dark:text-primary !important;
@@ -76,7 +77,7 @@ img.ProseMirror-selectednode {
 }
 
 .ProseMirror {
-  min-height: 400px;
+  min-height: 800px;
   & > :first-child {
     margin-top: 0;
   }
@@ -284,6 +285,13 @@ img.ProseMirror-selectednode {
 }
 
 @media (max-width: 720px) {
+  .ProseMirror {
+    min-height: max(
+      18rem,
+      calc(100dvh - var(--app-safe-area-top) - 11rem)
+    );
+  }
+
   .ProseMirror .bn-image-node[data-layout='wrap-left'],
   .ProseMirror .bn-image-node[data-layout='wrap-right'] {
     display: block !important;

@@ -29,6 +29,7 @@ export function useSelection({ suppressNextClick } = {}) {
   const selectedItems = ref(new Set());
   const lastSelectedItem = ref(null);
   const isSelecting = ref(false);
+  const selectionMode = ref(false);
   const selectionStart = ref({ x: 0, y: 0 });
   const selectionEnd = ref({ x: 0, y: 0 });
 
@@ -68,6 +69,7 @@ export function useSelection({ suppressNextClick } = {}) {
   function clearSelection() {
     selectedItems.value = new Set();
     lastSelectedItem.value = null;
+    selectionMode.value = false;
   }
 
   function toggleItemSelection(itemKey) {
@@ -103,6 +105,13 @@ export function useSelection({ suppressNextClick } = {}) {
     const itemKey = `${type}-${id}`;
     const isCtrlCmd = isMac ? event.metaKey : event.ctrlKey;
 
+    if (selectionMode.value) {
+      handleSelectionModeTap(type, id);
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
     if (isCtrlCmd) {
       toggleItemSelection(itemKey);
       event.preventDefault();
@@ -127,10 +136,52 @@ export function useSelection({ suppressNextClick } = {}) {
       : null;
   }
 
+  function enterSelectionMode(itemKey) {
+    selectedItems.value = new Set([itemKey]);
+    lastSelectedItem.value = itemKey;
+    selectionMode.value = true;
+  }
+
+  function handleSelectionModeTap(type, id) {
+    const itemKey = `${type}-${id}`;
+    const next = new Set(selectedItems.value);
+    const currentKinds = new Set(
+      Array.from(next)
+        .map((item) => item.split('-')[0])
+        .filter(Boolean)
+    );
+
+    if (
+      currentKinds.size > 1 ||
+      (currentKinds.size === 1 && !currentKinds.has(type))
+    ) {
+      selectedItems.value = new Set([itemKey]);
+      lastSelectedItem.value = itemKey;
+      selectionMode.value = true;
+      return;
+    }
+
+    if (next.has(itemKey)) {
+      next.delete(itemKey);
+      if (next.size === 0) {
+        clearSelection();
+        return;
+      }
+      lastSelectedItem.value = next.values().next().value ?? null;
+    } else {
+      next.add(itemKey);
+      lastSelectedItem.value = itemKey;
+    }
+
+    selectedItems.value = next;
+    selectionMode.value = true;
+  }
+
   return {
     selectedItems,
     lastSelectedItem,
     isSelecting,
+    selectionMode,
     selectionStart,
     selectionEnd,
     selectionBoxStyle,
@@ -139,6 +190,8 @@ export function useSelection({ suppressNextClick } = {}) {
     selectAllItems,
     selectRange,
     handleItemClick,
+    enterSelectionMode,
+    handleSelectionModeTap,
   };
 }
 

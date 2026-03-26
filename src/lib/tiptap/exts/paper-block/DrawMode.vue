@@ -1,11 +1,9 @@
 <template>
-  <div
-    class="draw w-full min-h-screen flex flex-col border-neutral-400 shadow-2xl"
-  >
+  <div class="draw">
     <div
       :class="[
         'drawing-container relative w-full',
-        { 'touch-none': state.isDrawing },
+        { 'touch-none': state.isDrawing, 'pointer-events-none': !interactive },
       ]"
       :style="{ height: `${state.height}px` }"
     >
@@ -20,7 +18,6 @@
         @pointerleave="handlePointerLeave"
         @pointercancel="handlePointerCancel"
       >
-        <!-- Rendered paths -->
         <g v-for="line in state.lines" :key="line.id">
           <path
             v-if="line.points && line.points.length > 1"
@@ -34,7 +31,6 @@
           />
         </g>
 
-        <!-- Selection box -->
         <rect
           v-if="state.selectionBox"
           :x="Math.min(state.selectionBox.startX, state.selectionBox.currentX)"
@@ -50,7 +46,6 @@
           stroke-dasharray="4 4"
         />
 
-        <!-- Selection overlay -->
         <g
           v-if="state.selectedElement && state.selectedElement.type === 'group'"
         >
@@ -63,7 +58,6 @@
             stroke-dasharray="5,5"
           />
 
-          <!-- Corner resize handles -->
           <circle
             v-for="handle in getResizeHandles(state.selectedElement.bounds)"
             :key="handle.corner"
@@ -76,7 +70,6 @@
           />
         </g>
 
-        <!-- Current stroke preview -->
         <path
           v-if="state.isDrawing && state.currentStrokePoints.length > 1"
           :d="getCurrentStrokePathData()"
@@ -88,19 +81,6 @@
         />
       </svg>
     </div>
-
-    <DrawingToolBar
-      :state="state"
-      :tool="state.tool"
-      :undo-stack="state.undoStack"
-      :redo-stack="state.redoStack"
-      @update-state="updateState"
-      @set-selected-element="setSelectedElement"
-      @close="$emit('close')"
-      @update-attributes="$emit('update-attributes')"
-      @undo="handleUndo"
-      @redo="handleRedo"
-    />
   </div>
 </template>
 
@@ -120,20 +100,20 @@ import { usePointerHelper } from './helpers/pointerHelper';
 import useSelectionHelper from './helpers/selectionHelper';
 import useTransforHelper from './helpers/transformHelper';
 import { recognizeShape, createShape } from './helpers/shapesHelper';
-import DrawingToolBar from './DrawingToolbar.vue';
 
-// Props
 const props = defineProps({
   node: {
     type: Object,
     required: true,
   },
+  interactive: {
+    type: Boolean,
+    default: true,
+  },
 });
 
-// Emits
-const emit = defineEmits(['update-attributes', 'close']);
+const emit = defineEmits(['update-attributes', 'toolbar-state']);
 
-// Refs
 const svgRef = ref(null);
 const currentPointsRef = ref([]);
 const animationFrameRef = ref(null);
@@ -141,11 +121,10 @@ const longPressTimeout = ref(null);
 const isLongPress = ref(false);
 const startPos = ref({ x: 0, y: 0 });
 
-// Initial state setup
 const initialLines = convertLegacyLines(props.node.attrs.lines || []).map(
   (line, index) => ({
     ...line,
-    id: `line_${index}`,
+    id: line.id || `line_${index}`,
   })
 );
 
@@ -153,11 +132,11 @@ const state = reactive({
   lines: initialLines,
   isDrawing: false,
   tool: 'pen',
-  penSettings: { color: '#000000', size: 2 },
-  eraserSettings: { size: 10 },
+  penSettings: { color: '#1a1a1a', size: 2.5 },
+  eraserSettings: { size: 18 },
   undoStack: [],
   redoStack: [],
-  highlighterSettings: { color: '#ffff00', size: 8 },
+  highlighterSettings: { color: '#fbbf24', size: 14 },
   height: props.node.attrs.height || 400,
   width: 500,
   background: props.node.attrs.paperType || 'plain',
@@ -168,18 +147,14 @@ const state = reactive({
   currentStrokePoints: [],
 });
 
-// Methods
 const getSettings = () => {
   return state.tool === 'pen'
     ? state.penSettings
     : state.tool === 'eraser'
     ? state.eraserSettings
-    : state.highlighterSettings;
-};
-
-const updateState = (updates) => {
-  console.log('Updating state:', updates);
-  Object.assign(state, updates);
+    : state.tool === 'highlighter'
+    ? state.highlighterSettings
+    : state.penSettings;
 };
 
 const setSelectedElement = (element) => {
@@ -191,6 +166,7 @@ const handleUndo = () => {
     const previousState = state.undoStack.pop();
     state.redoStack.push([...state.lines]);
     state.lines = previousState;
+    state.selectedElement = null;
   }
 };
 
@@ -199,19 +175,20 @@ const handleRedo = () => {
     const nextState = state.redoStack.pop();
     state.undoStack.push([...state.lines]);
     state.lines = nextState;
+    state.selectedElement = null;
   }
+};
+
+const clearSelection = () => {
+  state.selectedElement = null;
+  state.selectionBox = null;
+  state.transformState = null;
 };
 
 const getPathData = (line) => {
   if (!line.points || line.points.length < 2) return '';
 
-  const settings = {
-    color: line.color,
-    size: line.size,
-    tool: line.tool,
-  };
-
-  const stroke = getStroke(line.points, getStrokeOptions(settings));
+  const stroke = getStroke(line.points, getStrokeOptions(line));
   return getSvgPathFromStroke(stroke);
 };
 
@@ -225,8 +202,10 @@ const getCurrentStrokePathData = () => {
       .join(' ');
   }
 
-  const settings = getSettings();
-  const stroke = getStroke(currentPointsRef.value, getStrokeOptions(settings));
+  const stroke = getStroke(
+    currentPointsRef.value,
+    getStrokeOptions(getSettings())
+  );
   return getSvgPathFromStroke(stroke);
 };
 
@@ -252,29 +231,27 @@ const getCurrentStrokeOpacity = () => {
   return 1;
 };
 
-const getResizeHandles = (bounds) => {
-  return [
-    { x: bounds.x, y: bounds.y, cursor: 'nw-resize', corner: 'nw' },
-    {
-      x: bounds.x + bounds.width,
-      y: bounds.y,
-      cursor: 'ne-resize',
-      corner: 'ne',
-    },
-    {
-      x: bounds.x,
-      y: bounds.y + bounds.height,
-      cursor: 'sw-resize',
-      corner: 'sw',
-    },
-    {
-      x: bounds.x + bounds.width,
-      y: bounds.y + bounds.height,
-      cursor: 'se-resize',
-      corner: 'se',
-    },
-  ];
-};
+const getResizeHandles = (bounds) => [
+  { x: bounds.x, y: bounds.y, cursor: 'nw-resize', corner: 'nw' },
+  {
+    x: bounds.x + bounds.width,
+    y: bounds.y,
+    cursor: 'ne-resize',
+    corner: 'ne',
+  },
+  {
+    x: bounds.x,
+    y: bounds.y + bounds.height,
+    cursor: 'sw-resize',
+    corner: 'sw',
+  },
+  {
+    x: bounds.x + bounds.width,
+    y: bounds.y + bounds.height,
+    cursor: 'se-resize',
+    corner: 'se',
+  },
+];
 
 const isPointInsideSelection = (x, y) => {
   if (!state.selectedElement) return false;
@@ -329,7 +306,36 @@ const {
   handlePointerCancel,
 } = usePointerHelper(context);
 
-// Event listeners setup
+function setTool(tool) {
+  state.tool = tool;
+  clearSelection();
+}
+
+function setColor(color) {
+  if (state.tool === 'eraser' || state.tool === 'select') return;
+  state[`${state.tool}Settings`].color = color;
+}
+
+function setSize(size) {
+  if (state.tool === 'select') return;
+  state[`${state.tool}Settings`].size = Number(size);
+}
+
+function setBackground(type) {
+  state.background = type;
+  emit('update-attributes', { paperType: type });
+}
+
+defineExpose({
+  setTool,
+  setColor,
+  setSize,
+  setBackground,
+  undo: handleUndo,
+  redo: handleRedo,
+  clearSelection,
+});
+
 onMounted(() => {
   const svgElement = svgRef.value;
   if (!svgElement) return;
@@ -352,13 +358,27 @@ onMounted(() => {
   };
 });
 
-// Watch for state changes to update attributes
+watch(
+  () => props.node.attrs,
+  (newAttrs) => {
+    state.lines = convertLegacyLines(newAttrs.lines || []).map(
+      (line, index) => ({
+        ...line,
+        id: line.id || `line_${index}`,
+      })
+    );
+    state.height = newAttrs.height || 400;
+    state.background = newAttrs.paperType || 'plain';
+    state.nextLineId = state.lines.length;
+  },
+  { deep: true }
+);
+
 watch(
   () => [state.lines, state.height],
   () => {
-    const legacyLines = convertToLegacyFormat(state.lines);
     emit('update-attributes', {
-      lines: legacyLines,
+      lines: convertToLegacyFormat(state.lines),
       height: state.height,
       linesV2: state.lines,
     });
@@ -366,7 +386,22 @@ watch(
   { deep: true }
 );
 
-// Cleanup
+watch(
+  () => ({
+    tool: state.tool,
+    penSettings: { ...state.penSettings },
+    highlighterSettings: { ...state.highlighterSettings },
+    eraserSettings: { ...state.eraserSettings },
+    undoDepth: state.undoStack.length,
+    redoDepth: state.redoStack.length,
+    background: state.background,
+  }),
+  (toolbarState) => {
+    emit('toolbar-state', toolbarState);
+  },
+  { deep: true, immediate: true }
+);
+
 onUnmounted(() => {
   if (animationFrameRef.value) {
     cancelAnimationFrame(animationFrameRef.value);

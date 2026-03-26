@@ -30,14 +30,14 @@
 </template>
 
 <script>
-import { ref, shallowRef, computed, getCurrentInstance } from 'vue';
+import { ref, computed, getCurrentInstance } from 'vue';
 import mime from 'mime';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
-import { backend } from '@/lib/tauri-bridge';
+import { openDialog } from '@/lib/native/dialog';
 
 export default {
   props: {
@@ -66,17 +66,8 @@ export default {
     const instance = getCurrentInstance();
     const editorImage = useEditorImage(props.editor);
     const selectedIndex = ref(0);
-    const fileUrl = shallowRef('');
-    const VideoUrl = shallowRef('');
-    const EmbedUrl = shallowRef('');
-    const inputVisible = ref(false);
 
     const { translations } = useTranslations();
-
-    const handleFileInputClick = () => {
-      console.log(instance?.refs.fileInput);
-      instance?.refs.fileInput?.click();
-    };
 
     const filteredItems = computed(() => {
       return items.value.filter((item) =>
@@ -112,12 +103,9 @@ export default {
 
     const handleFileSelect = async () => {
       try {
-        const { canceled, filePaths = [] } = await backend.invoke(
-          'dialog:open',
-          {
-            properties: ['openFile', 'multiSelections'],
-          }
-        );
+        const { canceled, filePaths = [] } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+        });
 
         if (canceled || filePaths.length === 0) return;
 
@@ -141,13 +129,9 @@ export default {
 
     const handleVideoSelect = async () => {
       try {
-        const { canceled, filePaths = [] } = await backend.invoke(
-          'dialog:open',
-          {
-            properties: ['openFile', 'multiSelections'],
-            // no filters → user can pick anything
-          }
-        );
+        const { canceled, filePaths = [] } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+        });
 
         if (canceled || !filePaths.length) return;
 
@@ -163,8 +147,6 @@ export default {
                 action: () => props.editor.commands.setVideo(relativePath),
               },
             });
-          } else {
-            console.warn(`Skipped non-video file: ${path} (${type})`);
           }
         }
       } catch (error) {
@@ -175,13 +157,9 @@ export default {
     // Audio handler
     const handleAudioSelect = async () => {
       try {
-        const { canceled, filePaths = [] } = await backend.invoke(
-          'dialog:open',
-          {
-            properties: ['openFile', 'multiSelections'],
-            // no filters → user can pick anything
-          }
-        );
+        const { canceled, filePaths = [] } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+        });
 
         if (canceled || !filePaths.length) return;
 
@@ -197,8 +175,6 @@ export default {
                 action: () => props.editor.commands.setAudio(relativePath),
               },
             });
-          } else {
-            console.warn(`Skipped non-audio file: ${path} (${type})`);
           }
         }
       } catch (error) {
@@ -367,10 +343,6 @@ export default {
       },
     ]);
 
-    const showInput = () => {
-      inputVisible.value = true;
-    };
-
     function scrollToSelected() {
       const container = document.querySelector('.ui-list');
       const selectedEl = container?.children[selectedIndex.value];
@@ -411,15 +383,9 @@ export default {
     return {
       translations,
       filteredItems,
-      EmbedUrl,
-      showInput,
       handleItemClick,
-      fileUrl,
-      VideoUrl,
       handleFileSelect,
       handleVideoSelect,
-      handleFileInputClick,
-      inputVisible,
       selectedIndex,
       onKeyDown,
     };

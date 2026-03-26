@@ -1,6 +1,6 @@
 import { useRoute } from 'vue-router';
 import copyImage from '@/utils/copy-image';
-import { backend } from '@/lib/tauri-bridge';
+import { openDialog } from '@/lib/native/dialog';
 
 export function useEditorImage(editor) {
   const route = useRoute();
@@ -21,13 +21,10 @@ export function useEditorImage(editor) {
       return clipboardImage;
     } else {
       // If there is no image in the clipboard, open the file dialog.
-      const { canceled, filePaths } = await backend.invoke(
-        'dialog:open',
-        {
-          properties: ['openFile'],
-          filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
-        }
-      );
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
+      });
 
       if (canceled || filePaths.length === 0) {
         throw new Error('No image selected');

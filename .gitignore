@@ -22,9 +22,13 @@ npm-debug.log*
 
 # OS
 .DS_Store
+__MACOSX/
 Thumbs.db
 
 # Test results
 test-results/
 playwright-report/
+coverage/
+*.log
+*.orig
 .env.development

@@ -2,7 +2,7 @@
   <div
     class="relative w-full max-w-[216px] group cursor-pointer transition-all duration-300 active:scale-95"
     style="aspect-ratio: 1 / 1"
-    @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
+    @click="handleOpen"
   >
     <!-- Folder background shape -->
     <svg
@@ -34,191 +34,195 @@
 
     <!-- Folder front panel with content -->
     <div
-      class="absolute bottom-0 left-0 w-full border-t border-white/20 rounded-b-[2rem] z-20 flex flex-col justify-between"
-      style="height: 58%; padding: 6.25% 8.33%"
-      :style="{
-        backgroundColor: folder.color ? `${folder.color}f2` : '#4f46e5f2',
-      }"
+      class="absolute bottom-0 left-0 w-full rounded-[2rem] z-20"
+      style="height: 58%"
     >
-      <div class="flex justify-between items-start gap-2 min-h-0">
-        <div class="flex-grow min-w-0 overflow-hidden">
-          <div v-if="!isRenaming" class="flex flex-col min-h-0">
-            <h3
-              class="text-white font-bold text-base sm:text-lg tracking-tight truncate leading-tight"
-              @click.stop="startRenaming"
-            >
-              {{ folder.name || translations.card.untitledFolder }}
-            </h3>
-            <p class="text-white/70 text-xs font-medium truncate">
-              {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
-            </p>
-          </div>
-
-          <input
-            v-else
-            ref="renameInput"
-            v-model="newName"
-            class="w-full bg-white/20 text-white rounded px-1 focus:outline-none font-bold text-base sm:text-lg"
-            autofocus
-            @click.stop
-            @keydown.enter.prevent="saveRename"
-            @keydown.esc.prevent="cancelRename"
-            @blur="saveRename"
-          />
-        </div>
-
-        <ui-popover padding="p-3 flex flex-col print:hidden" @click.stop>
-          <template #trigger>
-            <button
-              class="size-8 sm:size-10 aspect-square flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white flex-shrink-0"
-            >
-              <span
-                v-if="folder.icon"
-                class="text-lg sm:text-xl leading-none select-none"
+      <div
+        class="h-full w-full rounded-[2rem] overflow-hidden flex flex-col justify-between"
+        style="padding: 6.25% 8.33%"
+        :style="{
+          backgroundColor: folderFrontColor,
+          boxShadow: `inset 0 3px 0 0 ${folderFrontBorderColor}`,
+        }"
+      >
+        <div class="flex justify-between items-start gap-2 min-h-0">
+          <div class="flex-grow min-w-0 overflow-hidden">
+            <div v-if="!isRenaming" class="flex flex-col min-h-0">
+              <h3
+                class="text-white font-bold text-base sm:text-lg tracking-tight truncate leading-tight"
+                @click.stop="startRenaming"
               >
-                {{ folder.icon }}
-              </span>
-              <v-remixicon
-                v-else
-                name="riFolder5Fill"
-                class="size-5 sm:size-6"
-              />
-            </button>
-          </template>
-
-          <div
-            class="flex mb-4 border-b border-neutral-200 dark:border-neutral-700 w-full relative"
-          >
-            <button
-              class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
-              @click="activeTab = 'icon'"
-            >
-              {{ translations.card.colors }}
-            </button>
-            <button
-              class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
-              :class="{
-                'text-primary': activeTab === 'emoji',
-                'text-neutral-600 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200':
-                  activeTab !== 'emoji',
-              }"
-              @click="activeTab = 'emoji'"
-            >
-              Emojis
-            </button>
-
-            <div
-              class="absolute bottom-0 h-0.5 bg-primary transition-all duration-300"
-              :style="{
-                width: '50%',
-                left: activeTab === 'icon' ? '0%' : '50%',
-              }"
-            ></div>
-          </div>
-
-          <div v-if="activeTab === 'icon'" class="grid grid-cols-4 gap-2">
-            <button
-              v-for="color in iconColors"
-              :key="color"
-              class="p-2 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              @click="selectColorIcon(color)"
-            >
-              <v-remixicon
-                name="riFolder5Fill"
-                class="w-6 h-6"
-                :style="{ color: color }"
-              />
-            </button>
-          </div>
-
-          <!-- Emoji Section -->
-          <div v-if="activeTab === 'emoji'" class="w-80">
-            <!-- Search Bar -->
-            <div class="mb-3">
-              <ui-input
-                :model-value="searchQuery"
-                class="w-full note-search-input"
-                prepend-icon="riSearch2Line"
-                :clearable="true"
-                :placeholder="translations.index.search"
-                @keydown.esc="$event.target.blur()"
-                @change="searchQuery = $event.toLowerCase()"
-              />
-            </div>
-
-            <div
-              v-if="!searchQuery"
-              class="flex flex-wrap gap-1 mb-3 justify-center"
-            >
-              <button
-                v-for="category in emojiCategories"
-                :key="category.name"
-                :class="{
-                  'bg-primary text-white': selectedCategory === category.name,
-                  'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
-                    selectedCategory !== category.name,
-                }"
-                class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-all duration-200"
-                @click="
-                  selectedCategory =
-                    selectedCategory === category.name ? null : category.name
-                "
-              >
-                <v-remixicon :name="category.icon" />
-              </button>
-            </div>
-
-            <div class="grid grid-cols-8 gap-1 max-h-64 overflow-auto">
-              <button
-                v-for="emoji in filteredEmojis"
-                :key="emoji.char"
-                class="text-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 p-2 rounded-md transition-colors duration-150 relative group"
-                style="
-                  font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                    'Noto Color Emoji', 'Twemoji', sans-serif;
-                "
-                :title="emoji.name"
-                @click="selectEmoji(emoji.char)"
-              >
-                {{ emoji.char }}
-              </button>
-            </div>
-
-            <div
-              v-if="filteredEmojis.length === 0"
-              class="text-center py-8 text-neutral-500 dark:text-neutral-400"
-            >
-              <v-remixicon
-                name="riEmotionUnhappyFill"
-                class="w-8 h-8 mx-auto mb-2 opacity-50"
-              />
-              <p class="text-sm">{{ translations.card.noEmojis }}</p>
-              <p class="text-xs mt-1">
-                {{ translations.card.noEmojisMessage }}
+                {{ folder.name || translations.card.untitledFolder }}
+              </h3>
+              <p class="text-white/70 text-xs font-medium truncate">
+                {{ itemCount }} item{{ itemCount !== 1 ? 's' : '' }}
               </p>
             </div>
+
+            <input
+              v-else
+              ref="renameInput"
+              v-model="newName"
+              class="w-full bg-white/20 text-white rounded px-1 focus:outline-none font-bold text-base sm:text-lg"
+              autofocus
+              @click.stop
+              @keydown.enter.prevent="saveRename"
+              @keydown.esc.prevent="cancelRename"
+              @blur="saveRename"
+            />
           </div>
-        </ui-popover>
-      </div>
 
-      <div
-        class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-      >
-        <button
-          v-tooltip.group="translations.card.moveToFolder"
-          class="size-7 sm:size-8 aspect-square flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg text-white transition-all"
-          @click.stop="showFolderMoveModal = true"
-        >
-          <v-remixicon name="riFolderTransferLine" class="size-4 sm:size-5" />
-        </button>
+          <ui-popover padding="p-3 flex flex-col print:hidden" @click.stop>
+            <template #trigger>
+              <button
+                class="size-8 sm:size-10 aspect-square flex items-center justify-center bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-white flex-shrink-0"
+              >
+                <span
+                  v-if="folder.icon"
+                  class="text-lg sm:text-xl leading-none select-none"
+                >
+                  {{ folder.icon }}
+                </span>
+                <v-remixicon
+                  v-else
+                  name="riFolder5Fill"
+                  class="size-5 sm:size-6"
+                />
+              </button>
+            </template>
 
-        <button
-          v-tooltip.group="translations.card.delete"
-          class="size-7 sm:size-8 aspect-square flex items-center justify-center bg-white/20 hover:bg-red-500/30 rounded-lg text-white hover:text-red-100 transition-all"
-          @click.stop="deleteFolder"
+            <div
+              class="flex mb-4 border-b border-neutral-200 dark:border-neutral-700 w-full relative"
+            >
+              <button
+                class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
+                @click="activeTab = 'icon'"
+              >
+                {{ translations.card.colors }}
+              </button>
+              <button
+                class="flex-1 px-4 py-2 font-medium text-sm transition-colors relative"
+                :class="{
+                  'text-primary': activeTab === 'emoji',
+                  'text-neutral-600 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-200':
+                    activeTab !== 'emoji',
+                }"
+                @click="activeTab = 'emoji'"
+              >
+                Emojis
+              </button>
+
+              <div
+                class="absolute bottom-0 h-0.5 bg-primary transition-all duration-300"
+                :style="{
+                  width: '50%',
+                  left: activeTab === 'icon' ? '0%' : '50%',
+                }"
+              ></div>
+            </div>
+
+            <div v-if="activeTab === 'icon'" class="grid grid-cols-4 gap-2">
+              <button
+                v-for="color in iconColors"
+                :key="color"
+                class="p-2 rounded-lg flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                @click="selectColorIcon(color)"
+              >
+                <v-remixicon
+                  name="riFolder5Fill"
+                  class="w-6 h-6"
+                  :style="{ color: color }"
+                />
+              </button>
+            </div>
+
+            <div v-if="activeTab === 'emoji'" class="w-80">
+              <div class="mb-3">
+                <ui-input
+                  :model-value="searchQuery"
+                  class="w-full note-search-input"
+                  prepend-icon="riSearch2Line"
+                  :clearable="true"
+                  :placeholder="translations.index.search"
+                  @keydown.esc="$event.target.blur()"
+                  @change="searchQuery = $event.toLowerCase()"
+                />
+              </div>
+
+              <div
+                v-if="!searchQuery"
+                class="flex flex-wrap gap-1 mb-3 justify-center"
+              >
+                <button
+                  v-for="category in emojiCategories"
+                  :key="category.name"
+                  :class="{
+                    'bg-primary text-white': selectedCategory === category.name,
+                    'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
+                      selectedCategory !== category.name,
+                  }"
+                  class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-all duration-200"
+                  @click="
+                    selectedCategory =
+                      selectedCategory === category.name ? null : category.name
+                  "
+                >
+                  <v-remixicon :name="category.icon" />
+                </button>
+              </div>
+
+              <div class="grid grid-cols-8 gap-1 max-h-64 overflow-auto">
+                <button
+                  v-for="emoji in filteredEmojis"
+                  :key="emoji.char"
+                  class="text-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 p-2 rounded-md transition-colors duration-150 relative group"
+                  style="
+                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
+                      'Noto Color Emoji', 'Twemoji', sans-serif;
+                  "
+                  :title="emoji.name"
+                  @click="selectEmoji(emoji.char)"
+                >
+                  {{ emoji.char }}
+                </button>
+              </div>
+
+              <div
+                v-if="filteredEmojis.length === 0"
+                class="text-center py-8 text-neutral-500 dark:text-neutral-400"
+              >
+                <v-remixicon
+                  name="riEmotionUnhappyFill"
+                  class="w-8 h-8 mx-auto mb-2 opacity-50"
+                />
+                <p class="text-sm">{{ translations.card.noEmojis }}</p>
+                <p class="text-xs mt-1">
+                  {{ translations.card.noEmojisMessage }}
+                </p>
+              </div>
+            </div>
+          </ui-popover>
+        </div>
+
+        <div
+          class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
         >
-          <v-remixicon name="riDeleteBin6Line" class="size-4 sm:size-5" />
-        </button>
+          <button
+            v-tooltip.group="translations.card.moveToFolder"
+            class="size-7 sm:size-8 aspect-square flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg text-white transition-all"
+            @click.stop="showFolderMoveModal = true"
+          >
+            <v-remixicon name="riFolderTransferLine" class="size-4 sm:size-5" />
+          </button>
+
+          <button
+            v-tooltip.group="translations.card.delete"
+            class="size-7 sm:size-8 aspect-square flex items-center justify-center bg-white/20 hover:bg-red-500/30 rounded-lg text-white hover:text-red-100 transition-all"
+            @click.stop="deleteFolder"
+          >
+            <v-remixicon name="riDeleteBin6Line" class="size-4 sm:size-5" />
+          </button>
+        </div>
       </div>
     </div>
 
@@ -237,15 +241,18 @@ import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/composable/dialog';
 import { useGroupTooltip } from '@/composable/groupTooltip';
+import { useRouter } from 'vue-router';
 import FolderTree from './FolderTree.vue';
 import emojis from 'emoji.json';
 
 const props = defineProps({
   folder: { type: Object, required: true },
+  disableOpen: { type: Boolean, default: false },
 });
 
 const folderStore = useFolderStore();
 const noteStore = useNoteStore();
+const router = useRouter();
 const showFolderMoveModal = ref(false);
 
 useGroupTooltip();
@@ -305,6 +312,64 @@ const newName = ref(props.folder.name);
 const renameInput = ref(null);
 const searchQuery = ref('');
 const selectedCategory = ref(null);
+
+const DEFAULT_FOLDER_COLOR = '#6366f1';
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function hexToRgb(hex) {
+  const normalized = hex.replace('#', '').trim();
+  const fullHex =
+    normalized.length === 3
+      ? normalized
+          .split('')
+          .map((char) => char + char)
+          .join('')
+      : normalized;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(fullHex)) return null;
+
+  return {
+    r: parseInt(fullHex.slice(0, 2), 16),
+    g: parseInt(fullHex.slice(2, 4), 16),
+    b: parseInt(fullHex.slice(4, 6), 16),
+  };
+}
+
+function toRgba(hex, alpha) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return `rgba(99, 102, 241, ${alpha})`;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function darkenHex(hex, amount = 0.16) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return '#4f46e5';
+
+  const scale = 1 - amount;
+  const toHex = (value) =>
+    clamp(Math.round(value * scale), 0, 255)
+      .toString(16)
+      .padStart(2, '0');
+
+  return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
+}
+
+const folderBaseColor = computed(
+  () => props.folder.color || DEFAULT_FOLDER_COLOR
+);
+
+const folderFrontColor = computed(() => toRgba(folderBaseColor.value, 0.94));
+
+const folderFrontBorderColor = computed(() =>
+  toRgba(darkenHex(folderBaseColor.value, 0.24), 0.9)
+);
+
+const folderTabBorderColor = computed(() =>
+  toRgba(darkenHex(folderBaseColor.value, 0.18), 0.95)
+);
 
 const itemCount = computed(() => {
   return noteStore.notes.filter((note) => note.folderId === props.folder.id)
@@ -383,6 +448,11 @@ function deleteFolder() {
     onConfirm: () =>
       folderStore.delete(props.folder.id, { deleteContents: true }),
   });
+}
+
+function handleOpen() {
+  if (isRenaming.value || props.disableOpen) return;
+  router.push(`/folder/${props.folder.id}`);
 }
 
 const { translations } = useTranslations();

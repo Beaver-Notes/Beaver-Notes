@@ -29,7 +29,7 @@ tauri-plugin-clipboard-manager = "2"
 tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-stronghold = "2"
-tauri-plugin-safe-area-insets-css = "0.2"
+tauri-plugin-safe-area-insets-css = { path = "../vendor/tauri-plugin-safe-area-insets-css" }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
 rusqlite = { version = "0.31", features = ["bundled"] }

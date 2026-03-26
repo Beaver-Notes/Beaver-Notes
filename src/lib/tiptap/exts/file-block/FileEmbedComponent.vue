@@ -31,6 +31,9 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted } from 'vue';
 import { backend } from '@/lib/tauri-bridge';
+import { openFileExternal } from '@/lib/native/app';
+import { saveDialog } from '@/lib/native/dialog';
+import { readData, writeFile } from '@/lib/native/fs';
 
 export default {
   components: {
@@ -56,7 +59,7 @@ export default {
 
     function openDocument() {
       const src = encodeURI(normalizeSrc(props.node.attrs.src));
-      backend.invoke('open-file-external', src);
+      openFileExternal(src);
     }
 
     function refreshFileEmbed() {
@@ -67,8 +70,7 @@ export default {
     }
 
     onMounted(() => {
-      backend.listenPayload('file-updated', ({ originalPath }) => {
-        console.log('Got request from main', originalPath);
+      backend.listenPayload('file-updated', () => {
         refreshFileEmbed();
         return { status: 'ok' };
       });
@@ -77,17 +79,15 @@ export default {
     async function downloadFile(event) {
       event.stopPropagation();
       const src = encodeURI(normalizeSrc(props.node.attrs.src));
-      const { canceled, filePath } = await backend.invoke('dialog:save', {
+      const { canceled, filePath } = await saveDialog({
         defaultPath: fileName.value,
       });
       if (canceled || !filePath) return;
 
-      const base64 = await backend.invoke('fs:readData', src);
+      const base64 = await readData(src);
       if (!base64) return;
 
-      await backend.invoke('fs:writeFile', {
-        path: filePath,
-        data: base64ToUint8Array(base64),
+      await writeFile(filePath, base64ToUint8Array(base64), {
         skipAssetEncryption: true,
       });
     }

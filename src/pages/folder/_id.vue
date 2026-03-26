@@ -107,10 +107,15 @@
                 getAllVisibleItems
               )
             "
+            @touchstart="handleItemTouchStart($event, 'folder', childFolder.id)"
+            @touchmove="handleItemTouchMove($event)"
+            @touchend="handleItemTouchEnd($event, 'folder', childFolder.id)"
+            @touchcancel="handleItemTouchCancel"
           >
             <home-folder-card
               :key="childFolder.id"
               :folder="childFolder"
+              :disable-open="selectionMode"
               :class="{
                 'transform scale-[1.02]':
                   dragOverFolderId === childFolder.id ||
@@ -146,6 +151,7 @@
           <home-note-masonry
             :notes="notes[name]"
             :selected-items="selectedItems"
+            :selection-mode="selectionMode"
             :gap-px="16"
             :breakpoints="[
               { min: 0, cols: 1 },
@@ -161,6 +167,14 @@
                 getAllVisibleItems
               )
             "
+            @item-touchstart="
+              handleItemTouchStart($event.event, 'note', $event.noteId)
+            "
+            @item-touchmove="handleItemTouchMove($event.event)"
+            @item-touchend="
+              handleItemTouchEnd($event.event, 'note', $event.noteId)
+            "
+            @item-touchcancel="handleItemTouchCancel"
             @dragstart="handleNoteDragStart($event.event, $event.noteId)"
             @dragend="handleDragEnd($event.event)"
             @update:label="state.activeLabel = $event"
@@ -277,6 +291,8 @@ export default {
       selectionEnd,
       selectionBoxStyle,
       handleItemClick,
+      selectionMode,
+      enterSelectionMode,
       clearSelection,
       selectAllItems,
     } = useSelection({ suppressNextClick });
@@ -288,6 +304,11 @@ export default {
       handleDragEnd,
       handleDragOver,
       handleDragLeave,
+      handleDrop,
+      startTouchDrag,
+      updateTouchDrag,
+      finishTouchDrag,
+      cancelTouchDrag,
     } = useDragAndDrop({ selectedItems, clearSelection });
 
     const state = reactive({
@@ -297,6 +318,15 @@ export default {
       sortOrder: 'asc',
     });
     const noteSearchCache = new Map();
+    const LONG_PRESS_MS = 360;
+    const TOUCH_CANCEL_DISTANCE = 10;
+    const TOUCH_DRAG_DISTANCE = 8;
+
+    let longPressTimer = null;
+    let touchStartPoint = null;
+    let touchPressItem = null;
+    let touchLongPressTriggered = false;
+    let touchDragStarted = false;
 
     const sortedNotes = computed(() =>
       sortArray({
@@ -487,6 +517,125 @@ export default {
       }
     }
 
+    function getTouchPoint(event) {
+      return event.touches?.[0] || event.changedTouches?.[0] || null;
+    }
+
+    function resetTouchInteraction() {
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+      touchStartPoint = null;
+      touchPressItem = null;
+      touchLongPressTriggered = false;
+      touchDragStarted = false;
+    }
+
+    function touchDistanceFromStart(touch) {
+      if (!touch || !touchStartPoint) return 0;
+      return Math.hypot(
+        touch.clientX - touchStartPoint.x,
+        touch.clientY - touchStartPoint.y
+      );
+    }
+
+    function handleItemTouchStart(event, type, id) {
+      const touch = getTouchPoint(event);
+      if (!touch) return;
+
+      resetTouchInteraction();
+      touchPressItem = { type, id, key: `${type}-${id}` };
+      touchStartPoint = { x: touch.clientX, y: touch.clientY };
+
+      longPressTimer = setTimeout(() => {
+        touchLongPressTriggered = true;
+        suppressNextClick.value = true;
+
+        if (
+          !selectionMode.value ||
+          !selectedItems.value.has(touchPressItem.key)
+        ) {
+          enterSelectionMode(touchPressItem.key);
+        }
+      }, LONG_PRESS_MS);
+    }
+
+    function handleItemTouchMove(event) {
+      const touch = getTouchPoint(event);
+      if (!touchPressItem || !touch) return;
+
+      const distance = touchDistanceFromStart(touch);
+
+      if (!touchLongPressTriggered) {
+        if (distance > TOUCH_CANCEL_DISTANCE) {
+          resetTouchInteraction();
+        }
+        return;
+      }
+
+      if (!touchDragStarted && distance >= TOUCH_DRAG_DISTANCE) {
+        const sourceElement = document.querySelector(
+          `[data-item-id="${touchPressItem.key}"]`
+        );
+        if (sourceElement) {
+          startTouchDrag(
+            touchPressItem.type,
+            touchPressItem.id,
+            touch,
+            sourceElement
+          );
+          touchDragStarted = true;
+        }
+      }
+
+      if (touchDragStarted) {
+        event.preventDefault();
+        updateTouchDrag(touch);
+      }
+    }
+
+    function handleItemTouchEnd(event, type, id) {
+      const itemKey = `${type}-${id}`;
+      if (touchPressItem?.key !== itemKey) return;
+
+      clearTimeout(longPressTimer);
+      longPressTimer = null;
+
+      if (touchDragStarted) {
+        event.preventDefault();
+        const didMove = finishTouchDrag();
+        if (didMove) clearSelection();
+        resetTouchInteraction();
+        return;
+      }
+
+      if (touchLongPressTriggered) {
+        event.preventDefault();
+        resetTouchInteraction();
+      }
+    }
+
+    function handleItemTouchCancel() {
+      if (touchDragStarted) {
+        cancelTouchDrag();
+      }
+      resetTouchInteraction();
+    }
+
+    function handleDocumentSelectionBoundary(event) {
+      if (!selectionMode.value) return;
+
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (
+        target.closest('[data-item-id]') ||
+        target.closest('[data-selection-keep]')
+      ) {
+        return;
+      }
+
+      clearSelection();
+    }
+
     function getAllVisibleItems() {
       const items = [];
       folders.value.all.forEach((folder) => items.push(`folder-${folder.id}`));
@@ -554,41 +703,6 @@ export default {
 
       clearSelection();
       showMoveModal.value = false;
-    }
-
-    function handleDrop(event, targetFolderId) {
-      event.preventDefault();
-
-      try {
-        const dragData = JSON.parse(
-          event.dataTransfer.getData('application/json')
-        );
-
-        if (dragData.type === 'notes' || dragData.type === 'note') {
-          const noteIds = dragData.ids || [dragData.id];
-          noteIds.forEach((noteId) => {
-            noteStore.update(noteId, { folderId: targetFolderId });
-          });
-          clearSelection();
-        } else if (dragData.type === 'folders' || dragData.type === 'folder') {
-          const folderIds = dragData.ids || [dragData.id];
-          folderIds.forEach((folderId) => {
-            if (
-              !folderStore.wouldCreateCircularReference(
-                folderId,
-                targetFolderId
-              )
-            ) {
-              folderStore.update(folderId, { parentId: targetFolderId });
-            }
-          });
-          clearSelection();
-        }
-      } catch (error) {
-        console.error('Error handling drop:', error);
-      }
-
-      handleDragEnd();
     }
 
     function filterNotes(notes) {
@@ -715,6 +829,12 @@ export default {
 
     onMounted(() => {
       window.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener('click', handleDocumentSelectionBoundary, true);
+      document.addEventListener(
+        'touchstart',
+        handleDocumentSelectionBoundary,
+        true
+      );
 
       const sortState = JSON.parse(localStorage.getItem('sort-notes'));
       if (sortState) Object.assign(state, sortState);
@@ -774,7 +894,18 @@ export default {
       keyboardNavigation.value?.destroy();
 
       window.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener(
+        'click',
+        handleDocumentSelectionBoundary,
+        true
+      );
+      document.removeEventListener(
+        'touchstart',
+        handleDocumentSelectionBoundary,
+        true
+      );
       clearTimeout(sortTimer);
+      clearTimeout(longPressTimer);
       Mousetrap.reset();
       if (mouseMoveListener) {
         document.removeEventListener('mousemove', mouseMoveListener);
@@ -827,11 +958,16 @@ export default {
       handleDrop,
       highlightedFolderIds,
       selectedItems,
+      selectionMode,
       handleItemClick,
       handleGridClick,
       handleMouseDown,
       handleMouseMove,
       handleMouseUp,
+      handleItemTouchStart,
+      handleItemTouchMove,
+      handleItemTouchEnd,
+      handleItemTouchCancel,
       selectAll,
       clearSelection,
       bulkDelete,

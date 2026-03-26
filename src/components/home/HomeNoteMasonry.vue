@@ -23,11 +23,22 @@
           :data-item-id="`note-${note.id}`"
           class="note-masonry__card"
           @click.stop="$emit('item-click', { event: $event, noteId: note.id })"
+          @touchstart="
+            $emit('item-touchstart', { event: $event, noteId: note.id })
+          "
+          @touchmove="
+            $emit('item-touchmove', { event: $event, noteId: note.id })
+          "
+          @touchend="$emit('item-touchend', { event: $event, noteId: note.id })"
+          @touchcancel="
+            $emit('item-touchcancel', { event: $event, noteId: note.id })
+          "
         >
           <home-note-card
             :note-id="note.id"
             :is-locked="note.isLocked"
             v-bind="{ note }"
+            :disable-open="selectionMode"
             :class="{
               'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
                 isSelected(note.id),
@@ -77,6 +88,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  selectionMode: {
+    type: Boolean,
+    default: false,
+  },
   gapPx: {
     type: Number,
     default: 20,
@@ -93,7 +108,17 @@ const props = defineProps({
   },
 });
 
-defineEmits(['item-click', 'dragstart', 'dragend', 'update:label', 'update']);
+defineEmits([
+  'item-click',
+  'item-touchstart',
+  'item-touchmove',
+  'item-touchend',
+  'item-touchcancel',
+  'dragstart',
+  'dragend',
+  'update:label',
+  'update',
+]);
 
 const containerRef = ref(null);
 const containerWidth = ref(0);
