@@ -38,11 +38,10 @@
       style="height: 58%"
     >
       <div
-        class="h-full w-full rounded-[2rem] overflow-hidden flex flex-col justify-between"
+        class="h-full w-full rounded-[2rem] border-t overflow-hidden flex flex-col justify-between"
         style="padding: 6.25% 8.33%"
         :style="{
           backgroundColor: folderFrontColor,
-          boxShadow: `inset 0 3px 0 0 ${folderFrontBorderColor}`,
         }"
       >
         <div class="flex justify-between items-start gap-2 min-h-0">

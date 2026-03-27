@@ -13,6 +13,7 @@ import KeyboardNavigation from '@/utils/keyboard-navigation';
 import { parseItemId, areSetsEqual } from '@/utils/helper';
 import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
+import { triggerSelectionHaptic } from '@/lib/native/haptics';
 
 export function useNotesBrowser({
   state = reactive({
@@ -298,6 +299,8 @@ export function useNotesBrowser({
         !selectedItems.value.has(touchPressItem.key)
       ) {
         enterSelectionMode(touchPressItem.key);
+      } else {
+        triggerSelectionHaptic();
       }
     }, LONG_PRESS_MS);
   }

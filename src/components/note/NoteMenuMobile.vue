@@ -30,8 +30,8 @@
           >
             <button
               v-if="isItemVisible('paragraph')"
-              :class="tbBtn(editor.isActive('paragraph'))"
               v-tooltip.group="translations.menu.paragraph"
+              :class="tbBtn(editor.isActive('paragraph'))"
               @click="openSub('paragraph')"
             >
               <v-remixicon name="riParagraph" />
@@ -39,8 +39,8 @@
 
             <button
               v-if="isItemVisible('headings')"
-              :class="tbBtn(editor.isActive('heading'))"
               v-tooltip.group="translations.menu.headings"
+              :class="tbBtn(editor.isActive('heading'))"
               @click="openSub('headings')"
             >
               <v-remixicon name="riHeading" />
@@ -48,8 +48,8 @@
 
             <button
               v-if="isItemVisible('fontSize')"
-              :class="tbBtn()"
               v-tooltip.group="translations.menu.fontSize"
+              :class="tbBtn()"
               @click="openSub('fontSize')"
             >
               <span
@@ -239,27 +239,11 @@
             <span
               v-if="
                 (hasMediaControls || isItemVisible('audio')) &&
-                hasActionControls
+                isItemVisible('delete')
               "
               class="tb-divider"
             />
 
-            <button
-              v-if="!isTableActive && isItemVisible('share')"
-              v-tooltip.group="translations.menu.share"
-              :class="tbBtn()"
-              @click="openSub('share')"
-            >
-              <v-remixicon name="riShare2Line" />
-            </button>
-            <button
-              v-if="isItemVisible('readerMode')"
-              v-tooltip.group="translations.menu.readerMode"
-              :class="tbBtn(store.inReaderMode)"
-              @click="toggleReaderMode"
-            >
-              <v-remixicon name="riArticleLine" />
-            </button>
             <button
               v-if="isItemVisible('delete')"
               v-tooltip.group="translations.menu.delete"
@@ -270,7 +254,7 @@
             </button>
 
             <span
-              v-if="hasActionControls || visibleItems.length"
+              v-if="isItemVisible('delete') || visibleItems.length"
               class="tb-divider"
             />
 
@@ -574,7 +558,7 @@
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
             <input
-              v-model="VideoUrl"
+              v-model="videoUrl"
               class="tb-input"
               :placeholder="translations.menu.videoUrl || 'Video URL'"
               @keyup.enter="
@@ -645,31 +629,6 @@
               multiple
               @change="handleAudioSelect"
             />
-          </div>
-
-          <!-- ── SHARE SUB-PANEL ── -->
-          <div
-            :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
-              panelClass('share'),
-            ]"
-          >
-            <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftLine" />
-            </button>
-            <span class="tb-divider" />
-            <span class="sub-label">{{ translations.menu.share }}</span>
-            <button
-              v-for="s in shareActions"
-              :key="s.name"
-              :class="[tbChip(), 'gap-1.5']"
-              @click="
-                s.handler;
-                closeSub();
-              "
-            >
-              <v-remixicon :name="s.icon" class="w-4 h-4" />{{ s.title }}
-            </button>
           </div>
 
           <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->
@@ -745,24 +704,10 @@
 </template>
 
 <script>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue';
-import useAudioRecorder from '@/utils/record';
-import { useGroupTooltip } from '@/composable/groupTooltip';
-import { useStore } from '@/store';
-import { useEditorImage } from '@/composable/editorImage';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
-import { useNoteStore } from '../../store/note';
-import { useRouter } from 'vue-router';
-import { useDialog } from '@/composable/dialog';
-import { useStorage } from '@/composable/storage';
-import { useTranslations } from '@/composable/useTranslations';
-import { useToolbarConfig } from '@/composable/useToolbarConfig';
-import { useNoteMenuActions } from '@/composable/useNoteMenuActions';
-import { useNoteMenuState } from '@/composable/useNoteMenuState';
-import { backend, path } from '@/lib/tauri-bridge';
-
-const storage = useStorage('settings');
+import { useNoteMenu } from '@/composable/useNoteMenu';
 
 export default {
   components: { NoteMenuHeadingsTree, ToolbarCustomizer },
@@ -776,76 +721,8 @@ export default {
   emits: ['update:tree'],
 
   setup(props) {
-    const { translations } = useTranslations();
-    const toolbar = useToolbarConfig();
-    const visibleItems = toolbar.visibleItems;
-    const showCustomizer = ref(false);
-
-    const {
-      isRecording,
-      formattedTime,
-      toggleRecording,
-      isPaused,
-      pauseResume,
-    } = useAudioRecorder(props, backend, storage, path);
-
-    const store = useStore();
-    const noteStore = useNoteStore();
-    const router = useRouter();
-    const dialog = useDialog();
-    const editorImage = useEditorImage(props.editor);
-    useGroupTooltip();
-
-    const {
-      currentTextColor,
-      fmtMap,
-      highlighterColors,
-      isTableActive,
-      lists,
-      printContent,
-      setHighlightColor,
-      setTextColor,
-      shareActions,
-      tableActions,
-      textColors,
-    } = useNoteMenuActions({
-      editor: props.editor,
-      noteId: props.id,
-      noteTitle: props.note.title,
-      translations,
-      backend,
-    });
-
-    const {
-      changeWheelDirection,
-      container,
-      deleteNode,
-      fileUrl,
-      fontSize,
-      getHeadingsTree,
-      handleAudioSelect,
-      handleFileSelect,
-      handleVideoSelect,
-      headingsTree,
-      imgUrl,
-      insertFile,
-      insertImage,
-      insertVideo,
-      showHeadingsTree,
-      toggleReaderMode,
-      updateFontSize,
-      videoUrl: VideoUrl,
-    } = useNoteMenuState({
-      dialog,
-      editor: props.editor,
-      editorImage,
-      noteId: props.id,
-      noteStore,
-      printContent,
-      router,
-      store,
-      translations,
-    });
+    const shared = useNoteMenu(props);
+    const { container } = shared;
 
     // ── Sub-panel morph ───────────────────────────────────────────
     const activePanel = ref('main');
@@ -931,102 +808,12 @@ export default {
       ];
     }
 
-    const inlineFormatItems = [
-      { id: 'bold', fmt: 'bold' },
-      { id: 'italic', fmt: 'italic' },
-      { id: 'underline', fmt: 'underline' },
-      { id: 'strikethrough', fmt: 'strikethrough' },
-      { id: 'inlineCode', fmt: 'inlineCode' },
-    ];
-    const visibleItemIds = computed(
-      () => new Set(visibleItems.value.map((item) => item.id))
-    );
-    const isItemVisible = (id) => visibleItemIds.value.has(id);
-    const visibleInlineFormatItems = computed(() =>
-      inlineFormatItems.filter((item) => isItemVisible(item.id))
-    );
-    const hasTextControls = computed(
-      () =>
-        isItemVisible('paragraph') ||
-        isItemVisible('headings') ||
-        isItemVisible('fontSize')
-    );
-    const hasFormattingControls = computed(
-      () => visibleInlineFormatItems.value.length > 0 || isItemVisible('color')
-    );
-    const hasBlockControls = computed(
-      () =>
-        isItemVisible('lists') ||
-        isItemVisible('blockquote') ||
-        isItemVisible('codeBlock')
-    );
-    const hasMediaControls = computed(
-      () =>
-        isItemVisible('link') ||
-        isItemVisible('image') ||
-        isItemVisible('file') ||
-        isItemVisible('video') ||
-        isItemVisible('table') ||
-        isItemVisible('draw-block')
-    );
-    const hasActionControls = computed(
-      () =>
-        isItemVisible('share') ||
-        isItemVisible('readerMode') ||
-        isItemVisible('delete')
-    );
-
     return {
-      store,
-      translations,
-      fontSize,
-      updateFontSize,
-      imgUrl,
-      fileUrl,
-      VideoUrl,
-      insertImage,
-      insertFile,
-      insertVideo,
-      handleFileSelect,
-      handleAudioSelect,
-      handleVideoSelect,
-      editorImage,
-      headingsTree,
-      showHeadingsTree,
-      getHeadingsTree,
-      isTableActive,
-      fmtMap,
-      lists,
-      shareActions,
-      tableActions,
-      highlighterColors,
-      textColors,
-      currentTextColor,
-      setHighlightColor,
-      setTextColor,
-      isRecording,
-      formattedTime,
-      isPaused,
-      toggleRecording,
-      pauseResume,
-      toggleReaderMode,
-      deleteNode,
-      printContent,
-      container,
-      changeWheelDirection,
-      visibleItems,
-      showCustomizer,
+      ...shared,
       activePanel,
       openSub,
       closeSub,
       panelClass,
-      visibleInlineFormatItems,
-      isItemVisible,
-      hasTextControls,
-      hasFormattingControls,
-      hasBlockControls,
-      hasMediaControls,
-      hasActionControls,
       tbBtn,
       tbChip,
       scrolledLeft,

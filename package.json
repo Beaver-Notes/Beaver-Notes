@@ -106,6 +106,7 @@
     "@sereneinserenade/tiptap-search-and-replace": "^0.1.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
+    "@tauri-apps/plugin-haptics": "~2",
     "@tiptap/core": "^3",
     "@tiptap/extension-bubble-menu": "^3",
     "@tiptap/extension-code-block": "^3",

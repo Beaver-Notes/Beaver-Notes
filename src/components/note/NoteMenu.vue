@@ -487,7 +487,7 @@
           </template>
 
           <input
-            v-model="VideoUrl"
+            v-model="videoUrl"
             class="bg-transparent text-sm w-40"
             :placeholder="translations.menu.videoUrl || 'URL'"
             @keyup.enter="insertVideo"
@@ -631,24 +631,10 @@
 </template>
 
 <script>
-import { ref } from 'vue';
-import useAudioRecorder from '@/utils/record';
-import { useGroupTooltip } from '@/composable/groupTooltip';
-import { useStore } from '@/store';
-import { useEditorImage } from '@/composable/editorImage';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import DrawModeToggle from '@/components/overlay/DrawModeToggle.vue';
-import { useNoteStore } from '../../store/note';
-import { useRouter } from 'vue-router';
-import { useDialog } from '@/composable/dialog';
-import { useStorage } from '@/composable/storage';
-import { useTranslations } from '@/composable/useTranslations';
-import { useToolbarConfig } from '@/composable/useToolbarConfig';
-import { useNoteMenuActions } from '@/composable/useNoteMenuActions';
-import { useNoteMenuState } from '@/composable/useNoteMenuState';
-import { backend, path } from '@/lib/tauri-bridge';
-const storage = useStorage('settings');
+import { useNoteMenu } from '@/composable/useNoteMenu';
 
 export default {
   components: { NoteMenuHeadingsTree, ToolbarCustomizer, DrawModeToggle },
@@ -660,118 +646,7 @@ export default {
   },
   emits: ['update:tree'],
   setup(props) {
-    const { translations } = useTranslations();
-    const toolbar = useToolbarConfig();
-    const visibleItems = toolbar.visibleItems;
-    const showCustomizer = ref(false);
-
-    const {
-      isRecording,
-      formattedTime,
-      toggleRecording,
-      isPaused,
-      pauseResume,
-    } = useAudioRecorder(props, backend, storage, path);
-
-    const store = useStore();
-    const noteStore = useNoteStore();
-    const router = useRouter();
-    const dialog = useDialog();
-    const editorImage = useEditorImage(props.editor);
-    useGroupTooltip();
-
-    const {
-      currentTextColor,
-      fmtMap,
-      highlighterColors,
-      isTableActive,
-      lists,
-      printContent,
-      setHighlightColor,
-      setTextColor,
-      shareActions,
-      tableActions,
-      textColors,
-    } = useNoteMenuActions({
-      editor: props.editor,
-      noteId: props.id,
-      noteTitle: props.note.title,
-      translations,
-      backend,
-    });
-
-    const {
-      changeWheelDirection,
-      container,
-      deleteNode,
-      fileUrl,
-      fontSize,
-      getHeadingsTree,
-      handleAudioSelect,
-      handleFileSelect,
-      handleVideoSelect,
-      headingsTree,
-      imgUrl,
-      insertFile,
-      insertImage,
-      insertVideo,
-      showHeadingsTree,
-      toggleReaderMode,
-      updateFontSize,
-      videoUrl: VideoUrl,
-    } = useNoteMenuState({
-      dialog,
-      editor: props.editor,
-      editorImage,
-      noteId: props.id,
-      noteStore,
-      printContent,
-      router,
-      store,
-      translations,
-    });
-
-    return {
-      store,
-      translations,
-      fontSize,
-      updateFontSize,
-      imgUrl,
-      fileUrl,
-      VideoUrl,
-      insertImage,
-      insertFile,
-      insertVideo,
-      handleFileSelect,
-      handleAudioSelect,
-      handleVideoSelect,
-      editorImage,
-      headingsTree,
-      showHeadingsTree,
-      getHeadingsTree,
-      isTableActive,
-      fmtMap,
-      lists,
-      shareActions,
-      tableActions,
-      highlighterColors,
-      textColors,
-      currentTextColor,
-      setHighlightColor,
-      setTextColor,
-      isRecording,
-      formattedTime,
-      isPaused,
-      toggleRecording,
-      pauseResume,
-      toggleReaderMode,
-      deleteNode,
-      printContent,
-      container,
-      changeWheelDirection,
-      visibleItems,
-      showCustomizer,
-    };
+    return useNoteMenu(props);
   },
 };
 </script>

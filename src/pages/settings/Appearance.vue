@@ -267,7 +267,11 @@
 import { shallowReactive, onMounted, computed, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
-import { getSettingSync, setSetting } from '@/composable/settings';
+import {
+  DEFAULT_UI_FONT_STACK,
+  getSettingSync,
+  setSetting,
+} from '@/composable/settings';
 import { useStorage } from '@/composable/storage';
 import {
   formatZoomLevel,
@@ -348,6 +352,11 @@ export default {
     });
 
     const defaultFonts = [
+      {
+        label: 'Default',
+        value: DEFAULT_UI_FONT_STACK,
+        class: '',
+      },
       { label: 'Arimo', value: 'Arimo', class: 'font-arimo' },
       { label: 'Avenir', value: 'avenir', class: 'font-avenir' },
       { label: 'EB Garamond', value: 'EB Garamond', class: 'font-eb-faramond' },

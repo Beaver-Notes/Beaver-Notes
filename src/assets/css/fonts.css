@@ -47,6 +47,18 @@
 }
 
 /* ===========================
+   Inter (Variable)
+   =========================== */
+@font-face {
+  font-family: 'Inter';
+  src: url('@/assets/fonts/Inter/InterVariable.woff2')
+    format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===========================
    Avenir (various cuts)
    =========================== */
 @font-face {

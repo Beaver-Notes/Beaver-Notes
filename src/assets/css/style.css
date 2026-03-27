@@ -1,6 +1,7 @@
 :root {
   --theme: 'light';
-  --selected-font: 'Arimo', sans-serif;
+  --selected-font: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Inter, sans-serif;
   --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;
   --app-theme-background: theme('colors.neutral.50');

@@ -55,6 +55,9 @@ tauri-plugin-swipe-back-ios = "1.0.0"
 [target.'cfg(not(target_os = "android"))'.dependencies]
 font-kit = "0.13"
 
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-haptics = "2"
+
 [patch.crates-io]
 mac-notification-sys = { path = "../vendor/mac-notification-sys" }
 

@@ -1,5 +1,6 @@
 // src/composables/selection.js
 import { ref, computed } from 'vue';
+import { triggerSelectionHaptic } from '@/lib/native/haptics';
 
 /**
  * Detects whether the user is on macOS.
@@ -140,6 +141,7 @@ export function useSelection({ suppressNextClick } = {}) {
     selectedItems.value = new Set([itemKey]);
     lastSelectedItem.value = itemKey;
     selectionMode.value = true;
+    triggerSelectionHaptic();
   }
 
   function handleSelectionModeTap(type, id) {
@@ -158,6 +160,7 @@ export function useSelection({ suppressNextClick } = {}) {
       selectedItems.value = new Set([itemKey]);
       lastSelectedItem.value = itemKey;
       selectionMode.value = true;
+      triggerSelectionHaptic();
       return;
     }
 
@@ -175,6 +178,7 @@ export function useSelection({ suppressNextClick } = {}) {
 
     selectedItems.value = next;
     selectionMode.value = true;
+    triggerSelectionHaptic();
   }
 
   return {

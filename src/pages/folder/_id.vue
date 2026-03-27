@@ -1,215 +1,218 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="container pt-5">
-    <div class="flex flex-col gap-2 mb-6">
-      <div class="flex items-center gap-3 min-w-0">
-        <span v-if="folder.icon" class="text-2xl select-none flex-shrink-0">
-          {{ folder.icon }}
-        </span>
-        <v-remixicon
-          v-else
-          name="riFolder5Fill"
-          class="w-6 h-6 flex-shrink-0"
-          :style="{ color: folder.color || '#6B7280' }"
-        />
-        <h1
-          class="text-2xl md:text-3xl font-bold flex-1 min-w-0 truncate whitespace-nowrap"
-        >
-          {{ folder.name || translations.index.untitledFolder }}
-        </h1>
-      </div>
-
-      <nav aria-label="Breadcrumb" class="text-sm">
-        <ol class="flex flex-wrap items-center gap-1">
-          <li>
-            <router-link to="/" class="hover:text-primary font-medium">
-              {{ translations.index.home }}
-            </router-link>
-          </li>
-
-          <template
-            v-for="(pathFolder, index) in folderPath"
-            :key="pathFolder?.id ?? index"
+  <div>
+    <div class="container pt-5">
+      <div class="flex flex-col gap-2 mb-6">
+        <div class="flex items-center gap-3 min-w-0">
+          <span v-if="folder.icon" class="text-2xl select-none flex-shrink-0">
+            {{ folder.icon }}
+          </span>
+          <v-remixicon
+            v-else
+            name="riFolder5Fill"
+            class="w-6 h-6 flex-shrink-0"
+            :style="{ color: folder.color || '#6B7280' }"
+          />
+          <h1
+            class="text-2xl md:text-3xl font-bold flex-1 min-w-0 truncate whitespace-nowrap"
           >
-            <li class="mx-1">/</li>
+            {{ folder.name || translations.index.untitledFolder }}
+          </h1>
+        </div>
 
-            <!-- previous crumbs (links) -->
-            <li
-              v-if="index < folderPath.length - 1 && pathFolder?.id"
-              class="min-w-0"
-            >
-              <router-link
-                :to="`/folder/${pathFolder.id}`"
-                class="hover:text-primary inline-block align-middle max-w-[10rem] md:max-w-[14rem] lg:max-w-[18rem]"
-                :title="pathFolder?.name || translations.index.untitledFolder"
-              >
-                <span class="truncate">
-                  {{ pathFolder?.name || translations.index.untitledFolder }}
-                </span>
+        <nav aria-label="Breadcrumb" class="text-sm">
+          <ol class="flex flex-wrap items-center gap-1">
+            <li>
+              <router-link to="/" class="hover:text-primary font-medium">
+                {{ translations.index.home }}
               </router-link>
             </li>
 
-            <!-- last crumb (current) -->
-            <li v-else class="font-medium min-w-0">
-              <span
-                class="inline-block align-middle max-w-[10rem] md:max-w-[14rem] lg:max-w-[18rem] truncate"
-                :title="pathFolder?.name || translations.index.untitledFolder"
-              >
-                {{ pathFolder?.name || translations.index.untitledFolder }}
-              </span>
-            </li>
-          </template>
-        </ol>
-      </nav>
-    </div>
-    <home-search
-      v-model:query="state.query"
-      v-model:label="state.activeLabel"
-      v-model:sort-by="state.sortBy"
-      v-model:sort-order="state.sortOrder"
-    />
-  </div>
-  <div
-    class="container md:pb-5"
-    @mousedown="handleMouseDown"
-    @click="handleGridClick"
-  >
-    <div
-      v-if="isSelecting"
-      class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
-      :style="selectionBoxStyle"
-    />
+            <template
+              v-for="(pathFolder, index) in folderPath"
+              :key="pathFolder?.id ?? index"
+            >
+              <li class="mx-1">/</li>
 
-    <template v-if="noteStore.notes.length !== 0 || folders.all.length !== 0">
-      <section v-if="folders.all.length" class="mb-10">
-        <p
-          class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2 mb-4"
-        >
-          {{ translations.index.folders }}
-        </p>
-        <TransitionGroup
-          tag="div"
-          :css="isSorting"
-          :name="isSorting ? 'sort-cards' : undefined"
-          class="folder-grid"
-        >
-          <div
-            v-for="childFolder in folders.all"
-            :key="childFolder.id"
-            :min-height="120"
-            :data-item-id="`folder-${childFolder.id}`"
-            class="folder-grid__item"
-            @click="
-              handleItemClick(
-                $event,
-                'folder',
-                childFolder.id,
-                getAllVisibleItems
-              )
-            "
-            @touchstart="handleItemTouchStart($event, 'folder', childFolder.id)"
-            @touchmove="handleItemTouchMove($event)"
-            @touchend="handleItemTouchEnd($event, 'folder', childFolder.id)"
-            @touchcancel="handleItemTouchCancel"
-          >
-            <home-folder-card
-              :key="childFolder.id"
-              :folder="childFolder"
-              :disable-open="selectionMode"
-              :class="{
-                'transform scale-[1.02]':
-                  dragOverFolderId === childFolder.id ||
-                  (state.query && highlightedFolderIds.has(childFolder.id)),
-                'transform scale-[1.02] transition-transform duration-200':
-                  selectedItems.has(`folder-${childFolder.id}`),
-              }"
-              style="contain: layout style"
-              draggable="true"
-              @dragstart="handleFolderDragStart($event, childFolder.id)"
-              @dragend="handleDragEnd"
-              @dragover="handleDragOver($event, childFolder.id)"
-              @dragleave="handleDragLeave"
-              @drop="handleDrop($event, childFolder.id)"
-            />
-          </div>
-        </TransitionGroup>
-      </section>
-      <section
-        v-for="name in $route.query.archived
-          ? ['archived']
-          : ['bookmarked', 'all']"
-        :key="name"
-        class="mb-12"
-      >
-        <template v-if="notes[name].length !== 0">
+              <li
+                v-if="index < folderPath.length - 1 && pathFolder?.id"
+                class="min-w-0"
+              >
+                <router-link
+                  :to="`/folder/${pathFolder.id}`"
+                  class="hover:text-primary inline-block align-middle max-w-[10rem] md:max-w-[14rem] lg:max-w-[18rem]"
+                  :title="pathFolder?.name || translations.index.untitledFolder"
+                >
+                  <span class="truncate">
+                    {{ pathFolder?.name || translations.index.untitledFolder }}
+                  </span>
+                </router-link>
+              </li>
+
+              <li v-else class="font-medium min-w-0">
+                <span
+                  class="inline-block align-middle max-w-[10rem] md:max-w-[14rem] lg:max-w-[18rem] truncate"
+                  :title="pathFolder?.name || translations.index.untitledFolder"
+                >
+                  {{ pathFolder?.name || translations.index.untitledFolder }}
+                </span>
+              </li>
+            </template>
+          </ol>
+        </nav>
+      </div>
+      <home-search
+        v-model:query="state.query"
+        v-model:label="state.activeLabel"
+        v-model:sort-by="state.sortBy"
+        v-model:sort-order="state.sortOrder"
+      />
+    </div>
+
+    <div
+      class="container md:pb-5"
+      @mousedown="handleMouseDown"
+      @click="handleGridClick"
+    >
+      <div
+        v-if="isSelecting"
+        class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
+        :style="selectionBoxStyle"
+      />
+
+      <template v-if="noteStore.notes.length !== 0 || folders.all.length !== 0">
+        <section v-if="folders.all.length" class="mb-10">
           <p
             class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2 mb-4"
           >
-            {{ translations.index[name] }}
+            {{ translations.index.folders }}
           </p>
+          <TransitionGroup
+            tag="div"
+            :css="isSorting"
+            :name="isSorting ? 'sort-cards' : undefined"
+            class="folder-grid"
+          >
+            <div
+              v-for="childFolder in folders.all"
+              :key="childFolder.id"
+              :min-height="120"
+              :data-item-id="`folder-${childFolder.id}`"
+              class="folder-grid__item"
+              @click="
+                handleItemClick(
+                  $event,
+                  'folder',
+                  childFolder.id,
+                  getAllVisibleItems
+                )
+              "
+              @touchstart="
+                handleItemTouchStart($event, 'folder', childFolder.id)
+              "
+              @touchmove="handleItemTouchMove($event)"
+              @touchend="handleItemTouchEnd($event, 'folder', childFolder.id)"
+              @touchcancel="handleItemTouchCancel"
+            >
+              <home-folder-card
+                :key="childFolder.id"
+                :folder="childFolder"
+                :disable-open="selectionMode"
+                :class="{
+                  'transform scale-[1.02]':
+                    dragOverFolderId === childFolder.id ||
+                    (state.query && highlightedFolderIds.has(childFolder.id)),
+                  'transform scale-[1.02] transition-transform duration-200':
+                    selectedItems.has(`folder-${childFolder.id}`),
+                }"
+                style="contain: layout style"
+                draggable="true"
+                @dragstart="handleFolderDragStart($event, childFolder.id)"
+                @dragend="handleDragEnd"
+                @dragover="handleDragOver($event, childFolder.id)"
+                @dragleave="handleDragLeave"
+                @drop="handleDrop($event, childFolder.id)"
+              />
+            </div>
+          </TransitionGroup>
+        </section>
+        <section
+          v-for="name in $route.query.archived
+            ? ['archived']
+            : ['bookmarked', 'all']"
+          :key="name"
+          class="mb-12"
+        >
+          <template v-if="notes[name].length !== 0">
+            <p
+              class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mt-2 mb-4"
+            >
+              {{ translations.index[name] }}
+            </p>
 
-          <home-note-masonry
-            :notes="notes[name]"
-            :selected-items="selectedItems"
-            :selection-mode="selectionMode"
-            :gap-px="16"
-            :breakpoints="[
-              { min: 0, cols: 1 },
-              { min: 768, cols: 2 },
-              { min: 1024, cols: 3 },
-              { min: 1280, cols: 4 },
-            ]"
-            @item-click="
-              handleItemClick(
-                $event.event,
-                'note',
-                $event.noteId,
-                getAllVisibleItems
-              )
-            "
-            @item-touchstart="
-              handleItemTouchStart($event.event, 'note', $event.noteId)
-            "
-            @item-touchmove="handleItemTouchMove($event.event)"
-            @item-touchend="
-              handleItemTouchEnd($event.event, 'note', $event.noteId)
-            "
-            @item-touchcancel="handleItemTouchCancel"
-            @dragstart="handleNoteDragStart($event.event, $event.noteId)"
-            @dragend="handleDragEnd($event.event)"
-            @update:label="state.activeLabel = $event"
-            @update="noteStore.update($event.noteId, $event.payload)"
-          />
-        </template>
-      </section>
-    </template>
+            <home-note-masonry
+              :notes="notes[name]"
+              :selected-items="selectedItems"
+              :selection-mode="selectionMode"
+              :gap-px="16"
+              :breakpoints="[
+                { min: 0, cols: 1 },
+                { min: 768, cols: 2 },
+                { min: 1024, cols: 3 },
+                { min: 1280, cols: 4 },
+              ]"
+              @item-click="
+                handleItemClick(
+                  $event.event,
+                  'note',
+                  $event.noteId,
+                  getAllVisibleItems
+                )
+              "
+              @item-touchstart="
+                handleItemTouchStart($event.event, 'note', $event.noteId)
+              "
+              @item-touchmove="handleItemTouchMove($event.event)"
+              @item-touchend="
+                handleItemTouchEnd($event.event, 'note', $event.noteId)
+              "
+              @item-touchcancel="handleItemTouchCancel"
+              @dragstart="handleNoteDragStart($event.event, $event.noteId)"
+              @dragend="handleDragEnd($event.event)"
+              @update:label="state.activeLabel = $event"
+              @update="noteStore.update($event.noteId, $event.payload)"
+            />
+          </template>
+        </section>
+      </template>
 
-    <div v-else class="text-center">
-      <img
-        :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
-        class="mx-auto w-1/4"
+      <div v-else class="text-center">
+        <img
+          :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
+          class="mx-auto w-1/4"
+        />
+        <p
+          class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
+        >
+          {{ translations.index.newNote || '-' }}
+        </p>
+      </div>
+
+      <folder-tree
+        v-model="showMoveModal"
+        :notes="selectedNotes"
+        :folders="selectedFolders"
+        :mode="moveMode"
+        @moved="handleMoved"
       />
-      <p
-        class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
-      >
-        {{ translations.index.newNote || '-' }}
-      </p>
     </div>
-
-    <folder-tree
-      v-model="showMoveModal"
-      :notes="selectedNotes"
-      :folders="selectedFolders"
-      :mode="moveMode"
-      @moved="handleMoved"
+    <actions
+      :selected-items="selectedItems"
+      @delete="bulkDelete"
+      @move="bulkMove"
+      @clear="clearSelection"
     />
   </div>
-  <actions
-    :selected-items="selectedItems"
-    @delete="bulkDelete"
-    @move="bulkMove"
-    @clear="clearSelection"
-  />
 </template>
 
 <script>

@@ -482,7 +482,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     grant_trusted_path(&state, &app.path().temp_dir().map_err(to_error)?);
     fs::create_dir_all(&state.asset_cache_dir).map_err(to_error)?;
     *state.updater.lock().map_err(to_error)? = UpdaterState {
-        auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle()).unwrap_or(true),
+        auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle())
+            .unwrap_or(true),
         current_version: Some(app.package_info().version.to_string()),
         ..Default::default()
     };

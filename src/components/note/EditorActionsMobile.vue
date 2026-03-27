@@ -1,9 +1,9 @@
 <template>
   <div
-    class="editor-actions-mobile-shell sticky z-[160] flex justify-center px-4 no-print transition-opacity duration-150"
+    class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-neutral-50 dark:bg-neutral-900"
   >
     <div
-      class="flex w-full max-w-md items-center justify-between rounded-2xl border border-black/10 bg-white/90 p-1.5 shadow-lg backdrop-blur dark:border-white/10 dark:bg-neutral-900/85"
+      class="flex w-full items-center justify-between p-1.5 shadow-lg backdrop-blur"
     >
       <button
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
@@ -42,27 +42,26 @@
           <v-remixicon name="riSearchLine" size="22" />
         </button>
       </div>
-
-      <ui-modal v-model="showShareDialog" content-class="max-w-sm">
-        <template #header>
-          <h3 class="text-lg font-semibold">
-            {{ translations.menu.share || 'Share' }}
-          </h3>
-        </template>
-
-        <div class="grid gap-2 p-2">
-          <button
-            v-for="action in shareActions"
-            :key="action.name"
-            class="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-neutral-700 transition-colors hover:bg-black/5 dark:text-neutral-100 dark:hover:bg-white/10"
-            @click="runShareAction(action)"
-          >
-            <v-remixicon :name="action.icon" size="20" />
-            <span class="text-sm font-medium">{{ action.title }}</span>
-          </button>
-        </div>
-      </ui-modal>
     </div>
+    <ui-modal v-model="showShareDialog" content-class="max-w-sm">
+      <template #header>
+        <h3 class="text-lg font-semibold">
+          {{ translations.menu.share || 'Share' }}
+        </h3>
+      </template>
+
+      <div class="grid gap-2 p-2">
+        <button
+          v-for="action in shareActions"
+          :key="action.name"
+          class="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-neutral-700 transition-colors hover:bg-black/5 dark:text-neutral-100 dark:hover:bg-white/10"
+          @click="runShareAction(action)"
+        >
+          <v-remixicon :name="action.icon" size="20" />
+          <span class="text-sm font-medium">{{ action.title }}</span>
+        </button>
+      </div>
+    </ui-modal>
   </div>
 </template>
 
@@ -130,7 +129,7 @@ export default {
 
 <style scoped>
 .editor-actions-mobile-shell {
-  top: calc(var(--app-safe-area-top) + 0.75rem);
-  margin-bottom: 0.75rem;
+  top: calc(var(--app-safe-area-top));
+  margin-bottom: 1rem;
 }
 </style>

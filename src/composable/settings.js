@@ -1,6 +1,8 @@
 import { useStorage } from './storage';
 
 const settingsStorage = useStorage('settings');
+export const DEFAULT_UI_FONT_STACK =
+  "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif";
 
 const settingDefs = {
   theme: { legacyKey: 'theme', defaultValue: 'system', parse: String },
@@ -22,7 +24,7 @@ const settingDefs = {
   zoomLevel: { legacyKey: 'zoomLevel', defaultValue: '1.0', parse: String },
   selectedFont: {
     legacyKey: 'selected-font',
-    defaultValue: 'Arimo',
+    defaultValue: DEFAULT_UI_FONT_STACK,
     parse: String,
   },
   selectedCodeFont: {

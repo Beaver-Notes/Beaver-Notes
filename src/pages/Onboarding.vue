@@ -19,7 +19,7 @@
           <img
             :src="logoUrl"
             alt="Beaver Notes"
-            class="w-20 h-20 object-contain drop-shadow-xl ob-logo"
+            class="w-24 h-24 object-contain ob-logo"
             :class="{ 'ob-logo--in': logoIn }"
           />
 
@@ -273,6 +273,63 @@
                 </button>
               </ui-card>
             </div>
+
+            <div class="flex flex-col gap-2">
+              <p
+                class="text-xs font-bold uppercase tracking-widest ob-label-text"
+              >
+                Accent color
+              </p>
+              <div class="grid grid-cols-4 gap-2">
+                <button
+                  v-for="item in accentColors"
+                  :key="item.name"
+                  type="button"
+                  class="bg-input flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-all"
+                  :class="
+                    fresh.accentColor === item.name ? 'ring-1 ring-primary' : ''
+                  "
+                  @click="selectAccentColor(item.name)"
+                >
+                  <span
+                    class="h-3 w-3 rounded-full"
+                    :style="{ backgroundColor: item.preview }"
+                  ></span>
+                  <span class="text-sm ob-heading-text">{{ item.label }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <p
+                class="text-xs font-bold uppercase tracking-widest ob-label-text"
+              >
+                Interface size
+              </p>
+              <div class="grid grid-cols-3 gap-2">
+                <button
+                  v-for="item in interfaceSizes"
+                  :key="item.value"
+                  type="button"
+                  class="bg-input rounded-lg px-3 py-2 text-sm transition-all"
+                  :class="
+                    fresh.zoomLevel === item.value ? 'ring-1 ring-primary' : ''
+                  "
+                  @click="selectZoomLevel(item.value)"
+                >
+                  {{ item.label }}
+                </button>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-2">
+              <p
+                class="text-xs font-bold uppercase tracking-widest ob-label-text"
+              >
+                App font
+              </p>
+              <ui-select v-model="fresh.selectedFont" :options="fonts" block />
+            </div>
           </div>
 
           <div class="mt-5 flex justify-between gap-4">
@@ -288,6 +345,106 @@
                 Continue <v-remixicon name="riArrowRightLine" />
               </template>
             </ui-button>
+          </div>
+        </ui-card>
+      </div>
+
+      <div
+        v-else-if="step === 'sync'"
+        key="sync"
+        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
+      >
+        <ui-card class="w-full max-w-lg">
+          <div class="flex flex-col items-center gap-2 my-8 text-center">
+            <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+              Sync folder
+            </h2>
+            <p class="ob-body-text">
+              Optionally keep Beaver Notes synced with a folder you control.
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-3">
+            <ui-card class="bg-input">
+              <div class="flex flex-col gap-3 p-4">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p
+                      class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1"
+                    >
+                      Folder
+                    </p>
+                    <p class="text-sm ob-body-text">
+                      {{
+                        fresh.syncPath
+                          ? 'Beaver Notes will use this folder for sync data.'
+                          : 'Choose a folder if you want to enable sync later.'
+                      }}
+                    </p>
+                  </div>
+                  <ui-button variant="secondary" @click="chooseSyncPath">
+                    {{ fresh.syncPath ? 'Change' : 'Choose folder' }}
+                  </ui-button>
+                </div>
+
+                <div
+                  v-if="fresh.syncPath"
+                  class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+                >
+                  {{ fresh.syncPath }}
+                </div>
+
+                <div v-if="fresh.syncPath" class="flex gap-3">
+                  <ui-button variant="secondary" @click="clearSyncPath">
+                    Clear
+                  </ui-button>
+                </div>
+              </div>
+            </ui-card>
+
+            <ui-card class="bg-input">
+              <button
+                class="flex items-center justify-between w-full px-4 py-3 text-left"
+                @click="toggleAutoSync"
+              >
+                <div>
+                  <span class="block text-sm font-semibold ob-heading-text"
+                    >Automatic sync</span
+                  >
+                  <span class="block text-xs ob-body-text mt-0.5">
+                    Sync changes automatically when a folder is configured.
+                  </span>
+                  <span
+                    v-if="!fresh.syncPath"
+                    class="block text-xs ob-body-text mt-1 opacity-80"
+                  >
+                    Choose a sync folder first to enable this.
+                  </span>
+                </div>
+                <ui-switch
+                  v-model="fresh.autoSync"
+                  :disabled="!fresh.syncPath"
+                />
+              </button>
+            </ui-card>
+          </div>
+
+          <div class="mt-5 flex justify-between gap-4">
+            <ui-button @click="goToStep('setup')">
+              <v-remixicon name="riArrowLeftLine" /> Back
+            </ui-button>
+            <div class="flex gap-3">
+              <ui-button @click="finishFreshOnboarding">Skip for now</ui-button>
+              <ui-button
+                variant="primary"
+                :loading="state.savingPreferences"
+                @click="finishFreshOnboarding"
+              >
+                <template v-if="!state.savingPreferences">
+                  Continue <v-remixicon name="riArrowRightLine" />
+                </template>
+              </ui-button>
+            </div>
           </div>
         </ui-card>
       </div>
@@ -946,15 +1103,21 @@ import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useTheme } from '@/composable/theme';
+import { DEFAULT_UI_FONT_STACK, getSettingSync } from '@/composable/settings';
 import {
+  applyOnboardingSyncPreferences,
   applyOnboardingFreshPreferences,
   getOnboardingMigrationStatus,
+  ONBOARDING_ACCENT_COLORS,
+  ONBOARDING_FONTS,
+  ONBOARDING_INTERFACE_SIZES,
   markOnboardingCompleted,
   ONBOARDING_LANGUAGES,
   ONBOARDING_THEMES,
   openOnboardingWorkspace,
   runOnboardingMigration,
 } from '@/utils/onboarding';
+import { openDialog } from '@/lib/native/dialog';
 import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
@@ -1014,6 +1177,11 @@ export default {
       spellcheckEnabled: true,
       openLastEdited: true,
       openAfterCreation: true,
+      accentColor: 'blue',
+      zoomLevel: 1.0,
+      selectedFont: DEFAULT_UI_FONT_STACK,
+      syncPath: '',
+      autoSync: false,
     });
 
     const themeImages = { light: lightImg, dark: darkImg, system: systemImg };
@@ -1021,6 +1189,9 @@ export default {
       ...item,
       img: themeImages[item.name],
     }));
+    const accentColors = ONBOARDING_ACCENT_COLORS;
+    const interfaceSizes = ONBOARDING_INTERFACE_SIZES;
+    const fonts = ONBOARDING_FONTS;
     const languages = ONBOARDING_LANGUAGES;
     const themeLabels = computed(() => ({
       light: translations.value.appearence?.light || 'Light',
@@ -1156,7 +1327,7 @@ export default {
 
     const activeFlow = computed(() => {
       if (selectedMode.value === 'fresh')
-        return ['welcome', 'path', 'setup', 'finish'];
+        return ['welcome', 'path', 'setup', 'sync', 'finish'];
       if (selectedMode.value === 'migration')
         return ['welcome', 'path', 'platform', 'migration', 'finish'];
       return ['welcome', 'path'];
@@ -1187,6 +1358,26 @@ export default {
     const selectTheme = (name) => {
       fresh.theme = name;
       theme.setTheme(name, name === 'system');
+    };
+    const selectAccentColor = (color) => {
+      fresh.accentColor = color;
+      const root = document.documentElement;
+      root.classList.forEach((cls) => {
+        if (
+          cls !== 'light' &&
+          cls !== 'dark' &&
+          cls !== 'system' &&
+          cls !== 'rtl' &&
+          cls !== 'ltr'
+        ) {
+          root.classList.remove(cls);
+        }
+      });
+      root.classList.add(color);
+    };
+    const selectZoomLevel = (zoomLevel) => {
+      fresh.zoomLevel = zoomLevel;
+      document.body.style.zoom = String(zoomLevel);
     };
 
     const onMagnet = (e) => {
@@ -1246,9 +1437,10 @@ export default {
       state.savingPreferences = true;
       try {
         await applyOnboardingFreshPreferences(fresh, { theme });
-        selectedMode.value = 'fresh';
-        completionMode.value = 'fresh';
-        setStep('finish');
+        if (!selectedMode.value) {
+          selectedMode.value = 'fresh';
+        }
+        setStep('sync');
       } catch (e) {
         state.error = e?.message || String(e);
       } finally {
@@ -1368,7 +1560,51 @@ export default {
 
     async function copyMigrationIssues() {
       if (!state.migrationIssuesText) return;
-      await clipboard.writeText(state.migrationIssuesText);
+      try {
+        await clipboard.writeText(state.migrationIssuesText);
+      } catch (error) {
+        state.error = error?.message || String(error);
+      }
+    }
+    async function chooseSyncPath() {
+      state.error = '';
+      try {
+        const {
+          canceled,
+          filePaths: [dir],
+        } = await openDialog({
+          title: 'Choose a sync folder',
+          properties: ['openDirectory'],
+          useScopedStorage: true,
+        });
+
+        if (canceled || !dir) return;
+        fresh.syncPath = dir;
+      } catch (error) {
+        state.error = error?.message || String(error);
+      }
+    }
+    function clearSyncPath() {
+      fresh.syncPath = '';
+      fresh.autoSync = false;
+    }
+    function toggleAutoSync() {
+      if (!fresh.syncPath) return;
+      fresh.autoSync = !fresh.autoSync;
+    }
+    async function finishFreshOnboarding() {
+      state.error = '';
+      state.savingPreferences = true;
+      try {
+        await applyOnboardingSyncPreferences(fresh);
+        selectedMode.value = 'fresh';
+        completionMode.value = 'fresh';
+        setStep('finish');
+      } catch (e) {
+        state.error = e?.message || String(e);
+      } finally {
+        state.savingPreferences = false;
+      }
     }
     async function completeAndOpenWorkspace() {
       state.error = '';
@@ -1426,6 +1662,16 @@ export default {
       }
       theme.loadTheme();
       fresh.theme = theme.currentTheme.value || fresh.theme;
+      fresh.accentColor = getSettingSync('colorScheme') || fresh.accentColor;
+      fresh.zoomLevel =
+        parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
+      fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
+      document.documentElement.style.setProperty(
+        '--selected-font',
+        fresh.selectedFont
+      );
+      selectAccentColor(fresh.accentColor);
+      selectZoomLevel(fresh.zoomLevel);
       try {
         await refreshStatus();
       } catch (e) {
@@ -1442,7 +1688,10 @@ export default {
       fresh,
       confettiPieces,
       themes,
+      accentColors,
       themeLabels,
+      interfaceSizes,
+      fonts,
       languages,
       logoUrl,
       isDark,
@@ -1469,15 +1718,21 @@ export default {
       chooseMode,
       openMigrationFlow,
       selectMigrationPlatform,
+      selectAccentColor,
       selectTheme,
+      selectZoomLevel,
       refreshStatus,
       prepareFreshWorkspace,
       useDefaultPreferences,
       migrateLegacyData,
       runSelectedMigration,
       copyMigrationIssues,
+      chooseSyncPath,
+      clearSyncPath,
       completeAndOpenWorkspace,
+      finishFreshOnboarding,
       isMacOS,
+      toggleAutoSync,
     };
   },
 };
@@ -1578,8 +1833,7 @@ export default {
 .ob-logo {
   opacity: 0;
   transform: translateY(-14px) scale(0.985);
-  transition: opacity 0.28s ease,
-    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.28s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-logo--in {
   opacity: 1;
@@ -1602,8 +1856,7 @@ export default {
 .ob-below {
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 0.26s ease,
-    transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.26s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-below--in {
   opacity: 1;
@@ -1614,8 +1867,7 @@ export default {
 .ob-finish {
   opacity: 0;
   transform: translateY(12px);
-  transition: opacity 0.3s ease,
-    transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.3s ease, transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .ob-finish--in {
   opacity: 1;

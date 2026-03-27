@@ -144,6 +144,9 @@ import {
   RiAlignLeft,
   RiAlignCenter,
   RiAlignRight,
+  RiAlignJustify,
+  RiMicrosoftFill,
+  RiSpaceShip2Line,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -285,12 +288,15 @@ const RemixIcons = {
   riStarFill: RiStarFill,
   riSendPlaneFill: RiSendPlaneFill,
   riAppleFill: RiAppleFill,
+  riMicrosoftFill: RiMicrosoftFill,
   riEvernoteFill: RiEvernoteFill,
   riNotionFill: RiNotionFill,
   riMagicLine: RiMagicLine,
   riAlignLeft: RiAlignLeft,
   riAlignCenter: RiAlignCenter,
   riAlignRight: RiAlignRight,
+  riAlignJustify: RiAlignJustify,
+  riSpaceShipLine: RiSpaceShip2Line,
 };
 
 const customIconPaths = {

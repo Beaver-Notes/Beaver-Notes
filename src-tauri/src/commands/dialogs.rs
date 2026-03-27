@@ -154,7 +154,10 @@ pub(crate) async fn dialog_save(
     .await
     .map_err(to_error)?;
 
-    if let Some(path) = file_path.as_ref().and_then(dialog_file_path_to_trusted_path) {
+    if let Some(path) = file_path
+        .as_ref()
+        .and_then(dialog_file_path_to_trusted_path)
+    {
         grant_dialog_paths(&state, &[path]);
     }
 

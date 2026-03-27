@@ -40,7 +40,9 @@ pub fn run() {
 
     #[cfg(mobile)]
     {
-        builder = builder.plugin(tauri_plugin_safe_area_insets_css::init());
+        builder = builder
+            .plugin(tauri_plugin_safe_area_insets_css::init())
+            .plugin(tauri_plugin_haptics::init());
     }
 
     #[cfg(desktop)]
