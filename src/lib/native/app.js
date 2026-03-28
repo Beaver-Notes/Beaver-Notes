@@ -12,6 +12,14 @@ export function runMigration() {
   return backend.invoke('migration:run');
 }
 
+export function probeMigrationPath(path) {
+  return backend.invoke('migration:probe-path', path);
+}
+
+export function runMigrationFromPath(path) {
+  return backend.invoke('migration:run-with-path', path);
+}
+
 export function appReady() {
   return backend.invoke('app-ready');
 }

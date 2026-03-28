@@ -5,7 +5,11 @@ use tauri_plugin_notification::NotificationExt;
 use crate::shared::*;
 
 #[cfg(desktop)]
-use crate::bootstrap::{get_legacy_migration_status, run_legacy_store_data_migration};
+use crate::bootstrap::{
+    get_legacy_migration_status, get_legacy_migration_status_for_custom_path,
+    run_legacy_store_data_migration, run_legacy_store_data_migration_from_path,
+};
+use crate::shared::path_for_name;
 
 #[cfg(desktop)]
 use crate::menu::build_context_menu;
@@ -19,15 +23,18 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
 }
 
 #[tauri::command]
-pub(crate) fn migration_status(app: AppHandle) -> Result<LegacyMigrationStatus, String> {
+pub(crate) fn migration_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<LegacyMigrationStatus, String> {
     #[cfg(desktop)]
     {
-        get_legacy_migration_status(&app)
+        get_legacy_migration_status(&app, state.inner())
     }
 
     #[cfg(not(desktop))]
     {
-        let _ = app;
+        let _ = (app, state);
         Ok(LegacyMigrationStatus::default())
     }
 }
@@ -45,6 +52,42 @@ pub(crate) fn migration_run(
     #[cfg(not(desktop))]
     {
         let _ = (app, state);
+        Err("Legacy migration is only available on desktop".into())
+    }
+}
+
+#[tauri::command]
+pub(crate) fn migration_probe_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<LegacyMigrationStatus, String> {
+    #[cfg(desktop)]
+    {
+        get_legacy_migration_status_for_custom_path(&app, state.inner(), &path)
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, state, path);
+        Ok(LegacyMigrationStatus::default())
+    }
+}
+
+#[tauri::command]
+pub(crate) fn migration_run_with_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<LegacyMigrationResult, String> {
+    #[cfg(desktop)]
+    {
+        run_legacy_store_data_migration_from_path(&app, state.inner(), &path)
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, state, path);
         Err("Legacy migration is only available on desktop".into())
     }
 }
@@ -130,8 +173,12 @@ pub(crate) fn helper_relaunch(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub(crate) fn helper_get_path(app: AppHandle, name: String) -> Result<String, String> {
-    Ok(path_for_name(&app, &name)?.to_string_lossy().to_string())
+pub(crate) fn helper_get_path(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<String, String> {
+    Ok(path_for_name(&app, state.inner(), &name)?.to_string_lossy().to_string())
 }
 
 #[tauri::command]

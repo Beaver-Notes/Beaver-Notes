@@ -26,7 +26,9 @@ import {
   ONBOARDING_LANGUAGES,
   ONBOARDING_THEMES,
   openOnboardingWorkspace,
+  probeCustomMigrationPath,
   runOnboardingMigration,
+  runOnboardingMigrationFromPath,
 } from '@/utils/onboarding';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
@@ -75,6 +77,9 @@ export function useOnboardingFlow({
   const completionMode = ref('fresh');
   const selectedMode = ref(null);
   const migrationPlatform = ref(null);
+
+  const customLegacyPath = ref(null);
+  const customLegacyStatus = ref(null);
 
   // Entrance animation flags
   const logoIn = ref(false);
@@ -166,11 +171,18 @@ export function useOnboardingFlow({
       : 'Your defaults are already applied. Open a clean workspace and start writing.'
   );
 
-  const migrationDetectionCopy = computed(() =>
-    state.status?.hasLegacyData
-      ? 'Found your legacy workspace and ready to import.'
-      : 'No legacy workspace detected on this machine.'
-  );
+  const migrationDetectionCopy = computed(() => {
+    if (customLegacyStatus.value?.hasLegacyData) {
+      return 'Custom folder verified — ready to import.';
+    }
+    if (customLegacyPath.value && !customLegacyStatus.value?.hasLegacyData) {
+      return 'The selected folder does not contain a recognisable Beaver Notes workspace.';
+    }
+    if (state.status?.hasLegacyData) {
+      return 'Found your legacy workspace and ready to import.';
+    }
+    return 'No legacy workspace detected. If you used the Windows Portable version, click "Browse…" to locate your data folder.';
+  });
 
   const migrationPlatformLabel = computed(
     () => PLATFORM_LABELS[migrationPlatform.value] || 'legacy'
@@ -205,7 +217,9 @@ export function useOnboardingFlow({
 
   const migrationSourceBadge = computed(() => {
     if (migrationPlatform.value === 'electron') {
-      return state.status?.hasLegacyData ? 'Ready' : 'Not found';
+      if (customLegacyStatus.value?.hasLegacyData) return 'Ready (custom)';
+      if (state.status?.hasLegacyData) return 'Ready';
+      return 'Not found';
     }
     if (migrationPlatform.value === 'apple-notes') return 'Direct access';
     return 'Select on start';
@@ -213,7 +227,9 @@ export function useOnboardingFlow({
 
   const migrationSourceBadgeClass = computed(() => {
     if (migrationPlatform.value === 'electron') {
-      return state.status?.hasLegacyData
+      const ready =
+        state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData;
+      return ready
         ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
         : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500';
     }
@@ -232,7 +248,11 @@ export function useOnboardingFlow({
 
   const migrationActionDisabled = computed(() => {
     if (!migrationPlatform.value) return true;
-    if (migrationPlatform.value === 'electron') return !state.status?.hasLegacyData;
+    if (migrationPlatform.value === 'electron') {
+      return (
+        !state.status?.hasLegacyData && !customLegacyStatus.value?.hasLegacyData
+      );
+    }
     if (migrationPlatform.value === 'apple-notes') return !isMacOS.value;
     return false;
   });
@@ -362,6 +382,22 @@ export function useOnboardingFlow({
     await prepareFreshWorkspace();
   }
 
+  async function browseForPortableData() {
+    state.error = '';
+    try {
+      const { canceled, filePaths: [dir] } = await openDialog({
+        title: 'Locate Beaver Notes portable data folder',
+        properties: ['openDirectory'],
+      });
+      if (canceled || !dir) return;
+      const probed = await probeCustomMigrationPath(dir);
+      customLegacyPath.value = dir;
+      customLegacyStatus.value = probed;
+    } catch (e) {
+      state.error = e?.message || String(e);
+    }
+  }
+
   async function migrateLegacyData() {
     state.error = '';
     state.migrating = true;
@@ -385,7 +421,11 @@ export function useOnboardingFlow({
         }
       }, 300);
 
-      await runOnboardingMigration();
+      if (customLegacyStatus.value?.hasLegacyData && customLegacyPath.value) {
+        await runOnboardingMigrationFromPath(customLegacyPath.value);
+      } else {
+        await runOnboardingMigration();
+      }
       clearInterval(ticker);
       state.migrationProgress = 100;
       state.migrationStatus = 'All done!';
@@ -573,7 +613,7 @@ export function useOnboardingFlow({
     // State
     step, state, fresh, confettiPieces,
     logoIn, textIn, ctaIn, finishIn,
-    migrationPlatform,
+    migrationPlatform, customLegacyPath, customLegacyStatus,
 
     // Static config
     themes, accentColors, interfaceSizes, fonts, languages, logoUrl,
@@ -597,7 +637,7 @@ export function useOnboardingFlow({
 
     // Actions
     refreshStatus, prepareFreshWorkspace, useDefaultPreferences,
-    migrateLegacyData, runSelectedMigration,
+    migrateLegacyData, runSelectedMigration, browseForPortableData,
     copyMigrationIssues, chooseSyncPath, clearSyncPath,
     toggleAutoSync, finishFreshOnboarding, completeAndOpenWorkspace,
   };

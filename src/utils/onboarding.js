@@ -1,7 +1,12 @@
 import { DEFAULT_UI_FONT_STACK, setSetting } from '@/composable/settings';
 import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
-import { getMigrationStatus, runMigration } from '@/lib/native/app';
+import {
+  getMigrationStatus,
+  probeMigrationPath,
+  runMigration,
+  runMigrationFromPath,
+} from '@/lib/native/app';
 import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
 import { tryRestoreKeyFromSafeStorage } from '@/utils/sync/crypto';
@@ -143,6 +148,20 @@ export async function runOnboardingMigration() {
     throw new Error('Legacy migration is only available on desktop.');
   }
   await runMigration();
+}
+
+export async function probeCustomMigrationPath(path) {
+  if (backend.isMobileRuntime?.()) {
+    return { hasLegacyData: false };
+  }
+  return probeMigrationPath(path);
+}
+
+export async function runOnboardingMigrationFromPath(path) {
+  if (backend.isMobileRuntime?.()) {
+    throw new Error('Legacy migration is only available on desktop.');
+  }
+  await runMigrationFromPath(path);
 }
 
 export async function openOnboardingWorkspace({ store, noteStore, router }) {

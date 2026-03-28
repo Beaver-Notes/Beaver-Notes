@@ -348,11 +348,19 @@
             </ui-card>
 
             <ui-card
-              v-if="migrationPlatform === 'electron' && (state.status?.legacyDir || state.status?.appDataDir)"
+              v-if="migrationPlatform === 'electron' && (state.status?.legacyDir || state.status?.appDataDir || customLegacyPath)"
               class="bg-input"
             >
               <div class="flex flex-col gap-4 p-4">
-                <div v-if="state.status?.legacyDir" class="flex flex-col gap-1">
+                <div v-if="customLegacyPath" class="flex flex-col gap-1">
+                  <span class="text-xs font-bold uppercase tracking-widest ob-label-text">
+                    Portable data folder
+                  </span>
+                  <code class="text-xs font-mono break-all px-2 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                    {{ customLegacyPath }}
+                  </code>
+                </div>
+                <div v-else-if="state.status?.legacyDir" class="flex flex-col gap-1">
                   <span class="text-xs font-bold uppercase tracking-widest ob-label-text">
                     Beaver Notes (Legacy)
                   </span>
@@ -368,6 +376,26 @@
                     {{ state.status.appDataDir }}
                   </code>
                 </div>
+              </div>
+            </ui-card>
+
+            <!-- Portable-install fallback: let the user point at their data folder -->
+            <ui-card
+              v-if="migrationPlatform === 'electron' && !state.status?.hasLegacyData && !state.migrating && !state.migrationDone"
+              class="bg-input"
+            >
+              <div class="flex items-center justify-between gap-4 p-4">
+                <div>
+                  <p class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1">
+                    Windows Portable
+                  </p>
+                  <p class="text-sm ob-body-text">
+                    Using the portable version? Locate your data folder manually.
+                  </p>
+                </div>
+                <ui-button @click="browseForPortableData">
+                  Browse…
+                </ui-button>
               </div>
             </ui-card>
 

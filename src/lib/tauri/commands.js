@@ -6,6 +6,8 @@ const commandAliases = {
   'app:info': 'app_info',
   'migration:status': 'migration_status',
   'migration:run': 'migration_run',
+  'migration:probe-path': 'migration_probe_path',
+  'migration:run-with-path': 'migration_run_with_path',
   'app:spellcheck': 'set_spellcheck',
   'app:set-zoom': 'set_zoom',
   'app:get-zoom': 'get_zoom',
@@ -166,6 +168,9 @@ function normalizePayload(channel, payload) {
         ...payload,
         ...withKeyVariants('pdf_name', payload?.pdfName ?? payload?.pdf_name),
       };
+    case 'migration:probe-path':
+    case 'migration:run-with-path':
+      return withKeyVariants('path', payload);
     case 'toggle-auto-update':
       return withKeyVariants('enabled', payload);
     case 'helper:get-path':

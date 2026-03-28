@@ -18,7 +18,18 @@ pub fn run() {
 
     let cache_dir = std::env::temp_dir().join("beaver-notes-asset-cache");
     let external_open_dir = std::env::temp_dir().join("beaver-notes-open");
-    let state = AppState::new(cache_dir, external_open_dir);
+
+    let portable_data_dir = std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|d| d.to_path_buf()))
+        .filter(|dir| dir.join(".portable").exists())
+        .map(|dir| {
+            let data = dir.join("data");
+            let _ = std::fs::create_dir_all(&data);
+            data
+        });
+
+    let state = AppState::new(cache_dir, external_open_dir, portable_data_dir);
     let mut updater = tauri_plugin_updater::Builder::new();
     if let Ok(pubkey) = std::env::var("TAURI_UPDATER_PUBKEY") {
         if !pubkey.trim().is_empty() {
@@ -68,6 +79,8 @@ pub fn run() {
             commands::app::app_info,
             commands::app::migration_status,
             commands::app::migration_run,
+            commands::app::migration_probe_path,
+            commands::app::migration_run_with_path,
             commands::app::show_notification,
             commands::app::set_spellcheck,
             commands::app::set_zoom,

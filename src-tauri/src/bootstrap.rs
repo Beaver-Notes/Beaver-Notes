@@ -125,6 +125,17 @@ pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
 
     #[cfg(target_os = "linux")]
     {
+        const LEGACY_FLATPAK_ID: &str = "com.beavernotes.beavernotes";
+        if let Some(home) = app.path().home_dir().ok() {
+            let flatpak_path = home
+                .join(".var/app")
+                .join(LEGACY_FLATPAK_ID)
+                .join("config/Beaver Notes");
+            if flatpak_path.exists() {
+                return Some(flatpak_path);
+            }
+        }
+
         return app
             .path()
             .config_dir()
@@ -277,7 +288,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
 }
 
 #[cfg(desktop)]
-fn dir_has_any_legacy_content(path: &Path) -> bool {
+pub(crate) fn dir_has_any_legacy_content(path: &Path) -> bool {
     LEGACY_DATA_FILES
         .iter()
         .any(|name| path.join(name).exists())
@@ -292,8 +303,9 @@ fn dir_has_any_legacy_content(path: &Path) -> bool {
 #[cfg(desktop)]
 pub(crate) fn get_legacy_migration_status(
     app: &AppHandle,
+    state: &AppState,
 ) -> Result<LegacyMigrationStatus, String> {
-    let app_data_dir = app.path().app_data_dir().map_err(to_error)?;
+    let app_data_dir = crate::shared::app_data_dir(app, state)?;
     let marker = app_data_dir.join(".legacy-store-migrated");
     let legacy_dir = legacy_store_dir(app);
     let has_legacy_data = legacy_dir
@@ -312,14 +324,12 @@ pub(crate) fn get_legacy_migration_status(
 }
 
 #[cfg(desktop)]
-pub(crate) fn run_legacy_store_data_migration(
+fn run_migration_core(
     app: &AppHandle,
     state: &AppState,
+    old_dir: PathBuf,
 ) -> Result<LegacyMigrationResult, String> {
-    let new_dir = app.path().app_data_dir().map_err(to_error)?;
-    let old_dir = legacy_store_dir(app)
-        .filter(|dir| dir.exists() && dir_has_any_legacy_content(dir))
-        .ok_or_else(|| "No legacy Electron data found".to_string())?;
+    let new_dir = crate::shared::app_data_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
     fs::create_dir_all(&new_dir).map_err(to_error)?;
@@ -343,6 +353,23 @@ pub(crate) fn run_legacy_store_data_migration(
     let old_settings = old_dir.join(SETTINGS_STORE);
     if import_json_file_into_pool(&old_settings, settings_pool)? {
         merged_store_files.push(SETTINGS_STORE.to_string());
+    }
+
+    const SETTINGS_KEY_REMAP: &[(&str, &str)] = &[
+        ("color-scheme", "colorScheme"),
+        ("selected-font", "selectedFont"),
+        ("selected-font-code", "selectedCodeFont"),
+        ("selected-dark-text", "selectedDarkText"),
+        ("visibility-menubar", "visibilityMenubar"),
+        ("advanced-settings", "advancedSettings"),
+    ];
+    for (old_key, new_key) in SETTINGS_KEY_REMAP {
+        if crate::db::db_has(settings_pool, new_key)? {
+            continue; // canonical key already present – don't overwrite
+        }
+        if let Some(value) = crate::db::db_get(settings_pool, old_key)? {
+            crate::db::db_set(settings_pool, new_key, &value)?;
+        }
     }
 
     let mut copied_asset_dirs = Vec::new();
@@ -379,6 +406,53 @@ pub(crate) fn run_legacy_store_data_migration(
         copied_asset_dirs,
         marker_written: true,
     })
+}
+
+#[cfg(desktop)]
+pub(crate) fn run_legacy_store_data_migration(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<LegacyMigrationResult, String> {
+    let old_dir = legacy_store_dir(app)
+        .filter(|dir| dir.exists() && dir_has_any_legacy_content(dir))
+        .ok_or_else(|| "No legacy Electron data found".to_string())?;
+    run_migration_core(app, state, old_dir)
+}
+
+#[cfg(desktop)]
+pub(crate) fn get_legacy_migration_status_for_custom_path(
+    app: &AppHandle,
+    state: &AppState,
+    path: &str,
+) -> Result<LegacyMigrationStatus, String> {
+    let legacy_path = PathBuf::from(path);
+    let app_data_dir = crate::shared::app_data_dir(app, state)?;
+    let marker = app_data_dir.join(".legacy-store-migrated");
+    let has_legacy_data = legacy_path.exists() && dir_has_any_legacy_content(&legacy_path);
+    let target_has_data = dir_has_any_legacy_content(&app_data_dir);
+    Ok(LegacyMigrationStatus {
+        legacy_dir: Some(path.to_string()),
+        app_data_dir: Some(app_data_dir.to_string_lossy().to_string()),
+        has_legacy_data,
+        already_migrated: marker.exists(),
+        target_has_data,
+    })
+}
+
+#[cfg(desktop)]
+pub(crate) fn run_legacy_store_data_migration_from_path(
+    app: &AppHandle,
+    state: &AppState,
+    path: &str,
+) -> Result<LegacyMigrationResult, String> {
+    let old_dir = PathBuf::from(path);
+    if !old_dir.exists() || !dir_has_any_legacy_content(&old_dir) {
+        return Err(format!(
+            "No recognisable Beaver Notes data found at: {}",
+            path
+        ));
+    }
+    run_migration_core(app, state, old_dir)
 }
 
 pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::Builder<Wry> {
@@ -478,7 +552,7 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
 pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     let state = app.state::<AppState>();
     sync_roots_from_settings(app.handle(), state.inner());
-    grant_trusted_path(&state, &app.path().app_data_dir().map_err(to_error)?);
+    grant_trusted_path(&state, &crate::shared::app_data_dir(app.handle(), state.inner())?);
     grant_trusted_path(&state, &app.path().temp_dir().map_err(to_error)?);
     fs::create_dir_all(&state.asset_cache_dir).map_err(to_error)?;
     *state.updater.lock().map_err(to_error)? = UpdaterState {

@@ -216,10 +216,15 @@ pub(crate) struct AppState {
     pub(crate) external_open_files: Arc<Mutex<HashMap<PathBuf, PathBuf>>>,
     pub(crate) asset_cache_dir: PathBuf,
     pub(crate) external_open_dir: PathBuf,
+    pub(crate) portable_data_dir: Option<PathBuf>,
 }
 
 impl AppState {
-    pub(crate) fn new(cache_dir: PathBuf, external_open_dir: PathBuf) -> Self {
+    pub(crate) fn new(
+        cache_dir: PathBuf,
+        external_open_dir: PathBuf,
+        portable_data_dir: Option<PathBuf>,
+    ) -> Self {
         Self {
             db: DbState::new(),
             zoom_level: Mutex::new(1.0),
@@ -234,8 +239,16 @@ impl AppState {
             external_open_files: Arc::new(Mutex::new(HashMap::new())),
             asset_cache_dir: cache_dir,
             external_open_dir,
+            portable_data_dir,
         }
     }
+}
+
+pub(crate) fn app_data_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
+    if let Some(ref dir) = state.portable_data_dir {
+        return Ok(dir.clone());
+    }
+    app.path().app_data_dir().map_err(to_error)
 }
 
 pub(crate) fn to_error<E: std::fmt::Display>(error: E) -> String {
@@ -278,26 +291,27 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, String> {
 
 pub(crate) fn get_or_init_pool<'a>(
     app: &AppHandle,
+    state: &AppState,
     lock: &'a OnceLock<DbPool>,
     filename: &str,
 ) -> Result<&'a DbPool, String> {
     if let Some(pool) = lock.get() {
         return Ok(pool);
     }
-    let path = app.path().app_data_dir().map_err(to_error)?.join(filename);
+    let path = app_data_dir(app, state)?.join(filename);
     let pool = crate::db::open_pool(&path)?;
     Ok(lock.get_or_init(|| pool))
 }
 
 pub(crate) fn data_pool<'a>(app: &AppHandle, state: &'a AppState) -> Result<&'a DbPool, String> {
-    get_or_init_pool(app, &state.db.data, "data.db")
+    get_or_init_pool(app, state, &state.db.data, "data.db")
 }
 
 pub(crate) fn settings_pool<'a>(
     app: &AppHandle,
     state: &'a AppState,
 ) -> Result<&'a DbPool, String> {
-    get_or_init_pool(app, &state.db.settings, "settings.db")
+    get_or_init_pool(app, state, &state.db.settings, "settings.db")
 }
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {
@@ -312,12 +326,12 @@ pub(crate) fn get_data_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf,
             return Ok(PathBuf::from(value));
         }
     }
-    app.path().app_data_dir().map_err(to_error)
+    app_data_dir(app, state)
 }
 
-pub(crate) fn path_for_name(app: &AppHandle, name: &str) -> Result<PathBuf, String> {
+pub(crate) fn path_for_name(app: &AppHandle, state: &AppState, name: &str) -> Result<PathBuf, String> {
     match name {
-        "userData" => app.path().app_data_dir().map_err(to_error),
+        "userData" => app_data_dir(app, state),
         "appData" => app.path().data_dir().map_err(to_error),
         "desktop" => {
             #[cfg(desktop)]
@@ -661,7 +675,7 @@ pub(crate) fn assert_path_access(
     operation: &str,
 ) -> Result<(), String> {
     let mut allowed_roots = vec![
-        app.path().app_data_dir().map_err(to_error)?,
+        app_data_dir(app, state)?,
         app.path().temp_dir().map_err(to_error)?,
     ];
 
