@@ -1,7 +1,7 @@
 <template>
   <div
     ref="container"
-    class="text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-white dark:bg-neutral-800 dark:text-neutral-50 overflow-x-auto sm:overflow-x-none scroll border-b z-20 top-0 w-full left-0 py-1 sticky top-0 no-print"
+    class="bg-white dark:bg-neutral-800 border overflow-x-auto z-20 top-2 w-full left-0 p-1 sticky rounded-lg shadow-lg scroll no-print no-scrollbar"
     :class="{ 'opacity-0 hover:opacity-100 transition': store.inReaderMode }"
     @wheel.passive="changeWheelDirection"
   >
@@ -48,40 +48,71 @@
           </div>
         </button>
       </ui-popover>
-      <div
-        class="flex items-center justify-center w-24 p-1 rounded-full bg-neutral-100 dark:bg-neutral-750 overflow-hidden gap-1 flex-shrink-0"
-      >
-        <button
-          type="button"
-          class="w-7 h-7 border flex items-center justify-center bg-input focus:outline-none rounded-full"
-          @click="
-            fontSize += 1;
-            updateFontSize();
-          "
-        >
-          <v-remixicon name="riAddLine" class="w-4 h-4" />
-        </button>
+      <ui-popover padding="p-2 flex flex-col print:hidden">
+        <template #trigger>
+          <div
+            class="flex items-center justify-center w-24 p-1 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden gap-1 flex-shrink-0 border"
+          >
+            <button
+              type="button"
+              class="w-7 h-7 border flex items-center justify-center bg-input focus:outline-none rounded-full"
+              @click.stop="
+                fontSize += 1;
+                updateFontSize();
+              "
+            >
+              <v-remixicon name="riAddLine" class="w-4 h-4" />
+            </button>
 
-        <input
-          v-model.number="fontSize"
-          v-tooltip.group="translations.menu.fontSize"
-          type="number"
-          min="1"
-          class="w-1/3 bg-transparent text-center text-neutral-800 dark:text-white border-0 appearance-none focus:outline-none text-xs flex items-center justify-center [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none -moz-appearance:textfield"
-          @change="updateFontSize"
-        />
+            <input
+              v-model.number="fontSize"
+              v-tooltip.group="translations.menu.fontSize"
+              type="number"
+              min="1"
+              class="w-1/3 bg-transparent text-center text-neutral-800 dark:text-white border-0 appearance-none focus:outline-none text-xs"
+              @change="updateFontSize"
+            />
 
-        <button
-          type="button"
-          class="w-7 h-7 border flex items-center justify-center bg-input focus:outline-none rounded-full"
-          @click="
-            fontSize = Math.max(1, fontSize - 1);
-            updateFontSize();
-          "
-        >
-          <v-remixicon name="riSubtractLine" class="w-4 h-4" />
-        </button>
-      </div>
+            <button
+              type="button"
+              class="w-7 h-7 border flex items-center justify-center bg-input focus:outline-none rounded-full"
+              @click.stop="
+                fontSize = Math.max(1, fontSize - 1);
+                updateFontSize();
+              "
+            >
+              <v-remixicon name="riSubtractLine" class="w-4 h-4" />
+            </button>
+          </div>
+        </template>
+
+        <div class="flex flex-col gap-1 max-h-48 overflow-y-auto no-scrollbar">
+          <button
+            class="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 text-left text-sm"
+            @click="
+              editor.chain().focus().unsetFontSize().run();
+              fontSize = null;
+            "
+          >
+            Default
+          </button>
+          <button
+            v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
+            :key="size"
+            class="p-2 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 text-left text-sm"
+            @click="
+              editor
+                .chain()
+                .focus()
+                .setFontSize(size + 'pt')
+                .run();
+              fontSize = size;
+            "
+          >
+            {{ size }}
+          </button>
+        </div>
+      </ui-popover>
       <hr class="border-r mx-2 h-6" />
       <button
         v-for="action in textFormatting"
@@ -282,17 +313,14 @@
         :class="[
           'flex items-center space-x-2',
           isRecording
-            ? 'bg-primary text-[color:var(--selected-dark-text)] rounded-full'
+            ? 'bg-neutral-50 dark:bg-neutral-800 border dark:text-[color:var(--selected-dark-text)] rounded-full p-1'
             : '',
         ]"
       >
         <template v-if="isRecording">
           <button
             v-tooltip.group="translations.menu.record"
-            :class="[
-              'transition hoverable h-8 px-1 flex items-center justify-center',
-              'rounded-full bg-primary text-[color:var(--selected-dark-text)]',
-            ]"
+            class="w-7 h-7 flex items-center justify-center bg-input focus:outline-none rounded-full"
             @click="toggleRecording"
           >
             <v-remixicon name="riStopCircleLine" />
@@ -304,12 +332,7 @@
             v-tooltip.group="
               isPaused ? translations.menu.resume : translations.menu.pause
             "
-            :class="[
-              'transition hoverable h-8 px-1 flex items-center justify-center',
-              isPaused
-                ? 'rounded-full bg-primary text-[color:var(--selected-dark-text)]'
-                : 'rounded-full hover',
-            ]"
+            class="w-7 h-7 flex items-center justify-center bg-input focus:outline-none rounded-full"
             @click="pauseResume"
           >
             <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" />
@@ -423,14 +446,23 @@
       >
         <v-remixicon name="riTableLine" />
       </button>
-      <ui-popover padding="p-2 flex items-center">
+      <ui-popover padding="p-2 flex flex-col items-center">
         <ui-popover padding="p-2 flex items-center">
           <template #trigger>
             <button
               v-tooltip.group="translations.menu.embed"
-              class="transition hoverable h-8 px-1 rounded-lg"
+              class="flex items-center p-2 rounded-lg text-black dark:text-[color:var(--selected-dark-text)] hover:bg-neutral-100 dark:hover:bg-[#353333] transition duration-200"
             >
               <v-remixicon name="riPagesLine" />
+              <div
+                class="text-left overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                <p
+                  class="font-medium text-neutral-800 dark:text-[color:var(--selected-dark-text)] pl-2"
+                >
+                  {{ translations.menu.embed }}
+                </p>
+              </div>
             </button>
           </template>
           <input

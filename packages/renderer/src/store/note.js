@@ -235,9 +235,10 @@ export const useNoteStore = defineStore('note', {
 
     async moveToFolder(noteIds, folderId) {
       try {
-        if (folderId) {
-          const folderStore = useFolderStore();
-          const folderExists = await folderStore.exists(folderId);
+        const folderStore = useFolderStore();
+        const targetFolderId = folderId ?? null;
+        if (targetFolderId !== null) {
+          const folderExists = await folderStore.exists(targetFolderId);
           if (!folderExists) {
             throw new Error('Target folder does not exist');
           }
@@ -246,7 +247,9 @@ export const useNoteStore = defineStore('note', {
         const results = [];
         for (const noteId of noteIds) {
           if (this.data[noteId]) {
-            const result = await this.update(noteId, { folderId });
+            const result = await this.update(noteId, {
+              folderId: targetFolderId,
+            });
             results.push(result);
           }
         }

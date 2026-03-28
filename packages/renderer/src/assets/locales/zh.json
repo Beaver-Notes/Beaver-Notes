@@ -186,6 +186,12 @@
     "tableOptions": "表格设置",
     "textColor": "文本颜色",
     "textcolor": "文字颜色",
+    "todayDate": "今日日期",
+    "todayDateFormat": "今日日期格式",
+    "todayDateFormatPlaceholder": "使用dayjs语法输入时间格式（例如：HH:mm、hh:mm A、HH:mm:ss）",
+    "currentTime": "当前时间",
+    "timeFormat": "时间格式",
+    "timeFormatPlaceholder": "使用dayjs语法输入时间格式（例如：HH:mm、hh:mm A、HH:mm:ss）",
     "toggleHeader": "切换头部单元格",
     "underline": "下划线",
     "untitled": "无标题",
@@ -296,7 +302,12 @@
     "updateTitle": "正在安装更新……",
     "utilities": "实用工具",
     "warning": "警告，如果您忘记您的密码，您将无法访问您已经锁定的笔记，并且设置新密码需要知道旧密码。",
-    "wrongCurrentPassword": "密码错误，请重试"
+    "wrongCurrentPassword": "密码错误，请重试",
+    "todayDateFormat": "今日日期格式",
+    "todayDateFormatPlaceholder": "使用dayjs语法输入时间格式（例如：HH:mm、hh:mm A、HH:mm:ss）",
+    "currentTime": "当前时间",
+    "timeFormat": "时间格式",
+    "timeFormatPlaceholder": "使用dayjs语法输入时间格式（例如：HH:mm、hh:mm A、HH:mm:ss）"
   },
   "shortcuts": {
     "arrowLeft": "方向键左",

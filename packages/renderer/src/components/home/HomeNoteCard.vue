@@ -1,11 +1,11 @@
 <template>
   <ui-card
-    class="hover:ring-2 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group note-card transition flex flex-col"
+    class="hover:ring-1 hover:ring-secondary hover:bg-primary/5 dark:hover:bg-primary/10 group note-card transition flex flex-col"
     padding="p-5"
     @click="openNote(note.id)"
   >
     <div>
-      <div class="font-semibold text-lg block line-clamp leading-tight">
+      <div class="text-md font-semibold text-lg block line-clamp leading-tight">
         {{ note.title || translations.card.untitledNote }}
       </div>
       <div
@@ -16,7 +16,7 @@
           v-for="label in note.labels"
           :key="label"
           :to="`/?label=${label}`"
-          class="inline-block hover:underline cursor-pointer px-1 bg-primary/10 dark:bg-primary/20 rounded-md text-sm"
+          class="inline-block hover:underline cursor-pointer px-1 bg-primary/10 dark:bg-primary/10 rounded-md text-sm"
           @click.stop="$emit('update:label', label)"
         >
           #{{ label }}

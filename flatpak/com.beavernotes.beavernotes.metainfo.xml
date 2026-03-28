@@ -40,6 +40,24 @@
   <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
   <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
   <releases>
+    <release version="4.3.0" date="2026-11-02">
+      <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.3.0</url>
+      <description>
+        <p>Release description</p>
+        <ul>
+          <li>Fix the editor not loading</li>
+          <li>Fix the title not updating when creating a new note or following a page link</li>
+          <li>Fix the inability to switch to Portuguese</li>
+          <li>Fix collapsible headings</li>
+          <li>Fix pictures from the clipboard are lost</li>
+          <li>Fix text rendering in mermaid</li>
+          <li>Fix password reset</li>
+          <li>Improve the cards UI</li>
+          <li>Redesigned links</li>
+          <li>Create a note when linking</li>
+        </ul>
+      </description>
+    </release>
     <release version="4.2.0" date="2025-12-05">
       <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.2.0</url>
       <description>

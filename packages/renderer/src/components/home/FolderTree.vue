@@ -199,23 +199,22 @@ const moveLabel = computed(() => {
 async function handleMove() {
   if (isMoving.value) return;
   isMoving.value = true;
+  show.value = false;
+  emit('update:modelValue', false);
   try {
     if (props.mode === 'folder' && props.folders.length) {
-      // move folders under selectedId (may be null => root)
       await Promise.all(
         props.folders.map((folder) =>
-          folderStore.move(folder.id, selectedId.value)
-        )
-      );
-    } else if (props.mode === 'note' && props.notes.length) {
-      await Promise.all(
-        props.notes.map((note) =>
-          noteStore.moveToFolder(note.id, selectedId.value)
+          folderStore.move(folder.id, selectedId.value ?? null)
         )
       );
     }
-    emit('moved', { folderId: selectedId.value });
-    emit('update:modelValue', false);
+
+    if (props.mode === 'note' && props.notes.length) {
+      const ids = props.notes.map((n) => n.id);
+      await noteStore.moveToFolder(ids, selectedId.value ?? null);
+    }
+    emit('moved', { folderId: selectedId.value ?? null });
   } catch (error) {
     console.error('Move failed:', error);
   } finally {

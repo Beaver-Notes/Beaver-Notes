@@ -164,6 +164,44 @@
             ></div>
           </label>
         </div>
+        <!-- Today Format -->
+        <div class="py-2">
+          <div class="mb-2">
+            <span class="block text-lg align-left">
+              {{
+                translations.settings.todayDateFormat || "Today's date format"
+              }}
+            </span>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+              {{ translations.settings.todayDateFormatPlaceholder || '-' }}
+            </p>
+          </div>
+          <ui-input
+            v-model="todayDateFormat"
+            :placeholder="
+              translations.settings.todayDateFormatPlaceholder || '-'
+            "
+            class="w-full"
+            @blur="saveTodayDateFormat"
+          />
+        </div>
+        <!-- Time format -->
+        <div class="py-2">
+          <div class="mb-2">
+            <span class="block text-lg align-left">
+              {{ translations.settings.timeFormat || '-' }}
+            </span>
+            <p class="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+              {{ translations.settings.timeFormatPlaceholder || '-' }}
+            </p>
+          </div>
+          <ui-input
+            v-model="timeFormat"
+            :placeholder="translations.settings.timeFormatPlaceholder || '-'"
+            class="w-full"
+            @blur="saveTimeFormat"
+          />
+        </div>
       </div>
     </section>
     <section>
@@ -257,8 +295,8 @@ import { processDirectory } from '@/utils/markdown-helper';
 import { forceSyncNow } from '../../utils/sync';
 import { importBEA } from '../../utils/share/BEA';
 import { useTranslation } from '@/composable/translations';
-import { useNoteStore } from '../../store/note';
 import { useFolderStore } from '../../store/folder';
+import { useLocalStorage } from '../../composable/storage';
 
 const LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -273,6 +311,7 @@ const LANGUAGE_CONFIG = {
   tr: { name: 'Türkçe', dir: 'ltr' },
   uk: { name: 'Українська', dir: 'ltr' },
   zh: { name: '简体中文', dir: 'ltr' },
+  vi: { name: 'Tiếng Việt', dir: 'ltr' },
 };
 
 export const state = shallowReactive({
@@ -321,7 +360,6 @@ export default {
     const theme = useTheme();
     const dialog = useDialog();
     const storage = useStorage();
-    const noteStore = useNoteStore();
     const folerStore = useFolderStore();
 
     const state = shallowReactive({
@@ -463,7 +501,6 @@ export default {
           }
 
           await storage.set(key, mergedData);
-          await noteStore.retrieve();
           await folerStore.retrieve();
         }
       } catch (error) {
@@ -825,6 +862,34 @@ export default {
       },
     });
 
+    const timeStorage = {
+      date: useLocalStorage('todayDateFormat', {
+        defaultValue: 'DD-MM-YYYY',
+        parse: (value) => value,
+      }),
+      time: useLocalStorage('timeFormat', {
+        defaultValue: 'HH:mm',
+        parse: (value) => value,
+      }),
+    };
+    const todayDateFormat = ref(timeStorage.date.get());
+
+    const timeFormat = ref(timeStorage.time.get());
+
+    const saveTodayDateFormat = () => {
+      if (todayDateFormat.value.trim() === '') {
+        todayDateFormat.value = 'DD-MM-YYYY';
+      }
+      timeStorage.date.set(todayDateFormat.value);
+    };
+
+    const saveTimeFormat = () => {
+      if (timeFormat.value.trim() === '') {
+        timeFormat.value = 'HH:mm';
+      }
+      timeStorage.time.set(timeFormat.value);
+    };
+
     const toggleAdvancedSettings = () => {
       localStorage.setItem(
         'advanced-settings',
@@ -894,6 +959,10 @@ export default {
       toggleSpellcheck,
       applySpellcheckAttribute,
       updateLanguage,
+      todayDateFormat,
+      saveTodayDateFormat,
+      timeFormat,
+      saveTimeFormat,
     };
   },
   computed: {
