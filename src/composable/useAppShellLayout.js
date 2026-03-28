@@ -18,7 +18,8 @@ export function useAppShellLayout({ store, route, backend }) {
     () => isMobileRuntime.value && showMobileNavbar.value
   );
   const mainStyle = computed(() => {
-    if (!isMobileRuntime.value) return undefined;
+    if (!isMobileRuntime.value || route.name === ONBOARDING_ROUTE_NAME)
+      return undefined;
 
     return {
       paddingTop: 'var(--app-safe-area-top)',
@@ -91,6 +92,18 @@ export function useAppShellLayout({ store, route, backend }) {
     { immediate: true }
   );
 
+  watch(
+    keyboardVisible,
+    (visible) => {
+      if (typeof document === 'undefined' || !isMobileRuntime.value) return;
+      document.documentElement.style.setProperty(
+        '--app-keyboard-inset-bottom',
+        visible ? '0px' : 'var(--app-safe-area-bottom)'
+      );
+    },
+    { immediate: true }
+  );
+
   const initializeSafeAreaInsets = async () => {
     if (!isMobileRuntime.value) return;
 
@@ -108,8 +121,8 @@ export function useAppShellLayout({ store, route, backend }) {
         '--safe-area-inset-top',
         `${topInset?.inset ?? 0}px`
       );
-      rootStyle.setProperty('--app-keyboard-inset-bottom', '0px');
       rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
+      rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
       rootStyle.setProperty(
         '--app-note-page-padding',

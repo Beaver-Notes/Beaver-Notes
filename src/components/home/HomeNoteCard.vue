@@ -32,7 +32,7 @@
           <span
             v-for="label in note.labels"
             :key="label"
-            class="note-card__label inline-flex max-w-full hover:underline cursor-pointer px-1.5 py-0.5 bg-primary/10 dark:bg-primary/10 rounded-lg text-sm text-primary"
+            class="note-card__label inline-flex max-w-full hover:underline cursor-pointer px-1.5 py-0.5 bg-primary/10 dark:bg-primary/10 rounded-lg text-xs sm:text-sm text-primary"
             :style="
               labelColor(label)
                 ? {

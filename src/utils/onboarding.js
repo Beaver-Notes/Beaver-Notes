@@ -47,6 +47,10 @@ export const ONBOARDING_ACCENT_COLORS = [
   { name: 'neutral', className: 'bg-neutral-400' },
 ];
 
+const ONBOARDING_ACCENT_COLOR_NAMES = ONBOARDING_ACCENT_COLORS.map(
+  ({ name }) => name
+);
+
 export const ONBOARDING_INTERFACE_SIZES = [
   { value: 1.2, key: '1.2', label: 'Large' },
   { value: 1.1, key: '1.1', label: 'Medium' },
@@ -103,13 +107,7 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
 
   const root = document.documentElement;
   root.classList.forEach((cls) => {
-    if (
-      cls !== 'light' &&
-      cls !== 'dark' &&
-      cls !== 'system' &&
-      cls !== 'rtl' &&
-      cls !== 'ltr'
-    ) {
+    if (ONBOARDING_ACCENT_COLOR_NAMES.includes(cls)) {
       root.classList.remove(cls);
     }
   });
@@ -155,6 +153,11 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
   ]);
 
   await store.retrieve();
+
+  if (backend.isMobileRuntime?.()) {
+    await router.replace('/');
+    return;
+  }
 
   const [latestNote] = [...noteStore.notes].sort(
     (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)

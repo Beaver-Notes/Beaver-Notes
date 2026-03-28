@@ -1,13 +1,11 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <div class="mb-14 w-full max-w-xl space-y-6">
+  <div class="sm:mb-14 w-full max-w-xl space-y-6">
     <section class="space-y-2">
       <div
         class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
       >
-        <div
-          class="flex gap-3 px-4 py-3.5 sm:flex-col sm:items-start sm:justify-between"
-        >
+        <div class="flex gap-3 px-4 py-3.5 flex-col items-start">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
             {{ translations.settings.selectLanguage || 'Language' }}
           </p>
@@ -51,9 +49,9 @@
               The folder where your notes and assets are stored on disk.
             </p>
           </div>
-          <div class="flex flex-wrap items-center gap-2 justify-between">
+          <div class="flex items-center gap-2 justify-between">
             <span
-              class="max-w-[220px] truncate rounded-md bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400"
+              class="max-w-32 truncate rounded-md bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400"
               >{{
                 state.dataDir ||
                 translations.settings.pathPlaceholder ||
@@ -71,7 +69,7 @@
           </div>
         </div>
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex gap-3 px-4 py-3.5 flex-row items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -100,7 +98,7 @@
         class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
       >
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -120,7 +118,7 @@
         </div>
 
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -152,7 +150,7 @@
         class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
       >
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -169,7 +167,7 @@
           <ui-switch v-model="spellcheckEnabled" @change="toggleSpellcheck" />
         </div>
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -190,7 +188,7 @@
         </div>
 
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex flex-col sm:flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -222,7 +220,7 @@
         </div>
 
         <div
-          class="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+          class="flex flex-col sm:flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
             <p

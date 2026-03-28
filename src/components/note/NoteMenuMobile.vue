@@ -1,10 +1,11 @@
 <template>
   <teleport to="body">
     <div
-      class="note-menu-mobile-shell fixed inset-x-0 z-50 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
+      class="fixed inset-x-0 z-50 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
         store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
       "
+      :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
         class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
@@ -24,7 +25,7 @@
           <!-- ── MAIN PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-1.5 whitespace-nowrap h-full',
               panelClass('main'),
             ]"
           >
@@ -278,7 +279,7 @@
           <!-- ── HEADINGS SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('headings'),
             ]"
           >
@@ -312,7 +313,7 @@
           <!-- ── FONT SIZE SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('fontSize'),
             ]"
           >
@@ -382,7 +383,7 @@
           <!-- ── COLOR SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-1.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('color'),
             ]"
           >
@@ -446,7 +447,7 @@
           <!-- ── LISTS SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('lists'),
             ]"
           >
@@ -471,7 +472,7 @@
           <!-- ── IMAGE SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-1.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('image'),
             ]"
           >
@@ -506,7 +507,7 @@
           <!-- ── FILE SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-1.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('file'),
             ]"
           >
@@ -548,7 +549,7 @@
           <!-- ── VIDEO SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-1.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('video'),
             ]"
           >
@@ -590,7 +591,7 @@
           <!-- ── AUDIO SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('audio'),
             ]"
           >
@@ -634,7 +635,7 @@
           <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->
           <div
             :class="[
-              'tb-panel flex items-center gap-0.5 px-3 whitespace-nowrap h-full',
+              'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('paragraph'),
             ]"
           >
@@ -831,10 +832,6 @@ export default {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none; /* Chrome/Safari/WebKit */
-}
-
-.note-menu-mobile-shell {
-  bottom: calc(var(--app-toolbar-bottom) + 0.75rem);
 }
 
 /* ── Panel morph animation states ─────────────────────────────────────── */

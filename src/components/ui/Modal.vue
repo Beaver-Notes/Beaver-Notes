@@ -8,24 +8,33 @@
       <transition name="modal" mode="out-in">
         <div
           v-if="show"
-          class="bg-black p-5 overflow-y-auto bg-opacity-20 modal-ui__content-container z-50 flex justify-center items-end md:items-center"
+          class="modal-ui__content-container fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/20 p-0 md:items-center md:p-5"
           :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
           @click.self="closeModal"
         >
           <slot v-if="customContent"></slot>
           <ui-card
             v-else
-            class="modal-ui__content shadow-lg w-full"
-            :class="[contentClass]"
+            ref="modalContent"
+            class="modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.5rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-[0_-20px_40px_rgba(15,23,42,0.08),0_-2px_10px_rgba(15,23,42,0.06)]"
+            :class="[contentClass, { '!transition-none': isDragging }]"
+            :style="modalContentStyle"
+            @touchstart.passive="handleTouchStart"
+            @touchmove="handleTouchMove"
+            @touchend="handleTouchEnd"
+            @touchcancel="handleTouchCancel"
           >
-            <div class="p-2">
-              <div class="flex items-center justify-between">
+            <div
+              class="mx-auto mt-2 hidden h-1.5 w-11 rounded-full bg-neutral-400/40 mobile:block"
+            ></div>
+            <div class="p-2 mobile:px-4 mobile:pt-2.5">
+              <div class="flex items-center justify-between gap-3">
                 <span class="content-header w-full">
                   <slot name="header"></slot>
                 </span>
                 <v-remixicon
                   v-show="!persist"
-                  class="text-neutral-600"
+                  class="cursor-pointer shrink-0 text-neutral-600 mobile:hidden"
                   name="riCloseLine"
                   size="20"
                   @click="closeModal"
@@ -40,7 +49,7 @@
   </div>
 </template>
 <script>
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 export default {
   props: {
@@ -65,6 +74,12 @@ export default {
   setup(props, { emit }) {
     const show = ref(false);
     const modalContent = ref(null);
+    const dragOffsetY = ref(0);
+    const isDragging = ref(false);
+    const touchStartY = ref(0);
+    const touchCurrentY = ref(0);
+    const touchStartedOnScrollable = ref(false);
+    const SWIPE_CLOSE_THRESHOLD = 96;
 
     function toggleBodyOverflow(value) {
       if (value) {
@@ -79,6 +94,7 @@ export default {
     function closeModal() {
       if (props.persist) return;
 
+      resetDrag();
       show.value = false;
       emit('close', false);
       emit('update:modelValue', false);
@@ -93,6 +109,7 @@ export default {
       () => props.modelValue,
       (value) => {
         show.value = value;
+        if (!value) resetDrag();
         toggleBodyOverflow(value);
       },
       { immediate: true }
@@ -103,10 +120,107 @@ export default {
       else window.removeEventListener('keyup', keyupHandler);
     });
 
+    const modalContentStyle = computed(() => ({
+      transform:
+        dragOffsetY.value > 0
+          ? `translate3d(0, ${dragOffsetY.value}px, 0)`
+          : '',
+      opacity:
+        dragOffsetY.value > 0
+          ? String(Math.max(0.82, 1 - dragOffsetY.value / 420))
+          : '',
+    }));
+
+    function getScrollableParent(target) {
+      let current = target;
+
+      while (current && current !== modalContent.value) {
+        if (!(current instanceof HTMLElement)) {
+          current = current?.parentElement;
+          continue;
+        }
+
+        const style = window.getComputedStyle(current);
+        const canScroll =
+          /(auto|scroll)/.test(style.overflowY) &&
+          current.scrollHeight > current.clientHeight;
+
+        if (canScroll) return current;
+        current = current.parentElement;
+      }
+
+      return null;
+    }
+
+    function resetDrag() {
+      dragOffsetY.value = 0;
+      isDragging.value = false;
+      touchStartY.value = 0;
+      touchCurrentY.value = 0;
+      touchStartedOnScrollable.value = false;
+    }
+
+    function handleTouchStart(event) {
+      if (props.persist || !show.value) return;
+
+      const touch = event.touches?.[0];
+      if (!touch) return;
+
+      touchStartY.value = touch.clientY;
+      touchCurrentY.value = touch.clientY;
+      touchStartedOnScrollable.value = Boolean(
+        getScrollableParent(event.target)?.scrollTop > 0
+      );
+      isDragging.value = false;
+    }
+
+    function handleTouchMove(event) {
+      if (props.persist || !show.value) return;
+
+      const touch = event.touches?.[0];
+      if (!touch) return;
+
+      touchCurrentY.value = touch.clientY;
+      const deltaY = touchCurrentY.value - touchStartY.value;
+
+      if (deltaY <= 0 || touchStartedOnScrollable.value) {
+        if (!isDragging.value) dragOffsetY.value = 0;
+        return;
+      }
+
+      isDragging.value = true;
+      dragOffsetY.value = Math.min(deltaY, 160);
+      event.preventDefault();
+    }
+
+    function handleTouchEnd() {
+      if (!isDragging.value) {
+        resetDrag();
+        return;
+      }
+
+      if (dragOffsetY.value >= SWIPE_CLOSE_THRESHOLD) {
+        closeModal();
+        return;
+      }
+
+      resetDrag();
+    }
+
+    function handleTouchCancel() {
+      resetDrag();
+    }
+
     return {
       show,
       closeModal,
       modalContent,
+      modalContentStyle,
+      isDragging,
+      handleTouchStart,
+      handleTouchMove,
+      handleTouchEnd,
+      handleTouchCancel,
     };
   },
 };
@@ -140,33 +254,19 @@ export default {
   transition-timing-function: var(--ease-exit);
 }
 
-.modal-ui__content-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-}
-
 .modal-ui__content {
   transform-origin: center center;
   will-change: transform, opacity;
 }
 
 @media (max-width: 767px) {
-  .modal-ui__content-container {
-    padding-right: 1rem;
-    padding-bottom: calc(1rem + var(--app-safe-area-bottom));
-    padding-left: 1rem;
-  }
-
   .modal-ui__content {
     transform-origin: center bottom;
   }
 
   .modal-enter-from .modal-ui__content,
   .modal-leave-to .modal-ui__content {
-    transform: translate3d(0, 10px, 0);
+    transform: translate3d(0, 24px, 0);
   }
 }
 

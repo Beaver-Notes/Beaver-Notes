@@ -60,7 +60,7 @@
                   Use defaults
                 </template>
               </ui-button>
-              <ui-button variant="primary" @click="setStep('path')">
+              <ui-button variant="primary" @click="handlePrimaryContinue">
                 Continue
                 <v-remixicon name="riArrowRightLine" />
               </ui-button>
@@ -68,9 +68,8 @@
           </div>
         </div>
 
-        <!-- Legacy button pinned to bottom centre -->
         <div
-          v-if="state.status?.hasLegacyData"
+          v-if="state.status?.hasLegacyData && !isMobileRuntime"
           class="ob-floating-action fixed z-20"
         >
           <ui-button @click="openMigrationFlow">
@@ -333,7 +332,7 @@
           </div>
 
           <div class="mt-5 flex justify-between gap-4">
-            <ui-button @click="goToStep('path')">
+            <ui-button @click="goToStep(isMobileRuntime ? 'welcome' : 'path')">
               <v-remixicon name="riArrowLeftLine" /> Back
             </ui-button>
             <ui-button
@@ -1118,7 +1117,7 @@ import {
   runOnboardingMigration,
 } from '@/utils/onboarding';
 import { openDialog } from '@/lib/native/dialog';
-import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
+import { backend, clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
@@ -1190,6 +1189,7 @@ export default {
       img: themeImages[item.name],
     }));
     const accentColors = ONBOARDING_ACCENT_COLORS;
+    const accentColorNames = accentColors.map(({ name }) => name);
     const interfaceSizes = ONBOARDING_INTERFACE_SIZES;
     const fonts = ONBOARDING_FONTS;
     const languages = ONBOARDING_LANGUAGES;
@@ -1202,6 +1202,7 @@ export default {
     const isDark = computed(() =>
       fresh.theme === 'system' ? theme.isDark() : fresh.theme === 'dark'
     );
+    const isMobileRuntime = backend.isMobileRuntime();
     const isMacOS = computed(
       () =>
         typeof window !== 'undefined' &&
@@ -1327,10 +1328,12 @@ export default {
 
     const activeFlow = computed(() => {
       if (selectedMode.value === 'fresh')
-        return ['welcome', 'path', 'setup', 'sync', 'finish'];
+        return isMobileRuntime
+          ? ['welcome', 'setup', 'sync', 'finish']
+          : ['welcome', 'path', 'setup', 'sync', 'finish'];
       if (selectedMode.value === 'migration')
         return ['welcome', 'path', 'platform', 'migration', 'finish'];
-      return ['welcome', 'path'];
+      return isMobileRuntime ? ['welcome', 'setup'] : ['welcome', 'path'];
     });
 
     const setStep = (s) => {
@@ -1346,6 +1349,16 @@ export default {
     const chooseMode = (mode) => {
       selectedMode.value = mode;
       setStep(mode === 'fresh' ? 'setup' : 'platform');
+    };
+    const startFreshFlow = () => {
+      chooseMode('fresh');
+    };
+    const handlePrimaryContinue = () => {
+      if (isMobileRuntime) {
+        startFreshFlow();
+        return;
+      }
+      setStep('path');
     };
     const openMigrationFlow = () => {
       selectedMode.value = 'migration';
@@ -1363,13 +1376,7 @@ export default {
       fresh.accentColor = color;
       const root = document.documentElement;
       root.classList.forEach((cls) => {
-        if (
-          cls !== 'light' &&
-          cls !== 'dark' &&
-          cls !== 'system' &&
-          cls !== 'rtl' &&
-          cls !== 'ltr'
-        ) {
+        if (accentColorNames.includes(cls)) {
           root.classList.remove(cls);
         }
       });
@@ -1695,6 +1702,7 @@ export default {
       languages,
       logoUrl,
       isDark,
+      isMobileRuntime,
       onboardingSubtitle,
       completionEyebrow,
       completionTitle,
@@ -1716,6 +1724,8 @@ export default {
       goToStep,
       goToPreviousStep,
       chooseMode,
+      handlePrimaryContinue,
+      startFreshFlow,
       openMigrationFlow,
       selectMigrationPlatform,
       selectAccentColor,

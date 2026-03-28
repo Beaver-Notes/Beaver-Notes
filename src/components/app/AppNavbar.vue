@@ -2,7 +2,7 @@
   <nav class="w-full">
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <div
-        class="flex items-center rounded-full border bg-white/75 p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:bg-neutral-900/80 dark:text-neutral-300 dark:shadow-xl"
+        class="flex items-center rounded-full bg-white dark:bg-neutral-800 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl"
       >
         <div ref="navRailRef" class="relative flex items-center gap-1.5">
           <div

@@ -1,10 +1,10 @@
 <template>
   <div
+    ref="shellRef"
     class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-neutral-50 dark:bg-neutral-900"
+    :style="shellStyle"
   >
-    <div
-      class="flex w-full items-center justify-between p-1.5 shadow-lg backdrop-blur"
-    >
+    <div class="flex w-full items-center justify-between p-1.5">
       <button
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
         @click="goBack"
@@ -66,7 +66,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useStore } from '@/store';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
@@ -85,7 +85,9 @@ export default {
   setup(props) {
     const store = useStore();
     const { translations } = useTranslations();
+    const shellRef = ref(null);
     const showShareDialog = ref(false);
+    const isStuck = ref(false);
     useToolbarConfig();
 
     const { shareActions } = useNoteMenuActions({
@@ -115,7 +117,32 @@ export default {
       showShareDialog.value = false;
     };
 
+    const shellStyle = computed(() => ({
+      paddingTop: isStuck.value ? 'calc(var(--app-safe-area-top))' : undefined,
+      borderBottom: isStuck.value ? 'solid' : undefined,
+    }));
+
+    const syncStickyState = () => {
+      if (typeof window === 'undefined' || !shellRef.value) return;
+
+      const { top } = shellRef.value.getBoundingClientRect();
+      isStuck.value = top <= 0;
+    };
+
+    onMounted(() => {
+      syncStickyState();
+      window.addEventListener('scroll', syncStickyState, { passive: true });
+      window.addEventListener('resize', syncStickyState, { passive: true });
+    });
+
+    onUnmounted(() => {
+      window.removeEventListener('scroll', syncStickyState);
+      window.removeEventListener('resize', syncStickyState);
+    });
+
     return {
+      shellRef,
+      shellStyle,
       store,
       translations,
       showShareDialog,
@@ -129,7 +156,9 @@ export default {
 
 <style scoped>
 .editor-actions-mobile-shell {
-  top: calc(var(--app-safe-area-top));
+  top: 0;
   margin-bottom: 1rem;
+  transition: padding-top 180ms ease, box-shadow 180ms ease,
+    background-color 180ms ease;
 }
 </style>
