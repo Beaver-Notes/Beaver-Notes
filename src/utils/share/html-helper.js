@@ -1,9 +1,8 @@
 import mime from 'mime';
 import { useStorage } from '@/composable/storage';
-import { getStroke } from 'perfect-freehand';
 import {
-  getStrokeOptions,
-  getSvgPathFromStroke,
+  getRenderablePath,
+  getRenderableStrokeProps,
 } from '@/lib/tiptap/exts/paper-block/helpers/drawHelper.js';
 import { backend, path } from '@/lib/tauri-bridge';
 
@@ -47,26 +46,19 @@ function injectOverlayDrawing(doc, editor) {
   );
 
   strokes.forEach((strokeData) => {
-    if (!Array.isArray(strokeData?.points) || strokeData.points.length < 2) {
-      return;
-    }
+    const pathData = getRenderablePath(strokeData);
+    const renderProps = getRenderableStrokeProps(strokeData);
 
-    const stroke = getStroke(strokeData.points, getStrokeOptions(strokeData));
-    const pathData = getSvgPathFromStroke(stroke);
+    if (!pathData) return;
+
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.setAttribute('d', pathData);
-
-    if (strokeData.tool === 'highlighter') {
-      path.setAttribute('fill', 'none');
-      path.setAttribute('stroke', strokeData.color || '#fbbf24');
-      path.setAttribute('stroke-width', String(strokeData.size || 14));
-      path.setAttribute('opacity', '0.38');
-      path.setAttribute('stroke-linecap', 'round');
-      path.setAttribute('stroke-linejoin', 'round');
-    } else {
-      path.setAttribute('fill', strokeData.color || '#1a1a1a');
-      path.setAttribute('stroke', 'none');
-    }
+    path.setAttribute('fill', renderProps.fill);
+    path.setAttribute('stroke', renderProps.stroke);
+    path.setAttribute('stroke-width', String(renderProps.strokeWidth));
+    path.setAttribute('opacity', String(renderProps.opacity));
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
 
     svg.appendChild(path);
   });
@@ -205,27 +197,20 @@ async function parseCustomBlocks(doc, noteId) {
     svg.setAttribute('class', 'w-full plain');
 
     lines.forEach((line) => {
-      if (!line.points || !line.color) return;
+      const pathData = getRenderablePath(line);
+      const renderProps = getRenderableStrokeProps(line);
 
-      const stroke = getStroke(line.points, {
-        size: line.size || 4,
-        thinning: 0.6,
-        streamline: 0.5,
-        smoothing: 0.5,
-        simulatePressure: true,
-        ...line.options,
-      });
+      if (!pathData) return;
 
-      const pathData = getSvgPathFromStroke(stroke);
       const path = document.createElementNS(
         'http://www.w3.org/2000/svg',
         'path'
       );
       path.setAttribute('d', pathData);
-      path.setAttribute('fill', line.color);
-      path.setAttribute('stroke', 'none');
-      path.setAttribute('stroke-width', '0');
-      path.setAttribute('opacity', line.tool === 'highlighter' ? '0.4' : '1');
+      path.setAttribute('fill', renderProps.fill);
+      path.setAttribute('stroke', renderProps.stroke);
+      path.setAttribute('stroke-width', String(renderProps.strokeWidth));
+      path.setAttribute('opacity', String(renderProps.opacity));
       svg.appendChild(path);
     });
 

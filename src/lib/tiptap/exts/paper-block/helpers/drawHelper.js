@@ -1,5 +1,22 @@
 // drawHelper.js (Vue version)
 import * as d3 from 'd3';
+import { getStroke } from 'perfect-freehand';
+
+export const HIGHLIGHTER_OPACITY = 0.36;
+
+export const DRAW_TOOL_DEFAULTS = Object.freeze({
+  pen: Object.freeze({ color: '#1a1a1a', size: 2.2 }),
+  highlighter: Object.freeze({ color: '#fbbf24', size: 12 }),
+  eraser: Object.freeze({ size: 16 }),
+});
+
+export function cloneDrawingToolDefaults() {
+  return {
+    pen: { ...DRAW_TOOL_DEFAULTS.pen },
+    highlighter: { ...DRAW_TOOL_DEFAULTS.highlighter },
+    eraser: { ...DRAW_TOOL_DEFAULTS.eraser },
+  };
+}
 
 /**
  * Calculates the average of two numbers.
@@ -19,24 +36,44 @@ export const average = (a, b) => (a + b) / 2;
 export function getSvgPathFromStroke(points) {
   if (!points.length) return '';
 
-  let path = `M${points[0][0]},${points[0][1]}`;
+  const first = points[0];
+  const second = points[1];
 
-  // Use Catmull-Rom to Bezier conversion for smooth curves.
-  for (let i = 1; i < points.length - 2; i++) {
-    const [x0, y0] = points[i - 1];
-    const [x1, y1] = points[i];
-    const [x2, y2] = points[i + 1];
-    const [x3, y3] = points[i + 2];
-
-    const cp1x = x1 + (x2 - x0) / 6;
-    const cp1y = y1 + (y2 - y0) / 6;
-    const cp2x = x2 - (x3 - x1) / 6;
-    const cp2y = y2 - (y3 - y1) / 6;
-
-    path += ` C${cp1x},${cp1y},${cp2x},${cp2y},${x2},${y2}`;
+  if (!second) {
+    return `M ${first[0]} ${first[1]} Z`;
   }
 
-  return path;
+  let path = `M ${average(first[0], second[0])} ${average(
+    first[1],
+    second[1]
+  )}`;
+
+  for (let i = 1; i < points.length; i += 1) {
+    const current = points[i];
+    const next = points[(i + 1) % points.length];
+    path += ` Q ${current[0]} ${current[1]} ${average(
+      current[0],
+      next[0]
+    )} ${average(current[1], next[1])}`;
+  }
+
+  return `${path} Z`;
+}
+
+export function getSmoothLinePath(points) {
+  if (!Array.isArray(points) || points.length < 2) return '';
+
+  if (points.length === 2) {
+    return `M ${points[0][0]} ${points[0][1]} L ${points[1][0]} ${points[1][1]}`;
+  }
+
+  const lineGenerator = d3
+    .line()
+    .x((point) => point[0])
+    .y((point) => point[1])
+    .curve(d3.curveCatmullRom.alpha(0.5));
+
+  return lineGenerator(points) || '';
 }
 
 /**
@@ -69,8 +106,14 @@ export const getPointerCoordinates = (event, svgElement) => {
  * @param {number} [threshold=10] - Max allowed distance between consecutive points.
  * @returns {Array<[number, number]>} New array with interpolated points included.
  */
-export function interpolatePoints(points, threshold = 10) {
+export function interpolatePoints(points, options = 4) {
   if (!points || points.length < 2) return points;
+
+  const normalizedOptions =
+    typeof options === 'number'
+      ? { threshold: options }
+      : { threshold: 4, smoothness: 0.18, passes: 2, ...options };
+  const threshold = Math.max(1, normalizedOptions.threshold || 4);
 
   const result = [points[0]];
 
@@ -100,7 +143,38 @@ export function interpolatePoints(points, threshold = 10) {
     result.push([x2, y2]);
   }
 
-  return result;
+  return smoothPoints(result, normalizedOptions);
+}
+
+function smoothPoints(points, options = {}) {
+  const passes = Math.max(0, Number(options.passes || 0));
+  const smoothness = Math.min(Math.max(Number(options.smoothness || 0), 0), 1);
+
+  if (points.length < 3 || passes === 0 || smoothness === 0) {
+    return points;
+  }
+
+  let nextPoints = points.map((point) => [...point]);
+
+  for (let pass = 0; pass < passes; pass += 1) {
+    nextPoints = nextPoints.map((point, index, allPoints) => {
+      if (index === 0 || index === allPoints.length - 1) {
+        return [...point];
+      }
+
+      const previous = allPoints[index - 1];
+      const following = allPoints[index + 1];
+
+      return [
+        point[0] * (1 - smoothness) +
+          ((previous[0] + following[0]) / 2) * smoothness,
+        point[1] * (1 - smoothness) +
+          ((previous[1] + following[1]) / 2) * smoothness,
+      ];
+    });
+  }
+
+  return nextPoints;
 }
 
 /**
@@ -138,11 +212,11 @@ export function modulate(value, rangeA, rangeB, clamp = false) {
  */
 export const getStrokeOptions = (settings) => ({
   size: settings.size,
-  thinning: 0,
-  streamline: modulate(settings.size, [9, 16], [0.64, 0.74], true),
-  smoothing: 0.62,
-  simulatePressure: false,
-  easing: (t) => t,
+  thinning: settings.tool === 'highlighter' ? 0.08 : 0.22,
+  streamline: modulate(settings.size, [1, 24], [0.74, 0.86], true),
+  smoothing: settings.tool === 'highlighter' ? 0.84 : 0.8,
+  simulatePressure: settings.tool !== 'highlighter',
+  easing: (t) => 1 - (1 - t) ** 2,
   start: {
     taper: 0,
     cap: true,
@@ -188,6 +262,35 @@ export const convertLegacyLines = (lines) => {
     };
   });
 };
+
+export function getRenderablePath(stroke) {
+  if (!Array.isArray(stroke?.points) || stroke.points.length < 2) return '';
+
+  if (stroke.tool === 'highlighter') {
+    return getSmoothLinePath(stroke.points);
+  }
+
+  const outline = getStroke(stroke.points, getStrokeOptions(stroke));
+  return getSvgPathFromStroke(outline);
+}
+
+export function getRenderableStrokeProps(stroke) {
+  if (stroke?.tool === 'highlighter') {
+    return {
+      fill: 'none',
+      stroke: stroke.color || DRAW_TOOL_DEFAULTS.highlighter.color,
+      strokeWidth: stroke.size || DRAW_TOOL_DEFAULTS.highlighter.size,
+      opacity: HIGHLIGHTER_OPACITY,
+    };
+  }
+
+  return {
+    fill: stroke?.color || DRAW_TOOL_DEFAULTS.pen.color,
+    stroke: 'none',
+    strokeWidth: 0,
+    opacity: 1,
+  };
+}
 
 /**
  * Extracts an array of points from an SVG path string containing coordinate pairs.
@@ -314,14 +417,19 @@ export const transformPoints = (
  * Check if pointer input is valid for drawing
  */
 export const isPenInput = (e) => {
-  return e.pointerType === 'pen' || e.pointerType === 'mouse';
+  return (
+    e.pointerType === 'pen' ||
+    e.pointerType === 'mouse' ||
+    e.pointerType === 'touch'
+  );
 };
 
 /**
  * Check if input is palm touch (should be ignored)
  */
 export const isPalmTouch = (e) => {
-  return e.pointerType === 'touch';
+  if (e.pointerType !== 'touch') return false;
+  return (e.width || 0) > 35 || (e.height || 0) > 35;
 };
 
 /**

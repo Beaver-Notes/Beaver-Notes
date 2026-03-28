@@ -86,15 +86,15 @@
 
 <script setup>
 import { ref, reactive, onMounted, onUnmounted, watch } from 'vue';
-import { getStroke } from 'perfect-freehand';
 import {
-  getSvgPathFromStroke,
+  cloneDrawingToolDefaults,
   getPointerCoordinates,
-  getStrokeOptions,
   convertLegacyLines,
   convertToLegacyFormat,
   isPalmTouch,
   preventTouchScroll,
+  getRenderablePath,
+  getRenderableStrokeProps,
 } from './helpers/drawHelper';
 import { usePointerHelper } from './helpers/pointerHelper';
 import useSelectionHelper from './helpers/selectionHelper';
@@ -127,16 +127,17 @@ const initialLines = convertLegacyLines(props.node.attrs.lines || []).map(
     id: line.id || `line_${index}`,
   })
 );
+const defaultToolSettings = cloneDrawingToolDefaults();
 
 const state = reactive({
   lines: initialLines,
   isDrawing: false,
   tool: 'pen',
-  penSettings: { color: '#1a1a1a', size: 2.5 },
-  eraserSettings: { size: 18 },
+  penSettings: defaultToolSettings.pen,
+  eraserSettings: defaultToolSettings.eraser,
   undoStack: [],
   redoStack: [],
-  highlighterSettings: { color: '#fbbf24', size: 14 },
+  highlighterSettings: defaultToolSettings.highlighter,
   height: props.node.attrs.height || 400,
   width: 500,
   background: props.node.attrs.paperType || 'plain',
@@ -186,10 +187,7 @@ const clearSelection = () => {
 };
 
 const getPathData = (line) => {
-  if (!line.points || line.points.length < 2) return '';
-
-  const stroke = getStroke(line.points, getStrokeOptions(line));
-  return getSvgPathFromStroke(stroke);
+  return getRenderablePath(line);
 };
 
 const getCurrentStrokePathData = () => {
@@ -202,33 +200,42 @@ const getCurrentStrokePathData = () => {
       .join(' ');
   }
 
-  const stroke = getStroke(
-    currentPointsRef.value,
-    getStrokeOptions(getSettings())
-  );
-  return getSvgPathFromStroke(stroke);
+  return getRenderablePath({
+    points: currentPointsRef.value,
+    ...getSettings(),
+    tool: state.tool,
+  });
 };
 
 const getCurrentStrokeFill = () => {
   if (state.tool === 'eraser') return 'none';
-  return getSettings().color;
+  return getRenderableStrokeProps({
+    tool: state.tool,
+    ...getSettings(),
+  }).fill;
 };
 
 const getCurrentStrokeStroke = () => {
   if (state.tool === 'eraser') return 'rgba(150, 150, 150, 0.8)';
-  if (state.tool === 'highlighter') return getSettings().color;
-  return 'none';
+  return getRenderableStrokeProps({
+    tool: state.tool,
+    ...getSettings(),
+  }).stroke;
 };
 
 const getCurrentStrokeWidth = () => {
   if (state.tool === 'eraser') return state.eraserSettings.size;
-  if (state.tool === 'highlighter') return getSettings().size;
-  return 0;
+  return getRenderableStrokeProps({
+    tool: state.tool,
+    ...getSettings(),
+  }).strokeWidth;
 };
 
 const getCurrentStrokeOpacity = () => {
-  if (state.tool === 'highlighter') return 0.4;
-  return 1;
+  return getRenderableStrokeProps({
+    tool: state.tool,
+    ...getSettings(),
+  }).opacity;
 };
 
 const getResizeHandles = (bounds) => [
@@ -294,8 +301,6 @@ const context = {
   recognizeShape,
   createShape,
   getSettings,
-  getStroke,
-  getStrokeOptions,
 };
 
 const {

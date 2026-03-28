@@ -41,6 +41,8 @@ export function useNoteMenu(props) {
 
   const {
     currentTextColor,
+    drawActions,
+    drawingExportHint,
     fmtMap,
     highlighterColors,
     isTableActive,
@@ -100,7 +102,7 @@ export function useNoteMenu(props) {
       isItemVisible('file') ||
       isItemVisible('video') ||
       isItemVisible('table') ||
-      isItemVisible('draw-block')
+      isItemVisible('draw')
   );
   const hasActionControls = computed(
     () =>
@@ -121,6 +123,8 @@ export function useNoteMenu(props) {
     isPaused,
     pauseResume,
     currentTextColor,
+    drawActions,
+    drawingExportHint,
     fmtMap,
     highlighterColors,
     isTableActive,
