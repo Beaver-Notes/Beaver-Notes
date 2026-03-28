@@ -192,12 +192,12 @@
               <v-remixicon name="riTableLine" />
             </button>
             <button
-              v-if="isItemVisible('draw-block')"
+              v-if="isItemVisible('draw')"
               v-tooltip.group="translations.menu.draw"
-              :class="tbBtn()"
-              @click="editor.commands.insertPaper"
+              :class="tbBtn(drawActions.some((action) => action.isActive))"
+              @click="openSub('draw')"
             >
-              <v-remixicon name="riBrushLine" />
+              <v-remixicon name="riBrush3Line" />
             </button>
 
             <span
@@ -630,6 +630,63 @@
               multiple
               @change="handleAudioSelect"
             />
+          </div>
+
+          <!-- ── DRAW SUB-PANEL ── -->
+          <div
+            :class="[
+              'tb-panel flex items-center gap-2 px-2 whitespace-nowrap h-full',
+              panelClass('draw'),
+            ]"
+          >
+            <button class="tb-back" @click="closeSub()">
+              <v-remixicon name="riArrowLeftLine" />
+            </button>
+            <span class="tb-divider" />
+            <span class="sub-label">{{ translations.menu.draw }}</span>
+
+            <button
+              v-for="action in drawActions"
+              :key="action.name"
+              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-800 dark:hover:bg-white/10"
+              @click="
+                action.handler();
+                closeSub();
+              "
+            >
+              <span
+                class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-white"
+              >
+                <v-remixicon :name="action.icon" />
+              </span>
+              <span class="min-w-0">
+                <span class="flex items-center gap-2">
+                  <span
+                    class="text-sm font-medium text-neutral-900 dark:text-white"
+                  >
+                    {{ action.title }}
+                  </span>
+                  <span
+                    v-if="action.isActive"
+                    class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary dark:bg-secondary/10 dark:text-secondary"
+                  >
+                    {{ translations.menu.active || 'Active' }}
+                  </span>
+                </span>
+                <span
+                  class="mt-1 block text-xs leading-4 text-neutral-500 dark:text-neutral-400"
+                >
+                  {{ action.description }}
+                </span>
+              </span>
+            </button>
+
+            <span class="tb-divider" />
+            <p
+              class="max-w-[240px] text-xs leading-5 text-neutral-500 dark:text-neutral-400"
+            >
+              {{ drawingExportHint }}
+            </p>
           </div>
 
           <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->

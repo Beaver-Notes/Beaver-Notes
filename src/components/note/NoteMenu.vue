@@ -459,19 +459,60 @@
           <v-remixicon name="riTableLine" />
         </button>
 
-        <DrawModeToggle
-          v-else-if="item.id === 'draw-overlay'"
-          v-tooltip.group="translations.menu.drawOverlay || 'Draw on note'"
-        />
+        <ui-popover v-else-if="item.id === 'draw'" padding="p-2 w-72">
+          <template #trigger>
+            <button
+              v-tooltip.group="translations.menu.draw"
+              :class="{
+                'is-active': drawActions.some((action) => action.isActive),
+              }"
+              class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+            >
+              <v-remixicon name="riBrush3Line" />
+            </button>
+          </template>
 
-        <button
-          v-else-if="item.id === 'draw-block'"
-          v-tooltip.group="translations.menu.draw"
-          class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
-          @click="editor.commands.insertPaper"
-        >
-          <v-remixicon name="riBrushLine" />
-        </button>
+          <div class="space-y-2">
+            <button
+              v-for="action in drawActions"
+              :key="action.name"
+              class="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-neutral-100 dark:hover:bg-[#353333]"
+              @click="action.handler"
+            >
+              <span
+                class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-white"
+              >
+                <v-remixicon :name="action.icon" />
+              </span>
+              <span class="min-w-0">
+                <span class="flex items-center gap-2">
+                  <span
+                    class="text-sm font-medium text-neutral-900 dark:text-[color:var(--selected-dark-text)]"
+                  >
+                    {{ action.title }}
+                  </span>
+                  <span
+                    v-if="action.isActive"
+                    class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary dark:bg-secondary/10 dark:text-secondary"
+                  >
+                    {{ translations.menu.active || 'Active' }}
+                  </span>
+                </span>
+                <span
+                  class="mt-0.5 block text-xs text-neutral-500 dark:text-neutral-400"
+                >
+                  {{ action.description }}
+                </span>
+              </span>
+            </button>
+
+            <p
+              class="px-1 text-xs leading-5 text-neutral-500 dark:text-neutral-400"
+            >
+              {{ drawingExportHint }}
+            </p>
+          </div>
+        </ui-popover>
 
         <ui-popover
           v-else-if="item.id === 'video'"
@@ -530,14 +571,32 @@
           <button
             v-for="s in shareActions"
             :key="s.name"
-            class="flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+            class="flex w-full items-center gap-2 rounded-lg p-2 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
             @click="s.handler"
           >
             <v-remixicon :name="s.icon" />
+            <span class="min-w-0 flex-1">
+              <span
+                class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+              >
+                {{ s.title }}
+              </span>
+              <span
+                class="block text-[11px] text-neutral-500 dark:text-neutral-400"
+              >
+                {{ s.support.label }}
+              </span>
+            </span>
             <span
-              class="text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
-              >{{ s.title }}</span
+              class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+              :class="
+                s.support.level === 'best'
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300'
+                  : 'bg-amber-500/10 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300'
+              "
             >
+              {{ s.support.label }}
+            </span>
           </button>
         </ui-popover>
 
@@ -633,11 +692,10 @@
 <script>
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
-import DrawModeToggle from '@/components/overlay/DrawModeToggle.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 
 export default {
-  components: { NoteMenuHeadingsTree, ToolbarCustomizer, DrawModeToggle },
+  components: { NoteMenuHeadingsTree, ToolbarCustomizer },
   props: {
     editor: { type: Object, default: () => ({}) },
     tree: { type: Boolean, default: false },

@@ -58,7 +58,24 @@
           @click="runShareAction(action)"
         >
           <v-remixicon :name="action.icon" size="20" />
-          <span class="text-sm font-medium">{{ action.title }}</span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-sm font-medium">{{ action.title }}</span>
+            <span
+              class="block text-[11px] text-neutral-500 dark:text-neutral-400"
+            >
+              {{ action.support.label }}
+            </span>
+          </span>
+          <span
+            class="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+            :class="
+              action.support.level === 'best'
+                ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/15 dark:text-emerald-300'
+                : 'bg-amber-500/10 text-amber-700 dark:bg-amber-400/15 dark:text-amber-300'
+            "
+          >
+            {{ action.support.label }}
+          </span>
         </button>
       </div>
     </ui-modal>

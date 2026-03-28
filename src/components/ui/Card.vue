@@ -3,7 +3,7 @@
   <component
     :is="tag"
     v-bind="$attrs"
-    class="bg-neutral-50 dark:bg-neutral-800 transform rounded-xl transition-transform ui-card overflow-hidden border"
+    class="bg-neutral-100 dark:bg-neutral-800 transform rounded-xl transition-transform ui-card overflow-hidden border"
     :class="[padding, { 'hover:shadow-xl hover:-translate-y-1': hover }]"
   >
     <slot></slot>

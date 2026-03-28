@@ -24,10 +24,10 @@
             v-for="stroke in drawing.strokes.value"
             :key="stroke.id"
             :d="drawing.getPathForStroke(stroke)"
-            :fill="stroke.tool === 'pen' ? stroke.color : 'none'"
-            :stroke="stroke.tool === 'highlighter' ? stroke.color : 'none'"
-            :stroke-width="stroke.tool === 'highlighter' ? stroke.size : 0"
-            :opacity="stroke.tool === 'highlighter' ? 0.38 : 1"
+            :fill="getRenderableStrokeProps(stroke).fill"
+            :stroke="getRenderableStrokeProps(stroke).stroke"
+            :stroke-width="getRenderableStrokeProps(stroke).strokeWidth"
+            :opacity="getRenderableStrokeProps(stroke).opacity"
             stroke-linecap="round"
             stroke-linejoin="round"
           />
@@ -36,22 +36,10 @@
         <path
           v-if="drawing.isDrawing.value && drawing.currentPathData.value"
           :d="drawing.currentPathData.value"
-          :fill="
-            drawing.activeTool.value === 'pen'
-              ? drawing.activeSettings.value.color
-              : 'none'
-          "
-          :stroke="
-            drawing.activeTool.value === 'highlighter'
-              ? drawing.activeSettings.value.color
-              : 'none'
-          "
-          :stroke-width="
-            drawing.activeTool.value === 'highlighter'
-              ? drawing.activeSettings.value.size
-              : 0
-          "
-          :opacity="drawing.activeTool.value === 'highlighter' ? 0.38 : 1"
+          :fill="currentStrokeProps.fill"
+          :stroke="currentStrokeProps.stroke"
+          :stroke-width="currentStrokeProps.strokeWidth"
+          :opacity="currentStrokeProps.opacity"
           stroke-linecap="round"
           stroke-linejoin="round"
         />
@@ -74,6 +62,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useOverlayDrawing } from '@/composable/useOverlayDrawing';
+import { getRenderableStrokeProps } from '@/lib/tiptap/exts/paper-block/helpers/drawHelper';
 
 const drawing = useOverlayDrawing();
 const svgRef = ref(null);
@@ -86,6 +75,13 @@ const eraserCursor = reactive({
 const showEraserCursor = computed(
   () =>
     drawing.mode.value === 'drawing' && drawing.activeTool.value === 'eraser'
+);
+const currentStrokeProps = computed(() =>
+  getRenderableStrokeProps({
+    tool: drawing.activeTool.value,
+    color: drawing.activeSettings.value.color,
+    size: drawing.activeSettings.value.size,
+  })
 );
 
 function updateCursorPosition(event) {
