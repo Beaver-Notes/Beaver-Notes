@@ -1,9 +1,8 @@
 import { computed, reactive, ref, shallowRef, watch } from 'vue';
-import { getStroke } from 'perfect-freehand';
 import { setScribbleSuppressed } from '@/lib/native/scribble';
 import {
-  getStrokeOptions,
-  getSvgPathFromStroke,
+  cloneDrawingToolDefaults,
+  getRenderablePath,
   getPointerCoordinates,
   isPalmTouch,
   isPenInput,
@@ -79,11 +78,7 @@ export function useOverlayDrawing() {
 
   const mode = ref('typing');
   const activeTool = ref('pen');
-  const toolSettings = reactive({
-    pen: { color: '#1a1a1a', size: 2.5 },
-    highlighter: { color: '#fbbf24', size: 14 },
-    eraser: { size: 18 },
-  });
+  const toolSettings = reactive(cloneDrawingToolDefaults());
   const strokes = ref([]);
   const currentPoints = ref([]);
   const isDrawing = ref(false);
@@ -96,15 +91,11 @@ export function useOverlayDrawing() {
     if (currentPoints.value.length < 2 || activeTool.value === 'eraser')
       return '';
 
-    const stroke = getStroke(
-      currentPoints.value,
-      getStrokeOptions({
-        ...activeSettings.value,
-        tool: activeTool.value,
-      })
-    );
-
-    return getSvgPathFromStroke(stroke);
+    return getRenderablePath({
+      points: currentPoints.value,
+      ...activeSettings.value,
+      tool: activeTool.value,
+    });
   });
 
   watch(
@@ -177,7 +168,11 @@ export function useOverlayDrawing() {
 
     if (points.length < 2) return;
 
-    const interpolatedPoints = interpolatePoints(points);
+    const interpolatedPoints = interpolatePoints(points, {
+      threshold: activeTool.value === 'highlighter' ? 5 : 4,
+      smoothness: activeTool.value === 'highlighter' ? 0.12 : 0.18,
+      passes: activeTool.value === 'highlighter' ? 1 : 2,
+    });
 
     if (activeTool.value === 'eraser') {
       _applyEraser(interpolatedPoints);
@@ -307,11 +302,7 @@ export function useOverlayDrawing() {
   }
 
   function getPathForStroke(stroke) {
-    if (!Array.isArray(stroke?.points) || stroke.points.length < 2) return '';
-
-    return getSvgPathFromStroke(
-      getStroke(stroke.points, getStrokeOptions(stroke))
-    );
+    return getRenderablePath(stroke);
   }
 
   function handleKeyDown(e) {

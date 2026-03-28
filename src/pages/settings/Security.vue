@@ -201,7 +201,7 @@ import {
   disableSyncEncryption,
   syncFolderHasEncryption,
   tryRestoreKeyFromSafeStorage,
-} from '@/utils/syncCrypto.js';
+} from '@/utils/sync/crypto.js';
 import {
   isAppEncryptionEnabled,
   isAppKeyLoaded,
@@ -210,7 +210,7 @@ import {
   disableAppEncryption,
   appFolderHasEncryption,
 } from '@/utils/appCrypto.js';
-import { getSyncPath } from '@/utils/syncPath.js';
+import { getSyncPath } from '@/utils/sync/path.js';
 import { listAssetFiles, rewriteAssetFile } from '@/lib/native/security';
 
 const { translations } = useTranslations();

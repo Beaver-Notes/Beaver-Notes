@@ -1,5 +1,5 @@
 import { computed, reactive } from 'vue';
-import { syncFolderHasEncryption, isSyncKeyLoaded } from '@/utils/syncCrypto';
+import { syncFolderHasEncryption, isSyncKeyLoaded } from '@/utils/sync/crypto';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';

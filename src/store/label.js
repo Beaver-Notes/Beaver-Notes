@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage';
 import { useNoteStore } from './note';
-import { trackChange } from '@/utils/sync.js';
+import { trackChange } from '@/utils/sync';
 
 const storage = useStorage();
 

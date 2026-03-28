@@ -13,7 +13,7 @@ import {
   syncFolderHasEncryption,
   isSyncEncryptionEnabled,
   isSyncKeyLoaded,
-} from '../utils/syncCrypto.js';
+} from '../utils/sync/crypto.js';
 import {
   setupAppEncryption,
   verifyAppPassphrase,
@@ -21,7 +21,7 @@ import {
   isAppEncryptionEnabled,
   isAppKeyLoaded,
 } from '../utils/appCrypto.js';
-import { getSyncPath } from '../utils/syncPath.js';
+import { getSyncPath } from '../utils/sync/path.js';
 import { path } from '@/lib/tauri-bridge';
 import { pathExists, readFile, writeFile } from '@/lib/native/fs';
 import {

@@ -9,7 +9,7 @@ import {
   verifySyncPassphrase,
   setupSyncEncryption,
   disableSyncEncryption,
-} from '@/utils/syncCrypto.js';
+} from '@/utils/sync/crypto.js';
 import {
   isAppEncryptionEnabled,
   isAppKeyLoaded,

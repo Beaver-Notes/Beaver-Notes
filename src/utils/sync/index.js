@@ -2,8 +2,8 @@ import {
   encryptJSON,
   decryptJSON,
   ensureSyncKeyReadyForWrite,
-} from './syncCrypto.js';
-import { getSyncPath } from './syncPath.js';
+} from './crypto.js';
+import { getSyncPath } from './path.js';
 import { getSettingSync } from '@/composable/settings';
 import { useStorage } from '@/composable/storage';
 import { useNoteStore } from '@/store/note.js';
@@ -19,9 +19,10 @@ import {
   listRemoteCommits,
   queuePendingChange,
   writeCommit,
-} from './sync/sync-repository.js';
-import { applyRemoteOp } from './sync/sync-apply.js';
-import { syncAssets } from './sync/sync-assets.js';
+} from './sync-repository.js';
+import { applyRemoteOp } from './sync-apply.js';
+import { syncAssets } from './sync-assets.js';
+
 const storage = useStorage();
 
 const state = { syncing: false };
@@ -96,29 +97,24 @@ async function _sync(force = false) {
       saveCursors: _saveCursors,
     });
     const cursors = await _loadCursors();
-    const remoteCommits = await listRemoteCommits(
-      commitsDir,
-      cursors,
-      decryptJSON
-    );
+    const remoteCommits = await listRemoteCommits(commitsDir, cursors, decryptJSON);
 
     for (const commit of remoteCommits) {
       for (const op of commit.ops) {
         await applyRemoteOp(op, commit.vector);
       }
-      cursors[commit.device] = Math.max(
-        cursors[commit.device] ?? 0,
-        commit.clock
-      );
+      cursors[commit.device] = Math.max(cursors[commit.device] ?? 0, commit.clock);
     }
 
     if (remoteCommits.length > 0) {
       await _saveCursors(cursors);
     }
+
     const localDir = await storage.get('dataDir', '', 'settings');
     await syncAssets(localDir, syncDir, async (deletedAssets) => {
       await trackChange('deletedAssets', deletedAssets);
     });
+
     const allFiles = await readSyncDir(commitsDir).catch(() => []);
     if (allFiles.filter((f) => f.endsWith('.json')).length > 200) {
       await compactSync({
@@ -129,6 +125,7 @@ async function _sync(force = false) {
         saveCursors: _saveCursors,
       });
     }
+
     if (remoteCommits.length > 0 || snapshotApplied) {
       await Promise.all([
         useNoteStore().retrieve(),
@@ -175,7 +172,8 @@ async function _flushPendingChanges() {
 }
 
 async function _flushPendingChangesIfReady() {
-  return flushPendingChangesIfReady(ensureSyncKeyReadyForWrite, (key, data) =>
-    _writeCommit(key, data)
+  return flushPendingChangesIfReady(
+    ensureSyncKeyReadyForWrite,
+    (key, data) => _writeCommit(key, data)
   );
 }

@@ -16,7 +16,7 @@ import {
   localAssetName,
   readAndEncryptAsset,
   syncAssetName,
-} from '@/utils/syncCrypto.js';
+} from './crypto.js';
 
 const storage = useStorage();
 

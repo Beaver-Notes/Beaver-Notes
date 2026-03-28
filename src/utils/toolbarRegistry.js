@@ -151,18 +151,11 @@ const BUILTIN_ITEMS = [
   },
   { id: 'table', label: 'Table', icon: 'riTableLine', group: 'media' },
   {
-    id: 'draw-overlay',
-    label: 'Draw on note',
-    icon: null,
+    id: 'draw',
+    label: 'Draw',
+    icon: 'riBrush3Line',
     group: 'media',
     defaultVisible: true,
-  },
-  {
-    id: 'draw-block',
-    label: 'Insert drawing block',
-    icon: 'riBrushLine',
-    group: 'media',
-    defaultVisible: false,
   },
   {
     id: 'video',

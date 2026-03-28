@@ -3,7 +3,7 @@ import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
-import { setSyncPath, getSyncPath } from '@/utils/syncPath.js';
+import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getHelperPath, setSpellcheck } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';

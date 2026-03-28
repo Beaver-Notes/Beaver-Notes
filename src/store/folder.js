@@ -1,7 +1,7 @@
 import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage.js';
-import { trackChange } from '@/utils/sync.js';
+import { trackChange } from '@/utils/sync';
 
 const storage = useStorage();
 

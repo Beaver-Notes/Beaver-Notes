@@ -11,9 +11,9 @@ import { useAppStore } from '@/store/app';
 import { useAppShellLayout } from './useAppShellLayout';
 import { useAppShellBanners } from './useAppShellBanners';
 import { importBEA } from '@/utils/share/BEA';
-import { tryRestoreKeyFromSafeStorage } from '@/utils/syncCrypto';
+import { tryRestoreKeyFromSafeStorage } from '@/utils/sync/crypto';
 import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
-import { getSyncPath } from '@/utils/syncPath';
+import { getSyncPath } from '@/utils/sync/path';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
 import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
 import {
