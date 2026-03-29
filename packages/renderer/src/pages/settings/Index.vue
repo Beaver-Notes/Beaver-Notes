@@ -316,7 +316,7 @@ const LANGUAGE_CONFIG = {
 
 export const state = shallowReactive({
   dataDir: '',
-  directionPreference: localStorage.getItem('directionPreference') || 'ltr',
+  directionPreference: 'ltr',
 });
 export const dataDir = state.dataDir;
 
@@ -327,23 +327,29 @@ const getLanguageDirection = (languageCode) => {
 export default {
   setup() {
     const passwordStore = usePasswordStore();
-    const advancedSettings = ref(
-      localStorage.getItem('advanced-settings') === 'true'
-    );
+    const appStore = useAppStore();
+    const advancedSettings = computed({
+      get: () => appStore.setting.advancedSettings,
+      set: (value) => appStore.setSettingStorage('advancedSettings', value),
+    });
 
-    const spellcheckEnabled = ref(
-      localStorage.getItem('spellcheckEnabled') === 'true' &&
-        localStorage.getItem('spellcheckEnabled') != null
-    );
-    const autoSync = ref(localStorage.getItem('autoSync') === 'true');
-    const selectedFont = ref(localStorage.getItem('selected-font') || 'Arimo');
-    const selectedLanguage = ref(
-      localStorage.getItem('selectedLanguage') || 'en'
-    );
-    const directionPreference = ref(
-      localStorage.getItem('directionPreference') ||
-        getLanguageDirection(selectedLanguage.value)
-    );
+    const spellcheckEnabled = computed({
+      get: () => appStore.setting.spellcheckEnabled,
+      set: (value) => appStore.setSettingStorage('spellcheckEnabled', value),
+    });
+    const autoSync = computed({
+      get: () => appStore.setting.autoSync,
+      set: (value) => appStore.setSettingStorage('autoSync', value),
+    });
+    const selectedFont = ref(appStore.setting.selectedFont);
+    const selectedLanguage = computed({
+      get: () => appStore.setting.selectedLanguage,
+      set: (value) => appStore.setSettingStorage('selectedLanguage', value),
+    });
+    const directionPreference = computed({
+      get: () => appStore.setting.directionPreference,
+      set: (value) => appStore.setSettingStorage('directionPreference', value),
+    });
     const languages = Object.entries(LANGUAGE_CONFIG).map(
       ([code, { name }]) => ({
         code,
@@ -367,7 +373,7 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
-      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
+      zoomLevel: (appStore.setting.zoomLevel || 1).toFixed(1),
     });
 
     let defaultPath = '';
@@ -420,7 +426,7 @@ export default {
 
         let data = await storage.store();
         data['sharedKey'] = storage.get('sharedKey');
-        data['lockedNotes'] = JSON.parse(localStorage.getItem('lockedNotes'));
+        data['lockedNotes'] = appStore.setting.lockedNotes;
         await passwordStore.retrieve();
         data['sharedKey'] = passwordStore.sharedKey;
         data['derivedKey'] = passwordStore.derivedKey;
@@ -547,15 +553,15 @@ export default {
                 const importedLockedStatus = resultObj['lockStatus'];
                 const importedIsLocked = resultObj['isLocked'];
 
-                localStorage.setItem('dataDir', importedDefaultPath);
+                appStore.setSettingStorage('dataDir', importedDefaultPath);
 
                 if (
                   importedLockedStatus !== null &&
                   importedLockedStatus !== undefined
                 ) {
-                  localStorage.setItem(
-                    'lockStatus',
-                    JSON.stringify(importedLockedStatus)
+                  appStore.setSettingStorage(
+                    'lockedNotes',
+                    importedLockedStatus
                   );
                 }
 
@@ -563,10 +569,7 @@ export default {
                   importedIsLocked !== null &&
                   importedIsLocked !== undefined
                 ) {
-                  localStorage.setItem(
-                    'isLocked',
-                    JSON.stringify(importedIsLocked)
-                  );
+                  appStore.setSettingStorage('isLocked', importedIsLocked);
                 }
 
                 if (data['sharedKey']) {
@@ -617,7 +620,7 @@ export default {
           }
 
           if (importedIsLocked !== null && importedIsLocked !== undefined) {
-            localStorage.setItem('isLocked', JSON.stringify(importedIsLocked));
+            appStore.setSettingStorage('isLocked', importedIsLocked);
           }
 
           await ipcRenderer.callMain('fs:copy', {
@@ -716,7 +719,7 @@ export default {
 
         if (canceled) return;
         defaultPath = dir;
-        localStorage.setItem('default-path', defaultPath);
+        appStore.setSettingStorage('defaultPath', defaultPath);
         state.dataDir = defaultPath;
         window.location.reload();
       } catch (error) {
@@ -726,12 +729,13 @@ export default {
 
     async function clearPath() {
       state.dataDir = '';
-      localStorage.removeItem('default-path');
+      appStore.setSettingStorage('defaultPath', '');
     }
 
     onMounted(() => {
-      defaultPath = localStorage.getItem('default-path') || '';
+      defaultPath = appStore.setting.defaultPath || '';
       state.dataDir = defaultPath;
+      state.directionPreference = appStore.setting.directionPreference;
     });
 
     const shortcuts = {
@@ -800,8 +804,6 @@ export default {
       shortcuts[combo]();
     });
 
-    const appStore = useAppStore();
-
     function deleteAuth(auth) {
       dialog.confirm({
         body: t(translations.value.settings.confirmDelete, {
@@ -830,9 +832,9 @@ export default {
         return;
       }
 
-      const currentValue = localStorage.getItem('autoSync');
-      const newAutoSyncValue = currentValue === 'true' ? 'false' : 'true';
-      localStorage.setItem('autoSync', newAutoSyncValue);
+      const currentValue = appStore.setting.autoSync;
+      const newAutoSyncValue = !currentValue;
+      appStore.setSettingStorage('autoSync', newAutoSyncValue);
     };
 
     const collapsibleHeading = computed({
@@ -891,14 +893,11 @@ export default {
     };
 
     const toggleAdvancedSettings = () => {
-      localStorage.setItem(
-        'advanced-settings',
-        advancedSettings.value.toString()
-      );
+      appStore.setSettingStorage('advancedSettings', advancedSettings.value);
     };
 
     const toggleSpellcheck = () => {
-      localStorage.setItem('spellcheckEnabled', spellcheckEnabled.value);
+      appStore.setSettingStorage('spellcheckEnabled', spellcheckEnabled.value);
       applySpellcheckAttribute();
     };
 
@@ -918,8 +917,8 @@ export default {
     const updateLanguage = () => {
       const languageCode = selectedLanguage.value;
       const dir = getLanguageDirection(languageCode);
-      localStorage.setItem('selectedLanguage', languageCode);
-      localStorage.setItem('directionPreference', dir);
+      appStore.setSettingStorage('selectedLanguage', languageCode);
+      appStore.setSettingStorage('directionPreference', dir);
       window.location.reload(); // Optional: you might want a softer re-render
     };
 

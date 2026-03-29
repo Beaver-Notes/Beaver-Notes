@@ -22,12 +22,13 @@ import { t } from '@/utils/translations';
 
 export const state = shallowReactive({
   dataDir: '',
-  directionPreference: localStorage.getItem('directionPreference') || 'ltr',
+  directionPreference: 'ltr',
 });
 export const dataDir = state.dataDir;
 
 export default {
   setup() {
+    const appStore = useAppStore();
     const dialog = useDialog();
     const storage = useStorage();
     const passwordStore = usePasswordStore();
@@ -35,8 +36,9 @@ export default {
     let defaultPath = '';
 
     onMounted(() => {
-      defaultPath = localStorage.getItem('default-path') || '';
+      defaultPath = appStore.setting.defaultPath || '';
       state.dataDir = defaultPath;
+      state.directionPreference = appStore.setting.directionPreference;
     });
 
     async function resetPasswordDialog() {
@@ -93,8 +95,6 @@ export default {
         }
       });
     });
-
-    const appStore = useAppStore();
 
     return {
       state,

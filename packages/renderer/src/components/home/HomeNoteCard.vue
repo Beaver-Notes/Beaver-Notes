@@ -133,6 +133,7 @@
 /* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
 import { useNoteStore } from '@/store/note';
+import { useAppStore } from '@/store/app';
 import { truncateText } from '@/utils/helper';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
@@ -268,7 +269,8 @@ async function deleteNote(note) {
   });
 }
 
-const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+const appStore = useAppStore();
+const selectedLanguage = appStore.setting.selectedLanguage || 'en';
 
 dayjs.locale(selectedLanguage);
 

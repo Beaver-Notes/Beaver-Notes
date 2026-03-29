@@ -627,14 +627,12 @@ import { exportBEA } from '../../utils/share/BEA';
 import { exportHTML } from '../../utils/share/HTML';
 import { exportMD } from '../../utils/share/MD';
 import { useTranslation } from '@/composable/translations';
+import { useAppStore } from '@/store/app';
 
 const { path, ipcRenderer } = window.electron;
 const filePath = '';
 const fontSize = ref(16);
 const storage = useStorage('settings');
-const state = shallowReactive({
-  zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
-});
 
 export default {
   components: { NoteMenuHeadingsTree },
@@ -658,6 +656,11 @@ export default {
   },
   emits: ['update:tree'],
   setup(props) {
+    const appStore = useAppStore();
+    const state = shallowReactive({
+      zoomLevel: (appStore.setting.zoomLevel || 1).toFixed(1),
+    });
+
     const {
       isRecording,
       formattedTime,
@@ -885,11 +888,11 @@ export default {
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
 
       state.zoomLevel = newZoomLevel.toFixed(1);
-      localStorage.setItem('zoomLevel', state.zoomLevel);
+      appStore.setSettingStorage('zoomLevel', parseFloat(state.zoomLevel));
     };
 
     const handleZoomButtonClick = () => {
-      const storedZoomLevel = parseFloat(localStorage.getItem('zoomLevel'));
+      const storedZoomLevel = parseFloat(appStore.setting.zoomLevel);
 
       if (!isNaN(storedZoomLevel)) {
         setZoom(storedZoomLevel);
@@ -972,7 +975,7 @@ export default {
     });
 
     const showAdavancedSettings = computed(() => {
-      return localStorage.getItem('advanced-settings') === 'true';
+      return appStore.setting.advancedSettings === true;
     });
 
     const handleFileSelect = async (event) => {

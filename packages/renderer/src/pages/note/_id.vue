@@ -248,7 +248,7 @@ export default {
             router.push('/');
           } else {
             store.activeNoteId = data.id;
-            localStorage.setItem('lastNoteEdit', noteId);
+            appStore.setSettingStorage('lastNoteEdit', noteId);
           }
         });
       },

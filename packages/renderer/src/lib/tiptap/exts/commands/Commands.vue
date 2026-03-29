@@ -43,6 +43,7 @@ import dayjs from '@/lib/dayjs';
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
+import { useAppStore } from '@/store/app';
 
 const { ipcRenderer } = window.electron;
 
@@ -70,6 +71,7 @@ export default {
     },
   },
   setup(props) {
+    const appStore = useAppStore();
     const instance = getCurrentInstance();
     const editorImage = useEditorImage(props.editor);
     const selectedIndex = ref(0);
@@ -366,8 +368,7 @@ export default {
         icon: 'riCalendarLine',
         name: 'todayDate',
         action: () => {
-          const customFormat =
-            localStorage.getItem('todayDateFormat') || 'DD-MM-YYYY';
+          const customFormat = appStore.setting.todayDateFormat;
           props.editor
             .chain()
             .focus()
@@ -379,7 +380,7 @@ export default {
         icon: 'riTimerLine',
         name: 'currentTime',
         action: () => {
-          const customFormat = localStorage.getItem('timeFormat') || 'HH:mm';
+          const customFormat = appStore.setting.timeFormat;
           props.editor
             .chain()
             .focus()

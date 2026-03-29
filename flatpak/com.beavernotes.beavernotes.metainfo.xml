@@ -40,7 +40,19 @@
   <url type="translate">https://danieles-organization.gitbook.io/beaver-notes/dev-guides/translations</url>
   <url type="vcs-browser">https://github.com/Daniele-rolli/Beaver-Notes</url>
   <releases>
-    <release version="4.3.0" date="2026-11-02">
+    <release version="4.4.0" date="2026-03-28">
+      <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.4.0</url>
+      <description>
+        <p>What&apos;s new in this release:</p>
+        <ul>
+          <li>New command prompt for searching notes, folders, and commands</li>
+          <li>Added Vietnamese language support</li>
+          <li>Fix sidebar and folder card issues (#404 &amp; #409)</li>
+          <li>UI improvements across cards, sidebar, and note view</li>
+        </ul>
+      </description>
+    </release>
+    <release version="4.3.0" date="2026-01-26">
       <url type="details">https://github.com/Daniele-rolli/Beaver-Notes/releases/tag/4.3.0</url>
       <description>
         <p>Release description</p>

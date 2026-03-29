@@ -102,7 +102,7 @@ export default {
     const appStore = useAppStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const defaultPath = localStorage.getItem('default-path');
+    const defaultPath = appStore.setting.defaultPath;
 
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
@@ -162,7 +162,7 @@ export default {
     }
 
     function openLastEdited() {
-      const noteId = localStorage.getItem('lastNoteEdit');
+      const noteId = appStore.setting.lastNoteEdit;
       if (noteId) router.push(`/note/${noteId}`);
     }
 

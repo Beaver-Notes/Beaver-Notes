@@ -70,13 +70,13 @@ export default {
       version: '',
     });
 
-    const selectedFont = localStorage.getItem('selected-font') || 'Arimo';
-    const selectedCodeFont =
-      localStorage.getItem('selected-font-code') || 'JetBrains Mono';
-    const selectedDarkText =
-      localStorage.getItem('selected-dark-text') || 'white';
-    const colorScheme = localStorage.getItem('color-scheme') || 'light';
-    const editorWidth = localStorage.getItem('editorWidth') || '54rem';
+    const appStore = useAppStore();
+
+    const selectedFont = appStore.setting.selectedFont;
+    const selectedCodeFont = appStore.setting.selectedCodeFont;
+    const selectedDarkText = appStore.setting.darkText;
+    const colorScheme = appStore.setting.colorScheme;
+    const editorWidth = appStore.setting.editorWidth;
 
     document.documentElement.style.setProperty('--selected-font', selectedFont);
     document.documentElement.style.setProperty(
@@ -91,14 +91,12 @@ export default {
     document.documentElement.style.setProperty('--selected-width', editorWidth);
 
     const zoom = async () => {
-      const zoomLevel = localStorage.getItem('zoomLevel');
+      const zoomLevel = appStore.setting.zoomLevel;
       if (!zoomLevel) {
-        localStorage.setItem('zoomLevel', '1.0');
+        appStore.setSettingStorage('zoomLevel', 1.0);
         window.electron.ipcRenderer.callMain('app:set-zoom', 1.0);
       }
     };
-
-    const appStore = useAppStore();
     const translations = ref({ dialog: {}, settings: {} });
 
     // Handle update banner actions
@@ -187,7 +185,7 @@ export default {
       appStore.updateToStorage();
     });
 
-    const isFirstTime = localStorage.getItem('first-time');
+    const isFirstTime = appStore.setting.firstTime;
 
     if (!isFirstTime) {
       const promises = Promise.allSettled(
@@ -206,15 +204,15 @@ export default {
 
         if (note) router.push(`/note/${note.id}`);
 
-        localStorage.setItem('first-time', false);
-        localStorage.setItem('spellcheckEnabled', 'true');
+        appStore.setSettingStorage('firstTime', false);
+        appStore.setSettingStorage('spellcheckEnabled', true);
         retrieved.value = true;
       });
     } else {
       store.retrieve().then(() => (retrieved.value = true));
 
       if (appStore.setting.openLastEdited) {
-        const lastNoteEdit = localStorage.getItem('lastNoteEdit');
+        const lastNoteEdit = appStore.setting.lastNoteEdit;
         if (lastNoteEdit) {
           router.push(`/note/${lastNoteEdit}`);
         }
@@ -232,21 +230,21 @@ export default {
 
     window.electron.ipcRenderer.callMain(
       'app:set-zoom',
-      +localStorage.getItem('zoomLevel') || 1
+      appStore.setting.zoomLevel || 1
     );
     window.electron.ipcRenderer.callMain(
       'app:change-menu-visibility',
-      localStorage.getItem('visibility-menubar') !== 'true' || false
+      appStore.setting.visibilityMenubar !== true || false
     );
 
     const state = reactive({
-      zoomLevel: parseFloat(localStorage.getItem('zoomLevel')) || 1.0,
+      zoomLevel: appStore.setting.zoomLevel || 1.0,
     });
 
     const setZoom = (newZoomLevel) => {
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
       state.zoomLevel = newZoomLevel.toFixed(1);
-      localStorage.setItem('zoomLevel', state.zoomLevel);
+      appStore.setSettingStorage('zoomLevel', parseFloat(state.zoomLevel));
       document.body.style.zoom = state.zoomLevel;
     };
 
