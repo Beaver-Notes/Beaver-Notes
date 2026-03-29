@@ -314,12 +314,12 @@ export default {
       password: '',
       withPassword: false,
       lastUpdated: null,
-      accentColor: localStorage.getItem('color-scheme') || 'light',
-      zoomLevel: (+localStorage.getItem('zoomLevel') || 1).toFixed(1),
-      directionPreference: localStorage.getItem('directionPreference') || 'ltr',
-      selectedFont: localStorage.getItem('selected-font') || 'Arimo',
+      accentColor: appStore.setting.colorScheme || 'light',
+      zoomLevel: (appStore.setting.zoomLevel || 1).toFixed(1),
+      directionPreference: appStore.setting.directionPreference || 'ltr',
+      selectedFont: appStore.setting.selectedFont || 'Arimo',
       selectedCodeFont:
-        localStorage.getItem('selected-font-code') || 'JetBrains Mono',
+        appStore.setting.selectedCodeFont || 'JetBrains Mono',
     });
 
     let defaultPath = '';
@@ -333,9 +333,9 @@ export default {
     );
 
     const ClearFontChecked = computed({
-      get: () => localStorage.getItem('selected-dark-text') === '#CCCCCC',
+      get: () => appStore.setting.darkText === '#CCCCCC',
       set: (value) => {
-        localStorage.setItem('selected-dark-text', value ? '#CCCCCC' : 'white');
+        appStore.setSettingStorage('darkText', value ? '#CCCCCC' : 'white');
         document.documentElement.style.setProperty(
           'selected-dark-text',
           value ? '#CCCCCC' : 'white'
@@ -353,13 +353,13 @@ export default {
       });
       root.classList.add(color);
       state.accentColor = color;
-      localStorage.setItem('color-scheme', color);
+      appStore.setSettingStorage('colorScheme', color);
     };
 
     const visibilityMenubar = computed({
-      get: () => localStorage.getItem('visibility-menubar') === 'true',
+      get: () => appStore.setting.visibilityMenubar === true,
       set: (val) => {
-        localStorage.setItem('visibility-menubar', val.toString());
+        appStore.setSettingStorage('visibilityMenubar', val);
       },
     });
 
@@ -393,15 +393,15 @@ export default {
       }
     });
 
-    const selectedWidth = ref(localStorage.getItem('editorWidth') || '54rem');
+    const selectedWidth = ref(appStore.setting.editorWidth || '54rem');
     const customWidth = ref(
-      localStorage.getItem('customEditorWidth') || '60rem'
+      appStore.setting.customEditorWidth || '60rem'
     );
     const customWidthInput = ref(customWidth.value.replace('rem', ''));
     const isEditingCustomWidth = ref(false);
 
     onMounted(() => {
-      defaultPath = localStorage.getItem('default-path') || '';
+      defaultPath = appStore.setting.defaultPath || '';
       state.dataDir = defaultPath;
 
       document.documentElement.style.setProperty(
@@ -430,19 +430,19 @@ export default {
     const toggleVisibilityOfMenubar = async () => {
       await window.electron.ipcRenderer.callMain(
         'app:change-menu-visibility',
-        localStorage.getItem('visibility-menubar') !== 'true'
+        appStore.setting.visibilityMenubar !== true
       );
     };
 
     const toggleDirectionPreference = () => {
       state.directionPreference =
         state.directionPreference === 'rtl' ? 'ltr' : 'rtl';
-      localStorage.setItem('directionPreference', state.directionPreference);
+      appStore.setSettingStorage('directionPreference', state.directionPreference);
       document.documentElement.dir = state.directionPreference;
     };
 
     const updateFont = () => {
-      localStorage.setItem('selected-font', state.selectedFont);
+      appStore.setSettingStorage('selectedFont', state.selectedFont);
       document.documentElement.style.setProperty(
         '--selected-font',
         state.selectedFont
@@ -450,7 +450,7 @@ export default {
     };
 
     const updateCodeFont = () => {
-      localStorage.setItem('selected-font-code', state.selectedCodeFont);
+      appStore.setSettingStorage('selectedCodeFont', state.selectedCodeFont);
       document.documentElement.style.setProperty(
         '--selected-font-code',
         state.selectedCodeFont
@@ -461,13 +461,13 @@ export default {
       console.log('Setting zoom level to:', newZoomLevel);
       window.electron.ipcRenderer.callMain('app:set-zoom', newZoomLevel);
       state.zoomLevel = newZoomLevel.toFixed(1);
-      localStorage.setItem('zoomLevel', state.zoomLevel);
+      appStore.setSettingStorage('zoomLevel', parseFloat(state.zoomLevel));
       window.location.reload();
     };
 
     const setWidth = (width) => {
       selectedWidth.value = width;
-      localStorage.setItem('editorWidth', width);
+      appStore.setSettingStorage('editorWidth', width);
       document.documentElement.style.setProperty('--selected-width', width);
     };
 
@@ -475,8 +475,8 @@ export default {
       if (customWidthInput.value) {
         customWidth.value = `${customWidthInput.value}rem`;
         selectedWidth.value = customWidth.value;
-        localStorage.setItem('customEditorWidth', customWidth.value);
-        localStorage.setItem('editorWidth', customWidth.value);
+        appStore.setSettingStorage('customEditorWidth', customWidth.value);
+        appStore.setSettingStorage('editorWidth', customWidth.value);
         document.documentElement.style.setProperty(
           '--selected-width',
           customWidth.value

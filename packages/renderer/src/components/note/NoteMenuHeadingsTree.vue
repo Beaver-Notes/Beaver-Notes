@@ -1,15 +1,15 @@
 <template>
-  <div class="w-64">
+  <div class="w-64 max-h-120">
     <ui-input
       v-model.lowercase="query"
       prepend-icon="riSearchLine"
       :placeholder="translations.menu.searchHeadings || '-'"
       autofocus
-      class="mb-4"
+      class="mb-4 w-full"
       @keydown="keydownHandler"
     />
     <ui-list
-      class="space-y-1 overflow-auto scroll"
+      class="space-y-1 overflow-auto scroll no-scrollbar"
       style="max-height: calc(100vh - 10rem)"
     >
       <ui-list-item
@@ -19,6 +19,10 @@
         :active="index === selectedIndex"
         @click="scrollIntoView(heading.el)"
       >
+        <v-remixicon
+          :name="`ri${heading.tag}`"
+          class="mr-2 size-4 opacity-70 shrink-0"
+        />
         <p class="text-overflow">{{ heading.text }}</p>
       </ui-list-item>
     </ui-list>

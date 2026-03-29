@@ -39,9 +39,11 @@ import {
   getCurrentInstance,
 } from 'vue';
 import mime from 'mime';
+import dayjs from '@/lib/dayjs';
 import { useTranslation } from '@/composable/translations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/copy-doc';
+import { useAppStore } from '@/store/app';
 
 const { ipcRenderer } = window.electron;
 
@@ -69,6 +71,7 @@ export default {
     },
   },
   setup(props) {
+    const appStore = useAppStore();
     const instance = getCurrentInstance();
     const editorImage = useEditorImage(props.editor);
     const selectedIndex = ref(0);
@@ -361,6 +364,30 @@ export default {
             .run();
         },
       },
+      {
+        icon: 'riCalendarLine',
+        name: 'todayDate',
+        action: () => {
+          const customFormat = appStore.setting.todayDateFormat;
+          props.editor
+            .chain()
+            .focus()
+            .insertContent(dayjs().format(customFormat))
+            .run();
+        },
+      },
+      {
+        icon: 'riTimerLine',
+        name: 'currentTime',
+        action: () => {
+          const customFormat = appStore.setting.timeFormat;
+          props.editor
+            .chain()
+            .focus()
+            .insertContent(dayjs().format(customFormat))
+            .run();
+        },
+      },
     ]);
 
     const showInput = () => {
@@ -422,14 +449,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-/* Hide scrollbar but keep scroll working */
-.no-scrollbar {
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important; /* IE and Edge */
-}
-
-.no-scrollbar::-webkit-scrollbar {
-  display: none !important; /* Chrome, Safari */
-}
-</style>

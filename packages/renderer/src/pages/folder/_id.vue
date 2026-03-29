@@ -225,10 +225,12 @@ import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
 import { useSelection } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
+import { useAppStore } from '@/store/app';
 
 export default {
   components: { HomeNoteCard, HomeSearch, HomeFolderCard, FolderTree, Actions },
   setup() {
+    const appStore = useAppStore();
     const translations = ref({
       sidebar: {},
       index: {},
@@ -676,10 +678,7 @@ export default {
     watch(
       () => [state.sortBy, state.sortOrder],
       ([sortBy, sortOrder]) => {
-        localStorage.setItem(
-          'sort-notes',
-          JSON.stringify({ sortBy, sortOrder })
-        );
+        appStore.setSettingStorage('sortNotes', { sortBy, sortOrder });
       }
     );
 
@@ -692,7 +691,7 @@ export default {
     onMounted(() => {
       window.addEventListener('mouseup', handleMouseUp);
 
-      const sortState = JSON.parse(localStorage.getItem('sort-notes'));
+      const sortState = appStore.setting.sortNotes;
       if (sortState) Object.assign(state, sortState);
 
       keyboardNavigation.value = new KeyboardNavigation({

@@ -60,6 +60,8 @@ import ukTranslations from '@/assets/locales/uk.json';
 import frTranslations from '@/assets/locales/fr.json';
 import ruTranslations from '@/assets/locales/ru.json';
 import arTranslations from '@/assets/locales/ar.json';
+import ptTranslations from '@/assets/locales/pt.json';
+import viTranslations from '@/assets/locales/vi.json';
 
 const directionPreference = localStorage.getItem('directionPreference');
 
@@ -89,6 +91,10 @@ if (selectedLanguage === 'de') {
   translations = zhTranslations;
 } else if (selectedLanguage === 'ar') {
   translations = arTranslations;
+} else if (selectedLanguage === 'pt') {
+  translations = ptTranslations;
+} else if (selectedLanguage === 'vi') {
+  translations = viTranslations;
 }
 
 const extensions = [
@@ -100,6 +106,7 @@ const extensions = [
     code: false,
     link: false,
     document: false,
+    paste: false,
   }),
   Paste,
   Document.extend({

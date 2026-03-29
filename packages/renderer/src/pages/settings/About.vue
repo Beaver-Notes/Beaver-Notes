@@ -88,9 +88,11 @@
 <script>
 import { onMounted, ref, shallowReactive } from 'vue';
 import { useTranslation } from '@/composable/translations';
+import { useAppStore } from '@/store/app';
 
 export default {
   setup() {
+    const appStore = useAppStore();
     const links = [
       {
         name: 'website',
@@ -162,10 +164,7 @@ export default {
 
     const toggleAutoUpdate = async () => {
       try {
-        localStorage.setItem(
-          'autoUpdateEnabled',
-          JSON.stringify(state.autoUpdateEnabled)
-        );
+        appStore.setSettingStorage('autoUpdateEnabled', state.autoUpdateEnabled);
         await window.electron?.ipcRenderer?.callMain(
           'toggle-auto-update',
           state.autoUpdateEnabled

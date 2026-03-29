@@ -6,7 +6,7 @@
     </div>
     <div
       ref="content"
-      class="ui-popover__content bg-white dark:bg-neutral-800 rounded-lg shadow-xl border border-neutral-100"
+      class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border border-neutral-100"
       :class="[padding]"
     >
       <slot v-bind="{ isShow }"></slot>
@@ -29,7 +29,7 @@ export default {
     },
     padding: {
       type: String,
-      default: 'p-4',
+      default: 'p-3',
     },
     to: {
       type: [String, Object, HTMLElement],
@@ -75,7 +75,7 @@ export default {
 
     onMounted(() => {
       const target = props.to
-        ? typeof to === 'string'
+        ? typeof props.to === 'string'
           ? document.querySelector(props.to)
           : props.to
         : targetEl.value;

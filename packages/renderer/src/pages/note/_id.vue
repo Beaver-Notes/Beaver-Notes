@@ -44,7 +44,7 @@
       v-if="!isLocked"
       ref="titleDiv"
       contenteditable="true"
-      class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
+      class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
       :placeholder="translations.editor.untitledNote"
       @input="updateNote({ title: $event.target.innerText })"
       @keydown="disallowedEnter"
@@ -91,7 +91,14 @@
 </template>
 
 <script>
-import { ref, shallowRef, computed, watch, onMounted } from 'vue';
+import {
+  ref,
+  shallowRef,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+} from 'vue';
 import { useTranslation } from '@/composable/translations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
@@ -202,11 +209,24 @@ export default {
       }
     }, 50);
 
-    const updateNote = debounce((data) => {
-      Object.assign(data, { updatedAt: Date.now() });
+    const persistNote = (data) => {
+      if (!note.value?.id) return;
 
-      noteStore.update(note.value.id, data);
-    }, 250);
+      return noteStore.update(note.value.id, {
+        ...data,
+        updatedAt: Date.now(),
+      });
+    };
+
+    const updateNote = debounce((data) => persistNote(data), 250);
+
+    async function flushPendingNote() {
+      await updateNote.flush();
+    }
+
+    function handleBeforeUnload() {
+      flushPendingNote();
+    }
 
     function closeSearch() {
       showSearch.value = false;
@@ -228,7 +248,7 @@ export default {
             router.push('/');
           } else {
             store.activeNoteId = data.id;
-            localStorage.setItem('lastNoteEdit', noteId);
+            appStore.setSettingStorage('lastNoteEdit', noteId);
           }
         });
       },
@@ -246,7 +266,9 @@ export default {
         }
       });
     });
-    onBeforeRouteLeave(() => {
+    onBeforeRouteLeave(async () => {
+      await flushPendingNote();
+
       const labels = new Set();
       const labelEls =
         editor.value?.options.element.querySelectorAll('[data-mention]') ?? [];
@@ -262,6 +284,15 @@ export default {
       });
 
       Mousetrap.unbind('mod+f');
+    });
+
+    onMounted(() => {
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    });
+
+    onBeforeUnmount(() => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      flushPendingNote();
     });
 
     // Translations
@@ -368,6 +399,7 @@ export default {
       editor,
       showSearch,
       updateNote,
+      flushPendingNote,
       closeSearch,
       disallowedEnter,
       autoScroll,

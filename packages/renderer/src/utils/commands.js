@@ -6,6 +6,8 @@ import deTranslations from '@/assets/locales/de.json';
 import zhTranslations from '@/assets/locales/zh.json';
 import nlTranslations from '@/assets/locales/nl.json';
 import ukTranslations from '@/assets/locales/uk.json';
+import ptTranslations from '@/assets/locales/pt.json';
+import viTranslations from '@/assets/locales/vi.json';
 
 function getModifierKey() {
   return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
@@ -37,6 +39,14 @@ if (selectedLanguage === 'es') {
 
 if (selectedLanguage === 'uk') {
   translations = ukTranslations;
+}
+
+if (selectedLanguage === 'pt') {
+  translations = ptTranslations;
+}
+
+if (selectedLanguage === 'vi') {
+  translations = viTranslations;
 }
 
 let commands = [

@@ -1,18 +1,50 @@
 export function debounce(callback, time = 200) {
   let interval;
+  let latestArgs;
+  let latestThis;
 
-  return (...args) => {
+  const invoke = () => {
+    if (!latestArgs) return;
+
+    const args = latestArgs;
+    const context = latestThis;
+
+    latestArgs = null;
+    latestThis = null;
+
+    return callback.apply(context, args);
+  };
+
+  const debounced = function (...args) {
     clearTimeout(interval);
+    latestArgs = args;
+    latestThis = this;
 
     return new Promise((resolve) => {
       interval = setTimeout(() => {
         interval = null;
-
-        callback(...args);
-        resolve();
+        resolve(invoke());
       }, time);
     });
   };
+
+  debounced.flush = () => {
+    if (interval) {
+      clearTimeout(interval);
+      interval = null;
+    }
+
+    return Promise.resolve(invoke());
+  };
+
+  debounced.cancel = () => {
+    clearTimeout(interval);
+    interval = null;
+    latestArgs = null;
+    latestThis = null;
+  };
+
+  return debounced;
 }
 
 export function sortArray({ data, key, order = 'asc' }) {

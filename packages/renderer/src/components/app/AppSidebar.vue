@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="w-16 text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-neutral-50 dark:bg-neutral-750 fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
+    class="w-16 text-neutral-600 dark:text-[color:var(--selected-dark-text)] bg-neutral-50 dark:bg-neutral-800 border-r fixed text-center flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
   >
     <!-- Sidebar top icons-->
     <button
@@ -102,7 +102,7 @@ export default {
     const appStore = useAppStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const defaultPath = localStorage.getItem('default-path');
+    const defaultPath = appStore.setting.defaultPath;
 
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
@@ -162,17 +162,19 @@ export default {
     }
 
     function openLastEdited() {
-      const noteId = localStorage.getItem('lastNoteEdit');
+      const noteId = appStore.setting.lastNoteEdit;
       if (noteId) router.push(`/note/${noteId}`);
     }
 
-    const FolderId = computed(() => route.params.id ?? null);
+    const currentFolderId = computed(() =>
+      route.name === 'Folder' ? route.params.id ?? null : null
+    );
 
     async function addNote() {
-      const currentFolderId = FolderId.value;
       const folderId =
-        currentFolderId && (await folderStore.exists(currentFolderId))
-          ? currentFolderId
+        currentFolderId.value &&
+        (await folderStore.exists(currentFolderId.value))
+          ? currentFolderId.value
           : null;
 
       noteStore.add({ folderId }).then(({ id }) => {
@@ -186,10 +188,10 @@ export default {
     }
 
     async function addFolder() {
-      const currentFolderId = FolderId.value;
       const parentId =
-        currentFolderId && (await folderStore.exists(currentFolderId))
-          ? currentFolderId
+        currentFolderId.value &&
+        (await folderStore.exists(currentFolderId.value))
+          ? currentFolderId.value
           : null;
 
       folderStore.add({ parentId }).then(({ id }) => {
@@ -240,7 +242,7 @@ export default {
       translations,
       theme,
       spinning,
-      FolderId,
+      currentFolderId,
       addNote,
       addFolder,
       noteStore,
