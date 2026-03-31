@@ -197,7 +197,7 @@
               :class="tbBtn(drawActions.some((action) => action.isActive))"
               @click="openSub('draw')"
             >
-              <v-remixicon name="riBrush3Line" />
+              <v-remixicon name="riBrushLine" />
             </button>
 
             <span
@@ -681,12 +681,6 @@
               </span>
             </button>
 
-            <span class="tb-divider" />
-            <p
-              class="max-w-[240px] text-xs leading-5 text-neutral-500 dark:text-neutral-400"
-            >
-              {{ drawingExportHint }}
-            </p>
           </div>
 
           <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->

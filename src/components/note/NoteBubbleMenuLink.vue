@@ -9,14 +9,14 @@
         {{ displayLink }}
       </button>
       <button
-        class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
+        class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         title="Edit link"
         @click="startEditing"
       >
         <v-remixicon name="riPencilLine" class="size-5" />
       </button>
       <button
-        class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
+        class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         title="Remove link"
         @click="editor.chain().focus().unsetLink().run()"
       >
@@ -34,20 +34,20 @@
           :placeholder="
             translations.editor.linkPlaceholder || 'Enter URL or @note'
           "
-          class="flex-1 min-w-0 px-2 py-1 rounded-md bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 transition-shadow"
+          class="flex-1 min-w-0 px-1 py-1 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 transition-shadow"
           @keydown="keydownHandler"
           @keydown.esc="cancelEditing"
           @keyup.enter="saveAndClose"
         />
         <button
-          class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
+          class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
           title="Cancel"
           @click="cancelEditing"
         >
           <v-remixicon name="riCloseLine" class="size-5" />
         </button>
         <button
-          class="w-10 h-10 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 dark:text-neutral-300 transition-colors"
+          class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
           title="Save"
           :disabled="!currentLinkVal.trim()"
           @click="saveAndClose"

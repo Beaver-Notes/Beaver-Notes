@@ -4,7 +4,7 @@
  * Responsible for the transformation layer between what is persisted on disk
  * and what lives in the Pinia store in memory:
  *   - stripping transient (computed) fields before write
- *   - rebuilding computed fields (cardPreview) after read
+ *   - rebuilding computed fields (cardPreview, searchText) after read
  *   - handling app-level encryption transparently on load/save
  */
 import { buildCardPreview, EMPTY_CARD_PREVIEW } from '@/utils/cardPreview.js';
@@ -17,30 +17,55 @@ import {
 } from '@/utils/appCrypto.js';
 
 /**
- * Removes runtime-only fields (e.g. `cardPreview`) that must not be persisted.
+ * Extracts a flat plain-text string from a ProseMirror content tree.
+ * Used to build `searchText` so search never needs to JSON.stringify content.
+ * Also exported for use as a defensive fallback in search UI.
+ */
+export function extractTextFromContent(content) {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+
+  const nodes = Array.isArray(content) ? content : (content.content || []);
+  const parts = [];
+
+  function visit(node) {
+    if (!node) return;
+    if (node.type === 'text' && node.text) {
+      parts.push(node.text);
+      return;
+    }
+    const children = Array.isArray(node.content) ? node.content : [];
+    for (const child of children) visit(child);
+  }
+
+  for (const node of nodes) visit(node);
+  return parts.join(' ');
+}
+
+/**
+ * Removes runtime-only fields (e.g. `cardPreview`, `searchText`) that must
+ * not be persisted to storage.
  */
 export function stripTransientFields(note) {
   if (!note || typeof note !== 'object') return note;
-  const { cardPreview, ...persistedNote } = note;
+  const { cardPreview, searchText, ...persistedNote } = note;
   return persistedNote;
 }
 
 /**
- * Attaches computed, in-memory fields to a note (currently `cardPreview`).
+ * Attaches computed, in-memory fields to a note (`cardPreview`, `searchText`).
  * Always call this after loading or mutating a note before storing it in state.
  */
 export function hydrateNote(note) {
   if (!note || typeof note !== 'object') return note;
 
   const persisted = stripTransientFields(note);
-  const shouldHidePreview =
-    persisted.isLocked || isAppEncryptedContent(persisted.content);
+  const hidden = persisted.isLocked || isAppEncryptedContent(persisted.content);
 
   return {
     ...persisted,
-    cardPreview: shouldHidePreview
-      ? EMPTY_CARD_PREVIEW
-      : buildCardPreview(persisted.content),
+    cardPreview: hidden ? EMPTY_CARD_PREVIEW : buildCardPreview(persisted.content),
+    searchText: hidden ? '' : extractTextFromContent(persisted.content),
   };
 }
 

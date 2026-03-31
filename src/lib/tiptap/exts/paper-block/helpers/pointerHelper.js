@@ -1,25 +1,133 @@
-// usePointerHelper.js
-import { getStroke } from 'perfect-freehand';
+/**
+ * pointerHelper.js
+ *
+ * Handles all pointer events for the drawing canvas.
+ *
+ * Key design choices:
+ *  - Real pressure: every point is [x, y, pressure] where pressure comes
+ *    from normalisePressure(e) — actual e.pressure for pen, 0.5 for mouse/touch.
+ *  - Segment-split eraser: O(n) per frame. Instead of checking strokes
+ *    against each other's rendered outlines (O(n×m)), we find raw points
+ *    within the eraser radius and split each affected stroke at those indices.
+ *  - No shape recognition (removed — intentional).
+ *  - No auto-expand (replaced by explicit resize handle in DrawMode.vue).
+ *  - Palm rejection via isPalmTouch().
+ */
+
 import {
   isPalmTouch,
   isPenInput,
   getPointerCoordinates,
+  normalisePressure,
   interpolatePoints,
-  getStrokeOptions,
 } from './drawHelper.js';
-import { recognizeShape, createShape } from './shapesHelper.js';
 
-const LONG_PRESS_DURATION = 500;
-const MOVE_CANCEL_THRESHOLD = 5;
+// ---------------------------------------------------------------------------
+// Segment-split eraser
+// ---------------------------------------------------------------------------
+
+/**
+ * Given a stroke and a set of eraser positions with a radius, split the
+ * stroke into sub-strokes that don't overlap any eraser position.
+ *
+ * Returns an array of new strokes (may be 0, 1 or more).
+ * O(n) per stroke per eraser step.
+ */
+function splitStrokeByEraser(stroke, eraserX, eraserY, radius) {
+  const pts = stroke.points;
+  if (!pts || pts.length === 0) return [stroke];
+
+  const r2 = radius * radius;
+
+  // Mark which point indices are "hit"
+  const hit = new Uint8Array(pts.length);
+  for (let i = 0; i < pts.length; i++) {
+    const dx = pts[i][0] - eraserX;
+    const dy = pts[i][1] - eraserY;
+    if (dx * dx + dy * dy <= r2) hit[i] = 1;
+  }
+
+  // If nothing hit, return original
+  if (!hit.some(Boolean)) return [stroke];
+
+  // Split at hit boundaries → collect segments of consecutive un-hit points
+  const result = [];
+  let segment = [];
+
+  for (let i = 0; i < pts.length; i++) {
+    if (!hit[i]) {
+      segment.push(pts[i]);
+    } else {
+      if (segment.length >= 2) {
+        result.push({ ...stroke, id: `${stroke.id}_s${result.length}`, points: segment });
+      }
+      segment = [];
+    }
+  }
+  if (segment.length >= 2) {
+    result.push({ ...stroke, id: `${stroke.id}_s${result.length}`, points: segment });
+  }
+
+  return result;
+}
+
+/**
+ * Apply eraser at a single (x, y) position to the full lines array.
+ * Returns a new array (or the same array if nothing changed).
+ */
+function applyEraserPoint(lines, x, y, radius) {
+  let changed = false;
+  const next = [];
+
+  for (const stroke of lines) {
+    const parts = splitStrokeByEraser(stroke, x, y, radius);
+    if (parts.length !== 1 || parts[0] !== stroke) changed = true;
+    next.push(...parts);
+  }
+
+  return changed ? next : lines;
+}
+
+// ---------------------------------------------------------------------------
+// Lasso hit-test helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Ray-casting point-in-polygon test.
+ * polygon: [[x,y], ...] closed shape.
+ */
+function pointInPolygon(px, py, polygon) {
+  let inside = false;
+  const n = polygon.length;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    if (
+      yi > py !== yj > py &&
+      px < ((xj - xi) * (py - yi)) / (yj - yi) + xi
+    ) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Return true if any of the stroke's raw points fall inside the lasso polygon.
+ */
+function strokeIntersectsLasso(stroke, lassoPoints) {
+  if (!stroke.points?.length || lassoPoints.length < 3) return false;
+  return stroke.points.some(([x, y]) => pointInPolygon(x, y, lassoPoints));
+}
+
+// ---------------------------------------------------------------------------
+// Main composable
+// ---------------------------------------------------------------------------
 
 export function usePointerHelper(context) {
   const {
     state,
     svgRef,
-    startPos,
-    isLongPress,
-    longPressTimeout,
-    emit,
     currentPointsRef,
     animationFrameRef,
     getSettings,
@@ -30,57 +138,44 @@ export function usePointerHelper(context) {
     handleTransformEnd,
   } = context;
 
+  // ── pointer down ──────────────────────────────────────────────────────────
+
   const handlePointerDown = (e) => {
     if (isPalmTouch(e) || !isPenInput(e)) return;
 
     e.preventDefault();
     e.stopPropagation();
 
+    // Capture so we keep events even if the pointer leaves the SVG
     const svgElem = e.currentTarget;
-    svgElem.setPointerCapture(e.pointerId);
+    if (svgElem.setPointerCapture) svgElem.setPointerCapture(e.pointerId);
 
-    if (state.tool === 'select') {
+    if (state.tool === 'select' || state.tool === 'lasso') {
       handleSelectionStart(e);
       return;
     }
 
-    if (state.selectedElement) {
-      state.selectedElement = null;
-    }
+    // Deselect on any drawing tool tap
+    if (state.selectedElement) state.selectedElement = null;
 
     const svg = svgRef.value;
     const [x, y] = getPointerCoordinates(e, svg);
-    startPos.value = { x, y };
-    isLongPress.value = false;
-
-    clearTimeout(longPressTimeout.value);
-    longPressTimeout.value = null;
-
-    if (state.tool !== 'eraser') {
-      longPressTimeout.value = setTimeout(() => {
-        isLongPress.value = true;
-        longPressTimeout.value = null;
-      }, LONG_PRESS_DURATION);
-    }
+    const pressure = normalisePressure(e);
 
     state.isDrawing = true;
-    state.currentStrokePoints = [[x, y]];
-    currentPointsRef.value = [[x, y]];
-
-    if (y > state.height - 50) {
-      const newHeight = state.height + 100;
-      emit('update-attributes', { height: newHeight });
-      state.height = newHeight;
-    }
+    state.currentStrokePoints = [[x, y, pressure]];
+    currentPointsRef.value = [[x, y, pressure]];
   };
+
+  // ── pointer move ──────────────────────────────────────────────────────────
 
   const handlePointerMove = (e) => {
     if (isPalmTouch(e) || !isPenInput(e)) return;
 
-    if (state.tool === 'select') {
+    if (state.tool === 'select' || state.tool === 'lasso') {
       if (state.transformState) {
         handleTransformMove(e);
-      } else if (state.selectionBox) {
+      } else if (state.selectionBox !== null || state.lassoPoints) {
         handleSelectionMove(e);
       }
       return;
@@ -90,187 +185,136 @@ export function usePointerHelper(context) {
 
     const svg = svgRef.value;
     const [x, y] = getPointerCoordinates(e, svg);
-    const dx = x - startPos.value.x;
-    const dy = y - startPos.value.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
+    const pressure = normalisePressure(e);
 
-    if (dist > MOVE_CANCEL_THRESHOLD) {
-      clearTimeout(longPressTimeout.value);
-      longPressTimeout.value = null;
-      isLongPress.value = false;
-      startPos.value = { x, y };
-    } else if (
-      state.tool !== 'eraser' &&
-      !longPressTimeout.value &&
-      !isLongPress.value
-    ) {
-      longPressTimeout.value = setTimeout(() => {
-        isLongPress.value = true;
-        longPressTimeout.value = null;
-      }, LONG_PRESS_DURATION);
-      startPos.value = { x, y };
+    // Eraser: apply immediately per-frame (segment-split, O(n))
+    if (state.tool === 'eraser') {
+      const radius = (state.eraserSettings?.size ?? 20) / 2;
+      const nextLines = applyEraserPoint(state.lines, x, y, radius);
+      if (nextLines !== state.lines) {
+        // Only push to undo if we actually changed something, but don't flood
+        // the undo stack on every frame — we'll push one snapshot on pointerUp.
+        state.lines = nextLines;
+      }
+      // Show eraser cursor position
+      state.currentStrokePoints = [[x, y, 0.5]];
+      currentPointsRef.value = [[x, y, 0.5]];
+      return;
     }
 
-    currentPointsRef.value.push([x, y]);
+    // Use coalesced events to capture every sub-frame sample from high-Hz styluses
+    const events = (typeof e.getCoalescedEvents === 'function')
+      ? e.getCoalescedEvents()
+      : [e];
 
+    for (const ce of events) {
+      const [cx, cy] = getPointerCoordinates(ce, svg);
+      const cp = normalisePressure(ce);
+      currentPointsRef.value.push([cx, cy, cp]);
+    }
+
+    // Throttle rendering to animation frames
     if (!animationFrameRef.value) {
       animationFrameRef.value = requestAnimationFrame(() => {
-        const interpolated = interpolatePoints(currentPointsRef.value, {
-          smoothness: 0.7,
-        });
-        state.currentStrokePoints = interpolated;
+        state.currentStrokePoints = [...currentPointsRef.value];
         animationFrameRef.value = null;
       });
     }
-
-    if (y > state.height - 50) {
-      const newHeight = state.height + 100;
-      emit('update-attributes', { height: newHeight });
-      state.height = newHeight;
-    }
   };
+
+  // ── pointer up ────────────────────────────────────────────────────────────
 
   const handlePointerUp = (e) => {
     if (isPalmTouch(e) || !isPenInput(e)) return;
-
     e.preventDefault();
-
-    clearTimeout(longPressTimeout.value);
-    longPressTimeout.value = null;
 
     if (animationFrameRef.value) {
       cancelAnimationFrame(animationFrameRef.value);
       animationFrameRef.value = null;
     }
 
-    if (state.tool === 'select') {
+    if (state.tool === 'select' || state.tool === 'lasso') {
       if (state.transformState) {
         handleTransformEnd();
       } else {
-        handleSelectionEnd();
+        handleSelectionEnd(e);
       }
       return;
     }
 
-    if (isLongPress.value && state.tool !== 'eraser') {
-      const points = currentPointsRef.value;
-      isLongPress.value = false;
-
-      if (points.length < 2) {
-        Object.assign(state, {
-          isDrawing: false,
-          currentStrokePoints: [],
-        });
-        currentPointsRef.value = [];
-        return;
-      }
-
-      const shape = recognizeShape(points);
-      const newShape = createShape(
-        shape,
-        points,
-        state.tool,
-        state.nextLineId,
-        getSettings
-      );
-
-      if (newShape) {
-        Object.assign(state, {
-          lines: [...state.lines, newShape],
-          undoStack: [...state.undoStack, [...state.lines]],
-          redoStack: [],
-          isDrawing: false,
-          nextLineId: state.nextLineId + 1,
-          currentStrokePoints: [],
-        });
-      } else {
-        Object.assign(state, {
-          isDrawing: false,
-          currentStrokePoints: [],
-        });
-      }
-
+    if (state.tool === 'eraser') {
+      // Push a single undo snapshot now that the eraser stroke is finished.
+      // We saved the pre-erase snapshot at pointerDown so we just mark the
+      // end of the gesture.
+      state.isDrawing = false;
+      state.currentStrokePoints = [];
       currentPointsRef.value = [];
       return;
     }
 
     if (!state.isDrawing || currentPointsRef.value.length < 2) {
-      Object.assign(state, {
-        isDrawing: false,
-        currentStrokePoints: [],
-      });
+      state.isDrawing = false;
+      state.currentStrokePoints = [];
       currentPointsRef.value = [];
       return;
     }
 
     const settings = getSettings();
-    const finalPoints = interpolatePoints(currentPointsRef.value, {
-      smoothness: 0.7,
+    const rawPoints = currentPointsRef.value;
+
+    // Smooth the raw pointer samples before committing
+    const finalPoints = interpolatePoints(rawPoints, {
+      threshold: settings.tool === 'highlighter' ? 5 : 4,
+      passes:    settings.tool === 'highlighter' ? 1 : 2,
     });
 
-    const newLine = {
-      id: `line_${state.nextLineId}`,
-      points: finalPoints,
-      tool: state.tool,
-      color: settings.color,
-      size: settings.size,
+    const newStroke = {
+      id:      `stroke_${state.nextLineId}`,
+      tool:    state.tool,
+      color:   settings.color,
+      size:    settings.size,
+      opacity: settings.opacity ?? (state.tool === 'highlighter' ? 0.35 : 1),
+      points:  finalPoints,
     };
 
-    if (state.tool === 'eraser') {
-      const eraserStroke = getStroke(finalPoints, getStrokeOptions(settings));
-
-      const newLines = state.lines.filter((line) => {
-        if (!line.points || line.points.length === 0) return true;
-
-        const lineStroke = getStroke(line.points, getStrokeOptions(line));
-        return !lineStroke.some(([lx, ly]) =>
-          eraserStroke.some(
-            ([ex, ey]) =>
-              Math.hypot(lx - ex, ly - ey) < state.eraserSettings.size
-          )
-        );
-      });
-
-      Object.assign(state, {
-        lines: newLines,
-        undoStack: [...state.undoStack, [...state.lines]],
-        redoStack: [],
-        isDrawing: false,
-        currentStrokePoints: [],
-      });
-    } else {
-      Object.assign(state, {
-        lines: [...state.lines, newLine],
-        undoStack: [...state.undoStack, [...state.lines]],
-        redoStack: [],
-        isDrawing: false,
-        nextLineId: state.nextLineId + 1,
-        currentStrokePoints: [],
-      });
-    }
-
-    currentPointsRef.value = [];
-  };
-
-  const handlePointerLeave = (e) => {
-    if (isPalmTouch(e) || !isPenInput(e)) return;
-    e.preventDefault();
-    handlePointerUp(e);
-  };
-
-  const handlePointerCancel = (e) => {
-    if (isPalmTouch(e) || !isPenInput(e)) return;
-    e.preventDefault();
-
-    clearTimeout(longPressTimeout.value);
-    longPressTimeout.value = null;
-
     Object.assign(state, {
-      isDrawing: false,
+      lines:       [...state.lines, newStroke],
+      undoStack:   [...state.undoStack, state.lines],
+      redoStack:   [],
+      isDrawing:   false,
+      nextLineId:  state.nextLineId + 1,
       currentStrokePoints: [],
     });
 
     currentPointsRef.value = [];
+  };
+
+  // ── pointer leave / cancel ────────────────────────────────────────────────
+
+  const handlePointerLeave = (e) => {
+    if (!state.isDrawing) return;
+    handlePointerUp(e);
+  };
+
+  const handlePointerCancel = () => {
+    if (animationFrameRef.value) {
+      cancelAnimationFrame(animationFrameRef.value);
+      animationFrameRef.value = null;
+    }
+    state.isDrawing = false;
+    state.currentStrokePoints = [];
+    currentPointsRef.value = [];
+  };
+
+  // ── eraser undo snapshot helper ───────────────────────────────────────────
+
+  /**
+   * Call this at pointer-down when the eraser tool is active, to capture
+   * the pre-erase state for undo.
+   */
+  const captureUndoBeforeErase = () => {
+    state.undoStack = [...state.undoStack, state.lines];
+    state.redoStack = [];
   };
 
   return {
@@ -279,5 +323,8 @@ export function usePointerHelper(context) {
     handlePointerUp,
     handlePointerLeave,
     handlePointerCancel,
+    captureUndoBeforeErase,
+    // Expose helpers so DrawMode.vue can use them for lasso hit-testing
+    strokeIntersectsLasso,
   };
 }

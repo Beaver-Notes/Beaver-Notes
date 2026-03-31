@@ -21,16 +21,28 @@ export const useLabelStore = defineStore('label', {
   },
 
   actions: {
-    retrieve() {
-      return new Promise((resolve) => {
-        Promise.all([storage.get('labels', []), loadColors()]).then(
-          ([labels, colors]) => {
-            this.data = labels;
-            this.colors = colors;
-            resolve(labels);
-          }
-        );
-      });
+    async retrieve() {
+      const [labels, colors] = await Promise.all([
+        storage.get('labels', []),
+        loadColors(),
+      ]);
+
+      // Prune color entries for labels that no longer exist
+      const labelSet = new Set(labels);
+      let colorsDirty = false;
+      for (const name of Object.keys(colors)) {
+        if (!labelSet.has(name)) {
+          delete colors[name];
+          colorsDirty = true;
+        }
+      }
+      if (colorsDirty) {
+        await storage.set('labelColors', colors);
+      }
+
+      this.data = labels;
+      this.colors = colors;
+      return labels;
     },
 
     add(name) {

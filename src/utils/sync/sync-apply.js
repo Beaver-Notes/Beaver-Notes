@@ -26,19 +26,16 @@ export async function applyRemoteOp(op, remoteVector) {
 }
 
 async function applyNote(id, data, remoteVector) {
-  const notes = await storage.get('notes', {});
-
+  // Surgical read/write: touch only the single row, not the entire notes object.
   if (!data) {
-    delete notes[id];
-    await storage.set('notes', notes);
+    await storage.delete(`notes.${id}`);
     return;
   }
 
-  const existing = notes[id];
+  const existing = await storage.get(`notes.${id}`, null);
 
   if (!existing) {
-    notes[id] = { ...data, _vector: remoteVector };
-    await storage.set('notes', notes);
+    await storage.set(`notes.${id}`, { ...data, _vector: remoteVector });
     return;
   }
 
@@ -59,34 +56,29 @@ async function applyNote(id, data, remoteVector) {
       conflictOf: id,
       _vector: localVector,
     };
-    notes[conflictId] = conflictNote;
+    await storage.set(`notes.${conflictId}`, conflictNote);
   }
 
-  notes[id] = {
+  await storage.set(`notes.${id}`, {
     ...data,
     isBookmarked: existing.isBookmarked || data.isBookmarked,
     isLocked: existing.isLocked || data.isLocked,
     labels: [...new Set([...(existing.labels ?? []), ...(data.labels ?? [])])],
     _vector: mergeVectors(remoteVector, localVector),
-  };
-
-  await storage.set('notes', notes);
+  });
 }
 
 async function applyFolder(id, data, remoteVector) {
-  const folders = await storage.get('folders', {});
-
+  // Surgical read/write: touch only the single row, not the entire folders object.
   if (!data) {
-    delete folders[id];
-    await storage.set('folders', folders);
+    await storage.delete(`folders.${id}`);
     return;
   }
 
-  const existing = folders[id];
+  const existing = await storage.get(`folders.${id}`, null);
 
   if (!existing) {
-    folders[id] = { ...data, _vector: remoteVector };
-    await storage.set('folders', folders);
+    await storage.set(`folders.${id}`, { ...data, _vector: remoteVector });
     return;
   }
 
@@ -95,12 +87,10 @@ async function applyFolder(id, data, remoteVector) {
 
   if (comparison === 'local-wins') return;
 
-  folders[id] = {
+  await storage.set(`folders.${id}`, {
     ...data,
     _vector: mergeVectors(remoteVector, localVector),
-  };
-
-  await storage.set('folders', folders);
+  });
 }
 
 async function applyLabels(data) {

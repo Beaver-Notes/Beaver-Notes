@@ -25,8 +25,37 @@ import { syncAssets } from './sync-assets.js';
 
 const storage = useStorage();
 
-const state = { syncing: false };
-let syncQueue = Promise.resolve();
+// ─── Sync-queue mutex ────────────────────────────────────────────────────────
+//
+// Rather than chaining syncQueue = syncQueue.then(...) — which creates an
+// ever-growing promise chain and leaks all intermediate resolved-promise
+// objects — we use a simple boolean mutex with a "pending" flag.
+// If a sync is already running when another is requested we just note that
+// a re-run is needed; when the current run finishes it starts one more.
+
+const state = { syncing: false, pending: false };
+
+function enqueueSync(force = false) {
+  if (state.syncing) {
+    state.pending = true;
+    return;
+  }
+  _runSync(force);
+}
+
+async function _runSync(force = false) {
+  state.syncing = true;
+  state.pending = false;
+  try {
+    await _sync(force);
+  } finally {
+    state.syncing = false;
+    if (state.pending) {
+      state.pending = false;
+      _runSync(false);
+    }
+  }
+}
 
 export async function trackChange(key, data) {
   if (!getSettingSync('autoSync')) return;
@@ -67,14 +96,6 @@ export async function trackDeletedAssets(assetType, noteId, fileNames) {
 
   await storage.set('deletedAssets', deletedAssets);
   await trackChange('deletedAssets', deletedAssets);
-}
-
-function enqueueSync(force = false) {
-  syncQueue = syncQueue.then(
-    () => _sync(force),
-    () => _sync(force)
-  );
-  return syncQueue;
 }
 
 async function _sync(force = false) {

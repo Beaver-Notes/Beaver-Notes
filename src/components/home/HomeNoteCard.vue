@@ -162,8 +162,9 @@
       </button>
     </div>
 
+    <!-- Unified action bar: shows full actions on desktop, bookmark-only on mobile -->
     <div
-      class="bg-neutral-500/5 dark:bg-white/5 flex z-10 items-center text-neutral-600 dark:text-neutral-200 gap-1 p-2 px-4 bottom-0 mobile:hidden"
+      class="bg-neutral-500/5 dark:bg-white/5 flex z-10 items-center text-neutral-600 dark:text-neutral-200 gap-1 p-2 px-4 bottom-0"
     >
       <button
         v-if="!note.isArchived"
@@ -182,88 +183,59 @@
         />
       </button>
 
-      <button
-        v-tooltip.group="
-          note.isArchived
-            ? translations.card.unarchive
-            : translations.card.archive
-        "
-        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-        @click.stop="toggleArchive(note)"
-      >
-        <v-remixicon
-          :name="note.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'"
-          class="size-5"
-        />
-      </button>
+      <template v-if="!isMobile">
+        <button
+          v-tooltip.group="
+            note.isArchived
+              ? translations.card.unarchive
+              : translations.card.archive
+          "
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          @click.stop="toggleArchive(note)"
+        >
+          <v-remixicon
+            :name="note.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'"
+            class="size-5"
+          />
+        </button>
 
-      <button
-        v-if="!note.isLocked"
-        v-tooltip.group="translations.card.lock"
-        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-        @click.stop="lockNote(note.id)"
-      >
-        <v-remixicon name="riLockLine" class="size-5" />
-      </button>
+        <button
+          v-if="!note.isLocked"
+          v-tooltip.group="translations.card.lock"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          @click.stop="lockNote(note.id)"
+        >
+          <v-remixicon name="riLockLine" class="size-5" />
+        </button>
 
-      <button
-        v-if="note.isLocked"
-        v-tooltip.group="translations.card.unlock"
-        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-        @click.stop="unlockNote(note.id)"
-      >
-        <v-remixicon
-          :name="note.isLocked ? 'riLockUnlockLine' : 'riLockLine'"
-          class="size-5"
-        />
-      </button>
+        <button
+          v-if="note.isLocked"
+          v-tooltip.group="translations.card.unlock"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          @click.stop="unlockNote(note.id)"
+        >
+          <v-remixicon
+            :name="note.isLocked ? 'riLockUnlockLine' : 'riLockLine'"
+            class="size-5"
+          />
+        </button>
 
-      <button
-        v-tooltip.group="translations.card.moveToFolder"
-        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-        @click.stop="showMoveModal = true"
-      >
-        <v-remixicon name="riFolderTransferLine" class="size-5" />
-      </button>
+        <button
+          v-tooltip.group="translations.card.moveToFolder"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
+          @click.stop="showMoveModal = true"
+        >
+          <v-remixicon name="riFolderTransferLine" class="size-5" />
+        </button>
 
-      <button
-        v-tooltip.group="translations.card.delete"
-        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible"
-        @click.stop="deleteNote(note.id)"
-      >
-        <v-remixicon name="riDeleteBin6Line" class="size-5" />
-      </button>
-
-      <div class="flex-grow"></div>
-
-      <p class="text-overflow text-sm opacity-70">
-        {{
-          note.isLocked
-            ? translations.card.isLocked
-            : formatDate(note.createdAt)
-        }}
-      </p>
-    </div>
-
-    <div
-      class="bg-neutral-500/5 dark:bg-white/5 flex z-10 items-center text-neutral-600 dark:text-neutral-200 gap-1 p-2 px-4 bottom-0 hidden mobile:flex"
-    >
-      <button
-        v-if="!note.isArchived"
-        v-tooltip.group="
-          note.isBookmarked
-            ? translations.card.removeBookmark
-            : translations.card.bookmark
-        "
-        class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-        :class="[note.isBookmarked ? 'text-primary' : 'hover:text-neutral-900']"
-        @click.stop="toggleBookmark(note)"
-      >
-        <v-remixicon
-          :name="note.isBookmarked ? 'riBookmarkFill' : 'riBookmarkLine'"
-          class="size-5"
-        />
-      </button>
+        <button
+          v-tooltip.group="translations.card.delete"
+          class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible"
+          @click.stop="deleteNote(note.id)"
+        >
+          <v-remixicon name="riDeleteBin6Line" class="size-5" />
+        </button>
+      </template>
 
       <div class="flex-grow"></div>
 
@@ -283,7 +255,7 @@
 <script setup>
 /* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
 import { useGroupTooltip } from '@/composable/groupTooltip';
@@ -337,8 +309,18 @@ const previewMeta = computed(() => {
   return 'More';
 });
 
+// Pre-compute a color map for all labels on this note so the template
+// performs a single O(1) lookup per label instead of calling getColor twice.
+const labelColorMap = computed(() => {
+  const map = {};
+  for (const label of props.note?.labels ?? []) {
+    map[label] = labelStore.getColor(label);
+  }
+  return map;
+});
+
 function labelColor(name) {
-  return labelStore.getColor(name);
+  return labelColorMap.value[name] ?? null;
 }
 
 const showCardAlert = (message) =>
@@ -347,6 +329,14 @@ const showCardAlert = (message) =>
     body: message,
     okText: translations.value.dialog?.close || 'Close',
   });
+
+// Detect mobile breakpoint to conditionally render the full action bar vs.
+// the simplified mobile bar — avoids keeping both sets of buttons in the DOM.
+const mobileQuery = window.matchMedia('(max-width: 767px)');
+const isMobile = ref(mobileQuery.matches);
+const onMobileChange = (e) => { isMobile.value = e.matches; };
+onMounted(() => mobileQuery.addEventListener('change', onMobileChange));
+onUnmounted(() => mobileQuery.removeEventListener('change', onMobileChange));
 
 useGroupTooltip();
 

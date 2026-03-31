@@ -18,8 +18,25 @@ export default Node.create({
 
   addAttributes() {
     return {
-      lines: { default: [] },
-      height: { default: 400 },
+      // linesV2: canonical format — [x, y, pressure] triplets per stroke
+      linesV2: {
+        default: [],
+        parseHTML: (el) => {
+          try { return JSON.parse(el.getAttribute('data-lines-v2') || '[]'); }
+          catch { return []; }
+        },
+        renderHTML: (attrs) => ({ 'data-lines-v2': JSON.stringify(attrs.linesV2 ?? []) }),
+      },
+      // lines: kept for backward-compat HTML export / old note parsing
+      lines: {
+        default: [],
+        parseHTML: (el) => {
+          try { return JSON.parse(el.getAttribute('data-lines') || '[]'); }
+          catch { return []; }
+        },
+        renderHTML: (attrs) => ({ 'data-lines': JSON.stringify(attrs.lines ?? []) }),
+      },
+      height:    { default: 400 },
       paperType: { default: 'plain' },
     };
   },
@@ -33,7 +50,6 @@ export default Node.create({
       'div',
       mergeAttributes(HTMLAttributes, {
         'data-type': 'paper',
-        'data-lines': JSON.stringify(HTMLAttributes.lines),
         style: `height: ${HTMLAttributes.height}px;`,
       }),
     ];

@@ -81,7 +81,7 @@ export default {
     const menuClass = computed(() =>
       props.editor?.isActive('image')
         ? 'max-w-none border-0 bg-transparent shadow-none'
-        : 'bg-white dark:bg-neutral-800 rounded-lg max-w-xs border shadow-xl'
+        : 'bg-white dark:bg-neutral-800 rounded-xl max-w-xs border shadow-xl'
     );
 
     onMounted(() => {

@@ -107,14 +107,9 @@
         autoScroll();
         handleContentUpdate($event);
       "
-      @init="
-        editor = $event;
-        drawing.syncFromEditor($event);
-      "
+      @init="editor = $event"
       @keyup.down="autoScroll"
     />
-    <OverlayCanvas />
-    <OverlayToolbar />
   </div>
 </template>
 
@@ -136,9 +131,6 @@ import EditorActionsMobile from '@/components/note/EditorActionsMobile.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
-import OverlayCanvas from '@/components/overlay/OverlayCanvas.vue';
-import OverlayToolbar from '@/components/overlay/OverlayToolbar.vue';
-import { useOverlayDrawing } from '@/composable/useOverlayDrawing';
 import { useAppStore } from '../../store/app';
 import { isAppEncryptedContent } from '@/utils/appCrypto';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
@@ -150,8 +142,6 @@ export default {
     NoteSearch,
     NoteMenuMobile,
     EditorActionsMobile,
-    OverlayCanvas,
-    OverlayToolbar,
   },
   setup() {
     const store = useStore();
@@ -162,7 +152,6 @@ export default {
     const labelStore = useLabelStore();
     const appStore = useAppStore();
     const dialog = useDialog();
-    const drawing = useOverlayDrawing();
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -395,8 +384,6 @@ export default {
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
-        drawing.exitDrawMode();
-        drawing.syncFromEditor(null);
 
         if (oldNoteId && noteId && noteStore.getById(oldNoteId)) {
           noteStore.patchLocal(oldNoteId, {
@@ -446,8 +433,6 @@ export default {
       removeGlobalShortcuts();
     });
     onBeforeRouteLeave(() => {
-      drawing.exitDrawMode();
-      drawing.syncFromEditor(null);
       void persistCurrentNote(route.params.id, { wait: false });
       removeGlobalShortcuts();
     });
@@ -578,7 +563,6 @@ export default {
       disallowedEnter,
       autoScroll,
       isLocked,
-      drawing,
     };
   },
 };

@@ -187,8 +187,8 @@ pub(crate) fn get_system_fonts() -> Result<Vec<String>, String> {
 
 #[tauri::command]
 pub(crate) async fn print_pdf(app: AppHandle, pdf_name: String) -> Result<(), String> {
-    let default_path = path_for_name(&app, "desktop")?.join(pdf_name.clone());
     let state = app.state::<AppState>();
+    let default_path = path_for_name(&app, &state, "desktop")?.join(pdf_name.clone());
     let save = dialog_save(
         app.clone(),
         state,

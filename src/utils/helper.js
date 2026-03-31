@@ -41,30 +41,34 @@ export function truncateText(str, limit) {
 }
 
 export function extractNoteText(content) {
-  let text = '';
+  const parts = [];
+  _collectText(content, parts);
+  return parts.join('');
+}
 
+function _collectText(content, parts) {
   if (Array.isArray(content)) {
     for (const value of content) {
-      const trimmedText = (value.text || '').trim();
-
-      if (trimmedText !== '') text += `${trimmedText} `;
-
-      if (value.content) text += extractNoteText(value.content);
+      const trimmed = (value.text || '').trim();
+      if (trimmed !== '') {
+        parts.push(trimmed);
+        parts.push(' ');
+      }
+      if (value.content) _collectText(value.content, parts);
     }
-  } else if (typeof content === 'object') {
+  } else if (content && typeof content === 'object') {
     for (const key in content) {
       const value = content[key];
-      const trimmedText = (value.text || '').trim();
-
-      if (trimmedText !== '') text += `${trimmedText} `;
-
-      if (value.content) text += extractNoteText(value.content);
+      const trimmed = (value.text || '').trim();
+      if (trimmed !== '') {
+        parts.push(trimmed);
+        parts.push(' ');
+      }
+      if (value.content) _collectText(value.content, parts);
     }
   } else if (typeof content === 'string') {
-    text += content;
+    parts.push(content);
   }
-
-  return text;
 }
 
 export function getPlainTextFromNoteContent(content) {

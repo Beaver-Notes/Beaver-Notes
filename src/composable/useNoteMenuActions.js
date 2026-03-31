@@ -3,11 +3,6 @@ import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportDOCX } from '@/utils/share/DOCX';
 import { printPdf } from '@/lib/native/app';
-import { useOverlayDrawing } from '@/composable/useOverlayDrawing';
-import {
-  getDrawingExportHint,
-  getDrawingExportSupportCopy,
-} from '@/utils/share/drawingSupport';
 
 const highlighterColors = [
   'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
@@ -38,7 +33,6 @@ export function useNoteMenuActions({
   const isTableActive = computed(
     () => editor.isActive('tableCell') || editor.isActive('tableHeader')
   );
-  const drawing = useOverlayDrawing();
 
   const printContent = () => {
     printPdf(`${noteTitle}.pdf`);
@@ -103,16 +97,6 @@ export function useNoteMenuActions({
 
   const drawActions = computed(() => [
     {
-      name: 'overlay',
-      title: translations.value.menu.drawOnNote || 'Draw on note',
-      description:
-        translations.value.menu.drawOnNoteDescription ||
-        'Annotate the full note surface.',
-      icon: 'riPencilLine',
-      isActive: drawing.mode.value === 'drawing',
-      handler: () => drawing.enterDrawMode(),
-    },
-    {
       name: 'block',
       title:
         translations.value.menu.insertDrawingBlock || 'Insert drawing block',
@@ -130,28 +114,24 @@ export function useNoteMenuActions({
       name: 'html',
       title: 'HTML',
       icon: 'riPagesLine',
-      support: getDrawingExportSupportCopy('html', translations.value),
       handler: () => exportHTML(noteId, noteTitle, editor),
     },
     {
       name: 'pdf',
       title: 'PDF',
       icon: 'riArticleLine',
-      support: getDrawingExportSupportCopy('pdf', translations.value),
       handler: printContent,
     },
     {
       name: 'markdown',
       title: 'Markdown',
       icon: 'riMarkdownLine',
-      support: getDrawingExportSupportCopy('markdown', translations.value),
       handler: () => exportMD(noteId, noteTitle, editor),
     },
     {
       name: 'docx',
       title: 'Word',
       icon: 'riFileWord2Line',
-      support: getDrawingExportSupportCopy('docx', translations.value),
       handler: () => exportDOCX(noteId, noteTitle, editor),
     },
   ]);
@@ -239,7 +219,6 @@ export function useNoteMenuActions({
     currentTextColor,
     drawActions,
     fmtMap,
-    drawingExportHint: computed(() => getDrawingExportHint(translations.value)),
     highlighterColors,
     isTableActive,
     lists,

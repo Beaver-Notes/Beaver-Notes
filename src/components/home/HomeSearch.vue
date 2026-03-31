@@ -95,6 +95,14 @@ import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import { useLabelStore } from '@/store/label';
 
+function debounce(fn, delay) {
+  let timer;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
 export default {
   props: {
     sortOrder: { type: String, default: 'asc' },
@@ -133,9 +141,13 @@ export default {
         .map((name) => ({ name, color: labelStore.getColor(name) }));
     });
 
+    const emitQuery = debounce((val) => {
+      emit('update:query', val.toLocaleLowerCase());
+    }, 150);
+
     function handleQueryChange(val) {
       activeSuggestionIndex.value = -1;
-      emit('update:query', val.toLocaleLowerCase());
+      emitQuery(val);
     }
 
     function moveSuggestion(dir) {

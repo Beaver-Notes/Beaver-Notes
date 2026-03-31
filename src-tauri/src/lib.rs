@@ -143,6 +143,10 @@ pub fn run() {
             commands::updates::get_update_info,
             commands::imports::import_evernote,
             commands::imports::import_apple_notes,
+            commands::search::search_notes,
+            commands::search::search_index_note,
+            commands::search::search_remove_note,
+            commands::search::search_rebuild_index,
         ])
         .setup(|app| {
             bootstrap::setup_app(app)?;

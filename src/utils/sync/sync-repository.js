@@ -29,7 +29,7 @@ export function getSyncDeviceId() {
 
 export function cloneCommitData(data) {
   return data !== undefined && data !== null
-    ? JSON.parse(JSON.stringify(toRaw(data)))
+    ? structuredClone(toRaw(data))
     : null;
 }
 
@@ -205,14 +205,23 @@ export async function applySnapshotIfNeeded({
   const snapshotTs = Number(snapshot.ts) || 0;
   if (snapshotTs && snapshotTs <= Number(lastApplied || 0)) return false;
 
-  await Promise.all([
-    storage.set('notes', snapshot.data.notes ?? {}),
-    storage.set('folders', snapshot.data.folders ?? {}),
-    storage.set('labels', snapshot.data.labels ?? []),
-    storage.set('deletedIds', snapshot.data.deletedIds ?? {}),
-    storage.set('deletedFolderIds', snapshot.data.deletedFolderIds ?? {}),
-    storage.set('deletedAssets', snapshot.data.deletedAssets ?? {}),
-  ]);
+  // Write collections surgically: each note/folder is a separate row so we
+  // never load the full store just to rewrite it. Non-collection keys are
+  // single-row writes and stay fast regardless.
+  const writes = [];
+
+  for (const [id, note] of Object.entries(snapshot.data.notes ?? {})) {
+    writes.push(storage.set(`notes.${id}`, note));
+  }
+  for (const [id, folder] of Object.entries(snapshot.data.folders ?? {})) {
+    writes.push(storage.set(`folders.${id}`, folder));
+  }
+  writes.push(storage.set('labels', snapshot.data.labels ?? []));
+  writes.push(storage.set('deletedIds', snapshot.data.deletedIds ?? {}));
+  writes.push(storage.set('deletedFolderIds', snapshot.data.deletedFolderIds ?? {}));
+  writes.push(storage.set('deletedAssets', snapshot.data.deletedAssets ?? {}));
+
+  await Promise.all(writes);
 
   await saveCursors(
     snapshot.cursors && typeof snapshot.cursors === 'object'

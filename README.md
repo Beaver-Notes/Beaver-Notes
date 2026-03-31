@@ -15,17 +15,17 @@
 <div align="center">
   <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
 
-  <h3><b>Fast. Private. Local-first.</b></h3>
-  <p>Local by default, cloud when you want it. No tracking, no bloat.</p>
+  <h3><b>Build ideas, block the noise</b></h3>
+  <p>No trackers. No spies. Just your dam of thoughts.</p>
 
-[🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download) | [🛣️ Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
+[🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download) | [🚧 Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
 </div>
 
 # Overview
 
 Beaver Notes is a **privacy-first, local-first note-taking app** built to help you capture ideas, organize knowledge, and connect notes without ever sending your data to the cloud by default.
 
-- 🏆 **Cross-platform:** macOS, Windows, GNU/Linux  
+- 🏆 **Cross-platform:** macOS, Windows, GNU/Linux, Android, iOS
 - 🔒 **Secure:** data stored locally, optional sync with your provider  
 - 📝 **Markdown support:** write quickly without breaking flow  
 - 🧩 **Community-driven:** open-source with contributions always welcome from everyone
@@ -54,15 +54,6 @@ Beaver Notes is a **privacy-first, local-first note-taking app** built to help y
   - **Flatpak:** `flatpak install flathub com.beavernotes.beavernotes`
   - **Scoop:** `scoop install extras/beaver-notes`  
   - **Brew:** `brew install --cask beaver-notes`
-
-## 📱 Looking for a mobile version?
-
-Take Beaver Notes with you on the go with [**Beaver Pocket**](https://beavernotes.com/#/Pocket)! (Beta)
-
-📥 **Try it now:**
-
-- 📱 **iOS** → [TestFlight](https://testflight.apple.com/join/dSsmsGLY)
-- 🤖 **Android** → [Join the beta on the Play Store](https://play.google.com/store/apps/details?id=beaver.notes.pocket)
 
 ## 💖 Contributing
 
@@ -118,32 +109,12 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-## ✨ Community Contributors (outside GitHub)
+## ✨ Honorable mentions
 
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="top" width="14.28%">
-        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="verthandii"/>
-        <br /><sub><b>Verthandii</b></sub><br />🌍
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <a href="https://moooon.dresden.network">
-          <img src="https://files.mastodon.social/cache/accounts/avatars/109/133/358/983/739/539/original/581ad9fb29a9a04d.png" width="100px;" alt="Mondstern"/>
-          <br /><sub><b>Mondstern</b></sub>
-        </a><br />🌍
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="Gabriel Soleil"/>
-        <br /><sub><b>Gabriel Soleil</b></sub><br />🌍
-      </td>
-      <td align="center" valign="top" width="14.28%">
-        <img src="https://avatars.githubusercontent.com/u/424443?v=4" width="100px;" alt="Rem"/>
-        <br /><sub><b>Rem</b></sub><br />🌍
-      </td>
-    </tr>
-  </tbody>
-</table>
+- Verthandii - 🌎
+- <a href="https://moooon.dresden.network/">Mondstern</a> - 🌎
+- Gabriel Soleil - 🌎
+- Rem - 🌎
 
 ## 💖 Support the Project
 

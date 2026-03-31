@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'beta-v*'
+      - 'v*-beta.*'
 
 permissions:
   contents: write
@@ -50,7 +50,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          # package.json may carry a pre-release suffix (e.g. 5.0.0-beta.1).
+          # Tauri and Cargo require plain semver, so bump-version.mjs strips
+          # the suffix when writing those files. We compare base versions here.
           PKG_VERSION="$(node -p "require('./package.json').version")"
+          PKG_BASE="$(node -p "require('./package.json').version.replace(/-.*$/, '')")"
+
           TAURI_VERSION="$(node -e "console.log(JSON.parse(require('fs').readFileSync('./src-tauri/tauri.beta.conf.json', 'utf8')).version)")"
           CARGO_VERSION="$(node - <<'NODE'
           const fs = require('fs');
@@ -60,12 +65,14 @@ jobs:
           NODE
           )"
 
-          echo "package.json: $PKG_VERSION"
+          echo "package.json:        $PKG_VERSION  (base: $PKG_BASE)"
           echo "tauri.beta.conf.json: $TAURI_VERSION"
-          echo "Cargo.toml: $CARGO_VERSION"
+          echo "Cargo.toml:          $CARGO_VERSION"
 
-          test "$PKG_VERSION" = "$TAURI_VERSION"
-          test "$PKG_VERSION" = "$CARGO_VERSION"
+          # tauri.beta.conf.json and Cargo.toml must match the base version.
+          # package.json may have an additional pre-release suffix — that's fine.
+          test "$PKG_BASE" = "$TAURI_VERSION"
+          test "$PKG_BASE" = "$CARGO_VERSION"
 
   desktop:
     name: Build beta ${{ matrix.id }}

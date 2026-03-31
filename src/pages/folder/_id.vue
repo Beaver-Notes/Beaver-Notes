@@ -222,7 +222,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
-import { sortArray, getPlainTextFromNoteContent } from '@/utils/helper';
+import { sortArray } from '@/utils/helper';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeImg from '@/assets/images/home.png';
 import ArchiveImg from '@/assets/images/archive.png';
@@ -232,6 +232,7 @@ import HomeSearch from '@/components/home/HomeSearch.vue';
 import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
+import { extractTextFromContent } from '@/utils/noteSerializer';
 
 export default {
   components: {
@@ -257,7 +258,6 @@ export default {
       sortOrder: 'asc',
     });
     const currentFolderId = computed(() => route.params.id);
-    const noteSearchCache = new Map();
 
     const sortedNotes = computed(() =>
       sortArray({
@@ -318,10 +318,10 @@ export default {
               label.toLocaleLowerCase().includes(queryLower)
             ) ||
             normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
-            getNoteSearchText(note).includes(queryLower);
+            (note.searchText ?? extractTextFromContent(note.content)).toLowerCase().includes(queryLower);
 
         if (isMatch && labelFilter) {
-          const noteCard = { ...note, content: getNoteSearchText(note) };
+          const noteCard = { ...note, content: note.searchText ?? extractTextFromContent(note.content) };
 
           if (isArchived) return filteredNotes.archived.push(noteCard);
 
@@ -348,20 +348,6 @@ export default {
 
         return matchesQuery;
       });
-    }
-
-    function getNoteSearchText(note) {
-      const cacheKey = `${note.id}:${note.updatedAt || 0}`;
-      const cached = noteSearchCache.get(note.id);
-      if (cached?.key === cacheKey) {
-        return cached.value;
-      }
-
-      const text = getPlainTextFromNoteContent(
-        note.content
-      ).toLocaleLowerCase();
-      noteSearchCache.set(note.id, { key: cacheKey, value: text });
-      return text;
     }
 
     function deleteLabel(id) {

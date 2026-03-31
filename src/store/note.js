@@ -7,10 +7,12 @@ import { trackChange, trackDeletedAssets } from '@/utils/sync';
 import { isAppEncryptionEnabled, isAppEncryptedContent } from '@/utils/appCrypto.js';
 import { path } from '@/lib/tauri-bridge';
 import { readDir, removePath } from '@/lib/native/fs';
+import { indexNote, removeNoteFromIndex, searchNotesFts } from '@/lib/native/search';
 
 import {
   stripTransientFields,
   hydrateNote,
+  extractTextFromContent,
   decryptNoteForMemory,
   encryptNoteForStorage,
 } from '@/utils/noteSerializer.js';
@@ -27,6 +29,16 @@ import {
 
 const storage = useStorage();
 
+/**
+ * Silently sync a note into the FTS index after it is written to storage.
+ * Uses the pre-computed `searchText` field so no content serialisation is needed.
+ * Errors are swallowed — a stale index degrades gracefully to no results.
+ */
+function _syncFtsIndex(note) {
+  if (!note?.id || note.isLocked || isAppEncryptedContent(note.content)) return;
+  indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
+}
+
 async function _trackNoteChange(id, note) {
   await trackChange(`notes.${id}`, stripTransientFields(note));
 }
@@ -34,6 +46,7 @@ async function _trackNoteChange(id, note) {
 async function _saveNote(id, noteData) {
   const toStore = await encryptNoteForStorage(stripTransientFields(noteData));
   await storage.set(`notes.${id}`, toStore);
+  _syncFtsIndex(noteData);
 }
 
 async function _resolveFolderId(folderId) {
@@ -83,13 +96,19 @@ export const useNoteStore = defineStore('note', {
         return { folders, notes };
       },
 
+    /**
+     * Synchronous in-memory fallback search using the pre-computed `searchText`
+     * field. Used when the FTS index hasn't been populated yet or for
+     * callers that need a synchronous result.
+     * For the primary search UI use `searchNotesSql` instead.
+     */
     searchNotes: (state) => (query) => {
       const searchTerm = query.toLowerCase();
       return Object.values(state.data).filter((note) => {
         if (!note.id) return false;
         return (
           note.title.toLowerCase().includes(searchTerm) ||
-          JSON.stringify(note.content).toLowerCase().includes(searchTerm)
+          (note.searchText ?? extractTextFromContent(note.content)).toLowerCase().includes(searchTerm)
         );
       });
     },
@@ -117,6 +136,31 @@ export const useNoteStore = defineStore('note', {
   // ── Actions ────────────────────────────────────────────────────────────────
 
   actions: {
+    // ── Search ────────────────────────────────────────────────────────────
+
+    /**
+     * Full-text search backed by SQLite FTS5.
+     *
+     * Returns resolved note objects in relevance order. Falls back to the
+     * synchronous in-memory `searchNotes` getter if the SQL call fails
+     * (e.g. index not yet built).
+     *
+     * @param {string} query
+     * @returns {Promise<Note[]>}
+     */
+    async searchNotesSql(query) {
+      if (!query?.trim()) return [];
+      try {
+        const { ids } = await searchNotesFts(query);
+        return ids
+          .map((id) => this.data[id])
+          .filter(Boolean);
+      } catch {
+        // FTS not yet available (first launch before rebuild) — fall back
+        return this.searchNotes(query);
+      }
+    },
+
     // ── Load & hydration ──────────────────────────────────────────────────
 
     async retrieve() {
@@ -138,6 +182,21 @@ export const useNoteStore = defineStore('note', {
         }
 
         this.data = merged;
+
+        // Load and prune stale deleted-note IDs (>30 days old) on every launch
+        const deletedIds = await storage.get('deletedIds', {});
+        const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        let deletedDirty = false;
+        for (const id of Object.keys(deletedIds)) {
+          if (deletedIds[id] < cutoff) {
+            delete deletedIds[id];
+            deletedDirty = true;
+          }
+        }
+        if (deletedDirty) {
+          await storage.set('deletedIds', deletedIds);
+        }
+        this.deletedIds = deletedIds;
 
         const migrationCompleted = await storage.get('migration_completed', false);
         if (!migrationCompleted) {
@@ -358,6 +417,7 @@ export const useNoteStore = defineStore('note', {
         delete this.data[id];
 
         await storage.delete(`notes.${id}`);
+        removeNoteFromIndex(id).catch(() => {});
         await storage.set('deletedIds', this.deletedIds);
 
         try {
@@ -595,8 +655,12 @@ export const useNoteStore = defineStore('note', {
 
         if (this.data[id].labels.includes(labelId)) return labelId;
 
-        this.data[id].labels.push(labelId);
-        this.data[id].updatedAt = Date.now();
+        // Use hydrateNote to rebuild searchText/cardPreview after mutation
+        this.data[id] = hydrateNote({
+          ...this.data[id],
+          labels: [...this.data[id].labels, labelId],
+          updatedAt: Date.now(),
+        });
 
         await _saveNote(id, this.data[id]);
         await _trackNoteChange(id, this.data[id]);
@@ -618,8 +682,14 @@ export const useNoteStore = defineStore('note', {
         const idx = this.data[id].labels.indexOf(labelId);
         if (idx === -1) return;
 
-        this.data[id].labels.splice(idx, 1);
-        this.data[id].updatedAt = Date.now();
+        // Use hydrateNote to rebuild searchText/cardPreview after mutation
+        const labels = [...this.data[id].labels];
+        labels.splice(idx, 1);
+        this.data[id] = hydrateNote({
+          ...this.data[id],
+          labels,
+          updatedAt: Date.now(),
+        });
 
         await _saveNote(id, this.data[id]);
         await _trackNoteChange(id, this.data[id]);

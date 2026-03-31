@@ -153,7 +153,7 @@ const BUILTIN_ITEMS = [
   {
     id: 'draw',
     label: 'Draw',
-    icon: 'riBrush3Line',
+    icon: 'riBrushLine',
     group: 'media',
     defaultVisible: true,
   },

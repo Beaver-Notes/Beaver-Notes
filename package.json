@@ -2,7 +2,7 @@
   "name": "beaver-notes",
   "type": "module",
   "private": true,
-  "version": "5.0.0",
+  "version": "5.0.0-beta.1",
   "author": "Daniele Rolli",
   "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
   "license": "MIT",
@@ -34,7 +34,8 @@
     "lint": "eslint . --ext js,ts,vue",
     "tran-util": "node scripts/translationUtil.js",
     "tran-update": "node scripts/updateTranslations.js",
-    "version:bump": "node scripts/bump-version.mjs"
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:bump:beta": "node scripts/bump-version.mjs"
   },
   "simple-git-hooks": {
     "pre-commit": "yarn lint-staged"

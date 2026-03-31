@@ -187,19 +187,9 @@ export function useAppShell() {
       backend.listen('print-pdf-request', (event, payload) => {
         const pdfName = payload?.pdfName || payload?.pdf_name || 'Beaver Notes';
         const previousTitle = document.title;
-        let overlayStyle = document.getElementById('beaver-overlay-print');
-
-        if (!overlayStyle) {
-          overlayStyle = document.createElement('style');
-          overlayStyle.id = 'beaver-overlay-print';
-          overlayStyle.textContent =
-            '.overlay-canvas-root { position: absolute !important; pointer-events: none !important; opacity: 1 !important; }';
-          document.head.appendChild(overlayStyle);
-        }
 
         const restoreTitle = () => {
           document.title = previousTitle;
-          document.getElementById('beaver-overlay-print')?.remove();
           window.removeEventListener('afterprint', restoreTitle);
         };
         window.addEventListener('afterprint', restoreTitle);

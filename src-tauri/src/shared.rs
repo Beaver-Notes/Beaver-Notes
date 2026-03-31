@@ -41,8 +41,8 @@ pub(crate) const STRONGHOLD_SNAPSHOT_FILE: &str = "secure-store.stronghold";
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA1";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
-pub(crate) const ASSET_CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
-pub(crate) const ASSET_CACHE_MAX_FILES: usize = 300;
+pub(crate) const ASSET_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
+pub(crate) const ASSET_CACHE_MAX_FILES: usize = 75;
 
 pub(crate) static HELP_URL: &str = "https://docs.beavernotes.com/";
 

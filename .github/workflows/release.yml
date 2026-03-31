@@ -4,8 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - 'v*'
-      - '[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
@@ -60,6 +59,7 @@ jobs:
           fi
 
       # Fail if package.json, tauri.conf.json, and Cargo.toml disagree.
+      # Also fail if a pre-release version (beta) is accidentally pushed as stable.
       - name: Fail on version drift
         shell: bash
         run: |
@@ -78,6 +78,13 @@ jobs:
           echo "package.json: $PKG_VERSION"
           echo "tauri.conf.json: $TAURI_VERSION"
           echo "Cargo.toml: $CARGO_VERSION"
+
+          # Stable releases must not carry a pre-release suffix.
+          if [[ "$PKG_VERSION" == *"-"* ]]; then
+            echo "ERROR: package.json version '$PKG_VERSION' looks like a pre-release."
+            echo "Use the beta workflow for pre-release builds."
+            exit 1
+          fi
 
           test "$PKG_VERSION" = "$TAURI_VERSION"
           test "$PKG_VERSION" = "$CARGO_VERSION"

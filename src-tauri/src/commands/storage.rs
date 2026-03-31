@@ -3,11 +3,15 @@ use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
+// ─── Key helpers ─────────────────────────────────────────────────────────────
+
 fn key_segments(key: &str) -> Vec<&str> {
     key.split('.')
         .filter(|segment| !segment.is_empty())
         .collect()
 }
+
+// ─── Nested-value helpers (used only for storage_get_store / storage_replace) ─
 
 fn get_nested_value<'a>(value: &'a Value, segments: &[&str]) -> Option<&'a Value> {
     let mut current = value;
@@ -91,10 +95,12 @@ fn flatten_store_value(root: Value) -> Map<String, Value> {
     };
 
     for (key, value) in entries {
-        if key == "notes" {
-            if let Value::Object(notes) = value {
-                for (id, note) in notes {
-                    output.insert(format!("notes.{id}"), note);
+        // Collection namespaces are stored as individual flat rows rather than
+        // a single JSON blob, so we explode them into "<namespace>.<id>" rows.
+        if COLLECTION_NAMESPACES.contains(&key.as_str()) {
+            if let Value::Object(items) = value {
+                for (id, item) in items {
+                    output.insert(format!("{key}.{id}"), item);
                 }
                 continue;
             }
@@ -123,6 +129,42 @@ fn pick_pool<'a>(
     }
 }
 
+// ─── Flat-key helpers ─────────────────────────────────────────────────────────
+//
+// For simple dot-separated keys that map 1:1 to a KV row (e.g. "notes.abc123",
+// "deletedIds", "migration_completed") we can go directly to the DB without
+// loading the whole store into memory first.
+//
+// A key is "flat-addressable" when it has exactly one level (e.g. "deletedIds")
+// or when its top-level prefix is a known note-like namespace ("notes",
+// "notes-content") with a single sub-key — both of which are already stored as
+// flat rows by flatten_store_value / the note store.
+
+/// Collection namespaces whose entries are stored as individual flat rows
+/// (e.g. "notes.abc123") rather than a single JSON blob under the bare key.
+/// Requests for the bare key (e.g. `storage_get("notes")`) must fall through
+/// to `load_store_root` so they see all the individual rows reassembled.
+const COLLECTION_NAMESPACES: &[&str] = &["notes", "notes-content", "folders"];
+
+fn flat_db_key(segments: &[&str]) -> Option<String> {
+    match segments {
+        // Single-segment key that is NOT a collection namespace → stored as-is
+        // (e.g. "deletedIds", "migration_completed", "labelColors", …).
+        // Collection-namespace bare keys ("notes", "folders", …) must fall
+        // through to load_store_root so the caller gets the full assembled object.
+        [key] if !COLLECTION_NAMESPACES.contains(key) => Some((*key).to_string()),
+        // "notes.<id>", "notes-content.<id>", "folders.<id>" → flat rows
+        ["notes", id] | ["notes-content", id] | ["folders", id] => {
+            Some(format!("{}.{}", segments[0], id))
+        }
+        _ => None,
+    }
+}
+
+// ─── Commands ────────────────────────────────────────────────────────────────
+
+/// Returns the full store as a nested JSON object.
+/// Only used on startup / sync — intentionally loads everything.
 #[tauri::command]
 pub(crate) fn storage_get_store(
     app: AppHandle,
@@ -133,6 +175,7 @@ pub(crate) fn storage_get_store(
     Ok(load_store_root(pool)?)
 }
 
+/// Replaces the entire store. Used by sync / import flows.
 #[tauri::command]
 pub(crate) fn storage_replace(
     app: AppHandle,
@@ -145,6 +188,9 @@ pub(crate) fn storage_replace(
     Ok(())
 }
 
+/// Gets a single value by dot-separated key.
+/// For flat-addressable keys this is a single-row lookup; otherwise it falls
+/// back to loading the full store (legacy path, rarely hit).
 #[tauri::command]
 pub(crate) fn storage_get(
     app: AppHandle,
@@ -154,14 +200,26 @@ pub(crate) fn storage_get(
     state: State<'_, AppState>,
 ) -> Result<Value, String> {
     let pool = pick_pool(&name, &app, &state)?;
-    let root = load_store_root(pool)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
         return Ok(def);
     }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        let raw = crate::db::db_get(pool, &flat_key)?;
+        return Ok(raw
+            .and_then(|r| serde_json::from_str::<Value>(&r).ok())
+            .unwrap_or(def));
+    }
+
+    // Fallback: multi-level key — load full store and walk the tree
+    let root = load_store_root(pool)?;
     Ok(get_nested_value(&root, &segments).cloned().unwrap_or(def))
 }
 
+/// Sets a single value by dot-separated key.
+/// For flat-addressable keys this is a single INSERT OR REPLACE; otherwise it
+/// falls back to the load-modify-rewrite path.
 #[tauri::command]
 pub(crate) fn storage_set(
     app: AppHandle,
@@ -171,16 +229,26 @@ pub(crate) fn storage_set(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let pool = pick_pool(&name, &app, &state)?;
-    let mut root = load_store_root(pool)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
         return Ok(());
     }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        let serialized = serde_json::to_string(&value).map_err(to_error)?;
+        return crate::db::db_set(pool, &flat_key, &serialized);
+    }
+
+    // Fallback: multi-level key — load, mutate, rewrite
+    let mut root = load_store_root(pool)?;
     set_nested_value(&mut root, &segments, value);
     crate::db::db_replace_all(pool, flatten_store_value(root))?;
     Ok(())
 }
 
+/// Deletes a single value by dot-separated key.
+/// For flat-addressable keys this is a single DELETE; otherwise falls back to
+/// the load-modify-rewrite path.
 #[tauri::command]
 pub(crate) fn storage_delete(
     app: AppHandle,
@@ -189,16 +257,24 @@ pub(crate) fn storage_delete(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let pool = pick_pool(&name, &app, &state)?;
-    let mut root = load_store_root(pool)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
         return Ok(());
     }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        return crate::db::db_delete(pool, &flat_key);
+    }
+
+    // Fallback: multi-level key — load, mutate, rewrite
+    let mut root = load_store_root(pool)?;
     let _ = delete_nested_value(&mut root, &segments);
     crate::db::db_replace_all(pool, flatten_store_value(root))?;
     Ok(())
 }
 
+/// Checks whether a key exists.
+/// For flat-addressable keys this is a single COUNT query; otherwise falls back.
 #[tauri::command]
 pub(crate) fn storage_has(
     app: AppHandle,
@@ -207,11 +283,17 @@ pub(crate) fn storage_has(
     state: State<'_, AppState>,
 ) -> Result<bool, String> {
     let pool = pick_pool(&name, &app, &state)?;
-    let root = load_store_root(pool)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
         return Ok(false);
     }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        return crate::db::db_has(pool, &flat_key);
+    }
+
+    // Fallback: multi-level key
+    let root = load_store_root(pool)?;
     Ok(get_nested_value(&root, &segments).is_some())
 }
 

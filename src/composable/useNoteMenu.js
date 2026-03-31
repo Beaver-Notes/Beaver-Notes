@@ -42,7 +42,6 @@ export function useNoteMenu(props) {
   const {
     currentTextColor,
     drawActions,
-    drawingExportHint,
     fmtMap,
     highlighterColors,
     isTableActive,
@@ -124,7 +123,6 @@ export function useNoteMenu(props) {
     pauseResume,
     currentTextColor,
     drawActions,
-    drawingExportHint,
     fmtMap,
     highlighterColors,
     isTableActive,

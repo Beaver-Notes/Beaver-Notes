@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/vue-3';
+import { Node } from '@tiptap/core';
 import heading from './exts/headings';
 import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
@@ -20,7 +21,17 @@ import TextDirection from 'tiptap-text-direction';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
 import Paper from './exts/paper-block';
-import OverlayDrawing from './exts/overlay-drawing';
+
+// Tombstone: silently absorbs old overlayDrawing nodes in saved notes.
+// Renders as nothing; can be removed once all notes have been resaved.
+const OverlayDrawingTombstone = Node.create({
+  name: 'overlayDrawing',
+  group: 'block',
+  atom: true,
+  parseHTML() { return [{ tag: 'div[data-type="overlay-drawing"]' }]; },
+  renderHTML() { return ['div', { 'data-type': 'overlay-drawing', style: 'display:none' }]; },
+});
+
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
@@ -90,7 +101,7 @@ const extensions = [
   LinkNote,
   FileEmbed,
   Paper,
-  OverlayDrawing,
+  OverlayDrawingTombstone,
   Footnotes,
   FootnoteReference,
   Footnote,
