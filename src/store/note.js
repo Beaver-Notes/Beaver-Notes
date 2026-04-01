@@ -655,7 +655,6 @@ export const useNoteStore = defineStore('note', {
 
         if (this.data[id].labels.includes(labelId)) return labelId;
 
-        // Use hydrateNote to rebuild searchText/cardPreview after mutation
         this.data[id] = hydrateNote({
           ...this.data[id],
           labels: [...this.data[id].labels, labelId],
@@ -682,7 +681,6 @@ export const useNoteStore = defineStore('note', {
         const idx = this.data[id].labels.indexOf(labelId);
         if (idx === -1) return;
 
-        // Use hydrateNote to rebuild searchText/cardPreview after mutation
         const labels = [...this.data[id].labels];
         labels.splice(idx, 1);
         this.data[id] = hydrateNote({

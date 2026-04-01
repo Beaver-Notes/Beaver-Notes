@@ -35,12 +35,6 @@ export function useSelection({ suppressNextClick } = {}) {
   const selectionEnd = ref({ x: 0, y: 0 });
 
   const selectionBoxStyle = computed(() => {
-    // Use document-relative coordinates (clientY + scrollY) so the box is
-    // positioned with `position: absolute` on a body-level portal element.
-    // This avoids the `position: fixed` bug where ancestors with
-    // `will-change: transform`, `isolation: isolate`, or `overflow: clip`
-    // (all present on .route-stage / .route-stage__page) create a new
-    // containing block and make `fixed` act like `absolute` relative to them.
     const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
     const scrollX = window.scrollX || document.documentElement.scrollLeft || 0;
 

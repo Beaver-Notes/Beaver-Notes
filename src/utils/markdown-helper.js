@@ -24,10 +24,8 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
   const footnoteDefinitions = [];
   const referenceNumberToId = {};
 
-  // Step 1: Extract footnote references and definitions
   const footnoteRegex = /\[\^(\d+)\]:\s+(.*)/g;
 
-  // Extract footnote definitions from markdown
   let match;
   while ((match = footnoteRegex.exec(markdown)) !== null) {
     const referenceNumber = match[1];
@@ -49,10 +47,8 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
     });
   }
 
-  // Remove footnote definitions from markdown for further processing
   const cleanedMarkdown = markdown.replace(footnoteRegex, '');
 
-  // Step 2: Convert cleaned markdown to HTML
   const html = marked(cleanedMarkdown);
   const json = {
     type: 'doc',
@@ -66,7 +62,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
     if (element.nodeType === Node.TEXT_NODE) {
       const text = element.textContent;
 
-      // Handle inline math
       const inlineMathPattern = /\$([^$]+)\$/g;
       const inlineMathMatches = text.match(inlineMathPattern);
       if (inlineMathMatches) {
@@ -96,7 +91,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         return { type: 'paragraph', content };
       }
 
-      // Handle footnote references
       const footnotePattern = /\[\^(\d+)\]/g;
       const footnoteMatches = text.match(footnotePattern);
       if (footnoteMatches) {
@@ -145,7 +139,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
 
     switch (element.tagName) {
       case 'P': {
-        // Handle block math
         const blockMathPattern = /^\$\$([^$]+)\$\$$/;
         const blockMathMatch = element.textContent.match(blockMathPattern);
         if (blockMathMatch) {
@@ -291,7 +284,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       case 'LI':
         return { type: 'listItem', content };
       case 'CODE': {
-        // Handle inline code
         if (element.parentElement.tagName !== 'PRE') {
           return {
             type: 'text',
@@ -299,11 +291,9 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             text: element.textContent,
           };
         } else {
-          // Handle code block
           const codeContent = element.textContent;
           const language = element.parentElement.getAttribute('class') || '';
 
-          // Check if this is a Mermaid code block
           if (language.startsWith('language-mermaid')) {
             return {
               type: 'mermaidDiagram',
@@ -327,7 +317,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           const codeContent = codeElement.textContent;
           const language = codeElement.getAttribute('class') || '';
 
-          // Check if this is a Mermaid code block
           if (language.startsWith('language-mermaid')) {
             return {
               type: 'mermaidDiagram',
@@ -409,7 +398,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           };
         }
 
-        // Handle file links
         const dataDir = await storage.get('dataDir');
         const fileName = href.split('/').pop();
         const file = path.join(directoryPath, 'file-assets', fileName);
@@ -459,7 +447,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           element.querySelector('source')?.getAttribute('src') ||
           '';
 
-        // Check if the src starts with http or https
         if (src.startsWith('http://') || src.startsWith('https://')) {
           const safeSrc = sanitizeMediaSource(src);
           return safeSrc
@@ -473,7 +460,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             : createMediaFallbackNode('video', { src });
         }
 
-        // Handle local file sources
         const dataDir = await storage.get('dataDir');
         const fileName = src.split('/').pop();
         const file = path.join(directoryPath, 'file-assets', fileName);
@@ -502,7 +488,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           element.querySelector('source')?.getAttribute('src') ||
           '';
 
-        // Check if the src starts with http or https
         if (src.startsWith('http://') || src.startsWith('https://')) {
           const safeSrc = sanitizeMediaSource(src);
           return safeSrc
@@ -542,7 +527,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
         const src = element.getAttribute('src') || '';
         const alt = element.getAttribute('alt') || '';
 
-        // Check if the image src is an HTTP or HTTPS URL
         if (src.startsWith('http://') || src.startsWith('https://')) {
           const safeSrc = sanitizeImageSource(src);
           return safeSrc
@@ -556,7 +540,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             : createMediaFallbackNode('image', { src, alt });
         }
 
-        // Proceed with local file handling for non-HTTP URLs
         const dataDir = await storage.get('dataDir');
         const filename = src.split('/').pop();
         const file = path.join(directoryPath, 'notes-assets', filename);
@@ -635,7 +618,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
     Array.from(doc.body.childNodes).map(convertElementToTiptap)
   );
 
-  // Extract and remove the H1 title if present
   let title = '';
   if (
     bodyContent.length > 0 &&
@@ -648,7 +630,6 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
       .join('');
   }
 
-  // Flatten the array of nodes in case of nested arrays
   const flattenedBodyContent = bodyContent.flat().filter(Boolean);
 
   json.content = [...flattenedBodyContent];

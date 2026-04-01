@@ -111,7 +111,6 @@ async function parseCustomBlocks(doc, noteId) {
     el.setAttribute(attr, normalizeAssetPath(original));
   });
 
-  // Callouts: convert divs to blockquotes with class
   const colors = ['black', 'blue', 'yellow', 'red', 'green', 'purple'];
   colors.forEach((color) => {
     const callouts = doc.querySelectorAll(`div.${color}Callout`);

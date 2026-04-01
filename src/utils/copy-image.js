@@ -35,7 +35,7 @@ async function readFile(file) {
 async function createFileName(filePath, id, timestamp) {
   const dataDir = await storage.get('dataDir');
   const { ext, name } = path.parse(filePath);
-  const fileName = `${SHA256(name + timestamp).toString()}${ext}`; // Include timestamp in hashing
+  const fileName = `${SHA256(name + timestamp).toString()}${ext}`;
   const assetsPath = path.join(dataDir, 'notes-assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);

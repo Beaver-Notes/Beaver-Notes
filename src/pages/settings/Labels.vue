@@ -93,7 +93,6 @@ const { translations } = useTranslations();
 const primaryColor = ref('#6366f1');
 
 onMounted(() => {
-  // Resolve the actual primary color by reading it off a real element
   const el = document.createElement('span');
   el.className = 'text-primary';
   el.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none';

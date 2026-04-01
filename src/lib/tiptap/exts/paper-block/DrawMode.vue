@@ -185,7 +185,7 @@ const currentPointsRef = ref([]);
 const animationFrameRef = ref(null);
 
 // ---------------------------------------------------------------------------
-// Initial state from node attrs
+// Initial state
 // ---------------------------------------------------------------------------
 
 function loadStrokes(attrs) {
@@ -266,7 +266,6 @@ const liveProps = computed(() => {
   return getRenderableStrokeProps({ tool: state.tool, color: settings.color, opacity: settings.opacity });
 });
 
-// Eraser cursor position (last known pointer position during erase)
 const eraserPos = ref(null);
 
 // ---------------------------------------------------------------------------
@@ -529,7 +528,7 @@ function exportPNG(scale = 2) {
 }
 
 // ---------------------------------------------------------------------------
-// Expose to Paper.vue
+// Exposed methods
 // ---------------------------------------------------------------------------
 
 function deleteSelection() {
@@ -572,7 +571,7 @@ watch(
   { deep: true }
 );
 
-// Emit state changes upward — single clean format, no legacy
+// Emit state changes upward
 watch(
   () => [state.lines, state.height],
   () => {

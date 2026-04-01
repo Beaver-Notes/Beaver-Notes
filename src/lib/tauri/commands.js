@@ -184,7 +184,9 @@ function normalizePayload(channel, payload) {
     case 'search:notes':
       return {
         ...withKeyVariants('query', payload?.query),
-        ...(payload?.limit != null ? withKeyVariants('limit', payload.limit) : {}),
+        ...(payload?.limit != null
+          ? withKeyVariants('limit', payload.limit)
+          : {}),
       };
     case 'search:indexNote':
       return {

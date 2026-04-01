@@ -25,7 +25,6 @@ function createArrowSVG() {
 
 // reference: https://github.com/bangle-io/bangle-editor/blob/dev/components/base-components/src/heading.ts#L468
 function findCollapseFragment(matchNode, doc) {
-  // Find the last child that will be inside of the collapse
   let start = undefined;
   let end = undefined;
   let isDone = false;
@@ -53,7 +52,6 @@ function findCollapseFragment(matchNode, doc) {
     }
 
     if (start) {
-      // Check if we hit a node that should end the collapse fragment
       if (breakCriteria(node)) {
         isDone = true;
         return;
@@ -235,8 +233,6 @@ export default Heading.extend({
           return true;
         }
 
-        // Check for footnotes list in the content to be collapsed
-        // We'll exclude it from collapsing
         let footnoteListPositions = [];
 
         state.doc.nodesBetween(result.start, result.end, (node, pos) => {
@@ -248,29 +244,23 @@ export default Heading.extend({
         // If there are footnote lists in the section to be collapsed,
         // we need to exclude them from the collapse
         if (footnoteListPositions.length > 0) {
-          // Create a modified fragment that excludes the footnote list
           let modifiedFragment = result.fragment;
           let newEnd = result.end;
 
           // Exclude footnote lists from the collapsed content
           footnoteListPositions.forEach(({ pos, node }) => {
-            // Check if the footnote list is within our fragment
             if (pos >= result.start && pos <= result.end) {
-              // Remove it from the fragment to be collapsed
               const nodeSize = node.nodeSize;
               const relativePos = pos - result.start;
 
-              // Split the fragment to exclude the footnote list
               const beforeList = result.fragment.cut(0, relativePos);
               const afterList = result.fragment.cut(relativePos + nodeSize);
 
-              // Join the fragments back without the footnote list
               modifiedFragment = beforeList.append(afterList);
               newEnd = newEnd - nodeSize;
             }
           });
 
-          // Use the modified fragment for collapsing
           const currentNode = currentPos.node.toJSON();
           currentNode.attrs.collapsedContent = jsonRaw(
             modifiedFragment.toJSON()
@@ -284,7 +274,6 @@ export default Heading.extend({
           return true;
         }
 
-        // If no footnote lists, proceed with normal collapsing logic
         const currentNode = currentPos.node.toJSON();
         currentNode.attrs.collapsedContent = jsonRaw(result.fragment.toJSON());
         currentNode.attrs.collapsedFootnotes = jsonRaw(
@@ -342,23 +331,19 @@ export default Heading.extend({
       const container = document.createElement('div');
       container.style.position = 'relative';
 
-      // Create the heading element
       const content = document.createElement(`h${node.attrs.level}`);
       content.style.marginLeft = '30px'; // Adjust based on your design
       content.style.position = 'relative';
 
-      // Create the SVG indicator
       const indicator = createArrowSVG();
       indicator.classList.add('collapse-indicator');
 
-      // Add styles for alignment and rotation
       indicator.style.position = 'absolute';
       indicator.style.left = '0';
       indicator.style.top = '50%';
       indicator.style.transform = 'translateY(-50%)'; // Center vertically
       indicator.style.transition = 'transform 0.3s'; // Smooth rotation transition
 
-      // Update indicator class based on open/closed state
       const updateIndicator = () => {
         if (node.attrs.open) {
           indicator.style.transform = 'translateY(-50%) rotate(0deg)';

@@ -44,7 +44,6 @@ export default Node.create({
     return [nodeInputRule({ find: inputRegex, type: this.type })];
   },
 
-  // Add the custom command
   addCommands() {
     return {
       insertMathBlock:

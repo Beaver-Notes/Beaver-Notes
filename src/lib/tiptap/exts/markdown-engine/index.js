@@ -14,13 +14,8 @@ const markdownEngine = Extension.create({
           const alt = match[1];
           const src = match[2];
 
-          // Delete the entire matched text
           tr.delete(from, to);
-
-          // Insert an image node
           tr.insert(from, state.schema.nodes.image.create({ src, alt }));
-
-          // Move the selection after the inserted image
           tr.setSelection(selection.constructor.near(tr.doc.resolve(from + 1)));
 
           if (tr.docChanged && this.editor.view.state === state) {
@@ -39,14 +34,9 @@ const markdownEngine = Extension.create({
           const text = match[1];
           const href = match[2];
 
-          // Delete the entire matched text
           tr.delete(from, to);
-
-          // Insert the text with a link mark
           const linkMark = state.schema.marks.link.create({ href });
           tr.insert(from, state.schema.text(text, [linkMark]));
-
-          // Move the selection after the inserted link
           tr.setSelection(
             selection.constructor.near(tr.doc.resolve(from + text.length))
           );
@@ -131,7 +121,6 @@ const markdownEngine = Extension.create({
           const { from, to } = range;
           const url = match[0];
 
-          // Replace the pasted URL with a link mark
           tr.delete(from, to);
           tr.insert(
             from,
@@ -139,8 +128,6 @@ const markdownEngine = Extension.create({
               state.schema.marks.link.create({ href: url }),
             ])
           );
-
-          // Move the selection after the inserted link
           tr.setSelection(
             selection.constructor.near(tr.doc.resolve(from + url.length))
           );
@@ -152,7 +139,6 @@ const markdownEngine = Extension.create({
           return true;
         },
       },
-      // Handle pasted images
       {
         match: /!\[([^\]]*)\]\(([^)]+)\)/,
         handler: ({ state, range, match }) => {
@@ -161,13 +147,8 @@ const markdownEngine = Extension.create({
           const alt = match[1];
           const src = match[2];
 
-          // Delete the matched text
           tr.delete(from, to);
-
-          // Insert the image node
           tr.insert(from, state.schema.nodes.image.create({ src, alt }));
-
-          // Move the selection after the inserted image
           tr.setSelection(selection.constructor.near(tr.doc.resolve(from + 1)));
 
           if (tr.docChanged && this.editor.view.state === state) {

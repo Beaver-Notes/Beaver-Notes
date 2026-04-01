@@ -40,11 +40,9 @@ export function useToolbarConfig() {
     const all = toolbarRegistry.all();
     const savedOrder = saved.map((s) => s.id);
     return [
-      // Restore user's order + visibility, skip ids no longer in registry
       ...savedOrder
         .filter((id) => toolbarRegistry.has(id))
         .map((id) => ({ id, visible: saved.find((s) => s.id === id).visible })),
-      // Append newly registered items (new built-ins or newly installed plugins)
       ...all
         .filter(({ id }) => !savedOrder.includes(id))
         .map(({ id }) => ({ id, visible: true })),

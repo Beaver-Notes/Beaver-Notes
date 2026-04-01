@@ -113,7 +113,6 @@ const show = ref(false);
 const selectedId = ref(null);
 const isMoving = ref(false);
 
-/** Guarded root list */
 const rootFolders = computed(() => {
   const list = Array.isArray(folderStore.validFolders)
     ? folderStore.validFolders
@@ -140,7 +139,6 @@ const commonFolderParentId = computed(() => {
   return s.size === 1 ? [...s][0] : null;
 });
 
-/** Targets that must be disabled when moving folders (self or any descendant). */
 const disabledTargetIds = computed(() => {
   if (props.mode !== 'folder' || props.folders.length === 0) return new Set();
   const all = Array.isArray(folderStore.validFolders)
@@ -162,7 +160,6 @@ const disabledTargetIds = computed(() => {
   return out;
 });
 
-/** Single watcher to open/initialize */
 watch(
   () => props.modelValue,
   (value) => {

@@ -38,13 +38,11 @@ export const dropFile = Extension.create({
                 for (const file of files) {
                   const mimeType = file.type;
 
-                  // Ignore image files
                   if (mimeType.startsWith('image/')) {
                     const imageFiles = Array.from(
                       event.dataTransfer.files
                     ).filter((file) => file.type.startsWith('image/'));
 
-                    // Process each image file
                     insertImages(imageFiles, (src, alt) => {
                       const { schema } = view.state;
                       const coordinates = view.posAtCoords({

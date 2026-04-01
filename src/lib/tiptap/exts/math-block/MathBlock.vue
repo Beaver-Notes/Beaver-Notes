@@ -117,7 +117,6 @@ export default {
       if (shouldRender) nextTick(() => debouncedRenderContent());
     };
 
-    // Start editing and focus textarea
     const startEditing = () => {
       isEditing.value = true;
       nextTick(() => {
@@ -147,7 +146,6 @@ export default {
       });
     };
 
-    // Handle keyboard shortcuts
     const handleKeydown = (event) => {
       const { ctrlKey, shiftKey, metaKey, key } = event;
       const mod = ctrlKey || metaKey;

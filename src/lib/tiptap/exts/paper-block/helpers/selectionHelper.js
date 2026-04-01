@@ -100,7 +100,6 @@ export default function useSelectionHelper(
       return;
     }
 
-    // Start a new selection gesture
     state.selectedElement = null;
     state.isDrawing = true;
 

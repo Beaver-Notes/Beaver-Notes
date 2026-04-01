@@ -66,7 +66,6 @@ const Footnote = ListItem.extend({
             'data-id': id,
           });
           if (matchedFootnote) {
-            // sets the text selection to the end of the footnote definition and scroll to it.
             chain()
               .focus()
               .setTextSelection(
@@ -83,7 +82,6 @@ const Footnote = ListItem.extend({
   },
   addKeyboardShortcuts() {
     return {
-      // when the user presses tab, adjust the text selection to be at the end of the next footnote
       Tab: ({ editor }) => {
         try {
           const { selection } = editor.state;
@@ -117,7 +115,6 @@ const Footnote = ListItem.extend({
           return false;
         }
       },
-      // inverse of the tab command - place the text selection at the end of the previous footnote
       'Shift-Tab': ({ editor }) => {
         const { selection } = editor.state;
         const startPos = selection.$from.start(2);

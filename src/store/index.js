@@ -39,9 +39,6 @@ export const useStore = defineStore('main', {
         await noteStore.normalizeInvalidFolderIds();
       }
 
-      // Trigger a background FTS index rebuild whenever the stored version
-      // doesn't match the current FTS_INDEX_VERSION. This runs once per
-      // install or after schema changes, and is entirely fire-and-forget.
       this._ensureFtsIndex().catch((err) =>
         console.warn('[fts] Background index build failed:', err)
       );

@@ -64,7 +64,7 @@ export const Highlight = Mark.create<HighlightOptions>({
 
   addOptions() {
     return {
-      multicolor: true, // Allow multiple colors
+      multicolor: true,
       HTMLAttributes: {},
     };
   },
@@ -85,7 +85,7 @@ export const Highlight = Mark.create<HighlightOptions>({
 
           return {
             'data-color': attributes.color,
-            class: attributes.color, // Apply TailwindCSS class
+            class: attributes.color,
           };
         },
       },

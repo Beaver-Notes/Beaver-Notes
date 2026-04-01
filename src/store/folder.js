@@ -139,9 +139,6 @@ export const useFolderStore = defineStore('folder', {
       return depth;
     },
 
-    // Builds the folder tree using the O(1) children index. The self-reference
-    // via `this` (a Pinia getter auto-binding) lets us recurse without
-    // re-entering the getter loop.
     getFolderTree() {
       const buildTree = (parentId = null) => {
         const childIds = this._index.get(parentId ?? null) ?? new Set();

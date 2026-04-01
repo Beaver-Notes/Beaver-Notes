@@ -618,7 +618,6 @@ export function useOnboardingFlow({
     // Static config
     themes, accentColors, interfaceSizes, fonts, languages, logoUrl,
 
-    // Computed
     themeLabels, isDark, isMobileRuntime, isMacOS,
     onboardingSubtitle,
     completionEyebrow, completionTitle, completionSubtitle,
@@ -635,7 +634,6 @@ export function useOnboardingFlow({
     // Appearance
     selectTheme, selectAccentColor, selectZoomLevel,
 
-    // Actions
     refreshStatus, prepareFreshWorkspace, useDefaultPreferences,
     migrateLegacyData, runSelectedMigration, browseForPortableData,
     copyMigrationIssues, chooseSyncPath, clearSyncPath,

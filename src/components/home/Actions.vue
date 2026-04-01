@@ -84,11 +84,9 @@ const props = defineProps({
 
 const emit = defineEmits(['clear', 'delete', 'move']);
 
-// Store
 const noteStore = useNoteStore();
 const { translations } = useTranslations();
 
-// Computed notes
 const selectedNotes = computed(() => {
   return Array.from(props.selectedItems)
     .map(parseItemId)

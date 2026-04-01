@@ -196,7 +196,6 @@ export function usePointerHelper(context) {
         // the undo stack on every frame — we'll push one snapshot on pointerUp.
         state.lines = nextLines;
       }
-      // Show eraser cursor position
       state.currentStrokePoints = [[x, y, 0.5]];
       currentPointsRef.value = [[x, y, 0.5]];
       return;
@@ -324,7 +323,6 @@ export function usePointerHelper(context) {
     handlePointerLeave,
     handlePointerCancel,
     captureUndoBeforeErase,
-    // Expose helpers so DrawMode.vue can use them for lasso hit-testing
     strokeIntersectsLasso,
   };
 }

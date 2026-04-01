@@ -91,13 +91,10 @@ const FootnoteReference = Node.create({
             return editor.commands.focusFootnote(id);
           },
 
-          // Handle paste events
           handlePaste(view, event, slice) {
-            // Extract text from pasted content
             const text = event.clipboardData?.getData('text/plain');
             if (!text) return false;
 
-            // Find all footnote reference patterns in the pasted text
             const footnoteRefs = [];
             const regex = /\[\^(\d+)\]/g;
             let match;
@@ -109,7 +106,6 @@ const FootnoteReference = Node.create({
               });
             }
 
-            // Process the text to replace footnote references with footnote nodes
             let offset = 0;
             let newText = text;
             footnoteRefs.forEach(({ number, index, length }) => {
@@ -121,7 +117,6 @@ const FootnoteReference = Node.create({
               offset += refNode.length - length;
             });
 
-            // Insert the processed content into the editor
             const { tr } = view.state;
             tr.replaceSelectionWith(view.state.schema.text(newText));
             view.dispatch(tr);

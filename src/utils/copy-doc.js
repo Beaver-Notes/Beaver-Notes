@@ -54,13 +54,13 @@ export async function saveFile(file, id) {
   try {
     const contentUint8Array = await readFile(file);
     const { fileName, destPath } = await createFileName(file, id);
-    const relativePath = `file-assets://${id}/${fileName}`; // Construct relative path
+    const relativePath = `file-assets://${id}/${fileName}`;
     await backend.invoke('fs:writeFile', {
       data: contentUint8Array,
       path: destPath,
       skipAssetEncryption: !isAppEncryptionEnabled(),
     });
-    return { fileName, relativePath }; // Return relative path instead of destPath
+    return { fileName, relativePath };
   } catch (error) {
     console.error(error);
     throw new Error('Failed to save file');

@@ -280,12 +280,11 @@ watch(
   }
 );
 
-// Reset index on search
 watch(
   () => state.query,
   () => {
     state.selectedIndex = 0;
-    itemRefs.value = []; // Clear refs cache
+    itemRefs.value = [];
   }
 );
 

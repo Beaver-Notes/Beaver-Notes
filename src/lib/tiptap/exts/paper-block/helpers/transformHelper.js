@@ -79,14 +79,11 @@ export default function useTransformHelper(state, svgRef) {
       const deltaAngle = (currentAngle - state.transformState.startAngle) * (180 / Math.PI);
       const totalRotation = (state.selectedElement.rotation ?? 0) + deltaAngle;
 
-      // Update visual bounds (bounds stay the same AABB for the handle positions;
-      // actual stroke points are rotated on commit in handleTransformEnd)
       state.selectedElement = {
         ...state.selectedElement,
         rotation: totalRotation,
       };
 
-      // Reset startAngle so delta is incremental each frame
       state.transformState = {
         ...state.transformState,
         startAngle: currentAngle,
@@ -159,7 +156,6 @@ export default function useTransformHelper(state, svgRef) {
 
       updatedLines = state.lines.map((line) => {
         if (!lineIds.includes(line.id)) return line;
-        // Find the original version of this line for accurate point transform
         const orig = originalLines.find((l) => l.id === line.id) ?? line;
         return {
           ...line,
