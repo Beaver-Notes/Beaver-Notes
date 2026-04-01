@@ -6,19 +6,25 @@
     <!-- Tab -->
     <div
       class="absolute top-4 left-0 z-0 h-8 w-16 rounded-tl-xl rounded-tr-md transition-colors"
-      :style="{ backgroundColor: folder.color || '#f59e0b' }"
+      :style="{
+        backgroundColor: folder.color || '#f59e0b',
+        filter: 'saturate(0.8)',
+      }"
     ></div>
 
     <!-- Back panel -->
     <div
-      class="absolute top-8 left-0 z-0 h-28 w-full rounded-xl rounded-tl-none transition-colors shadow-sm"
-      :style="{ backgroundColor: folder.color || '#f59e0b' }"
+      class="absolute top-8 left-0 z-0 h-32 w-full rounded-xl rounded-tl-none transition-colors shadow-sm"
+      :style="{
+        backgroundColor: folder.color || '#f59e0b',
+        filter: 'saturate(0.8)',
+      }"
     ></div>
 
     <!-- Rear sheet -->
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute top-6 left-6 z-10 h-20 w-36 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 shadow-sm transition-transform duration-300 ease-out"
+      class="folder-card__sheet folder-card__sheet--rear absolute top-6 left-6 z-10 h-24 w-36 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 shadow-sm transition-transform duration-300 ease-out"
     >
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
@@ -28,7 +34,7 @@
     <!-- Front sheet -->
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute top-9 left-9 z-10 h-20 w-36 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 shadow-md transition-transform duration-300 ease-out"
+      class="folder-card__sheet folder-card__sheet--front absolute top-9 left-9 z-10 h-28 w-36 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 shadow-md transition-transform duration-300 ease-out"
     >
       <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
@@ -43,7 +49,6 @@
         background: `linear-gradient(to bottom, ${folder.color || '#fbbf24'}, ${
           folder.color || '#f59e0b'
         })`,
-        filter: 'brightness(1.2) saturate(0.9)',
         transformOrigin: 'bottom center',
       }"
     >
