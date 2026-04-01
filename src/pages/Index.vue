@@ -88,14 +88,15 @@
           :key="name"
           class="mb-12"
         >
-          <template v-if="notes[name].length !== 0">
+          <template v-if="notes[name] && notes[name].length > 0">
             <h2
               class="text-gray-600 dark:text-[color:var(--selected-dark-text)] capitalize mb-4 font-medium"
             >
               {{ translations.index[name] }}
             </h2>
+
             <home-note-masonry
-              :notes="notes[name]"
+              :notes="notes[name] || []"
               :selected-items="selectedItems"
               :selection-mode="selectionMode"
               :pulse="isFiltering"
@@ -197,7 +198,6 @@ export default {
       sortOrder: 'asc',
     });
 
-
     const sortedNotes = computed(() =>
       sortArray({
         data: noteStore.notes,
@@ -257,7 +257,9 @@ export default {
                 label.toLocaleLowerCase().includes(queryLower)
               ) ||
               normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
-              (note.searchText ?? extractTextFromContent(note.content)).toLowerCase().includes(queryLower);
+              (note.searchText ?? extractTextFromContent(note.content))
+                .toLowerCase()
+                .includes(queryLower);
 
         if (matchesQuery && labelFilter) {
           if (folderId !== null && folderId !== undefined) {

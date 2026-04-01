@@ -4,61 +4,52 @@
     class="note-masonry"
     :class="{ 'filter-pulse': pulse }"
   >
-    <div
-      class="note-masonry__columns"
-      :style="{
-        '--note-masonry-gap': `${resolvedGap}px`,
-        gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-      }"
-    >
+    <div class="note-masonry__stage" :style="{ height: `${stageHeight}px` }">
       <div
-        v-for="(column, columnIndex) in layout.columns"
-        :key="`column-${columnIndex}`"
-        class="note-masonry__column"
+        v-for="item in visibleItems"
+        :key="item.note.id"
+        :ref="setCardRef(item.note.id)"
+        :data-item-id="`note-${item.note.id}`"
+        class="note-masonry__card"
+        :style="{
+          transform: `translate3d(${item.x}px,${item.y}px,0)`,
+          width: `${item.w}px`,
+        }"
+        @click.stop="
+          $emit('item-click', { event: $event, noteId: item.note.id })
+        "
+        @touchstart="
+          $emit('item-touchstart', { event: $event, noteId: item.note.id })
+        "
+        @touchmove="
+          $emit('item-touchmove', { event: $event, noteId: item.note.id })
+        "
+        @touchend="
+          $emit('item-touchend', { event: $event, noteId: item.note.id })
+        "
+        @touchcancel="
+          $emit('item-touchcancel', { event: $event, noteId: item.note.id })
+        "
       >
-        <div
-          v-for="note in column"
-          :key="note.id"
-          :ref="setCardRef(note.id)"
-          :data-item-id="`note-${note.id}`"
-          class="note-masonry__card"
-          @click.stop="$emit('item-click', { event: $event, noteId: note.id })"
-          @touchstart="
-            $emit('item-touchstart', { event: $event, noteId: note.id })
+        <home-note-card
+          :note-id="item.note.id"
+          :is-locked="item.note.isLocked"
+          v-bind="{ note: item.note }"
+          :disable-open="selectionMode"
+          :class="{
+            'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
+              isSelected(item.note.id),
+          }"
+          class="w-full"
+          draggable="true"
+          style="contain: layout style"
+          @dragstart="
+            $emit('dragstart', { event: $event, noteId: item.note.id })
           "
-          @touchmove="
-            $emit('item-touchmove', { event: $event, noteId: note.id })
-          "
-          @touchend="$emit('item-touchend', { event: $event, noteId: note.id })"
-          @touchcancel="
-            $emit('item-touchcancel', { event: $event, noteId: note.id })
-          "
-        >
-          <home-note-card
-            :note-id="note.id"
-            :is-locked="note.isLocked"
-            v-bind="{ note }"
-            :disable-open="selectionMode"
-            :class="{
-              'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
-                isSelected(note.id),
-            }"
-            class="w-full"
-            draggable="true"
-            style="contain: layout style"
-            @dragstart="$emit('dragstart', { event: $event, noteId: note.id })"
-            @dragend="$emit('dragend', { event: $event, noteId: note.id })"
-            @update:label="$emit('update:label', $event)"
-            @update="$emit('update', { noteId: note.id, payload: $event })"
-          />
-        </div>
-
-        <div
-          v-if="layout.spacers[columnIndex] > 0"
-          aria-hidden="true"
-          class="note-masonry__spacer"
-          :style="{ height: `${layout.spacers[columnIndex]}px` }"
-        ></div>
+          @dragend="$emit('dragend', { event: $event, noteId: item.note.id })"
+          @update:label="$emit('update:label', $event)"
+          @update="$emit('update', { noteId: item.note.id, payload: $event })"
+        />
       </div>
     </div>
   </div>
@@ -76,26 +67,11 @@ import {
 import HomeNoteCard from './HomeNoteCard.vue';
 
 const props = defineProps({
-  notes: {
-    type: Array,
-    default: () => [],
-  },
-  selectedItems: {
-    type: Object,
-    default: null,
-  },
-  pulse: {
-    type: Boolean,
-    default: false,
-  },
-  selectionMode: {
-    type: Boolean,
-    default: false,
-  },
-  gapPx: {
-    type: Number,
-    default: 20,
-  },
+  notes: { type: Array, default: () => [] },
+  selectedItems: { type: Object, default: null },
+  pulse: { type: Boolean, default: false },
+  selectionMode: { type: Boolean, default: false },
+  gapPx: { type: Number, default: 20 },
   breakpoints: {
     type: Array,
     default: () => [
@@ -106,6 +82,7 @@ const props = defineProps({
       { min: 1280, cols: 4 },
     ],
   },
+  overscanPx: { type: Number, default: 800 },
 });
 
 defineEmits([
@@ -122,160 +99,223 @@ defineEmits([
 
 const containerRef = ref(null);
 const containerWidth = ref(0);
+const scrollTop = ref(0);
+const viewportHeight = ref(
+  typeof window !== 'undefined' ? window.innerHeight : 600
+);
+const containerOffset = ref(0);
 const measuredVersion = ref(0);
+const isMeasured = ref(false);
 
 const cardElements = new Map();
 const cardElementIds = new WeakMap();
 const cardHeights = new Map();
+const cardRefCbs = new Map();
+let scrollEl = null,
+  containerRO = null,
+  cardRO = null,
+  measureRaf = null,
+  scrollRaf = null;
 
-let containerResizeObserver = null;
-let cardResizeObserver = null;
-let measureFrame = null;
-
-function isSelected(noteId) {
-  return props.selectedItems?.has?.(`note-${noteId}`) || false;
-}
-
-function estimateTextLines(text, charsPerLine, maxLines) {
-  const normalized = String(text || '').trim();
-  if (!normalized) return 0;
-  return Math.min(
-    maxLines,
-    Math.max(1, Math.ceil(normalized.length / charsPerLine))
-  );
-}
+const isSelected = (id) => props.selectedItems?.has?.(`note-${id}`) ?? false;
 
 function estimateNoteHeight(note) {
-  const titleLines = estimateTextLines(note.title, 28, 2);
-  const labelsLines = note.labels?.length
+  const tLines = Math.min(
+    2,
+    Math.max(1, Math.ceil(String(note.title ?? '').trim().length / 28))
+  );
+  const lLines = note.labels?.length
     ? Math.min(2, Math.ceil(note.labels.join(' ').length / 26))
     : 0;
-  const previewWeight = note.isLocked ? 70 : 148;
-  const conflictHeight = note.isConflict ? 38 : 0;
-
   return (
-    104 + previewWeight + conflictHeight + titleLines * 22 + labelsLines * 24
+    104 +
+    (note.isLocked ? 70 : 148) +
+    (note.isConflict ? 38 : 0) +
+    tLines * 22 +
+    lLines * 24
   );
 }
 
-function getCardHeight(note) {
-  measuredVersion.value;
-  return cardHeights.get(note.id) || estimateNoteHeight(note);
-}
-
-function updateContainerWidth() {
-  const width = Math.round(containerRef.value?.clientWidth || 0);
-  if (width !== containerWidth.value) {
-    containerWidth.value = width;
-  }
+function getCardHeight(id, note) {
+  void measuredVersion.value;
+  return cardHeights.get(id) ?? estimateNoteHeight(note);
 }
 
 const columnCount = computed(() => {
-  const width =
-    typeof window !== 'undefined' ? window.innerWidth : containerWidth.value;
-
-  let columns = 2;
-  for (const point of props.breakpoints) {
-    if (width >= point.min) columns = point.cols;
-  }
-  return Math.max(2, columns);
+  const w = containerWidth.value || window?.innerWidth || 0;
+  let cols = 2;
+  for (const bp of props.breakpoints) if (w >= bp.min) cols = bp.cols;
+  return Math.max(1, cols);
 });
 
-const layout = computed(() => {
-  const columns = Array.from({ length: columnCount.value }, () => []);
-  const heights = Array.from({ length: columnCount.value }, () => 0);
+const resolvedGap = computed(() =>
+  containerWidth.value > 0 && containerWidth.value < 640
+    ? Math.round(props.gapPx / 2)
+    : props.gapPx
+);
+
+const layoutResult = computed(() => {
+  const cols = columnCount.value,
+    gap = resolvedGap.value,
+    width = containerWidth.value;
+  if (!width || !props.notes.length) return { items: [], stageHeight: 0 };
+
+  const colW = Math.floor((width - gap * (cols - 1)) / cols);
+  const colH = new Array(cols).fill(0);
+  const items = [];
 
   for (const note of props.notes) {
-    const height = getCardHeight(note);
-    const columnIndex = heights.indexOf(Math.min(...heights));
-    columns[columnIndex].push(note);
-    heights[columnIndex] +=
-      height + (columns[columnIndex].length > 1 ? props.gapPx : 0);
+    let s = 0;
+    for (let c = 1; c < cols; c++) if (colH[c] < colH[s]) s = c;
+    const x = s * (colW + gap),
+      y = colH[s],
+      h = getCardHeight(note.id, note);
+    items.push({ note, x, y, w: colW, h });
+    colH[s] += h + gap;
   }
 
-  const tallest = heights.length ? Math.max(...heights) : 0;
-  const spacers = heights.map((height, index) => {
-    const needsGapBeforeSpacer = columns[index].length > 0 ? props.gapPx : 0;
-    return Math.max(0, tallest - height - needsGapBeforeSpacer);
-  });
-
-  return { columns, spacers };
+  return { items, stageHeight: Math.max(0, Math.max(...colH) - gap) };
 });
 
-function updateCardHeight(id, element) {
-  const height = Math.round(element.getBoundingClientRect().height);
-  if (!height || cardHeights.get(id) === height) return false;
+const stageHeight = computed(() => layoutResult.value.stageHeight);
 
-  cardHeights.set(id, height);
+const visibleItems = computed(() => {
+  const { items } = layoutResult.value;
+  if (!items.length) return [];
+
+  if (!isMeasured.value) {
+    const maxInitial = Math.min(items.length, 30);
+    return items.slice(0, maxInitial);
+  }
+
+  const over =
+    containerWidth.value < 480
+      ? Math.round(props.overscanPx / 2)
+      : props.overscanPx;
+  const local = scrollTop.value - containerOffset.value;
+  const lo = local - over;
+  const hi = local + viewportHeight.value + over;
+
+  return items.filter((item) => {
+    const h = cardHeights.get(item.note.id) ?? item.h;
+    return item.y + h > lo && item.y < hi;
+  });
+});
+
+const onScroll = () => {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = null;
+    scrollTop.value =
+      scrollEl === window ? window.scrollY : scrollEl?.scrollTop ?? 0;
+  });
+};
+
+function findScrollParent(el) {
+  let node = el?.parentElement;
+  while (node && node !== document.body) {
+    const ov = window.getComputedStyle(node).overflowY;
+    if (
+      (ov === 'auto' || ov === 'scroll') &&
+      node.scrollHeight > node.clientHeight
+    )
+      return node;
+    node = node.parentElement;
+  }
+  return window;
+}
+
+function updateWidth() {
+  const w = Math.round(containerRef.value?.clientWidth ?? 0);
+  if (w !== containerWidth.value) containerWidth.value = w;
+}
+
+function updateViewport() {
+  const h =
+    scrollEl === window ? window.innerHeight : scrollEl?.clientHeight ?? 0;
+  if (h !== viewportHeight.value) viewportHeight.value = h;
+}
+
+function updateOffset() {
+  if (!containerRef.value) return;
+  if (scrollEl === window) {
+    let top = 0,
+      el = containerRef.value;
+    while (el) {
+      top += el.offsetTop ?? 0;
+      el = el.offsetParent;
+    }
+    containerOffset.value = top;
+  } else {
+    const cr = containerRef.value.getBoundingClientRect();
+    const sr = scrollEl.getBoundingClientRect();
+    containerOffset.value = cr.top - sr.top + scrollEl.scrollTop;
+  }
+}
+
+function updateCardHeight(id, el) {
+  const h = Math.round(el.getBoundingClientRect().height);
+  if (!h || cardHeights.get(id) === h) return false;
+  cardHeights.set(id, h);
   return true;
 }
 
 function scheduleMeasure() {
-  if (measureFrame !== null) {
-    cancelAnimationFrame(measureFrame);
-  }
-
-  measureFrame = requestAnimationFrame(() => {
-    measureFrame = null;
+  if (measureRaf) cancelAnimationFrame(measureRaf);
+  measureRaf = requestAnimationFrame(() => {
+    measureRaf = null;
     let changed = false;
-
     for (const note of props.notes) {
       const el = cardElements.get(note.id);
-      if (!el) continue;
-
-      changed = updateCardHeight(note.id, el) || changed;
+      if (el && updateCardHeight(note.id, el)) changed = true;
     }
-
-    const noteIds = new Set(props.notes.map((note) => note.id));
+    const ids = new Set(props.notes.map((n) => n.id));
     for (const id of [...cardHeights.keys()]) {
-      if (!noteIds.has(id)) {
-        const element = cardElements.get(id);
-        if (element && cardResizeObserver) {
-          cardResizeObserver.unobserve(element);
-        }
+      if (!ids.has(id)) {
+        const el = cardElements.get(id);
+        if (el && cardRO) cardRO.unobserve(el);
         cardHeights.delete(id);
         cardElements.delete(id);
         changed = true;
       }
     }
-
     if (changed) {
-      measuredVersion.value += 1;
+      measuredVersion.value++;
+      if (!isMeasured.value && props.notes.length > 0) {
+        isMeasured.value = true;
+      }
     }
   });
 }
 
 function setCardRef(id) {
-  return (el) => {
-    const previous = cardElements.get(id);
-    if (previous && previous !== el && cardResizeObserver) {
-      cardResizeObserver.unobserve(previous);
-    }
-
-    if (el) {
-      cardElements.set(id, el);
-      cardElementIds.set(el, id);
-      if (cardResizeObserver) {
-        cardResizeObserver.observe(el);
+  if (!cardRefCbs.has(id)) {
+    cardRefCbs.set(id, (el) => {
+      const prev = cardElements.get(id);
+      if (prev && prev !== el && cardRO) cardRO.unobserve(prev);
+      if (el) {
+        cardElements.set(id, el);
+        cardElementIds.set(el, id);
+        if (cardRO) cardRO.observe(el);
+      } else {
+        if (prev && cardRO) cardRO.unobserve(prev);
+        cardElements.delete(id);
+        cardRefCbs.delete(id);
       }
-    } else {
-      if (previous && cardResizeObserver) {
-        cardResizeObserver.unobserve(previous);
-      }
-      cardElements.delete(id);
-    }
-    scheduleMeasure();
-  };
+      scheduleMeasure();
+    });
+  }
+  return cardRefCbs.get(id);
 }
 
 watch(
   () =>
     props.notes
       .map(
-        (note) =>
-          `${note.id}:${note.updatedAt}:${note.title}:${
-            note.labels?.length || 0
-          }:${note.isLocked}:${note.isConflict}`
+        (n) =>
+          `${n.id}:${n.updatedAt ?? ''}:${n.title ?? ''}:${
+            n.labels?.length ?? 0
+          }:${n.isLocked}:${n.isConflict}`
       )
       .join('|'),
   async () => {
@@ -286,98 +326,94 @@ watch(
 );
 
 watch(columnCount, async () => {
+  cardHeights.clear();
+  measuredVersion.value++;
   await nextTick();
   scheduleMeasure();
 });
 
 onMounted(() => {
-  updateContainerWidth();
+  scrollEl = findScrollParent(containerRef.value);
+  updateWidth();
+  updateViewport();
+  updateOffset();
+  scrollTop.value =
+    scrollEl === window ? window.scrollY : scrollEl?.scrollTop ?? 0;
+  scrollEl.addEventListener('scroll', onScroll, { passive: true });
 
-  if (typeof ResizeObserver === 'function' && containerRef.value) {
-    containerResizeObserver = new ResizeObserver(() => {
-      updateContainerWidth();
+  if (typeof ResizeObserver === 'function') {
+    containerRO = new ResizeObserver(() => {
+      updateWidth();
+      updateViewport();
+      updateOffset();
       scheduleMeasure();
     });
-    containerResizeObserver.observe(containerRef.value);
+    containerRO.observe(containerRef.value);
+    if (scrollEl !== window) containerRO.observe(scrollEl);
 
-    cardResizeObserver = new ResizeObserver((entries) => {
+    cardRO = new ResizeObserver((entries) => {
       let changed = false;
-
-      for (const entry of entries) {
-        const id = cardElementIds.get(entry.target);
-        if (id == null) continue;
-
-        changed = updateCardHeight(id, entry.target) || changed;
+      for (const e of entries) {
+        const id = cardElementIds.get(e.target);
+        if (id != null && updateCardHeight(id, e.target)) changed = true;
       }
-
       if (changed) {
-        measuredVersion.value += 1;
+        measuredVersion.value++;
+        if (!isMeasured.value && props.notes.length > 0) {
+          isMeasured.value = true;
+        }
       }
     });
-
-    for (const [id, element] of cardElements.entries()) {
-      cardElementIds.set(element, id);
-      cardResizeObserver.observe(element);
+    for (const [id, el] of cardElements) {
+      cardElementIds.set(el, id);
+      cardRO.observe(el);
     }
-  } else if (typeof window !== 'undefined') {
-    window.addEventListener('resize', updateContainerWidth);
+  } else {
+    window.addEventListener(
+      'resize',
+      () => {
+        updateWidth();
+        updateViewport();
+        updateOffset();
+      },
+      { passive: true }
+    );
   }
 
   scheduleMeasure();
 });
 
 onBeforeUnmount(() => {
-  if (containerResizeObserver) {
-    containerResizeObserver.disconnect();
-    containerResizeObserver = null;
-  } else if (typeof window !== 'undefined') {
-    window.removeEventListener('resize', updateContainerWidth);
-  }
-
-  if (cardResizeObserver) {
-    cardResizeObserver.disconnect();
-    cardResizeObserver = null;
-  }
-
-  if (measureFrame !== null) {
-    cancelAnimationFrame(measureFrame);
-    measureFrame = null;
-  }
-});
-
-const resolvedGap = computed(() => {
-  const width = containerWidth.value;
-
-  if (width < 640) return 10; // small screens
-  return props.gapPx; // default gap otherwise
+  scrollEl?.removeEventListener('scroll', onScroll);
+  containerRO?.disconnect();
+  cardRO?.disconnect();
+  if (measureRaf) cancelAnimationFrame(measureRaf);
+  if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  cardRefCbs.clear();
+  scrollEl = containerRO = cardRO = null;
 });
 </script>
 
 <style scoped>
-.filter-pulse {
-  opacity: 1;
+.note-masonry {
+  position: relative;
+  width: 100%;
 }
 
-.note-masonry__columns {
-  display: grid;
-  align-items: start;
-  gap: var(--note-masonry-gap);
-}
-
-.note-masonry__column {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: var(--note-masonry-gap);
+.note-masonry__stage {
+  position: relative;
+  width: 100%;
 }
 
 .note-masonry__card {
-  min-width: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
+  contain: style;
 }
 
-.note-masonry__spacer {
-  width: 100%;
-  pointer-events: none;
+.filter-pulse {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: no-preference) {
