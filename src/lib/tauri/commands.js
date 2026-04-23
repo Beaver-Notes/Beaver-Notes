@@ -43,6 +43,21 @@ const commandAliases = {
   'safeStorage:clearBlob': 'safe_storage_clear_blob',
   'assetCrypto:setAppPassphrase': 'asset_crypto_set_passphrase',
   'assetCrypto:clearAppPassphrase': 'asset_crypto_clear_passphrase',
+  'assetCrypto:migrateDir': 'asset_crypto_migrate_dir',
+  'encryption:getState': 'encryption_get_state',
+  'encryption:submitPassword': 'encryption_submit_password',
+  'encryption:enableApp': 'encryption_enable_app',
+  'encryption:disableApp': 'encryption_disable_app',
+  'encryption:enableSync': 'encryption_enable_sync',
+  'encryption:disableSync': 'encryption_disable_sync',
+  'encryption:unlock': 'encryption_unlock',
+  'encryption:lock': 'encryption_lock',
+  'encryption:encryptNotePayload': 'encryption_encrypt_note_payload',
+  'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
+  'encryption:encryptSyncPayload': 'encryption_encrypt_sync_payload',
+  'encryption:decryptSyncPayload': 'encryption_decrypt_sync_payload',
+  'encryption:encryptSyncAssetBase64': 'encryption_encrypt_sync_asset_base64',
+  'encryption:decryptSyncAssetBase64': 'encryption_decrypt_sync_asset_base64',
   'passwd:hash': 'passwd_hash',
   'passwd:compare': 'passwd_compare',
   'passwd:recordFailure': 'passwd_record_failure',
@@ -171,6 +186,73 @@ function normalizePayload(channel, payload) {
       return withKeyVariants('key', payload);
     case 'assetCrypto:setAppPassphrase':
       return withKeyVariants('passphrase', payload);
+    case 'assetCrypto:migrateDir':
+      return {
+        ...withKeyVariants('data_dir', payload?.dataDir),
+        ...withKeyVariants('encrypt_at_rest', payload?.encryptAtRest),
+      };
+    case 'encryption:getState':
+      return payload?.syncPath
+        ? withKeyVariants('sync_path', payload.syncPath)
+        : {};
+    case 'encryption:submitPassword':
+      return {
+        ...withKeyVariants('password', payload?.password),
+        ...withKeyVariants('target', payload?.target),
+        ...(payload?.syncPath
+          ? withKeyVariants('sync_path', payload.syncPath)
+          : {}),
+        ...(payload?.createIfMissing != null
+          ? withKeyVariants('create_if_missing', payload.createIfMissing)
+          : {}),
+      };
+    case 'encryption:enableApp':
+      return withKeyVariants('password', payload);
+    case 'encryption:disableApp':
+      return {
+        ...withKeyVariants(
+          'remove_manifest',
+          payload?.removeManifest ?? payload?.remove_manifest ?? true
+        ),
+      };
+    case 'encryption:enableSync':
+      return {
+        ...withKeyVariants('sync_path', payload?.syncPath),
+        ...withKeyVariants('password', payload?.password),
+      };
+    case 'encryption:disableSync':
+      return {
+        ...(payload?.syncPath
+          ? withKeyVariants('sync_path', payload.syncPath)
+          : {}),
+        ...(payload?.removeManifest != null
+          ? withKeyVariants('remove_manifest', payload.removeManifest)
+          : {}),
+      };
+    case 'encryption:unlock':
+      return {
+        ...withKeyVariants('password', payload?.password),
+        ...(payload?.syncPath
+          ? withKeyVariants('sync_path', payload.syncPath)
+          : {}),
+        targets: payload?.targets ?? [],
+      };
+    case 'encryption:lock':
+      return { targets: payload?.targets ?? [] };
+    case 'encryption:encryptNotePayload':
+      return withKeyVariants('plain_json', payload);
+    case 'encryption:decryptNotePayload':
+      return withKeyVariants('payload', payload);
+    case 'encryption:encryptSyncPayload':
+      return withKeyVariants('plain_text', payload);
+    case 'encryption:decryptSyncPayload':
+    case 'encryption:decryptSyncAssetBase64':
+      return withKeyVariants('payload', payload);
+    case 'encryption:encryptSyncAssetBase64':
+      return withKeyVariants(
+        'base64_data',
+        payload?.base64Data ?? payload?.base64_data ?? payload
+      );
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':

@@ -1,12 +1,10 @@
 import { computed, onMounted, ref } from 'vue';
-import { readData, readDir, writeFile } from '@/lib/native/fs';
-import { path } from '@/lib/tauri-bridge';
+import { migrateAssetEncryption } from '@/lib/native/security';
+import { useStorage } from '@/composable/storage.js';
 import {
   isSyncEncryptionEnabled,
   isSyncKeyLoaded,
   syncFolderHasEncryption,
-  tryRestoreKeyFromSafeStorage,
-  verifySyncPassphrase,
   setupSyncEncryption,
   disableSyncEncryption,
 } from '@/utils/sync/crypto.js';
@@ -14,10 +12,10 @@ import {
   isAppEncryptionEnabled,
   isAppKeyLoaded,
   setupAppEncryption,
-  verifyAppPassphrase,
   disableAppEncryption,
   appFolderHasEncryption,
 } from '@/utils/appCrypto.js';
+import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
 
 export function useSettingsSecurity({
   dialog,
@@ -27,13 +25,16 @@ export function useSettingsSecurity({
   getEffectiveDataDir,
   showDialogAlert,
 }) {
+  const settingsStorage = useStorage('settings');
   const syncEncryptionEnabled = ref(isSyncEncryptionEnabled());
   const syncKeyLoaded = ref(isSyncKeyLoaded());
   const syncPassphraseInput = ref('');
   const syncCryptoError = ref('');
+  const syncUnlockBusy = ref(false);
   const appEncryptionEnabled = ref(isAppEncryptionEnabled());
   const appKeyLoaded = ref(isAppKeyLoaded());
   const appEncryptionBusy = ref(false);
+  const appUnlockBusy = ref(false);
   const appEncryptionProgress = ref({
     phase: '',
     processed: 0,
@@ -75,7 +76,6 @@ export function useSettingsSecurity({
     const folderEncrypted = await syncFolderHasEncryption();
     if (folderEncrypted) {
       syncEncryptionEnabled.value = true;
-      await tryRestoreKeyFromSafeStorage();
     } else {
       syncEncryptionEnabled.value = isSyncEncryptionEnabled();
     }
@@ -115,7 +115,9 @@ export function useSettingsSecurity({
             }
 
             try {
-              await passwordStore.setsharedKey(newPassword);
+              await passwordStore.resetPassword(currentPassword, newPassword);
+              await unlockEnabledEncryptionScopes(newPassword);
+              hasPassword.value = true;
               showDialogAlert(translations.value.settings.passwordResetSuccess);
             } catch (error) {
               console.error('Error resetting password:', error);
@@ -133,6 +135,7 @@ export function useSettingsSecurity({
 
     try {
       await passwordStore.setsharedKey(passwordInput.value);
+      await unlockEnabledEncryptionScopes(passwordInput.value);
       hasPassword.value = true;
       passwordInput.value = '';
     } catch (error) {
@@ -156,73 +159,26 @@ export function useSettingsSecurity({
     };
   }
 
-  function base64ToUint8Array(base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) {
-      bytes[index] = binary.charCodeAt(index);
-    }
-    return bytes;
-  }
-
-  function isIgnoredAssetEntry(name) {
-    return !name || name.startsWith('.') || name === 'Thumbs.db';
-  }
-
-  async function listAssetFiles(dataDir) {
-    const roots = ['notes-assets', 'file-assets'];
-    const files = [];
-
-    for (const root of roots) {
-      const rootDir = path.join(dataDir, root);
-      const noteDirs = await readDir(rootDir).catch(() => []);
-      for (const noteDir of noteDirs) {
-        if (isIgnoredAssetEntry(noteDir)) continue;
-        const fullNoteDir = path.join(rootDir, noteDir);
-        const assetNames = await readDir(fullNoteDir).catch(() => []);
-        for (const assetName of assetNames) {
-          if (isIgnoredAssetEntry(assetName)) continue;
-          files.push(path.join(fullNoteDir, assetName));
-        }
-      }
-    }
-
-    return files;
-  }
-
   async function migrateAssetsForAppEncryption({ encryptAtRest }) {
     const dataDir = await getEffectiveDataDir();
     if (!dataDir) return;
-
-    const files = await listAssetFiles(dataDir);
     const phase = encryptAtRest ? 'assets-encrypt' : 'assets-plaintext';
-    const failures = [];
-    let processed = 0;
+    updateAppEncryptionProgress({
+      phase,
+      processed: 0,
+      total: 0,
+    });
 
-    for (const filePath of files) {
-      try {
-        const base64 = await readData(filePath);
-        if (base64) {
-          await writeFile(filePath, base64ToUint8Array(base64), {
-            skipAssetEncryption: !encryptAtRest,
-          });
-        }
-      } catch {
-        failures.push(filePath);
-      } finally {
-        processed += 1;
-        updateAppEncryptionProgress({
-          phase,
-          processed,
-          total: files.length,
-          id: filePath,
-        });
-      }
-    }
+    const result = await migrateAssetEncryption(dataDir, encryptAtRest);
+    updateAppEncryptionProgress({
+      phase,
+      processed: result.processed,
+      total: result.total,
+    });
 
-    if (failures.length > 0) {
+    if (result.failedPaths.length > 0) {
       throw new Error(
-        `Failed to migrate ${failures.length} asset file(s) during app-encryption update.`
+        `Failed to migrate ${result.failedPaths.length} asset file(s) during app-encryption update.`
       );
     }
   }
@@ -235,7 +191,15 @@ export function useSettingsSecurity({
       total: 0,
     };
 
+    const startedAt = Date.now();
     try {
+      await settingsStorage.set('app_encryption_migration', {
+        status: 'in_progress',
+        mode: encryptAtRest ? 'encrypt' : 'decrypt',
+        startedAt,
+        updatedAt: startedAt,
+      });
+
       await noteStore.decryptAllNotesForAppEncryption({
         onProgress: updateAppEncryptionProgress,
       });
@@ -251,6 +215,21 @@ export function useSettingsSecurity({
       }
 
       await migrateAssetsForAppEncryption({ encryptAtRest });
+      await settingsStorage.set('app_encryption_migration', {
+        status: 'done',
+        mode: encryptAtRest ? 'encrypt' : 'decrypt',
+        startedAt,
+        updatedAt: Date.now(),
+      });
+    } catch (error) {
+      await settingsStorage.set('app_encryption_migration', {
+        status: 'error',
+        mode: encryptAtRest ? 'encrypt' : 'decrypt',
+        startedAt,
+        updatedAt: Date.now(),
+        error: error?.message || String(error),
+      });
+      throw error;
     } finally {
       appEncryptionBusy.value = false;
     }
@@ -270,12 +249,7 @@ export function useSettingsSecurity({
           refreshAppKeyLoaded();
           return;
         }
-
-        const restored = await verifyAppPassphrase();
         refreshAppKeyLoaded();
-        if (restored.ok) {
-          await runAppEncryptionMigration({ encryptAtRest: true });
-        }
       } catch (error) {
         appEncryptionEnabled.value = isAppEncryptionEnabled();
         refreshAppKeyLoaded();
@@ -291,11 +265,8 @@ export function useSettingsSecurity({
           'Unlock app encryption before disabling so notes can be saved in plain form.';
         return;
       }
-
       await runAppEncryptionMigration({ encryptAtRest: false });
-      await disableAppEncryption(async () => {
-        await noteStore.persistAllNotesPlaintext();
-      });
+      await disableAppEncryption();
       refreshAppKeyLoaded();
       appEncryptionEnabled.value = false;
       appConfirmInput.value = '';
@@ -307,45 +278,36 @@ export function useSettingsSecurity({
   }
 
   async function confirmAppEncryption() {
-    if (appEncryptionBusy.value) return;
+    if (appEncryptionBusy.value || appUnlockBusy.value) return;
     appEncryptionError.value = '';
     const pass = appConfirmInput.value;
     if (!pass) return;
 
     try {
-      const alreadySetUp = await appFolderHasEncryption();
-      const result = alreadySetUp
-        ? await verifyAppPassphrase(pass)
-        : await setupAppEncryption(pass);
+      appUnlockBusy.value = true;
+      const result = await setupAppEncryption(pass);
 
       if (!result.ok) {
         appEncryptionError.value = result.error;
         return;
       }
 
+      await runAppEncryptionMigration({ encryptAtRest: true });
       refreshAppKeyLoaded();
       appConfirmInput.value = '';
-      await runAppEncryptionMigration({ encryptAtRest: true });
+      appEncryptionEnabled.value = true;
     } catch (error) {
       refreshAppKeyLoaded();
       appEncryptionError.value = String(error);
+    } finally {
+      appUnlockBusy.value = false;
     }
   }
 
   async function toggleSyncEncryption() {
     syncCryptoError.value = '';
     if (syncEncryptionEnabled.value) {
-      localStorage.setItem('syncEncryptionEnabled', 'true');
-      try {
-        const restored = await tryRestoreKeyFromSafeStorage();
-        if (restored) {
-          syncKeyLoaded.value = true;
-        }
-      } catch (error) {
-        syncEncryptionEnabled.value = false;
-        localStorage.removeItem('syncEncryptionEnabled');
-        syncCryptoError.value = String(error);
-      }
+      syncKeyLoaded.value = isSyncKeyLoaded();
       return;
     }
 
@@ -355,11 +317,10 @@ export function useSettingsSecurity({
   }
 
   async function verifySyncKey() {
+    if (syncUnlockBusy.value) return;
     syncCryptoError.value = '';
-    const alreadySetUp = await syncFolderHasEncryption();
-    const result = alreadySetUp
-      ? await verifySyncPassphrase(syncPassphraseInput.value)
-      : await setupSyncEncryption(syncPassphraseInput.value);
+    syncUnlockBusy.value = true;
+    const result = await setupSyncEncryption(syncPassphraseInput.value);
 
     if (result.ok) {
       syncKeyLoaded.value = true;
@@ -367,6 +328,7 @@ export function useSettingsSecurity({
     } else {
       syncCryptoError.value = result.error;
     }
+    syncUnlockBusy.value = false;
   }
 
   onMounted(() => {
@@ -378,9 +340,11 @@ export function useSettingsSecurity({
     syncKeyLoaded,
     syncPassphraseInput,
     syncCryptoError,
+    syncUnlockBusy,
     appEncryptionEnabled,
     appKeyLoaded,
     appEncryptionBusy,
+    appUnlockBusy,
     appEncryptionProgress,
     appEncryptionProgressPercent,
     appEncryptionProgressLabel,

@@ -305,7 +305,7 @@
           <v-remixicon
             name="riFolderOpenLine"
             class="cursor-pointer opacity-60 hover:opacity-100"
-            @click="editorImage.select(true)"
+            @click="triggerImageInput()"
           />
 
           <v-remixicon
@@ -372,7 +372,7 @@
 
               <button
                 class="flex items-center gap-2 p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
-                @click="$refs.audioInput.click()"
+                @click="triggerAudioInput()"
               >
                 <v-remixicon name="riFile2Line" />
                 <span
@@ -381,15 +381,6 @@
                 >
               </button>
             </ui-popover>
-
-            <input
-              ref="audioInput"
-              type="file"
-              class="hidden"
-              accept="audio/*"
-              multiple
-              @change="handleAudioSelect"
-            />
           </template>
         </div>
 
@@ -426,15 +417,7 @@
           <v-remixicon
             name="riFolderOpenLine"
             class="cursor-pointer opacity-60 hover:opacity-100"
-            @click="$refs.fileInput.click()"
-          />
-
-          <input
-            ref="fileInput"
-            type="file"
-            class="hidden"
-            multiple
-            @change="handleFileSelect"
+            @click="triggerFileInput()"
           />
 
           <v-remixicon
@@ -531,15 +514,7 @@
           <v-remixicon
             name="riFolderOpenLine"
             class="cursor-pointer opacity-60 hover:opacity-100"
-            @click="$refs.videoInput.click()"
-          />
-
-          <input
-            ref="videoInput"
-            type="file"
-            class="hidden"
-            multiple
-            @change="handleVideoSelect"
+            @click="triggerVideoInput()"
           />
 
           <v-remixicon
@@ -667,9 +642,14 @@
 </template>
 
 <script>
+import { ref } from 'vue';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
+import { openDialog } from '@/lib/native/dialog';
+import { useRoute } from 'vue-router';
+import copyImage from '@/utils/copy-image';
+import { saveFile } from '@/utils/copy-doc';
 
 export default {
   components: { NoteMenuHeadingsTree, ToolbarCustomizer },
@@ -681,7 +661,63 @@ export default {
   },
   emits: ['update:tree'],
   setup(props) {
-    return useNoteMenu(props);
+    const route = useRoute();
+
+    async function triggerFileInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile', 'multiSelections'],
+      });
+      if (canceled || filePaths.length === 0) return;
+      for (const filePath of filePaths) {
+        const { fileName, relativePath } = await saveFile(filePath, props.id);
+        props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
+      }
+    }
+
+    async function triggerAudioInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'] }],
+      });
+      if (canceled || filePaths.length === 0) return;
+      for (const filePath of filePaths) {
+        const { fileName, relativePath } = await saveFile(filePath, props.id);
+        props.editor.commands.setAudio(`${relativePath}`, fileName);
+      }
+    }
+
+    async function triggerVideoInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'] }],
+      });
+      if (canceled || filePaths.length === 0) return;
+      for (const filePath of filePaths) {
+        const { relativePath } = await saveFile(filePath, props.id);
+        props.editor.commands.setVideo(`${relativePath}`);
+      }
+    }
+
+    async function triggerImageInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
+      });
+      if (canceled || filePaths.length === 0) return;
+      const { fileName } = await copyImage(filePaths[0], route.params.id);
+      const imgPath = `assets://${route.params.id}/${fileName}`;
+      props.editor.chain().focus().setImage({ src: imgPath }).run();
+    }
+
+    const menu = useNoteMenu(props);
+
+    return {
+      ...menu,
+      triggerFileInput,
+      triggerAudioInput,
+      triggerVideoInput,
+      triggerImageInput,
+    };
   },
 };
 </script>

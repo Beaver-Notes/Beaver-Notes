@@ -31,6 +31,62 @@ export function base64ToBuf(b64) {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 }
 
+// Worker pool — parallelises concurrent crypto operations across cores.
+// Capped at min(4, hardwareConcurrency) to avoid overwhelming low-end devices.
+const _POOL_SIZE = Math.min(
+  4,
+  (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2
+);
+const _workers = [];
+const _pendingRequests = new Map();
+let _workerRoundRobin = 0;
+let _cryptoWorkerRequestId = 0;
+
+function _createWorker() {
+  const w = new Worker(new URL('./crypto-worker.js', import.meta.url), {
+    type: 'module',
+  });
+  w.addEventListener('message', ({ data }) => {
+    const { requestId } = data;
+    const pending = _pendingRequests.get(requestId);
+    if (pending) {
+      _pendingRequests.delete(requestId);
+      if (data.ok) {
+        pending.resolve(data);
+      } else {
+        pending.reject(new Error(data.error || 'Worker operation failed'));
+      }
+    }
+  });
+  w.addEventListener('error', (error) => {
+    for (const [id, pending] of _pendingRequests.entries()) {
+      _pendingRequests.delete(id);
+      pending.reject(error);
+    }
+  });
+  return w;
+}
+
+function _getWorker() {
+  if (_workers.length === 0) {
+    for (let i = 0; i < _POOL_SIZE; i++) {
+      _workers.push(_createWorker());
+    }
+  }
+  const w = _workers[_workerRoundRobin % _POOL_SIZE];
+  _workerRoundRobin++;
+  return w;
+}
+
+function _postToWorker(message) {
+  const worker = _getWorker();
+  const { requestId } = message;
+  return new Promise((resolve, reject) => {
+    _pendingRequests.set(requestId, { resolve, reject });
+    worker.postMessage(message);
+  });
+}
+
 export async function deriveAesGcmKeyFromPassphrase(
   passphrase,
   saltBuf,
@@ -41,23 +97,53 @@ export async function deriveAesGcmKeyFromPassphrase(
     usages = ['encrypt', 'decrypt'],
     extractable = false,
   } = options;
-  const km = await crypto.subtle.importKey(
+  const saltHex = bufToHex(saltBuf);
+  const requestId = ++_cryptoWorkerRequestId;
+
+  const result = await _postToWorker({
+    requestId,
+    type: 'deriveKey',
+    passphrase,
+    saltHex,
+    iterations,
+  });
+
+  return crypto.subtle.importKey(
     'raw',
-    new TextEncoder().encode(passphrase),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
-  return crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: saltBuf,
-      iterations,
-      hash: 'SHA-256',
-    },
-    km,
+    result.raw,
     { name: 'AES-GCM', length: 256 },
     extractable,
     usages
   );
+}
+
+/**
+ * Encrypt a string using AES-GCM on a Web Worker (off-thread).
+ * Returns { nonce: hex, cipher: base64 }.
+ */
+export async function encryptStringOnWorker(keyRaw, plaintext) {
+  const requestId = ++_cryptoWorkerRequestId;
+  const result = await _postToWorker({
+    requestId,
+    type: 'encrypt',
+    keyRaw,
+    plaintext,
+  });
+  return { nonce: result.nonce, cipher: result.cipher };
+}
+
+/**
+ * Decrypt a string using AES-GCM on a Web Worker (off-thread).
+ * Returns the plaintext string.
+ */
+export async function decryptStringOnWorker(keyRaw, nonceHex, cipherB64) {
+  const requestId = ++_cryptoWorkerRequestId;
+  const result = await _postToWorker({
+    requestId,
+    type: 'decrypt',
+    keyRaw,
+    nonceHex,
+    cipherB64,
+  });
+  return result.plaintext;
 }

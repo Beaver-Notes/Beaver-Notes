@@ -28,16 +28,15 @@ tauri-plugin-os = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
-tauri-plugin-stronghold = "2"
 tauri-plugin-safe-area-insets-css = { path = "../vendor/tauri-plugin-safe-area-insets-css" }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
 rusqlite = { version = "0.31", features = ["bundled"] }
-iota_stronghold = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 bcrypt = "0.15"
 aes-gcm = "0.10"
+argon2 = { version = "0.5", features = ["alloc"] }
 pbkdf2 = { version = "0.12", features = ["hmac"] }
 sha2 = "0.10"
 rand = "0.8"
@@ -45,6 +44,8 @@ hex = "0.4"
 base64 = "0.22"
 md5 = "0.7"
 keyring = "2"
+dirs = "5"
+lru = "0.12"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros"] }
 http = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -67,8 +68,6 @@ debug = 1
 incremental = true
 codegen-units = 256
 
-[profile.dev.package.iota_stronghold]
-opt-level = 3
 [profile.dev.package.rusqlite]
 opt-level = 3
 [profile.dev.package.aes-gcm]

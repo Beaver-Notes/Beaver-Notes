@@ -34,6 +34,119 @@ export function clearAssetPassphrase() {
   return backend.invoke('assetCrypto:clearAppPassphrase');
 }
 
+export function migrateAssetEncryption(dataDir, encryptAtRest) {
+  return backend.invoke('assetCrypto:migrateDir', {
+    dataDir,
+    encryptAtRest,
+  });
+}
+
+export function getEncryptionState(syncPath = null) {
+  return backend.invoke(
+    'encryption:getState',
+    syncPath ? { syncPath } : undefined
+  );
+}
+
+export function submitEncryptionPassword(
+  password,
+  target,
+  syncPath = null,
+  createIfMissing = true
+) {
+  return backend.invoke('encryption:submitPassword', {
+    password,
+    target,
+    syncPath,
+    createIfMissing,
+  });
+}
+
+export function enableAppEncryption(password) {
+  return backend.invoke('encryption:enableApp', password);
+}
+
+export function disableAppEncryptionState(removeManifest = true) {
+  return backend.invoke('encryption:disableApp', { removeManifest });
+}
+
+export function enableSyncEncryptionState(syncPath, password) {
+  return backend.invoke('encryption:enableSync', { syncPath, password });
+}
+
+export function disableSyncEncryptionState(
+  syncPath = null,
+  removeManifest = false
+) {
+  return backend.invoke('encryption:disableSync', {
+    syncPath,
+    removeManifest,
+  });
+}
+
+export function unlockEncryption(password, targets, syncPath = null) {
+  return backend.invoke('encryption:unlock', { password, targets, syncPath });
+}
+
+export function lockEncryption(targets) {
+  return backend.invoke('encryption:lock', { targets });
+}
+
+// TODO: remove if confirmed unused — was previously exported for _appKeyRaw sync
+// export function encryptionExportAppKey() {
+//   return backend.invoke('encryption:exportAppKey');
+// }
+
+export function encryptNotePayload(plainJson) {
+  return backend.invoke('encryption:encryptNotePayload', plainJson);
+}
+
+export function decryptNotePayload(payload) {
+  return backend.invoke('encryption:decryptNotePayload', payload);
+}
+
+export function encryptSyncPayload(plainText) {
+  return backend.invoke('encryption:encryptSyncPayload', plainText);
+}
+
+export function decryptSyncPayload(payload) {
+  return backend.invoke('encryption:decryptSyncPayload', payload);
+}
+
+export function encryptSyncAssetBase64(base64Data) {
+  return backend.invoke('encryption:encryptSyncAssetBase64', {
+    base64Data,
+  });
+}
+
+export function decryptSyncAssetBase64(payload) {
+  return backend.invoke('encryption:decryptSyncAssetBase64', payload);
+}
+
+export function decryptAssetStream(path) {
+  return backend.invoke('assetCrypto:decryptAssetStream', path);
+}
+
+export function encryptAssetStream(path) {
+  return backend.invoke('assetCrypto:encryptAssetStream', path);
+}
+
+export function cacheDecryptedNote(noteId, content) {
+  return backend.invoke('crypto:cacheDecryptedNote', { noteId, content });
+}
+
+export function getCachedDecryptedNote(noteId) {
+  return backend.invoke('crypto:getCachedDecryptedNote', noteId);
+}
+
+export function clearDecryptedCaches() {
+  return backend.invoke('crypto:clearDecryptedCaches');
+}
+
+export function deriveArgon2Key(passphrase, salt) {
+  return backend.invoke('crypto:deriveArgon2Key', { passphrase, salt });
+}
+
 export function hashPassword(password) {
   return backend.invoke('passwd:hash', password);
 }

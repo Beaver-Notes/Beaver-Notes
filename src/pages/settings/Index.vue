@@ -62,7 +62,7 @@
               <ui-button @click="chooseDefaultPath">{{
                 translations.settings.selectPath || 'Browse'
               }}</ui-button>
-              <ui-button @click="clearPath"
+              <ui-button v-if="state.dataDir" @click="clearPath"
                 ><v-remixicon name="riDeleteBin6Line"
               /></ui-button>
             </div>
@@ -610,11 +610,40 @@
         </p>
       </div>
     </section>
+
+    <section v-if="isDebugMode" class="space-y-2">
+      <p
+        class="text-xs font-semibold uppercase tracking-[0.12em] text-red-500 dark:text-red-400"
+      >
+        Debug
+      </p>
+      <ui-card
+        padding="p-4"
+        class="flex flex-col gap-3 border-red-200 bg-red-50/80 dark:border-red-900/70 dark:bg-red-950/30"
+      >
+        <div class="space-y-0.5">
+          <p class="text-sm font-medium text-red-900 dark:text-red-100">
+            Nuke app
+          </p>
+          <p
+            class="mt-0.5 text-xs leading-relaxed text-red-700 dark:text-red-300"
+          >
+            Debug-only reset that wipes local Beaver Notes state and relaunches
+            into a fresh install experience.
+          </p>
+        </div>
+        <div class="mt-auto pt-2">
+          <ui-button class="w-full" variant="danger" @click="nukeAppDebugOnly">
+            Nuke app and restart
+          </ui-button>
+        </div>
+      </ui-card>
+    </section>
   </div>
 </template>
 
 <script>
-import { shallowReactive, onMounted, onUnmounted, computed, ref } from 'vue';
+import { computed } from 'vue';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
@@ -625,10 +654,8 @@ import systemImg from '@/assets/images/system.png';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { formatTime } from '@/utils/time-format';
-import { useAppStore } from '../../store/app';
 import { forceSyncNow } from '../../utils/sync';
 import { useFolderStore } from '../../store/folder';
-import { getSettingSync } from '../../composable/settings';
 import { useTranslations } from '../../composable/useTranslations';
 import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import { useSettingsData } from '@/composable/useSettingsData';
@@ -636,6 +663,7 @@ import { useSettingsSecurity } from '@/composable/useSettingsSecurity';
 
 export default {
   setup() {
+    const isDebugMode = import.meta.env.DEV;
     const { translations } = useTranslations();
     const passwordStore = usePasswordStore();
     const noteStore = useNoteStore();
@@ -741,6 +769,7 @@ export default {
       forceSyncNow,
       formatTime,
       isMacOS,
+      isDebugMode,
       ...dataSettings,
       ...securitySettings,
     };

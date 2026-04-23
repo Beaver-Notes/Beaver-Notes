@@ -3,6 +3,7 @@ mod commands;
 mod db;
 #[cfg(desktop)]
 mod menu;
+mod secure_blob;
 mod shared;
 
 use tauri::{Manager, RunEvent};
@@ -122,6 +123,22 @@ pub fn run() {
             commands::security::safe_storage_clear_blob,
             commands::security::asset_crypto_set_passphrase,
             commands::security::asset_crypto_clear_passphrase,
+            commands::security::asset_crypto_migrate_dir,
+            commands::security::encryption_get_state,
+            commands::security::encryption_submit_password,
+            commands::security::encryption_enable_app,
+            commands::security::encryption_disable_app,
+            commands::security::encryption_enable_sync,
+            commands::security::encryption_disable_sync,
+            commands::security::encryption_unlock,
+            commands::security::encryption_lock,
+            commands::security::encryption_export_app_key,
+            commands::security::encryption_encrypt_note_payload,
+            commands::security::encryption_decrypt_note_payload,
+            commands::security::encryption_encrypt_sync_payload,
+            commands::security::encryption_decrypt_sync_payload,
+            commands::security::encryption_encrypt_sync_asset_base64,
+            commands::security::encryption_decrypt_sync_asset_base64,
             commands::security::passwd_hash,
             commands::security::passwd_compare,
             commands::security::passwd_record_failure,
@@ -129,6 +146,12 @@ pub fn run() {
             commands::security::is_encrypted_asset,
             commands::security::encrypt_asset,
             commands::security::decrypt_asset,
+            commands::security::decrypt_asset_stream,
+            commands::security::encrypt_asset_stream,
+            commands::security::cache_decrypted_note_cmd,
+            commands::security::get_cached_decrypted_note_cmd,
+            commands::security::clear_decrypted_caches_cmd,
+            commands::security::derive_argon2_key,
             commands::dialogs::dialog_open,
             commands::dialogs::dialog_message,
             commands::dialogs::dialog_save,

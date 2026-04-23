@@ -258,6 +258,7 @@ import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
+import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
@@ -334,7 +335,9 @@ const showCardAlert = (message) =>
 // the simplified mobile bar — avoids keeping both sets of buttons in the DOM.
 const mobileQuery = window.matchMedia('(max-width: 767px)');
 const isMobile = ref(mobileQuery.matches);
-const onMobileChange = (e) => { isMobile.value = e.matches; };
+const onMobileChange = (e) => {
+  isMobile.value = e.matches;
+};
 onMounted(() => mobileQuery.addEventListener('change', onMobileChange));
 onUnmounted(() => mobileQuery.removeEventListener('change', onMobileChange));
 
@@ -356,6 +359,7 @@ async function lockNote(note) {
           if (newKey) {
             try {
               await passwordStore.setsharedKey(newKey);
+              await unlockEnabledEncryptionScopes(newKey);
               await noteStore.lockNote(note, newKey);
             } catch {
               showCardAlert(translations.value.card.keyFail);
@@ -401,6 +405,7 @@ async function unlockNote(note) {
           try {
             await noteStore.unlockNote(note, enteredPassword);
             await passwordStore.setsharedKey(enteredPassword);
+            await unlockEnabledEncryptionScopes(enteredPassword);
           } catch {
             showCardAlert(translations.value.card.wrongPasswd);
             return;

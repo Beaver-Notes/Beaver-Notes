@@ -165,6 +165,8 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
 
 /// Returns the full store as a nested JSON object.
 /// Only used on startup / sync — intentionally loads everything.
+/// For the data store, notes are returned with encrypted content intact
+/// (decryption happens on-demand per-note in the frontend).
 #[tauri::command]
 pub(crate) fn storage_get_store(
     app: AppHandle,
@@ -172,7 +174,8 @@ pub(crate) fn storage_get_store(
     state: State<'_, AppState>,
 ) -> Result<Value, String> {
     let pool = pick_pool(&name, &app, &state)?;
-    Ok(load_store_root(pool)?)
+    let root = load_store_root(pool)?;
+    Ok(root)
 }
 
 /// Replaces the entire store. Used by sync / import flows.
@@ -184,7 +187,8 @@ pub(crate) fn storage_replace(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let pool = pick_pool(&name, &app, &state)?;
-    crate::db::db_replace_all(pool, flatten_store_value(data))?;
+    let flattened = flatten_store_value(data);
+    crate::db::db_replace_all(pool, flattened)?;
     Ok(())
 }
 
@@ -207,14 +211,19 @@ pub(crate) fn storage_get(
 
     if let Some(flat_key) = flat_db_key(&segments) {
         let raw = crate::db::db_get(pool, &flat_key)?;
-        return Ok(raw
+        let value = raw
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
-            .unwrap_or(def));
+            .unwrap_or(def);
+        if name == DATA_STORE {
+            return decrypt_note_row_from_storage(state.inner(), &flat_key, value);
+        }
+        return Ok(value);
     }
 
     // Fallback: multi-level key — load full store and walk the tree
     let root = load_store_root(pool)?;
-    Ok(get_nested_value(&root, &segments).cloned().unwrap_or(def))
+    let value = get_nested_value(&root, &segments).cloned().unwrap_or(def);
+    Ok(value)
 }
 
 /// Sets a single value by dot-separated key.
@@ -235,12 +244,22 @@ pub(crate) fn storage_set(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
+        let value = if name == DATA_STORE {
+            encrypt_note_row_for_storage(&app, state.inner(), &flat_key, value)?
+        } else {
+            value
+        };
         let serialized = serde_json::to_string(&value).map_err(to_error)?;
         return crate::db::db_set(pool, &flat_key, &serialized);
     }
 
     // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root(pool)?;
+    let value = if name == DATA_STORE {
+        encrypt_note_row_for_storage(&app, state.inner(), &key, value)?
+    } else {
+        value
+    };
     set_nested_value(&mut root, &segments, value);
     crate::db::db_replace_all(pool, flatten_store_value(root))?;
     Ok(())

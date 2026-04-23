@@ -490,7 +490,7 @@
                 closeSub();
               "
             />
-            <button :class="tbBtn()" @click="editorImage.select(true)">
+            <button :class="tbBtn()" @click="triggerImageInput()">
               <v-remixicon name="riFolderOpenLine" />
             </button>
             <button
@@ -525,16 +525,9 @@
                 closeSub();
               "
             />
-            <button :class="tbBtn()" @click="$refs.fileInput.click()">
+            <button :class="tbBtn()" @click="triggerFileInput()">
               <v-remixicon name="riFolderOpenLine" />
             </button>
-            <input
-              ref="fileInput"
-              type="file"
-              class="hidden"
-              multiple
-              @change="handleFileSelect"
-            />
             <button
               :class="tbBtn()"
               @click="
@@ -567,16 +560,9 @@
                 closeSub();
               "
             />
-            <button :class="tbBtn()" @click="$refs.videoInput.click()">
+            <button :class="tbBtn()" @click="triggerVideoInput()">
               <v-remixicon name="riFolderOpenLine" />
             </button>
-            <input
-              ref="videoInput"
-              type="file"
-              class="hidden"
-              multiple
-              @change="handleVideoSelect"
-            />
             <button
               :class="tbBtn()"
               @click="
@@ -614,7 +600,7 @@
             <button
               :class="[tbChip(), 'gap-1.5']"
               @click="
-                $refs.audioInput.click();
+                triggerAudioInput();
                 closeSub();
               "
             >
@@ -622,14 +608,6 @@
                 translations.menu.upload
               }}
             </button>
-            <input
-              ref="audioInput"
-              type="file"
-              class="hidden"
-              accept="audio/*"
-              multiple
-              @change="handleAudioSelect"
-            />
           </div>
 
           <!-- ── DRAW SUB-PANEL ── -->
@@ -760,6 +738,10 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
+import { openDialog } from '@/lib/native/dialog';
+import { useRoute } from 'vue-router';
+import copyImage from '@/utils/copy-image';
+import { saveFile } from '@/utils/copy-doc';
 
 export default {
   components: { NoteMenuHeadingsTree, ToolbarCustomizer },
@@ -773,8 +755,55 @@ export default {
   emits: ['update:tree'],
 
   setup(props) {
+    const route = useRoute();
     const shared = useNoteMenu(props);
     const { container } = shared;
+
+    async function triggerFileInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile', 'multiSelections'],
+      });
+      if (canceled || filePaths.length === 0) return;
+      for (const filePath of filePaths) {
+        const { fileName, relativePath } = await saveFile(filePath, props.id);
+        props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
+      }
+    }
+
+    async function triggerAudioInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'] }],
+      });
+      if (canceled || filePaths.length === 0) return;
+      for (const filePath of filePaths) {
+        const { fileName, relativePath } = await saveFile(filePath, props.id);
+        props.editor.commands.setAudio(`${relativePath}`, fileName);
+      }
+    }
+
+    async function triggerVideoInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'] }],
+      });
+      if (canceled || filePaths.length === 0) return;
+      for (const filePath of filePaths) {
+        const { relativePath } = await saveFile(filePath, props.id);
+        props.editor.commands.setVideo(`${relativePath}`);
+      }
+    }
+
+    async function triggerImageInput() {
+      const { canceled, filePaths } = await openDialog({
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
+      });
+      if (canceled || filePaths.length === 0) return;
+      const { fileName } = await copyImage(filePaths[0], route.params.id);
+      const imgPath = `assets://${route.params.id}/${fileName}`;
+      props.editor.chain().focus().setImage({ src: imgPath }).run();
+    }
 
     // ── Sub-panel morph ───────────────────────────────────────────
     const activePanel = ref('main');
@@ -870,6 +899,10 @@ export default {
       tbChip,
       scrolledLeft,
       scrolledRight,
+      triggerFileInput,
+      triggerAudioInput,
+      triggerVideoInput,
+      triggerImageInput,
     };
   },
 };

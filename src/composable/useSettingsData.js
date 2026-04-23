@@ -5,11 +5,21 @@ import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 import { openDialog, showMessage } from '@/lib/native/dialog';
-import { getHelperPath, setSpellcheck } from '@/lib/native/app';
+import { getHelperPath, relaunchApp, setSpellcheck } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
-import { copyPath, ensureDir, readJson, writeJson } from '@/lib/native/fs';
+import {
+  copyPath,
+  ensureDir,
+  readJson,
+  removePath,
+  writeJson,
+} from '@/lib/native/fs';
 import { useAppStore } from '@/store/app';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import {
+  clearAssetPassphrase,
+  clearSecureBlob,
+} from '@/lib/native/security.js';
 
 const LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -346,6 +356,52 @@ export function useSettingsData({
     await setSyncPath('');
   }
 
+  async function nukeAppDebugOnly() {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    dialog.confirm({
+      title: 'Debug reset app?',
+      body: 'This will permanently delete local notes, folders, labels, settings, cached encryption keys, and local asset files on this device, then relaunch the app into a fresh state.',
+      okText: 'Nuke app',
+      cancelText: translations.value.dialog?.cancel || 'Cancel',
+      okVariant: 'danger',
+      onConfirm: async () => {
+        try {
+          const [dataDir] = await Promise.all([
+            getEffectiveDataDir().catch(() => ''),
+          ]);
+
+          const cleanupPaths = [
+            dataDir ? path.join(dataDir, 'notes-assets') : '',
+            dataDir ? path.join(dataDir, 'file-assets') : '',
+            dataDir ? path.join(dataDir, 'app-crypto') : '',
+          ].filter(Boolean);
+
+          await Promise.allSettled([
+            ...cleanupPaths.map((targetPath) => removePath(targetPath)),
+            storage.clear('data'),
+            storage.clear('settings'),
+            clearSecureBlob('appPassphraseBlob'),
+            clearSecureBlob('syncPassphraseBlob'),
+            clearAssetPassphrase(),
+            setSyncPath(''),
+          ]);
+
+          localStorage.clear();
+          sessionStorage.clear();
+
+          await relaunchApp();
+        } catch (error) {
+          console.error('Error nuking app in debug mode:', error);
+          showAlert('Debug reset failed. Check the console for details.');
+          return false;
+        }
+      },
+    });
+  }
+
   const handleAutoSyncChange = () => {
     if (!defaultPath || defaultPath.trim() === '') {
       showAlert(translations.value.settings.emptyPathWarn);
@@ -436,6 +492,7 @@ export function useSettingsData({
     importData,
     chooseDefaultPath,
     clearPath,
+    nukeAppDebugOnly,
     handleAutoSyncChange,
     toggleAdvancedSettings,
     toggleSpellcheck,

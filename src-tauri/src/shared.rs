@@ -1,8 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
+    fs::{self, File},
+    io::{BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, OnceLock,
+    },
     time::{Duration, SystemTime},
 };
 
@@ -10,12 +14,17 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Key, Nonce,
 };
+use argon2::{
+    password_hash::{PasswordHasher, SaltString},
+    Argon2, Params, Version,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use http::{
     header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
     Response, StatusCode,
 };
 use keyring::Entry;
+use lru::LruCache;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -23,10 +32,10 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::FilePath;
-use tauri_plugin_stronghold::stronghold::Stronghold as SecureStronghold;
 use tauri_plugin_updater::Update;
 
 use crate::db::DbPool;
+use crate::secure_blob::SecureBlobCache;
 
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const SETTINGS_STORE: &str = "settings.json";
@@ -34,15 +43,67 @@ pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
 pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beaver-notes.beaver-notes";
 pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
-pub(crate) const APP_PASSPHRASE_ACCOUNT: &str = "__asset_passphrase__";
 pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["syncPassphraseBlob", "appPassphraseBlob"];
-pub(crate) const STRONGHOLD_CLIENT: &[u8] = b"beaver-notes";
-pub(crate) const STRONGHOLD_SNAPSHOT_FILE: &str = "secure-store.stronghold";
 pub(crate) const WARN_THRESHOLD: u32 = 5;
-pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA1";
+pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA2";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
+pub(crate) const ARGON2_MEMORY_KIB: u32 = 16 * 1024;
+pub(crate) const ARGON2_ITERATIONS: u32 = 2;
+pub(crate) const ARGON2_PARALLELISM: u32 = 2;
 pub(crate) const ASSET_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 pub(crate) const ASSET_CACHE_MAX_FILES: usize = 75;
+pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 3;
+pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v3";
+pub(crate) const SYNC_PASSWORD_CHECK: &str = "BeaverNotes-sync-manifest-v3";
+pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
+pub(crate) const SYNC_ENCRYPTION_SCOPE: &str = "sync";
+pub(crate) const STREAM_CHUNK_SIZE: usize = 256 * 1024;
+
+pub(crate) const NOTE_CACHE_BYTES: usize = 64 * 1024 * 1024;
+pub(crate) const ASSET_CACHE_BYTES: usize = 128 * 1024 * 1024;
+
+pub(crate) struct ByteLruCache {
+    inner: LruCache<String, Vec<u8>>,
+    current_bytes: usize,
+    max_bytes: usize,
+}
+
+impl ByteLruCache {
+    pub(crate) fn new(max_bytes: usize) -> Self {
+        let max_entries = std::num::NonZero::new(1024).unwrap();
+        Self {
+            inner: LruCache::new(max_entries),
+            current_bytes: 0,
+            max_bytes,
+        }
+    }
+
+    pub(crate) fn get(&mut self, key: &str) -> Option<&Vec<u8>> {
+        self.inner.get(key)
+    }
+
+    pub(crate) fn put(&mut self, key: String, value: Vec<u8>) {
+        let incoming_bytes = value.len();
+
+        if let Some(old) = self.inner.get(&key) {
+            self.current_bytes = self.current_bytes.saturating_sub(old.len());
+        }
+
+        while self.current_bytes + incoming_bytes > self.max_bytes && !self.inner.is_empty() {
+            if let Some((_, evicted)) = self.inner.pop_lru() {
+                self.current_bytes = self.current_bytes.saturating_sub(evicted.len());
+            }
+        }
+
+        self.current_bytes += incoming_bytes;
+        self.inner.put(key, value);
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.inner.clear();
+        self.current_bytes = 0;
+    }
+}
 
 pub(crate) static HELP_URL: &str = "https://docs.beavernotes.com/";
 
@@ -211,12 +272,20 @@ pub(crate) struct AppState {
     pub(crate) failure_count: Mutex<u32>,
     pub(crate) granted_paths: Arc<Mutex<HashSet<PathBuf>>>,
     pub(crate) transient_passphrase: Mutex<String>,
+    pub(crate) asset_key_cache: Mutex<Option<[u8; 32]>>,
+    pub(crate) app_data_key: Mutex<Option<[u8; 32]>>,
+    pub(crate) sync_data_key: Mutex<Option<[u8; 32]>>,
+    pub(crate) app_encryption_active: AtomicBool,
+    pub(crate) decrypted_notes_cache: Mutex<ByteLruCache>,
+    pub(crate) decrypted_assets_cache: Mutex<ByteLruCache>,
     pub(crate) updater: Arc<Mutex<UpdaterState>>,
     pub(crate) pending_open_files: Arc<Mutex<Vec<String>>>,
     pub(crate) external_open_files: Arc<Mutex<HashMap<PathBuf, PathBuf>>>,
     pub(crate) asset_cache_dir: PathBuf,
     pub(crate) external_open_dir: PathBuf,
     pub(crate) portable_data_dir: Option<PathBuf>,
+    pub(crate) secure_blobs: SecureBlobCache,
+    pub(crate) master_key_cache: Mutex<Option<[u8; 32]>>,
 }
 
 impl AppState {
@@ -231,6 +300,12 @@ impl AppState {
             failure_count: Mutex::new(0),
             granted_paths: Arc::new(Mutex::new(HashSet::new())),
             transient_passphrase: Mutex::new(String::new()),
+            asset_key_cache: Mutex::new(None),
+            app_data_key: Mutex::new(None),
+            sync_data_key: Mutex::new(None),
+            app_encryption_active: AtomicBool::new(false),
+            decrypted_notes_cache: Mutex::new(ByteLruCache::new(NOTE_CACHE_BYTES)),
+            decrypted_assets_cache: Mutex::new(ByteLruCache::new(ASSET_CACHE_BYTES)),
             updater: Arc::new(Mutex::new(UpdaterState {
                 auto_update_enabled: true,
                 ..Default::default()
@@ -240,6 +315,8 @@ impl AppState {
             asset_cache_dir: cache_dir,
             external_open_dir,
             portable_data_dir,
+            secure_blobs: SecureBlobCache::new(),
+            master_key_cache: Mutex::new(None),
         }
     }
 }
@@ -253,6 +330,34 @@ pub(crate) fn app_data_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf,
 
 pub(crate) fn to_error<E: std::fmt::Display>(error: E) -> String {
     error.to_string()
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WrappedKeyEnvelope {
+    pub(crate) nonce: String,
+    pub(crate) cipher: String,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct EncryptionManifest {
+    pub(crate) version: u8,
+    pub(crate) scope: String,
+    #[serde(default)]
+    pub(crate) kdf_iterations: u32,
+    #[serde(default)]
+    pub(crate) salt_hex: String,
+    #[serde(default)]
+    pub(crate) argon2_salt_hex: Option<String>,
+    #[serde(default)]
+    pub(crate) argon2_memory_kib: Option<u32>,
+    #[serde(default)]
+    pub(crate) argon2_iterations: Option<u32>,
+    #[serde(default)]
+    pub(crate) argon2_parallelism: Option<u32>,
+    pub(crate) password_check: WrappedKeyEnvelope,
+    pub(crate) wrapped_key: WrappedKeyEnvelope,
 }
 
 fn normalize_for_compare(path: &Path) -> PathBuf {
@@ -329,7 +434,329 @@ pub(crate) fn get_data_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf,
     app_data_dir(app, state)
 }
 
-pub(crate) fn path_for_name(app: &AppHandle, state: &AppState, name: &str) -> Result<PathBuf, String> {
+pub(crate) fn app_encryption_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
+    Ok(get_data_dir(app, state)?.join("app-crypto"))
+}
+
+pub(crate) fn app_encryption_manifest_path(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<PathBuf, String> {
+    Ok(app_encryption_dir(app, state)?.join("manifest.v2.json"))
+}
+
+pub(crate) fn sync_encryption_manifest_path(sync_path: &Path) -> PathBuf {
+    sync_path
+        .join("BeaverNotesSync")
+        .join("crypto")
+        .join("manifest.v2.json")
+}
+
+fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
+    let mut key = [0_u8; 32];
+    pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), salt, PBKDF2_ITERATIONS, &mut key);
+    key
+}
+
+pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 32], String> {
+    let argon2 = Argon2::new(
+        argon2::Algorithm::Argon2id,
+        Version::V0x13,
+        Params::new(
+            ARGON2_MEMORY_KIB,
+            ARGON2_ITERATIONS,
+            ARGON2_PARALLELISM,
+            Some(32),
+        )
+        .map_err(to_error)?,
+    );
+    let salt_string = SaltString::encode_b64(salt).map_err(to_error)?;
+    let hash = argon2
+        .hash_password(passphrase.as_bytes(), &salt_string)
+        .map_err(to_error)?;
+    let mut key = [0u8; 32];
+    let hash_output = hash.hash.unwrap();
+    let hash_bytes = hash_output.as_bytes();
+    key.copy_from_slice(&hash_bytes[..32]);
+    Ok(key)
+}
+
+fn derive_kek_from_manifest(
+    manifest: &EncryptionManifest,
+    passphrase: &str,
+) -> Result<[u8; 32], String> {
+    if manifest.version >= 3 {
+        let salt = manifest
+            .argon2_salt_hex
+            .as_ref()
+            .ok_or_else(|| "Argon2 salt missing in v3 manifest".to_string())?;
+        let salt = hex::decode(salt.trim()).map_err(to_error)?;
+        derive_kek_argon2id(passphrase, &salt)
+    } else {
+        let salt = hex::decode(manifest.salt_hex.trim()).map_err(to_error)?;
+        Ok(derive_kek(passphrase, &salt))
+    }
+}
+
+fn random_key() -> [u8; 32] {
+    let mut key = [0_u8; 32];
+    rand::thread_rng().fill_bytes(&mut key);
+    key
+}
+
+fn random_nonce() -> [u8; 12] {
+    let mut nonce = [0_u8; 12];
+    rand::thread_rng().fill_bytes(&mut nonce);
+    nonce
+}
+
+pub(crate) fn encrypt_bytes_with_key(
+    key: &[u8; 32],
+    plain: &[u8],
+) -> Result<WrappedKeyEnvelope, String> {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let nonce = random_nonce();
+    let encrypted = cipher
+        .encrypt(Nonce::from_slice(&nonce), plain)
+        .map_err(to_error)?;
+    Ok(WrappedKeyEnvelope {
+        nonce: hex::encode(nonce),
+        cipher: BASE64.encode(encrypted),
+    })
+}
+
+pub(crate) fn decrypt_bytes_with_key(
+    key: &[u8; 32],
+    envelope: &WrappedKeyEnvelope,
+) -> Result<Vec<u8>, String> {
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let nonce = hex::decode(envelope.nonce.trim()).map_err(to_error)?;
+    let encrypted = BASE64.decode(envelope.cipher.trim()).map_err(to_error)?;
+    cipher
+        .decrypt(Nonce::from_slice(&nonce), encrypted.as_slice())
+        .map_err(to_error)
+}
+
+pub(crate) fn load_encryption_manifest(path: &Path) -> Result<Option<EncryptionManifest>, String> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path).map_err(to_error)?;
+    let manifest = serde_json::from_str::<EncryptionManifest>(&raw).map_err(to_error)?;
+    Ok(Some(manifest))
+}
+
+pub(crate) fn write_encryption_manifest(
+    path: &Path,
+    manifest: &EncryptionManifest,
+) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(to_error)?;
+    }
+    let raw = serde_json::to_string_pretty(manifest).map_err(to_error)?;
+    fs::write(path, raw).map_err(to_error)
+}
+
+pub(crate) fn create_encryption_manifest(
+    scope: &str,
+    password_check: &str,
+    passphrase: &str,
+) -> Result<(EncryptionManifest, [u8; 32]), String> {
+    let salt = random_key();
+    let kek = derive_kek_argon2id(passphrase, &salt)?;
+    let data_key = random_key();
+    let manifest = EncryptionManifest {
+        version: ENCRYPTION_MANIFEST_VERSION,
+        scope: scope.to_string(),
+        kdf_iterations: ARGON2_ITERATIONS,
+        salt_hex: hex::encode(salt),
+        argon2_salt_hex: Some(hex::encode(salt)),
+        argon2_memory_kib: Some(ARGON2_MEMORY_KIB),
+        argon2_iterations: Some(ARGON2_ITERATIONS),
+        argon2_parallelism: Some(ARGON2_PARALLELISM),
+        password_check: encrypt_bytes_with_key(&kek, password_check.as_bytes())?,
+        wrapped_key: encrypt_bytes_with_key(&kek, &data_key)?,
+    };
+    Ok((manifest, data_key))
+}
+
+pub(crate) fn unlock_key_from_manifest(
+    manifest: &EncryptionManifest,
+    passphrase: &str,
+    expected_scope: &str,
+    password_check: &str,
+) -> Result<[u8; 32], String> {
+    if manifest.scope != expected_scope {
+        return Err(format!("Unexpected encryption scope: {}", manifest.scope));
+    }
+    let kek = derive_kek_from_manifest(manifest, passphrase)?;
+    let check = decrypt_bytes_with_key(&kek, &manifest.password_check)?;
+    if check != password_check.as_bytes() {
+        return Err("Wrong password.".to_string());
+    }
+    let key = decrypt_bytes_with_key(&kek, &manifest.wrapped_key)?;
+    if key.len() != 32 {
+        return Err("Wrapped key is corrupted.".to_string());
+    }
+    let mut out = [0_u8; 32];
+    out.copy_from_slice(&key[..32]);
+    Ok(out)
+}
+
+pub(crate) fn app_key_loaded(state: &AppState) -> Result<bool, String> {
+    Ok(state.app_data_key.lock().map_err(to_error)?.is_some())
+}
+
+pub(crate) fn sync_key_loaded(state: &AppState) -> Result<bool, String> {
+    Ok(state.sync_data_key.lock().map_err(to_error)?.is_some())
+}
+
+pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
+    Ok(*state.app_data_key.lock().map_err(to_error)?)
+}
+
+pub(crate) fn current_sync_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
+    Ok(*state.sync_data_key.lock().map_err(to_error)?)
+}
+
+pub(crate) fn note_content_is_native_encrypted(value: &Value) -> bool {
+    matches!(
+        value,
+        Value::Object(map)
+            if map.get("ae").and_then(Value::as_u64) == Some(2)
+                && map.get("nonce").and_then(Value::as_str).is_some()
+                && map.get("cipher").and_then(Value::as_str).is_some()
+    )
+}
+
+pub(crate) fn note_content_is_legacy_encrypted(value: &Value) -> bool {
+    matches!(
+        value,
+        Value::Object(map)
+            if map.get("ae").and_then(Value::as_u64) == Some(1)
+                && map.get("iv").and_then(Value::as_str).is_some()
+                && map.get("cipher").and_then(Value::as_str).is_some()
+    )
+}
+
+pub(crate) fn note_row_needs_encryption(key: &str, value: &Value) -> bool {
+    key.starts_with("notes.") && value.is_object()
+}
+
+pub(crate) fn encrypt_note_content_for_storage(
+    state: &AppState,
+    content: &Value,
+) -> Result<Value, String> {
+    if note_content_is_native_encrypted(content) || note_content_is_legacy_encrypted(content) {
+        return Ok(content.clone());
+    }
+    let key = current_app_key(state)?.ok_or_else(|| {
+        "App encryption key is locked. Unlock app encryption before writing notes.".to_string()
+    })?;
+    let plain = serde_json::to_vec(content).map_err(to_error)?;
+    let envelope = encrypt_bytes_with_key(&key, &plain)?;
+    Ok(serde_json::json!({
+        "ae": 2,
+        "nonce": envelope.nonce,
+        "cipher": envelope.cipher,
+    }))
+}
+
+pub(crate) fn decrypt_native_note_content(
+    state: &AppState,
+    content: &Value,
+) -> Result<Option<Value>, String> {
+    if !note_content_is_native_encrypted(content) {
+        return Ok(Some(content.clone()));
+    }
+    let key = match current_app_key(state)? {
+        Some(key) => key,
+        None => return Ok(None),
+    };
+    let envelope = WrappedKeyEnvelope {
+        nonce: content
+            .get("nonce")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Encrypted note nonce missing.".to_string())?
+            .to_string(),
+        cipher: content
+            .get("cipher")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Encrypted note cipher missing.".to_string())?
+            .to_string(),
+    };
+    let plain = decrypt_bytes_with_key(&key, &envelope)?;
+    let value = serde_json::from_slice(&plain).map_err(to_error)?;
+    Ok(Some(value))
+}
+
+pub(crate) fn app_encryption_enabled(_app: &AppHandle, state: &AppState) -> Result<bool, String> {
+    Ok(state.app_encryption_active.load(Ordering::Acquire))
+}
+
+pub(crate) fn set_app_encryption_active(state: &AppState, enabled: bool) {
+    state
+        .app_encryption_active
+        .store(enabled, Ordering::Release);
+}
+
+pub(crate) fn encrypt_note_row_for_storage(
+    app: &AppHandle,
+    state: &AppState,
+    key: &str,
+    value: Value,
+) -> Result<Value, String> {
+    if !note_row_needs_encryption(key, &value) {
+        return Ok(value);
+    }
+    let app_enabled = app_encryption_enabled(app, state)?;
+    if !app_enabled {
+        return Ok(value);
+    }
+    let mut note = match value {
+        Value::Object(note) => note,
+        other => return Ok(other),
+    };
+    // If the app key is not yet unlocked, leave content as-is. The frontend
+    // gates writes with ensureAppKeyReadyForWrite(), but we also degrade
+    // gracefully here so we don't silently lose user data on a race.
+    if current_app_key(state)?.is_none() {
+        return Ok(Value::Object(note));
+    }
+    if let Some(content) = note.get("content").cloned() {
+        note.insert(
+            "content".to_string(),
+            encrypt_note_content_for_storage(state, &content)?,
+        );
+    }
+    Ok(Value::Object(note))
+}
+
+pub(crate) fn decrypt_note_row_from_storage(
+    state: &AppState,
+    key: &str,
+    value: Value,
+) -> Result<Value, String> {
+    if !note_row_needs_encryption(key, &value) {
+        return Ok(value);
+    }
+    let mut note = match value {
+        Value::Object(note) => note,
+        other => return Ok(other),
+    };
+    if let Some(content) = note.get("content").cloned() {
+        if let Some(decrypted) = decrypt_native_note_content(state, &content)? {
+            note.insert("content".to_string(), decrypted);
+        }
+    }
+    Ok(Value::Object(note))
+}
+
+pub(crate) fn path_for_name(
+    app: &AppHandle,
+    state: &AppState,
+    name: &str,
+) -> Result<PathBuf, String> {
     match name {
         "userData" => app_data_dir(app, state),
         "appData" => app.path().data_dir().map_err(to_error),
@@ -411,15 +838,52 @@ pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<
     Ok(PathBuf::from(uri))
 }
 
-fn read_master_key() -> Result<Vec<u8>, String> {
-    let entry = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT).map_err(to_error)?;
-    if let Ok(stored) = entry.get_password() {
-        return BASE64.decode(stored.as_bytes()).map_err(to_error);
+static KEYRING_AVAILABLE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(!cfg!(target_os = "android"));
+
+pub(crate) fn read_master_key() -> Result<Vec<u8>, String> {
+    if KEYRING_AVAILABLE.load(std::sync::atomic::Ordering::Relaxed) {
+        if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
+            if let Ok(stored) = entry.get_password() {
+                return BASE64.decode(stored.as_bytes()).map_err(to_error);
+            }
+
+            let mut key = vec![0_u8; 32];
+            rand::thread_rng().fill_bytes(&mut key);
+            if entry.set_password(&BASE64.encode(&key)).is_ok() {
+                return Ok(key);
+            }
+        }
+        KEYRING_AVAILABLE.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    file_based_master_key()
+}
+
+const MASTER_KEY_FILE: &str = "master.key";
+
+fn file_based_master_key() -> Result<Vec<u8>, String> {
+    let data_dir = dirs::data_local_dir()
+        .ok_or_else(|| "Cannot determine data directory".to_string())?
+        .join("com.beaver-notes.beaver-notes");
+    let key_path = data_dir.join(MASTER_KEY_FILE);
+
+    if key_path.exists() {
+        let raw = fs::read_to_string(&key_path).map_err(to_error)?;
+        let key_bytes = BASE64.decode(raw.trim().as_bytes()).map_err(to_error)?;
+        if key_bytes.len() != 32 {
+            return Err("Invalid file-based master key length".to_string());
+        }
+        return Ok(key_bytes);
     }
 
     let mut key = vec![0_u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
-    entry.set_password(&BASE64.encode(&key)).map_err(to_error)?;
+    let encoded = BASE64.encode(&key);
+    if let Some(parent) = key_path.parent() {
+        fs::create_dir_all(parent).ok();
+    }
+    fs::write(&key_path, encoded).map_err(to_error)?;
     Ok(key)
 }
 
@@ -449,66 +913,6 @@ pub(crate) fn safe_storage_decrypt_bytes(value: &str) -> Result<Vec<u8>, String>
         .map_err(to_error)
 }
 
-fn stronghold_snapshot_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let state = app.state::<AppState>();
-    Ok(get_data_dir(app, state.inner())?.join(STRONGHOLD_SNAPSHOT_FILE))
-}
-
-fn open_stronghold(app: &AppHandle) -> Result<SecureStronghold, String> {
-    let snapshot_path = stronghold_snapshot_path(app)?;
-    SecureStronghold::new(&snapshot_path, read_master_key()?).map_err(to_error)
-}
-
-fn load_or_create_stronghold_client(
-    stronghold: &SecureStronghold,
-) -> Result<iota_stronghold::Client, String> {
-    stronghold
-        .load_client(STRONGHOLD_CLIENT)
-        .or_else(|_| stronghold.create_client(STRONGHOLD_CLIENT))
-        .map_err(to_error)
-}
-
-pub(crate) fn stronghold_get_record(app: &AppHandle, key: &str) -> Result<Option<Vec<u8>>, String> {
-    let snapshot_path = stronghold_snapshot_path(app)?;
-    if !snapshot_path.exists() {
-        return Ok(None);
-    }
-
-    let stronghold = open_stronghold(app)?;
-    let client = stronghold
-        .load_client(STRONGHOLD_CLIENT)
-        .map_err(to_error)?;
-    client.store().get(key.as_bytes()).map_err(to_error)
-}
-
-pub(crate) fn stronghold_save_record(
-    app: &AppHandle,
-    key: &str,
-    value: Vec<u8>,
-) -> Result<(), String> {
-    let stronghold = open_stronghold(app)?;
-    let client = load_or_create_stronghold_client(&stronghold)?;
-    client
-        .store()
-        .insert(key.as_bytes().to_vec(), value, None)
-        .map_err(to_error)?;
-    stronghold.save().map_err(to_error)
-}
-
-pub(crate) fn stronghold_remove_record(app: &AppHandle, key: &str) -> Result<(), String> {
-    let snapshot_path = stronghold_snapshot_path(app)?;
-    if !snapshot_path.exists() {
-        return Ok(());
-    }
-
-    let stronghold = open_stronghold(app)?;
-    let client = stronghold
-        .load_client(STRONGHOLD_CLIENT)
-        .map_err(to_error)?;
-    client.store().delete(key.as_bytes()).map_err(to_error)?;
-    stronghold.save().map_err(to_error)
-}
-
 pub(crate) fn allowed_blob_key(key: &str) -> Result<(), String> {
     if ALLOWED_BLOB_KEYS.contains(&key) {
         Ok(())
@@ -517,26 +921,41 @@ pub(crate) fn allowed_blob_key(key: &str) -> Result<(), String> {
     }
 }
 
+pub(crate) fn safe_storage_store_blob_cmd(
+    _app: &AppHandle,
+    state: &AppState,
+    key: &str,
+    value: Vec<u8>,
+) -> Result<(), String> {
+    state.secure_blobs.store_blob(state, key, value)
+}
+
+pub(crate) fn safe_storage_fetch_blob_cmd(
+    _app: &AppHandle,
+    state: &AppState,
+    key: &str,
+) -> Result<Option<Vec<u8>>, String> {
+    state.secure_blobs.fetch_blob(state, key)
+}
+
+pub(crate) fn safe_storage_clear_blob_cmd(
+    _app: &AppHandle,
+    state: &AppState,
+    key: &str,
+) -> Result<(), String> {
+    state.secure_blobs.clear_blob(state, key)
+}
+
 pub(crate) fn keyring_entry(account: &str) -> Result<Entry, String> {
     Entry::new(SAFE_STORAGE_SERVICE, account).map_err(to_error)
 }
 
-fn derive_asset_key(passphrase: &str, salt: &[u8]) -> [u8; 32] {
-    let mut key = [0_u8; 32];
-    pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), salt, PBKDF2_ITERATIONS, &mut key);
-    key
-}
-
-pub(crate) fn encrypt_asset_bytes(
-    passphrase: &str,
+pub(crate) fn encrypt_asset_bytes_with_key(
     plain: &[u8],
-    salt_hex: &str,
+    key: &[u8; 32],
 ) -> Result<Vec<u8>, String> {
-    let salt = hex::decode(salt_hex.trim()).map_err(to_error)?;
-    let key = derive_asset_key(passphrase, &salt);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    let mut iv = [0_u8; 12];
-    rand::thread_rng().fill_bytes(&mut iv);
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let iv = random_nonce();
     let encrypted = cipher
         .encrypt(Nonce::from_slice(&iv), plain)
         .map_err(to_error)?;
@@ -549,17 +968,36 @@ pub(crate) fn encrypt_asset_bytes(
     Ok(output)
 }
 
-pub(crate) fn decrypt_asset_bytes(
-    passphrase: &str,
+pub(crate) fn decrypt_asset_bytes_with_key(
     encrypted: &[u8],
-    salt_hex: &str,
+    key: &[u8; 32],
 ) -> Result<Vec<u8>, String> {
-    if encrypted.len() < 4 + 12 + 16 || &encrypted[..4] != ASSET_MAGIC {
+    if encrypted.len() < 4 + 12 + 16 {
         return Ok(encrypted.to_vec());
     }
-    let salt = hex::decode(salt_hex.trim()).map_err(to_error)?;
-    let key = derive_asset_key(passphrase, &salt);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    if &encrypted[..4] == ASSET_MAGIC || &encrypted[..4] == b"BNA1" {
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+        let iv = &encrypted[4..16];
+        let tag = &encrypted[16..32];
+        let ciphertext = &encrypted[32..];
+        let mut payload = Vec::with_capacity(ciphertext.len() + tag.len());
+        payload.extend_from_slice(ciphertext);
+        payload.extend_from_slice(tag);
+        return cipher
+            .decrypt(Nonce::from_slice(iv), payload.as_slice())
+            .map_err(to_error);
+    }
+    Ok(encrypted.to_vec())
+}
+
+pub(crate) fn decrypt_asset_bytes_with_key_legacy(
+    encrypted: &[u8],
+    key: &[u8; 32],
+) -> Result<Vec<u8>, String> {
+    if encrypted.len() < 4 + 12 + 16 || &encrypted[..4] != b"BNA1" {
+        return Ok(encrypted.to_vec());
+    }
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let iv = &encrypted[4..16];
     let tag = &encrypted[16..32];
     let ciphertext = &encrypted[32..];
@@ -571,44 +1009,180 @@ pub(crate) fn decrypt_asset_bytes(
         .map_err(to_error)
 }
 
+pub(crate) fn encrypt_asset_streaming(
+    input_path: &Path,
+    output_path: &Path,
+    key: &[u8; 32],
+) -> Result<(), String> {
+    let input = File::open(input_path).map_err(to_error)?;
+    let output = File::create(output_path).map_err(to_error)?;
+    let mut reader = BufReader::with_capacity(STREAM_CHUNK_SIZE, input);
+    let mut writer = BufWriter::with_capacity(STREAM_CHUNK_SIZE, output);
+
+    let nonce_seed = random_nonce();
+    writer.write_all(ASSET_MAGIC).map_err(to_error)?;
+    writer.write_all(&nonce_seed).map_err(to_error)?;
+
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let mut chunk_buf = vec![0u8; STREAM_CHUNK_SIZE];
+    let mut chunk_index = 0u64;
+
+    loop {
+        let bytes_read = reader.read(&mut chunk_buf).map_err(to_error)?;
+        if bytes_read == 0 {
+            break;
+        }
+        let chunk = &chunk_buf[..bytes_read];
+
+        let mut nonce = nonce_seed.to_vec();
+        let index_bytes = chunk_index.to_le_bytes();
+        nonce.extend_from_slice(&index_bytes);
+        while nonce.len() < 12 {
+            nonce.push(0);
+        }
+        let nonce: [u8; 12] = nonce[..12]
+            .try_into()
+            .map_err(|_| "Invalid nonce length".to_string())?;
+
+        let encrypted = cipher
+            .encrypt(Nonce::from_slice(&nonce), chunk)
+            .map_err(to_error)?;
+
+        let (ciphertext, tag) = encrypted.split_at(encrypted.len().saturating_sub(16));
+        writer
+            .write_all(&(encrypted.len() as u32).to_le_bytes())
+            .map_err(to_error)?;
+        writer.write_all(ciphertext).map_err(to_error)?;
+        writer.write_all(tag).map_err(to_error)?;
+
+        chunk_index += 1;
+    }
+
+    writer.flush().map_err(to_error)?;
+    Ok(())
+}
+
+pub(crate) fn decrypt_asset_streaming(
+    input_path: &Path,
+    output_path: &Path,
+    key: &[u8; 32],
+) -> Result<(), String> {
+    let input = File::open(input_path).map_err(to_error)?;
+    let mut reader = BufReader::with_capacity(STREAM_CHUNK_SIZE + 32, input);
+
+    let mut magic = [0u8; 4];
+    match reader.read_exact(&mut magic) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+            drop(reader);
+            fs::copy(input_path, output_path).map_err(to_error)?;
+            return Ok(());
+        }
+        Err(e) => return Err(to_error(e)),
+    }
+
+    if &magic != ASSET_MAGIC {
+        drop(reader);
+        let data = fs::read(input_path).map_err(to_error)?;
+        let plain = decrypt_asset_bytes_with_key_legacy(&data, key)?;
+        fs::write(output_path, plain).map_err(to_error)?;
+        return Ok(());
+    }
+
+    let mut nonce_seed = [0u8; 12];
+    reader.read_exact(&mut nonce_seed).map_err(to_error)?;
+
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+
+    let output = File::create(output_path).map_err(to_error)?;
+    let mut writer = BufWriter::with_capacity(STREAM_CHUNK_SIZE, output);
+
+    let mut len_buf = [0u8; 4];
+    let mut chunk_index = 0u64;
+
+    loop {
+        match reader.read_exact(&mut len_buf) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::UnexpectedEof => break,
+            Err(e) => return Err(to_error(e)),
+        }
+        let chunk_len = u32::from_le_bytes(len_buf) as usize;
+
+        if chunk_len == 0 || chunk_len > STREAM_CHUNK_SIZE + 16 + 64 {
+            return Err(format!(
+                "Invalid chunk length {} at index {}",
+                chunk_len, chunk_index
+            ));
+        }
+
+        let mut chunk_buf = vec![0u8; chunk_len];
+        reader
+            .read_exact(&mut chunk_buf)
+            .map_err(|e| format!("Failed to read chunk {}: {}", chunk_index, e))?;
+
+        let mut nonce_bytes = nonce_seed.to_vec();
+        let index_bytes = chunk_index.to_le_bytes();
+        nonce_bytes.extend_from_slice(&index_bytes);
+        let nonce: [u8; 12] = nonce_bytes[..12]
+            .try_into()
+            .map_err(|_| "Invalid nonce length".to_string())?;
+
+        let decrypted = cipher
+            .decrypt(Nonce::from_slice(&nonce), chunk_buf.as_slice())
+            .map_err(|_| format!("Decryption failed for chunk {}", chunk_index))?;
+
+        writer.write_all(&decrypted).map_err(to_error)?;
+        chunk_index += 1;
+    }
+
+    writer.flush().map_err(to_error)?;
+    Ok(())
+}
+
+pub(crate) fn cache_decrypted_note(state: &AppState, note_id: &str, content: &[u8]) {
+    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+        cache.put(note_id.to_string(), content.to_vec());
+    }
+}
+
+pub(crate) fn get_cached_decrypted_note(state: &AppState, note_id: &str) -> Option<Vec<u8>> {
+    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+        cache.get(note_id).cloned()
+    } else {
+        None
+    }
+}
+
+pub(crate) fn cache_decrypted_asset(state: &AppState, asset_path: &str, content: &[u8]) {
+    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+        cache.put(asset_path.to_string(), content.to_vec());
+    }
+}
+
+pub(crate) fn get_cached_decrypted_asset(state: &AppState, asset_path: &str) -> Option<Vec<u8>> {
+    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+        cache.get(asset_path).cloned()
+    } else {
+        None
+    }
+}
+
+pub(crate) fn clear_decrypted_caches(state: &AppState) {
+    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+        cache.clear();
+    }
+    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+        cache.clear();
+    }
+}
+
 pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
     buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC
+        || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
 }
 
-pub(crate) fn app_crypto_salt_hex(app: &AppHandle) -> Result<String, String> {
-    let state = app.state::<AppState>();
-    let salt_path = get_data_dir(app, state.inner())?
-        .join("app-crypto")
-        .join("salt");
-    fs::read_to_string(salt_path).map_err(to_error)
-}
-
-pub(crate) fn current_asset_passphrase(
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<String, String> {
-    let current = state.transient_passphrase.lock().map_err(to_error)?.clone();
-    if !current.is_empty() {
-        return Ok(current);
-    }
-
-    if let Some(passphrase) = stronghold_get_record(app, APP_PASSPHRASE_ACCOUNT)?
-        .and_then(|value| String::from_utf8(value).ok())
-        .filter(|value| !value.is_empty())
-    {
-        return Ok(passphrase);
-    }
-
-    match keyring_entry(APP_PASSPHRASE_ACCOUNT)?.get_password() {
-        Ok(passphrase) if !passphrase.is_empty() => {
-            let _ =
-                stronghold_save_record(app, APP_PASSPHRASE_ACCOUNT, passphrase.as_bytes().to_vec());
-            Ok(passphrase)
-        }
-        Ok(_) => Ok(String::new()),
-        Err(keyring::Error::NoEntry) => Ok(String::new()),
-        Err(error) => Err(to_error(error)),
-    }
+pub(crate) fn is_encrypted_asset_v2(buffer: &[u8]) -> bool {
+    buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC
 }
 
 pub(crate) fn maybe_encrypt_asset(
@@ -621,12 +1195,14 @@ pub(crate) fn maybe_encrypt_asset(
     if skip || !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let passphrase = current_asset_passphrase(app, state)?;
-    if passphrase.is_empty() {
+    let manifest_path = app_encryption_manifest_path(app, state.inner())?;
+    if !manifest_path.exists() {
         return Ok(input.to_vec());
     }
-    let salt_hex = app_crypto_salt_hex(app)?;
-    encrypt_asset_bytes(&passphrase, input, &salt_hex)
+    let key = current_app_key(state.inner())?.ok_or_else(|| {
+        "App encryption is enabled but locked. Unlock before writing assets.".to_string()
+    })?;
+    encrypt_asset_bytes_with_key(input, &key)
 }
 
 pub(crate) fn maybe_decrypt_asset(
@@ -638,9 +1214,10 @@ pub(crate) fn maybe_decrypt_asset(
     if !is_local_asset_path(app, target_path) || !is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let passphrase = current_asset_passphrase(app, state)?;
-    let salt_hex = app_crypto_salt_hex(app)?;
-    decrypt_asset_bytes(&passphrase, input, &salt_hex)
+    let key = current_app_key(state.inner())?.ok_or_else(|| {
+        "App encryption is enabled but locked. Unlock before reading assets.".to_string()
+    })?;
+    decrypt_asset_bytes_with_key(input, &key)
 }
 
 pub(crate) fn grant_trusted_path(state: &AppState, path: &Path) {
@@ -785,7 +1362,7 @@ pub(crate) fn clear_external_open_dir(state: &AppState) {
     let _ = fs::remove_dir_all(&state.external_open_dir);
 }
 
-fn decrypted_cache_path(
+pub(crate) fn decrypted_cache_path(
     asset_cache_dir: &Path,
     source: &Path,
     metadata: &fs::Metadata,
@@ -832,26 +1409,25 @@ pub(crate) fn cached_or_decrypted_asset(
     if cache_path.exists() {
         return Ok(cache_path);
     }
-
-    let passphrase = transient_passphrase
-        .filter(|value| !value.is_empty())
-        .map(str::to_owned)
-        .or_else(|| {
-            stronghold_get_record(app, APP_PASSPHRASE_ACCOUNT)
-                .ok()
-                .flatten()
-                .and_then(|value| String::from_utf8(value).ok())
-                .filter(|value| !value.is_empty())
-        })
-        .or_else(|| {
-            keyring_entry(APP_PASSPHRASE_ACCOUNT)
-                .ok()?
-                .get_password()
-                .ok()
-        })
-        .ok_or_else(|| "Asset passphrase unavailable".to_string())?;
-    let salt_hex = app_crypto_salt_hex(app)?;
-    let plain = decrypt_asset_bytes(&passphrase, &raw, &salt_hex)?;
+    let app_state = app.state::<AppState>();
+    let key = if let Some(passphrase) = transient_passphrase.filter(|v| !v.is_empty()) {
+        // Derive key from transient passphrase (e.g. during asset migration
+        // before the main app key has been restored into state)
+        let manifest_path = app_encryption_manifest_path(app, app_state.inner())?;
+        let manifest = load_encryption_manifest(&manifest_path)?
+            .ok_or_else(|| "App encryption manifest is missing.".to_string())?;
+        unlock_key_from_manifest(
+            &manifest,
+            passphrase,
+            APP_ENCRYPTION_SCOPE,
+            APP_PASSWORD_CHECK,
+        )?
+    } else {
+        current_app_key(app_state.inner())?.ok_or_else(|| {
+            "App encryption is locked. Unlock before opening encrypted assets.".to_string()
+        })?
+    };
+    let plain = decrypt_asset_bytes_with_key(&raw, &key)?;
     fs::write(&cache_path, plain).map_err(to_error)?;
     prune_asset_cache_dir(asset_cache_dir);
     Ok(cache_path)

@@ -12,6 +12,7 @@ use tauri::{App, AppHandle, Emitter, Manager, Wry};
 #[cfg(desktop)]
 use tauri::{PhysicalPosition, PhysicalSize, WindowEvent};
 
+use crate::shared::set_app_encryption_active;
 use crate::{commands, shared::*};
 
 #[cfg(desktop)]
@@ -253,6 +254,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
 
     let legacy_blob_map = auth_map.get("blobs").and_then(|value| value.as_object());
 
+    let state = app.state::<AppState>();
     for key in ALLOWED_BLOB_KEYS {
         let Some(blob) = auth_map
             .get(*key)
@@ -266,7 +268,11 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
             continue;
         };
 
-        let has_existing = stronghold_get_record(app, key)?
+        let has_existing = state
+            .secure_blobs
+            .fetch_blob(state.inner(), key)
+            .ok()
+            .flatten()
             .and_then(|value| String::from_utf8(value).ok())
             .filter(|value| !value.is_empty())
             .is_some()
@@ -280,7 +286,9 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
             continue;
         }
 
-        let _ = stronghold_save_record(app, key, blob.as_bytes().to_vec());
+        let _ = state
+            .secure_blobs
+            .store_blob(state.inner(), key, blob.as_bytes().to_vec());
         let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(to_error));
     }
 
@@ -552,7 +560,10 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
 pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     let state = app.state::<AppState>();
     sync_roots_from_settings(app.handle(), state.inner());
-    grant_trusted_path(&state, &crate::shared::app_data_dir(app.handle(), state.inner())?);
+    grant_trusted_path(
+        &state,
+        &crate::shared::app_data_dir(app.handle(), state.inner())?,
+    );
     grant_trusted_path(&state, &app.path().temp_dir().map_err(to_error)?);
     fs::create_dir_all(&state.asset_cache_dir).map_err(to_error)?;
     *state.updater.lock().map_err(to_error)? = UpdaterState {
@@ -612,5 +623,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
         }
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
+    if let Ok(manifest_path) = app_encryption_manifest_path(app.handle(), state.inner()) {
+        set_app_encryption_active(state.inner(), manifest_path.exists());
+    }
     Ok(())
 }

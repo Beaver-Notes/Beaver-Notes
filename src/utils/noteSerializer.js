@@ -10,9 +10,9 @@
 import { buildCardPreview, EMPTY_CARD_PREVIEW } from '@/utils/cardPreview.js';
 import {
   isAppEncryptionEnabled,
-  isAppKeyLoaded,
-  encryptContent,
+  ensureAppKeyReadyForWrite,
   decryptContent,
+  encryptContent,
   isAppEncryptedContent,
 } from '@/utils/appCrypto.js';
 
@@ -25,7 +25,7 @@ export function extractTextFromContent(content) {
   if (!content) return '';
   if (typeof content === 'string') return content;
 
-  const nodes = Array.isArray(content) ? content : (content.content || []);
+  const nodes = Array.isArray(content) ? content : content.content || [];
   const parts = [];
 
   function visit(node) {
@@ -64,7 +64,9 @@ export function hydrateNote(note) {
 
   return {
     ...persisted,
-    cardPreview: hidden ? EMPTY_CARD_PREVIEW : buildCardPreview(persisted.content),
+    cardPreview: hidden
+      ? EMPTY_CARD_PREVIEW
+      : buildCardPreview(persisted.content),
     searchText: hidden ? '' : extractTextFromContent(persisted.content),
   };
 }
@@ -82,16 +84,14 @@ export async function decryptNoteForMemory(note) {
 
 /**
  * If app-level encryption is active, encrypts the note's content before it is
- * written to storage. Throws if the encryption key is locked.
+ * written to storage. Uses a Web Worker so the main thread never blocks.
+ * Throws if the encryption key is locked.
  */
 export async function encryptNoteForStorage(note) {
   if (!isAppEncryptionEnabled()) return note;
-  if (!isAppKeyLoaded()) {
-    throw new Error(
-      'App encryption key is locked. Unlock app encryption in Settings before editing notes.'
-    );
+  await ensureAppKeyReadyForWrite();
+  if (note?.content) {
+    note.content = await encryptContent(note.content);
   }
-  if (isAppEncryptedContent(note.content)) return note; // already encrypted
-  const encrypted = await encryptContent(note.content);
-  return { ...note, content: encrypted };
+  return note;
 }

@@ -23,6 +23,14 @@ export async function storeSecureBlob(
   }
 }
 
+export function persistSecureBlobInBackground(
+  key,
+  plainText,
+  logPrefix = 'secureBlob'
+) {
+  void storeSecureBlob(key, plainText, logPrefix);
+}
+
 export async function loadSecureBlob(key) {
   try {
     const blob = await fetchSecureBlob(key);

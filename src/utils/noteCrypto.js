@@ -1,12 +1,3 @@
-/**
- * Per-note password-based encryption primitives.
- *
- * This module handles encrypting and decrypting individual note content
- * using a user-supplied password. It is separate from app-level encryption
- * (see appCrypto.js), which uses a stored key rather than a per-note password.
- */
-import { AES } from 'crypto-es/lib/aes.js';
-import { Utf8 } from 'crypto-es/lib/core.js';
 import {
   base64ToBuf,
   bufToBase64,
@@ -21,10 +12,6 @@ async function _noteKey(password, saltBuf) {
   });
 }
 
-/**
- * Encrypts a plaintext string with a password.
- * Returns a JSON string containing the v2 ciphertext envelope.
- */
 export async function encryptNoteWithPassword(plaintext, password) {
   const salt = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -42,18 +29,12 @@ export async function encryptNoteWithPassword(plaintext, password) {
   });
 }
 
-/**
- * Decrypts a ciphertext string (v2 envelope or legacy AES) with a password.
- * Returns `{ plaintext: string, wasLegacy: boolean }`.
- * Throws `Error('Incorrect password')` on failure.
- */
 export async function decryptNoteWithPassword(ciphertext, password) {
-  // Attempt v2 JSON envelope first
   let parsed = null;
   try {
     parsed = JSON.parse(ciphertext);
   } catch {
-    /* legacy format — fall through */
+    throw new Error('Incorrect password');
   }
 
   if (parsed?.v === 2) {
@@ -71,13 +52,5 @@ export async function decryptNoteWithPassword(ciphertext, password) {
     return { plaintext: new TextDecoder().decode(buf), wasLegacy: false };
   }
 
-  // Legacy CryptoES / AES-CBC format
-  try {
-    const bytes = AES.decrypt(ciphertext, password);
-    const plain = bytes.toString(Utf8);
-    if (!plain) throw new Error();
-    return { plaintext: plain, wasLegacy: true };
-  } catch {
-    throw new Error('Incorrect password');
-  }
+  throw new Error('Incorrect password');
 }

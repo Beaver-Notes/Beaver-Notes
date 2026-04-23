@@ -1,4 +1,9 @@
 import { backend } from '@/lib/tauri-bridge';
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from '@tauri-apps/plugin-notification';
 
 export function getAppInfo() {
   return backend.invoke('app:info');
@@ -54,4 +59,19 @@ export function printPdf(pdfName) {
 
 export function openFileExternal(path) {
   return backend.invoke('open-file-external', path);
+}
+
+export function relaunchApp() {
+  return backend.invoke('helper:relaunch');
+}
+
+export async function showNotification(title, body) {
+  let permissionGranted = await isPermissionGranted();
+  if (!permissionGranted) {
+    const permission = await requestPermission();
+    permissionGranted = permission === 'granted';
+  }
+  if (permissionGranted) {
+    sendNotification({ title, body });
+  }
 }

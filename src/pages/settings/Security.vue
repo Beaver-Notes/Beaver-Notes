@@ -113,12 +113,14 @@
                 v-model="appConfirmInput"
                 type="password"
                 class="flex-1"
-                :disabled="appEncryptionBusy"
+                :disabled="appEncryptionBusy || appUnlockBusy"
                 :placeholder="translations.settings.password || 'Password...'"
                 @keyup.enter="confirmAppEncryption"
               />
               <ui-button
-                :disabled="!appConfirmInput || appEncryptionBusy"
+                :disabled="
+                  !appConfirmInput || appEncryptionBusy || appUnlockBusy
+                "
                 @click="confirmAppEncryption"
               >
                 {{ translations.settings.unlock || 'Unlock' }}
@@ -166,11 +168,12 @@
                 v-model="syncPassphraseInput"
                 type="password"
                 class="flex-1"
+                :disabled="syncUnlockBusy"
                 :placeholder="translations.settings.password || 'Password...'"
                 @keyup.enter="verifySyncKey"
               />
               <ui-button
-                :disabled="!syncPassphraseInput"
+                :disabled="!syncPassphraseInput || syncUnlockBusy"
                 @click="verifySyncKey"
               >
                 {{ translations.settings.unlock || 'Unlock' }}
@@ -196,22 +199,20 @@ import { useNoteStore } from '@/store/note';
 import {
   isSyncEncryptionEnabled,
   isSyncKeyLoaded,
-  verifySyncPassphrase,
   setupSyncEncryption,
   disableSyncEncryption,
   syncFolderHasEncryption,
-  tryRestoreKeyFromSafeStorage,
 } from '@/utils/sync/crypto.js';
 import {
   isAppEncryptionEnabled,
   isAppKeyLoaded,
   setupAppEncryption,
-  verifyAppPassphrase,
   disableAppEncryption,
   appFolderHasEncryption,
 } from '@/utils/appCrypto.js';
 import { getSyncPath } from '@/utils/sync/path.js';
-import { listAssetFiles, rewriteAssetFile } from '@/lib/native/security';
+import { migrateAssetEncryption } from '@/lib/native/security';
+import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
 
 const { translations } = useTranslations();
 const dialog = useDialog();
@@ -227,10 +228,12 @@ const syncEncryptionEnabled = ref(isSyncEncryptionEnabled());
 const syncKeyLoaded = ref(isSyncKeyLoaded());
 const syncPassphraseInput = ref('');
 const syncCryptoError = ref('');
+const syncUnlockBusy = ref(false);
 
 const appEncryptionEnabled = ref(isAppEncryptionEnabled());
 const appKeyLoaded = ref(isAppKeyLoaded());
 const appEncryptionBusy = ref(false);
+const appUnlockBusy = ref(false);
 const appEncryptionProgress = ref({
   phase: '',
   processed: 0,
@@ -238,6 +241,7 @@ const appEncryptionProgress = ref({
 });
 const appEncryptionError = ref('');
 const appConfirmInput = ref('');
+const APP_ENCRYPTION_YIELD_EVERY = 5;
 
 const hasSyncFolder = computed(() => Boolean(syncPath.value?.trim()));
 
@@ -308,7 +312,8 @@ async function resetPasswordDialog() {
           }
 
           try {
-            await passwordStore.setsharedKey(newPassword);
+            await passwordStore.resetPassword(currentPassword, newPassword);
+            await unlockEnabledEncryptionScopes(newPassword);
             showDialogAlert(translations.value.settings.passwordResetSuccess);
             hasPassword.value = true;
           } catch (error) {
@@ -326,6 +331,7 @@ async function setGlobalPassword() {
   if (!passwordInput.value?.trim()) return;
   try {
     await passwordStore.setsharedKey(passwordInput.value);
+    await unlockEnabledEncryptionScopes(passwordInput.value);
     hasPassword.value = true;
     passwordInput.value = '';
   } catch (error) {
@@ -349,37 +355,32 @@ function updateAppEncryptionProgress(progress) {
   };
 }
 
+function yieldToUi() {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 async function migrateAssetsForAppEncryption({ encryptAtRest }) {
   const dataDir = await storage.get('dataDir', '', 'settings');
   if (!dataDir) return;
-
-  const files = await listAssetFiles(dataDir);
   const phase = encryptAtRest ? 'assets-encrypt' : 'assets-plaintext';
-  const total = files.length;
-  let processed = 0;
-  const failures = [];
+  updateAppEncryptionProgress({
+    phase,
+    processed: 0,
+    total: 0,
+  });
 
-  for (const filePath of files) {
-    try {
-      await rewriteAssetFile(filePath, {
-        skipAssetEncryption: !encryptAtRest,
-      });
-    } catch (error) {
-      failures.push(filePath);
-    } finally {
-      processed += 1;
-      updateAppEncryptionProgress({
-        phase,
-        processed,
-        total,
-        id: filePath,
-      });
-    }
-  }
+  const result = await migrateAssetEncryption(dataDir, encryptAtRest);
+  updateAppEncryptionProgress({
+    phase,
+    processed: result.processed,
+    total: result.total,
+  });
 
-  if (failures.length > 0) {
+  if (result.failedPaths.length > 0) {
     throw new Error(
-      `Failed to migrate ${failures.length} asset file(s) during app-encryption update.`
+      `Failed to migrate ${result.failedPaths.length} asset file(s) during app-encryption update.`
     );
   }
 }
@@ -428,13 +429,7 @@ async function toggleAppEncryption(enabled) {
         refreshAppKeyLoaded();
         return;
       }
-
-      const restored = await verifyAppPassphrase();
       refreshAppKeyLoaded();
-
-      if (restored.ok) {
-        await runAppEncryptionMigration({ encryptAtRest: true });
-      }
     } catch (error) {
       appEncryptionEnabled.value = isAppEncryptionEnabled();
       refreshAppKeyLoaded();
@@ -448,11 +443,8 @@ async function toggleAppEncryption(enabled) {
           'Unlock app encryption before disabling so notes can be saved in plain form.';
         return;
       }
-
       await runAppEncryptionMigration({ encryptAtRest: false });
-      await disableAppEncryption(async () => {
-        await noteStore.persistAllNotesPlaintext();
-      });
+      await disableAppEncryption();
       refreshAppKeyLoaded();
       appEncryptionEnabled.value = false;
       appConfirmInput.value = '';
@@ -465,27 +457,28 @@ async function toggleAppEncryption(enabled) {
 }
 
 async function confirmAppEncryption() {
-  if (appEncryptionBusy.value) return;
+  if (appEncryptionBusy.value || appUnlockBusy.value) return;
   appEncryptionError.value = '';
   const pass = appConfirmInput.value;
   if (!pass) return;
 
   try {
-    const alreadySetUp = await appFolderHasEncryption();
-    const result = alreadySetUp
-      ? await verifyAppPassphrase(pass)
-      : await setupAppEncryption(pass);
+    appUnlockBusy.value = true;
+    const result = await setupAppEncryption(pass);
 
     if (!result.ok) {
       appEncryptionError.value = result.error;
     } else {
+      await runAppEncryptionMigration({ encryptAtRest: true });
       refreshAppKeyLoaded();
       appConfirmInput.value = '';
-      await runAppEncryptionMigration({ encryptAtRest: true });
+      appEncryptionEnabled.value = true;
     }
   } catch (error) {
     refreshAppKeyLoaded();
     appEncryptionError.value = String(error);
+  } finally {
+    appUnlockBusy.value = false;
   }
 }
 
@@ -493,17 +486,7 @@ async function toggleSyncEncryption() {
   syncCryptoError.value = '';
 
   if (syncEncryptionEnabled.value) {
-    localStorage.setItem('syncEncryptionEnabled', 'true');
-    try {
-      const restored = await tryRestoreKeyFromSafeStorage();
-      if (restored) {
-        syncKeyLoaded.value = true;
-      }
-    } catch (error) {
-      syncEncryptionEnabled.value = false;
-      localStorage.removeItem('syncEncryptionEnabled');
-      syncCryptoError.value = String(error);
-    }
+    syncKeyLoaded.value = isSyncKeyLoaded();
   } else {
     await disableSyncEncryption(false);
     syncKeyLoaded.value = false;
@@ -512,11 +495,10 @@ async function toggleSyncEncryption() {
 }
 
 async function verifySyncKey() {
+  if (syncUnlockBusy.value) return;
   syncCryptoError.value = '';
-  const alreadySetUp = await syncFolderHasEncryption();
-  const result = alreadySetUp
-    ? await verifySyncPassphrase(syncPassphraseInput.value)
-    : await setupSyncEncryption(syncPassphraseInput.value);
+  syncUnlockBusy.value = true;
+  const result = await setupSyncEncryption(syncPassphraseInput.value);
 
   if (result.ok) {
     syncKeyLoaded.value = true;
@@ -524,13 +506,13 @@ async function verifySyncKey() {
   } else {
     syncCryptoError.value = result.error;
   }
+  syncUnlockBusy.value = false;
 }
 
 async function hydrateSyncEncryptionState() {
   const folderEncrypted = await syncFolderHasEncryption();
   if (folderEncrypted) {
     syncEncryptionEnabled.value = true;
-    await tryRestoreKeyFromSafeStorage();
   } else {
     syncEncryptionEnabled.value = isSyncEncryptionEnabled();
   }

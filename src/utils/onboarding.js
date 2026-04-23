@@ -7,9 +7,7 @@ import {
   runMigration,
   runMigrationFromPath,
 } from '@/lib/native/app';
-import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
-import { tryRestoreKeyFromSafeStorage } from '@/utils/sync/crypto';
 
 export const ONBOARDING_LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -166,10 +164,6 @@ export async function runOnboardingMigrationFromPath(path) {
 
 export async function openOnboardingWorkspace({ store, noteStore, router }) {
   await getSyncPath();
-  await Promise.allSettled([
-    tryRestoreKeyFromSafeStorage(),
-    tryRestoreAppKeyFromSafeStorage(),
-  ]);
 
   await store.retrieve();
 

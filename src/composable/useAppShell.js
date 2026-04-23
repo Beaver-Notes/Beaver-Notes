@@ -11,8 +11,6 @@ import { useAppStore } from '@/store/app';
 import { useAppShellLayout } from './useAppShellLayout';
 import { useAppShellBanners } from './useAppShellBanners';
 import { importBEA } from '@/utils/share/BEA';
-import { tryRestoreKeyFromSafeStorage } from '@/utils/sync/crypto';
-import { tryRestoreAppKeyFromSafeStorage } from '@/utils/appCrypto';
 import { getSyncPath } from '@/utils/sync/path';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
 import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
@@ -22,6 +20,7 @@ import {
   installUpdate,
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
+import { restoreAllEncryptionKeysFromSafeStorage } from '@/utils/encryptionCoordinator.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 
@@ -111,10 +110,7 @@ export function useAppShell() {
 
   const restoreEncryptionKeys = async () => {
     await getSyncPath();
-    await Promise.allSettled([
-      tryRestoreKeyFromSafeStorage(),
-      tryRestoreAppKeyFromSafeStorage(),
-    ]);
+    await restoreAllEncryptionKeysFromSafeStorage();
   };
 
   const hasExistingWorkspaceData = async () => {

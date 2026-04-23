@@ -68,7 +68,7 @@
         {{
           appEncryptedLocked
             ? translations.settings?.unlockAppEncryption ||
-              'This note is encrypted at rest. Unlock app encryption in Settings to edit it.'
+              'This note is encrypted at rest. Enter your password to unlock it.'
             : translations.card.unlockToEdit
         }}
       </p>
@@ -76,14 +76,12 @@
         <button
           class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
           @click="
-            appEncryptedLocked
-              ? openSettingsForAppUnlock()
-              : unlockNote(note.id)
+            appEncryptedLocked ? unlockAppEncryption() : unlockNote(note.id)
           "
         >
           {{
             appEncryptedLocked
-              ? translations.app?.openSettings || 'Open Settings'
+              ? translations.settings?.unlock || 'Unlock'
               : translations.card.unlock
           }}
         </button>
@@ -133,6 +131,8 @@ import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import { useAppStore } from '../../store/app';
 import { isAppEncryptedContent } from '@/utils/appCrypto';
+import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
+import { decryptNoteForMemory } from '@/utils/noteSerializer.js';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
 export default {
@@ -169,7 +169,14 @@ export default {
 
     watch(
       id,
-      (n) => {
+      async (n) => {
+        const currentNote = noteStore.getById(n);
+        if (currentNote && isAppEncryptedContent(currentNote.content)) {
+          const decrypted = await decryptNoteForMemory(currentNote);
+          if (decrypted !== currentNote) {
+            noteStore.data[n] = decrypted;
+          }
+        }
         if (!appStore.setting.collapsibleHeading && !isLocked.value) {
           noteStore.convertNote(n);
         }
@@ -384,7 +391,6 @@ export default {
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
-
         if (oldNoteId && noteId && noteStore.getById(oldNoteId)) {
           noteStore.patchLocal(oldNoteId, {
             lastCursorPosition: editor.value?.state.selection.to,
@@ -498,6 +504,7 @@ export default {
               try {
                 await noteStore.unlockNote(note, enteredPassword);
                 await passwordStore.setsharedKey(enteredPassword);
+                await unlockEnabledEncryptionScopes(enteredPassword);
               } catch (error) {
                 showWrongPassword();
                 return;
@@ -520,8 +527,47 @@ export default {
       });
     }
 
-    function openSettingsForAppUnlock() {
-      router.push('/settings');
+    async function unlockAppEncryption() {
+      const noteStore = useNoteStore();
+      const showWrongPassword = () =>
+        dialog.alert({
+          title: translations.value.settings?.alertTitle || 'Alert',
+          body:
+            translations.value.card?.wrongPasswd ||
+            translations.value.card?.wrongPasswd ||
+            'Wrong password.',
+          okText: translations.value.dialog?.close || 'Close',
+        });
+
+      dialog.prompt({
+        title:
+          translations.value.settings?.unlockAppEncryptionTitle ||
+          translations.value.settings?.unlock ||
+          'Unlock',
+        okText: translations.value.settings?.unlock || 'Unlock',
+        cancelText: translations.value.card?.cancel || 'Cancel',
+        placeholder: translations.value.card?.password || 'Password',
+        onConfirm: async (enteredPassword) => {
+          try {
+            const scopes = await unlockEnabledEncryptionScopes(enteredPassword);
+            if (scopes.app.required && !scopes.app.unlocked) {
+              showWrongPassword();
+              return;
+            }
+
+            const current = noteStore.getById(id.value);
+            if (current && isAppEncryptedContent(current.content)) {
+              const decrypted = await decryptNoteForMemory(current);
+              if (decrypted !== current) {
+                noteStore.data[id.value] = decrypted;
+              }
+            }
+          } catch (error) {
+            console.error('Error unlocking app encryption:', error);
+            showWrongPassword();
+          }
+        },
+      });
     }
 
     const titleDiv = ref(null);
@@ -552,7 +598,7 @@ export default {
       translations,
       store,
       unlockNote,
-      openSettingsForAppUnlock,
+      unlockAppEncryption,
       appEncryptedLocked,
       editor,
       showSearch,

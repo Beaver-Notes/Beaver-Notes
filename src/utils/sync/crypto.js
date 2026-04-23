@@ -1,90 +1,64 @@
-import * as CryptoJS from 'crypto-es';
-import {
-  base64ToBuf,
-  bufToHex,
-  deriveAesGcmKeyFromPassphrase,
-  hexToBuf,
-} from '@/utils/crypto-codec.js';
+import { readLocalAssetData } from './sync-crypto-storage.js';
+import { getSyncPath } from './path.js';
+import { base64ToBuf } from '@/utils/crypto-codec.js';
+import { writeSyncFile } from '@/lib/native/sync.js';
 import {
   clearSecureBlob,
   loadSecureBlob,
-  storeSecureBlob,
+  persistSecureBlobInBackground,
 } from '@/utils/safeStorageBlob.js';
-import { getSyncPath } from './path.js';
-import { path } from '@/lib/tauri-bridge';
-import { writeSyncFile } from '@/lib/native/sync';
 import {
-  decryptLegacyCiphertext,
-  gcmDecryptBin,
-  gcmDecryptStr,
-  gcmEncryptBin,
-  gcmEncryptStr,
-} from './sync-crypto-codec.js';
-import {
-  ensureSyncCryptoDir,
-  getSyncCryptoDir,
-  readLocalAssetData,
-  readSyncCryptoFile,
-  removeSyncCryptoDir,
-  syncCryptoFileExists,
-  writeSyncCryptoFile,
-} from './sync-crypto-storage.js';
+  decryptSyncAssetBase64,
+  decryptSyncPayload,
+  disableSyncEncryptionState,
+  encryptSyncAssetBase64,
+  encryptSyncPayload,
+  getEncryptionState,
+  submitEncryptionPassword,
+} from '@/lib/native/security.js';
 
-const { AES: _CBC, enc: _enc, algo: _algo, PBKDF2: _PBKDF2 } = CryptoJS;
-
-const PBKDF2_ITERATIONS = 100_000;
-const KEYCHECK_PLAINTEXT = 'BeaverNotes-sync-v1';
-const LS_ENCRYPTION_FLAG = 'syncEncryptionEnabled';
-const FOLDER_ENCRYPTION_CACHE_MS = 3000;
+let _restoreInFlight = null;
 const SYNC_BLOB_KEY = 'syncPassphraseBlob';
-let _key = null;
-let _legacyCBCKey = null;
-let _folderEncryptionCache = {
-  syncPath: '',
-  checkedAt: 0,
-  hasCrypto: false,
+const state = {
+  enabled: false,
+  loaded: false,
 };
 
-async function _deriveKey(passphrase, saltBuf) {
-  return deriveAesGcmKeyFromPassphrase(passphrase, saltBuf, {
-    iterations: PBKDF2_ITERATIONS,
-  });
+async function refreshState() {
+  const syncPath = await getSyncPath();
+  const next = await getEncryptionState(syncPath);
+  state.enabled = !!next?.syncEnabled;
+  state.loaded = !!next?.syncUnlocked;
+  return { syncPath, ...next };
 }
 
 export function isSyncEncryptionEnabled() {
-  return localStorage.getItem(LS_ENCRYPTION_FLAG) === 'true';
-}
-
-function _setSyncEncryptionEnabled(enabled) {
-  if (enabled) localStorage.setItem(LS_ENCRYPTION_FLAG, 'true');
-  else localStorage.removeItem(LS_ENCRYPTION_FLAG);
+  return state.enabled;
 }
 
 export function isSyncKeyLoaded() {
-  return _key !== null;
+  return state.loaded;
 }
 
 export async function setupSyncEncryption(passphrase) {
-  if (!passphrase?.trim())
+  if (!passphrase?.trim()) {
     return { ok: false, error: 'Passphrase cannot be empty.' };
+  }
 
   const syncPath = await getSyncPath();
   if (!syncPath) return { ok: false, error: 'Choose a sync folder first.' };
 
   try {
-    await ensureSyncCryptoDir(syncPath);
-
-    const salt = crypto.getRandomValues(new Uint8Array(32));
-    const saltHex = bufToHex(salt);
-    const key = await _deriveKey(passphrase, salt);
-    await writeSyncCryptoFile(syncPath, 'salt', saltHex);
-    const keycheck = await gcmEncryptStr(KEYCHECK_PLAINTEXT, key);
-    await writeSyncCryptoFile(syncPath, 'keycheck', keycheck);
-
-    _key = key;
-    _setSyncEncryptionEnabled(true);
-    await storeSecureBlob(SYNC_BLOB_KEY, passphrase, 'syncCrypto');
-
+    const result = await submitEncryptionPassword(passphrase, 'sync', syncPath);
+    if (!result?.ok) {
+      return {
+        ok: false,
+        error: result?.error || 'Unable to enable sync encryption.',
+      };
+    }
+    persistSecureBlobInBackground(SYNC_BLOB_KEY, passphrase, 'syncCrypto');
+    state.enabled = !!result?.state?.syncEnabled;
+    state.loaded = !!result?.state?.syncUnlocked;
     return { ok: true };
   } catch (err) {
     console.error('[syncCrypto] setup failed:', err);
@@ -93,185 +67,89 @@ export async function setupSyncEncryption(passphrase) {
 }
 
 export async function verifySyncPassphrase(passphrase) {
+  if (!passphrase?.trim()) {
+    return { ok: false, error: 'Enter your sync passphrase.' };
+  }
+
   const syncPath = await getSyncPath();
   if (!syncPath) return { ok: false, error: 'No sync folder configured.' };
 
   try {
-    let saltHex, keycheck;
-    try {
-      saltHex = await readSyncCryptoFile(syncPath, 'salt');
-      keycheck = await readSyncCryptoFile(syncPath, 'keycheck');
-    } catch {
-      return {
-        ok: false,
-        error: 'Encryption files not found. Set up encryption on the first device first.',
-      };
+    const result = await submitEncryptionPassword(
+      passphrase,
+      'sync',
+      syncPath,
+      false
+    );
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || 'Wrong passphrase.' };
     }
-
-    if (!saltHex?.trim() || !keycheck?.trim()) {
-      return { ok: false, error: 'Encryption files are empty or corrupted.' };
-    }
-
-    const pass = passphrase || (await loadSecureBlob(SYNC_BLOB_KEY));
-    if (!pass) return { ok: false, error: 'Enter your sync passphrase.' };
-
-    const saltBuf = hexToBuf(saltHex.trim());
-    const key = await _deriveKey(pass, saltBuf);
-    const kc = keycheck.trim();
-    let verified = false;
-    let isLegacyKeycheck = false;
-
-    if (kc.startsWith('{')) {
-      try {
-        const plain = await gcmDecryptStr(kc, key);
-        verified = plain === KEYCHECK_PLAINTEXT;
-      } catch {
-        return { ok: false, error: 'Wrong passphrase.' };
-      }
-    } else {
-      const cbcKey = _PBKDF2(pass, _enc.Hex.parse(saltHex.trim()), {
-        keySize: 8,
-        iterations: PBKDF2_ITERATIONS,
-        hasher: _algo.SHA256,
-      });
-      try {
-        const plain = _CBC.decrypt(kc, cbcKey).toString(_enc.Utf8);
-        verified = plain === KEYCHECK_PLAINTEXT;
-        if (verified) {
-          _legacyCBCKey = cbcKey;
-          isLegacyKeycheck = true;
-        }
-      } catch {
-        return { ok: false, error: 'Wrong passphrase.' };
-      }
-    }
-
-    if (!verified) return { ok: false, error: 'Wrong passphrase.' };
-
-    _key = key;
-    _setSyncEncryptionEnabled(true);
-    if (passphrase)
-      await storeSecureBlob(SYNC_BLOB_KEY, passphrase, 'syncCrypto');
-    if (isLegacyKeycheck) {
-      try {
-        const newKeycheck = await gcmEncryptStr(KEYCHECK_PLAINTEXT, key);
-        await writeSyncCryptoFile(syncPath, 'keycheck', newKeycheck);
-      } catch (upgradeErr) {
-        console.warn('[syncCrypto] keycheck upgrade failed (non-fatal):', upgradeErr);
-      }
-    }
-
+    persistSecureBlobInBackground(SYNC_BLOB_KEY, passphrase, 'syncCrypto');
+    state.enabled = !!result?.state?.syncEnabled;
+    state.loaded = !!result?.state?.syncUnlocked;
     return { ok: true };
   } catch (err) {
     console.error('[syncCrypto] verify failed:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: err?.message || String(err) };
   }
 }
 
 export async function tryRestoreKeyFromSafeStorage() {
-  const folderEncrypted = await syncFolderHasEncryption();
-  if (folderEncrypted) _setSyncEncryptionEnabled(true);
+  if (_restoreInFlight) return _restoreInFlight;
+  _restoreInFlight = _doRestoreKey().finally(() => {
+    _restoreInFlight = null;
+  });
+  return _restoreInFlight;
+}
 
-  const shouldAttemptRestore = isSyncEncryptionEnabled() || folderEncrypted;
-  if (!shouldAttemptRestore) return false;
-  const result = await verifySyncPassphrase();
+async function _doRestoreKey() {
+  const next = await refreshState();
+  if (!next?.syncEnabled || next?.syncUnlocked) {
+    return !!next?.syncUnlocked;
+  }
+
+  const passphrase = await loadSecureBlob(SYNC_BLOB_KEY);
+  if (!passphrase) return false;
+
+  const result = await verifySyncPassphrase(passphrase);
   return result.ok;
 }
 
 export async function ensureSyncKeyReadyForWrite() {
-  const folderEncrypted = await syncFolderHasEncryption();
-  if (folderEncrypted) _setSyncEncryptionEnabled(true);
-
-  const encryptionRequired = isSyncEncryptionEnabled() || folderEncrypted;
+  const next = await refreshState();
+  const encryptionRequired = !!next?.syncEnabled;
   if (!encryptionRequired) return false;
-  if (_key) return true;
+  if (state.loaded) return true;
 
-  const restored = await tryRestoreKeyFromSafeStorage();
-  if (!restored || !_key) {
-    throw new Error(
-      'Sync encryption is enabled but the key is locked. Unlock sync encryption first.'
-    );
-  }
-  return true;
+  throw new Error(
+    'Sync encryption is enabled but the key is locked. Unlock sync encryption first.'
+  );
 }
 
 export async function disableSyncEncryption(removeCryptoFiles = false) {
-  _key = null;
-  _legacyCBCKey = null;
-  _setSyncEncryptionEnabled(false);
+  const syncPath = await getSyncPath();
+  await disableSyncEncryptionState(syncPath, removeCryptoFiles);
   await clearSecureBlob(SYNC_BLOB_KEY);
-  _clearFolderEncryptionCache();
-
-  if (removeCryptoFiles) {
-    const syncPath = await getSyncPath();
-    if (syncPath) {
-      try {
-        await removeSyncCryptoDir(syncPath);
-        _clearFolderEncryptionCache();
-      } catch (err) {
-        console.warn('[syncCrypto] could not remove crypto dir:', err);
-      }
-    }
-  }
+  await refreshState();
 }
 
-export async function syncFolderHasEncryption(options = {}) {
-  const { force = false } = options;
-  const syncPath = await getSyncPath();
-  if (!syncPath) return false;
-  try {
-    const now = Date.now();
-    if (
-      !force &&
-      _folderEncryptionCache.syncPath === syncPath &&
-      now - _folderEncryptionCache.checkedAt < FOLDER_ENCRYPTION_CACHE_MS
-    ) {
-      if (_folderEncryptionCache.hasCrypto) _setSyncEncryptionEnabled(true);
-      return _folderEncryptionCache.hasCrypto;
-    }
-
-    const hasCrypto = await syncCryptoFileExists(syncPath, 'salt');
-    _folderEncryptionCache = { syncPath, checkedAt: now, hasCrypto };
-    if (hasCrypto) _setSyncEncryptionEnabled(true);
-    return hasCrypto;
-  } catch {
-    return false;
-  }
+export async function syncFolderHasEncryption() {
+  const next = await refreshState();
+  return !!next?.syncEnabled;
 }
 
 export async function encryptJSON(obj) {
   await ensureSyncKeyReadyForWrite();
-  if (!_key) return JSON.stringify(obj);
-  return gcmEncryptStr(JSON.stringify(obj), _key);
+  if (!state.loaded) return JSON.stringify(obj);
+  return encryptSyncPayload(JSON.stringify(obj));
 }
 
 export async function decryptJSON(raw) {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw);
-
-    if (parsed?.v === 2) {
-      if (!_key) {
-        console.warn('[syncCrypto] Encrypted commit (v2) received but no key is loaded — skipping');
-        return null;
-      }
-      return JSON.parse(await gcmDecryptStr(raw, _key));
-    }
-
-    if (parsed?.v === 1) {
-      if (!_legacyCBCKey && !_key) {
-        console.warn('[syncCrypto] Encrypted commit (v1) received but no key is loaded — skipping');
-        return null;
-      }
-      if (_legacyCBCKey) {
-        const plain = _CBC.decrypt(parsed.enc, _legacyCBCKey).toString(_enc.Utf8);
-        return JSON.parse(plain);
-      }
-      console.warn('[syncCrypto] v1 commit found but no CBC key cached — skipping');
-      return null;
-    }
-
-    return parsed; // plain JSON (no encryption)
+    const plain = await decryptSyncPayload(raw);
+    if (plain === null) return null;
+    return JSON.parse(plain);
   } catch (err) {
     console.warn('[syncCrypto] decryptJSON error:', err);
     return null;
@@ -279,63 +157,40 @@ export async function decryptJSON(raw) {
 }
 
 export function syncAssetName(localFilename) {
-  return _key ? `${localFilename}.enc` : localFilename;
+  return state.enabled ? `${localFilename}.enc` : localFilename;
 }
 
 export function localAssetName(syncFilename) {
-  return syncFilename.endsWith('.enc') ? syncFilename.slice(0, -4) : syncFilename;
+  return syncFilename.endsWith('.enc')
+    ? syncFilename.slice(0, -4)
+    : syncFilename;
 }
 
 export async function readAndEncryptAsset(localFilePath) {
   const base64 = await readLocalAssetData(localFilePath);
-  if (!_key) return base64;
-  const raw = new TextEncoder().encode(base64);
-  return gcmEncryptBin(raw, _key);
+  if (!state.loaded) return base64;
+  return encryptSyncAssetBase64(base64);
 }
 
-export async function decryptAndWriteAsset(cipherOrBase64, destPath, options = {}) {
+export async function decryptAndWriteAsset(
+  cipherOrBase64,
+  destPath,
+  options = {}
+) {
   const { skipAssetEncryption = false } = options;
   let base64 = cipherOrBase64;
 
-  if (_key) {
-    try {
-      const decrypted = await gcmDecryptBin(cipherOrBase64, _key);
-      base64 = new TextDecoder().decode(decrypted);
-    } catch {
-      if (_legacyCBCKey) {
-        try {
-          base64 = decryptLegacyCiphertext(cipherOrBase64, _legacyCBCKey);
-        } catch {
-          base64 = null;
-        }
-      } else {
-        base64 = cipherOrBase64;
-      }
-      if (!base64 || !base64.trim()) {
-        console.error(
-          `[syncCrypto] decryptAndWriteAsset: decryption produced empty output for "${destPath}". ` +
-            'The file in the sync folder may be corrupted or encrypted with a different key. Skipping write.'
-        );
-        throw new Error(`Cannot decrypt asset: ${destPath}`);
-      }
-      console.warn(
-        `[syncCrypto] decryptAndWriteAsset: fell back to legacy CBC decryption for "${destPath}". ` +
-          'This asset predates encryption upgrades and will re-encrypt on the next sync.'
-      );
-    }
+  if (state.loaded) {
+    base64 = await decryptSyncAssetBase64(cipherOrBase64);
   }
 
-  if (!base64) {
-    throw new Error(`[syncCrypto] No decryptable content for asset: ${destPath}`);
+  if (base64 === null || !base64) {
+    throw new Error(
+      `[syncCrypto] No decryptable content for asset: ${destPath}`
+    );
   }
 
   await writeSyncFile(destPath, base64ToBuf(base64), { skipAssetEncryption });
 }
 
-function _cryptoDir(syncPath) {
-  return getSyncCryptoDir(syncPath);
-}
-
-function _clearFolderEncryptionCache() {
-  _folderEncryptionCache = { syncPath: '', checkedAt: 0, hasCrypto: false };
-}
+void refreshState().catch(() => {});

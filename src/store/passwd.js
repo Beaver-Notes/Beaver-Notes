@@ -7,21 +7,6 @@ import {
 } from '../composable/safeStorage';
 import { useStorage } from '../composable/storage';
 import { useNoteStore } from './note';
-import {
-  setupSyncEncryption,
-  verifySyncPassphrase,
-  syncFolderHasEncryption,
-  isSyncEncryptionEnabled,
-  isSyncKeyLoaded,
-} from '../utils/sync/crypto.js';
-import {
-  setupAppEncryption,
-  verifyAppPassphrase,
-  appFolderHasEncryption,
-  isAppEncryptionEnabled,
-  isAppKeyLoaded,
-} from '../utils/appCrypto.js';
-import { getSyncPath } from '../utils/sync/path.js';
 import { path } from '@/lib/tauri-bridge';
 import { pathExists, readFile, writeFile } from '@/lib/native/fs';
 import {
@@ -40,39 +25,6 @@ async function _getPasswordFilePath() {
   const dataDir = await storage.get('dataDir', '', 'settings');
   if (!dataDir) return null;
   return path.join(dataDir, 'password.enc');
-}
-
-async function _mirrorToEncryptionSystems(plainPassword) {
-  try {
-    if (isAppEncryptionEnabled()) {
-      if (!isAppKeyLoaded()) {
-        const alreadyInit = await appFolderHasEncryption();
-        if (alreadyInit) {
-          await verifyAppPassphrase(plainPassword);
-        } else {
-          await setupAppEncryption(plainPassword);
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('[passwd] app encryption mirror failed (non-fatal):', err);
-  }
-  try {
-    const syncPath = await getSyncPath();
-    if (!syncPath) return;
-
-    const folderHasEncryption = await syncFolderHasEncryption();
-
-    if (folderHasEncryption) {
-      if (!isSyncKeyLoaded()) {
-        await verifySyncPassphrase(plainPassword);
-      }
-    } else if (isSyncEncryptionEnabled()) {
-      await setupSyncEncryption(plainPassword);
-    }
-  } catch (err) {
-    console.warn('[passwd] sync encryption mirror failed (non-fatal):', err);
-  }
 }
 
 export const usePasswordStore = defineStore('password', {
@@ -177,7 +129,6 @@ export const usePasswordStore = defineStore('password', {
         } else {
           await storage.set(LEGACY_STORAGE_KEY, hashedPassword);
         }
-        await _mirrorToEncryptionSystems(password);
       } catch (error) {
         console.error('[passwd] setsharedKey failed:', error);
         throw error;
@@ -216,7 +167,6 @@ export const usePasswordStore = defineStore('password', {
           return false;
         }
         await resetPasswordFailures();
-        await _mirrorToEncryptionSystems(enteredPassword);
 
         return true;
       } catch (error) {

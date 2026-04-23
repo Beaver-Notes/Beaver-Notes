@@ -1,6 +1,6 @@
 <template>
   <div
-    class="ob-shell relative overflow-hidden flex items-center justify-center font-sans antialiased select-none"
+    class="ob-shell relative overflow-x-hidden overflow-y-auto flex items-center justify-center font-sans antialiased select-none"
     :class="isDark ? 'ob-dark' : 'ob-light'"
   >
     <!-- Background -->
@@ -245,7 +245,7 @@
       <div
         v-else-if="step === 'platform'"
         key="platform"
-        class="ob-screen relative z-10 flex flex-col items-center justify-center w-full"
+        class="ob-screen ob-screen--scroll relative z-10 flex flex-col items-center justify-start w-full"
       >
         <onboarding-platform-step
           v-model="migrationPlatform"
@@ -585,6 +585,10 @@ export default {
 .ob-screen {
   min-height: calc(100dvh - var(--app-safe-area-top) - var(--app-safe-area-bottom));
   padding: 1.5rem;
+}
+.ob-screen--scroll {
+  padding-top: 2rem;
+  padding-bottom: 2rem;
 }
 .ob-floating-action { bottom: calc(var(--app-safe-area-bottom) + 1.5rem); }
 .ob-toast-card      { bottom: calc(var(--app-safe-area-bottom) + 5rem);   }
