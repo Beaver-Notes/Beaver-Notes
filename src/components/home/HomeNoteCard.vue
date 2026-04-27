@@ -393,37 +393,32 @@ async function lockNote(note) {
 async function unlockNote(note) {
   const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
-  dialog.prompt({
-    title: translations.value.card.enterPasswd,
-    okText: translations.value.card.unlock,
-    cancelText: translations.value.card.cancel,
-    placeholder: translations.value.card.password,
-    onConfirm: async (enteredPassword) => {
-      try {
-        const hassharedKey = await passwordStore.retrieve();
-        if (!hassharedKey) {
-          try {
-            await noteStore.unlockNote(note, enteredPassword);
-            await passwordStore.setsharedKey(enteredPassword);
-            await unlockEnabledEncryptionScopes(enteredPassword);
-          } catch {
-            showCardAlert(translations.value.card.wrongPasswd);
-            return;
-          }
-        } else {
-          const isValid = await passwordStore.isValidPassword(enteredPassword);
-          if (isValid) {
-            await noteStore.unlockNote(note, enteredPassword);
-          } else {
-            showCardAlert(translations.value.card.wrongPasswd);
-          }
+  const hassharedKey = await passwordStore.retrieve();
+
+  if (!hassharedKey) {
+    dialog.prompt({
+      title: translations.value.card.enterPasswd,
+      okText: translations.value.card.unlock,
+      cancelText: translations.value.card.cancel,
+      placeholder: translations.value.card.password,
+      onConfirm: async (enteredPassword) => {
+        try {
+          await noteStore.unlockNote(note, enteredPassword);
+          await passwordStore.setsharedKey(enteredPassword);
+          await unlockEnabledEncryptionScopes(enteredPassword);
+        } catch {
+          showCardAlert(translations.value.card.wrongPasswd);
         }
-      } catch (error) {
-        console.error('Error unlocking note:', error);
-        showCardAlert(translations.value.card.wrongPasswd);
-      }
-    },
-  });
+      },
+    });
+  } else {
+    const isValid = await passwordStore.isValidPassword(hassharedKey);
+    if (isValid) {
+      await noteStore.unlockNote(note, hassharedKey);
+    } else {
+      showCardAlert(translations.value.card.wrongPasswd);
+    }
+  }
 }
 
 async function deleteNote(note) {

@@ -32,63 +32,6 @@ export function sortArray({ data, key, order = 'asc' }) {
   return sortedData;
 }
 
-export function truncateText(str, limit) {
-  if (typeof str !== 'string') return '';
-
-  const truncated = str.slice(0, limit);
-
-  return truncated + (str.length > limit ? '...' : '');
-}
-
-export function extractNoteText(content) {
-  const parts = [];
-  _collectText(content, parts);
-  return parts.join('');
-}
-
-function _collectText(content, parts) {
-  if (Array.isArray(content)) {
-    for (const value of content) {
-      const trimmed = (value.text || '').trim();
-      if (trimmed !== '') {
-        parts.push(trimmed);
-        parts.push(' ');
-      }
-      if (value.content) _collectText(value.content, parts);
-    }
-  } else if (content && typeof content === 'object') {
-    for (const key in content) {
-      const value = content[key];
-      const trimmed = (value.text || '').trim();
-      if (trimmed !== '') {
-        parts.push(trimmed);
-        parts.push(' ');
-      }
-      if (value.content) _collectText(value.content, parts);
-    }
-  } else if (typeof content === 'string') {
-    parts.push(content);
-  }
-}
-
-export function getPlainTextFromNoteContent(content) {
-  if (typeof content === 'string') {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return extractNoteText(content);
-  }
-
-  if (content && typeof content === 'object') {
-    return extractNoteText(
-      Array.isArray(content.content) ? content.content : content
-    );
-  }
-
-  return '';
-}
-
 export function parseItemId(itemKey) {
   if (itemKey.startsWith('note-')) {
     return { type: 'note', id: itemKey.replace(/^note-/, '') };

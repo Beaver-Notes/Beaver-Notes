@@ -25,12 +25,15 @@ use http::{
 };
 use keyring::Entry;
 use lru::LruCache;
+use hmac::Hmac;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Manager, State, WebviewWindow};
+
+type HmacSha256 = Hmac<Sha256>;
+use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::FilePath;
 use tauri_plugin_updater::Update;
 
@@ -46,6 +49,7 @@ pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key_
 pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["syncPassphraseBlob", "appPassphraseBlob"];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA2";
+pub(crate) const ASSET_MAGIC_V3: &[u8; 4] = b"BNA3";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 16 * 1024;
 pub(crate) const ARGON2_ITERATIONS: u32 = 2;
@@ -371,10 +375,151 @@ fn normalize_for_compare(path: &Path) -> PathBuf {
     }
 }
 
+fn normalize_path_lexical(path: &Path) -> PathBuf {
+    use std::path::Component;
+
+    let mut normalized = PathBuf::new();
+    let mut root_end = 0usize;
+
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => {
+                normalized.push(prefix.as_os_str());
+                root_end = normalized.components().count();
+            }
+            Component::RootDir => {
+                normalized.push(Component::RootDir.as_os_str());
+                root_end = normalized.components().count();
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                // Pop only normal path segments; never pop past the path root.
+                let component_count = normalized.components().count();
+                if component_count > root_end {
+                    normalized.pop();
+                }
+            }
+            Component::Normal(part) => normalized.push(part),
+        }
+    }
+
+    normalized
+}
+
 fn is_path_inside(root: &Path, candidate: &Path) -> bool {
-    let root = normalize_for_compare(root);
-    let candidate = normalize_for_compare(candidate);
+    // Strict mode: only absolute paths participate in access checks.
+    if !root.is_absolute() || !candidate.is_absolute() {
+        return false;
+    }
+
+    let root = normalize_path_lexical(&normalize_for_compare(root));
+    let candidate = normalize_path_lexical(&normalize_for_compare(candidate));
+
     candidate == root || candidate.starts_with(&root)
+}
+
+fn is_path_allowed_strict(allowed_roots: &[PathBuf], input: &Path) -> bool {
+    // First pass: lexical normalization blocks ".." traversal and related tricks
+    // without relying on filesystem state.
+    if !allowed_roots.iter().any(|root| is_path_inside(root, input)) {
+        return false;
+    }
+
+    // Second pass: best-effort canonicalization to prevent symlink escape.
+    if input.exists() {
+        let Ok(real) = fs::canonicalize(input) else {
+            return false;
+        };
+
+        return allowed_roots.iter().any(|root| {
+            let root_real = fs::canonicalize(root).unwrap_or_else(|_| root.clone());
+            is_path_inside(&root_real, &real)
+        });
+    }
+
+    let Some(parent) = input.parent() else {
+        return false;
+    };
+
+    if !parent.exists() {
+        return true;
+    }
+
+    let Ok(real_parent) = fs::canonicalize(parent) else {
+        return false;
+    };
+    let Some(file_name) = input.file_name() else {
+        return false;
+    };
+    let rebuilt = real_parent.join(file_name);
+
+    allowed_roots.iter().any(|root| {
+        let root_real = fs::canonicalize(root).unwrap_or_else(|_| root.clone());
+        is_path_inside(&root_real, &rebuilt)
+    })
+}
+
+#[cfg(test)]
+mod path_access_tests {
+    use super::*;
+
+    #[test]
+    #[cfg(unix)]
+    fn lexical_is_path_inside_unix() {
+        let root = PathBuf::from("/a/b");
+        assert!(is_path_inside(&root, &PathBuf::from("/a/b/c")));
+        assert!(!is_path_inside(&root, &PathBuf::from("/a/b/../c")));
+        assert!(!is_path_inside(&root, &PathBuf::from("/a/b/../../etc")));
+        assert!(is_path_inside(&root, &PathBuf::from("/a/b/./c")));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn lexical_is_path_inside_windows() {
+        let root = PathBuf::from(r"C:\a\b");
+        assert!(is_path_inside(&root, &PathBuf::from(r"C:\a\b\c")));
+        assert!(!is_path_inside(&root, &PathBuf::from(r"C:\a\b\..\c")));
+        assert!(!is_path_inside(&root, &PathBuf::from(r"C:\a\b\..\..\etc")));
+        assert!(is_path_inside(&root, &PathBuf::from(r"C:\a\b\.\c")));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn canonical_blocks_symlink_escape_when_target_exists() {
+        use std::os::unix::fs::symlink;
+
+        let unique = format!(
+            "beaver-notes-path-test-{}",
+            SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        );
+
+        let base = std::env::temp_dir().join(unique);
+        let allowed = base.join("allowed");
+        let outside = base.join("outside");
+        let link = allowed.join("link");
+
+        fs::create_dir_all(&allowed).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+
+        let ok_path = allowed.join("ok.txt");
+        fs::write(&ok_path, b"ok").unwrap();
+
+        let secret_path = outside.join("secret.txt");
+        fs::write(&secret_path, b"nope").unwrap();
+
+        symlink(&outside, &link).unwrap();
+
+        let allowed_roots = vec![allowed.clone()];
+        assert!(is_path_allowed_strict(&allowed_roots, &ok_path));
+
+        let escaped = link.join("secret.txt");
+        assert!(!is_path_allowed_strict(&allowed_roots, &escaped));
+
+        let _ = fs::remove_dir_all(&base);
+    }
 }
 
 pub(crate) fn now_millis() -> u128 {
@@ -507,6 +652,19 @@ fn random_key() -> [u8; 32] {
 fn random_nonce() -> [u8; 12] {
     let mut nonce = [0_u8; 12];
     rand::thread_rng().fill_bytes(&mut nonce);
+    nonce
+}
+
+fn derive_chunk_nonce(seed: &[u8; 12], chunk_index: u64, key: &[u8; 32]) -> [u8; 12] {
+    use hmac::Mac;
+    let mut h = <Hmac<sha2::Sha384> as Mac>::new_from_slice(key)
+        .expect("HMAC key length is valid");
+    h.update(seed);
+    h.update(b"BeaverNotes-asset-chunk");
+    h.update(&chunk_index.to_le_bytes());
+    let result = h.finalize().into_bytes();
+    let mut nonce = [0_u8; 12];
+    nonce.copy_from_slice(&result[..12]);
     nonce
 }
 
@@ -810,8 +968,20 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         .split('?')
         .next()
         .unwrap_or_default()
-        .trim_start_matches('/');
+        .trim();
     let decoded = urlencoding::decode(relative).map_err(to_error)?.to_string();
+
+    // Strict: decoded asset paths must be relative (no absolute paths / prefixes).
+    if Path::new(&decoded).is_absolute() {
+        return Err(format!("Asset path must be relative: {url}"));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        if decoded.starts_with("\\\\") {
+            return Err(format!("Asset path must be relative: {url}"));
+        }
+    }
+
     let root_name = match scheme {
         "assets" => "notes-assets",
         "file-assets" => "file-assets",
@@ -838,8 +1008,8 @@ pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<
     Ok(PathBuf::from(uri))
 }
 
-static KEYRING_AVAILABLE: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(!cfg!(target_os = "android"));
+pub(crate) static KEYRING_AVAILABLE: std::sync::atomic::AtomicBool =
+std::sync::atomic::AtomicBool::new(!cfg!(target_os = "android"));
 
 pub(crate) fn read_master_key() -> Result<Vec<u8>, String> {
     if KEYRING_AVAILABLE.load(std::sync::atomic::Ordering::Relaxed) {
@@ -862,13 +1032,22 @@ pub(crate) fn read_master_key() -> Result<Vec<u8>, String> {
 
 const MASTER_KEY_FILE: &str = "master.key";
 
-fn file_based_master_key() -> Result<Vec<u8>, String> {
+pub(crate) fn file_based_master_key() -> Result<Vec<u8>, String> {
     let data_dir = dirs::data_local_dir()
         .ok_or_else(|| "Cannot determine data directory".to_string())?
         .join("com.beaver-notes.beaver-notes");
     let key_path = data_dir.join(MASTER_KEY_FILE);
 
     if key_path.exists() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::metadata(&key_path).map_err(to_error)?.permissions();
+            if perms.mode() & 0o077 != 0 {
+                fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))
+                    .map_err(to_error)?;
+            }
+        }
         let raw = fs::read_to_string(&key_path).map_err(to_error)?;
         let key_bytes = BASE64.decode(raw.trim().as_bytes()).map_err(to_error)?;
         if key_bytes.len() != 32 {
@@ -881,9 +1060,21 @@ fn file_based_master_key() -> Result<Vec<u8>, String> {
     rand::thread_rng().fill_bytes(&mut key);
     let encoded = BASE64.encode(&key);
     if let Some(parent) = key_path.parent() {
-        fs::create_dir_all(parent).ok();
+        fs::create_dir_all(parent).map_err(to_error)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o700))
+                .map_err(to_error)?;
+        }
     }
     fs::write(&key_path, encoded).map_err(to_error)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))
+            .map_err(to_error)?;
+    }
     Ok(key)
 }
 
@@ -1020,7 +1211,7 @@ pub(crate) fn encrypt_asset_streaming(
     let mut writer = BufWriter::with_capacity(STREAM_CHUNK_SIZE, output);
 
     let nonce_seed = random_nonce();
-    writer.write_all(ASSET_MAGIC).map_err(to_error)?;
+    writer.write_all(ASSET_MAGIC_V3).map_err(to_error)?;
     writer.write_all(&nonce_seed).map_err(to_error)?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
@@ -1034,15 +1225,7 @@ pub(crate) fn encrypt_asset_streaming(
         }
         let chunk = &chunk_buf[..bytes_read];
 
-        let mut nonce = nonce_seed.to_vec();
-        let index_bytes = chunk_index.to_le_bytes();
-        nonce.extend_from_slice(&index_bytes);
-        while nonce.len() < 12 {
-            nonce.push(0);
-        }
-        let nonce: [u8; 12] = nonce[..12]
-            .try_into()
-            .map_err(|_| "Invalid nonce length".to_string())?;
+        let nonce = derive_chunk_nonce(&nonce_seed, chunk_index, key);
 
         let encrypted = cipher
             .encrypt(Nonce::from_slice(&nonce), chunk)
@@ -1081,13 +1264,15 @@ pub(crate) fn decrypt_asset_streaming(
         Err(e) => return Err(to_error(e)),
     }
 
-    if &magic != ASSET_MAGIC {
+    if &magic != ASSET_MAGIC && &magic != ASSET_MAGIC_V3 {
         drop(reader);
         let data = fs::read(input_path).map_err(to_error)?;
         let plain = decrypt_asset_bytes_with_key_legacy(&data, key)?;
         fs::write(output_path, plain).map_err(to_error)?;
         return Ok(());
     }
+
+    let is_v3 = &magic == ASSET_MAGIC_V3;
 
     let mut nonce_seed = [0u8; 12];
     reader.read_exact(&mut nonce_seed).map_err(to_error)?;
@@ -1120,12 +1305,17 @@ pub(crate) fn decrypt_asset_streaming(
             .read_exact(&mut chunk_buf)
             .map_err(|e| format!("Failed to read chunk {}: {}", chunk_index, e))?;
 
-        let mut nonce_bytes = nonce_seed.to_vec();
-        let index_bytes = chunk_index.to_le_bytes();
-        nonce_bytes.extend_from_slice(&index_bytes);
-        let nonce: [u8; 12] = nonce_bytes[..12]
-            .try_into()
-            .map_err(|_| "Invalid nonce length".to_string())?;
+        let nonce = if is_v3 {
+            derive_chunk_nonce(&nonce_seed, chunk_index, key)
+        } else {
+            let mut nonce_bytes = nonce_seed.to_vec();
+            let index_bytes = chunk_index.to_le_bytes();
+            nonce_bytes.extend_from_slice(&index_bytes);
+            let nonce: [u8; 12] = nonce_bytes[..12]
+                .try_into()
+                .map_err(|_| "Invalid nonce length".to_string())?;
+            nonce
+        };
 
         let decrypted = cipher
             .decrypt(Nonce::from_slice(&nonce), chunk_buf.as_slice())
@@ -1177,17 +1367,19 @@ pub(crate) fn clear_decrypted_caches(state: &AppState) {
 }
 
 pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
-    buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC
-        || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
+    (buffer.len() > 4 + 12 + 16
+        && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3))
+    || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
 }
 
 pub(crate) fn is_encrypted_asset_v2(buffer: &[u8]) -> bool {
-    buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC
+    buffer.len() > 4 + 12 + 16
+        && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3)
 }
 
 pub(crate) fn maybe_encrypt_asset(
     app: &AppHandle,
-    state: &State<'_, AppState>,
+    state: &AppState,
     target_path: &Path,
     input: &[u8],
     skip: bool,
@@ -1195,11 +1387,11 @@ pub(crate) fn maybe_encrypt_asset(
     if skip || !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let manifest_path = app_encryption_manifest_path(app, state.inner())?;
+    let manifest_path = app_encryption_manifest_path(app, state)?;
     if !manifest_path.exists() {
         return Ok(input.to_vec());
     }
-    let key = current_app_key(state.inner())?.ok_or_else(|| {
+    let key = current_app_key(state)?.ok_or_else(|| {
         "App encryption is enabled but locked. Unlock before writing assets.".to_string()
     })?;
     encrypt_asset_bytes_with_key(input, &key)
@@ -1207,14 +1399,14 @@ pub(crate) fn maybe_encrypt_asset(
 
 pub(crate) fn maybe_decrypt_asset(
     app: &AppHandle,
-    state: &State<'_, AppState>,
+    state: &AppState,
     target_path: &Path,
     input: &[u8],
 ) -> Result<Vec<u8>, String> {
     if !is_local_asset_path(app, target_path) || !is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let key = current_app_key(state.inner())?.ok_or_else(|| {
+    let key = current_app_key(state)?.ok_or_else(|| {
         "App encryption is enabled but locked. Unlock before reading assets.".to_string()
     })?;
     decrypt_asset_bytes_with_key(input, &key)
@@ -1270,14 +1462,14 @@ pub(crate) fn assert_path_access(
         allowed_roots.extend(granted.iter().cloned());
     }
 
-    if allowed_roots.iter().any(|root| is_path_inside(root, input)) {
-        Ok(())
-    } else {
-        Err(format!(
-            r#"[fs-access] Blocked {operation}: "{path}". Re-select the folder/file from a system dialog to grant access."#,
-            path = input.display()
-        ))
+    if is_path_allowed_strict(&allowed_roots, input) {
+        return Ok(());
     }
+
+    Err(format!(
+        r#"[fs-access] Blocked {operation}: "{path}". Re-select the folder/file from a system dialog to grant access."#,
+        path = input.display()
+    ))
 }
 
 pub(crate) fn to_file_stat(metadata: fs::Metadata) -> FileStat {

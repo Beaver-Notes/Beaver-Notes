@@ -6,6 +6,7 @@ import {
   encryptNotePayload,
   decryptNotePayload,
   clearDecryptedCaches,
+  encryptionExportAppKey,
 } from '@/lib/native/security.js';
 import { path } from '@/lib/tauri-bridge';
 import { getStoredValue } from '@/lib/native/storage';
@@ -20,6 +21,7 @@ const state = {
   loaded: false,
 };
 let _restoreInFlight = null;
+let _appKeyRaw = null;
 const BLOB_KEY = 'appPassphraseBlob';
 
 async function refreshState() {
@@ -35,6 +37,17 @@ export function isAppEncryptionEnabled() {
 
 export function isAppKeyLoaded() {
   return state.loaded;
+}
+
+export async function exportAppKeyRaw() {
+  if (!state.loaded) return null;
+  if (_appKeyRaw) return _appKeyRaw;
+  try {
+    _appKeyRaw = await encryptionExportAppKey();
+    return _appKeyRaw;
+  } catch (e) {
+    return null;
+  }
 }
 
 export async function ensureAppKeyReadyForWrite() {
@@ -88,6 +101,9 @@ export async function verifyAppPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'appCrypto');
     state.enabled = !!result?.state?.appEnabled;
     state.loaded = !!result?.state?.appUnlocked;
+    if (result?.state?.appUnlocked) {
+      await exportAppKeyRaw();
+    }
     return { ok: true };
   } catch (err) {
     console.error('[appCrypto] verify failed:', err);
@@ -106,6 +122,9 @@ export async function tryRestoreAppKeyFromSafeStorage() {
 async function _doRestoreAppKey() {
   const next = await refreshState();
   if (!next?.appEnabled || next?.appUnlocked) {
+    if (next?.appUnlocked) {
+      await exportAppKeyRaw();
+    }
     return !!next?.appUnlocked;
   }
 
@@ -149,8 +168,12 @@ export async function decryptContent(contentVal) {
 
   try {
     return JSON.parse(plainJson);
-  } catch {
-    return null;
+  } catch (e) {
+    console.error(
+      '[crypto] decryptContent: decrypted payload is not valid JSON',
+      e
+    );
+    throw new Error('Decrypted note content is corrupted — JSON parse failed');
   }
 }
 

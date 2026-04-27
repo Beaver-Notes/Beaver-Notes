@@ -4,16 +4,24 @@ import { useAppStore } from './app';
 import { useFolderStore } from './folder';
 import { useStorage } from '../composable/storage.js';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
-import { isAppEncryptionEnabled, isAppEncryptedContent } from '@/utils/appCrypto.js';
+import {
+  isAppEncryptionEnabled,
+  isAppEncryptedContent,
+} from '@/utils/appCrypto.js';
 import { path } from '@/lib/tauri-bridge';
 import { readDir, removePath } from '@/lib/native/fs';
-import { indexNote, removeNoteFromIndex, searchNotesFts } from '@/lib/native/search';
+import {
+  indexNote,
+  removeNoteFromIndex,
+  searchNotesFts,
+} from '@/lib/native/search';
 
 import {
   stripTransientFields,
   hydrateNote,
   extractTextFromContent,
   decryptNoteForMemory,
+  batchDecryptNotesForMemory,
   encryptNoteForStorage,
 } from '@/utils/noteSerializer.js';
 import {
@@ -28,6 +36,7 @@ import {
 // ─── Module-level helpers ────────────────────────────────────────────────────
 
 const storage = useStorage();
+const _saveQueue = new Map();
 
 /**
  * Silently sync a note into the FTS index after it is written to storage.
@@ -36,7 +45,9 @@ const storage = useStorage();
  */
 function _syncFtsIndex(note) {
   if (!note?.id || note.isLocked || isAppEncryptedContent(note.content)) return;
-  indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
+  indexNote(note.id, note.title || '', note.searchText || '').catch((err) => {
+    console.warn('[note] FTS index sync failed:', err);
+  });
 }
 
 async function _trackNoteChange(id, note) {
@@ -64,6 +75,11 @@ export const useNoteStore = defineStore('note', {
     isLocked: {},
     syncInProgress: false,
     deletedIds: {},
+    _decryptionProgress: {
+      active: false,
+      processed: 0,
+      total: 0,
+    },
   }),
 
   // ── Getters ────────────────────────────────────────────────────────────────
@@ -108,7 +124,9 @@ export const useNoteStore = defineStore('note', {
         if (!note.id) return false;
         return (
           note.title.toLowerCase().includes(searchTerm) ||
-          (note.searchText ?? extractTextFromContent(note.content)).toLowerCase().includes(searchTerm)
+          (note.searchText ?? extractTextFromContent(note.content))
+            .toLowerCase()
+            .includes(searchTerm)
         );
       });
     },
@@ -152,9 +170,7 @@ export const useNoteStore = defineStore('note', {
       if (!query?.trim()) return [];
       try {
         const { ids } = await searchNotesFts(query);
-        return ids
-          .map((id) => this.data[id])
-          .filter(Boolean);
+        return ids.map((id) => this.data[id]).filter(Boolean);
       } catch {
         // FTS not yet available (first launch before rebuild) — fall back
         return this.searchNotes(query);
@@ -165,16 +181,53 @@ export const useNoteStore = defineStore('note', {
 
     async retrieve() {
       try {
-        const localStorageData = await storage.get('notes', {});
-        const merged = { ...localStorageData, ...this.data };
+        const localStorageData = (await storage.get('notes', {})) || {};
+        const merged = { ...localStorageData };
+        if (this.data && typeof this.data === 'object') {
+          for (const [id, note] of Object.entries(this.data)) {
+            const existing = merged[id];
+            if (
+              !existing ||
+              (note.updatedAt ?? 0) >= (existing.updatedAt ?? 0)
+            ) {
+              merged[id] = note;
+            }
+          }
+        }
 
         if (isAppEncryptionEnabled()) {
-          await Promise.all(
-            Object.keys(merged).map(async (id) => {
-              merged[id] = await decryptNoteForMemory(merged[id]);
+          const notesToDecrypt = Object.entries(merged)
+            .filter(([, note]) => isAppEncryptedContent(note.content))
+            .map(([id, note]) => ({ id, note }));
+
+          if (notesToDecrypt.length > 0) {
+            this._decryptionProgress = {
+              active: true,
+              processed: 0,
+              total: notesToDecrypt.length,
+            };
+
+            const BATCH_SIZE = 5;
+            for (let i = 0; i < notesToDecrypt.length; i += BATCH_SIZE) {
+              const batch = notesToDecrypt.slice(i, i + BATCH_SIZE);
+              await Promise.all(
+                batch.map(async ({ id, note }) => {
+                  merged[id] = await decryptNoteForMemory(merged[id]);
+                  merged[id] = hydrateNote(merged[id]);
+                  this._decryptionProgress.processed++;
+                })
+              );
+              await new Promise((resolve) => setTimeout(resolve, 0));
+            }
+
+            this._decryptionProgress.active = false;
+          }
+
+          Object.keys(merged).forEach((id) => {
+            if (!isAppEncryptedContent(merged[id].content)) {
               merged[id] = hydrateNote(merged[id]);
-            })
-          );
+            }
+          });
         } else {
           Object.keys(merged).forEach((id) => {
             merged[id] = hydrateNote(merged[id]);
@@ -183,8 +236,7 @@ export const useNoteStore = defineStore('note', {
 
         this.data = merged;
 
-        // Load and prune stale deleted-note IDs (>30 days old) on every launch
-        const deletedIds = await storage.get('deletedIds', {});
+        const deletedIds = (await storage.get('deletedIds', {})) || {};
         const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
         let deletedDirty = false;
         for (const id of Object.keys(deletedIds)) {
@@ -198,7 +250,10 @@ export const useNoteStore = defineStore('note', {
         }
         this.deletedIds = deletedIds;
 
-        const migrationCompleted = await storage.get('migration_completed', false);
+        const migrationCompleted = await storage.get(
+          'migration_completed',
+          false
+        );
         if (!migrationCompleted) {
           await this.migrateLockData();
           await storage.set('migration_completed', true);
@@ -219,28 +274,35 @@ export const useNoteStore = defineStore('note', {
       const total = entries.length;
       let processed = 0;
       const failures = [];
+      const BATCH_SIZE = 10;
 
-      for (const [id, note] of entries) {
-        try {
-          const wasEncrypted = isAppEncryptedContent(note.content);
-          const decrypted = await decryptNoteForMemory(note);
-          this.data[id] = hydrateNote(decrypted);
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = entries.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async ([id, note]) => {
+            try {
+              const wasEncrypted = isAppEncryptedContent(note.content);
+              const decrypted = await decryptNoteForMemory(note);
+              this.data[id] = hydrateNote(decrypted);
 
-          if (wasEncrypted && isAppEncryptedContent(decrypted.content)) {
-            failures.push(id);
-            console.error(`[note] failed to decrypt app-encrypted note ${id} for migration`);
-          }
-        } catch (error) {
-          failures.push(id);
-          console.error(`[note] failed to normalize note ${id} before migration:`, error);
-        } finally {
-          processed += 1;
-          onProgress?.({ phase: 'decrypt', processed, total, id });
-        }
+              if (wasEncrypted && isAppEncryptedContent(decrypted.content)) {
+                failures.push(id);
+              }
+            } catch (error) {
+              failures.push(id);
+            } finally {
+              processed += 1;
+              onProgress?.({ phase: 'decrypt', processed, total, id });
+            }
+          })
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       if (failures.length > 0) {
-        throw new Error(`Failed to decrypt ${failures.length} note(s) for app-encryption migration.`);
+        throw new Error(
+          `Failed to decrypt ${failures.length} note(s) for app-encryption migration.`
+        );
       }
     },
 
@@ -250,17 +312,23 @@ export const useNoteStore = defineStore('note', {
       const total = entries.length;
       let processed = 0;
       const failures = [];
+      const BATCH_SIZE = 5;
 
-      for (const [id, note] of entries) {
-        try {
-          await _saveNote(id, note);
-        } catch (error) {
-          failures.push(id);
-          console.error(`[note] failed to encrypt note ${id}:`, error);
-        } finally {
-          processed += 1;
-          onProgress?.({ phase: 'encrypt', processed, total, id });
-        }
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = entries.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async ([id, note]) => {
+            try {
+              await _saveNote(id, note);
+            } catch (error) {
+              failures.push(id);
+            } finally {
+              processed += 1;
+              onProgress?.({ phase: 'encrypt', processed, total, id });
+            }
+          })
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       if (failures.length > 0) {
@@ -276,21 +344,29 @@ export const useNoteStore = defineStore('note', {
       const total = entries.length;
       let processed = 0;
       const failures = [];
+      const BATCH_SIZE = 10;
 
-      for (const [id, note] of entries) {
-        try {
-          await storage.set(`notes.${id}`, stripTransientFields(note));
-        } catch (error) {
-          failures.push(id);
-          console.error(`[note] failed to persist plaintext note ${id}:`, error);
-        } finally {
-          processed += 1;
-          onProgress?.({ phase: 'plaintext', processed, total, id });
-        }
+      for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+        const batch = entries.slice(i, i + BATCH_SIZE);
+        await Promise.all(
+          batch.map(async ([id, note]) => {
+            try {
+              await storage.set(`notes.${id}`, stripTransientFields(note));
+            } catch (error) {
+              failures.push(id);
+            } finally {
+              processed += 1;
+              onProgress?.({ phase: 'plaintext', processed, total, id });
+            }
+          })
+        );
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
 
       if (failures.length > 0) {
-        throw new Error(`Failed to write ${failures.length} note(s) in plaintext.`);
+        throw new Error(
+          `Failed to write ${failures.length} note(s) in plaintext.`
+        );
       }
     },
 
@@ -306,20 +382,23 @@ export const useNoteStore = defineStore('note', {
 
       if (!hasLegacyData) return;
 
-      let hasChanges = false;
+      const changedNoteIds = [];
 
       for (const noteId in this.data) {
         const wasLocked =
           lockStatusData[noteId] === 'locked' || isLockedData[noteId] === true;
 
         if (wasLocked && !this.data[noteId].isLocked) {
-          this.data[noteId] = hydrateNote({ ...this.data[noteId], isLocked: true });
-          hasChanges = true;
+          this.data[noteId] = hydrateNote({
+            ...this.data[noteId],
+            isLocked: true,
+          });
+          changedNoteIds.push(noteId);
         }
       }
 
-      if (hasChanges) {
-        for (const noteId in this.data) {
+      if (changedNoteIds.length > 0) {
+        for (const noteId of changedNoteIds) {
           await _saveNote(noteId, this.data[noteId]);
         }
         await this.retrieve();
@@ -364,7 +443,7 @@ export const useNoteStore = defineStore('note', {
       try {
         if (data.folderId !== undefined && data.folderId !== null) {
           const folderStore = useFolderStore();
-          if (!await folderStore.exists(data.folderId)) {
+          if (!(await folderStore.exists(data.folderId))) {
             throw new Error('Specified folder does not exist');
           }
         }
@@ -392,11 +471,16 @@ export const useNoteStore = defineStore('note', {
 
     async persist(id) {
       if (!this.data[id]) return null;
-
-      await _saveNote(id, this.data[id]);
-      await _trackNoteChange(id, this.data[id]);
-
-      return this.data[id];
+      const pending = _saveQueue.get(id) || Promise.resolve();
+      const next = pending
+        .then(() => _saveNote(id, this.data[id]))
+        .then(() => _trackNoteChange(id, this.data[id]))
+        .then(() => this.data[id])
+        .finally(() => {
+          if (_saveQueue.get(id) === next) _saveQueue.delete(id);
+        });
+      _saveQueue.set(id, next);
+      return next;
     },
 
     async delete(id) {
@@ -466,7 +550,7 @@ export const useNoteStore = defineStore('note', {
         const targetFolderId = folderId ?? null;
         if (targetFolderId !== null) {
           const folderStore = useFolderStore();
-          if (!await folderStore.exists(targetFolderId)) {
+          if (!(await folderStore.exists(targetFolderId))) {
             throw new Error('Target folder does not exist');
           }
         }
@@ -474,7 +558,9 @@ export const useNoteStore = defineStore('note', {
         const results = [];
         for (const noteId of noteIds) {
           if (this.data[noteId]) {
-            results.push(await this.update(noteId, { folderId: targetFolderId }));
+            results.push(
+              await this.update(noteId, { folderId: targetFolderId })
+            );
           }
         }
         return results;
@@ -486,7 +572,12 @@ export const useNoteStore = defineStore('note', {
 
     async handleFolderDeletion(deletionResult) {
       try {
-        const { deletedFolderId, descendantIds, moveContentsTo, deleteContents } = deletionResult;
+        const {
+          deletedFolderId,
+          descendantIds,
+          moveContentsTo,
+          deleteContents,
+        } = deletionResult;
 
         const affectedFolderIds = [deletedFolderId, ...descendantIds];
         const affectedNotes = Object.values(this.data).filter((note) =>
@@ -511,7 +602,8 @@ export const useNoteStore = defineStore('note', {
     async normalizeInvalidFolderIds() {
       const folderStore = useFolderStore();
       const invalid = Object.values(this.data).filter(
-        (note) => note?.id && note.folderId && !folderStore.exists(note.folderId)
+        (note) =>
+          note?.id && note.folderId && !folderStore.exists(note.folderId)
       );
 
       for (const note of invalid) {
@@ -525,10 +617,7 @@ export const useNoteStore = defineStore('note', {
     // ── Note locking ──────────────────────────────────────────────────────
 
     async lockNote(id, password) {
-      if (!password) {
-        console.error('No password provided.');
-        return;
-      }
+      if (!password) throw new Error('Password is required to lock a note');
 
       try {
         if (this.data[id].isLocked) return;
@@ -554,17 +643,11 @@ export const useNoteStore = defineStore('note', {
     },
 
     async unlockNote(id, password) {
-      if (!password) {
-        console.error('No password provided.');
-        return;
-      }
+      if (!password) throw new Error('Password is required to unlock a note');
 
       try {
         const note = this.data[id];
-        if (!note) {
-          console.error('Note not found.');
-          return;
-        }
+        if (!note) throw new Error('Note not found');
         if (!note.isLocked) return;
 
         const isEncrypted =
@@ -584,20 +667,32 @@ export const useNoteStore = defineStore('note', {
 
         let decryptedContent, wasLegacy;
         try {
-          ({ plaintext: decryptedContent, wasLegacy } = await decryptNoteWithPassword(
-            this.data[id].content.content[0],
-            password
-          ));
+          ({ plaintext: decryptedContent, wasLegacy } =
+            await decryptNoteWithPassword(
+              this.data[id].content.content[0],
+              password
+            ));
         } catch {
           throw new Error('Incorrect password');
         }
 
-        this.data[id].content = JSON.parse(decryptedContent);
+        let parsedContent;
+        try {
+          parsedContent = JSON.parse(decryptedContent);
+        } catch (e) {
+          throw new Error(
+            'Decrypted content is not valid JSON — the note may be corrupted'
+          );
+        }
+        this.data[id].content = parsedContent;
 
         // Migrate legacy v1 ciphertext to v2 silently
         if (wasLegacy) {
           try {
-            const v2cipher = await encryptNoteWithPassword(decryptedContent, password);
+            const v2cipher = await encryptNoteWithPassword(
+              decryptedContent,
+              password
+            );
             await _saveNote(id, {
               ...this.data[id],
               content: { type: 'doc', content: [v2cipher] },
@@ -632,7 +727,10 @@ export const useNoteStore = defineStore('note', {
     convertNote(id) {
       const note = this.data[id];
       const footnotes = [];
-      note.content.content = uncollapseHeadings(note.content.content ?? [], footnotes);
+      note.content.content = uncollapseHeadings(
+        note.content.content ?? [],
+        footnotes
+      );
       if (footnotes.length > 0) {
         reconcileFootnotes(note, footnotes);
       }

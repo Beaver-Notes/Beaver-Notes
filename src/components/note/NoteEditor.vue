@@ -49,6 +49,9 @@ export default {
         handleClick,
         attributes: {
           'data-testid': 'note-body-editor',
+          role: 'textbox',
+          'aria-multiline': 'true',
+          'aria-label': 'Note editor',
         },
       },
     });

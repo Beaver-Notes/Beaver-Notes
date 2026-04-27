@@ -15,7 +15,7 @@ const storage = useStorage();
 let deviceId =
   localStorage.getItem('deviceId') ||
   (() => {
-    const id = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    const id = crypto.randomUUID();
     localStorage.setItem('deviceId', id);
     return id;
   })();
@@ -218,7 +218,9 @@ export async function applySnapshotIfNeeded({
   }
   writes.push(storage.set('labels', snapshot.data.labels ?? []));
   writes.push(storage.set('deletedIds', snapshot.data.deletedIds ?? {}));
-  writes.push(storage.set('deletedFolderIds', snapshot.data.deletedFolderIds ?? {}));
+  writes.push(
+    storage.set('deletedFolderIds', snapshot.data.deletedFolderIds ?? {})
+  );
   writes.push(storage.set('deletedAssets', snapshot.data.deletedAssets ?? {}));
 
   await Promise.all(writes);
@@ -243,7 +245,18 @@ export async function compactSync({
   const snapshotPath = path.join(syncDir, 'snapshot.json');
   const lockExists = await syncPathExists(lockPath);
   if (lockExists) {
-    return;
+    try {
+      const lockContent = await readSyncFile(lockPath);
+      const lockData = JSON.parse(lockContent);
+      const lockAge = Date.now() - (lockData.ts || 0);
+      if (lockAge < 10 * 60 * 1000) return;
+      console.warn(
+        `[sync] Stale compact.lock detected (age: ${lockAge}ms) — removing`
+      );
+      await removeSyncPath(lockPath).catch(() => {});
+    } catch {
+      await removeSyncPath(lockPath).catch(() => {});
+    }
   }
 
   try {

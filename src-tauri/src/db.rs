@@ -189,48 +189,61 @@ pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec
 /// launch after the table is created, and available as a Tauri command for
 /// maintenance / after a bulk import.
 pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
-  // Extract plain text from a ProseMirror content JSON value
-  fn extract_text(value: &Value) -> String {
-    let mut parts = Vec::new();
-    fn visit(node: &Value, parts: &mut Vec<String>) {
-      if let Some(text) = node.get("text").and_then(Value::as_str) {
-        parts.push(text.to_owned());
-      }
-      if let Some(children) = node.get("content").and_then(Value::as_array) {
-        for child in children {
-          visit(child, parts);
+    fn extract_text(value: &Value) -> String {
+        let mut parts = Vec::new();
+        fn visit(node: &Value, parts: &mut Vec<String>) {
+            if let Some(text) = node.get("text").and_then(Value::as_str) {
+                parts.push(text.to_owned());
+            }
+            if let Some(children) = node.get("content").and_then(Value::as_array) {
+                for child in children {
+                    visit(child, parts);
+                }
+            }
         }
-      }
+        visit(value, &mut parts);
+        parts.join(" ")
     }
-    visit(value, &mut parts);
-    parts.join(" ")
-  }
 
-  let all = db_all(pool)?;
-  let mut count = 0;
+    let conn = pool.get().map_err(|e| e.to_string())?;
+    let mut stmt_sel = conn
+        .prepare("SELECT key, value FROM kv WHERE key LIKE 'notes.%'")
+        .map_err(|e| e.to_string())?;
+    let note_rows: Vec<(String, Value)> = stmt_sel
+        .query_map([], |row| {
+            let key: String = row.get(0)?;
+            let raw: String = row.get(1)?;
+            let value = serde_json::from_str(&raw).unwrap_or(Value::String(raw));
+            Ok((key, value))
+        })
+        .map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+    drop(stmt_sel);
 
-  let mut conn = pool.get().map_err(|e| e.to_string())?;
-  let tx = conn.transaction().map_err(|e| e.to_string())?;
-  tx.execute("DELETE FROM notes_fts", []).map_err(|e| e.to_string())?;
+    let mut count = 0;
+    let mut conn = pool.get().map_err(|e| e.to_string())?;
+    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    tx.execute("DELETE FROM notes_fts", []).map_err(|e| e.to_string())?;
 
-  {
-    let mut stmt = tx
-      .prepare("INSERT INTO notes_fts (id, title, body) VALUES (?1, ?2, ?3)")
-      .map_err(|e| e.to_string())?;
+    {
+        let mut stmt = tx
+            .prepare("INSERT INTO notes_fts (id, title, body) VALUES (?1, ?2, ?3)")
+            .map_err(|e| e.to_string())?;
 
-    for (key, value) in &all {
-      let Some(id) = key.strip_prefix("notes.") else {
-        continue;
-      };
-      let title = value.get("title").and_then(Value::as_str).unwrap_or_default();
-      let content = value.get("content").unwrap_or(&Value::Null);
-      let body = extract_text(content);
+        for (key, value) in &note_rows {
+            let Some(id) = key.strip_prefix("notes.") else {
+                continue;
+            };
+            let title = value.get("title").and_then(Value::as_str).unwrap_or_default();
+            let content = value.get("content").unwrap_or(&Value::Null);
+            let body = extract_text(content);
 
-      stmt.execute(params![id, title, body]).map_err(|e| e.to_string())?;
-      count += 1;
+            stmt.execute(params![id, title, body]).map_err(|e| e.to_string())?;
+            count += 1;
+        }
     }
-  }
 
-  tx.commit().map_err(|e| e.to_string())?;
-  Ok(count)
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok(count)
 }

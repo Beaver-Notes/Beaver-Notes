@@ -89,9 +89,9 @@ fn collect_asset_files(root: &PathBuf, files: &mut Vec<PathBuf>) -> Result<(), S
 }
 
 #[tauri::command]
-pub(crate) fn asset_crypto_migrate_dir(
+pub(crate) async fn asset_crypto_migrate_dir(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     data_dir: String,
     encrypt_at_rest: bool,
 ) -> Result<AssetMigrationResult, String> {
@@ -106,20 +106,24 @@ pub(crate) fn asset_crypto_migrate_dir(
     let total = files.len();
     let mut processed = 0;
     let mut failed_paths = Vec::new();
+    let batch_size = 4usize;
 
-    for path in files {
-        match fs::read(&path).map_err(to_error).and_then(|raw| {
-            let plain = maybe_decrypt_asset(&app, &state, &path, &raw)?;
-            let payload = maybe_encrypt_asset(&app, &state, &path, &plain, !encrypt_at_rest)?;
-            fs::write(&path, payload).map_err(to_error)
-        }) {
-            Ok(()) => {
-                processed += 1;
-            }
-            Err(_) => {
-                failed_paths.push(path.to_string_lossy().to_string());
+    let state_inner = state.inner();
+    let encrypt = encrypt_at_rest;
+
+    for chunk in files.chunks(batch_size) {
+        for path in chunk {
+            match {
+                let raw = fs::read(path).map_err(to_error)?;
+                let plain = maybe_decrypt_asset(&app, &state_inner, path, &raw)?;
+                let payload = maybe_encrypt_asset(&app, &state_inner, path, &plain, !encrypt)?;
+                fs::write(path, payload).map_err(to_error)
+            } {
+                Ok(()) => processed += 1,
+                Err(_e) => failed_paths.push(path.to_string_lossy().to_string()),
             }
         }
+        tokio::task::yield_now().await;
     }
 
     Ok(AssetMigrationResult {
@@ -464,8 +468,12 @@ pub(crate) fn encryption_decrypt_sync_asset_base64(
 }
 
 #[tauri::command]
-pub(crate) fn safe_storage_is_available() -> Result<bool, String> {
-    Ok(true)
+pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, String> {
+    if KEYRING_AVAILABLE.load(std::sync::atomic::Ordering::Relaxed) {
+        return Ok(true);
+    }
+    let master_key_result = file_based_master_key();
+    Ok(master_key_result.is_ok())
 }
 
 #[tauri::command]
@@ -601,55 +609,57 @@ pub(crate) fn decrypt_asset(
 }
 
 #[tauri::command]
-pub(crate) fn decrypt_asset_stream(
+pub(crate) async fn decrypt_asset_stream(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     path: String,
 ) -> Result<String, String> {
-    let path = PathBuf::from(path);
-    let path_str = path.to_string_lossy().to_string();
+    let path_buf = PathBuf::from(path.clone());
+    let state_inner = state.inner();
 
-    if let Some(cached) = get_cached_decrypted_asset(state.inner(), &path_str) {
-        let metadata = fs::metadata(&path).map_err(to_error)?;
+    if let Some(cached) = get_cached_decrypted_asset(&state_inner, &path) {
+        let metadata = fs::metadata(&path_buf).map_err(to_error)?;
         let cache_path =
-            crate::shared::decrypted_cache_path(&state.asset_cache_dir, &path, &metadata)?;
+            crate::shared::decrypted_cache_path(&state_inner.asset_cache_dir, &path_buf, &metadata)?;
         fs::write(&cache_path, &cached).map_err(to_error)?;
         return Ok(cache_path.to_string_lossy().to_string());
     }
 
-    let raw = fs::read(&path).map_err(to_error)?;
-    let key = current_app_key(state.inner())?
+    let raw = fs::read(&path_buf).map_err(to_error)?;
+    let key = current_app_key(&state_inner)?
         .ok_or_else(|| "App encryption is enabled but locked.".to_string())?;
 
     if is_encrypted_asset_v2(&raw) || is_encrypted_asset_buffer(&raw) {
-        let metadata = fs::metadata(&path).map_err(to_error)?;
+        let metadata = fs::metadata(&path_buf).map_err(to_error)?;
         let output_path =
-            crate::shared::decrypted_cache_path(&state.asset_cache_dir, &path, &metadata)?;
+            crate::shared::decrypted_cache_path(&state_inner.asset_cache_dir, &path_buf, &metadata)?;
         if is_encrypted_asset_v2(&raw) {
-            decrypt_asset_streaming(&path, &output_path, &key)?;
+            decrypt_asset_streaming(&path_buf, &output_path, &key)?;
         } else {
-            let plain = maybe_decrypt_asset(&app, &state, &path, &raw)?;
+            let plain = maybe_decrypt_asset(&app, &state_inner, &path_buf, &raw)?;
             fs::write(&output_path, &plain).map_err(to_error)?;
-            cache_decrypted_asset(state.inner(), &path_str, &plain);
+            cache_decrypted_asset(&state_inner, &path, &plain);
         }
         Ok(output_path.to_string_lossy().to_string())
     } else {
-        Ok(path_str)
+        Ok(path)
     }
 }
 
 #[tauri::command]
-pub(crate) fn encrypt_asset_stream(
+pub(crate) async fn encrypt_asset_stream(
     _app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     path: String,
 ) -> Result<(), String> {
-    let path = PathBuf::from(path);
-    let key = current_app_key(state.inner())?
+    let path_buf = PathBuf::from(path.clone());
+    let state_inner = state.inner();
+
+    let key = current_app_key(&state_inner)?
         .ok_or_else(|| "App encryption is enabled but locked.".to_string())?;
-    let temp_path = path.with_extension("enc.tmp");
-    encrypt_asset_streaming(&path, &temp_path, &key)?;
-    fs::rename(&temp_path, &path).map_err(to_error)
+    let temp_path = path_buf.with_extension("enc.tmp");
+    encrypt_asset_streaming(&path_buf, &temp_path, &key)?;
+    fs::rename(&temp_path, &path_buf).map_err(to_error)
 }
 
 #[tauri::command]

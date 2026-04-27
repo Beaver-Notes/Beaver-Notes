@@ -174,10 +174,10 @@ export const useFolderStore = defineStore('folder', {
 
     async retrieve() {
       try {
-        const localStorageData = await storage.get('folders', {});
+        const localStorageData = (await storage.get('folders', {})) || {};
         this.data = { ...this.data, ...localStorageData };
 
-        const deletedIds = await storage.get('deletedFolderIds', {});
+        const deletedIds = (await storage.get('deletedFolderIds', {})) || {};
         // Prune stale entries on every load — keeps the object from growing forever
         if (pruneDeletedIds(deletedIds)) {
           await storage.set('deletedFolderIds', deletedIds);

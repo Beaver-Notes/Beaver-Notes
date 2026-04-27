@@ -92,10 +92,9 @@ export function lockEncryption(targets) {
   return backend.invoke('encryption:lock', { targets });
 }
 
-// TODO: remove if confirmed unused — was previously exported for _appKeyRaw sync
-// export function encryptionExportAppKey() {
-//   return backend.invoke('encryption:exportAppKey');
-// }
+export function encryptionExportAppKey() {
+  return backend.invoke('encryption:exportAppKey');
+}
 
 export function encryptNotePayload(plainJson) {
   return backend.invoke('encryption:encryptNotePayload', plainJson);

@@ -32,6 +32,8 @@
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
     "audio-recorder:default",
-    "safe-area-insets-css:default"
+    "safe-area-insets-css:default",
+    "core:webview:default",
+    "core:webview:allow-print"
   ]
 }

@@ -484,90 +484,53 @@ export default {
     async function unlockNote(note) {
       const passwordStore = usePasswordStore();
       const noteStore = useNoteStore();
-      const showWrongPassword = () =>
-        dialog.alert({
-          title: translations.value.settings?.alertTitle || 'Alert',
-          body: translations.value.card.wrongPasswd,
-          okText: translations.value.dialog?.close || 'Close',
-        });
+      const hassharedKey = await passwordStore.retrieve();
 
-      dialog.prompt({
-        title: translations.value.card.enterPasswd,
-        okText: translations.value.card.unlock,
-        cancelText: translations.value.card.cancel,
-        placeholder: translations.value.card.password,
-        onConfirm: async (enteredPassword) => {
-          try {
-            const hassharedKey = await passwordStore.retrieve();
-
-            if (!hassharedKey) {
-              try {
-                await noteStore.unlockNote(note, enteredPassword);
-                await passwordStore.setsharedKey(enteredPassword);
-                await unlockEnabledEncryptionScopes(enteredPassword);
-              } catch (error) {
-                showWrongPassword();
-                return;
-              }
-            } else {
-              const isValidPassword = await passwordStore.isValidPassword(
-                enteredPassword
-              );
-              if (isValidPassword) {
-                await noteStore.unlockNote(note, enteredPassword);
-              } else {
-                showWrongPassword();
-              }
+      if (!hassharedKey) {
+        dialog.prompt({
+          title: translations.value.card.enterPasswd,
+          okText: translations.value.card.unlock,
+          cancelText: translations.value.card.cancel,
+          placeholder: translations.value.card.password,
+          onConfirm: async (enteredPassword) => {
+            try {
+              await noteStore.unlockNote(note, enteredPassword);
+              await passwordStore.setsharedKey(enteredPassword);
+              await unlockEnabledEncryptionScopes(enteredPassword);
+            } catch {
+              dialog.alert({
+                title: translations.value.settings?.alertTitle || 'Alert',
+                body: translations.value.card.wrongPasswd,
+                okText: translations.value.dialog?.close || 'Close',
+              });
             }
-          } catch (error) {
-            console.error('Error unlocking note:', error);
-            showWrongPassword();
-          }
-        },
-      });
+          },
+        });
+      } else {
+        const isValidPassword = await passwordStore.isValidPassword(
+          hassharedKey
+        );
+        if (isValidPassword) {
+          await noteStore.unlockNote(note, hassharedKey);
+        }
+      }
     }
 
     async function unlockAppEncryption() {
       const noteStore = useNoteStore();
-      const showWrongPassword = () =>
-        dialog.alert({
-          title: translations.value.settings?.alertTitle || 'Alert',
-          body:
-            translations.value.card?.wrongPasswd ||
-            translations.value.card?.wrongPasswd ||
-            'Wrong password.',
-          okText: translations.value.dialog?.close || 'Close',
-        });
+      const passwordStore = usePasswordStore();
+      const password = await passwordStore.retrieve();
 
-      dialog.prompt({
-        title:
-          translations.value.settings?.unlockAppEncryptionTitle ||
-          translations.value.settings?.unlock ||
-          'Unlock',
-        okText: translations.value.settings?.unlock || 'Unlock',
-        cancelText: translations.value.card?.cancel || 'Cancel',
-        placeholder: translations.value.card?.password || 'Password',
-        onConfirm: async (enteredPassword) => {
-          try {
-            const scopes = await unlockEnabledEncryptionScopes(enteredPassword);
-            if (scopes.app.required && !scopes.app.unlocked) {
-              showWrongPassword();
-              return;
-            }
-
-            const current = noteStore.getById(id.value);
-            if (current && isAppEncryptedContent(current.content)) {
-              const decrypted = await decryptNoteForMemory(current);
-              if (decrypted !== current) {
-                noteStore.data[id.value] = decrypted;
-              }
-            }
-          } catch (error) {
-            console.error('Error unlocking app encryption:', error);
-            showWrongPassword();
+      if (password) {
+        await unlockEnabledEncryptionScopes(password);
+        const current = noteStore.getById(id.value);
+        if (current && isAppEncryptedContent(current.content)) {
+          const decrypted = await decryptNoteForMemory(current);
+          if (decrypted !== current) {
+            noteStore.data[id.value] = decrypted;
           }
-        },
-      });
+        }
+      }
     }
 
     const titleDiv = ref(null);

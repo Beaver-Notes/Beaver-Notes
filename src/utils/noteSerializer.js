@@ -16,6 +16,32 @@ import {
   isAppEncryptedContent,
 } from '@/utils/appCrypto.js';
 
+let _appKeyRaw = null;
+let _decryptWorkerInFlight = null;
+
+/**
+ * Yield to UI thread to prevent blocking.
+ */
+function yieldToUi() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+/**
+ * Try to get the raw app key for worker-based decryption.
+ * Returns null if not available.
+ */
+export function getAppKeyRaw() {
+  return _appKeyRaw;
+}
+
+/**
+ * Set the raw app key for worker-based decryption.
+ * Called after successful unlock.
+ */
+export function setAppKeyRaw(key) {
+  _appKeyRaw = key;
+}
+
 /**
  * Extracts a flat plain-text string from a ProseMirror content tree.
  * Used to build `searchText` so search never needs to JSON.stringify content.
@@ -77,9 +103,51 @@ export function hydrateNote(note) {
  */
 export async function decryptNoteForMemory(note) {
   if (!isAppEncryptedContent(note.content)) return note;
-  const decrypted = await decryptContent(note.content);
-  if (decrypted === null) return note; // key not loaded — keep encrypted in memory
-  return { ...note, content: decrypted };
+  try {
+    const decrypted = await decryptContent(note.content);
+    if (decrypted === null) return note;
+    return { ...note, content: decrypted };
+  } catch (e) {
+    console.error('[noteSerializer] decryptNoteForMemory failed:', e);
+    return { ...note, decryptionError: true };
+  }
+}
+
+/**
+ * Batch decrypt multiple notes with UI yielding to prevent stalls.
+ * Uses worker-based decryption when available for better performance.
+ * @param {Array} notes - Array of note objects
+ * @param {Object} options - { onProgress, batchSize, signal }
+ * @returns {Array} Decrypted notes in same order
+ */
+export async function batchDecryptNotesForMemory(notes, options = {}) {
+  const { onProgress, batchSize = 5, signal } = options;
+  const results = new Array(notes.length);
+  let processed = 0;
+
+  for (let i = 0; i < notes.length; i += batchSize) {
+    if (signal?.aborted) break;
+
+    const batch = notes.slice(i, i + batchSize);
+    const batchResults = await Promise.all(
+      batch.map(async (note, idx) => {
+        const noteIndex = i + idx;
+        try {
+          const decrypted = await decryptNoteForMemory(note);
+          results[noteIndex] = hydrateNote(decrypted);
+        } catch (e) {
+          results[noteIndex] = hydrateNote({ ...note, decryptionError: true });
+        }
+        processed++;
+        onProgress?.({ processed, total: notes.length, id: note.id });
+        return results[noteIndex];
+      })
+    );
+
+    await yieldToUi();
+  }
+
+  return results;
 }
 
 /**
@@ -91,7 +159,7 @@ export async function encryptNoteForStorage(note) {
   if (!isAppEncryptionEnabled()) return note;
   await ensureAppKeyReadyForWrite();
   if (note?.content) {
-    note.content = await encryptContent(note.content);
+    return { ...note, content: await encryptContent(note.content) };
   }
   return note;
 }

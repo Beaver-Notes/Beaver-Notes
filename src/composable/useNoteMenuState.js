@@ -161,7 +161,7 @@ export function useNoteMenuState({
     editor?.off?.('selectionUpdate', handleSelectionUpdate);
   });
 
-  return {
+return {
     changeWheelDirection,
     container,
     deleteNode,
@@ -169,7 +169,7 @@ export function useNoteMenuState({
     fontSize,
     getHeadingsTree,
     handleAudioSelect,
-    handleFileSelect,
+    handleSelectionUpdate,
     handleVideoSelect,
     headingsTree,
     imgUrl,

@@ -274,12 +274,12 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
             .ok()
             .flatten()
             .and_then(|value| String::from_utf8(value).ok())
-            .filter(|value| !value.is_empty())
+            .filter(|value: &String| !value.is_empty())
             .is_some()
             || keyring_entry(key)
                 .ok()
                 .and_then(|entry| entry.get_password().ok())
-                .filter(|value| !value.is_empty())
+                .filter(|value: &String| !value.is_empty())
                 .is_some();
 
         if has_existing {

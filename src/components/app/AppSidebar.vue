@@ -7,6 +7,7 @@
         v-tooltip:right="
           translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
         "
+        :aria-label="translations.sidebar.addNotes"
         data-testid="add-note-button"
         class="transition-all p-2.5 text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:hover:bg-primary/60 rounded-xl flex items-center justify-center"
         @click="addNote"
@@ -18,6 +19,7 @@
         v-tooltip:right="
           translations.sidebar.newFolder + ' (' + keyBinding + '+Shift+F)'
         "
+        :aria-label="translations.sidebar.newFolder"
         class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
         @click="addFolder"
       >
@@ -39,6 +41,7 @@
           v-tooltip:right="
             translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
           "
+          :aria-label="translations.sidebar.editedNote"
           class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
           :class="[
             $route.name === 'Note'
@@ -66,6 +69,8 @@
           v-tooltip:right="
             `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
           "
+          :aria-label="nav.name"
+          :aria-current="$route.fullPath === nav.path ? 'page' : undefined"
           :data-testid="getNavTestId(nav.path)"
           class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
           :class="[
@@ -87,6 +92,7 @@
         v-tooltip:right="
           translations.sidebar.toggleSync + ' (' + keyBinding + '+Shift+Y)'
         "
+        :aria-label="translations.sidebar.toggleSync"
         class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
         :class="{ 'text-primary': spinning }"
         @click="manualSync"
@@ -102,6 +108,7 @@
         v-tooltip:right="
           translations.sidebar.toggleDarkTheme + ' (' + keyBinding + '+Shift+L)'
         "
+        :aria-label="translations.sidebar.toggleDarkTheme"
         class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
@@ -129,6 +136,7 @@
           v-tooltip:right="
             translations.settings.title + ' (' + keyBinding + '+,)'
           "
+          :aria-label="translations.settings.title"
           to="/settings"
           class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
           active-class="text-primary bg-primary/10"

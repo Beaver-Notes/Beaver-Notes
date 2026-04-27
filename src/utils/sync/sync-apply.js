@@ -5,10 +5,29 @@ const storage = useStorage();
 export async function applyRemoteOp(op, remoteVector) {
   const { type, id, data } = op;
 
+  if (!type || typeof type !== 'string') {
+    console.error('[sync] Skipping invalid op — missing/invalid type', op);
+    return;
+  }
+
   switch (type) {
     case 'notes':
+      if (!id || typeof id !== 'string') {
+        console.error(
+          '[sync] Skipping invalid note op — missing/invalid id',
+          op
+        );
+        return;
+      }
       return applyNote(id, data, remoteVector);
     case 'folders':
+      if (!id || typeof id !== 'string') {
+        console.error(
+          '[sync] Skipping invalid folder op — missing/invalid id',
+          op
+        );
+        return;
+      }
       return applyFolder(id, data, remoteVector);
     case 'labels':
       return applyLabels(data);
@@ -69,7 +88,6 @@ async function applyNote(id, data, remoteVector) {
 }
 
 async function applyFolder(id, data, remoteVector) {
-  // Surgical read/write: touch only the single row, not the entire folders object.
   if (!data) {
     await storage.delete(`folders.${id}`);
     return;
@@ -86,6 +104,19 @@ async function applyFolder(id, data, remoteVector) {
   const comparison = compareVectors(remoteVector, localVector);
 
   if (comparison === 'local-wins') return;
+
+  if (comparison === 'concurrent') {
+    const conflictId = `${id}-conflict-${Date.now()}`;
+    const conflictFolder = {
+      ...existing,
+      id: conflictId,
+      name: `${existing.name || 'Untitled'} (conflict copy)`,
+      isConflict: true,
+      conflictOf: id,
+      _vector: localVector,
+    };
+    await storage.set(`folders.${conflictId}`, conflictFolder);
+  }
 
   await storage.set(`folders.${id}`, {
     ...data,

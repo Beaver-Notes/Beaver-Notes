@@ -8,6 +8,8 @@
     "main"
   ],
   "permissions": [
-    "haptics:default"
+    "haptics:default",
+    "core:webview:default",
+    "core:webview:allow-print"
   ]
 }

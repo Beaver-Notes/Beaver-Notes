@@ -1,12 +1,9 @@
-import * as CryptoJS from 'crypto-es';
 import {
   base64ToBuf,
   bufToBase64,
   bufToHex,
   hexToBuf,
 } from '@/utils/crypto-codec.js';
-
-const { AES: _CBC, enc: _enc } = CryptoJS;
 
 export async function gcmEncryptStr(plaintext, key) {
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -45,8 +42,4 @@ export async function gcmDecryptBin(b64, key) {
   return new Uint8Array(
     await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ct)
   );
-}
-
-export function decryptLegacyCiphertext(ciphertext, legacyCBCKey) {
-  return _CBC.decrypt(ciphertext, legacyCBCKey).toString(_enc.Utf8);
 }

@@ -22,6 +22,7 @@ import {
 } from './sync-repository.js';
 import { applyRemoteOp } from './sync-apply.js';
 import { syncAssets } from './sync-assets.js';
+import { backend } from '@/lib/tauri-bridge';
 
 const storage = useStorage();
 
@@ -118,13 +119,20 @@ async function _sync(force = false) {
       saveCursors: _saveCursors,
     });
     const cursors = await _loadCursors();
-    const remoteCommits = await listRemoteCommits(commitsDir, cursors, decryptJSON);
+    const remoteCommits = await listRemoteCommits(
+      commitsDir,
+      cursors,
+      decryptJSON
+    );
 
     for (const commit of remoteCommits) {
       for (const op of commit.ops) {
         await applyRemoteOp(op, commit.vector);
       }
-      cursors[commit.device] = Math.max(cursors[commit.device] ?? 0, commit.clock);
+      cursors[commit.device] = Math.max(
+        cursors[commit.device] ?? 0,
+        commit.clock
+      );
     }
 
     if (remoteCommits.length > 0) {
@@ -155,6 +163,9 @@ async function _sync(force = false) {
     }
   } catch (err) {
     console.error('[sync] Sync failed:', err);
+    try {
+      backend.emit('sync:error', { message: err?.message || 'Sync failed' });
+    } catch {}
   } finally {
     state.syncing = false;
   }
@@ -193,8 +204,7 @@ async function _flushPendingChanges() {
 }
 
 async function _flushPendingChangesIfReady() {
-  return flushPendingChangesIfReady(
-    ensureSyncKeyReadyForWrite,
-    (key, data) => _writeCommit(key, data)
+  return flushPendingChangesIfReady(ensureSyncKeyReadyForWrite, (key, data) =>
+    _writeCommit(key, data)
   );
 }

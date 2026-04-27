@@ -39,6 +39,8 @@
                 v-model="passwordInput"
                 type="password"
                 class="flex-1"
+                aria-label="Global password"
+                :aria-describedby="securityError ? 'security-error' : undefined"
                 :placeholder="
                   translations.settings.choosePassword || 'Choose a password...'
                 "
@@ -48,7 +50,12 @@
                 {{ translations.settings.setPassword || 'Set password' }}
               </ui-button>
             </div>
-            <p v-if="securityError" class="text-sm text-red-500 mt-1">
+            <p
+              v-if="securityError"
+              id="security-error"
+              role="alert"
+              class="text-sm text-red-500 mt-1"
+            >
               {{ securityError }}
             </p>
           </template>
@@ -75,7 +82,12 @@
               @change="toggleAppEncryption"
             />
           </div>
-          <p v-if="appEncryptionError" class="text-xs text-red-500 mt-2">
+          <p
+            v-if="appEncryptionError"
+            id="app-encryption-error"
+            role="alert"
+            class="text-xs text-red-500 mt-2"
+          >
             {{ appEncryptionError }}
           </p>
           <transition name="setting-fade">
@@ -114,6 +126,10 @@
                 type="password"
                 class="flex-1"
                 :disabled="appEncryptionBusy || appUnlockBusy"
+                aria-label="App encryption password"
+                :aria-describedby="
+                  appEncryptionError ? 'app-encryption-error' : undefined
+                "
                 :placeholder="translations.settings.password || 'Password...'"
                 @keyup.enter="confirmAppEncryption"
               />
@@ -169,6 +185,10 @@
                 type="password"
                 class="flex-1"
                 :disabled="syncUnlockBusy"
+                aria-label="Sync encryption password"
+                :aria-describedby="
+                  syncCryptoError ? 'sync-crypto-error' : undefined
+                "
                 :placeholder="translations.settings.password || 'Password...'"
                 @keyup.enter="verifySyncKey"
               />
@@ -180,7 +200,12 @@
               </ui-button>
             </div>
           </transition>
-          <p v-if="syncCryptoError" class="text-xs text-red-500 mt-2">
+          <p
+            v-if="syncCryptoError"
+            id="sync-crypto-error"
+            role="alert"
+            class="text-xs text-red-500 mt-2"
+          >
             {{ syncCryptoError }}
           </p>
         </div>

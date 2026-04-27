@@ -12,15 +12,16 @@ export async function storeSecureBlob(
   plainText,
   logPrefix = 'secureBlob'
 ) {
-  try {
-    const available = await isEncryptionAvailable();
-    if (!available) return;
-
-    const blob = await encryptString(plainText);
-    await storeStoredBlob(key, blob);
-  } catch (err) {
-    console.warn(`[${logPrefix}] passphrase store failed:`, err);
+  const available = await isEncryptionAvailable();
+  if (!available) {
+    console.warn(
+      `[${logPrefix}] safe storage not available — passphrase will not be persisted`
+    );
+    return;
   }
+
+  const blob = await encryptString(plainText);
+  await storeStoredBlob(key, blob);
 }
 
 export function persistSecureBlobInBackground(
@@ -28,7 +29,12 @@ export function persistSecureBlobInBackground(
   plainText,
   logPrefix = 'secureBlob'
 ) {
-  void storeSecureBlob(key, plainText, logPrefix);
+  return storeSecureBlob(key, plainText, logPrefix).catch((err) => {
+    console.error(
+      `[${logPrefix}] CRITICAL: passphrase persistence failed — auto-unlock will not work on next launch`,
+      err
+    );
+  });
 }
 
 export async function loadSecureBlob(key) {
@@ -36,15 +42,28 @@ export async function loadSecureBlob(key) {
     const blob = await fetchSecureBlob(key);
     if (!blob) return null;
     return await decryptString(blob);
-  } catch {
-    return null;
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (
+      msg.includes('not found') ||
+      msg.includes('No entry') ||
+      msg.includes('not exist')
+    ) {
+      return null;
+    }
+    console.error(
+      '[secureBlob] Failed to load secure blob — keyring may be corrupted',
+      err
+    );
+    throw err;
   }
 }
 
 export async function clearSecureBlob(key) {
   try {
     await clearStoredBlob(key);
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error('[secureBlob] Failed to clear secure blob', err);
+    throw err;
   }
 }
