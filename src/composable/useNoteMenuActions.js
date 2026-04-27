@@ -2,7 +2,7 @@ import { computed } from 'vue';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportDOCX } from '@/utils/share/DOCX';
-import { exportPDF } from '@/utils/share/PDF';
+import { printPdf } from '@/lib/native/app';
 
 const highlighterColors = [
   'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
@@ -35,7 +35,7 @@ export function useNoteMenuActions({
   );
 
   const printContent = () => {
-    exportPDF(noteId, noteTitle, editor);
+    printPdf(`${noteTitle}.pdf`);
   };
 
   const fmtMap = computed(() => ({

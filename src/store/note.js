@@ -183,15 +183,10 @@ export const useNoteStore = defineStore('note', {
       try {
         const localStorageData = (await storage.get('notes', {})) || {};
         const merged = { ...localStorageData };
-        if (this.data && typeof this.data === 'object') {
-          for (const [id, note] of Object.entries(this.data)) {
-            const existing = merged[id];
-            if (
-              !existing ||
-              (note.updatedAt ?? 0) >= (existing.updatedAt ?? 0)
-            ) {
-              merged[id] = note;
-            }
+        for (const [id, note] of Object.entries(this.data)) {
+          const existing = merged[id];
+          if (!existing || (note.updatedAt ?? 0) >= (existing.updatedAt ?? 0)) {
+            merged[id] = note;
           }
         }
 
@@ -211,7 +206,7 @@ export const useNoteStore = defineStore('note', {
             for (let i = 0; i < notesToDecrypt.length; i += BATCH_SIZE) {
               const batch = notesToDecrypt.slice(i, i + BATCH_SIZE);
               await Promise.all(
-                batch.map(async ({ id, note }) => {
+                batch.map(async ([id, note]) => {
                   merged[id] = await decryptNoteForMemory(merged[id]);
                   merged[id] = hydrateNote(merged[id]);
                   this._decryptionProgress.processed++;
@@ -236,7 +231,7 @@ export const useNoteStore = defineStore('note', {
 
         this.data = merged;
 
-        const deletedIds = (await storage.get('deletedIds', {})) || {};
+        const deletedIds = await storage.get('deletedIds', {});
         const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
         let deletedDirty = false;
         for (const id of Object.keys(deletedIds)) {

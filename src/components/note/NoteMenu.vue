@@ -427,8 +427,6 @@
           />
         </ui-popover>
 
-        
-
         <button
           v-else-if="item.id === 'table'"
           v-tooltip.group="translations.menu.table"

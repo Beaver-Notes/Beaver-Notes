@@ -303,7 +303,7 @@ export default {
           handleFileSelect();
         },
       },
-{
+      {
         icon: 'riMovieLine',
         name: 'video',
         action: () => {
@@ -315,21 +315,6 @@ export default {
         name: 'audio',
         action: () => {
           handleAudioSelect();
-        },
-      },
-      {
-        icon: 'riGlobalLine',
-        name: 'embed',
-        action: () => {
-          const url = window.prompt('Enter embed URL (YouTube, Vimeo, Figma, etc.):');
-          if (url) {
-            props.editor.commands.setEmbed({
-              url,
-              provider: 'custom',
-              providerName: 'Custom',
-              embedType: 'rich',
-            });
-          }
         },
       },
       {

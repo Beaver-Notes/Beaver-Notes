@@ -51,8 +51,6 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros"] 
 http = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 urlencoding = "2"
-regex = "1"
-reqwest = { version = "0.12", features = ["json"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
 
