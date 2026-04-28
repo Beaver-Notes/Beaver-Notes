@@ -359,6 +359,22 @@ export default {
 
 .folder-grid__item {
   width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .folder-grid {
+    --folder-card-max: 160px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1023px) {
+  .folder-grid {
+    --folder-card-max: 180px;
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .sort-cards-move {

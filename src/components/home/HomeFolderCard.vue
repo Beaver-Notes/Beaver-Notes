@@ -1,11 +1,12 @@
 <template>
   <div
-    class="folder-card relative group cursor-pointer h-40 w-48"
+    class="folder-card relative group cursor-pointer w-full"
+    style="aspect-ratio: 6/5; min-height: 130px; max-height: 180px"
     @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
   >
     <!-- Tab -->
     <div
-      class="absolute top-4 left-0 z-0 h-8 w-16 rounded-tl-xl rounded-tr-md transition-colors"
+      class="absolute top-[10%] left-0 z-0 h-[20%] w-[35%] rounded-tl-xl rounded-tr-md transition-colors"
       :style="{
         backgroundColor: folder.color || '#f59e0b',
         filter: 'saturate(0.8)',
@@ -14,7 +15,8 @@
 
     <!-- Back panel -->
     <div
-      class="absolute top-8 left-0 z-0 h-32 w-full rounded-xl rounded-tl-none transition-colors shadow-sm"
+      class="absolute top-[20%] left-0 z-0 w-full rounded-xl rounded-tl-none transition-colors shadow-sm"
+      style="height: 80%"
       :style="{
         backgroundColor: folder.color || '#f59e0b',
         filter: 'saturate(0.8)',
@@ -24,7 +26,8 @@
     <!-- Rear sheet -->
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute top-6 left-6 z-10 h-24 w-36 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 shadow-sm transition-transform duration-300 ease-out"
+      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 shadow-sm transition-transform duration-300 ease-out"
+      style="top: 15%; left: 14%; width: 72%; height: 58%"
     >
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
@@ -34,7 +37,8 @@
     <!-- Front sheet -->
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute top-9 left-9 z-10 h-28 w-36 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 shadow-md transition-transform duration-300 ease-out"
+      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 shadow-md transition-transform duration-300 ease-out"
+      style="top: 23%; left: 21%; width: 72%; height: 64%"
     >
       <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
@@ -44,7 +48,8 @@
 
     <!-- Front body (the "flap" that opens) -->
     <div
-      class="folder-card__body absolute bottom-0 left-0 z-20 flex h-28 w-full flex-col justify-between rounded-xl p-3 shadow-sm transition-transform duration-300 ease-out opacity-95"
+      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col justify-between rounded-xl p-3 shadow-sm transition-transform duration-300 ease-out opacity-95"
+      style="height: 65%"
       :style="{
         background: `linear-gradient(to bottom, ${folder.color || '#fbbf24'}, ${
           folder.color || '#f59e0b'

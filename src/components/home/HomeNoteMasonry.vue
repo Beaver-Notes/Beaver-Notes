@@ -11,9 +11,15 @@
         :ref="setCardRef(item.note.id)"
         :data-item-id="`note-${item.note.id}`"
         class="note-masonry__card"
+        :class="{
+          leaving: isItemLeaving(item.note.id),
+          entering: isItemEntering(item.note.id),
+        }"
         :style="{
           transform: `translate3d(${item.x}px,${item.y}px,0)`,
           width: `${item.w}px`,
+          '--x': `${item.x}px`,
+          '--y': `${item.y}px`,
         }"
         @click.stop="
           $emit('item-click', { event: $event, noteId: item.note.id })
@@ -115,9 +121,23 @@ let scrollEl = null,
   containerRO = null,
   cardRO = null,
   measureRaf = null,
-  scrollRaf = null;
+  scrollRaf = null,
+  lastScrollTime = 0;
+
+const leavingItems = new Map();
+const enteringItems = new Map();
+const lastSeenIds = new Set();
 
 const isSelected = (id) => props.selectedItems?.has?.(`note-${id}`) ?? false;
+
+const getLeavingItems = () => leavingItems;
+
+const clearLeavingItem = (id) => {
+  leavingItems.delete(id);
+};
+
+const isItemLeaving = (id) => leavingItems.has(id);
+const isItemEntering = (id) => enteringItems.has(id);
 
 function estimateNoteHeight(note) {
   const tLines = Math.min(
@@ -202,7 +222,15 @@ const visibleItems = computed(() => {
   });
 });
 
+const getItemState = (id) => {
+  if (leavingItems.has(id)) return 'leaving';
+  return 'visible';
+};
+
 const onScroll = () => {
+  const now = Date.now();
+  if (now - lastScrollTime < 16) return;
+  lastScrollTime = now;
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = null;
@@ -318,7 +346,38 @@ watch(
           }:${n.isLocked}:${n.isConflict}`
       )
       .join('|'),
-  async () => {
+  async (newVal, oldVal) => {
+    const oldIds = oldVal
+      ? new Set(
+          oldVal
+            .split('|')
+            .map((s) => s.split(':')[0])
+            .filter(Boolean)
+        )
+      : new Set();
+    const newIds = new Set(props.notes.map((n) => n.id));
+
+    for (const id of oldIds) {
+      if (!newIds.has(id) && !leavingItems.has(id)) {
+        const el = cardElements.get(id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          leavingItems.set(id, {
+            rect: { width: rect.width, height: rect.height },
+            timestamp: Date.now(),
+          });
+          setTimeout(() => leavingItems.delete(id), 300);
+        }
+      }
+    }
+
+    for (const id of newIds) {
+      if (!oldIds.has(id) && !enteringItems.has(id)) {
+        enteringItems.set(id, { timestamp: Date.now() });
+        setTimeout(() => enteringItems.delete(id), 350);
+      }
+    }
+
     await nextTick();
     scheduleMeasure();
   },
@@ -416,6 +475,16 @@ onBeforeUnmount(() => {
   opacity: 1;
 }
 
+.note-masonry__card.leaving {
+  animation: cardLeave 250ms ease-out forwards;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.note-masonry__card.entering {
+  animation: cardEnter 300ms ease-out forwards;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .filter-pulse {
     animation: noteMasonryFilterPulse 200ms ease forwards;
@@ -433,6 +502,36 @@ onBeforeUnmount(() => {
     100% {
       opacity: 1;
     }
+  }
+
+  @keyframes cardLeave {
+    0% {
+      opacity: 1;
+      transform: translate3d(var(--x), var(--y), 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--x), var(--y), 0) scale(0.95);
+    }
+  }
+
+  @keyframes cardEnter {
+    0% {
+      opacity: 0;
+      transform: translate3d(var(--x), var(--y), 0) scale(0.96);
+    }
+    100% {
+      opacity: 1;
+      transform: translate3d(var(--x), var(--y), 0) scale(1);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-masonry__card.leaving,
+  .note-masonry__card.entering {
+    animation: none;
+    opacity: 1;
   }
 }
 </style>

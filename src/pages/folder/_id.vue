@@ -318,10 +318,15 @@ export default {
               label.toLocaleLowerCase().includes(queryLower)
             ) ||
             normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
-            (note.searchText ?? extractTextFromContent(note.content)).toLowerCase().includes(queryLower);
+            (note.searchText ?? extractTextFromContent(note.content))
+              .toLowerCase()
+              .includes(queryLower);
 
         if (isMatch && labelFilter) {
-          const noteCard = { ...note, content: note.searchText ?? extractTextFromContent(note.content) };
+          const noteCard = {
+            ...note,
+            content: note.searchText ?? extractTextFromContent(note.content),
+          };
 
           if (isArchived) return filteredNotes.archived.push(noteCard);
 
