@@ -6,6 +6,7 @@ import { useStorage } from '../composable/storage.js';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
 import { isAppEncryptionEnabled, isAppEncryptedContent } from '@/utils/appCrypto.js';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
 import { indexNote, removeNoteFromIndex, searchNotesFts } from '@/lib/native/search';
 
@@ -404,7 +405,7 @@ export const useNoteStore = defineStore('note', {
         const lastEditedNote = localStorage.getItem('lastNoteEdit');
         if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
 
-        const dataDir = await storage.get('dataDir', '', 'settings');
+        const appDirectory = await getAppDirectory();
 
         this.deletedIds = this.deletedIds || {};
         if (!this.deletedIds[id]) {
@@ -422,14 +423,14 @@ export const useNoteStore = defineStore('note', {
 
         try {
           for (const assetType of ['notes-assets', 'file-assets']) {
-            const assetDir = path.join(dataDir, assetType, id);
+            const assetDir = path.join(appDirectory, assetType, id);
             try {
               const files = await readDir(assetDir);
               if (files?.length) await trackDeletedAssets(assetType, id, files);
             } catch {
               // Asset folder may not exist — that's fine
             }
-            await removePath(path.join(dataDir, assetType, id));
+            await removePath(path.join(appDirectory, assetType, id));
           }
         } catch (fileError) {
           console.warn('Error removing note files:', fileError);

@@ -1,8 +1,6 @@
-import { useStorage } from '@/composable/storage';
 import { isAppEncryptionEnabled } from '@/utils/appCrypto';
 import { backend, path } from '@/lib/tauri-bridge';
-
-const storage = useStorage('settings');
+import { getAppDirectory } from '@/lib/native/app';
 
 function base64ToUint8Array(base64) {
   const binary = atob(base64);
@@ -41,10 +39,10 @@ async function readFile(file) {
 }
 
 async function createFileName(file, id) {
-  const dataDir = await storage.get('dataDir');
+  const appDirectory = await getAppDirectory();
   const { ext, name } = path.parse(sourceFileName(file));
   const fileName = `${name}${ext}`;
-  const assetsPath = path.join(dataDir, 'file-assets', id);
+  const assetsPath = path.join(appDirectory, 'file-assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);
   return { destPath, fileName };

@@ -1,8 +1,8 @@
-import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { useNoteStore } from '@/store/note';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import { openDialog } from '@/lib/native/dialog';
 import { copyPath, ensureDir, writeFile } from '@/lib/native/fs';
 import { tiptapToMarkdown, buildFrontmatter } from './ExportBulk';
@@ -54,8 +54,7 @@ export async function exportMD(noteId, noteTitle, editor) {
   });
   if (canceled) return;
 
-  const storage = useStorage('settings');
-  const dataDir = await storage.get('dataDir', '');
+  const appDirectory = await getAppDirectory();
 
   const safeName = sanitize(noteTitle) || 'ExportedNote';
   const folderPath = path.join(filePaths[0], safeName);
@@ -64,8 +63,8 @@ export async function exportMD(noteId, noteTitle, editor) {
 
   await writeFile(path.join(folderPath, `${safeName}.md`), markdown);
 
-  const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
+  const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
+  const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
   const notesAssetsDest = path.join(folderPath, 'assets');
   const fileAssetsDest = path.join(folderPath, 'file-assets');
 

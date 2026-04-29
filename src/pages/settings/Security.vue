@@ -217,7 +217,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
 import { useDialog } from '@/composable/dialog';
-import { useStorage } from '@/composable/storage';
 import { useTranslations } from '@/composable/useTranslations';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
@@ -241,7 +240,6 @@ import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js'
 
 const { translations } = useTranslations();
 const dialog = useDialog();
-const storage = useStorage();
 const passwordStore = usePasswordStore();
 const noteStore = useNoteStore();
 const passwordInput = ref('');
@@ -387,8 +385,6 @@ function yieldToUi() {
 }
 
 async function migrateAssetsForAppEncryption({ encryptAtRest }) {
-  const dataDir = await storage.get('dataDir', '', 'settings');
-  if (!dataDir) return;
   const phase = encryptAtRest ? 'assets-encrypt' : 'assets-plaintext';
   updateAppEncryptionProgress({
     phase,
@@ -396,7 +392,7 @@ async function migrateAssetsForAppEncryption({ encryptAtRest }) {
     total: 0,
   });
 
-  const result = await migrateAssetEncryption(dataDir, encryptAtRest);
+  const result = await migrateAssetEncryption(encryptAtRest);
   updateAppEncryptionProgress({
     phase,
     processed: result.processed,

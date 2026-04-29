@@ -9,6 +9,7 @@ import { useStorage } from '@/composable/storage';
 import { useNoteStore } from '@/store/note.js';
 import { useFolderStore } from '@/store/folder.js';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import { ensureSyncDir, readSyncDir } from '@/lib/native/sync';
 import {
   applySnapshotIfNeeded,
@@ -139,7 +140,7 @@ async function _sync(force = false) {
       await _saveCursors(cursors);
     }
 
-    const localDir = await storage.get('dataDir', '', 'settings');
+    const localDir = await getAppDirectory();
     await syncAssets(localDir, syncDir, async (deletedAssets) => {
       await trackChange('deletedAssets', deletedAssets);
     });

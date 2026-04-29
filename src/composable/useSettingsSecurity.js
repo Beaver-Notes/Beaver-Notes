@@ -22,7 +22,6 @@ export function useSettingsSecurity({
   noteStore,
   passwordStore,
   translations,
-  getEffectiveDataDir,
   showDialogAlert,
 }) {
   const settingsStorage = useStorage('settings');
@@ -160,8 +159,6 @@ export function useSettingsSecurity({
   }
 
   async function migrateAssetsForAppEncryption({ encryptAtRest }) {
-    const dataDir = await getEffectiveDataDir();
-    if (!dataDir) return;
     const phase = encryptAtRest ? 'assets-encrypt' : 'assets-plaintext';
     updateAppEncryptionProgress({
       phase,
@@ -169,7 +166,7 @@ export function useSettingsSecurity({
       total: 0,
     });
 
-    const result = await migrateAssetEncryption(dataDir, encryptAtRest);
+    const result = await migrateAssetEncryption(encryptAtRest);
     updateAppEncryptionProgress({
       phase,
       processed: result.processed,

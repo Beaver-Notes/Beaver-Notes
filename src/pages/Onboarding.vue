@@ -348,7 +348,7 @@
             </ui-card>
 
             <ui-card
-              v-if="migrationPlatform === 'electron' && (state.status?.legacyDir || state.status?.appDataDir || customLegacyPath)"
+              v-if="migrationPlatform === 'electron' && (state.status?.legacyDir || state.status?.appDir || customLegacyPath)"
               class="bg-input"
             >
               <div class="flex flex-col gap-4 p-4">
@@ -368,12 +368,12 @@
                     {{ state.status.legacyDir }}
                   </code>
                 </div>
-                <div v-if="state.status?.appDataDir" class="flex flex-col gap-1">
+                <div v-if="state.status?.appDir" class="flex flex-col gap-1">
                   <span class="text-xs font-bold uppercase tracking-widest ob-label-text">
                     New Beaver Notes
                   </span>
                   <code class="text-xs font-mono break-all px-2 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
-                    {{ state.status.appDataDir }}
+                    {{ state.status.appDir }}
                   </code>
                 </div>
               </div>

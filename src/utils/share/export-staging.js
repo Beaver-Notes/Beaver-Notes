@@ -39,15 +39,15 @@ export async function copyExportAssetDir(sourcePath, destPath) {
   }
 }
 
-export async function copyNoteAssetDirectories(dataDir, noteId, outputDir) {
-  if (!dataDir) return;
+export async function copyNoteAssetDirectories(appDirectory, noteId, outputDir) {
+  if (!appDirectory) return;
 
   await copyExportAssetDir(
-    path.join(dataDir, 'notes-assets', noteId),
+    path.join(appDirectory, 'notes-assets', noteId),
     path.join(outputDir, 'assets', noteId)
   );
   await copyExportAssetDir(
-    path.join(dataDir, 'file-assets', noteId),
+    path.join(appDirectory, 'file-assets', noteId),
     path.join(outputDir, 'file-assets', noteId)
   );
 }

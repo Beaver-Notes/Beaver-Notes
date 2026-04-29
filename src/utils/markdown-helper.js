@@ -2,6 +2,7 @@ import { marked } from 'marked';
 import { v4 as uuidv4 } from 'uuid';
 import { useStorage } from '@/composable/storage';
 import { backend, path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import {
   createMediaFallbackNode,
   sanitizeImageSource,
@@ -398,10 +399,10 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
           };
         }
 
-        const dataDir = await storage.get('dataDir');
+        const appDirectory = await getAppDirectory();
         const fileName = href.split('/').pop();
         const file = path.join(directoryPath, 'file-assets', fileName);
-        const assetsPath = path.join(dataDir, 'file-assets', id);
+        const assetsPath = path.join(appDirectory, 'file-assets', id);
         try {
           await backend.invoke('fs:copy', {
             path: file,
@@ -460,10 +461,10 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             : createMediaFallbackNode('video', { src });
         }
 
-        const dataDir = await storage.get('dataDir');
+        const appDirectory = await getAppDirectory();
         const fileName = src.split('/').pop();
         const file = path.join(directoryPath, 'file-assets', fileName);
-        const assetsPath = path.join(dataDir, 'file-assets', id);
+        const assetsPath = path.join(appDirectory, 'file-assets', id);
 
         try {
           await backend.invoke('fs:copy', {
@@ -501,10 +502,10 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             : createMediaFallbackNode('audio', { src });
         }
 
-        const dataDir = await storage.get('dataDir');
+        const appDirectory = await getAppDirectory();
         const fileName = src.split('/').pop();
         const file = path.join(directoryPath, 'file-assets', fileName);
-        const assetsPath = path.join(dataDir, 'file-assets', id);
+        const assetsPath = path.join(appDirectory, 'file-assets', id);
 
         try {
           await backend.invoke('fs:copy', {
@@ -540,10 +541,10 @@ export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
             : createMediaFallbackNode('image', { src, alt });
         }
 
-        const dataDir = await storage.get('dataDir');
+        const appDirectory = await getAppDirectory();
         const filename = src.split('/').pop();
         const file = path.join(directoryPath, 'notes-assets', filename);
-        const assetsPath = path.join(dataDir, 'notes-assets', id);
+        const assetsPath = path.join(appDirectory, 'notes-assets', id);
         try {
           await backend.invoke('fs:copy', {
             path: file,

@@ -1,11 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import { path } from '@/lib/tauri-bridge';
-import { getHelperPath } from '@/lib/native/app';
+import { getAppDirectory } from '@/lib/native/app';
 import { ensureDir, writeFile } from '@/lib/native/fs';
 import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { useStorage } from '@/composable/storage';
 import { buildFolderIdFromPath } from './importUtils';
 import {
   createMediaFallbackNode,
@@ -13,15 +12,9 @@ import {
   sanitizeImportedHtml,
 } from '@/utils/contentSecurity';
 
-const storage = useStorage('settings');
-
-async function ensureDataDir() {
-  const stored = await storage.get('dataDir', '');
-  if (typeof stored === 'string' && stored.trim()) {
-    return stored.trim();
-  }
-  const userDataDir = await getHelperPath('userData');
-  return typeof userDataDir === 'string' ? userDataDir.trim() : '';
+async function ensureAppDirectory() {
+  const directory = await getAppDirectory();
+  return typeof directory === 'string' ? directory.trim() : '';
 }
 
 function applyMarkToNode(node, mark) {
@@ -283,7 +276,7 @@ async function convertHtmlNodeToTiptap(node, noteId, resources = []) {
 async function processRustImportNote(note, state) {
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
-  const dataDir = await ensureDataDir();
+  const appDirectory = await ensureAppDirectory();
   const id = uuidv4();
   let folderId = null;
 
@@ -301,7 +294,7 @@ async function processRustImportNote(note, state) {
     }
   }
 
-  const noteAssetDir = path.join(dataDir, 'notes-assets', id);
+  const noteAssetDir = path.join(appDirectory, 'notes-assets', id);
   await ensureDir(noteAssetDir);
 
   for (const resource of note.resources || []) {
@@ -315,7 +308,7 @@ async function processRustImportNote(note, state) {
     }
   }
 
-  const content = await htmlToTiptap(note.content || '', id, dataDir, {
+  const content = await htmlToTiptap(note.content || '', id, appDirectory, {
     resources: note.resources || [],
   });
 
@@ -395,7 +388,7 @@ export function base64ToUint8Array(base64) {
   return bytes;
 }
 
-export async function htmlToTiptap(html, noteId, _dataDir, options = {}) {
+export async function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(
     sanitizeImportedHtml(html, { allowRelative: true }),

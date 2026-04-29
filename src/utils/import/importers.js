@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import mammoth from 'mammoth';
 import { path } from '@/lib/tauri-bridge';
-import { getHelperPath } from '@/lib/native/app';
+import { getAppDirectory } from '@/lib/native/app';
 import {
   copyPath,
   ensureDir,
@@ -19,10 +19,7 @@ import {
   sanitizeFilename,
   buildFolderIdFromPath,
 } from './importUtils';
-import { useStorage } from '@/composable/storage';
 import { htmlToTiptap } from './importRustBridge';
-
-const storage = useStorage('settings');
 
 function getPathParts(value) {
   return String(value || '')
@@ -59,16 +56,12 @@ function mergeLabels(...values) {
   ];
 }
 
-async function ensureDataDir(dataDir) {
-  if (typeof dataDir === 'string' && dataDir.trim()) {
-    return dataDir.trim();
+async function ensureAppDirectory(appDirectory) {
+  if (typeof appDirectory === 'string' && appDirectory.trim()) {
+    return appDirectory.trim();
   }
-  const stored = await storage.get('dataDir', '');
-  if (typeof stored === 'string' && stored.trim()) {
-    return stored.trim();
-  }
-  const userDataDir = await getHelperPath('userData');
-  return typeof userDataDir === 'string' ? userDataDir.trim() : '';
+  const directory = await getAppDirectory();
+  return typeof directory === 'string' ? directory.trim() : '';
 }
 
 async function pathExists(targetPath) {
@@ -141,7 +134,7 @@ async function convertWordToHtml(filePath) {
   );
 }
 
-async function storeWordImages(html, noteId, dataDir) {
+async function storeWordImages(html, noteId, appDirectory) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html || '', 'text/html');
   const images = Array.from(doc.querySelectorAll('img'));
@@ -150,7 +143,7 @@ async function storeWordImages(html, noteId, dataDir) {
     return doc.body.innerHTML;
   }
 
-  const noteAssetsDir = path.join(dataDir, 'notes-assets', noteId);
+  const noteAssetsDir = path.join(appDirectory, 'notes-assets', noteId);
   await ensureDir(noteAssetsDir);
 
   let imageIndex = 1;
@@ -210,8 +203,8 @@ async function copyDirectoryContents(sourcePath, destPath) {
   }
 }
 
-async function prepareMarkdownStaging(noteId, dataDir, assetDirs = []) {
-  const stagingRoot = path.join(dataDir, '.import-staging', noteId);
+async function prepareMarkdownStaging(noteId, appDirectory, assetDirs = []) {
+  const stagingRoot = path.join(appDirectory, '.import-staging', noteId);
   const noteAssetsDir = path.join(stagingRoot, 'notes-assets');
   const fileAssetsDir = path.join(stagingRoot, 'file-assets');
   await ensureDir(noteAssetsDir);
@@ -299,7 +292,7 @@ async function importMarkdownFile({
   sourceRoot,
   noteStore,
   folderStore,
-  dataDir,
+  appDirectory,
   createdFolderIds,
   assetDirs = [],
   labels = [],
@@ -329,7 +322,7 @@ async function importMarkdownFile({
       : null;
   const stagingRoot =
     assetDirs.length > 0
-      ? await prepareMarkdownStaging(id, dataDir, assetDirs)
+      ? await prepareMarkdownStaging(id, appDirectory, assetDirs)
       : directoryPath;
   const { content } = await convertMarkdownToTiptap(body, id, stagingRoot);
 
@@ -346,7 +339,7 @@ async function importMarkdownFile({
   for (const assetDir of assetDirs) {
     await copyDirectoryContents(
       assetDir,
-      path.join(dataDir, 'notes-assets', id)
+      path.join(appDirectory, 'notes-assets', id)
     );
   }
 
@@ -357,10 +350,10 @@ export async function importObsidian(
   vaultPath,
   noteStore,
   folderStore,
-  dataDir,
+  appDirectory,
   onProgress
 ) {
-  const resolvedDataDir = await ensureDataDir(dataDir);
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
   const files = await listFilesRecursive(vaultPath, ['.md'], {
     ignoreDirs: ['.obsidian', '.trash'],
     ignoreHidden: true,
@@ -383,7 +376,7 @@ export async function importObsidian(
         sourceRoot: vaultPath,
         noteStore,
         folderStore,
-        dataDir: resolvedDataDir,
+        appDirectory: resolvedAppDirectory,
         createdFolderIds,
         assetDirs: (await pathExists(assetDir)) ? [assetDir] : [],
         onProgress,
@@ -415,10 +408,10 @@ export async function importNotion(
   exportPath,
   noteStore,
   folderStore,
-  dataDir,
+  appDirectory,
   onProgress
 ) {
-  const resolvedDataDir = await ensureDataDir(dataDir);
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
   const files = await listFilesRecursive(exportPath, ['.md', '.html'], {
     ignoreHidden: true,
   });
@@ -444,7 +437,7 @@ export async function importNotion(
           sourceRoot: exportPath,
           noteStore,
           folderStore,
-          dataDir: resolvedDataDir,
+          appDirectory: resolvedAppDirectory,
           createdFolderIds,
           assetDirs: (await pathExists(assetDir)) ? [assetDir] : [],
           onProgress,
@@ -468,11 +461,11 @@ export async function importNotion(
         if (await pathExists(assetDir)) {
           await copyDirectoryContents(
             assetDir,
-            path.join(resolvedDataDir, 'notes-assets', id)
+            path.join(resolvedAppDirectory, 'notes-assets', id)
           );
         }
 
-        const content = await htmlToTiptap(html, id, resolvedDataDir);
+        const content = await htmlToTiptap(html, id, resolvedAppDirectory);
         await addImportedNote(noteStore, {
           id,
           title,
@@ -501,10 +494,10 @@ export async function importBear(
   exportPath,
   noteStore,
   _folderStore,
-  dataDir,
+  appDirectory,
   onProgress
 ) {
-  const resolvedDataDir = await ensureDataDir(dataDir);
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
   const entries = await readDir(exportPath);
   const files = entries
     .filter((entry) => entry.toLowerCase().endsWith('.md'))
@@ -524,14 +517,14 @@ export async function importBear(
         meta.title || stripExtension(path.basename(filePath)) || 'Untitled';
       const assetDir = path.join(exportPath, title);
       const stagingRoot = (await pathExists(assetDir))
-        ? await prepareMarkdownStaging(id, resolvedDataDir, [assetDir])
+        ? await prepareMarkdownStaging(id, resolvedAppDirectory, [assetDir])
         : exportPath;
       const { content } = await convertMarkdownToTiptap(body, id, stagingRoot);
 
       if (await pathExists(assetDir)) {
         await copyDirectoryContents(
           assetDir,
-          path.join(resolvedDataDir, 'notes-assets', id)
+          path.join(resolvedAppDirectory, 'notes-assets', id)
         );
       }
 
@@ -621,10 +614,10 @@ export async function importGenericMarkdown(
   folderPath,
   noteStore,
   folderStore,
-  dataDir,
+  appDirectory,
   onProgress
 ) {
-  const resolvedDataDir = await ensureDataDir(dataDir);
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
   const files = await listFilesRecursive(folderPath, ['.md'], {
     ignoreHidden: true,
   });
@@ -640,7 +633,7 @@ export async function importGenericMarkdown(
         sourceRoot: folderPath,
         noteStore,
         folderStore,
-        dataDir: resolvedDataDir,
+        appDirectory: resolvedAppDirectory,
         createdFolderIds,
         onProgress,
         done: done + 1,
@@ -669,10 +662,10 @@ export async function importWordDocuments(
   filePaths,
   noteStore,
   _folderStore,
-  dataDir,
+  appDirectory,
   onProgress
 ) {
-  const resolvedDataDir = await ensureDataDir(dataDir);
+  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
   const files = (Array.isArray(filePaths) ? filePaths : [filePaths]).filter(
     Boolean
   );
@@ -686,8 +679,8 @@ export async function importWordDocuments(
     try {
       const id = uuidv4();
       const { value: html, messages = [] } = await convertWordToHtml(filePath);
-      const preparedHtml = await storeWordImages(html, id, resolvedDataDir);
-      const content = await htmlToTiptap(preparedHtml, id, resolvedDataDir);
+      const preparedHtml = await storeWordImages(html, id, resolvedAppDirectory);
+      const content = await htmlToTiptap(preparedHtml, id, resolvedAppDirectory);
 
       await addImportedNote(noteStore, {
         id,

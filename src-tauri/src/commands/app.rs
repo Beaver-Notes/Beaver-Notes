@@ -23,6 +23,14 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
 }
 
 #[tauri::command]
+pub(crate) fn app_directory(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    Ok(app_storage_dir(&app, state.inner())?.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 pub(crate) fn migration_status(
     app: AppHandle,
     state: State<'_, AppState>,

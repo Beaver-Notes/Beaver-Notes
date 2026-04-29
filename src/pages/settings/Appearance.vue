@@ -303,7 +303,7 @@ export default {
     const storage = useStorage();
 
     const state = shallowReactive({
-      dataDir: '',
+      defaultPath: '',
       password: '',
       withPassword: false,
       lastUpdated: null,
@@ -391,7 +391,7 @@ export default {
 
     onMounted(() => {
       defaultPath = localStorage.getItem('default-path') || '';
-      state.dataDir = defaultPath;
+      state.defaultPath = defaultPath;
 
       document.documentElement.style.setProperty(
         '--selected-font',

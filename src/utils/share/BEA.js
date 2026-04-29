@@ -4,6 +4,7 @@ import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import { readDir } from '@/lib/native/fs';
 import { chooseRootExportDir, ensureExportFolder } from './export-staging';
 import {
@@ -92,9 +93,9 @@ export async function exportBEA(noteId, noteTitle) {
       return;
     }
 
-    const dataDir = await storage.get('dataDir', '', 'settings');
-    const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
-    const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
+    const appDirectory = await getAppDirectory();
+    const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
+    const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
 
     const assets = {
       notesAssets: await encodeAssets(noteAssetsSource),
@@ -179,7 +180,7 @@ async function processImportedNote(noteData, router) {
   const noteStore = useNoteStore();
   const labelStore = useLabelStore();
   try {
-    const dataDir = await storage.get('dataDir', '', 'settings');
+    const appDirectory = await getAppDirectory();
 
     for (const label of noteData.labels || []) {
       if (!labelStore.data.includes(label)) {
@@ -213,15 +214,15 @@ async function processImportedNote(noteData, router) {
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
 
-      await ensureExportFolder(path.join(dataDir, 'notes-assets', noteData.id));
-      await ensureExportFolder(path.join(dataDir, 'file-assets', noteData.id));
+      await ensureExportFolder(path.join(appDirectory, 'notes-assets', noteData.id));
+      await ensureExportFolder(path.join(appDirectory, 'file-assets', noteData.id));
 
       for (const [filename, base64Data] of Object.entries(notesAssets || {})) {
         const byteArray = Uint8Array.from(atob(base64Data), (char) =>
           char.charCodeAt(0)
         );
         await writeExportFile(
-          path.join(dataDir, 'notes-assets', noteData.id, filename),
+          path.join(appDirectory, 'notes-assets', noteData.id, filename),
           byteArray
         );
       }
@@ -231,7 +232,7 @@ async function processImportedNote(noteData, router) {
           char.charCodeAt(0)
         );
         await writeExportFile(
-          path.join(dataDir, 'file-assets', noteData.id, filename),
+          path.join(appDirectory, 'file-assets', noteData.id, filename),
           byteArray
         );
       }

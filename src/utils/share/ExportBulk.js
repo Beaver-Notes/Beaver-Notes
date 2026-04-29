@@ -2,6 +2,7 @@ import { useStorage } from '@/composable/storage';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import {
   chooseRootExportDir,
   copyNoteAssetDirectories,
@@ -745,8 +746,8 @@ function buildHtmlDocument(note, body) {
 </html>`;
 }
 
-async function copyNoteAssets(dataDir, noteId, outputDir) {
-  await copyNoteAssetDirectories(dataDir, noteId, outputDir);
+async function copyNoteAssets(appDirectory, noteId, outputDir) {
+  await copyNoteAssetDirectories(appDirectory, noteId, outputDir);
 }
 
 function buildOutputDir(rootDir, folderPath) {
@@ -903,7 +904,7 @@ export async function exportAllMarkdown(onProgress) {
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
   const storage = useStorage('settings');
-  const dataDir = await storage.get('dataDir', '');
+  const appDirectory = await getAppDirectory();
   const notes = normalizeNotes(noteStore);
   const folderMap = buildFolderTree(normalizeFolders(folderStore));
   const outputRoot = await createDatedExportRoot(
@@ -938,7 +939,7 @@ export async function exportAllMarkdown(onProgress) {
       `${frontmatter}\n\n${markdownBody}`.trimEnd()
     );
 
-    await copyNoteAssets(dataDir, note.id, outputDir);
+    await copyNoteAssets(appDirectory, note.id, outputDir);
 
     exported += 1;
     done += 1;
@@ -955,7 +956,7 @@ export async function exportAllHTML(onProgress) {
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
   const storage = useStorage('settings');
-  const dataDir = await storage.get('dataDir', '');
+  const appDirectory = await getAppDirectory();
   const notes = normalizeNotes(noteStore);
   const folderMap = buildFolderTree(normalizeFolders(folderStore));
   const outputRoot = await createDatedExportRoot(
@@ -989,7 +990,7 @@ export async function exportAllHTML(onProgress) {
       buildHtmlDocument(note, body)
     );
 
-    await copyNoteAssets(dataDir, note.id, outputDir);
+    await copyNoteAssets(appDirectory, note.id, outputDir);
 
     exported += 1;
     done += 1;

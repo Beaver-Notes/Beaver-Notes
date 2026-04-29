@@ -8,6 +8,7 @@ import {
 import { useStorage } from '../composable/storage';
 import { useNoteStore } from './note';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import { pathExists, readFile, writeFile } from '@/lib/native/fs';
 import {
   comparePassword,
@@ -22,9 +23,9 @@ const storage = useStorage();
 const LEGACY_STORAGE_KEY = 'sharedKey';
 
 async function _getPasswordFilePath() {
-  const dataDir = await storage.get('dataDir', '', 'settings');
-  if (!dataDir) return null;
-  return path.join(dataDir, 'password.enc');
+  const appDirectory = await getAppDirectory();
+  if (!appDirectory) return null;
+  return path.join(appDirectory, 'password.enc');
 }
 
 export const usePasswordStore = defineStore('password', {

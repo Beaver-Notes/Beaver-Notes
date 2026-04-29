@@ -1,12 +1,10 @@
 import mime from 'mime';
-import { useStorage } from '@/composable/storage';
 import {
   getRenderablePath,
   getRenderableStrokeProps,
 } from '@/lib/tiptap/exts/paper-block/helpers/drawHelper.js';
 import { backend, path } from '@/lib/tauri-bridge';
-
-const storage = useStorage('settings');
+import { getAppDirectory } from '@/lib/native/app';
 
 export async function getProcessedHTML(noteId, editor) {
   let html = editor.getHTML();
@@ -161,10 +159,10 @@ async function parseCustomBlocks(doc, noteId) {
 
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(svg);
-    const dataDir = await storage.get('dataDir');
+    const appDirectory = await getAppDirectory();
 
     const fileName = `${noteId || 'note'}-paper.svg`;
-    const destPath = path.join(dataDir, 'notes-assets', noteId, fileName);
+    const destPath = path.join(appDirectory, 'notes-assets', noteId, fileName);
 
     await backend.invoke('fs:writeFile', {
       data: svgString,

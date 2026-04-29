@@ -5,7 +5,7 @@ import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 import { openDialog, showMessage } from '@/lib/native/dialog';
-import { getHelperPath, relaunchApp, setSpellcheck } from '@/lib/native/app';
+import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
 import {
   copyPath,
@@ -64,7 +64,7 @@ export function useSettingsData({
   }));
 
   const state = reactive({
-    dataDir: '',
+    syncPath: '',
     password: '',
     withPassword: false,
     lastUpdated: null,
@@ -102,7 +102,7 @@ export function useSettingsData({
 
   const todayDateFormat = ref(getSettingSync('todayDateFormat'));
   const timeFormat = ref(getSettingSync('timeFormat'));
-  const hasSyncFolder = computed(() => Boolean(state.dataDir?.trim()));
+  const hasSyncFolder = computed(() => Boolean(state.syncPath?.trim()));
 
   const dateFormats = [
     { value: 'DD-MM-YYYY', label: '17-02-2026 (DD-MM-YYYY)' },
@@ -137,50 +137,14 @@ export function useSettingsData({
     });
   }
 
-  async function getEffectiveDataDir() {
-    const storedDataDir = await storage.get('dataDir', '', 'settings');
-    if (typeof storedDataDir === 'string' && storedDataDir.trim()) {
-      return storedDataDir.trim();
-    }
-
-    const userDataDir = await getHelperPath('userData');
-    return typeof userDataDir === 'string' ? userDataDir.trim() : '';
-  }
-
-  async function changeDataDir() {
-    try {
-      const {
-        canceled,
-        filePaths: [dir],
-      } = await openDialog({
-        title: translations.value.settings.selectPath,
-        properties: ['openDirectory'],
-      });
-
-      if (canceled) return;
-
-      showAlert(translations.value.settings.relaunch, {
-        type: 'info',
-        buttons: [translations.value.settings.relaunchButton],
-      });
-
-      await storage.set('dataDir', dir);
-      window.location.reload();
-    } catch (error) {
-      if (
-        String(error?.message || error).includes(
-          'No matching entry found in secure storage'
-        )
-      ) {
-        return;
-      }
-      console.error(error);
-    }
+  async function getEffectiveAppDirectory() {
+    const directory = await getAppDirectory();
+    return typeof directory === 'string' ? directory.trim() : '';
   }
 
   async function exportData() {
     try {
-      const dataDir = await getEffectiveDataDir();
+      const appDirectory = await getEffectiveAppDirectory();
       const { canceled, filePaths } = await openDialog({
         title: translations.value.settings.exportData,
         properties: ['openDirectory'],
@@ -205,11 +169,11 @@ export function useSettingsData({
       await ensureDir(folderPath);
       await writeJson(path.join(folderPath, 'data.json'), { data });
       await copyPath(
-        path.join(dataDir, 'notes-assets'),
+        path.join(appDirectory, 'notes-assets'),
         path.join(folderPath, 'assets')
       );
       await copyPath(
-        path.join(dataDir, 'file-assets'),
+        path.join(appDirectory, 'file-assets'),
         path.join(folderPath, 'file-assets')
       );
 
@@ -254,7 +218,7 @@ export function useSettingsData({
 
   async function importData() {
     try {
-      const dataDir = await getEffectiveDataDir();
+      const appDirectory = await getEffectiveAppDirectory();
       const {
         canceled,
         filePaths: [dirPath],
@@ -290,17 +254,13 @@ export function useSettingsData({
           localStorage.setItem('isLocked', JSON.stringify(result.isLocked));
         }
 
-        if (result.dataDir) {
-          await setSyncPath(result.dataDir);
-        }
-
         await copyPath(
           path.join(dirPath, 'assets'),
-          path.join(dataDir, 'notes-assets')
+          path.join(appDirectory, 'notes-assets')
         );
         await copyPath(
           path.join(dirPath, 'file-assets'),
-          path.join(dataDir, 'file-assets')
+          path.join(appDirectory, 'file-assets')
         );
       };
 
@@ -344,7 +304,7 @@ export function useSettingsData({
 
       if (canceled) return;
       defaultPath = await setSyncPath(dir);
-      state.dataDir = defaultPath;
+      state.syncPath = defaultPath;
       window.location.reload();
     } catch (error) {
       console.error(error);
@@ -352,7 +312,7 @@ export function useSettingsData({
   }
 
   async function clearPath() {
-    state.dataDir = '';
+    state.syncPath = '';
     await setSyncPath('');
   }
 
@@ -369,14 +329,14 @@ export function useSettingsData({
       okVariant: 'danger',
       onConfirm: async () => {
         try {
-          const [dataDir] = await Promise.all([
-            getEffectiveDataDir().catch(() => ''),
+          const [appDirectory] = await Promise.all([
+            getEffectiveAppDirectory().catch(() => ''),
           ]);
 
           const cleanupPaths = [
-            dataDir ? path.join(dataDir, 'notes-assets') : '',
-            dataDir ? path.join(dataDir, 'file-assets') : '',
-            dataDir ? path.join(dataDir, 'app-crypto') : '',
+            appDirectory ? path.join(appDirectory, 'notes-assets') : '',
+            appDirectory ? path.join(appDirectory, 'file-assets') : '',
+            appDirectory ? path.join(appDirectory, 'app-crypto') : '',
           ].filter(Boolean);
 
           await Promise.allSettled([
@@ -458,7 +418,7 @@ export function useSettingsData({
   onMounted(() => {
     void (async () => {
       defaultPath = await getSyncPath();
-      state.dataDir = defaultPath;
+      state.syncPath = defaultPath;
     })();
   });
 
@@ -487,7 +447,6 @@ export function useSettingsData({
     dateFormats,
     timeFormats,
     hasSyncFolder,
-    changeDataDir,
     exportData,
     importData,
     chooseDefaultPath,
@@ -502,6 +461,6 @@ export function useSettingsData({
     saveTimeFormat,
     showAlert,
     showDialogAlert,
-    getEffectiveDataDir,
+    getEffectiveAppDirectory,
   };
 }

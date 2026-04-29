@@ -1,9 +1,7 @@
 import { SHA256 } from 'crypto-es/lib/sha256';
-import { useStorage } from '@/composable/storage';
 import { isAppEncryptionEnabled } from '@/utils/appCrypto';
 import { backend, path } from '@/lib/tauri-bridge';
-
-const storage = useStorage('settings');
+import { getAppDirectory } from '@/lib/native/app';
 
 /**
  * @param {File} file
@@ -33,10 +31,10 @@ async function readFile(file) {
 }
 
 async function createFileName(filePath, id, timestamp) {
-  const dataDir = await storage.get('dataDir');
+  const appDirectory = await getAppDirectory();
   const { ext, name } = path.parse(filePath);
   const fileName = `${SHA256(name + timestamp).toString()}${ext}`;
-  const assetsPath = path.join(dataDir, 'notes-assets', id);
+  const assetsPath = path.join(appDirectory, 'notes-assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);
   return { destPath, fileName };

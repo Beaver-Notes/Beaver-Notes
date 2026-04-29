@@ -132,7 +132,7 @@ export async function getOnboardingMigrationStatus() {
   if (backend.isMobileRuntime?.()) {
     return {
       legacyDir: null,
-      appDataDir: null,
+      appDir: null,
       hasLegacyData: false,
       alreadyMigrated: false,
       targetHasData: false,

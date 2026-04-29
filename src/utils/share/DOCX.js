@@ -15,11 +15,11 @@ import {
   UnderlineType,
   WidthType,
 } from 'docx';
-import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { useNoteStore } from '@/store/note';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import {
   readExportData,
   saveExportFile,
@@ -332,14 +332,14 @@ function inferImageExtension(filename) {
   return null;
 }
 
-async function loadImageAsBase64(src, noteId, dataDir) {
+async function loadImageAsBase64(src, noteId, appDirectory) {
   const resolved = resolveAssetSource(src, noteId);
   if (!resolved || resolved.type === 'remote') return null;
 
   const baseDir =
     resolved.type === 'notes-assets' ? 'notes-assets' : 'file-assets';
   const filePath = path.join(
-    dataDir,
+    appDirectory,
     baseDir,
     resolved.assetNoteId || noteId,
     resolved.filename
@@ -358,18 +358,18 @@ async function loadImageAsBase64(src, noteId, dataDir) {
   }
 }
 
-async function inlineNodesToDocx(nodes, noteId, dataDir, options = {}) {
+async function inlineNodesToDocx(nodes, noteId, appDirectory, options = {}) {
   const children = [];
 
   for (const node of nodes || []) {
-    const runs = await inlineNodeToDocx(node, noteId, dataDir, options);
+    const runs = await inlineNodeToDocx(node, noteId, appDirectory, options);
     children.push(...runs);
   }
 
   return children;
 }
 
-async function inlineNodeToDocx(node, noteId, dataDir, options = {}) {
+async function inlineNodeToDocx(node, noteId, appDirectory, options = {}) {
   if (!node) return [];
 
   const baseRunOptions = options.runOptions || {};
@@ -408,7 +408,7 @@ async function inlineNodeToDocx(node, noteId, dataDir, options = {}) {
       ];
     }
     case 'image': {
-      const image = await loadImageAsBase64(node?.attrs?.src, noteId, dataDir);
+      const image = await loadImageAsBase64(node?.attrs?.src, noteId, appDirectory);
       if (!image) {
         const label = /^https?:\/\//i.test(node?.attrs?.src || '')
           ? node.attrs.src
@@ -432,7 +432,7 @@ async function inlineNodeToDocx(node, noteId, dataDir, options = {}) {
     default: {
       const children = getNodeChildren(node);
       if (children.length) {
-        return inlineNodesToDocx(children, noteId, dataDir, options);
+        return inlineNodesToDocx(children, noteId, appDirectory, options);
       }
 
       const fallback = collectDescendantText(node);
@@ -443,11 +443,11 @@ async function inlineNodeToDocx(node, noteId, dataDir, options = {}) {
   }
 }
 
-async function paragraphFromNode(node, noteId, dataDir, options = {}) {
+async function paragraphFromNode(node, noteId, appDirectory, options = {}) {
   const children = await inlineNodesToDocx(
     getNodeChildren(node),
     noteId,
-    dataDir,
+    appDirectory,
     options
   );
 
@@ -461,14 +461,14 @@ async function paragraphFromNode(node, noteId, dataDir, options = {}) {
 async function paragraphsFromStyledContainer(
   node,
   noteId,
-  dataDir,
+  appDirectory,
   { borderColor, fill, italics = false } = {}
 ) {
   const blocks = [];
 
   for (const child of getNodeChildren(node)) {
     if (child.type === 'paragraph' || child.type === 'heading') {
-      const paragraph = await paragraphFromNode(child, noteId, dataDir, {
+      const paragraph = await paragraphFromNode(child, noteId, appDirectory, {
         runOptions: italics ? { italics: true } : {},
       });
       blocks.push(applyParagraphBox(paragraph, { borderColor, fill }));
@@ -480,7 +480,7 @@ async function paragraphsFromStyledContainer(
       child.type === 'orderedList' ||
       child.type === 'taskList'
     ) {
-      const listBlocks = await tiptapNodeToDocx(child, noteId, dataDir, {
+      const listBlocks = await tiptapNodeToDocx(child, noteId, appDirectory, {
         listLevel: 0,
       });
       listBlocks.forEach((block) => {
@@ -532,7 +532,7 @@ async function paragraphsFromStyledContainer(
 async function convertListItem(
   node,
   noteId,
-  dataDir,
+  appDirectory,
   { kind, level = 0 } = {}
 ) {
   const children = getNodeChildren(node);
@@ -547,7 +547,7 @@ async function convertListItem(
   for (const child of children) {
     if (child.type === 'bulletList') {
       blocks.push(
-        ...(await tiptapNodeToDocx(child, noteId, dataDir, {
+        ...(await tiptapNodeToDocx(child, noteId, appDirectory, {
           listLevel: level + 1,
         }))
       );
@@ -556,7 +556,7 @@ async function convertListItem(
 
     if (child.type === 'orderedList') {
       blocks.push(
-        ...(await tiptapNodeToDocx(child, noteId, dataDir, {
+        ...(await tiptapNodeToDocx(child, noteId, appDirectory, {
           listLevel: level + 1,
         }))
       );
@@ -565,7 +565,7 @@ async function convertListItem(
 
     if (child.type === 'taskList') {
       blocks.push(
-        ...(await tiptapNodeToDocx(child, noteId, dataDir, {
+        ...(await tiptapNodeToDocx(child, noteId, appDirectory, {
           listLevel: level + 1,
         }))
       );
@@ -575,7 +575,7 @@ async function convertListItem(
     if (!usedLeadingParagraph) {
       const paragraph =
         child.type === 'paragraph' || child.type === 'heading'
-          ? await paragraphFromNode(child, noteId, dataDir)
+          ? await paragraphFromNode(child, noteId, appDirectory)
           : makeFallbackParagraph(collectDescendantText(child));
 
       const baseOptions = {
@@ -615,7 +615,7 @@ async function convertListItem(
       continue;
     }
 
-    const extraBlocks = await tiptapNodeToDocx(child, noteId, dataDir, {
+    const extraBlocks = await tiptapNodeToDocx(child, noteId, appDirectory, {
       listLevel: level,
     });
     extraBlocks.forEach((block) => {
@@ -661,10 +661,10 @@ async function convertListItem(
   return blocks;
 }
 
-async function tableCellToDocx(node, noteId, dataDir, isHeader = false) {
+async function tableCellToDocx(node, noteId, appDirectory, isHeader = false) {
   const contentBlocks = await Promise.all(
     getNodeChildren(node).map((child) =>
-      tiptapNodeToDocx(child, noteId, dataDir)
+      tiptapNodeToDocx(child, noteId, appDirectory)
     )
   );
   const flattened = contentBlocks.flat();
@@ -699,11 +699,11 @@ async function tableCellToDocx(node, noteId, dataDir, isHeader = false) {
   });
 }
 
-async function tableRowToDocx(node, noteId, dataDir) {
+async function tableRowToDocx(node, noteId, appDirectory) {
   const cells = [];
   for (const child of getNodeChildren(node)) {
     const isHeader = child.type === 'tableHeader';
-    cells.push(await tableCellToDocx(child, noteId, dataDir, isHeader));
+    cells.push(await tableCellToDocx(child, noteId, appDirectory, isHeader));
   }
 
   return new TableRow({ children: cells });
@@ -730,7 +730,7 @@ function appendFootnoteDefinition(node) {
   );
 }
 
-async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
+async function tiptapNodeToDocx(node, noteId, appDirectory, context = {}) {
   if (!node) return [];
 
   switch (node.type) {
@@ -738,13 +738,13 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       const blocks = [];
       for (const child of getNodeChildren(node)) {
         blocks.push(
-          ...(await tiptapNodeToDocx(child, noteId, dataDir, context))
+          ...(await tiptapNodeToDocx(child, noteId, appDirectory, context))
         );
       }
       return blocks;
     }
     case 'paragraph':
-      return [await paragraphFromNode(node, noteId, dataDir)];
+      return [await paragraphFromNode(node, noteId, appDirectory)];
     case 'heading': {
       const level = Math.min(Math.max(Number(node?.attrs?.level || 1), 1), 4);
       const headingMap = {
@@ -754,7 +754,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
         4: HeadingLevel.HEADING_4,
       };
       return [
-        await paragraphFromNode(node, noteId, dataDir, {
+        await paragraphFromNode(node, noteId, appDirectory, {
           paragraphOptions: { heading: headingMap[level] },
         }),
       ];
@@ -763,7 +763,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       const blocks = [];
       for (const child of getNodeChildren(node)) {
         blocks.push(
-          ...(await convertListItem(child, noteId, dataDir, {
+          ...(await convertListItem(child, noteId, appDirectory, {
             kind: 'bullet',
             level: context.listLevel || 0,
           }))
@@ -775,7 +775,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       const blocks = [];
       for (const child of getNodeChildren(node)) {
         blocks.push(
-          ...(await convertListItem(child, noteId, dataDir, {
+          ...(await convertListItem(child, noteId, appDirectory, {
             kind: 'ordered',
             level: context.listLevel || 0,
           }))
@@ -784,7 +784,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       return blocks;
     }
     case 'listItem':
-      return convertListItem(node, noteId, dataDir, {
+      return convertListItem(node, noteId, appDirectory, {
         kind: 'bullet',
         level: context.listLevel || 0,
       });
@@ -792,7 +792,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       const blocks = [];
       for (const child of getNodeChildren(node)) {
         blocks.push(
-          ...(await convertListItem(child, noteId, dataDir, {
+          ...(await convertListItem(child, noteId, appDirectory, {
             kind: 'task',
             level: context.listLevel || 0,
           }))
@@ -801,12 +801,12 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       return blocks;
     }
     case 'taskItem':
-      return convertListItem(node, noteId, dataDir, {
+      return convertListItem(node, noteId, appDirectory, {
         kind: 'task',
         level: context.listLevel || 0,
       });
     case 'blockquote':
-      return paragraphsFromStyledContainer(node, noteId, dataDir, {
+      return paragraphsFromStyledContainer(node, noteId, appDirectory, {
         borderColor: '888888',
         fill: null,
         italics: true,
@@ -841,7 +841,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
         }),
       ];
     case 'image': {
-      const image = await loadImageAsBase64(node?.attrs?.src, noteId, dataDir);
+      const image = await loadImageAsBase64(node?.attrs?.src, noteId, appDirectory);
       if (!image) {
         const src = node?.attrs?.src || '';
         const label = /^https?:\/\//i.test(src)
@@ -868,7 +868,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
     case 'table': {
       const rows = [];
       for (const child of getNodeChildren(node)) {
-        rows.push(await tableRowToDocx(child, noteId, dataDir));
+        rows.push(await tableRowToDocx(child, noteId, appDirectory));
       }
       return [
         new Table({
@@ -878,7 +878,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       ];
     }
     case 'tableRow':
-      return [await tableRowToDocx(node, noteId, dataDir)];
+      return [await tableRowToDocx(node, noteId, appDirectory)];
     case 'tableHeader':
     case 'tableCell':
       return [
@@ -969,7 +969,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
       );
       if (calloutMatch) {
         const style = CALLOUT_STYLES[calloutMatch[1]];
-        return paragraphsFromStyledContainer(node, noteId, dataDir, {
+        return paragraphsFromStyledContainer(node, noteId, appDirectory, {
           borderColor: style.border,
           fill: style.fill,
         });
@@ -980,7 +980,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
         const blocks = [];
         for (const child of children) {
           blocks.push(
-            ...(await tiptapNodeToDocx(child, noteId, dataDir, context))
+            ...(await tiptapNodeToDocx(child, noteId, appDirectory, context))
           );
         }
         if (blocks.length) return blocks;
@@ -994,8 +994,7 @@ async function tiptapNodeToDocx(node, noteId, dataDir, context = {}) {
 
 export async function exportDOCX(noteId, noteTitle, editor) {
   const share = getShareTranslations();
-  const storage = useStorage('settings');
-  const dataDir = await storage.get('dataDir', '');
+  const appDirectory = await getAppDirectory();
   const noteStore = useNoteStore();
   const note = noteStore.data[noteId];
 
@@ -1004,7 +1003,7 @@ export async function exportDOCX(noteId, noteTitle, editor) {
   footnoteCounter = 1;
 
   const tiptapJson = editor.getJSON();
-  const children = await tiptapNodeToDocx(tiptapJson, noteId, dataDir);
+  const children = await tiptapNodeToDocx(tiptapJson, noteId, appDirectory);
 
   if (collectedFootnotes.length) {
     children.push(

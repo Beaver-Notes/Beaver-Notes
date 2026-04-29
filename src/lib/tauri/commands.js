@@ -188,7 +188,6 @@ function normalizePayload(channel, payload) {
       return withKeyVariants('passphrase', payload);
     case 'assetCrypto:migrateDir':
       return {
-        ...withKeyVariants('data_dir', payload?.dataDir),
         ...withKeyVariants('encrypt_at_rest', payload?.encryptAtRest),
       };
     case 'encryption:getState':

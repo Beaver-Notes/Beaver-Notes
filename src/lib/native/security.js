@@ -34,9 +34,8 @@ export function clearAssetPassphrase() {
   return backend.invoke('assetCrypto:clearAppPassphrase');
 }
 
-export function migrateAssetEncryption(dataDir, encryptAtRest) {
+export function migrateAssetEncryption(encryptAtRest) {
   return backend.invoke('assetCrypto:migrateDir', {
-    dataDir,
     encryptAtRest,
   });
 }
@@ -175,12 +174,12 @@ function isIgnoredAssetEntry(name) {
   return !name || name.startsWith('.') || name === 'Thumbs.db';
 }
 
-export async function listAssetFiles(dataDir) {
+export async function listAssetFiles(appDirectory) {
   const roots = ['notes-assets', 'file-assets'];
   const files = [];
 
   for (const root of roots) {
-    const rootDir = path.join(dataDir, root);
+    const rootDir = path.join(appDirectory, root);
     const noteDirs = await readDir(rootDir).catch(() => []);
 
     for (const noteDir of noteDirs) {

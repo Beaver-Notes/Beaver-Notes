@@ -8,6 +8,7 @@ import {
   startRecording,
   stopRecording,
 } from 'tauri-plugin-audio-recorder-api';
+import { getAppDirectory } from '@/lib/native/app';
 
 function useAudioRecorder(props, backend, storage, path) {
   const isRecording = ref(false);
@@ -105,8 +106,8 @@ function useAudioRecorder(props, backend, storage, path) {
         return;
       }
 
-      const dataDir = await storage.get('dataDir');
-      const assetsPath = path.join(dataDir, 'file-assets', props.id);
+      const appDirectory = await getAppDirectory();
+      const assetsPath = path.join(appDirectory, 'file-assets', props.id);
       await backend.invoke('fs:ensureDir', assetsPath);
 
       await startRecording({

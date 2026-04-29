@@ -10,6 +10,7 @@ import {
 } from '@/utils/import/importers';
 import { startRustImport } from '@/utils/import/importRustBridge';
 import { openDialog } from '@/lib/native/dialog';
+import { getAppDirectory } from '@/lib/native/app';
 import { importAppleNotes, importEvernote } from '@/lib/native/imports';
 
 function createProgressState(extra = {}) {
@@ -137,7 +138,7 @@ export function useImportExport({
       useScopedStorage: true,
     });
     if (!filePaths) return;
-    const dataDir = await storage.get('dataDir', '');
+    const appDirectory = await getAppDirectory();
     return runImport(
       'obsidian',
       (onProgress) =>
@@ -145,7 +146,7 @@ export function useImportExport({
           filePaths[0],
           noteStore,
           folderStore,
-          dataDir,
+          appDirectory,
           onProgress
         ),
       options
@@ -159,11 +160,11 @@ export function useImportExport({
       useScopedStorage: true,
     });
     if (!filePaths) return;
-    const dataDir = await storage.get('dataDir', '');
+    const appDirectory = await getAppDirectory();
     return runImport(
       'notion',
       (onProgress) =>
-        importNotion(filePaths[0], noteStore, folderStore, dataDir, onProgress),
+        importNotion(filePaths[0], noteStore, folderStore, appDirectory, onProgress),
       options
     );
   }
@@ -175,11 +176,11 @@ export function useImportExport({
       useScopedStorage: true,
     });
     if (!filePaths) return;
-    const dataDir = await storage.get('dataDir', '');
+    const appDirectory = await getAppDirectory();
     return runImport(
       'bear',
       (onProgress) =>
-        importBear(filePaths[0], noteStore, folderStore, dataDir, onProgress),
+        importBear(filePaths[0], noteStore, folderStore, appDirectory, onProgress),
       options
     );
   }
@@ -244,7 +245,7 @@ export function useImportExport({
       useScopedStorage: true,
     });
     if (!filePaths) return;
-    const dataDir = await storage.get('dataDir', '');
+    const appDirectory = await getAppDirectory();
     return runImport(
       'genericMd',
       (onProgress) =>
@@ -252,7 +253,7 @@ export function useImportExport({
           filePaths[0],
           noteStore,
           folderStore,
-          dataDir,
+          appDirectory,
           onProgress
         ),
       options
@@ -266,7 +267,7 @@ export function useImportExport({
       filters: [{ name: 'Word Document', extensions: ['docx'] }],
     });
     if (!filePaths) return;
-    const dataDir = await storage.get('dataDir', '');
+    const appDirectory = await getAppDirectory();
     return runImport(
       'word',
       (onProgress) =>
@@ -274,7 +275,7 @@ export function useImportExport({
           filePaths,
           noteStore,
           folderStore,
-          dataDir,
+          appDirectory,
           onProgress
         ),
       options

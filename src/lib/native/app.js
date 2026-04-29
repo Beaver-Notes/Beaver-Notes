@@ -9,6 +9,10 @@ export function getAppInfo() {
   return backend.invoke('app:info');
 }
 
+export function getAppDirectory() {
+  return backend.invoke('app:directory');
+}
+
 export function getMigrationStatus() {
   return backend.invoke('migration:status');
 }

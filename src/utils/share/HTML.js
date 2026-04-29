@@ -1,8 +1,8 @@
-import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { getProcessedHTML } from './html-helper';
 import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory } from '@/lib/native/app';
 import {
   writeTextExportFile,
   chooseRootExportDir,
@@ -54,13 +54,12 @@ export async function exportHTML(noteId, noteTitle, editor) {
     finalHtml
   );
 
-  const storage = useStorage();
-  const dataDir = await storage.get('dataDir', '', 'settings');
+  const appDirectory = await getAppDirectory();
 
-  const noteAssetsSource = path.join(dataDir, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(dataDir, 'file-assets', noteId);
+  const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
+  const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
 
-  await copyNoteAssetDirectories(dataDir, noteId, folderPath);
+  await copyNoteAssetDirectories(appDirectory, noteId, folderPath);
 
   showDialogAlert(
     interpolate(

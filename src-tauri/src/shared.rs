@@ -149,7 +149,7 @@ pub(crate) struct WindowStateSnapshot {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LegacyMigrationStatus {
     pub(crate) legacy_dir: Option<String>,
-    pub(crate) app_data_dir: Option<String>,
+    pub(crate) app_dir: Option<String>,
     pub(crate) has_legacy_data: bool,
     pub(crate) already_migrated: bool,
     pub(crate) target_has_data: bool,
@@ -159,7 +159,7 @@ pub(crate) struct LegacyMigrationStatus {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LegacyMigrationResult {
     pub(crate) legacy_dir: Option<String>,
-    pub(crate) app_data_dir: Option<String>,
+    pub(crate) app_dir: Option<String>,
     pub(crate) merged_store_files: Vec<String>,
     pub(crate) copied_asset_dirs: Vec<String>,
     pub(crate) marker_written: bool,
@@ -287,7 +287,7 @@ pub(crate) struct AppState {
     pub(crate) external_open_files: Arc<Mutex<HashMap<PathBuf, PathBuf>>>,
     pub(crate) asset_cache_dir: PathBuf,
     pub(crate) external_open_dir: PathBuf,
-    pub(crate) portable_data_dir: Option<PathBuf>,
+    pub(crate) portable_storage_dir: Option<PathBuf>,
     pub(crate) secure_blobs: SecureBlobCache,
     pub(crate) master_key_cache: Mutex<Option<[u8; 32]>>,
 }
@@ -296,7 +296,7 @@ impl AppState {
     pub(crate) fn new(
         cache_dir: PathBuf,
         external_open_dir: PathBuf,
-        portable_data_dir: Option<PathBuf>,
+        portable_storage_dir: Option<PathBuf>,
     ) -> Self {
         Self {
             db: DbState::new(),
@@ -318,17 +318,14 @@ impl AppState {
             external_open_files: Arc::new(Mutex::new(HashMap::new())),
             asset_cache_dir: cache_dir,
             external_open_dir,
-            portable_data_dir,
+            portable_storage_dir,
             secure_blobs: SecureBlobCache::new(),
             master_key_cache: Mutex::new(None),
         }
     }
 }
 
-pub(crate) fn app_data_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
-    if let Some(ref dir) = state.portable_data_dir {
-        return Ok(dir.clone());
-    }
+pub(crate) fn app_storage_dir(app: &AppHandle, _state: &AppState) -> Result<PathBuf, String> {
     app.path().app_data_dir().map_err(to_error)
 }
 
@@ -548,7 +545,7 @@ pub(crate) fn get_or_init_pool<'a>(
     if let Some(pool) = lock.get() {
         return Ok(pool);
     }
-    let path = app_data_dir(app, state)?.join(filename);
+    let path = app_storage_dir(app, state)?.join(filename);
     let pool = crate::db::open_pool(&path)?;
     Ok(lock.get_or_init(|| pool))
 }
@@ -570,17 +567,8 @@ pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -
     serde_json::from_str(&raw).ok()
 }
 
-pub(crate) fn get_data_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
-    if let Some(Value::String(value)) = get_settings_value(app, state, "dataDir") {
-        if !value.trim().is_empty() {
-            return Ok(PathBuf::from(value));
-        }
-    }
-    app_data_dir(app, state)
-}
-
 pub(crate) fn app_encryption_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
-    Ok(get_data_dir(app, state)?.join("app-crypto"))
+    Ok(app_storage_dir(app, state)?.join("app-crypto"))
 }
 
 pub(crate) fn app_encryption_manifest_path(
@@ -916,7 +904,7 @@ pub(crate) fn path_for_name(
     name: &str,
 ) -> Result<PathBuf, String> {
     match name {
-        "userData" => app_data_dir(app, state),
+        "userData" => app_storage_dir(app, state),
         "appData" => app.path().data_dir().map_err(to_error),
         "desktop" => {
             #[cfg(desktop)]
@@ -937,16 +925,16 @@ pub(crate) fn path_for_name(
     }
 }
 
-fn asset_roots(data_dir: &Path) -> [PathBuf; 2] {
-    [data_dir.join("notes-assets"), data_dir.join("file-assets")]
+fn asset_roots(app_dir: &Path) -> [PathBuf; 2] {
+    [app_dir.join("notes-assets"), app_dir.join("file-assets")]
 }
 
 pub(crate) fn is_local_asset_path(app: &AppHandle, target_path: &Path) -> bool {
     let state = app.state::<AppState>();
-    let Ok(data_dir) = get_data_dir(app, state.inner()) else {
+    let Ok(app_dir) = app_storage_dir(app, state.inner()) else {
         return false;
     };
-    asset_roots(&data_dir)
+    asset_roots(&app_dir)
         .iter()
         .any(|root| is_path_inside(root, target_path))
 }
@@ -990,7 +978,7 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         }
     };
     let state = app.state::<AppState>();
-    let base = get_data_dir(app, state.inner())?.join(root_name);
+    let base = app_storage_dir(app, state.inner())?.join(root_name);
     let resolved = base.join(decoded);
     if !is_path_inside(&base, &resolved) {
         return Err(format!("Asset path escapes base directory: {url}"));
@@ -1033,10 +1021,10 @@ pub(crate) fn read_master_key() -> Result<Vec<u8>, String> {
 const MASTER_KEY_FILE: &str = "master.key";
 
 pub(crate) fn file_based_master_key() -> Result<Vec<u8>, String> {
-    let data_dir = dirs::data_local_dir()
+    let app_dir = dirs::data_local_dir()
         .ok_or_else(|| "Cannot determine data directory".to_string())?
         .join("com.beaver-notes.beaver-notes");
-    let key_path = data_dir.join(MASTER_KEY_FILE);
+    let key_path = app_dir.join(MASTER_KEY_FILE);
 
     if key_path.exists() {
         #[cfg(unix)]
@@ -1428,7 +1416,7 @@ pub(crate) fn grant_dialog_paths(state: &AppState, paths: &[PathBuf]) {
 }
 
 pub(crate) fn sync_roots_from_settings(app: &AppHandle, state: &AppState) {
-    for key in ["syncPath", "defaultPath", "default-path", "dataDir"] {
+    for key in ["syncPath", "defaultPath", "default-path"] {
         if let Some(Value::String(value)) = get_settings_value(app, state, key) {
             if !value.trim().is_empty() {
                 grant_trusted_path(state, Path::new(&value));
@@ -1444,13 +1432,10 @@ pub(crate) fn assert_path_access(
     operation: &str,
 ) -> Result<(), String> {
     let mut allowed_roots = vec![
-        app_data_dir(app, state)?,
+        app_storage_dir(app, state)?,
         app.path().temp_dir().map_err(to_error)?,
     ];
 
-    if let Ok(data_dir) = get_data_dir(app, state) {
-        allowed_roots.push(data_dir);
-    }
     for key in ["syncPath", "defaultPath", "default-path"] {
         if let Some(Value::String(value)) = get_settings_value(app, state, key) {
             if !value.trim().is_empty() {

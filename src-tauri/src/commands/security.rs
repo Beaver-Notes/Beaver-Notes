@@ -92,15 +92,14 @@ fn collect_asset_files(root: &PathBuf, files: &mut Vec<PathBuf>) -> Result<(), S
 pub(crate) async fn asset_crypto_migrate_dir(
     app: AppHandle,
     state: State<'_, AppState>,
-    data_dir: String,
     encrypt_at_rest: bool,
 ) -> Result<AssetMigrationResult, String> {
-    let data_dir = PathBuf::from(data_dir);
-    assert_path_access(&app, state.inner(), &data_dir, "migrate asset encryption")?;
+    let app_dir = app_storage_dir(&app, state.inner())?;
+    assert_path_access(&app, state.inner(), &app_dir, "migrate asset encryption")?;
 
     let mut files = Vec::new();
     for root in ["notes-assets", "file-assets"] {
-        collect_asset_files(&data_dir.join(root), &mut files)?;
+        collect_asset_files(&app_dir.join(root), &mut files)?;
     }
 
     let total = files.len();

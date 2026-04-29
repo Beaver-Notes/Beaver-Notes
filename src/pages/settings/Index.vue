@@ -53,7 +53,7 @@
             <span
               class="max-w-32 sm:max-w-64 truncate rounded-md bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400"
               >{{
-                state.dataDir ||
+                state.syncPath ||
                 translations.settings.pathPlaceholder ||
                 'Not set'
               }}</span
@@ -62,7 +62,7 @@
               <ui-button @click="chooseDefaultPath">{{
                 translations.settings.selectPath || 'Browse'
               }}</ui-button>
-              <ui-button v-if="state.dataDir" @click="clearPath"
+              <ui-button v-if="state.syncPath" @click="clearPath"
                 ><v-remixicon name="riDeleteBin6Line"
               /></ui-button>
             </div>
@@ -731,7 +731,6 @@ export default {
       noteStore,
       passwordStore,
       translations,
-      getEffectiveDataDir: dataSettings.getEffectiveDataDir,
       showDialogAlert: dataSettings.showDialogAlert,
     });
 

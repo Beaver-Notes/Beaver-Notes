@@ -158,12 +158,8 @@ function parseScopedPath(value) {
   };
 }
 
-async function getStoredDataDir() {
-  const value = await invokeCommand('storage:get', {
-    name: 'settings',
-    key: 'dataDir',
-    def: '',
-  });
+async function getAppDirectory() {
+  const value = await invokeCommand('app:directory');
   return typeof value === 'string' ? value.trim() : '';
 }
 
@@ -175,17 +171,27 @@ async function resolveAssetVirtualPath(value) {
 
   const fileAssetMatch = normalized.match(/^file-assets:\/\/([^/]+)\/(.+)$/);
   if (fileAssetMatch) {
-    const dataDir = await getStoredDataDir();
-    return dataDir
-      ? buildPath(dataDir, 'file-assets', fileAssetMatch[1], fileAssetMatch[2])
+    const appDirectory = await getAppDirectory();
+    return appDirectory
+      ? buildPath(
+          appDirectory,
+          'file-assets',
+          fileAssetMatch[1],
+          fileAssetMatch[2]
+        )
       : normalized;
   }
 
   const noteAssetMatch = normalized.match(/^assets:\/\/([^/]+)\/(.+)$/);
   if (noteAssetMatch) {
-    const dataDir = await getStoredDataDir();
-    return dataDir
-      ? buildPath(dataDir, 'notes-assets', noteAssetMatch[1], noteAssetMatch[2])
+    const appDirectory = await getAppDirectory();
+    return appDirectory
+      ? buildPath(
+          appDirectory,
+          'notes-assets',
+          noteAssetMatch[1],
+          noteAssetMatch[2]
+        )
       : normalized;
   }
 

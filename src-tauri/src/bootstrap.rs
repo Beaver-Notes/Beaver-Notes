@@ -313,18 +313,18 @@ pub(crate) fn get_legacy_migration_status(
     app: &AppHandle,
     state: &AppState,
 ) -> Result<LegacyMigrationStatus, String> {
-    let app_data_dir = crate::shared::app_data_dir(app, state)?;
-    let marker = app_data_dir.join(".legacy-store-migrated");
+    let app_dir = crate::shared::app_storage_dir(app, state)?;
+    let marker = app_dir.join(".legacy-store-migrated");
     let legacy_dir = legacy_store_dir(app);
     let has_legacy_data = legacy_dir
         .as_ref()
         .map(|dir| dir.exists() && dir_has_any_legacy_content(dir))
         .unwrap_or(false);
-    let target_has_data = dir_has_any_legacy_content(&app_data_dir);
+    let target_has_data = dir_has_any_legacy_content(&app_dir);
 
     Ok(LegacyMigrationStatus {
         legacy_dir: legacy_dir.map(|path| path.to_string_lossy().to_string()),
-        app_data_dir: Some(app_data_dir.to_string_lossy().to_string()),
+        app_dir: Some(app_dir.to_string_lossy().to_string()),
         has_legacy_data,
         already_migrated: marker.exists(),
         target_has_data,
@@ -337,7 +337,7 @@ fn run_migration_core(
     state: &AppState,
     old_dir: PathBuf,
 ) -> Result<LegacyMigrationResult, String> {
-    let new_dir = crate::shared::app_data_dir(app, state)?;
+    let new_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
     fs::create_dir_all(&new_dir).map_err(to_error)?;
@@ -409,7 +409,7 @@ fn run_migration_core(
 
     Ok(LegacyMigrationResult {
         legacy_dir: Some(old_dir.to_string_lossy().to_string()),
-        app_data_dir: Some(new_dir.to_string_lossy().to_string()),
+        app_dir: Some(new_dir.to_string_lossy().to_string()),
         merged_store_files,
         copied_asset_dirs,
         marker_written: true,
@@ -434,13 +434,13 @@ pub(crate) fn get_legacy_migration_status_for_custom_path(
     path: &str,
 ) -> Result<LegacyMigrationStatus, String> {
     let legacy_path = PathBuf::from(path);
-    let app_data_dir = crate::shared::app_data_dir(app, state)?;
-    let marker = app_data_dir.join(".legacy-store-migrated");
+    let app_dir = crate::shared::app_storage_dir(app, state)?;
+    let marker = app_dir.join(".legacy-store-migrated");
     let has_legacy_data = legacy_path.exists() && dir_has_any_legacy_content(&legacy_path);
-    let target_has_data = dir_has_any_legacy_content(&app_data_dir);
+    let target_has_data = dir_has_any_legacy_content(&app_dir);
     Ok(LegacyMigrationStatus {
         legacy_dir: Some(path.to_string()),
-        app_data_dir: Some(app_data_dir.to_string_lossy().to_string()),
+        app_dir: Some(app_dir.to_string_lossy().to_string()),
         has_legacy_data,
         already_migrated: marker.exists(),
         target_has_data,
@@ -562,7 +562,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     sync_roots_from_settings(app.handle(), state.inner());
     grant_trusted_path(
         &state,
-        &crate::shared::app_data_dir(app.handle(), state.inner())?,
+        &crate::shared::app_storage_dir(app.handle(), state.inner())?,
     );
     grant_trusted_path(&state, &app.path().temp_dir().map_err(to_error)?);
     fs::create_dir_all(&state.asset_cache_dir).map_err(to_error)?;
