@@ -677,7 +677,12 @@ export default {
     async function triggerAudioInput() {
       const { canceled, filePaths } = await openDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'] }],
+        filters: [
+          {
+            name: 'Audio',
+            extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
+          },
+        ],
       });
       if (canceled || filePaths.length === 0) return;
       for (const filePath of filePaths) {
@@ -689,7 +694,12 @@ export default {
     async function triggerVideoInput() {
       const { canceled, filePaths } = await openDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'] }],
+        filters: [
+          {
+            name: 'Video',
+            extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'],
+          },
+        ],
       });
       if (canceled || filePaths.length === 0) return;
       for (const filePath of filePaths) {

@@ -96,7 +96,6 @@
             <div
               v-for="childFolder in folders.all"
               :key="childFolder.id"
-              :min-height="120"
               :data-item-id="`folder-${childFolder.id}`"
               class="folder-grid__item"
               @click="
@@ -136,6 +135,7 @@
             </div>
           </TransitionGroup>
         </section>
+
         <section
           v-for="name in $route.query.archived
             ? ['archived']
@@ -154,9 +154,11 @@
               :notes="notes[name]"
               :selected-items="selectedItems"
               :selection-mode="selectionMode"
-              :gap-px="16"
+              :pulse="isFiltering"
+              :gap-px="24"
               :breakpoints="[
-                { min: 0, cols: 1 },
+                { min: 0, cols: 2 },
+                { min: 640, cols: 2 },
                 { min: 768, cols: 2 },
                 { min: 1024, cols: 3 },
                 { min: 1280, cols: 4 },
@@ -371,6 +373,8 @@ export default {
       translations,
       notes,
       folders,
+      enableFilterPulse: true,
+      listenForLabelEvents: true,
     });
 
     const folder = computed(() => {

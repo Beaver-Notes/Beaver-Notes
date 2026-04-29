@@ -4,7 +4,7 @@
     Inter, sans-serif;
   --selected-font-code: 'JetBrainsMono', monospace;
   --selected-dark-text: white;
-  --app-theme-background: theme('colors.neutral.50');
+  --app-theme-background: theme('colors.white');
   --motion-fast: 140ms;
   --motion-base: 220ms;
   --motion-slow: 300ms;
@@ -52,14 +52,14 @@ body,
 }
 
 html {
-  @apply bg-neutral-50 dark:bg-neutral-900;
+  @apply bg-white dark:bg-neutral-900;
 }
 
 body {
   position: relative;
   font-family: var(--selected-font);
   min-height: 100dvh;
-  @apply bg-neutral-50 dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
+  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
 }
 
 #app {
@@ -159,8 +159,7 @@ option {
 
 .route-stage-enter-active,
 .route-stage-leave-active {
-  transition:
-    opacity var(--motion-base) var(--ease-standard),
+  transition: opacity var(--motion-base) var(--ease-standard),
     transform var(--motion-base) var(--ease-standard);
 }
 
@@ -189,8 +188,7 @@ option {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  transition:
-    opacity var(--motion-fast) linear,
+  transition: opacity var(--motion-fast) linear,
     transform var(--motion-fast) var(--ease-exit);
 }
 

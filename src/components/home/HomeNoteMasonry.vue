@@ -175,6 +175,7 @@ const resolvedGap = computed(() =>
 );
 
 const layoutResult = computed(() => {
+  void measuredVersion.value;
   const cols = columnCount.value,
     gap = resolvedGap.value,
     width = containerWidth.value;
@@ -184,14 +185,13 @@ const layoutResult = computed(() => {
   const colH = new Array(cols).fill(0);
   const items = [];
 
-  for (const note of props.notes) {
-    let s = 0;
-    for (let c = 1; c < cols; c++) if (colH[c] < colH[s]) s = c;
-    const x = s * (colW + gap),
-      y = colH[s],
-      h = getCardHeight(note.id, note);
+  for (const [index, note] of props.notes.entries()) {
+    const col = index % cols;
+    const h = getCardHeight(note.id, note);
+    const x = col * (colW + gap),
+      y = colH[col];
     items.push({ note, x, y, w: colW, h });
-    colH[s] += h + gap;
+    colH[col] += h + gap;
   }
 
   return { items, stageHeight: Math.max(0, Math.max(...colH) - gap) };
@@ -303,7 +303,6 @@ function scheduleMeasure() {
         const el = cardElements.get(id);
         if (el && cardRO) cardRO.unobserve(el);
         cardHeights.delete(id);
-        cardElements.delete(id);
         changed = true;
       }
     }
