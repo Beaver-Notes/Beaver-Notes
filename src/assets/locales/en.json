@@ -26,7 +26,10 @@
     "selectCodeFont": "Select code font",
     "selectFont": "Select font",
     "system": "System",
-    "wide": "Wide"
+    "wide": "Wide",
+    "accessibility": "Accessibility",
+    "reducedMotion": "Reduced Motion",
+    "highContrast": "High Contrast"
   },
   "card": {
     "archive": "Archive",

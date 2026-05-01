@@ -1,5 +1,8 @@
 <template>
-  <ui-card class="w-full max-w-lg">
+  <div
+    class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-800 rounded-xl border p-6"
+    :style="{ overflow: 'visible' }"
+  >
     <div class="flex flex-col items-center gap-2 my-8 text-center">
       <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
         Your starting defaults
@@ -43,58 +46,12 @@
         <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
           Language
         </p>
-        <ui-select v-model="fresh.language" :options="languages" block />
-      </div>
-
-      <!-- Behaviour -->
-      <div class="flex flex-col gap-2">
-        <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
-          Behaviour
-        </p>
-        <ui-card>
-          <button
-            class="flex items-center justify-between w-full px-4 py-3 text-left"
-            @click="fresh.spellcheckEnabled = !fresh.spellcheckEnabled"
-          >
-            <div>
-              <span class="block text-sm font-semibold ob-heading-text"
-                >Spell check</span
-              >
-              <span class="block text-xs ob-body-text mt-0.5"
-                >Underline mistakes as you type.</span
-              >
-            </div>
-            <ui-switch v-model="fresh.spellcheckEnabled" />
-          </button>
-          <button
-            class="flex items-center justify-between w-full px-4 py-3 text-left border-t border-neutral-100 dark:border-neutral-800"
-            @click="fresh.openLastEdited = !fresh.openLastEdited"
-          >
-            <div>
-              <span class="block text-sm font-semibold ob-heading-text"
-                >Open last edited note</span
-              >
-              <span class="block text-xs ob-body-text mt-0.5"
-                >Resume where you left off.</span
-              >
-            </div>
-            <ui-switch v-model="fresh.openLastEdited" />
-          </button>
-          <button
-            class="flex items-center justify-between w-full px-4 py-3 text-left border-t border-neutral-100 dark:border-neutral-800"
-            @click="fresh.openAfterCreation = !fresh.openAfterCreation"
-          >
-            <div>
-              <span class="block text-sm font-semibold ob-heading-text"
-                >Open note after creation</span
-              >
-              <span class="block text-xs ob-body-text mt-0.5"
-                >Jump into a new note instantly.</span
-              >
-            </div>
-            <ui-switch v-model="fresh.openAfterCreation" />
-          </button>
-        </ui-card>
+        <ui-select
+          :options="languages"
+          block
+          :model-value="fresh.language"
+          @update:model-value="handleLanguageChange"
+        />
       </div>
 
       <!-- Accent color -->
@@ -102,42 +59,42 @@
         <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
           Accent color
         </p>
-        <div class="grid grid-cols-4 gap-2">
+        <div class="w-full items-center justify-center flex gap-4">
           <button
-            v-for="item in accentColors"
-            :key="item.name"
-            type="button"
-            class="bg-input flex items-center gap-2 rounded-lg px-3 py-2 text-left transition-all"
-            :class="
-              fresh.accentColor === item.name ? 'ring-1 ring-primary' : ''
-            "
-            @click="$emit('select-accent', item.name)"
-          >
-            <span
-              class="h-3 w-3 rounded-full"
-              :style="{ backgroundColor: item.preview }"
-            ></span>
-            <span class="text-sm ob-heading-text">{{ item.label }}</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Interface size -->
-      <div class="flex flex-col gap-2">
-        <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
-          Interface size
-        </p>
-        <div class="grid grid-cols-3 gap-2">
+            class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'red' }"
+            @click="$emit('select-accent', 'red')"
+          ></button>
           <button
-            v-for="item in interfaceSizes"
-            :key="item.value"
-            type="button"
-            class="bg-input rounded-lg px-3 py-2 text-sm transition-all"
-            :class="fresh.zoomLevel === item.value ? 'ring-1 ring-primary' : ''"
-            @click="$emit('select-zoom', item.value)"
-          >
-            {{ item.label }}
-          </button>
+            class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'light' }"
+            @click="$emit('select-accent', 'light')"
+          ></button>
+          <button
+            class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'green' }"
+            @click="$emit('select-accent', 'green')"
+          ></button>
+          <button
+            class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'blue' }"
+            @click="$emit('select-accent', 'blue')"
+          ></button>
+          <button
+            class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'purple' }"
+            @click="$emit('select-accent', 'purple')"
+          ></button>
+          <button
+            class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'pink' }"
+            @click="$emit('select-accent', 'pink')"
+          ></button>
+          <button
+            class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
+            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'neutral' }"
+            @click="$emit('select-accent', 'neutral')"
+          ></button>
         </div>
       </div>
 
@@ -146,7 +103,21 @@
         <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
           App font
         </p>
-        <ui-select v-model="fresh.selectedFont" :options="fonts" block />
+        <ui-select
+          :model-value="fresh.selectedFont"
+          @update:model-value="handleFontChange"
+          class="w-full ob-font-select"
+          :search="true"
+        >
+          <option
+            v-for="font in fonts"
+            :key="font.value"
+            :value="font.value"
+            :class="font.class"
+          >
+            {{ font.label }}
+          </option>
+        </ui-select>
       </div>
     </div>
 
@@ -155,7 +126,7 @@
       <slot name="back" />
       <slot name="next" />
     </div>
-  </ui-card>
+  </div>
 </template>
 
 <script>
@@ -172,6 +143,21 @@ export default {
     languages: { type: Array, required: true },
   },
 
-  emits: ['select-theme', 'select-accent', 'select-zoom'],
+  emits: [
+    'select-theme',
+    'select-accent',
+    'select-zoom',
+    'update-font',
+    'update-language',
+  ],
+
+  methods: {
+    handleFontChange(event) {
+      this.$emit('update-font', event);
+    },
+    handleLanguageChange(event) {
+      this.$emit('update-language', event);
+    },
+  },
 };
 </script>

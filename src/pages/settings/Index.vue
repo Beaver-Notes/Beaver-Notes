@@ -89,9 +89,7 @@
       </div>
     </section>
     <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         {{ translations.settings.behavior || 'Behavior' }}
       </p>
       <div
@@ -141,9 +139,7 @@
     </section>
 
     <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         {{ translations.settings.editor || 'Editor' }}
       </p>
       <div
@@ -252,9 +248,7 @@
     </section>
 
     <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         Export
       </p>
       <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
@@ -376,9 +370,7 @@
     </section>
 
     <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         Import
       </p>
       <ui-card padding="p-4" class="flex flex-col gap-4">
@@ -531,9 +523,7 @@
     </section>
 
     <section class="space-y-2">
-      <p
-        class="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400"
-      >
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         {{ translations.settings.data || 'Data' }}
       </p>
       <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">

@@ -57,6 +57,16 @@ const settingDefs = {
     defaultValue: true,
     parse: (value) => value === true || value === 'true',
   },
+  reducedMotion: {
+    legacyKey: 'reducedMotion',
+    defaultValue: false,
+    parse: (value) => value === true || value === 'true',
+  },
+  highContrast: {
+    legacyKey: 'highContrast',
+    defaultValue: false,
+    parse: (value) => value === true || value === 'true',
+  },
   advancedSettings: {
     legacyKey: 'advanced-settings',
     defaultValue: false,

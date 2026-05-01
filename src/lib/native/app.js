@@ -1,4 +1,5 @@
 import { backend } from '@/lib/tauri-bridge';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import {
   isPermissionGranted,
   requestPermission,
@@ -49,8 +50,30 @@ export function setMenuVisibility(visible) {
   return backend.invoke('app:change-menu-visibility', visible);
 }
 
-export function setZoomLevel(level) {
-  return backend.invoke('app:set-zoom', level);
+export async function setZoomLevel(level) {
+  try {
+    const window = getCurrentWindow();
+    await window.setZoom(level);
+  } catch (error) {
+    console.warn('Failed to set window zoom, falling back to backend invoke:', error);
+    return backend.invoke('app:set-zoom', level);
+  }
+}
+
+export async function setReducedMotion(enabled) {
+  return backend.invoke('app:set-reduced-motion', { enabled });
+}
+
+export async function getReducedMotion() {
+  return backend.invoke('app:get-reduced-motion');
+}
+
+export async function setHighContrast(enabled) {
+  return backend.invoke('app:set-high-contrast', { enabled });
+}
+
+export async function getHighContrast() {
+  return backend.invoke('app:get-high-contrast');
 }
 
 export function getHelperPath(name) {

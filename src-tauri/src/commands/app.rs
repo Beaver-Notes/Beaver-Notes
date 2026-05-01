@@ -135,6 +135,34 @@ pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, String> {
 }
 
 #[tauri::command]
+pub(crate) fn set_reduced_motion(app: AppHandle, state: State<AppState>, enabled: bool) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        window.emit("reduced-motion-changed", json!({ "enabled": enabled })).map_err(to_error)?;
+    }
+    *state.reduced_motion.lock().map_err(to_error)? = enabled;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn get_reduced_motion(state: State<AppState>) -> Result<bool, String> {
+    Ok(*state.reduced_motion.lock().map_err(to_error)?)
+}
+
+#[tauri::command]
+pub(crate) fn set_high_contrast(app: AppHandle, state: State<AppState>, enabled: bool) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        window.emit("high-contrast-changed", json!({ "enabled": enabled })).map_err(to_error)?;
+    }
+    *state.high_contrast.lock().map_err(to_error)? = enabled;
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn get_high_contrast(state: State<AppState>) -> Result<bool, String> {
+    Ok(*state.high_contrast.lock().map_err(to_error)?)
+}
+
+#[tauri::command]
 pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
     #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {

@@ -1,7 +1,8 @@
 <template>
   <div
-    class="ob-shell relative overflow-x-hidden overflow-y-auto flex items-center justify-center font-sans antialiased select-none"
+    class="ob-shell relative overflow-x-hidden overflow-y-auto flex items-center justify-center antialiased select-none"
     :class="isDark ? 'ob-dark' : 'ob-light'"
+    :style="{ fontFamily: 'var(--selected-font, sans-serif)' }"
   >
     <!-- Background -->
     <div class="ob-bg fixed inset-0 z-0" aria-hidden="true"></div>
@@ -138,6 +139,8 @@
           @select-theme="selectTheme"
           @select-accent="selectAccentColor"
           @select-zoom="selectZoomLevel"
+          @update-font="selectFont($event)"
+          @update-language="selectLanguage($event)"
         >
           <template #back>
             <ui-button @click="goToStep(isMobileRuntime ? 'welcome' : 'path')">

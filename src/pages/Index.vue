@@ -1,8 +1,8 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div>
-    <div class="container pt-5">
-      <h1 class="text-3xl mb-8 font-bold">
+    <div class="container pt-6">
+      <h1 class="text-4xl mb-6 font-bold">
         {{
           $route.query.archived === 'true'
             ? translations.sidebar.archive || '-'
@@ -137,6 +137,8 @@
         v-if="
           noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
         "
+        class="flex items-center justify-center"
+        style="min-height: calc(100vh - 250px)"
       />
 
       <folder-tree

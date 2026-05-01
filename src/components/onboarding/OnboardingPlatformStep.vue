@@ -4,9 +4,7 @@
       <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
         Import from apps
       </h2>
-      <p class="ob-body-text">
-        Choose which app to migrate from before reviewing the import details.
-      </p>
+      <p class="ob-body-text">Choose which app to migrate from.</p>
     </div>
 
     <div class="flex flex-col gap-2">
@@ -17,7 +15,7 @@
         padding="p-0"
         class="w-full text-left"
         :class="modelValue === platform.id ? 'ring-2 ring-primary' : ''"
-        @click="$emit('update:modelValue', platform.id)"
+        @click="handleSelect(platform.id)"
       >
         <div class="flex items-center gap-4 p-4">
           <div
@@ -39,11 +37,14 @@
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-0.5">
-              <h3 class="font-semibold text-sm ob-heading-text">{{ platform.label }}</h3>
+              <h3 class="font-semibold text-sm ob-heading-text">
+                {{ platform.label }}
+              </h3>
               <span
                 v-if="platform.badge"
                 class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[0.65rem] font-bold uppercase tracking-wide px-2 py-0.5"
-              >{{ platform.badge }}</span>
+                >{{ platform.badge }}</span
+              >
             </div>
             <p class="text-sm ob-body-text">{{ platform.description }}</p>
           </div>
@@ -77,21 +78,26 @@ const props = defineProps({
   logoUrl: { type: String, required: true },
 });
 
-defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'select']);
+
+function handleSelect(platformId) {
+  emit('update:modelValue', platformId);
+  emit('select', platformId);
+}
 
 const ALL_PLATFORMS = [
   {
     id: 'electron',
     label: 'Beaver Notes',
     badge: 'Legacy',
-    description: 'Bring over your original Beaver Notes workspace.',
+    description: 'Bring over your data from Beaver Notes (Legacy).',
     useLogoImg: true,
     iconBg: 'rgba(245, 158, 11, 0.12)',
   },
   {
     id: 'obsidian',
     label: 'Obsidian',
-    description: 'Import your vault\'s markdown notes and attachments.',
+    description: "Import your vault's markdown notes and attachments.",
     icon: 'obsidian',
     iconColor: 'text-[#7C60D7]',
     iconBg: 'rgba(124, 96, 215, 0.12)',
@@ -99,7 +105,7 @@ const ALL_PLATFORMS = [
   {
     id: 'apple-notes',
     label: 'Apple Notes',
-    description: 'Import notes exported from Apple Notes.',
+    description: 'Import notes from Apple Notes.',
     icon: 'riAppleFill',
     iconColor: 'text-primary',
     iconBg: 'rgba(255, 204, 0, 0.15)',
@@ -118,6 +124,7 @@ const ALL_PLATFORMS = [
     label: 'Simplenote',
     description: 'Import notes from a Simplenote JSON export.',
     icon: 'simpleNote',
+    iconColor: 'text-blue-500',
     iconBg: 'rgba(59, 130, 246, 0.12)',
   },
   {
@@ -146,7 +153,25 @@ const ALL_PLATFORMS = [
   },
 ];
 
-const visiblePlatforms = computed(() =>
-  ALL_PLATFORMS.filter((platform) => !platform.macOnly || props.isMacOS)
-);
+const PLATFORM_ORDER = [
+  'electron',
+  'apple-notes',
+  'bear',
+  'evernote',
+  'markdown',
+  'notion',
+  'obsidian',
+  'simplenote',
+];
+
+const visiblePlatforms = computed(() => {
+  const filtered = ALL_PLATFORMS.filter(
+    (platform) => !platform.macOnly || props.isMacOS
+  );
+  return filtered.sort((a, b) => {
+    const indexA = PLATFORM_ORDER.indexOf(a.id);
+    const indexB = PLATFORM_ORDER.indexOf(b.id);
+    return indexA - indexB;
+  });
+});
 </script>

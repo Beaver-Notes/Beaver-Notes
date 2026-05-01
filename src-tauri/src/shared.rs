@@ -273,6 +273,8 @@ impl DbState {
 pub(crate) struct AppState {
     pub(crate) db: DbState,
     pub(crate) zoom_level: Mutex<f64>,
+    pub(crate) reduced_motion: Mutex<bool>,
+    pub(crate) high_contrast: Mutex<bool>,
     pub(crate) failure_count: Mutex<u32>,
     pub(crate) granted_paths: Arc<Mutex<HashSet<PathBuf>>>,
     pub(crate) transient_passphrase: Mutex<String>,
@@ -301,6 +303,8 @@ impl AppState {
         Self {
             db: DbState::new(),
             zoom_level: Mutex::new(1.0),
+            reduced_motion: Mutex::new(false),
+            high_contrast: Mutex::new(false),
             failure_count: Mutex::new(0),
             granted_paths: Arc::new(Mutex::new(HashSet::new())),
             transient_passphrase: Mutex::new(String::new()),

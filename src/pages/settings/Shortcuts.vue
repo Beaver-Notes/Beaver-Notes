@@ -1,30 +1,32 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general space-y-8 mb-14 w-full max-w-xl">
-    <ui-card v-for="shortcut in shortcuts" :key="shortcut.title">
-      <p class="mb-1 font-medium">
+    <div v-for="shortcut in shortcuts" :key="shortcut.title">
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300 mb-2">
         {{ translations.shortcuts[shortcut.title] || '-' }}
       </p>
-      <ui-list class="rounded-lg">
-        <ui-list-item v-for="item in shortcut.items" :key="item.name">
-          <p class="flex-1">
-            {{
-              translations.shortcuts[item.name] ||
-              translations.sidebar[item.name]
-            }}
-          </p>
-          <kbd v-for="key in item.keys" :key="key" class="mr-1">
-            {{
-              key === 'Drag'
-                ? translations.shortcuts.drag
-                : key === 'Arrow left'
-                ? translations.shortcuts.arrowLeft
-                : getFormattedKey(key)
-            }}
-          </kbd>
-        </ui-list-item>
-      </ui-list>
-    </ui-card>
+      <ui-card>
+        <ui-list class="rounded-lg">
+          <ui-list-item v-for="item in shortcut.items" :key="item.name">
+            <p class="flex-1">
+              {{
+                translations.shortcuts[item.name] ||
+                translations.sidebar[item.name]
+              }}
+            </p>
+            <kbd v-for="key in item.keys" :key="key" class="mr-1">
+              {{
+                key === 'Drag'
+                  ? translations.shortcuts.drag
+                  : key === 'Arrow left'
+                  ? translations.shortcuts.arrowLeft
+                  : getFormattedKey(key)
+              }}
+            </kbd>
+          </ui-list-item>
+        </ui-list>
+      </ui-card>
+    </div>
   </div>
 </template>
 

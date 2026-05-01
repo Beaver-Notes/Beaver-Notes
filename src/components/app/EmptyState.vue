@@ -1,5 +1,5 @@
 <template>
-  <div class="max-h-screen flex items-center justify-center p-10 antialiased">
+  <div class="flex-1 flex items-center justify-center p-10 antialiased">
     <div class="flex flex-col items-center text-center max-w-sm w-full">
       <!-- Mascot -->
       <div class="relative mb-8 flex items-center justify-center w-full h-56">

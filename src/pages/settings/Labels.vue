@@ -3,7 +3,7 @@
   <div class="general mb-14 w-full max-w-2xl">
     <section>
       <header class="flex items-center justify-between mb-4 px-1">
-        <p class="text-xs font-bold uppercase tracking-widest text-neutral-500">
+        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
           {{ translations.labels?.title || 'Labels' }}
         </p>
         <span

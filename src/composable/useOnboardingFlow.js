@@ -58,6 +58,46 @@ const PLATFORM_LABELS = {
   notion: 'Notion',
 };
 
+const PLATFORM_ICONS = {
+  electron: { icon: 'beaver', useLogo: true, bg: 'rgba(245, 158, 11, 0.12)' },
+  obsidian: {
+    icon: 'obsidian',
+    color: 'text-[#7C60D7]',
+    bg: 'rgba(124, 96, 215, 0.12)',
+  },
+  'apple-notes': {
+    icon: 'riAppleFill',
+    color: 'text-primary',
+    bg: 'rgba(255, 204, 0, 0.15)',
+  },
+  bear: {
+    icon: 'bear',
+    color: 'text-[#EA581C]',
+    bg: 'rgba(234, 88, 12, 0.12)',
+  },
+  simplenote: {
+    icon: 'simpleNote',
+    color: 'text-blue-500',
+    bg: 'rgba(59, 130, 246, 0.12)',
+  },
+  markdown: {
+    icon: 'riMarkdownLine',
+    color: 'text-neutral-600 dark:text-neutral-300',
+    bg: 'bg-neutral-400/10',
+  },
+  evernote: {
+    icon: 'riEvernoteFill',
+    color: 'text-[#00A550]',
+    bg: 'rgba(0, 165, 80, 0.12)',
+  },
+  notion: {
+    icon: 'riNotionFill',
+    color: 'text-neutral-900 dark:text-white',
+    bg: 'bg-neutral-900/10 dark:bg-white/10',
+    iconClass: 'bg-neutral-900/10 dark:bg-white/10',
+  },
+};
+
 export function useOnboardingFlow({
   route,
   router,
@@ -188,8 +228,12 @@ export function useOnboardingFlow({
     () => PLATFORM_LABELS[migrationPlatform.value] || 'legacy'
   );
 
+  const migrationPlatformIcon = computed(
+    () => PLATFORM_ICONS[migrationPlatform.value] || null
+  );
+
   const migrationSourceHeading = computed(() =>
-    migrationPlatform.value === 'electron' ? 'Legacy workspace' : 'Import source'
+    migrationPlatform.value === 'electron' ? '' : 'Import source'
   );
 
   const migrationSourceCopy = computed(() => {
@@ -213,27 +257,6 @@ export function useOnboardingFlow({
       default:
         return 'Choose a source before starting the import.';
     }
-  });
-
-  const migrationSourceBadge = computed(() => {
-    if (migrationPlatform.value === 'electron') {
-      if (customLegacyStatus.value?.hasLegacyData) return 'Ready (custom)';
-      if (state.status?.hasLegacyData) return 'Ready';
-      return 'Not found';
-    }
-    if (migrationPlatform.value === 'apple-notes') return 'Direct access';
-    return 'Select on start';
-  });
-
-  const migrationSourceBadgeClass = computed(() => {
-    if (migrationPlatform.value === 'electron') {
-      const ready =
-        state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData;
-      return ready
-        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
-        : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-500';
-    }
-    return 'bg-blue-500/10 text-blue-700 dark:text-blue-300';
   });
 
   const migrationWhatGetsCopied = computed(() => {
@@ -269,8 +292,12 @@ export function useOnboardingFlow({
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
-  const setStep = (s) => { step.value = s; };
-  const goToStep = (s) => { step.value = s; };
+  const setStep = (s) => {
+    step.value = s;
+  };
+  const goToStep = (s) => {
+    step.value = s;
+  };
 
   const goToPreviousStep = () => {
     const i = activeFlow.value.indexOf(step.value);
@@ -285,7 +312,10 @@ export function useOnboardingFlow({
   const startFreshFlow = () => chooseMode('fresh');
 
   const handlePrimaryContinue = () => {
-    if (isMobileRuntime) { startFreshFlow(); return; }
+    if (isMobileRuntime) {
+      startFreshFlow();
+      return;
+    }
     setStep('path');
   };
 
@@ -315,6 +345,15 @@ export function useOnboardingFlow({
     root.classList.add(color);
   };
 
+  const selectFont = (font) => {
+    fresh.selectedFont = font;
+    document.documentElement.style.setProperty('--selected-font', font);
+  };
+
+  const selectLanguage = (lang) => {
+    fresh.language = lang;
+  };
+
   const selectZoomLevel = (zoomLevel) => {
     fresh.zoomLevel = zoomLevel;
     document.body.style.zoom = String(zoomLevel);
@@ -334,7 +373,16 @@ export function useOnboardingFlow({
 
   function launchConfetti() {
     if (prefersReducedMotion()) return;
-    const colors = ['#FF4D6D', '#FFB000', '#FFD93D', '#3DDC97', '#4D96FF', '#9B5DE5', '#FFF', '#FF9A3C'];
+    const colors = [
+      '#FF4D6D',
+      '#FFB000',
+      '#FFD93D',
+      '#3DDC97',
+      '#4D96FF',
+      '#9B5DE5',
+      '#FFF',
+      '#FF9A3C',
+    ];
     const r = () => Math.random();
     confettiPieces.value = Array.from({ length: 42 }, (_, i) => {
       const side = i % 2 === 0 ? 'l' : 'r';
@@ -354,7 +402,9 @@ export function useOnboardingFlow({
         },
       };
     });
-    delay(() => { confettiPieces.value = []; }, 3800);
+    delay(() => {
+      confettiPieces.value = [];
+    }, 3800);
   }
 
   // ── Async actions ──────────────────────────────────────────────────────────
@@ -385,7 +435,10 @@ export function useOnboardingFlow({
   async function browseForPortableData() {
     state.error = '';
     try {
-      const { canceled, filePaths: [dir] } = await openDialog({
+      const {
+        canceled,
+        filePaths: [dir],
+      } = await openDialog({
         title: 'Locate Beaver Notes portable data folder',
         properties: ['openDirectory'],
       });
@@ -409,7 +462,13 @@ export function useOnboardingFlow({
     state.migrationIssuesText = '';
 
     try {
-      const steps = ['Copying notes…', 'Copying folders…', 'Copying labels…', 'Copying assets…', 'Migrating settings…'];
+      const steps = [
+        'Copying notes…',
+        'Copying folders…',
+        'Copying labels…',
+        'Copying assets…',
+        'Migrating settings…',
+      ];
       const ticker = setInterval(() => {
         if (state.migrationProgress < 85) {
           state.migrationProgress = Math.min(
@@ -417,7 +476,12 @@ export function useOnboardingFlow({
             85
           );
           state.migrationStatus =
-            steps[Math.min(Math.floor(state.migrationProgress / 20), steps.length - 1)];
+            steps[
+              Math.min(
+                Math.floor(state.migrationProgress / 20),
+                steps.length - 1
+              )
+            ];
         }
       }, 300);
 
@@ -439,8 +503,12 @@ export function useOnboardingFlow({
   }
 
   function handleImportProgress({ done, total, current }) {
-    state.migrationProgress = total ? Math.max(5, Math.round((done / total) * 100)) : 10;
-    state.migrationStatus = total ? `Importing ${done} of ${total}…` : 'Importing…';
+    state.migrationProgress = total
+      ? Math.max(5, Math.round((done / total) * 100))
+      : 10;
+    state.migrationStatus = total
+      ? `Importing ${done} of ${total}…`
+      : 'Importing…';
     state.migrationCurrent = current || '';
   }
 
@@ -483,7 +551,10 @@ export function useOnboardingFlow({
       state.migrationStatus = 'All done!';
       state.migrationResult = result;
       state.migrationIssuesText = (result.errors || [])
-        .map((issue) => `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`)
+        .map(
+          (issue) =>
+            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`
+        )
         .join('\n');
       completionMode.value = 'migration';
       state.migrationDone = true;
@@ -506,7 +577,10 @@ export function useOnboardingFlow({
   async function chooseSyncPath() {
     state.error = '';
     try {
-      const { canceled, filePaths: [dir] } = await openDialog({
+      const {
+        canceled,
+        filePaths: [dir],
+      } = await openDialog({
         title: 'Choose a sync folder',
         properties: ['openDirectory'],
         useScopedStorage: true,
@@ -571,28 +645,44 @@ export function useOnboardingFlow({
     if (next === 'finish') {
       finishIn.value = false;
       await nextTick();
-      delay(() => { finishIn.value = true; }, 80);
+      delay(() => {
+        finishIn.value = true;
+      }, 80);
       launchConfetti();
     }
   });
 
-  watch(() => route.query, () => applyRouteEntry(), { immediate: true });
+  watch(
+    () => route.query,
+    () => applyRouteEntry(),
+    { immediate: true }
+  );
 
   onMounted(async () => {
     if (prefersReducedMotion()) {
       logoIn.value = textIn.value = ctaIn.value = true;
     } else {
-      delay(() => { logoIn.value = true; }, 120);
-      delay(() => { textIn.value = true; }, 580);
-      delay(() => { ctaIn.value = true; }, 1020);
+      delay(() => {
+        logoIn.value = true;
+      }, 120);
+      delay(() => {
+        textIn.value = true;
+      }, 580);
+      delay(() => {
+        ctaIn.value = true;
+      }, 1020);
     }
 
     theme.loadTheme();
     fresh.theme = theme.currentTheme.value || fresh.theme;
     fresh.accentColor = getSettingSync('colorScheme') || fresh.accentColor;
-    fresh.zoomLevel = parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
+    fresh.zoomLevel =
+      parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
     fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
-    document.documentElement.style.setProperty('--selected-font', fresh.selectedFont);
+    document.documentElement.style.setProperty(
+      '--selected-font',
+      fresh.selectedFont
+    );
     selectAccentColor(fresh.accentColor);
     selectZoomLevel(fresh.zoomLevel);
 
@@ -611,32 +701,70 @@ export function useOnboardingFlow({
 
   return {
     // State
-    step, state, fresh, confettiPieces,
-    logoIn, textIn, ctaIn, finishIn,
-    migrationPlatform, customLegacyPath, customLegacyStatus,
+    step,
+    state,
+    fresh,
+    confettiPieces,
+    logoIn,
+    textIn,
+    ctaIn,
+    finishIn,
+    migrationPlatform,
+    customLegacyPath,
+    customLegacyStatus,
 
     // Static config
-    themes, accentColors, interfaceSizes, fonts, languages, logoUrl,
+    themes,
+    accentColors,
+    interfaceSizes,
+    fonts,
+    languages,
+    logoUrl,
 
-    themeLabels, isDark, isMobileRuntime, isMacOS,
+    themeLabels,
+    isDark,
+    isMobileRuntime,
+    isMacOS,
     onboardingSubtitle,
-    completionEyebrow, completionTitle, completionSubtitle,
-    migrationDetectionCopy, migrationPlatformLabel,
-    migrationSourceHeading, migrationSourceCopy,
-    migrationSourceBadge, migrationSourceBadgeClass,
-    migrationWhatGetsCopied, migrationActionDisabled,
+    completionEyebrow,
+    completionTitle,
+    completionSubtitle,
+    migrationDetectionCopy,
+    migrationPlatformLabel,
+    migrationPlatformIcon,
+    migrationSourceHeading,
+    migrationSourceCopy,
+    migrationWhatGetsCopied,
+    migrationActionDisabled,
 
     // Navigation
-    setStep, goToStep, goToPreviousStep,
-    chooseMode, startFreshFlow, handlePrimaryContinue,
-    openMigrationFlow, selectMigrationPlatform,
+    setStep,
+    goToStep,
+    goToPreviousStep,
+    chooseMode,
+    startFreshFlow,
+    handlePrimaryContinue,
+    openMigrationFlow,
+    selectMigrationPlatform,
 
     // Appearance
-    selectTheme, selectAccentColor, selectZoomLevel,
+    selectTheme,
+    selectAccentColor,
+    selectFont,
+    selectLanguage,
+    selectZoomLevel,
 
-    refreshStatus, prepareFreshWorkspace, useDefaultPreferences,
-    migrateLegacyData, runSelectedMigration, browseForPortableData,
-    copyMigrationIssues, chooseSyncPath, clearSyncPath,
-    toggleAutoSync, finishFreshOnboarding, completeAndOpenWorkspace,
+    refreshStatus,
+    prepareFreshWorkspace,
+    useDefaultPreferences,
+    migrateLegacyData,
+    runSelectedMigration,
+    browseForPortableData,
+    copyMigrationIssues,
+    chooseSyncPath,
+    clearSyncPath,
+    toggleAutoSync,
+    finishFreshOnboarding,
+    completeAndOpenWorkspace,
   };
 }
