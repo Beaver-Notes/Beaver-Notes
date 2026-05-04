@@ -13,7 +13,7 @@
         ($route.query.linked && !store.inReaderMode)
       "
       class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden mobile:hidden"
-      title="Alt+Arrow left"
+      :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
       @click="goBack"
     >
       <v-remixicon
@@ -117,13 +117,14 @@ import { isMobileRuntime } from '@/lib/tauri/runtime';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
 import { useLabelStore } from '@/store/label';
 import { useStore } from '@/store';
-import { useDialog } from '@/composable/dialog';
 import { useStorage } from '@/composable/storage';
 import { onClose } from '@/composable/onClose';
-import { debounce } from '@/utils/helper';
+import { useNotePersistence } from '@/composable/useNotePersistence';
+import { useNoteBackNavigation } from '@/composable/useNoteBackNavigation';
+import { useNoteEncryption } from '@/composable/useNoteEncryption';
+import { useEditorAutoScroll } from '@/composable/useEditorAutoScroll';
 import NoteMenuMobile from '@/components/note/NoteMenuMobile.vue';
 import EditorActionsMobile from '@/components/note/EditorActionsMobile.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
@@ -131,7 +132,6 @@ import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import { useAppStore } from '../../store/app';
 import { isAppEncryptedContent } from '@/utils/appCrypto';
-import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
 import { decryptNoteForMemory } from '@/utils/noteSerializer.js';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 
@@ -151,11 +151,11 @@ export default {
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const appStore = useAppStore();
-    const dialog = useDialog();
 
     const editor = shallowRef(null);
     const noteEditor = ref();
     const showSearch = shallowRef(false);
+    const titleDiv = ref(null);
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
@@ -167,6 +167,27 @@ export default {
     );
     const { translations } = useTranslations();
 
+    // Persistence
+    const { updateNote, persistCurrentNote, flushScheduledPersist } =
+      useNotePersistence({
+        noteStore,
+        labelStore,
+        appEncryptedLocked,
+      });
+
+    // Navigation
+    const { showBack, goBack } = useNoteBackNavigation();
+
+    // Encryption
+    const { unlockNote, unlockAppEncryption } = useNoteEncryption({
+      noteId: id,
+      appEncryptedLocked,
+    });
+
+    // Auto-scroll
+    const { autoScroll } = useEditorAutoScroll(noteEditor);
+
+    // Watch note ID for decryption and heading conversion
     watch(
       id,
       async (n) => {
@@ -181,213 +202,23 @@ export default {
           noteStore.convertNote(n);
         }
       },
-      {
-        immediate: true,
-      }
+      { immediate: true }
     );
 
-    const showBack = computed(() => {
-      const back = router.options.history.state.back;
-      if (!back) return false;
-      if (back === '/' || back.includes('/#/?')) return false;
-      return true;
-    });
-
-    function goBack() {
-      const from = router.options.history.state.back;
-
-      if (!from) {
-        router.push('/');
-        return;
-      }
-
-      if (from.includes('/folder/') || from.includes('/archive/')) {
-        router.go(-1);
-        return;
-      }
-
-      if (from.includes('/note/')) {
-        router.go(-1);
-        return;
-      }
-
-      router.push('/');
-    }
-
-    const autoScroll = debounce(() => {
-      if (!noteEditor.value) {
-        return;
-      }
-      const lastChild =
-        noteEditor.value.$el.querySelector('.ProseMirror').lastChild;
-      if (
-        !(
-          document.body.scrollHeight >
-          (window.innerHeight || document.documentElement.clientHeight)
-        )
-      ) {
-        return;
-      }
-      const selection = window.getSelection();
-      if (!lastChild.contains(selection.anchorNode)) {
-        return;
-      }
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const lastRect = lastChild.getBoundingClientRect();
-
-      const lineHeight = rect.height;
-
-      const offset = Math.abs(rect.bottom - lastRect.bottom);
-      if (lastRect.top + lastRect.height <= window.innerHeight) {
-        return;
-      }
-      if (lineHeight === 0) {
-        lastChild.scrollIntoView();
-      } else if (offset < lineHeight) {
-        lastChild.scrollIntoView();
-      }
-    }, 50);
-
-    const PERSIST_DELAY_MS = 300;
-    let pendingPersistTimer = null;
-    let pendingPersistNoteId = null;
-    let pendingPersistPromise = null;
-    let resolvePendingPersist = null;
-    let rejectPendingPersist = null;
-
-    function clearPendingPersistState() {
-      pendingPersistTimer = null;
-      pendingPersistNoteId = null;
-      pendingPersistPromise = null;
-      resolvePendingPersist = null;
-      rejectPendingPersist = null;
-    }
-
-    function schedulePersist(noteId) {
-      if (!noteId || !noteStore.getById(noteId)) {
-        return Promise.resolve();
-      }
-
-      pendingPersistNoteId = noteId;
-      clearTimeout(pendingPersistTimer);
-
-      if (!pendingPersistPromise) {
-        pendingPersistPromise = new Promise((resolve, reject) => {
-          resolvePendingPersist = resolve;
-          rejectPendingPersist = reject;
-        });
-      }
-
-      pendingPersistTimer = setTimeout(async () => {
-        const targetNoteId = pendingPersistNoteId;
-        try {
-          if (targetNoteId && noteStore.getById(targetNoteId)) {
-            await noteStore.persist(targetNoteId);
-          }
-          resolvePendingPersist?.();
-        } catch (error) {
-          rejectPendingPersist?.(error);
-        } finally {
-          clearPendingPersistState();
-        }
-      }, PERSIST_DELAY_MS);
-
-      return pendingPersistPromise;
-    }
-
-    async function flushScheduledPersist(noteId = pendingPersistNoteId) {
-      if (!pendingPersistTimer) {
-        if (noteId && noteStore.getById(noteId)) {
-          await noteStore.persist(noteId);
-        }
-        return;
-      }
-
-      clearTimeout(pendingPersistTimer);
-
-      try {
-        if (noteId && noteStore.getById(noteId)) {
-          await noteStore.persist(noteId);
-        }
-        resolvePendingPersist?.();
-      } catch (error) {
-        rejectPendingPersist?.(error);
-        throw error;
-      } finally {
-        clearPendingPersistState();
-      }
-    }
-
-    function buildCurrentNotePatch() {
-      const labels = new Set();
-      const labelEls =
-        editor.value?.options.element.querySelectorAll('[data-mention]') ?? [];
-
-      Array.from(labelEls).forEach((el) => {
-        const labelId = el.dataset.id;
-        if (labelStore.data.includes(labelId)) labels.add(labelId);
-      });
-
-      const currentContent = editor.value?.getJSON();
-      const currentTitle = titleDiv.value?.innerText ?? '';
-      const currentCursorPosition = editor.value?.state.selection.to;
-
-      return {
-        labels: [...labels],
-        ...(currentContent ? { content: currentContent } : {}),
-        ...(currentTitle !== undefined ? { title: currentTitle } : {}),
-        ...(Number.isFinite(currentCursorPosition)
-          ? { lastCursorPosition: currentCursorPosition }
-          : {}),
-        updatedAt: Date.now(),
-      };
-    }
-
-    async function persistCurrentNote(
-      noteId = route.params.id,
-      { wait = true } = {}
-    ) {
-      if (appEncryptedLocked.value) return;
-      if (!noteId || !noteStore.getById(noteId)) return;
-
-      noteStore.patchLocal(noteId, buildCurrentNotePatch());
-      const persistPromise = flushScheduledPersist(noteId);
-
-      if (!wait) {
-        persistPromise.catch((error) => {
-          console.error('Error persisting note during navigation:', error);
-        });
-        return;
-      }
-
-      await persistPromise;
-    }
-
-    const updateNote = (data) => {
-      if (appEncryptedLocked.value) return Promise.resolve();
-      const noteId = note.value?.id || route.params.id;
-      if (!noteId || !noteStore.getById(noteId)) return Promise.resolve();
-
-      noteStore.patchLocal(noteId, {
-        ...data,
-        updatedAt: Date.now(),
-      });
-      return schedulePersist(noteId);
-    };
-
+    // Title / content handlers
     function handleTitleInput(event) {
-      return updateNote({ title: event.target.innerText });
+      return updateNote(id.value, { title: event.target.innerText });
     }
 
     function handleContentUpdate(content) {
-      return updateNote({ content });
+      return updateNote(id.value, { content });
     }
 
     function closeSearch() {
       showSearch.value = false;
     }
 
+    // Route watcher for persist-on-leave
     watch(
       () => route.params.id,
       (noteId, oldNoteId) => {
@@ -414,9 +245,9 @@ export default {
       { immediate: true }
     );
 
+    // Lifecycle
     const handleBeforeUnload = () => {
-      // Best-effort flush for Cmd/Ctrl+R or hard renderer reload.
-      void persistCurrentNote(route.params.id);
+      void persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     };
     let removeGlobalShortcuts = () => {};
 
@@ -432,21 +263,29 @@ export default {
         },
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
+
+      if (titleDiv.value && note.value.title) {
+        titleDiv.value.innerText = note.value.title;
+      }
     });
 
     onUnmounted(() => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
     });
+
     onBeforeRouteLeave(() => {
-      void persistCurrentNote(route.params.id, { wait: false });
+      void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
+        wait: false,
+      });
       removeGlobalShortcuts();
     });
 
     onClose(async () => {
-      await persistCurrentNote(route.params.id);
+      await persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     });
 
+    // Editor focus helpers
     const focusEditor = () => {
       if (editor.value?.commands?.focus) {
         editor.value.commands.focus(undefined, { scrollIntoView: false });
@@ -481,71 +320,10 @@ export default {
       }
     );
 
-    async function unlockNote(note) {
-      const passwordStore = usePasswordStore();
-      const noteStore = useNoteStore();
-      const hassharedKey = await passwordStore.retrieve();
-
-      if (!hassharedKey) {
-        dialog.prompt({
-          title: translations.value.card.enterPasswd,
-          okText: translations.value.card.unlock,
-          cancelText: translations.value.card.cancel,
-          placeholder: translations.value.card.password,
-          onConfirm: async (enteredPassword) => {
-            try {
-              await noteStore.unlockNote(note, enteredPassword);
-              await passwordStore.setsharedKey(enteredPassword);
-              await unlockEnabledEncryptionScopes(enteredPassword);
-            } catch {
-              dialog.alert({
-                title: translations.value.settings?.alertTitle || 'Alert',
-                body: translations.value.card.wrongPasswd,
-                okText: translations.value.dialog?.close || 'Close',
-              });
-            }
-          },
-        });
-      } else {
-        const isValidPassword = await passwordStore.isValidPassword(
-          hassharedKey
-        );
-        if (isValidPassword) {
-          await noteStore.unlockNote(note, hassharedKey);
-        }
-      }
-    }
-
-    async function unlockAppEncryption() {
-      const noteStore = useNoteStore();
-      const passwordStore = usePasswordStore();
-      const password = await passwordStore.retrieve();
-
-      if (password) {
-        await unlockEnabledEncryptionScopes(password);
-        const current = noteStore.getById(id.value);
-        if (current && isAppEncryptedContent(current.content)) {
-          const decrypted = await decryptNoteForMemory(current);
-          if (decrypted !== current) {
-            noteStore.data[id.value] = decrypted;
-          }
-        }
-      }
-    }
-
-    const titleDiv = ref(null);
-
-    onMounted(() => {
-      if (titleDiv.value && note.value.title) {
-        titleDiv.value.innerText = note.value.title;
-      }
-    });
-
     watch(
       () => note.value?.id,
       () => {
         if (!titleDiv.value) return;
-
         titleDiv.value.innerText = note.value?.title || '';
       },
       { immediate: true }
@@ -565,7 +343,6 @@ export default {
       appEncryptedLocked,
       editor,
       showSearch,
-      updateNote,
       handleTitleInput,
       handleContentUpdate,
       closeSearch,
@@ -584,7 +361,7 @@ export default {
 }
 
 :root {
-  --selected-width: '54rem';
+  --selected-width: 54rem;
 }
 
 .editor {
