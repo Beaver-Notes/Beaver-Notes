@@ -1,5 +1,7 @@
 import { onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+
+const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
 import { useStorage } from './storage';
 import { getSettingSync, hydrateSettingsStore, setSetting } from './settings';
@@ -224,7 +226,7 @@ export function useAppShell() {
           } catch (error) {
             console.warn('Auto-update check failed:', error);
           }
-        }, 1000);
+        }, AUTO_UPDATE_CHECK_DELAY_MS);
       }
     } catch (error) {
       console.error('Error checking auto-update status:', error);

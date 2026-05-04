@@ -97,6 +97,10 @@
 </template>
 
 <script>
+const UPDATE_CHECK_DELAY_MS = 1000;
+const UPDATE_DOWNLOAD_DELAY_MS = 1000;
+const INITIAL_UPDATE_CHECK_DELAY_MS = 2000;
+
 import { onMounted, shallowReactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
@@ -190,7 +194,7 @@ export default {
       try {
         await setAutoUpdateEnabled(state.autoUpdateEnabled);
         if (state.autoUpdateEnabled && state.updateStatusType === 'idle')
-          setTimeout(checkForUpdates, 1000);
+          setTimeout(checkForUpdates, UPDATE_CHECK_DELAY_MS);
       } catch {
         state.autoUpdateEnabled = !state.autoUpdateEnabled;
       }
@@ -206,7 +210,7 @@ export default {
         state.isProcessing = ['checking', 'downloading'].includes(data.type);
         if (data.type !== 'downloading') state.updateProgress = null;
         if (data.type === 'available' && state.autoUpdateEnabled)
-          setTimeout(downloadUpdate, 1000);
+          setTimeout(downloadUpdate, UPDATE_DOWNLOAD_DELAY_MS);
         return 'received';
       });
 
@@ -243,7 +247,7 @@ export default {
           console.error('Bridge error:', e);
         }
 
-        if (state.autoUpdateEnabled) setTimeout(checkForUpdates, 2000);
+        if (state.autoUpdateEnabled) setTimeout(checkForUpdates, INITIAL_UPDATE_CHECK_DELAY_MS);
       }
     });
 

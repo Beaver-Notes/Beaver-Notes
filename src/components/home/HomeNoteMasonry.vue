@@ -68,8 +68,15 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  shallowRef,
   watch,
 } from 'vue';
+
+// Must stay in sync with the @keyframes durations in <style> below.
+const CARD_LEAVE_DURATION_MS = 250;
+const CARD_ENTER_DURATION_MS = 300;
+const CARD_LEAVE_CLEANUP_MS = CARD_LEAVE_DURATION_MS + 50;
+const CARD_ENTER_CLEANUP_MS = CARD_ENTER_DURATION_MS + 50;
 import HomeNoteCard from './HomeNoteCard.vue';
 
 const props = defineProps({
@@ -365,7 +372,7 @@ watch(
             rect: { width: rect.width, height: rect.height },
             timestamp: Date.now(),
           });
-          setTimeout(() => leavingItems.delete(id), 300);
+          setTimeout(() => leavingItems.delete(id), CARD_LEAVE_CLEANUP_MS);
         }
       }
     }
@@ -373,7 +380,7 @@ watch(
     for (const id of newIds) {
       if (!oldIds.has(id) && !enteringItems.has(id)) {
         enteringItems.set(id, { timestamp: Date.now() });
-        setTimeout(() => enteringItems.delete(id), 350);
+        setTimeout(() => enteringItems.delete(id), CARD_ENTER_CLEANUP_MS);
       }
     }
 
