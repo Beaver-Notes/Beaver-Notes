@@ -1,12 +1,12 @@
 import { path } from '@/lib/tauri-bridge';
 import {
-  ensureSyncDir,
-  readSyncData,
-  readSyncFile,
-  removeSyncPath,
-  syncPathExists,
-  writeSyncFile,
-} from '@/lib/native/sync';
+  ensureDir as ensureSyncDir,
+  readData as readSyncData,
+  readFile as readSyncFile,
+  removePath as removeSyncPath,
+  pathExists as syncPathExists,
+  writeFile as writeSyncFile,
+} from '@/lib/native/fs';
 import { CRYPTO_DIR, SYNC_ROOT_DIR } from './constants.js';
 
 export function getSyncCryptoDir(syncPath) {

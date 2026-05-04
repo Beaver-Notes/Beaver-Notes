@@ -10,7 +10,7 @@ import { useNoteStore } from '@/store/note.js';
 import { useFolderStore } from '@/store/folder.js';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import { ensureSyncDir, readSyncDir } from '@/lib/native/sync';
+import { ensureDir as ensureSyncDir, readDir as readSyncDir } from '@/lib/native/fs';
 import {
   applySnapshotIfNeeded,
   compactSync,

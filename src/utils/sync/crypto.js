@@ -1,7 +1,7 @@
 import { readLocalAssetData } from './sync-crypto-storage.js';
 import { getSyncPath } from './path.js';
 import { base64ToBuf } from '@/utils/crypto-codec.js';
-import { writeSyncFile } from '@/lib/native/sync.js';
+import { writeFile as writeSyncFile } from '@/lib/native/fs.js';
 import {
   clearSecureBlob,
   loadSecureBlob,

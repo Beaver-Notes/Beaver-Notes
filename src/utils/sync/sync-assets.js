@@ -1,13 +1,13 @@
 import { useStorage } from '@/composable/storage';
 import { path } from '@/lib/tauri-bridge';
 import {
-  copySyncPath,
-  ensureSyncDir,
-  readSyncDir,
-  readSyncFile,
-  removeSyncPath,
-  writeSyncFile,
-} from '@/lib/native/sync';
+  copyPath as copySyncPath,
+  ensureDir as ensureSyncDir,
+  readDir as readSyncDir,
+  readFile as readSyncFile,
+  removePath as removeSyncPath,
+  writeFile as writeSyncFile,
+} from '@/lib/native/fs';
 import { isAppEncryptionEnabled, isAppKeyLoaded } from '@/utils/appCrypto.js';
 import {
   decryptAndWriteAsset,

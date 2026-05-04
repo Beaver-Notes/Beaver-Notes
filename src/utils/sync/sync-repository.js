@@ -2,13 +2,13 @@ import { toRaw } from 'vue';
 import { useStorage } from '@/composable/storage';
 import { path } from '@/lib/tauri-bridge';
 import {
-  ensureSyncDir,
-  readSyncDir,
-  readSyncFile,
-  removeSyncPath,
-  syncPathExists,
-  writeSyncFile,
-} from '@/lib/native/sync';
+  ensureDir as ensureSyncDir,
+  readDir as readSyncDir,
+  readFile as readSyncFile,
+  removePath as removeSyncPath,
+  pathExists as syncPathExists,
+  writeFile as writeSyncFile,
+} from '@/lib/native/fs';
 import {
   COMMIT_FILE_EXT,
   COMMITS_DIR,
