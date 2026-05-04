@@ -80,14 +80,7 @@ async function isFile(targetPath) {
   }
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+import { base64ToUint8Array } from '@/utils/convert.js';
 
 function extensionForContentType(contentType) {
   switch (String(contentType || '').toLowerCase()) {
@@ -679,8 +672,16 @@ export async function importWordDocuments(
     try {
       const id = uuidv4();
       const { value: html, messages = [] } = await convertWordToHtml(filePath);
-      const preparedHtml = await storeWordImages(html, id, resolvedAppDirectory);
-      const content = await htmlToTiptap(preparedHtml, id, resolvedAppDirectory);
+      const preparedHtml = await storeWordImages(
+        html,
+        id,
+        resolvedAppDirectory
+      );
+      const content = await htmlToTiptap(
+        preparedHtml,
+        id,
+        resolvedAppDirectory
+      );
 
       await addImportedNote(noteStore, {
         id,

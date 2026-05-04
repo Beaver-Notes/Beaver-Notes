@@ -1,17 +1,7 @@
 import { isAppEncryptionEnabled } from '@/utils/appCrypto';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return bytes;
-}
+import { base64ToUint8Array } from '@/utils/convert.js';
 
 function sourceFileName(file) {
   if (typeof file === 'string') {

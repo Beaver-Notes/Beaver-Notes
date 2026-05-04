@@ -222,7 +222,7 @@
               v-model="customWidthInput"
               type="text"
               class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-1 ring-secondary"
-              placeholder="translations.appearence.enterWidth"
+              :placeholder="translations.appearence.enterWidth"
               style="appearance: none"
               @blur="applyCustomWidth"
               @keydown.enter="applyCustomWidth"

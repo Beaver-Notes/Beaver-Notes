@@ -3,6 +3,14 @@
  * Kept framework-agnostic so sync/app/note encryption paths can reuse one implementation.
  */
 
+import {
+  ALGO_AES_GCM,
+  BASE64_CHUNK_SIZE,
+  KEY_LENGTH_256,
+  PBKDF2_ITERATIONS,
+  WORKER_POOL_MAX,
+} from '@/utils/crypto-constants.js';
+
 export function hexToBuf(hex) {
   const clean = (hex || '').trim();
   const b = new Uint8Array(clean.length / 2);
@@ -18,10 +26,9 @@ export function bufToHex(buf) {
 
 export function bufToBase64(buf) {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-  const chunkSize = 0x8000;
   let binary = '';
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const chunk = bytes.subarray(i, i + chunkSize);
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+    const chunk = bytes.subarray(i, i + BASE64_CHUNK_SIZE);
     binary += String.fromCharCode.apply(null, chunk);
   }
   return btoa(binary);
@@ -32,9 +39,9 @@ export function base64ToBuf(b64) {
 }
 
 // Worker pool — parallelises concurrent crypto operations across cores.
-// Capped at min(4, hardwareConcurrency) to avoid overwhelming low-end devices.
+// Capped to avoid overwhelming low-end devices.
 const _POOL_SIZE = Math.min(
-  4,
+  WORKER_POOL_MAX,
   (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 2
 );
 const _workers = [];
@@ -93,7 +100,7 @@ export async function deriveAesGcmKeyFromPassphrase(
   options = {}
 ) {
   const {
-    iterations = 100_000,
+    iterations = PBKDF2_ITERATIONS,
     usages = ['encrypt', 'decrypt'],
     extractable = false,
   } = options;
@@ -111,7 +118,7 @@ export async function deriveAesGcmKeyFromPassphrase(
   return crypto.subtle.importKey(
     'raw',
     result.raw,
-    { name: 'AES-GCM', length: 256 },
+    { name: ALGO_AES_GCM, length: KEY_LENGTH_256 },
     extractable,
     usages
   );

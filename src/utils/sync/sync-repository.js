@@ -9,6 +9,15 @@ import {
   syncPathExists,
   writeSyncFile,
 } from '@/lib/native/sync';
+import {
+  COMMIT_FILE_EXT,
+  COMMITS_DIR,
+  COMPACT_LOCK_FILE,
+  OpType,
+  SNAPSHOT_FILE,
+  STORAGE_KEY,
+  SYNC_ROOT_DIR,
+} from './constants.js';
 
 const storage = useStorage();
 
@@ -34,7 +43,7 @@ export function cloneCommitData(data) {
 }
 
 export async function ensureCommitsDir(syncPath) {
-  const commitsDir = path.join(syncPath, 'BeaverNotesSync', 'commits');
+  const commitsDir = path.join(syncPath, SYNC_ROOT_DIR, COMMITS_DIR);
   await ensureSyncDir(commitsDir);
   return commitsDir;
 }
@@ -75,7 +84,7 @@ async function initLocalClockIfNeeded(loadCursors) {
   if (!localClockInitPromise) {
     localClockInitPromise = (async () => {
       const [savedClock, cursors] = await Promise.all([
-        storage.get('syncLocalClock', 0, 'settings'),
+        storage.get(STORAGE_KEY.SYNC_LOCAL_CLOCK, 0, 'settings'),
         loadCursors(),
       ]);
       const fromSettings = Number.isFinite(Number(savedClock))
@@ -93,7 +102,7 @@ async function initLocalClockIfNeeded(loadCursors) {
 async function nextLocalClock(loadCursors) {
   await initLocalClockIfNeeded(loadCursors);
   localClock += 1;
-  await storage.set('syncLocalClock', localClock, 'settings');
+  await storage.set(STORAGE_KEY.SYNC_LOCAL_CLOCK, localClock, 'settings');
   return localClock;
 }
 
@@ -134,12 +143,16 @@ export async function writeCommit({
 }
 
 export async function queuePendingChange(key, data) {
-  const pending = await storage.get('syncPendingChanges', {}, 'settings');
+  const pending = await storage.get(
+    STORAGE_KEY.SYNC_PENDING_CHANGES,
+    {},
+    'settings'
+  );
   pending[key] = {
     ts: Date.now(),
     data: cloneCommitData(data),
   };
-  await storage.set('syncPendingChanges', pending, 'settings');
+  await storage.set(STORAGE_KEY.SYNC_PENDING_CHANGES, pending, 'settings');
 }
 
 export async function flushPendingChanges(writePendingCommit) {
@@ -153,7 +166,7 @@ export async function flushPendingChanges(writePendingCommit) {
     await writePendingCommit(key, payload?.data ?? null);
   }
 
-  await storage.delete('syncPendingChanges', 'settings');
+  await storage.delete(STORAGE_KEY.SYNC_PENDING_CHANGES, 'settings');
   return entries.length;
 }
 
@@ -179,20 +192,20 @@ export async function applySnapshotIfNeeded({
   decryptJSON,
   saveCursors,
 }) {
-  const snapshotPath = path.join(syncDir, 'snapshot.json');
+  const snapshotPath = path.join(syncDir, SNAPSHOT_FILE);
   const exists = await syncPathExists(snapshotPath).catch(() => false);
   if (!exists) return false;
 
   const [pending, files, lastApplied] = await Promise.all([
-    storage.get('syncPendingChanges', {}, 'settings'),
+    storage.get(STORAGE_KEY.SYNC_PENDING_CHANGES, {}, 'settings'),
     readSyncDir(commitsDir).catch(() => []),
-    storage.get('syncSnapshotTs', 0, 'settings'),
+    storage.get(STORAGE_KEY.SYNC_SNAPSHOT_TS, 0, 'settings'),
   ]);
 
   if (Object.keys(pending).length > 0) return false;
 
   const hasOwnCommits = files.some(
-    (file) => file.endsWith('.json') && file.includes(`-${deviceId}-`)
+    (file) => file.endsWith(COMMIT_FILE_EXT) && file.includes(`-${deviceId}-`)
   );
   if (hasOwnCommits) return false;
 
@@ -210,18 +223,30 @@ export async function applySnapshotIfNeeded({
   // single-row writes and stay fast regardless.
   const writes = [];
 
-  for (const [id, note] of Object.entries(snapshot.data.notes ?? {})) {
+  for (const [id, note] of Object.entries(snapshot.data[OpType.NOTES] ?? {})) {
     writes.push(storage.set(`notes.${id}`, note));
   }
-  for (const [id, folder] of Object.entries(snapshot.data.folders ?? {})) {
+  for (const [id, folder] of Object.entries(
+    snapshot.data[OpType.FOLDERS] ?? {}
+  )) {
     writes.push(storage.set(`folders.${id}`, folder));
   }
-  writes.push(storage.set('labels', snapshot.data.labels ?? []));
-  writes.push(storage.set('deletedIds', snapshot.data.deletedIds ?? {}));
+  writes.push(storage.set(OpType.LABELS, snapshot.data[OpType.LABELS] ?? []));
   writes.push(
-    storage.set('deletedFolderIds', snapshot.data.deletedFolderIds ?? {})
+    storage.set(OpType.DELETED_IDS, snapshot.data[OpType.DELETED_IDS] ?? {})
   );
-  writes.push(storage.set('deletedAssets', snapshot.data.deletedAssets ?? {}));
+  writes.push(
+    storage.set(
+      OpType.DELETED_FOLDER_IDS,
+      snapshot.data[OpType.DELETED_FOLDER_IDS] ?? {}
+    )
+  );
+  writes.push(
+    storage.set(
+      OpType.DELETED_ASSETS,
+      snapshot.data[OpType.DELETED_ASSETS] ?? {}
+    )
+  );
 
   await Promise.all(writes);
 
@@ -230,7 +255,11 @@ export async function applySnapshotIfNeeded({
       ? snapshot.cursors
       : {}
   );
-  await storage.set('syncSnapshotTs', snapshotTs || Date.now(), 'settings');
+  await storage.set(
+    STORAGE_KEY.SYNC_SNAPSHOT_TS,
+    snapshotTs || Date.now(),
+    'settings'
+  );
   return true;
 }
 
@@ -241,8 +270,8 @@ export async function compactSync({
   loadCursors,
   saveCursors,
 }) {
-  const lockPath = path.join(syncDir, 'compact.lock');
-  const snapshotPath = path.join(syncDir, 'snapshot.json');
+  const lockPath = path.join(syncDir, COMPACT_LOCK_FILE);
+  const snapshotPath = path.join(syncDir, SNAPSHOT_FILE);
   const lockExists = await syncPathExists(lockPath);
   if (lockExists) {
     try {
@@ -271,12 +300,12 @@ export async function compactSync({
       ts: snapshotTs,
       cursors,
       data: {
-        notes: await storage.get('notes', {}),
-        folders: await storage.get('folders', {}),
-        labels: await storage.get('labels', {}),
-        deletedIds: await storage.get('deletedIds', {}),
-        deletedFolderIds: await storage.get('deletedFolderIds', {}),
-        deletedAssets: await storage.get('deletedAssets', {}),
+        [OpType.NOTES]: await storage.get('notes', {}),
+        [OpType.FOLDERS]: await storage.get('folders', {}),
+        [OpType.LABELS]: await storage.get('labels', {}),
+        [OpType.DELETED_IDS]: await storage.get('deletedIds', {}),
+        [OpType.DELETED_FOLDER_IDS]: await storage.get('deletedFolderIds', {}),
+        [OpType.DELETED_ASSETS]: await storage.get('deletedAssets', {}),
       },
     };
 
@@ -284,12 +313,14 @@ export async function compactSync({
     await writeSyncFile(snapshotPath, snapshotStr);
 
     const files = await readSyncDir(commitsDir).catch(() => []);
-    for (const file of files.filter((entry) => entry.endsWith('.json'))) {
+    for (const file of files.filter((entry) =>
+      entry.endsWith(COMMIT_FILE_EXT)
+    )) {
       await removeSyncPath(path.join(commitsDir, file)).catch(() => {});
     }
 
     await saveCursors(cursors);
-    await storage.set('syncSnapshotTs', snapshotTs, 'settings');
+    await storage.set(STORAGE_KEY.SYNC_SNAPSHOT_TS, snapshotTs, 'settings');
   } finally {
     await removeSyncPath(lockPath).catch(() => {});
   }

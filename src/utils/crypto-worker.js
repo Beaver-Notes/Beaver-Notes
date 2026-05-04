@@ -9,12 +9,23 @@
  * even when decrypting many notes at once.
  */
 
+import {
+  ALGO_AES_GCM,
+  ALGO_PBKDF2,
+  BASE64_CHUNK_SIZE,
+  HASH_SHA_256,
+  IV_LENGTH_BYTES,
+  KEY_LENGTH_256,
+} from '@/utils/crypto-constants.js';
+
 function _bufToBase64(buf) {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-  const chunkSize = 0x8000;
   let binary = '';
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+    binary += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + BASE64_CHUNK_SIZE)
+    );
   }
   return btoa(binary);
 }
@@ -31,19 +42,19 @@ self.onmessage = async ({ data }) => {
       const keyMaterial = await crypto.subtle.importKey(
         'raw',
         new TextEncoder().encode(passphrase),
-        'PBKDF2',
+        ALGO_PBKDF2,
         false,
         ['deriveKey']
       );
       const key = await crypto.subtle.deriveKey(
         {
-          name: 'PBKDF2',
+          name: ALGO_PBKDF2,
           salt,
           iterations,
-          hash: 'SHA-256',
+          hash: HASH_SHA_256,
         },
         keyMaterial,
-        { name: 'AES-GCM', length: 256 },
+        { name: ALGO_AES_GCM, length: KEY_LENGTH_256 },
         true,
         ['encrypt', 'decrypt']
       );
@@ -57,14 +68,14 @@ self.onmessage = async ({ data }) => {
       const key = await crypto.subtle.importKey(
         'raw',
         keyRaw,
-        { name: 'AES-GCM', length: 256 },
+        { name: ALGO_AES_GCM, length: KEY_LENGTH_256 },
         false,
         ['encrypt']
       );
-      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
       const encoded = new TextEncoder().encode(plaintext);
       const cipherBuf = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
+        { name: ALGO_AES_GCM, iv },
         key,
         encoded
       );
@@ -84,7 +95,7 @@ self.onmessage = async ({ data }) => {
       const key = await crypto.subtle.importKey(
         'raw',
         keyRaw,
-        { name: 'AES-GCM', length: 256 },
+        { name: ALGO_AES_GCM, length: KEY_LENGTH_256 },
         false,
         ['decrypt']
       );
@@ -95,7 +106,7 @@ self.onmessage = async ({ data }) => {
         c.charCodeAt(0)
       );
       const plainBuf = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
+        { name: ALGO_AES_GCM, iv },
         key,
         cipherBytes
       );

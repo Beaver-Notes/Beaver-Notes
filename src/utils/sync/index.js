@@ -23,7 +23,14 @@ import {
 } from './sync-repository.js';
 import { applyRemoteOp } from './sync-apply.js';
 import { syncAssets } from './sync-assets.js';
-import { backend } from '@/lib/tauri-bridge';
+import { emit } from '@tauri-apps/api/event';
+import {
+  COMMIT_FILE_EXT,
+  MAX_COMMITS_BEFORE_COMPACT,
+  OpType,
+  STORAGE_KEY,
+  SYNC_ROOT_DIR,
+} from './constants.js';
 
 const storage = useStorage();
 
@@ -89,15 +96,15 @@ export function forceSyncNow() {
 export async function trackDeletedAssets(assetType, noteId, fileNames) {
   if (!fileNames?.length) return;
 
-  const deletedAssets = await storage.get('deletedAssets', {});
+  const deletedAssets = await storage.get(STORAGE_KEY.DELETED_ASSETS, {});
   const ts = Date.now();
 
   for (const file of fileNames) {
     deletedAssets[`${assetType}/${noteId}/${file}`] = ts;
   }
 
-  await storage.set('deletedAssets', deletedAssets);
-  await trackChange('deletedAssets', deletedAssets);
+  await storage.set(STORAGE_KEY.DELETED_ASSETS, deletedAssets);
+  await trackChange(OpType.DELETED_ASSETS, deletedAssets);
 }
 
 async function _sync(force = false) {
@@ -109,7 +116,7 @@ async function _sync(force = false) {
   state.syncing = true;
 
   try {
-    const syncDir = path.join(syncPath, 'BeaverNotesSync');
+    const syncDir = path.join(syncPath, SYNC_ROOT_DIR);
     const commitsDir = await ensureCommitsDir(syncPath);
     await _flushPendingChangesIfReady();
 
@@ -142,11 +149,14 @@ async function _sync(force = false) {
 
     const localDir = await getAppDirectory();
     await syncAssets(localDir, syncDir, async (deletedAssets) => {
-      await trackChange('deletedAssets', deletedAssets);
+      await trackChange(OpType.DELETED_ASSETS, deletedAssets);
     });
 
     const allFiles = await readSyncDir(commitsDir).catch(() => []);
-    if (allFiles.filter((f) => f.endsWith('.json')).length > 200) {
+    if (
+      allFiles.filter((f) => f.endsWith(COMMIT_FILE_EXT)).length >
+      MAX_COMMITS_BEFORE_COMPACT
+    ) {
       await compactSync({
         syncDir,
         commitsDir,
@@ -165,7 +175,7 @@ async function _sync(force = false) {
   } catch (err) {
     console.error('[sync] Sync failed:', err);
     try {
-      backend.emit('sync:error', { message: err?.message || 'Sync failed' });
+      emit('sync:error', { message: err?.message || 'Sync failed' });
     } catch {}
   } finally {
     state.syncing = false;
@@ -173,11 +183,11 @@ async function _sync(force = false) {
 }
 
 async function _loadCursors() {
-  return storage.get('syncCursors', {}, 'settings');
+  return storage.get(STORAGE_KEY.SYNC_CURSORS, {}, 'settings');
 }
 
 async function _saveCursors(cursors) {
-  return storage.set('syncCursors', cursors, 'settings');
+  return storage.set(STORAGE_KEY.SYNC_CURSORS, cursors, 'settings');
 }
 
 async function _getCommitsDir() {

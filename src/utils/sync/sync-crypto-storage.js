@@ -7,9 +7,10 @@ import {
   syncPathExists,
   writeSyncFile,
 } from '@/lib/native/sync';
+import { CRYPTO_DIR, SYNC_ROOT_DIR } from './constants.js';
 
 export function getSyncCryptoDir(syncPath) {
-  return path.join(syncPath, 'BeaverNotesSync', 'crypto');
+  return path.join(syncPath, SYNC_ROOT_DIR, CRYPTO_DIR);
 }
 
 export function ensureSyncCryptoDir(syncPath) {

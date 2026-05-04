@@ -379,14 +379,7 @@ export function startRustImport(source, onProgress) {
   });
 }
 
-export function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+import { base64ToUint8Array } from '@/utils/convert.js';
 
 export async function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
   const parser = new DOMParser();

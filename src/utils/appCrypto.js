@@ -8,8 +8,6 @@ import {
   clearDecryptedCaches,
   encryptionExportAppKey,
 } from '@/lib/native/security.js';
-import { path } from '@/lib/tauri-bridge';
-import { getStoredValue } from '@/lib/native/storage';
 import {
   clearSecureBlob,
   loadSecureBlob,

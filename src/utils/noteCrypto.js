@@ -1,4 +1,12 @@
 import {
+  ALGO_AES_GCM,
+  ENVELOPE_VERSION,
+  IV_LENGTH_BYTES,
+  KEY_LENGTH_256,
+  PBKDF2_ITERATIONS,
+  SALT_LENGTH_BYTES,
+} from '@/utils/crypto-constants.js';
+import {
   base64ToBuf,
   bufToBase64,
   bufToHex,
@@ -8,21 +16,21 @@ import {
 
 async function _noteKey(password, saltBuf) {
   return deriveAesGcmKeyFromPassphrase(password, saltBuf, {
-    iterations: 100_000,
+    iterations: PBKDF2_ITERATIONS,
   });
 }
 
 export async function encryptNoteWithPassword(plaintext, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH_BYTES));
+  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
   const key = await _noteKey(password, salt);
   const ct = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
+    { name: ALGO_AES_GCM, iv },
     key,
     new TextEncoder().encode(plaintext)
   );
   return JSON.stringify({
-    v: 2,
+    v: ENVELOPE_VERSION,
     salt: bufToHex(salt),
     iv: bufToHex(iv),
     cipher: bufToBase64(new Uint8Array(ct)),
@@ -37,12 +45,12 @@ export async function decryptNoteWithPassword(ciphertext, password) {
     throw new Error('Incorrect password');
   }
 
-  if (parsed?.v === 2) {
+  if (parsed?.v === ENVELOPE_VERSION) {
     const key = await _noteKey(password, hexToBuf(parsed.salt));
     let buf;
     try {
       buf = await crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv: hexToBuf(parsed.iv) },
+        { name: ALGO_AES_GCM, iv: hexToBuf(parsed.iv) },
         key,
         base64ToBuf(parsed.cipher)
       );

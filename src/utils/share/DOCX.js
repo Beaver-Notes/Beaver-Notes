@@ -98,14 +98,7 @@ function collectDescendantText(node) {
   return nestedText || directText;
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+import { base64ToUint8Array } from '@/utils/convert.js';
 
 function normalizeHexColor(value) {
   if (!value) return null;
@@ -408,7 +401,11 @@ async function inlineNodeToDocx(node, noteId, appDirectory, options = {}) {
       ];
     }
     case 'image': {
-      const image = await loadImageAsBase64(node?.attrs?.src, noteId, appDirectory);
+      const image = await loadImageAsBase64(
+        node?.attrs?.src,
+        noteId,
+        appDirectory
+      );
       if (!image) {
         const label = /^https?:\/\//i.test(node?.attrs?.src || '')
           ? node.attrs.src
@@ -841,7 +838,11 @@ async function tiptapNodeToDocx(node, noteId, appDirectory, context = {}) {
         }),
       ];
     case 'image': {
-      const image = await loadImageAsBase64(node?.attrs?.src, noteId, appDirectory);
+      const image = await loadImageAsBase64(
+        node?.attrs?.src,
+        noteId,
+        appDirectory
+      );
       if (!image) {
         const src = node?.attrs?.src || '';
         const label = /^https?:\/\//i.test(src)

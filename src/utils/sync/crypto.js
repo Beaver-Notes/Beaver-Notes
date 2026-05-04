@@ -16,6 +16,7 @@ import {
   getEncryptionState,
   submitEncryptionPassword,
 } from '@/lib/native/security.js';
+import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
 let _restoreInFlight = null;
 const SYNC_BLOB_KEY = 'syncPassphraseBlob';
@@ -157,12 +158,14 @@ export async function decryptJSON(raw) {
 }
 
 export function syncAssetName(localFilename) {
-  return state.enabled ? `${localFilename}.enc` : localFilename;
+  return state.enabled
+    ? `${localFilename}${ENCRYPTED_ASSET_EXT}`
+    : localFilename;
 }
 
 export function localAssetName(syncFilename) {
-  return syncFilename.endsWith('.enc')
-    ? syncFilename.slice(0, -4)
+  return syncFilename.endsWith(ENCRYPTED_ASSET_EXT)
+    ? syncFilename.slice(0, -ENCRYPTED_ASSET_EXT.length)
     : syncFilename;
 }
 

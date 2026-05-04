@@ -17,6 +17,12 @@ import {
   readAndEncryptAsset,
   syncAssetName,
 } from './crypto.js';
+import {
+  ASSET_TYPES,
+  ASSETS_DIR,
+  ENCRYPTED_ASSET_EXT,
+  STORAGE_KEY,
+} from './constants.js';
 
 const storage = useStorage();
 
@@ -32,7 +38,7 @@ async function copyRemoteToLocal(remotePath, localDest, mode) {
     syncKeyLoaded,
   } = mode;
 
-  if (remotePath.endsWith('.enc')) {
+  if (remotePath.endsWith(ENCRYPTED_ASSET_EXT)) {
     if (!syncEncryptionEnabled || !syncKeyLoaded) {
       return;
     }
@@ -69,8 +75,8 @@ async function copyLocalToRemote(localPath, remoteDest, mode) {
 }
 
 export async function syncAssets(localDir, syncDir, onDeletedAssetsChanged) {
-  const assetTypes = ['notes-assets', 'file-assets'];
-  const deletedAssets = await storage.get('deletedAssets', {});
+  const assetTypes = ASSET_TYPES;
+  const deletedAssets = await storage.get(STORAGE_KEY.DELETED_ASSETS, {});
   let deletedAssetsDirty = false;
   const mode = {
     appEncryptionEnabled: isAppEncryptionEnabled(),
@@ -81,7 +87,7 @@ export async function syncAssets(localDir, syncDir, onDeletedAssetsChanged) {
 
   for (const assetType of assetTypes) {
     const localBase = path.join(localDir, assetType);
-    const remoteBase = path.join(syncDir, 'assets', assetType);
+    const remoteBase = path.join(syncDir, ASSETS_DIR, assetType);
 
     await ensureSyncDir(localBase);
     await ensureSyncDir(remoteBase);
@@ -184,7 +190,7 @@ export async function syncAssets(localDir, syncDir, onDeletedAssetsChanged) {
   }
 
   if (deletedAssetsDirty) {
-    await storage.set('deletedAssets', deletedAssets);
+    await storage.set(STORAGE_KEY.DELETED_ASSETS, deletedAssets);
     await onDeletedAssetsChanged(deletedAssets);
   }
 }
