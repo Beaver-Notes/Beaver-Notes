@@ -10,14 +10,14 @@
       </button>
       <button
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-        title="Edit link"
+        :title="translations.editor.editLink || 'Edit link'"
         @click="startEditing"
       >
         <v-remixicon name="riPencilLine" class="size-5" />
       </button>
       <button
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-        title="Remove link"
+        :title="translations.editor.removeLink || 'Remove link'"
         @click="editor.chain().focus().unsetLink().run()"
       >
         <v-remixicon name="riLinkUnlinkM" class="size-5" />
@@ -41,14 +41,14 @@
         />
         <button
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-          title="Cancel"
+          :title="translations.common.cancel || 'Cancel'"
           @click="cancelEditing"
         >
           <v-remixicon name="riCloseLine" class="size-5" />
         </button>
         <button
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-          title="Save"
+          :title="translations.common.save || 'Save'"
           :disabled="!currentLinkVal.trim()"
           @click="saveAndClose"
         >
@@ -81,7 +81,7 @@
           v-else-if="currentLinkVal.startsWith('@') && notes.length === 0"
           class="px-3 py-2 text-sm text-neutral-500 dark:text-neutral-400 italic"
         >
-          No matching notes found
+          {{ translations.editor.noMatchingNotes || 'No matching notes found' }}
         </div>
       </expand-transition>
     </div>

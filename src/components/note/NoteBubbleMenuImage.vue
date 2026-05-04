@@ -9,7 +9,7 @@
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
           : ''
       "
-      title="Wrap text on the right"
+      :title="translations.editor.wrapRight || 'Wrap text on the right'"
       @click="setLayout('wrap-left')"
     >
       <v-remixicon name="riAlignLeft" class="text-sm" />
@@ -21,7 +21,9 @@
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
           : ''
       "
-      title="Keep image on its own line"
+      :title="
+        translations.editor.keepImageOnOwnLine || 'Keep image on its own line'
+      "
       @click="setLayout('block')"
     >
       <v-remixicon name="riAlignCenter" class="text-sm" />
@@ -33,7 +35,7 @@
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
           : ''
       "
-      title="Wrap text on the left"
+      :title="translations.editor.wrapLeft || 'Wrap text on the left'"
       @click="setLayout('wrap-right')"
     >
       <v-remixicon name="riAlignRight" class="text-sm" />
@@ -41,7 +43,7 @@
     <span class="border-r mx-1 h-6" />
     <button
       class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
-      title="Download image"
+      :title="translations.editor.downloadImage || 'Download image'"
       @click="downloadImage"
     >
       <v-remixicon name="riDownload2Line" />

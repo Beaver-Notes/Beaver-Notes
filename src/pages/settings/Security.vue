@@ -39,7 +39,9 @@
                 v-model="passwordInput"
                 type="password"
                 class="flex-1"
-                aria-label="Global password"
+                :aria-label="
+                  translations.settings.globalPassword || 'Global password'
+                "
                 :aria-describedby="securityError ? 'security-error' : undefined"
                 :placeholder="
                   translations.settings.choosePassword || 'Choose a password...'
@@ -126,7 +128,10 @@
                 type="password"
                 class="flex-1"
                 :disabled="appEncryptionBusy || appUnlockBusy"
-                aria-label="App encryption password"
+                :aria-label="
+                  translations.settings.appEncryptionPassword ||
+                  'App encryption password'
+                "
                 :aria-describedby="
                   appEncryptionError ? 'app-encryption-error' : undefined
                 "
@@ -185,7 +190,10 @@
                 type="password"
                 class="flex-1"
                 :disabled="syncUnlockBusy"
-                aria-label="Sync encryption password"
+                :aria-label="
+                  translations.settings.syncEncryptionPassword ||
+                  'Sync encryption password'
+                "
                 :aria-describedby="
                   syncCryptoError ? 'sync-crypto-error' : undefined
                 "
