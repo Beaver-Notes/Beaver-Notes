@@ -8,7 +8,7 @@
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-lg dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -658,7 +658,6 @@
                 </span>
               </span>
             </button>
-
           </div>
 
           <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->
@@ -773,7 +772,12 @@ export default {
     async function triggerAudioInput() {
       const { canceled, filePaths } = await openDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'] }],
+        filters: [
+          {
+            name: 'Audio',
+            extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
+          },
+        ],
       });
       if (canceled || filePaths.length === 0) return;
       for (const filePath of filePaths) {
@@ -785,7 +789,12 @@ export default {
     async function triggerVideoInput() {
       const { canceled, filePaths } = await openDialog({
         properties: ['openFile', 'multiSelections'],
-        filters: [{ name: 'Video', extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'] }],
+        filters: [
+          {
+            name: 'Video',
+            extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'],
+          },
+        ],
       });
       if (canceled || filePaths.length === 0) return;
       for (const filePath of filePaths) {

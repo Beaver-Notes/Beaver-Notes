@@ -1,7 +1,7 @@
 <template>
   <div
     ref="container"
-    class="bg-white dark:bg-neutral-800 border overflow-x-auto z-20 top-2 w-fit max-w-full mx-auto p-1 sticky rounded-lg shadow-lg no-print no-scrollbar"
+    class="bg-white dark:bg-neutral-800 border overflow-x-auto z-20 top-2 w-fit max-w-full mx-auto p-1 sticky rounded-lg shadow-sm no-print no-scrollbar"
     :class="{
       'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
     }"
