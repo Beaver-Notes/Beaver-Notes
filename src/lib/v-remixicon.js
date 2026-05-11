@@ -1,5 +1,6 @@
 import { defineComponent, h, markRaw } from 'vue';
 import {
+  RiLayoutColumnLine,
   RiStarFill,
   RiArrowRightLine,
   RiArrowLeftLine,
@@ -297,6 +298,7 @@ const RemixIcons = {
   riAlignRight: RiAlignRight,
   riAlignJustify: RiAlignJustify,
   riSpaceShipLine: RiSpaceShip2Line,
+  riLayoutColumnLine: RiLayoutColumnLine,
 };
 
 const customIconPaths = {

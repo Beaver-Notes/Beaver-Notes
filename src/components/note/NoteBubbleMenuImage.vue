@@ -249,6 +249,7 @@ export default {
       downloadImage,
       setLayout,
       removeImage,
+      translations,
     };
   },
 };

@@ -1,5 +1,4 @@
 import { Editor } from '@tiptap/vue-3';
-import { Node } from '@tiptap/core';
 import heading from './exts/headings';
 import Video from './exts/video-block';
 import Document from '@tiptap/extension-document';
@@ -20,18 +19,6 @@ import MermaidBlock from './exts/mermaid-block';
 import TextDirection from 'tiptap-text-direction';
 import Subscript from '@tiptap/extension-subscript';
 import Superscript from '@tiptap/extension-superscript';
-import Paper from './exts/paper-block';
-
-// Tombstone: silently absorbs old overlayDrawing nodes in saved notes.
-// Renders as nothing; can be removed once all notes have been resaved.
-const OverlayDrawingTombstone = Node.create({
-  name: 'overlayDrawing',
-  group: 'block',
-  atom: true,
-  parseHTML() { return [{ tag: 'div[data-type="overlay-drawing"]' }]; },
-  renderHTML() { return ['div', { 'data-type': 'overlay-drawing', style: 'display:none' }]; },
-});
-
 import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
@@ -39,6 +26,7 @@ import Audio from './exts/audio-block';
 import Text from '@tiptap/extension-text';
 import CollapseHeading from './exts/collapse-heading';
 import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
+import Dropcursor from '@tiptap/extension-dropcursor';
 import {
   blueCallout,
   yellowCallout,
@@ -53,6 +41,12 @@ import { Table } from '@tiptap/extension-table/table';
 import TableCell from '@tiptap/extension-table-cell';
 import TableHeader from '@tiptap/extension-table-header';
 import TableRow from '@tiptap/extension-table-row';
+import {
+  Column,
+  ColumnContainer,
+  MultiColumn,
+  ColumnDropCursor,
+} from './exts/multi-column';
 import Footnote from './exts/footnote-block/footnote';
 import Footnotes from './exts/footnote-block/footnotes';
 import FootnoteReference from './exts/footnote-block/reference';
@@ -60,6 +54,7 @@ import Commands from './exts/commands';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
+import TextAlign from '@tiptap/extension-text-align';
 import { dropFile } from './exts/drop-file';
 import { getTranslations } from '@/utils/getTranslations';
 import { getSettingSync } from '@/composable/settings';
@@ -79,6 +74,7 @@ const extensions = [
     link: false,
     document: false,
     paste: false,
+    dropcursor: false,
   }),
   Paste,
   Document.extend({
@@ -100,8 +96,14 @@ const extensions = [
   greenCallout,
   LinkNote,
   FileEmbed,
-  Paper,
-  OverlayDrawingTombstone,
+  ColumnContainer,
+  Column,
+  MultiColumn,
+  Dropcursor.configure({
+    color: 'hsl(var(--twc-primary) / 0.5)',
+    width: 3,
+  }),
+  ColumnDropCursor,
   Footnotes,
   FootnoteReference,
   Footnote,
@@ -137,6 +139,9 @@ const extensions = [
   Audio,
   SearchAndReplace.configure(),
   TextStyle,
+  TextAlign.configure({
+    types: ['heading', 'paragraph'],
+  }),
   markdownEngine,
   Placeholder.configure({
     placeholder: translations.editor.tiptapPlaceholder,

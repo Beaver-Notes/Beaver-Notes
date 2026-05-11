@@ -78,6 +78,7 @@ img.ProseMirror-selectednode {
 
 .ProseMirror {
   min-height: 800px;
+  padding-inline-start: var(--drag-handle-gutter);
   & > :first-child {
     margin-top: 0;
   }
@@ -133,9 +134,7 @@ img.ProseMirror-selectednode {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition:
-          background-color 0.2s ease,
-          border-color 0.2s ease,
+        transition: background-color 0.2s ease, border-color 0.2s ease,
           box-shadow 0.2s ease;
         margin: 0;
         position: relative;
@@ -286,10 +285,7 @@ img.ProseMirror-selectednode {
 
 @media (max-width: 720px) {
   .ProseMirror {
-    min-height: max(
-      18rem,
-      calc(100dvh - var(--app-safe-area-top) - 11rem)
-    );
+    min-height: max(18rem, calc(100dvh - var(--app-safe-area-top) - 11rem));
   }
 
   .ProseMirror .bn-image-node[data-layout='wrap-left'],
@@ -390,4 +386,214 @@ img.ProseMirror-selectednode {
 
 mark {
   @apply bg-yellow-200 dark:bg-yellow-100 rounded;
+}
+
+.note-editor {
+  --drag-handle-gutter: 3rem;
+}
+
+.note-editor__content {
+  margin-inline-start: calc(var(--drag-handle-gutter) * -1);
+  overflow: visible;
+  position: relative;
+  width: calc(100% + var(--drag-handle-gutter));
+}
+
+.resize-cursor {
+  cursor: col-resize;
+  user-select: none !important;
+  -webkit-user-select: none;
+}
+
+div[data-type='column-container'] {
+  display: flex;
+  flex-direction: row;
+  width: 100%;
+  gap: 20px;
+  margin: 16px 0;
+  user-drag: none;
+  -webkit-user-drag: none;
+}
+
+div[data-type='column']:hover,
+div[data-type='column-container'].has-focus {
+  @apply bg-neutral-800 bg-opacity-[2%] hover:bg-opacity-[4%] dark:bg-neutral-200 dark:bg-opacity-5 dark:hover:bg-opacity-10 focus:ring-1;
+  border-radius: 4px;
+}
+
+div[data-type='column'] {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border-radius: 4px;
+  margin: 0 -4px;
+  padding: 0 4px;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+div[data-type='column'] > :not(div.grid-resize-handle):nth-child(1),
+div[data-type='column'] > div.grid-resize-handle + :nth-child(2) {
+  margin-top: 0;
+}
+
+div[data-type='column'] > :nth-last-child(1) {
+  margin-bottom: 0;
+}
+
+div[data-type='column'] .grid-resize-handle {
+  position: absolute;
+  right: -20px;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  z-index: 20;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+div[data-type='column'] .grid-resize-handle .resize-bar {
+  width: 20px;
+  height: 100%;
+  border-radius: 3px;
+  pointer-events: none;
+  transition: background 0.2s ease;
+  @apply bg-primary/10;
+}
+
+div[data-type='column'] .grid-resize-handle:hover .resize-bar {
+  @apply bg-primary/20;
+}
+
+div[data-type='column'] .grid-resize-handle .add-button {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 20px;
+  height: 20px;
+  border-radius: 0 0 4px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  z-index: 6;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  @apply bg-primary/10;
+}
+
+div[data-type='column'] .grid-resize-handle:hover .add-button {
+  opacity: 1;
+  @apply bg-primary;
+}
+
+div[data-type='column'] .grid-resize-handle .add-button .plus-icon {
+  width: 12px;
+  height: 12px;
+  position: relative;
+}
+
+div[data-type='column'] .grid-resize-handle .add-button .plus-icon::before,
+div[data-type='column'] .grid-resize-handle .add-button .plus-icon::after {
+  content: '';
+  position: absolute;
+  background-color: white;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+}
+
+div[data-type='column'] .grid-resize-handle .add-button .plus-icon::before {
+  width: 12px;
+  height: 2px;
+}
+
+div[data-type='column'] .grid-resize-handle .add-button .plus-icon::after {
+  width: 2px;
+  height: 12px;
+}
+
+@media (max-width: 768px) {
+  div[data-type='column-container'] {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+
+  div[data-type='column-container'] div[data-type='column'] {
+    flex: 1 1 auto;
+    margin: 0;
+    width: 100%;
+  }
+
+  div[data-type='column'] .grid-resize-handle {
+    display: none !important;
+  }
+}
+
+.ProseMirror[contenteditable='false']
+  div[data-type='column-container']
+  .grid-resize-handle {
+  display: none;
+}
+
+.column-dropcursor {
+  z-index: 9999 !important;
+  width: 4px !important;
+  opacity: 1 !important;
+  @apply bg-primary/50 !important;
+}
+
+body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.drag-handle {
+  width: 20px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  @apply bg-primary/10 text-primary w-5 h-5;
+}
+
+.drag-handle:hover {
+  @apply bg-primary/20;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  @apply bg-primary/30;
+  transform: scale(0.95) !important;
+}
+
+.ProseMirror:hover .drag-handle,
+.ProseMirror .drag-handle.is-visible {
+  opacity: 1;
+}
+
+.drag-handle[data-dragging='true'] {
+  opacity: 1;
+  cursor: grabbing;
+  @apply bg-primary/25;
+}
+
+.dark .drag-handle {
+  @apply bg-primary/15 text-white;
+}
+
+.dark .drag-handle:hover {
+  @apply bg-primary/25;
+}
+
+.dark .drag-handle:active {
+  @apply bg-primary/35;
 }

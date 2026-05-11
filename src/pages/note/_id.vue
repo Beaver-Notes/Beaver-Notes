@@ -113,8 +113,6 @@
 
 <script>
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
-import { isMobileRuntime } from '@/lib/tauri/runtime';
-import { useTranslations } from '@/composable/useTranslations';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -131,9 +129,10 @@ import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import { useAppStore } from '../../store/app';
-import { isAppEncryptedContent } from '@/utils/appCrypto';
+import { isEncryptedContent } from '@/utils/encryption.js';
 import { decryptNoteForMemory } from '@/utils/noteSerializer.js';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   components: {
@@ -160,7 +159,7 @@ export default {
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
     const appEncryptedLocked = computed(
-      () => !!note.value && isAppEncryptedContent(note.value.content)
+      () => !!note.value && isEncryptedContent(note.value.content)
     );
     const isLocked = computed(
       () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
@@ -192,7 +191,7 @@ export default {
       id,
       async (n) => {
         const currentNote = noteStore.getById(n);
-        if (currentNote && isAppEncryptedContent(currentNote.content)) {
+        if (currentNote && isEncryptedContent(currentNote.content)) {
           const decrypted = await decryptNoteForMemory(currentNote);
           if (decrypted !== currentNote) {
             noteStore.data[n] = decrypted;

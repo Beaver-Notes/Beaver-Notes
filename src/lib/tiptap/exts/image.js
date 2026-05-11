@@ -270,7 +270,44 @@ class ImageNodeView {
     };
 
     this.editor.commands.command(({ state, dispatch }) => {
-      const tr = state.tr.setNodeMarkup(this.getPos(), null, nextAttrs);
+      let tr = state.tr.setNodeMarkup(this.getPos(), null, nextAttrs);
+
+      if (width) {
+        const newWidth = parseFloat(width);
+        if (Number.isFinite(newWidth) && newWidth > 0) {
+          const imagePos = this.getPos();
+          const $pos = state.doc.resolve(imagePos);
+
+          for (let d = $pos.depth; d > 0; d--) {
+            const node = $pos.node(d);
+            if (node.type.name === 'column') {
+              const colPos = $pos.before(d);
+              const parentColumn = this.wrapper.closest('[data-type="column"]');
+              const columnContainer = parentColumn?.closest('[data-type="column-container"]');
+
+              if (parentColumn && columnContainer) {
+                const containerWidth = columnContainer.getBoundingClientRect().width;
+                const currentColWidth = parentColumn.getBoundingClientRect().width;
+                const padding = 24;
+                const targetColWidth = Math.min(newWidth + padding, containerWidth * 0.9);
+
+                if (currentColWidth > 0 && containerWidth > 0) {
+                  const ratio = targetColWidth / currentColWidth;
+                  const currentFlex = node.attrs.flexGrow || 1;
+                  const newFlex = Math.max(0.5, currentFlex * ratio);
+
+                  tr = tr.setNodeMarkup(colPos, null, {
+                    ...node.attrs,
+                    flexGrow: newFlex,
+                  });
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+
       if (dispatch) dispatch(tr);
       return true;
     });

@@ -1,27 +1,38 @@
 <template>
   <div class="note-editor">
     <slot v-bind="{ editor }" />
+    <drag-handle
+      v-if="editor && showDragHandle"
+      :editor="editor"
+      :compute-position-config="computePositionConfig"
+      class="drag-handle w-auto h-auto px-1.5 py-1 flex items-center gap-1.5 rounded-lg bg-input shadow-sm"
+    >
+      <v-remixicon name="riDraggable" class="size-5 cursor-grab" />
+    </drag-handle>
     <editor-content
       v-if="editor"
       :editor="editor"
-      class="prose dark:text-neutral-100 max-w-none prose-indigo print:cursor-none overflow-hidden"
+      class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
   </div>
 </template>
 
 <script>
-import { onMounted, onBeforeUnmount, watch, computed } from 'vue';
+import { onMounted, onBeforeUnmount, watch, computed, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
-import { isAppEncryptedContent } from '@/utils/appCrypto.js';
+import { isEncryptedContent } from '@/utils/encryption.js';
 import { sanitizeNoteContent } from '@/utils/contentSecurity';
 import { useRouter } from 'vue-router';
 import { extensions, CollapseHeading, heading, dropFile } from '@/lib/tiptap';
-import NoteBubbleMenu from './NoteBubbleMenu.vue';
+import { NodeRangeSelection } from '@tiptap/extension-node-range';
+import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
+import { offset } from '@floating-ui/dom';
+import NoteBubbleMenu from './NoteBubbleMenu.vue';
 
 export default {
-  components: { EditorContent, NoteBubbleMenu },
+  components: { EditorContent, DragHandle, NoteBubbleMenu },
   props: {
     modelValue: { type: [String, Object], default: '' },
     id: { type: String, default: '' },
@@ -32,11 +43,67 @@ export default {
     const router = useRouter();
     const appStore = useAppStore();
 
-    const exts = [...extensions, dropFile.configure({ id: props.id })];
+    const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
+
+    const showDragHandle = ref(
+      typeof window !== 'undefined' ? window.innerWidth >= 768 : true
+    );
+
+    function updateDragHandleVisibility() {
+      showDragHandle.value = window.innerWidth >= 768;
+    }
+
+    onMounted(() => {
+      window.addEventListener('resize', updateDragHandleVisibility);
+    });
+
+    onBeforeUnmount(() => {
+      window.removeEventListener('resize', updateDragHandleVisibility);
+    });
+
+    const fixedGutterMiddleware = {
+      name: 'fixedGutter',
+      fn({ elements }) {
+        const editorElement = editor.value?.view?.dom;
+        const contentElement = editorElement?.parentElement;
+
+        if (!editorElement || !contentElement) return {};
+
+        const rootElement =
+          contentElement.closest?.('.note-editor') || contentElement;
+        const gutterValue = getComputedStyle(rootElement)
+          .getPropertyValue('--drag-handle-gutter')
+          .trim();
+        const gutterWidth = Number.parseFloat(gutterValue) || 48;
+        const handleWidth =
+          elements.floating.getBoundingClientRect().width || 20;
+        const gutterOffset = Math.max((gutterWidth - handleWidth) / 2, 0);
+
+        return {
+          x: isRtl
+            ? contentElement.clientWidth - gutterWidth + gutterOffset
+            : gutterOffset,
+        };
+      },
+    };
+
+    const computePositionConfig = computed(() => {
+      return {
+        placement: isRtl ? 'right-start' : 'left-start',
+        strategy: 'absolute',
+        middleware: [offset(0), fixedGutterMiddleware],
+      };
+    });
+
+    const exts = [
+      ...extensions,
+      dropFile.configure({ id: props.id }),
+      NodeRangeSelection,
+    ];
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
     const safeContent = computed(() =>
-      isAppEncryptedContent(props.modelValue)
+      isEncryptedContent(props.modelValue)
         ? ''
         : sanitizeNoteContent(props.modelValue)
     );
@@ -139,7 +206,11 @@ export default {
       }
     );
 
-    return { editor };
+    return {
+      editor,
+      computePositionConfig,
+      showDragHandle,
+    };
   },
 };
 </script>
