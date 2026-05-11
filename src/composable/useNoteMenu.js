@@ -55,7 +55,7 @@ export function useNoteMenu(props) {
   } = useNoteMenuActions({
     editor: props.editor,
     noteId: props.id,
-    noteTitle: props.note.title,
+    noteTitle: props.note?.title || '',
     translations,
     backend,
   });
