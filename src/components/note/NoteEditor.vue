@@ -5,7 +5,7 @@
       v-if="editor && showDragHandle"
       :editor="editor"
       :compute-position-config="computePositionConfig"
-      class="drag-handle w-auto h-auto px-1.5 py-1 flex items-center gap-1.5 rounded-lg bg-input shadow-sm"
+      class="drag-handle w-auto h-auto flex items-center rounded-lg bg-input shadow-sm p-1"
     >
       <v-remixicon name="riDraggable" class="size-5 cursor-grab" />
     </drag-handle>

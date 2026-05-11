@@ -562,38 +562,9 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   align-items: center;
   justify-content: center;
   z-index: 30;
-  @apply bg-primary/10 text-primary w-5 h-5;
-}
-
-.drag-handle:hover {
-  @apply bg-primary/20;
-}
-
-.drag-handle:active {
-  cursor: grabbing;
-  @apply bg-primary/30;
-  transform: scale(0.95) !important;
 }
 
 .ProseMirror:hover .drag-handle,
 .ProseMirror .drag-handle.is-visible {
   opacity: 1;
-}
-
-.drag-handle[data-dragging='true'] {
-  opacity: 1;
-  cursor: grabbing;
-  @apply bg-primary/25;
-}
-
-.dark .drag-handle {
-  @apply bg-primary/15 text-white;
-}
-
-.dark .drag-handle:hover {
-  @apply bg-primary/25;
-}
-
-.dark .drag-handle:active {
-  @apply bg-primary/35;
 }
