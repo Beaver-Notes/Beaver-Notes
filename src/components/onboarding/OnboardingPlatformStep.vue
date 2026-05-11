@@ -71,6 +71,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import { ALL_PLATFORMS } from '@/utils/onboarding-platforms';
 
 const props = defineProps({
   modelValue: { type: String, default: null },
@@ -85,93 +86,7 @@ function handleSelect(platformId) {
   emit('select', platformId);
 }
 
-const ALL_PLATFORMS = [
-  {
-    id: 'electron',
-    label: 'Beaver Notes',
-    badge: 'Legacy',
-    description: 'Bring over your data from Beaver Notes (Legacy).',
-    useLogoImg: true,
-    iconBg: 'rgba(245, 158, 11, 0.12)',
-  },
-  {
-    id: 'obsidian',
-    label: 'Obsidian',
-    description: "Import your vault's markdown notes and attachments.",
-    icon: 'obsidian',
-    iconColor: 'text-[#7C60D7]',
-    iconBg: 'rgba(124, 96, 215, 0.12)',
-  },
-  {
-    id: 'apple-notes',
-    label: 'Apple Notes',
-    description: 'Import notes from Apple Notes.',
-    icon: 'riAppleFill',
-    iconColor: 'text-primary',
-    iconBg: 'rgba(255, 204, 0, 0.15)',
-    macOnly: true,
-  },
-  {
-    id: 'bear',
-    label: 'Bear',
-    description: 'Import Bear notes exported as markdown files.',
-    icon: 'bear',
-    iconColor: 'text-[#EA581C]',
-    iconBg: 'rgba(234, 88, 12, 0.12)',
-  },
-  {
-    id: 'simplenote',
-    label: 'Simplenote',
-    description: 'Import notes from a Simplenote JSON export.',
-    icon: 'simpleNote',
-    iconColor: 'text-blue-500',
-    iconBg: 'rgba(59, 130, 246, 0.12)',
-  },
-  {
-    id: 'markdown',
-    label: 'Markdown files',
-    description: 'Import a folder of plain .md files from any source.',
-    icon: 'riMarkdownLine',
-    iconColor: 'text-neutral-600 dark:text-neutral-300',
-    iconClass: 'bg-neutral-400/10',
-  },
-  {
-    id: 'evernote',
-    label: 'Evernote',
-    description: 'Import notes from an Evernote ENEX export file.',
-    icon: 'riEvernoteFill',
-    iconColor: 'text-[#00A550]',
-    iconBg: 'rgba(0, 165, 80, 0.12)',
-  },
-  {
-    id: 'notion',
-    label: 'Notion',
-    description: 'Import pages exported from Notion as markdown.',
-    icon: 'riNotionFill',
-    iconColor: 'text-neutral-900 dark:text-white',
-    iconClass: 'bg-neutral-900/10 dark:bg-white/10',
-  },
-];
-
-const PLATFORM_ORDER = [
-  'electron',
-  'apple-notes',
-  'bear',
-  'evernote',
-  'markdown',
-  'notion',
-  'obsidian',
-  'simplenote',
-];
-
-const visiblePlatforms = computed(() => {
-  const filtered = ALL_PLATFORMS.filter(
-    (platform) => !platform.macOnly || props.isMacOS
-  );
-  return filtered.sort((a, b) => {
-    const indexA = PLATFORM_ORDER.indexOf(a.id);
-    const indexB = PLATFORM_ORDER.indexOf(b.id);
-    return indexA - indexB;
-  });
-});
+const visiblePlatforms = computed(() =>
+  ALL_PLATFORMS.filter((platform) => !platform.macOnly || props.isMacOS)
+);
 </script>
