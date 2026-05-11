@@ -30,6 +30,14 @@ export function runMigrationFromPath(path) {
   return backend.invoke('migration:run-with-path', path);
 }
 
+export function readLegacyData(dir) {
+  return backend.invoke('migration:read-legacy-data', { dir });
+}
+
+export function writeLegacyData(dir, content) {
+  return backend.invoke('migration:write-legacy-data', { dir, content });
+}
+
 export function appReady() {
   return backend.invoke('app-ready');
 }
@@ -55,7 +63,10 @@ export async function setZoomLevel(level) {
     const window = getCurrentWindow();
     await window.setZoom(level);
   } catch (error) {
-    console.warn('Failed to set window zoom, falling back to backend invoke:', error);
+    console.warn(
+      'Failed to set window zoom, falling back to backend invoke:',
+      error
+    );
     return backend.invoke('app:set-zoom', level);
   }
 }

@@ -1,4 +1,4 @@
-import { isAppEncryptedContent } from '@/utils/appCrypto.js';
+import { isEncryptedContent } from '@/utils/encryption.js';
 import {
   hydrateNote,
   decryptNoteForMemory,
@@ -15,11 +15,11 @@ export async function decryptAllNotesForAppEncryption(options = {}) {
 
   for (const [id, note] of entries) {
     try {
-      const wasEncrypted = isAppEncryptedContent(note.content);
+      const wasEncrypted = isEncryptedContent(note.content);
       const decrypted = await decryptNoteForMemory(note);
       this.data[id] = hydrateNote(decrypted);
 
-      if (wasEncrypted && isAppEncryptedContent(decrypted.content)) {
+      if (wasEncrypted && isEncryptedContent(decrypted.content)) {
         failures.push(id);
         console.error(
           `[note] failed to decrypt app-encrypted note ${id} for migration`

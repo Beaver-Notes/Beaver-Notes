@@ -101,6 +101,52 @@ pub(crate) fn migration_run_with_path(
 }
 
 #[tauri::command]
+pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, String> {
+    #[cfg(desktop)]
+    {
+        let base = std::path::Path::new(&dir);
+        for name in ["data.json", "config.json"] {
+            let p = base.join(name);
+            if p.exists() {
+                let content = std::fs::read_to_string(&p).map_err(to_error)?;
+                return Ok(Some(content));
+            }
+        }
+        Ok(None)
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = dir;
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Result<(), String> {
+    #[cfg(desktop)]
+    {
+        let base = std::path::Path::new(&dir);
+        for name in ["data.json", "config.json"] {
+            let p = base.join(name);
+            if p.exists() {
+                std::fs::write(&p, content).map_err(to_error)?;
+                return Ok(());
+            }
+        }
+        let p = base.join("data.json");
+        std::fs::write(&p, content).map_err(to_error)?;
+        Ok(())
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (dir, content);
+        Ok(())
+    }
+}
+
+#[tauri::command]
 pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), String> {
     app.notification()
         .builder()

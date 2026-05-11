@@ -46,7 +46,7 @@ pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
 pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beaver-notes.beaver-notes";
 pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
-pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["syncPassphraseBlob", "appPassphraseBlob"];
+pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["encryptionPassphraseBlob"];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA2";
 pub(crate) const ASSET_MAGIC_V3: &[u8; 4] = b"BNA3";
@@ -280,7 +280,6 @@ pub(crate) struct AppState {
     pub(crate) transient_passphrase: Mutex<String>,
     pub(crate) asset_key_cache: Mutex<Option<[u8; 32]>>,
     pub(crate) app_data_key: Mutex<Option<[u8; 32]>>,
-    pub(crate) sync_data_key: Mutex<Option<[u8; 32]>>,
     pub(crate) app_encryption_active: AtomicBool,
     pub(crate) decrypted_notes_cache: Mutex<ByteLruCache>,
     pub(crate) decrypted_assets_cache: Mutex<ByteLruCache>,
@@ -310,7 +309,6 @@ impl AppState {
             transient_passphrase: Mutex::new(String::new()),
             asset_key_cache: Mutex::new(None),
             app_data_key: Mutex::new(None),
-            sync_data_key: Mutex::new(None),
             app_encryption_active: AtomicBool::new(false),
             decrypted_notes_cache: Mutex::new(ByteLruCache::new(NOTE_CACHE_BYTES)),
             decrypted_assets_cache: Mutex::new(ByteLruCache::new(ASSET_CACHE_BYTES)),
@@ -582,13 +580,6 @@ pub(crate) fn app_encryption_manifest_path(
     Ok(app_encryption_dir(app, state)?.join("manifest.v2.json"))
 }
 
-pub(crate) fn sync_encryption_manifest_path(sync_path: &Path) -> PathBuf {
-    sync_path
-        .join("BeaverNotesSync")
-        .join("crypto")
-        .join("manifest.v2.json")
-}
-
 fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     let mut key = [0_u8; 32];
     pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), salt, PBKDF2_ITERATIONS, &mut key);
@@ -684,7 +675,7 @@ pub(crate) fn decrypt_bytes_with_key(
     let encrypted = BASE64.decode(envelope.cipher.trim()).map_err(to_error)?;
     cipher
         .decrypt(Nonce::from_slice(&nonce), encrypted.as_slice())
-        .map_err(to_error)
+        .map_err(|_| "Wrong password.".to_string())
 }
 
 pub(crate) fn load_encryption_manifest(path: &Path) -> Result<Option<EncryptionManifest>, String> {
@@ -744,7 +735,8 @@ pub(crate) fn unlock_key_from_manifest(
     if check != password_check.as_bytes() {
         return Err("Wrong password.".to_string());
     }
-    let key = decrypt_bytes_with_key(&kek, &manifest.wrapped_key)?;
+    let key = decrypt_bytes_with_key(&kek, &manifest.wrapped_key)
+        .map_err(|_| "Encryption key is corrupted — re-enter your password.".to_string())?;
     if key.len() != 32 {
         return Err("Wrapped key is corrupted.".to_string());
     }
@@ -757,16 +749,12 @@ pub(crate) fn app_key_loaded(state: &AppState) -> Result<bool, String> {
     Ok(state.app_data_key.lock().map_err(to_error)?.is_some())
 }
 
-pub(crate) fn sync_key_loaded(state: &AppState) -> Result<bool, String> {
-    Ok(state.sync_data_key.lock().map_err(to_error)?.is_some())
-}
-
 pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
     Ok(*state.app_data_key.lock().map_err(to_error)?)
 }
 
-pub(crate) fn current_sync_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
-    Ok(*state.sync_data_key.lock().map_err(to_error)?)
+pub(crate) fn get_unified_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
+    Ok(*state.app_data_key.lock().map_err(to_error)?)
 }
 
 pub(crate) fn note_content_is_native_encrypted(value: &Value) -> bool {

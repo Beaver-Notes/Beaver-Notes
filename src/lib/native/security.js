@@ -40,55 +40,34 @@ export function migrateAssetEncryption(encryptAtRest) {
   });
 }
 
-export function getEncryptionState(syncPath = null) {
-  return backend.invoke(
-    'encryption:getState',
-    syncPath ? { syncPath } : undefined
-  );
+export function getEncryptionState() {
+  return backend.invoke('encryption:getState');
 }
 
 export function submitEncryptionPassword(
   password,
-  target,
-  syncPath = null,
   createIfMissing = true
 ) {
   return backend.invoke('encryption:submitPassword', {
     password,
-    target,
-    syncPath,
     createIfMissing,
   });
 }
 
-export function enableAppEncryption(password) {
-  return backend.invoke('encryption:enableApp', password);
+export function enableEncryption(password) {
+  return backend.invoke('encryption:enable', password);
 }
 
-export function disableAppEncryptionState(removeManifest = true) {
-  return backend.invoke('encryption:disableApp', { removeManifest });
+export function disableEncryptionState(removeManifest = true) {
+  return backend.invoke('encryption:disable', { removeManifest });
 }
 
-export function enableSyncEncryptionState(syncPath, password) {
-  return backend.invoke('encryption:enableSync', { syncPath, password });
+export function unlockEncryption(password) {
+  return backend.invoke('encryption:unlock', { password });
 }
 
-export function disableSyncEncryptionState(
-  syncPath = null,
-  removeManifest = false
-) {
-  return backend.invoke('encryption:disableSync', {
-    syncPath,
-    removeManifest,
-  });
-}
-
-export function unlockEncryption(password, targets, syncPath = null) {
-  return backend.invoke('encryption:unlock', { password, targets, syncPath });
-}
-
-export function lockEncryption(targets) {
-  return backend.invoke('encryption:lock', { targets });
+export function lockEncryption() {
+  return backend.invoke('encryption:lock');
 }
 
 export function encryptionExportAppKey() {
@@ -208,4 +187,8 @@ export async function rewriteAssetFile(
     skipAssetEncryption,
   });
   return true;
+}
+
+export function onAssetMigrationProgress(handler) {
+  return backend.listen('asset-migration-progress', handler);
 }

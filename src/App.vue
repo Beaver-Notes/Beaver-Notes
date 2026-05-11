@@ -41,6 +41,21 @@
     />
   </div>
 
+  <div
+    v-show="appEncryptionMigrationBanner.show"
+    class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
+    :class="updateBanner.show || syncLockBanner.show ? 'mb-16' : ''"
+    :style="bottomBannerStyle"
+  >
+    <ui-banner
+      :content="appEncryptionMigrationBanner.status === 'in_progress' ? 'App encryption migration is in progress. Please wait for it to complete.' : 'App encryption migration did not complete. Please re-enable app encryption from Settings.'"
+      primary-text="Open Settings"
+      secondary-text="Dismiss"
+      @button-1="openAppEncryptionMigrationSettings"
+      @button-2="dismissAppEncryptionMigrationBanner"
+    />
+  </div>
+
   <main
     v-if="retrieved"
     data-testid="app-main"

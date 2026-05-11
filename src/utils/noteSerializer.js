@@ -9,12 +9,12 @@
  */
 import { buildCardPreview, EMPTY_CARD_PREVIEW } from '@/utils/cardPreview.js';
 import {
-  isAppEncryptionEnabled,
-  ensureAppKeyReadyForWrite,
+  isEncryptionEnabled,
+  ensureKeyReadyForWrite,
   decryptContent,
   encryptContent,
-  isAppEncryptedContent,
-} from '@/utils/appCrypto.js';
+  isEncryptedContent,
+} from '@/utils/encryption.js';
 
 let _appKeyRaw = null;
 let _decryptWorkerInFlight = null;
@@ -86,7 +86,7 @@ export function hydrateNote(note) {
   if (!note || typeof note !== 'object') return note;
 
   const persisted = stripTransientFields(note);
-  const hidden = persisted.isLocked || isAppEncryptedContent(persisted.content);
+  const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
 
   return {
     ...persisted,
@@ -102,7 +102,7 @@ export function hydrateNote(note) {
  * for in-memory use. Returns the note unchanged if the key is not loaded yet.
  */
 export async function decryptNoteForMemory(note) {
-  if (!isAppEncryptedContent(note.content)) return note;
+  if (!isEncryptedContent(note.content)) return note;
   try {
     const decrypted = await decryptContent(note.content);
     if (decrypted === null) return note;
@@ -156,8 +156,8 @@ export async function batchDecryptNotesForMemory(notes, options = {}) {
  * Throws if the encryption key is locked.
  */
 export async function encryptNoteForStorage(note) {
-  if (!isAppEncryptionEnabled()) return note;
-  await ensureAppKeyReadyForWrite();
+  if (!isEncryptionEnabled()) return note;
+  await ensureKeyReadyForWrite();
   if (note?.content) {
     return { ...note, content: await encryptContent(note.content) };
   }

@@ -30,73 +30,29 @@ import {
   runOnboardingMigration,
   runOnboardingMigrationFromPath,
 } from '@/utils/onboarding';
+import {
+  decryptNoteWithPassword,
+  encryptNoteWithPassword,
+  LEGACY_CRYPTOJS_PREFIX,
+  NOTE_CRYPTO_ERROR,
+} from '@/utils/noteCrypto';
+import { findLegacyLockedNotes, unwrapLegacyData } from '@/utils/legacy-lock';
+import {
+  ALL_PLATFORMS as ALL_MIGRATION_PLATFORMS,
+  ONBOARDING_IMPORT_SOURCE_MAP,
+  PLATFORM_LABELS,
+  PLATFORM_ICONS,
+  getMigrationSourceCopy,
+  getMigrationWhatGetsCopied,
+} from '@/utils/onboarding-platforms';
+import { ENTRANCE_DELAYS } from '@/utils/onboarding-animations';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
+import { readLegacyData, writeLegacyData } from '@/lib/native/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import logoUrl from '@/assets/images/logo-transparent.png';
-
-const ONBOARDING_IMPORT_SOURCE_MAP = {
-  obsidian: 'obsidian',
-  notion: 'notion',
-  bear: 'bear',
-  simplenote: 'simplenote',
-  markdown: 'genericMd',
-  evernote: 'evernote',
-  'apple-notes': 'appleNotes',
-};
-
-const PLATFORM_LABELS = {
-  electron: 'Beaver Notes (Legacy)',
-  obsidian: 'Obsidian',
-  'apple-notes': 'Apple Notes',
-  bear: 'Bear',
-  simplenote: 'Simplenote',
-  markdown: 'Markdown Folder',
-  evernote: 'Evernote',
-  notion: 'Notion',
-};
-
-const PLATFORM_ICONS = {
-  electron: { icon: 'beaver', useLogo: true, bg: 'rgba(245, 158, 11, 0.12)' },
-  obsidian: {
-    icon: 'obsidian',
-    color: 'text-[#7C60D7]',
-    bg: 'rgba(124, 96, 215, 0.12)',
-  },
-  'apple-notes': {
-    icon: 'riAppleFill',
-    color: 'text-primary',
-    bg: 'rgba(255, 204, 0, 0.15)',
-  },
-  bear: {
-    icon: 'bear',
-    color: 'text-[#EA581C]',
-    bg: 'rgba(234, 88, 12, 0.12)',
-  },
-  simplenote: {
-    icon: 'simpleNote',
-    color: 'text-blue-500',
-    bg: 'rgba(59, 130, 246, 0.12)',
-  },
-  markdown: {
-    icon: 'riMarkdownLine',
-    color: 'text-neutral-600 dark:text-neutral-300',
-    bg: 'bg-neutral-400/10',
-  },
-  evernote: {
-    icon: 'riEvernoteFill',
-    color: 'text-[#00A550]',
-    bg: 'rgba(0, 165, 80, 0.12)',
-  },
-  notion: {
-    icon: 'riNotionFill',
-    color: 'text-neutral-900 dark:text-white',
-    bg: 'bg-neutral-900/10 dark:bg-white/10',
-    iconClass: 'bg-neutral-900/10 dark:bg-white/10',
-  },
-};
 
 export function useOnboardingFlow({
   route,
@@ -142,6 +98,11 @@ export function useOnboardingFlow({
     migrationResult: null,
     migrationIssuesText: '',
     evernoteNotebookName: '',
+    legacyHasLockedNotes: false,
+    legacyLockedNoteCount: 0,
+    legacyPasswordPrompt: false,
+    legacyPasswordLoading: false,
+    legacyPasswordError: '',
   });
 
   // Fresh-start preference selections
@@ -237,37 +198,28 @@ export function useOnboardingFlow({
   );
 
   const migrationSourceCopy = computed(() => {
-    switch (migrationPlatform.value) {
-      case 'electron':
-        return migrationDetectionCopy.value;
-      case 'obsidian':
-        return 'Choose your Obsidian vault folder when import starts. Notes and folders will come across as-is.';
-      case 'apple-notes':
-        return 'Beaver Notes will request access to Apple Notes and import directly from the app.';
-      case 'bear':
-        return 'Choose the folder Bear exported in Markdown format. Tags and images will be imported when available.';
-      case 'simplenote':
-        return 'Choose the exported notes.json file from Simplenote.';
-      case 'markdown':
-        return 'Choose any folder of Markdown files. Subfolders become Beaver Notes folders.';
-      case 'evernote':
-        return 'Choose an ENEX export file. You can optionally map the source notebook into a Beaver Notes folder.';
-      case 'notion':
-        return 'Choose the unzipped Notion export folder. Markdown pages and exported assets will be imported.';
-      default:
-        return 'Choose a source before starting the import.';
-    }
+    const copy = getMigrationSourceCopy(migrationPlatform.value);
+    if (copy === null) return migrationDetectionCopy.value;
+    return copy;
   });
 
-  const migrationWhatGetsCopied = computed(() => {
-    if (migrationPlatform.value === 'electron') {
-      return 'Notes, folders, labels, settings, note assets, file assets, passwords, and stored sync keys all move into the new workspace.';
-    }
-    if (migrationPlatform.value === 'simplenote') {
-      return 'Notes, tags, and timestamps will be imported into Beaver Notes.';
-    }
-    return 'Notes, folders, labels, timestamps, and exported attachments will be imported when the source provides them.';
+  const migrationSourceBadge = computed(() => {
+    if (migrationPlatform.value !== 'electron') return '';
+    if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
+      return 'Ready';
+    return '';
   });
+
+  const migrationSourceBadgeClass = computed(() => {
+    if (migrationPlatform.value !== 'electron') return '';
+    if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    return 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400';
+  });
+
+  const migrationWhatGetsCopied = computed(() =>
+    getMigrationWhatGetsCopied(migrationPlatform.value)
+  );
 
   const migrationActionDisabled = computed(() => {
     if (!migrationPlatform.value) return true;
@@ -285,8 +237,16 @@ export function useOnboardingFlow({
       return isMobileRuntime
         ? ['welcome', 'setup', 'sync', 'finish']
         : ['welcome', 'path', 'setup', 'sync', 'finish'];
-    if (selectedMode.value === 'migration')
-      return ['welcome', 'path', 'platform', 'migration', 'finish'];
+    if (selectedMode.value === 'migration') {
+      const base = ['welcome', 'path', 'platform'];
+      if (
+        migrationPlatform.value === 'electron' &&
+        state.legacyHasLockedNotes
+      ) {
+        return [...base, 'legacyPassword', 'migration', 'finish'];
+      }
+      return [...base, 'migration', 'finish'];
+    }
     return isMobileRuntime ? ['welcome', 'setup'] : ['welcome', 'path'];
   });
 
@@ -319,14 +279,28 @@ export function useOnboardingFlow({
     setStep('path');
   };
 
-  const openMigrationFlow = () => {
+  const openMigrationFlow = async () => {
     selectedMode.value = 'migration';
     migrationPlatform.value = 'electron';
+    const dir = customLegacyPath.value || state.status?.legacyDir;
+    if (dir) {
+      const lockedInfo = await _detectLockedNotesFromDir(dir);
+      state.legacyHasLockedNotes = lockedInfo.hasLocked;
+      state.legacyLockedNoteCount = lockedInfo.count;
+    }
     setStep('platform');
   };
 
-  const selectMigrationPlatform = (platform) => {
+  const selectMigrationPlatform = async (platform) => {
     migrationPlatform.value = platform;
+    if (platform === 'electron') {
+      const dir = customLegacyPath.value || state.status?.legacyDir;
+      if (dir) {
+        const lockedInfo = await _detectLockedNotesFromDir(dir);
+        state.legacyHasLockedNotes = lockedInfo.hasLocked;
+        state.legacyLockedNoteCount = lockedInfo.count;
+      }
+    }
   };
 
   // ── Appearance setters (with DOM side-effects) ─────────────────────────────
@@ -412,6 +386,13 @@ export function useOnboardingFlow({
   async function refreshStatus() {
     state.error = '';
     state.status = await getOnboardingMigrationStatus();
+    if (state.status?.hasLegacyData && state.status?.legacyDir) {
+      const lockedInfo = await _detectLockedNotesFromDir(
+        state.status.legacyDir
+      );
+      state.legacyHasLockedNotes = lockedInfo.hasLocked;
+      state.legacyLockedNoteCount = lockedInfo.count;
+    }
   }
 
   async function prepareFreshWorkspace() {
@@ -446,6 +427,11 @@ export function useOnboardingFlow({
       const probed = await probeCustomMigrationPath(dir);
       customLegacyPath.value = dir;
       customLegacyStatus.value = probed;
+      if (probed?.hasLegacyData) {
+        const lockedInfo = await _detectLockedNotesFromDir(dir);
+        state.legacyHasLockedNotes = lockedInfo.hasLocked;
+        state.legacyLockedNoteCount = lockedInfo.count;
+      }
     } catch (e) {
       state.error = e?.message || String(e);
     }
@@ -565,6 +551,94 @@ export function useOnboardingFlow({
     }
   }
 
+  async function _detectLockedNotesFromDir(dir) {
+    try {
+      const content = await readLegacyData(dir);
+      if (!content) {
+        return { hasLocked: false, count: 0 };
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        return { hasLocked: false, count: 0 };
+      }
+      const data = unwrapLegacyData(parsed);
+      return findLegacyLockedNotes(data);
+    } catch (err) {
+      console.error('[onboarding] detection error:', err);
+      return { hasLocked: false, count: 0 };
+    }
+  }
+
+  async function handleLegacyPasswordSubmit(password, passwordStore) {
+    state.legacyPasswordLoading = true;
+    state.legacyPasswordError = '';
+    let migratedCount = 0;
+
+    try {
+      const dir = customLegacyPath.value || state.status?.legacyDir;
+      const content = await readLegacyData(dir);
+      if (!content) {
+        state.legacyPasswordPrompt = false;
+        return { success: true, migratedCount };
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        state.legacyPasswordPrompt = false;
+        return { success: true, migratedCount };
+      }
+
+      const data = unwrapLegacyData(parsed);
+      const { notes: lockedNotes } = findLegacyLockedNotes(data);
+      if (!lockedNotes.length) {
+        state.legacyPasswordPrompt = false;
+        return { success: true, migratedCount };
+      }
+
+      for (const note of lockedNotes) {
+        try {
+          const ciphertext = note.content?.content?.[0];
+          if (!ciphertext) continue;
+          const { plaintext } = await decryptNoteWithPassword(
+            ciphertext,
+            password
+          );
+          const v2cipher = await encryptNoteWithPassword(plaintext, password);
+          note.content = { type: 'doc', content: [v2cipher] };
+          note.isLocked = true;
+          note.updatedAt = Date.now();
+          migratedCount += 1;
+        } catch (err) {
+          console.warn(`[onboarding] failed to migrate note ${note.id}:`, err);
+        }
+      }
+
+      if (migratedCount > 0) {
+        await writeLegacyData(dir, JSON.stringify(data, null, 2));
+      }
+      await passwordStore.setSharedKey(password);
+      state.legacyPasswordPrompt = false;
+      state.legacyHasLockedNotes = false;
+      return { success: true, migratedCount };
+    } catch (e) {
+      console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
+      state.legacyPasswordError = e?.message || NOTE_CRYPTO_ERROR;
+      return { success: false, migratedCount, error: state.legacyPasswordError };
+    } finally {
+      state.legacyPasswordLoading = false;
+    }
+  }
+
+  function handleLegacyPasswordSkip() {
+    state.legacyPasswordPrompt = false;
+    state.legacyPasswordError = '';
+    state.legacyHasLockedNotes = false;
+  }
+
   async function copyMigrationIssues() {
     if (!state.migrationIssuesText) return;
     try {
@@ -664,13 +738,13 @@ export function useOnboardingFlow({
     } else {
       delay(() => {
         logoIn.value = true;
-      }, 120);
+      }, ENTRANCE_DELAYS.logo);
       delay(() => {
         textIn.value = true;
-      }, 580);
+      }, ENTRANCE_DELAYS.text);
       delay(() => {
         ctaIn.value = true;
-      }, 1020);
+      }, ENTRANCE_DELAYS.cta);
     }
 
     theme.loadTheme();
@@ -766,5 +840,9 @@ export function useOnboardingFlow({
     toggleAutoSync,
     finishFreshOnboarding,
     completeAndOpenWorkspace,
+    handleLegacyPasswordSubmit,
+    handleLegacyPasswordSkip,
+    migrationSourceBadge,
+    migrationSourceBadgeClass,
   };
 }

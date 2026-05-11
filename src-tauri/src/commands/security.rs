@@ -3,12 +3,12 @@ use std::{fs, path::PathBuf};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use serde::Serialize;
 use serde_json::{json, Value};
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 use crate::shared::*;
 use rand::RngCore;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetMigrationResult {
     pub(crate) total: usize,
@@ -16,9 +16,20 @@ pub(crate) struct AssetMigrationResult {
     pub(crate) failed_paths: Vec<String>,
 }
 
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct AssetMigrationProgressPayload {
+    pub(crate) processed: usize,
+    pub(crate) total: usize,
+    pub(crate) current: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct EncryptionStateResult {
+    pub(crate) enabled: bool,
+    pub(crate) unlocked: bool,
+    // Backward-compat aliases so missed call-sites don't hard-crash
     pub(crate) app_enabled: bool,
     pub(crate) app_unlocked: bool,
     pub(crate) sync_enabled: bool,
@@ -105,6 +116,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
     let total = files.len();
     let mut processed = 0;
     let mut failed_paths = Vec::new();
+    let mut failed_reasons = Vec::new();
     let batch_size = 4usize;
 
     let state_inner = state.inner();
@@ -112,17 +124,77 @@ pub(crate) async fn asset_crypto_migrate_dir(
 
     for chunk in files.chunks(batch_size) {
         for path in chunk {
-            match {
+            let current = path.to_string_lossy().to_string();
+            let result: Result<(), String> = (|| {
                 let raw = fs::read(path).map_err(to_error)?;
-                let plain = maybe_decrypt_asset(&app, &state_inner, path, &raw)?;
-                let payload = maybe_encrypt_asset(&app, &state_inner, path, &plain, !encrypt)?;
-                fs::write(path, payload).map_err(to_error)
-            } {
+                if encrypt {
+                    // Enabling: decrypt first (in case it was encrypted with a stale key),
+                    // then re-encrypt with the current key.
+                    let plain = maybe_decrypt_asset(&app, &state_inner, path, &raw)?;
+                    let payload = maybe_encrypt_asset(&app, &state_inner, path, &plain, false)?;
+                    fs::write(path, payload).map_err(to_error)
+                } else {
+                    // Disabling: try to decrypt to plaintext. If decryption fails
+                    // (e.g. asset was encrypted with an old, lost key), leave it
+                    // encrypted and move on — the manifest is about to be removed anyway.
+                    match maybe_decrypt_asset(&app, &state_inner, path, &raw) {
+                        Ok(plain) => {
+                            let payload = maybe_encrypt_asset(&app, &state_inner, path, &plain, true)?;
+                            fs::write(path, payload).map_err(to_error)
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "[asset-migration] skipping undecryptable asset (left encrypted): {} | error: {}",
+                                current, e
+                            );
+                            Ok(())
+                        }
+                    }
+                }
+            })();
+            match result {
                 Ok(()) => processed += 1,
-                Err(_e) => failed_paths.push(path.to_string_lossy().to_string()),
+                Err(e) => {
+                    eprintln!(
+                        "[asset-migration] FAILED: {} | error: {}",
+                        current, e
+                    );
+                    // If the key is not loaded, every file will fail — abort early.
+                    if e.contains("App encryption is enabled but locked") {
+                        return Err(format!(
+                            "App encryption key is not loaded. Unlock it before migrating assets. (First failure: {})",
+                            current
+                        ));
+                    }
+                    failed_paths.push(current.clone());
+                    failed_reasons.push(e);
+                }
             }
+            let _ = app.emit(
+                "asset-migration-progress",
+                AssetMigrationProgressPayload {
+                    processed,
+                    total,
+                    current,
+                },
+            );
         }
         tokio::task::yield_now().await;
+    }
+
+    if !failed_paths.is_empty() {
+        let sample = failed_reasons
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(format!(
+            "Failed to migrate {} of {} asset file(s). Sample errors: {}.",
+            failed_paths.len(),
+            total,
+            sample
+        ));
     }
 
     Ok(AssetMigrationResult {
@@ -136,22 +208,18 @@ pub(crate) async fn asset_crypto_migrate_dir(
 pub(crate) fn encryption_get_state(
     app: AppHandle,
     state: State<AppState>,
-    sync_path: Option<String>,
+    _sync_path: Option<String>,
 ) -> Result<EncryptionStateResult, String> {
-    let app_enabled = app_encryption_manifest_path(&app, state.inner())?.exists();
-    let app_unlocked = app_key_loaded(state.inner())?;
-    let sync_enabled = sync_path
-        .as_deref()
-        .map(sync_scope_path)
-        .map(|path| sync_encryption_manifest_path(&path).exists())
-        .unwrap_or(false);
-    let sync_unlocked = sync_key_loaded(state.inner())?;
+    let enabled = app_encryption_manifest_path(&app, state.inner())?.exists();
+    let unlocked = app_key_loaded(state.inner())?;
 
     Ok(EncryptionStateResult {
-        app_enabled,
-        app_unlocked,
-        sync_enabled,
-        sync_unlocked,
+        enabled,
+        unlocked,
+        app_enabled: enabled,
+        app_unlocked: unlocked,
+        sync_enabled: enabled,
+        sync_unlocked: unlocked,
     })
 }
 
@@ -160,104 +228,48 @@ pub(crate) fn encryption_submit_password(
     app: AppHandle,
     state: State<AppState>,
     password: String,
-    target: String,
-    sync_path: Option<String>,
+    _sync_path: Option<String>,
     create_if_missing: Option<bool>,
 ) -> Result<EncryptionSubmitResult, String> {
     let create_if_missing = create_if_missing.unwrap_or(true);
 
-    let result = match target.as_str() {
-        APP_ENCRYPTION_SCOPE => {
-            let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
-            if manifest_path.exists() {
-                let manifest = load_encryption_manifest(&manifest_path)?
-                    .ok_or_else(|| "App encryption manifest is missing.".to_string())?;
-                let key = unlock_key_from_manifest(
-                    &manifest,
-                    &password,
-                    APP_ENCRYPTION_SCOPE,
-                    APP_PASSWORD_CHECK,
-                )?;
-                *state.app_data_key.lock().map_err(to_error)? = Some(key);
-            } else if create_if_missing {
-                let (manifest, key) = create_encryption_manifest(
-                    APP_ENCRYPTION_SCOPE,
-                    APP_PASSWORD_CHECK,
-                    &password,
-                )?;
-                write_encryption_manifest(&manifest_path, &manifest)?;
-                *state.app_data_key.lock().map_err(to_error)? = Some(key);
-                crate::shared::set_app_encryption_active(state.inner(), true);
-            } else {
-                return Ok(EncryptionSubmitResult {
-                    ok: false,
-                    error: Some("App encryption is not enabled.".to_string()),
-                    state: encryption_get_state(app, state, sync_path)?,
-                });
-            }
-            encryption_get_state(app, state, sync_path)?
-        }
-        SYNC_ENCRYPTION_SCOPE => {
-            let sync_path = sync_path
-                .as_deref()
-                .ok_or_else(|| "Sync path is required.".to_string())?;
-            let sync_path = PathBuf::from(sync_path);
-            assert_path_access(
-                &app,
-                state.inner(),
-                &sync_path,
-                "submit sync encryption password",
-            )?;
-            let manifest_path = sync_encryption_manifest_path(&sync_path);
-            if manifest_path.exists() {
-                let manifest = load_encryption_manifest(&manifest_path)?
-                    .ok_or_else(|| "Sync encryption manifest is missing.".to_string())?;
-                let key = unlock_key_from_manifest(
-                    &manifest,
-                    &password,
-                    SYNC_ENCRYPTION_SCOPE,
-                    SYNC_PASSWORD_CHECK,
-                )?;
-                *state.sync_data_key.lock().map_err(to_error)? = Some(key);
-            } else if create_if_missing {
-                let (manifest, key) = create_encryption_manifest(
-                    SYNC_ENCRYPTION_SCOPE,
-                    SYNC_PASSWORD_CHECK,
-                    &password,
-                )?;
-                write_encryption_manifest(&manifest_path, &manifest)?;
-                *state.sync_data_key.lock().map_err(to_error)? = Some(key);
-            } else {
-                return Ok(EncryptionSubmitResult {
-                    ok: false,
-                    error: Some("Sync encryption is not enabled.".to_string()),
-                    state: encryption_get_state(
-                        app,
-                        state,
-                        Some(sync_path.to_string_lossy().to_string()),
-                    )?,
-                });
-            }
-            encryption_get_state(app, state, Some(sync_path.to_string_lossy().to_string()))?
-        }
-        _ => {
-            return Ok(EncryptionSubmitResult {
-                ok: false,
-                error: Some(format!("Unsupported encryption target: {target}")),
-                state: encryption_get_state(app, state, sync_path)?,
-            });
-        }
-    };
+    let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
+    if manifest_path.exists() {
+        let manifest = load_encryption_manifest(&manifest_path)?
+            .ok_or_else(|| "Encryption manifest is missing.".to_string())?;
+        let key = unlock_key_from_manifest(
+            &manifest,
+            &password,
+            APP_ENCRYPTION_SCOPE,
+            APP_PASSWORD_CHECK,
+        )?;
+        *state.app_data_key.lock().map_err(to_error)? = Some(key);
+    } else if create_if_missing {
+        let (manifest, key) = create_encryption_manifest(
+            APP_ENCRYPTION_SCOPE,
+            APP_PASSWORD_CHECK,
+            &password,
+        )?;
+        write_encryption_manifest(&manifest_path, &manifest)?;
+        *state.app_data_key.lock().map_err(to_error)? = Some(key);
+        crate::shared::set_app_encryption_active(state.inner(), true);
+    } else {
+        return Ok(EncryptionSubmitResult {
+            ok: false,
+            error: Some("Encryption is not enabled.".to_string()),
+            state: encryption_get_state(app, state, None)?,
+        });
+    }
 
     Ok(EncryptionSubmitResult {
         ok: true,
         error: None,
-        state: result,
+        state: encryption_get_state(app, state, None)?,
     })
 }
 
 #[tauri::command]
-pub(crate) fn encryption_enable_app(
+pub(crate) fn encryption_enable(
     app: AppHandle,
     state: State<AppState>,
     password: String,
@@ -272,7 +284,7 @@ pub(crate) fn encryption_enable_app(
 }
 
 #[tauri::command]
-pub(crate) fn encryption_disable_app(
+pub(crate) fn encryption_disable(
     app: AppHandle,
     state: State<AppState>,
     remove_manifest: Option<bool>,
@@ -287,98 +299,27 @@ pub(crate) fn encryption_disable_app(
 }
 
 #[tauri::command]
-pub(crate) fn encryption_enable_sync(
-    app: AppHandle,
-    state: State<AppState>,
-    sync_path: String,
-    password: String,
-) -> Result<(), String> {
-    let sync_path = PathBuf::from(sync_path);
-    assert_path_access(&app, state.inner(), &sync_path, "enable sync encryption")?;
-    let (manifest, key) =
-        create_encryption_manifest(SYNC_ENCRYPTION_SCOPE, SYNC_PASSWORD_CHECK, &password)?;
-    let manifest_path = sync_encryption_manifest_path(&sync_path);
-    write_encryption_manifest(&manifest_path, &manifest)?;
-    *state.sync_data_key.lock().map_err(to_error)? = Some(key);
-    Ok(())
-}
-
-#[tauri::command]
-pub(crate) fn encryption_disable_sync(
-    app: AppHandle,
-    state: State<AppState>,
-    sync_path: Option<String>,
-    remove_manifest: Option<bool>,
-) -> Result<(), String> {
-    *state.sync_data_key.lock().map_err(to_error)? = None;
-    if remove_manifest.unwrap_or(false) {
-        if let Some(sync_path) = sync_path {
-            let sync_path = PathBuf::from(sync_path);
-            assert_path_access(&app, state.inner(), &sync_path, "disable sync encryption")?;
-            let _ = fs::remove_file(sync_encryption_manifest_path(&sync_path));
-        }
-    }
-    Ok(())
-}
-
-#[tauri::command]
 pub(crate) fn encryption_unlock(
     app: AppHandle,
     state: State<AppState>,
     password: String,
-    sync_path: Option<String>,
-    targets: Vec<String>,
 ) -> Result<(), String> {
-    for target in targets {
-        match target.as_str() {
-            APP_ENCRYPTION_SCOPE => {
-                let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
-                let manifest = load_encryption_manifest(&manifest_path)?
-                    .ok_or_else(|| "App encryption is not enabled.".to_string())?;
-                let key = unlock_key_from_manifest(
-                    &manifest,
-                    &password,
-                    APP_ENCRYPTION_SCOPE,
-                    APP_PASSWORD_CHECK,
-                )?;
-                *state.app_data_key.lock().map_err(to_error)? = Some(key);
-            }
-            SYNC_ENCRYPTION_SCOPE => {
-                let sync_path = sync_path.as_deref().ok_or_else(|| {
-                    "Sync path is required to unlock sync encryption.".to_string()
-                })?;
-                let sync_path = PathBuf::from(sync_path);
-                assert_path_access(&app, state.inner(), &sync_path, "unlock sync encryption")?;
-                let manifest =
-                    load_encryption_manifest(&sync_encryption_manifest_path(&sync_path))?
-                        .ok_or_else(|| "Sync encryption is not enabled.".to_string())?;
-                let key = unlock_key_from_manifest(
-                    &manifest,
-                    &password,
-                    SYNC_ENCRYPTION_SCOPE,
-                    SYNC_PASSWORD_CHECK,
-                )?;
-                *state.sync_data_key.lock().map_err(to_error)? = Some(key);
-            }
-            _ => {}
-        }
-    }
+    let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
+    let manifest = load_encryption_manifest(&manifest_path)?
+        .ok_or_else(|| "Encryption is not enabled.".to_string())?;
+    let key = unlock_key_from_manifest(
+        &manifest,
+        &password,
+        APP_ENCRYPTION_SCOPE,
+        APP_PASSWORD_CHECK,
+    )?;
+    *state.app_data_key.lock().map_err(to_error)? = Some(key);
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn encryption_lock(state: State<AppState>, targets: Vec<String>) -> Result<(), String> {
-    for target in targets {
-        match target.as_str() {
-            APP_ENCRYPTION_SCOPE => {
-                *state.app_data_key.lock().map_err(to_error)? = None;
-            }
-            SYNC_ENCRYPTION_SCOPE => {
-                *state.sync_data_key.lock().map_err(to_error)? = None;
-            }
-            _ => {}
-        }
-    }
+pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), String> {
+    *state.app_data_key.lock().map_err(to_error)? = None;
     Ok(())
 }
 
@@ -421,8 +362,8 @@ pub(crate) fn encryption_encrypt_sync_payload(
     state: State<AppState>,
     plain_text: String,
 ) -> Result<String, String> {
-    let key = current_sync_key(state.inner())?
-        .ok_or_else(|| "Sync encryption is enabled but locked.".to_string())?;
+    let key = current_app_key(state.inner())?
+        .ok_or_else(|| "Encryption is enabled but locked.".to_string())?;
     sync_envelope_json(encrypt_bytes_with_key(&key, plain_text.as_bytes())?)
 }
 
@@ -438,7 +379,7 @@ pub(crate) fn encryption_decrypt_sync_payload(
     if parsed.get("v").and_then(Value::as_u64) != Some(3) {
         return Ok(Some(payload));
     }
-    let key = match current_sync_key(state.inner())? {
+    let key = match current_app_key(state.inner())? {
         Some(key) => key,
         None => return Ok(None),
     };
@@ -453,8 +394,8 @@ pub(crate) fn encryption_encrypt_sync_asset_base64(
     state: State<AppState>,
     base64_data: String,
 ) -> Result<String, String> {
-    let key = current_sync_key(state.inner())?
-        .ok_or_else(|| "Sync encryption is enabled but locked.".to_string())?;
+    let key = current_app_key(state.inner())?
+        .ok_or_else(|| "Encryption is enabled but locked.".to_string())?;
     sync_envelope_json(encrypt_bytes_with_key(&key, base64_data.as_bytes())?)
 }
 
@@ -662,7 +603,7 @@ pub(crate) async fn encrypt_asset_stream(
 }
 
 #[tauri::command]
-pub(crate) fn cache_decrypted_note_cmd(
+pub(crate) fn cache_decrypted_note(
     state: State<AppState>,
     note_id: String,
     content: Vec<u8>,
@@ -672,7 +613,7 @@ pub(crate) fn cache_decrypted_note_cmd(
 }
 
 #[tauri::command]
-pub(crate) fn get_cached_decrypted_note_cmd(
+pub(crate) fn get_cached_decrypted_note(
     state: State<AppState>,
     note_id: String,
 ) -> Option<Vec<u8>> {
@@ -680,7 +621,7 @@ pub(crate) fn get_cached_decrypted_note_cmd(
 }
 
 #[tauri::command]
-pub(crate) fn clear_decrypted_caches_cmd(state: State<AppState>) -> Result<(), String> {
+pub(crate) fn clear_decrypted_caches(state: State<AppState>) -> Result<(), String> {
     crate::shared::clear_decrypted_caches(state.inner());
     Ok(())
 }

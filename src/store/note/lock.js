@@ -2,6 +2,7 @@ import { useAppStore } from '../app';
 import {
   encryptNoteWithPassword,
   decryptNoteWithPassword,
+  NOTE_CRYPTO_ERROR,
 } from '@/utils/noteCrypto.js';
 import { hydrateNote } from '@/utils/noteSerializer.js';
 import {
@@ -76,7 +77,7 @@ export async function unlockNote(id, password) {
           password
         ));
     } catch {
-      throw new Error('Incorrect password');
+      throw new Error(NOTE_CRYPTO_ERROR);
     }
 
     this.data[id].content = JSON.parse(decryptedContent);

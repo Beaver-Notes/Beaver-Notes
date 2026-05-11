@@ -9,7 +9,7 @@
         <p class="text-sm text-neutral-500 dark:text-neutral-400 mb-4">
           {{
             translations.settings.securityDesc ||
-            'One password powers note locking, app-wide encryption, and sync encryption independently.'
+            'One passphrase protects your notes on this device and sync commits when sync is enabled.'
           }}
         </p>
 
@@ -67,41 +67,39 @@
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
               <span class="block text-base">
-                {{
-                  translations.settings.appEncryption || 'Encrypt notes on disk'
-                }}
+                {{ translations.settings.encryption || 'Encryption' }}
               </span>
               <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
                 {{
-                  translations.settings.appEncryptionDesc ||
-                  'All notes are encrypted at rest. Requires your password on each startup.'
+                  translations.settings.encryptionDesc ||
+                  'Encrypts note content on this device and sync commits when sync is enabled.'
                 }}
               </p>
             </div>
             <ui-switch
-              v-model="appEncryptionEnabled"
-              :disabled="appEncryptionBusy"
-              @change="toggleAppEncryption"
+              v-model="encryptionEnabled"
+              :disabled="encryptionBusy"
+              @change="toggleEncryption"
             />
           </div>
           <p
-            v-if="appEncryptionError"
-            id="app-encryption-error"
+            v-if="encryptionError"
+            id="encryption-error"
             role="alert"
             class="text-xs text-red-500 mt-2"
           >
-            {{ appEncryptionError }}
+            {{ encryptionError }}
           </p>
           <transition name="setting-fade">
             <div
-              v-if="appEncryptionBusy"
+              v-if="encryptionBusy"
               class="mt-2 rounded-md dark:bg-primary/10"
             >
               <p class="text-xs text-primary">
-                {{ appEncryptionProgressLabel }}:
-                {{ appEncryptionProgress.processed }} /
-                {{ appEncryptionProgress.total }}
-                ({{ appEncryptionProgressPercent }}%)
+                {{ encryptionProgressLabel }}:
+                {{ encryptionProgress.processed }} /
+                {{ encryptionProgress.total }}
+                ({{ encryptionProgressPercent }}%)
               </p>
               <p class="text-xs text-primary dark:text-primary/80 mt-1">
                 {{
@@ -112,7 +110,7 @@
               <div class="mt-2 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
                 <div
                   class="app-encryption-progress-bar h-1.5 rounded bg-primary dark:bg-primary/80"
-                  :style="{ width: `${appEncryptionProgressPercent}%` }"
+                  :style="{ width: `${encryptionProgressPercent}%` }"
                 />
               </div>
             </div>
@@ -120,102 +118,34 @@
 
           <transition name="setting-fade">
             <div
-              v-if="appEncryptionEnabled && !appKeyLoaded"
+              v-if="encryptionEnabled && !keyLoaded"
               class="flex items-center gap-2 mt-2"
             >
               <ui-input
-                v-model="appConfirmInput"
+                v-model="passphraseInput"
                 type="password"
                 class="flex-1"
-                :disabled="appEncryptionBusy || appUnlockBusy"
+                :disabled="encryptionBusy || unlockBusy"
                 :aria-label="
-                  translations.settings.appEncryptionPassword ||
-                  'App encryption password'
+                  translations.settings.encryptionPassphrase ||
+                  'Encryption passphrase'
                 "
                 :aria-describedby="
-                  appEncryptionError ? 'app-encryption-error' : undefined
+                  encryptionError ? 'encryption-error' : undefined
                 "
                 :placeholder="translations.settings.password || 'Password...'"
-                @keyup.enter="confirmAppEncryption"
+                @keyup.enter="confirmEncryption"
               />
               <ui-button
                 :disabled="
-                  !appConfirmInput || appEncryptionBusy || appUnlockBusy
+                  !passphraseInput || encryptionBusy || unlockBusy
                 "
-                @click="confirmAppEncryption"
+                @click="confirmEncryption"
               >
                 {{ translations.settings.unlock || 'Unlock' }}
               </ui-button>
             </div>
           </transition>
-        </div>
-
-        <div class="py-3">
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex-1 min-w-0">
-              <span class="block text-base">
-                {{
-                  translations.settings.syncEncryption || 'Encrypt sync folder'
-                }}
-              </span>
-              <p class="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {{
-                  translations.settings.syncEncryptionDesc ||
-                  'Commits and assets in your sync folder are encrypted. Same password, independent key.'
-                }}
-              </p>
-            </div>
-            <ui-switch
-              v-model="syncEncryptionEnabled"
-              :disabled="!hasSyncFolder"
-              @change="toggleSyncEncryption"
-            />
-          </div>
-          <p
-            v-if="!hasSyncFolder"
-            class="text-xs text-amber-600 dark:text-amber-400 mt-2"
-          >
-            {{
-              translations.settings.syncPathRequired ||
-              'Set a sync folder in General to enable sync encryption.'
-            }}
-          </p>
-          <transition name="setting-fade">
-            <div
-              v-if="hasSyncFolder && syncEncryptionEnabled && !syncKeyLoaded"
-              class="flex items-center gap-2 mt-2"
-            >
-              <ui-input
-                v-model="syncPassphraseInput"
-                type="password"
-                class="flex-1"
-                :disabled="syncUnlockBusy"
-                :aria-label="
-                  translations.settings.syncEncryptionPassword ||
-                  'Sync encryption password'
-                "
-                :aria-describedby="
-                  syncCryptoError ? 'sync-crypto-error' : undefined
-                "
-                :placeholder="translations.settings.password || 'Password...'"
-                @keyup.enter="verifySyncKey"
-              />
-              <ui-button
-                :disabled="!syncPassphraseInput || syncUnlockBusy"
-                @click="verifySyncKey"
-              >
-                {{ translations.settings.unlock || 'Unlock' }}
-              </ui-button>
-            </div>
-          </transition>
-          <p
-            v-if="syncCryptoError"
-            id="sync-crypto-error"
-            role="alert"
-            class="text-xs text-red-500 mt-2"
-          >
-            {{ syncCryptoError }}
-          </p>
         </div>
       </section>
     </ui-card>
@@ -229,64 +159,50 @@ import { useTranslations } from '@/composable/useTranslations';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import {
-  isSyncEncryptionEnabled,
-  isSyncKeyLoaded,
-  setupSyncEncryption,
-  disableSyncEncryption,
-  syncFolderHasEncryption,
-} from '@/utils/sync/crypto.js';
+  isEncryptionEnabled,
+  isKeyLoaded,
+  setupEncryption,
+  disableEncryption,
+  encryptionIsConfigured,
+  verifyPassphrase,
+} from '@/utils/encryption.js';
 import {
-  isAppEncryptionEnabled,
-  isAppKeyLoaded,
-  setupAppEncryption,
-  disableAppEncryption,
-  appFolderHasEncryption,
-} from '@/utils/appCrypto.js';
-import { getSyncPath } from '@/utils/sync/path.js';
-import { migrateAssetEncryption } from '@/lib/native/security';
-import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
+  migrateAssetEncryption,
+  onAssetMigrationProgress,
+} from '@/lib/native/security';
 
 const { translations } = useTranslations();
 const dialog = useDialog();
 const passwordStore = usePasswordStore();
 const noteStore = useNoteStore();
+
 const passwordInput = ref('');
 const securityError = ref('');
 const hasPassword = ref(!!passwordStore.sharedKey);
 
-const syncPath = ref('');
-const syncEncryptionEnabled = ref(isSyncEncryptionEnabled());
-const syncKeyLoaded = ref(isSyncKeyLoaded());
-const syncPassphraseInput = ref('');
-const syncCryptoError = ref('');
-const syncUnlockBusy = ref(false);
-
-const appEncryptionEnabled = ref(isAppEncryptionEnabled());
-const appKeyLoaded = ref(isAppKeyLoaded());
-const appEncryptionBusy = ref(false);
-const appUnlockBusy = ref(false);
-const appEncryptionProgress = ref({
+const encryptionEnabled = ref(isEncryptionEnabled());
+const keyLoaded = ref(isKeyLoaded());
+const encryptionBusy = ref(false);
+const unlockBusy = ref(false);
+const encryptionProgress = ref({
   phase: '',
   processed: 0,
   total: 0,
 });
-const appEncryptionError = ref('');
-const appConfirmInput = ref('');
-const APP_ENCRYPTION_YIELD_EVERY = 5;
+const encryptionError = ref('');
+const passphraseInput = ref('');
 
-const hasSyncFolder = computed(() => Boolean(syncPath.value?.trim()));
-
-const appEncryptionProgressPercent = computed(() => {
-  const total = appEncryptionProgress.value.total || 0;
+const encryptionProgressPercent = computed(() => {
+  const total = encryptionProgress.value.total || 0;
   if (!total) return 0;
   return Math.min(
     100,
-    Math.floor((appEncryptionProgress.value.processed / total) * 100)
+    Math.floor((encryptionProgress.value.processed / total) * 100)
   );
 });
 
-const appEncryptionProgressLabel = computed(() => {
-  switch (appEncryptionProgress.value.phase) {
+const encryptionProgressLabel = computed(() => {
+  switch (encryptionProgress.value.phase) {
     case 'decrypt':
       return 'Decrypting existing notes';
     case 'encrypt':
@@ -344,9 +260,9 @@ async function resetPasswordDialog() {
 
           try {
             await passwordStore.resetPassword(currentPassword, newPassword);
-            await unlockEnabledEncryptionScopes(newPassword);
-            showDialogAlert(translations.value.settings.passwordResetSuccess);
+            await verifyPassphrase(newPassword);
             hasPassword.value = true;
+            showDialogAlert(translations.value.settings.passwordResetSuccess);
           } catch (error) {
             console.error('Error resetting password:', error);
             showDialogAlert(translations.value.settings.passwordResetError);
@@ -361,8 +277,8 @@ async function setGlobalPassword() {
   securityError.value = '';
   if (!passwordInput.value?.trim()) return;
   try {
-    await passwordStore.setsharedKey(passwordInput.value);
-    await unlockEnabledEncryptionScopes(passwordInput.value);
+    await passwordStore.setSharedKey(passwordInput.value);
+    await verifyPassphrase(passwordInput.value);
     hasPassword.value = true;
     passwordInput.value = '';
   } catch (error) {
@@ -374,49 +290,60 @@ function changePasswordDialog() {
   resetPasswordDialog();
 }
 
-function refreshAppKeyLoaded() {
-  appKeyLoaded.value = isAppKeyLoaded();
+function refreshKeyLoaded() {
+  keyLoaded.value = isKeyLoaded();
 }
 
-function updateAppEncryptionProgress(progress) {
-  appEncryptionProgress.value = {
+function updateEncryptionProgress(progress) {
+  encryptionProgress.value = {
     phase: progress.phase,
     processed: progress.processed,
     total: progress.total,
   };
 }
 
-function yieldToUi() {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0);
-  });
-}
-
-async function migrateAssetsForAppEncryption({ encryptAtRest }) {
+async function migrateAssetsForEncryption({ encryptAtRest }) {
   const phase = encryptAtRest ? 'assets-encrypt' : 'assets-plaintext';
-  updateAppEncryptionProgress({
+  updateEncryptionProgress({
     phase,
     processed: 0,
     total: 0,
   });
 
-  const result = await migrateAssetEncryption(encryptAtRest);
-  updateAppEncryptionProgress({
-    phase,
-    processed: result.processed,
-    total: result.total,
+  let total = 0;
+  const unlisten = await onAssetMigrationProgress((event) => {
+    const payload = event?.payload ?? event;
+    if (payload) {
+      total = payload.total || total;
+      updateEncryptionProgress({
+        phase,
+        processed: payload.processed || 0,
+        total,
+      });
+    }
   });
 
-  if (result.failedPaths.length > 0) {
-    throw new Error(
-      `Failed to migrate ${result.failedPaths.length} asset file(s) during app-encryption update.`
-    );
+  try {
+    const result = await migrateAssetEncryption(encryptAtRest);
+    updateEncryptionProgress({
+      phase,
+      processed: result.processed,
+      total: result.total,
+    });
+
+    if (result.failedPaths.length > 0) {
+      throw new Error(
+        `Failed to migrate ${result.failedPaths.length} asset file(s) during encryption update.`
+      );
+    }
+  } finally {
+    if (typeof unlisten === 'function') unlisten();
   }
 }
 
-async function runAppEncryptionMigration({ encryptAtRest }) {
-  appEncryptionBusy.value = true;
-  appEncryptionProgress.value = {
+async function runEncryptionMigration({ encryptAtRest }) {
+  encryptionBusy.value = true;
+  encryptionProgress.value = {
     phase: 'decrypt',
     processed: 0,
     total: 0,
@@ -424,135 +351,107 @@ async function runAppEncryptionMigration({ encryptAtRest }) {
 
   try {
     await noteStore.decryptAllNotesForAppEncryption({
-      onProgress: updateAppEncryptionProgress,
+      onProgress: updateEncryptionProgress,
     });
 
     if (encryptAtRest) {
       await noteStore.persistAllNotesForAppEncryption({
-        onProgress: updateAppEncryptionProgress,
+        onProgress: updateEncryptionProgress,
       });
     } else {
       await noteStore.persistAllNotesPlaintext({
-        onProgress: updateAppEncryptionProgress,
+        onProgress: updateEncryptionProgress,
       });
     }
 
-    await migrateAssetsForAppEncryption({ encryptAtRest });
+    await migrateAssetsForEncryption({ encryptAtRest });
   } finally {
-    appEncryptionBusy.value = false;
+    encryptionBusy.value = false;
   }
 }
 
-async function toggleAppEncryption(enabled) {
-  if (appEncryptionBusy.value) return;
-  appEncryptionError.value = '';
+async function toggleEncryption(enabled) {
+  if (encryptionBusy.value) return;
+  encryptionError.value = '';
   const shouldEnable =
-    typeof enabled === 'boolean' ? enabled : appEncryptionEnabled.value;
-  appEncryptionEnabled.value = shouldEnable;
+    typeof enabled === 'boolean' ? enabled : encryptionEnabled.value;
+  encryptionEnabled.value = shouldEnable;
 
   if (shouldEnable) {
     try {
-      const alreadySetUp = await appFolderHasEncryption();
-
+      const alreadySetUp = await encryptionIsConfigured();
       if (!alreadySetUp) {
-        refreshAppKeyLoaded();
+        refreshKeyLoaded();
         return;
       }
-      refreshAppKeyLoaded();
+      refreshKeyLoaded();
     } catch (error) {
-      appEncryptionEnabled.value = isAppEncryptionEnabled();
-      refreshAppKeyLoaded();
-      appEncryptionError.value = error?.message || String(error);
+      encryptionEnabled.value = isEncryptionEnabled();
+      refreshKeyLoaded();
+      encryptionError.value = error?.message || String(error);
     }
   } else {
     try {
-      if (!appKeyLoaded.value) {
-        appEncryptionEnabled.value = true;
-        appEncryptionError.value =
-          'Unlock app encryption before disabling so notes can be saved in plain form.';
+      if (!keyLoaded.value) {
+        encryptionEnabled.value = true;
+        encryptionError.value =
+          'Unlock encryption before disabling so notes can be saved in plain form.';
         return;
       }
-      await runAppEncryptionMigration({ encryptAtRest: false });
-      await disableAppEncryption();
-      refreshAppKeyLoaded();
-      appEncryptionEnabled.value = false;
-      appConfirmInput.value = '';
+      await runEncryptionMigration({ encryptAtRest: false });
+      await disableEncryption();
+      refreshKeyLoaded();
+      encryptionEnabled.value = false;
+      passphraseInput.value = '';
     } catch (error) {
-      appEncryptionEnabled.value = true;
-      refreshAppKeyLoaded();
-      appEncryptionError.value = error?.message || String(error);
+      encryptionEnabled.value = true;
+      refreshKeyLoaded();
+      encryptionError.value = error?.message || String(error);
     }
   }
 }
 
-async function confirmAppEncryption() {
-  if (appEncryptionBusy.value || appUnlockBusy.value) return;
-  appEncryptionError.value = '';
-  const pass = appConfirmInput.value;
+async function confirmEncryption() {
+  if (encryptionBusy.value || unlockBusy.value) return;
+  encryptionError.value = '';
+  const pass = passphraseInput.value;
   if (!pass) return;
 
   try {
-    appUnlockBusy.value = true;
-    const result = await setupAppEncryption(pass);
+    unlockBusy.value = true;
+    const alreadySetUp = await encryptionIsConfigured();
+    let result;
 
-    if (!result.ok) {
-      appEncryptionError.value = result.error;
+    if (alreadySetUp) {
+      result = await verifyPassphrase(pass);
+      if (!result.ok) {
+        encryptionError.value = result.error;
+        return;
+      }
     } else {
-      await runAppEncryptionMigration({ encryptAtRest: true });
-      refreshAppKeyLoaded();
-      appConfirmInput.value = '';
-      appEncryptionEnabled.value = true;
+      result = await setupEncryption(pass);
+      if (!result.ok) {
+        encryptionError.value = result.error;
+        return;
+      }
     }
+
+    await runEncryptionMigration({ encryptAtRest: true });
+    refreshKeyLoaded();
+    passphraseInput.value = '';
+    encryptionEnabled.value = true;
   } catch (error) {
-    refreshAppKeyLoaded();
-    appEncryptionError.value = String(error);
+    refreshKeyLoaded();
+    encryptionError.value = String(error);
   } finally {
-    appUnlockBusy.value = false;
+    unlockBusy.value = false;
   }
-}
-
-async function toggleSyncEncryption() {
-  syncCryptoError.value = '';
-
-  if (syncEncryptionEnabled.value) {
-    syncKeyLoaded.value = isSyncKeyLoaded();
-  } else {
-    await disableSyncEncryption(false);
-    syncKeyLoaded.value = false;
-    syncCryptoError.value = '';
-  }
-}
-
-async function verifySyncKey() {
-  if (syncUnlockBusy.value) return;
-  syncCryptoError.value = '';
-  syncUnlockBusy.value = true;
-  const result = await setupSyncEncryption(syncPassphraseInput.value);
-
-  if (result.ok) {
-    syncKeyLoaded.value = true;
-    syncPassphraseInput.value = '';
-  } else {
-    syncCryptoError.value = result.error;
-  }
-  syncUnlockBusy.value = false;
-}
-
-async function hydrateSyncEncryptionState() {
-  const folderEncrypted = await syncFolderHasEncryption();
-  if (folderEncrypted) {
-    syncEncryptionEnabled.value = true;
-  } else {
-    syncEncryptionEnabled.value = isSyncEncryptionEnabled();
-  }
-  syncKeyLoaded.value = isSyncKeyLoaded();
 }
 
 onMounted(async () => {
   await passwordStore.retrieve();
   hasPassword.value = !!passwordStore.sharedKey;
-  syncPath.value = await getSyncPath();
-  await hydrateSyncEncryptionState();
+  refreshKeyLoaded();
 });
 </script>
 

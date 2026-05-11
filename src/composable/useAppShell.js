@@ -22,7 +22,7 @@ import {
   installUpdate,
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
-import { restoreAllEncryptionKeysFromSafeStorage } from '@/utils/encryptionCoordinator.js';
+import { tryRestoreKeyFromSafeStorage } from '@/utils/encryption.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 
@@ -83,6 +83,10 @@ export function useAppShell() {
     syncLockBanner,
     syncLockBannerCopy,
     updateBanner,
+    appEncryptionMigrationBanner,
+    dismissAppEncryptionMigrationBanner,
+    openAppEncryptionMigrationSettings,
+    checkAppEncryptionMigration,
   } = useAppShellBanners({
     route,
     router,
@@ -112,7 +116,7 @@ export function useAppShell() {
 
   const restoreEncryptionKeys = async () => {
     await getSyncPath();
-    await restoreAllEncryptionKeysFromSafeStorage();
+    await tryRestoreKeyFromSafeStorage();
   };
 
   const hasExistingWorkspaceData = async () => {
@@ -145,6 +149,15 @@ export function useAppShell() {
     }
 
     await restoreEncryptionKeys();
+
+    const migrationStatus = await settingsStorage.get(
+      'app_encryption_migration',
+      null
+    );
+    if (migrationStatus) {
+      checkAppEncryptionMigration(migrationStatus);
+    }
+
     await store.retrieve();
     retrieved.value = true;
     await refreshSyncLockBanner();
@@ -182,15 +195,31 @@ export function useAppShell() {
       backend.listen('menu-new-note', () => emitter.emit('new-note')),
       backend.listen('menu-zoom-in', () => updateZoomBy(0.1)),
       backend.listen('menu-zoom-out', () => updateZoomBy(-0.1)),
-      backend.listen('print-pdf-request', (event, payload) => {
+      backend.listen('print-pdf-request', async (event, payload) => {
         const pdfName = payload?.pdfName || payload?.pdf_name || 'Beaver Notes';
         const previousTitle = document.title;
 
-        const restoreTitle = () => {
+        // Inject print styles (mirrors Electron's injectPrintStyles)
+        const style = document.createElement('style');
+        style.id = 'beaver-print-style';
+        style.innerHTML = `
+          @page { margin: 0; }
+          html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
+          * { box-sizing: border-box; }
+        `;
+        document.head.appendChild(style);
+        document.body.style.margin = '0';
+        document.body.style.padding = '0';
+
+        const cleanup = () => {
           document.title = previousTitle;
-          window.removeEventListener('afterprint', restoreTitle);
+          document.body.style.margin = '';
+          document.body.style.padding = '';
+          document.getElementById('beaver-print-style')?.remove();
+          window.removeEventListener('afterprint', cleanup);
         };
-        window.addEventListener('afterprint', restoreTitle);
+
+        window.addEventListener('afterprint', cleanup);
         document.title = pdfName;
         window.print();
       }),
@@ -291,5 +320,8 @@ export function useAppShell() {
     syncLockBanner,
     syncLockBannerCopy,
     updateBanner,
+    appEncryptionMigrationBanner,
+    dismissAppEncryptionMigrationBanner,
+    openAppEncryptionMigrationSettings,
   };
 }

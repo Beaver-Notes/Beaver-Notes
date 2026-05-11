@@ -9,9 +9,9 @@ export function importAppleNotes() {
 }
 
 export function onImportProgress(handler) {
-  return backend.on('import-progress', handler);
+  return backend.listen('import-progress', handler);
 }
 
 export function onImportComplete(handler) {
-  return backend.on('import-complete', handler);
+  return backend.listen('import-complete', handler);
 }

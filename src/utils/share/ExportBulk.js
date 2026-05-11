@@ -442,6 +442,9 @@ function renderMarkdownBlock(node, ctx, options = {}) {
     case 'Audio':
     case 'Video':
       return `${renderMarkdownInlineNode(node, ctx)}\n\n`;
+    case 'columns':
+    case 'column':
+      return renderMarkdownBlocks(getNodeChildren(node), ctx);
     default: {
       if (/-Callout$/.test(node.type) || /Callout$/.test(node.type)) {
         const color = node.type.replace(/Callout$/, '').toLowerCase();

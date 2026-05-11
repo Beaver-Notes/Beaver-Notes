@@ -258,7 +258,7 @@ import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
-import { unlockEnabledEncryptionScopes } from '@/utils/encryptionCoordinator.js';
+import { verifyPassphrase } from '@/utils/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
@@ -358,8 +358,8 @@ async function lockNote(note) {
         onConfirm: async (newKey) => {
           if (newKey) {
             try {
-              await passwordStore.setsharedKey(newKey);
-              await unlockEnabledEncryptionScopes(newKey);
+              await passwordStore.setSharedKey(newKey);
+              await verifyPassphrase(newKey);
               await noteStore.lockNote(note, newKey);
             } catch {
               showCardAlert(translations.value.card.keyFail);
@@ -393,32 +393,31 @@ async function lockNote(note) {
 async function unlockNote(note) {
   const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
-  const hassharedKey = await passwordStore.retrieve();
-
-  if (!hassharedKey) {
-    dialog.prompt({
-      title: translations.value.card.enterPasswd,
-      okText: translations.value.card.unlock,
-      cancelText: translations.value.card.cancel,
-      placeholder: translations.value.card.password,
-      onConfirm: async (enteredPassword) => {
-        try {
+  dialog.prompt({
+    title: translations.value.card.enterPasswd,
+    okText: translations.value.card.unlock,
+    cancelText: translations.value.card.cancel,
+    placeholder: translations.value.card.password,
+    onConfirm: async (enteredPassword) => {
+      try {
+        const hassharedKey = await passwordStore.retrieve();
+        if (!hassharedKey) {
           await noteStore.unlockNote(note, enteredPassword);
-          await passwordStore.setsharedKey(enteredPassword);
-          await unlockEnabledEncryptionScopes(enteredPassword);
-        } catch {
-          showCardAlert(translations.value.card.wrongPasswd);
+          await passwordStore.setSharedKey(enteredPassword);
+          await verifyPassphrase(enteredPassword);
+        } else {
+          const isValid = await passwordStore.isValidPassword(enteredPassword);
+          if (isValid) {
+            await noteStore.unlockNote(note, enteredPassword);
+          } else {
+            showCardAlert(translations.value.card.wrongPasswd);
+          }
         }
-      },
-    });
-  } else {
-    const isValid = await passwordStore.isValidPassword(hassharedKey);
-    if (isValid) {
-      await noteStore.unlockNote(note, hassharedKey);
-    } else {
-      showCardAlert(translations.value.card.wrongPasswd);
-    }
-  }
+      } catch {
+        showCardAlert(translations.value.card.wrongPasswd);
+      }
+    },
+  });
 }
 
 async function deleteNote(note) {

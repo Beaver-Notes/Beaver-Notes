@@ -21,24 +21,10 @@ import {
   clearSecureBlob,
 } from '@/lib/native/security.js';
 
-const LANGUAGE_CONFIG = {
-  ar: { name: 'العربية', dir: 'rtl' },
-  de: { name: 'Deutsch', dir: 'ltr' },
-  en: { name: 'English', dir: 'ltr' },
-  es: { name: 'Español', dir: 'ltr' },
-  fr: { name: 'Français', dir: 'ltr' },
-  it: { name: 'Italiano', dir: 'ltr' },
-  nl: { name: 'Nederlands', dir: 'ltr' },
-  pt: { name: 'Português', dir: 'ltr' },
-  ru: { name: 'Русский', dir: 'ltr' },
-  tr: { name: 'Türkçe', dir: 'ltr' },
-  uk: { name: 'Українська', dir: 'ltr' },
-  zh: { name: '简体中文', dir: 'ltr' },
-  vi: { name: 'Tiếng Việt', dir: 'ltr' },
-};
-
-const getLanguageDirection = (languageCode) =>
-  LANGUAGE_CONFIG[languageCode]?.dir || 'ltr';
+import {
+  ONBOARDING_LANGUAGE_CONFIG,
+  getLanguageDirection,
+} from '@/utils/onboarding';
 
 export function useSettingsData({
   dialog,
@@ -58,10 +44,12 @@ export function useSettingsData({
     getSettingSync('directionPreference') ||
       getLanguageDirection(selectedLanguage.value)
   );
-  const languages = Object.entries(LANGUAGE_CONFIG).map(([code, { name }]) => ({
-    code,
-    name,
-  }));
+  const languages = Object.entries(ONBOARDING_LANGUAGE_CONFIG).map(
+    ([code, { name }]) => ({
+      code,
+      name,
+    })
+  );
 
   const state = reactive({
     syncPath: '',
@@ -240,10 +228,7 @@ export function useSettingsData({
         await mergeImportedData(result);
 
         if (result.sharedKey) {
-          await passwordStore.importSharedKey(
-            result.sharedKey,
-            result.derivedKey
-          );
+          await passwordStore.importSharedKey(result.sharedKey);
         }
 
         if (result.lockStatus !== null && result.lockStatus !== undefined) {
@@ -343,8 +328,7 @@ export function useSettingsData({
             ...cleanupPaths.map((targetPath) => removePath(targetPath)),
             storage.clear('data'),
             storage.clear('settings'),
-            clearSecureBlob('appPassphraseBlob'),
-            clearSecureBlob('syncPassphraseBlob'),
+            clearSecureBlob('encryptionPassphraseBlob'),
             clearAssetPassphrase(),
             setSyncPath(''),
           ]);
@@ -428,7 +412,7 @@ export function useSettingsData({
   }));
 
   return {
-    LANGUAGE_CONFIG,
+    LANGUAGE_CONFIG: ONBOARDING_LANGUAGE_CONFIG,
     getLanguageDirection,
     state,
     defaultPath,

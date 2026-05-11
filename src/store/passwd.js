@@ -1,11 +1,9 @@
 import { defineStore } from 'pinia';
-import * as CryptoJS from 'crypto-es';
 import {
   encryptString,
   decryptString,
   isEncryptionAvailable,
-} from '../composable/safeStorage';
-import { useStorage } from '../composable/storage';
+} from '@/lib/native/security';
 import { useNoteStore } from './note';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
@@ -16,11 +14,9 @@ import {
   recordPasswordFailure,
   resetPasswordFailures,
 } from '@/lib/native/security';
+import { useStorage } from '@/composable/storage';
 
-const { SHA256, algo, PBKDF2 } = CryptoJS;
 const storage = useStorage();
-
-const LEGACY_STORAGE_KEY = 'sharedKey';
 
 async function _getPasswordFilePath() {
   const appDirectory = await getAppDirectory();
@@ -31,8 +27,6 @@ async function _getPasswordFilePath() {
 export const usePasswordStore = defineStore('password', {
   state: () => ({
     sharedKey: '',
-
-    _legacyDerivedKey: '',
   }),
 
   actions: {
@@ -53,17 +47,6 @@ export const usePasswordStore = defineStore('password', {
       await writeFile(filePath, data, { mode: 0o600 });
     },
 
-    async _deleteLegacyStorage() {
-      for (const key of [
-        LEGACY_STORAGE_KEY,
-        'sharedKey',
-        'shared_password',
-        'password',
-      ]) {
-        await storage.delete(key);
-      }
-    },
-
     async retrieve() {
       try {
         const encryptionAvailable = await isEncryptionAvailable();
@@ -72,53 +55,50 @@ export const usePasswordStore = defineStore('password', {
           const encryptedBase64 = await this._readEncryptedFile();
 
           if (!encryptedBase64) {
-            const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
-            if (legacyPassword) {
-              await this.importSharedKey(legacyPassword);
-              return this.sharedKey;
-            }
             this.sharedKey = '';
             return '';
           }
 
-          let decrypted;
-          try {
-            decrypted = await decryptString(encryptedBase64);
-          } catch (decryptErr) {
-            console.warn(
-              '[passwd] password.enc could not be decrypted, falling back to legacy storage:',
-              decryptErr
-            );
-            const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
-            this.sharedKey = legacyPassword || '';
+          // If the file content is a raw bcrypt hash (legacy format), use it directly
+          const trimmed = encryptedBase64.trim();
+          if (
+            trimmed.startsWith('$2a$') ||
+            trimmed.startsWith('$2b$') ||
+            trimmed.startsWith('$2y$')
+          ) {
+            this.sharedKey = trimmed;
             return this.sharedKey;
           }
 
           try {
-            const parsed = JSON.parse(decrypted);
-            this.sharedKey = parsed.hash;
-            if (parsed.key) this._legacyDerivedKey = parsed.key;
+            const decrypted = await decryptString(encryptedBase64);
+            try {
+              const parsed = JSON.parse(decrypted);
+              this.sharedKey = parsed.hash || decrypted;
+            } catch {
+              this.sharedKey = decrypted;
+            }
+            return this.sharedKey;
           } catch {
-            this.sharedKey = decrypted;
+            // Decryption failed — treat raw content as hash if it looks like one
+            this.sharedKey = trimmed;
+            return this.sharedKey;
           }
-
-          return this.sharedKey;
         } else {
-          const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
-          this.sharedKey = legacyPassword;
-          return legacyPassword;
+          this.sharedKey = '';
+          return '';
         }
       } catch (error) {
         console.error('[passwd] retrieve failed:', error);
+        this.sharedKey = '';
         return '';
       }
     },
 
-    async setsharedKey(password) {
+    async setSharedKey(password) {
       try {
         const hashedPassword = await hashPassword(password);
         this.sharedKey = hashedPassword;
-        this._legacyDerivedKey = ''; // clear stale legacy value
 
         const encryptionAvailable = await isEncryptionAvailable();
         if (encryptionAvailable) {
@@ -126,12 +106,9 @@ export const usePasswordStore = defineStore('password', {
             JSON.stringify({ hash: hashedPassword })
           );
           await this._writeEncryptedFile(encrypted);
-          await this._deleteLegacyStorage();
-        } else {
-          await storage.set(LEGACY_STORAGE_KEY, hashedPassword);
         }
       } catch (error) {
-        console.error('[passwd] setsharedKey failed:', error);
+        console.error('[passwd] setSharedKey failed:', error);
         throw error;
       }
     },
@@ -140,35 +117,13 @@ export const usePasswordStore = defineStore('password', {
       try {
         const valid = await comparePassword(enteredPassword, this.sharedKey);
 
-        if (!valid && this._legacyDerivedKey) {
-          const salt = SHA256(enteredPassword).toString().slice(0, 32);
-          const derived = PBKDF2(enteredPassword, salt, {
-            keySize: 256 / 32,
-            iterations: 100000,
-            hasher: algo.SHA256,
-          }).toString();
-
-          if (derived !== this._legacyDerivedKey) {
-            const { warn, failCount } = await recordPasswordFailure();
-            if (warn)
-              console.warn(`[passwd] ${failCount} consecutive failures`);
-            return false;
-          }
-          try {
-            await this.setsharedKey(enteredPassword);
-          } catch (migErr) {
-            console.warn(
-              '[passwd] legacy migration failed (non-fatal):',
-              migErr
-            );
-          }
-        } else if (!valid) {
+        if (!valid) {
           const { warn, failCount } = await recordPasswordFailure();
           if (warn) console.warn(`[passwd] ${failCount} consecutive failures`);
           return false;
         }
-        await resetPasswordFailures();
 
+        await resetPasswordFailures();
         return true;
       } catch (error) {
         console.error('[passwd] isValidPassword failed:', error);
@@ -195,21 +150,35 @@ export const usePasswordStore = defineStore('password', {
           console.error(`[passwd] failed to re-encrypt note ${note.id}:`, err);
         }
       }
-      await this.setsharedKey(newPassword);
+      await this.setSharedKey(newPassword);
       return true;
     },
 
-    async importSharedKey(hash, derivedKey = null) {
-      this.sharedKey = hash;
-      this._legacyDerivedKey = derivedKey ?? '';
+    async importSharedKey(rawHash) {
+      if (!rawHash || typeof rawHash !== 'string') return;
+      const trimmed = rawHash.trim();
+      const isBcryptHash =
+        trimmed.startsWith('$2a$') ||
+        trimmed.startsWith('$2b$') ||
+        trimmed.startsWith('$2y$');
 
-      const encryptionAvailable = await isEncryptionAvailable();
-      if (encryptionAvailable) {
-        const encrypted = await encryptString(JSON.stringify({ hash }));
-        await this._writeEncryptedFile(encrypted);
-        await this._deleteLegacyStorage();
-      } else {
-        await storage.set(LEGACY_STORAGE_KEY, hash);
+      if (!isBcryptHash) {
+        // Plaintext password — hash and persist through the canonical path
+        return this.setSharedKey(trimmed);
+      }
+
+      // Already a bcrypt hash — store in memory and persist to disk
+      this.sharedKey = trimmed;
+      try {
+        const encryptionAvailable = await isEncryptionAvailable();
+        if (encryptionAvailable) {
+          const encrypted = await encryptString(
+            JSON.stringify({ hash: trimmed })
+          );
+          await this._writeEncryptedFile(encrypted);
+        }
+      } catch (error) {
+        console.error('[passwd] importSharedKey persist failed:', error);
       }
     },
   },

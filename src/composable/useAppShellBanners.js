@@ -1,5 +1,8 @@
 import { computed, reactive } from 'vue';
-import { syncFolderHasEncryption, isSyncKeyLoaded } from '@/utils/sync/crypto';
+import {
+  encryptionIsConfigured,
+  isKeyLoaded,
+} from '@/utils/encryption.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -15,6 +18,12 @@ export function useAppShellBanners({ translations, route, router }) {
   const syncLockBanner = reactive({
     show: false,
     dismissed: false,
+  });
+  const appEncryptionMigrationBanner = reactive({
+    show: false,
+    dismissed: false,
+    status: null,
+    error: null,
   });
 
   const syncLockBannerCopy = computed(() => ({
@@ -57,8 +66,30 @@ export function useAppShellBanners({ translations, route, router }) {
       return;
     }
 
-    const folderEncrypted = await syncFolderHasEncryption();
-    syncLockBanner.show = folderEncrypted && !isSyncKeyLoaded();
+    const configured = await encryptionIsConfigured();
+    syncLockBanner.show = configured && !isKeyLoaded();
+  };
+
+  const dismissAppEncryptionMigrationBanner = () => {
+    appEncryptionMigrationBanner.dismissed = true;
+    appEncryptionMigrationBanner.show = false;
+  };
+
+  const openAppEncryptionMigrationSettings = () => {
+    appEncryptionMigrationBanner.show = false;
+    router.push(SETTINGS_ROUTE_PREFIX);
+  };
+
+  const checkAppEncryptionMigration = (migrationStatus) => {
+    if (!migrationStatus) return;
+    const { status, error } = migrationStatus;
+    if (status === 'in_progress' || status === 'error') {
+      appEncryptionMigrationBanner.status = status;
+      appEncryptionMigrationBanner.error = error || null;
+      if (!appEncryptionMigrationBanner.dismissed) {
+        appEncryptionMigrationBanner.show = true;
+      }
+    }
   };
 
   return {
@@ -70,5 +101,9 @@ export function useAppShellBanners({ translations, route, router }) {
     syncLockBanner,
     syncLockBannerCopy,
     updateBanner,
+    appEncryptionMigrationBanner,
+    dismissAppEncryptionMigrationBanner,
+    openAppEncryptionMigrationSettings,
+    checkAppEncryptionMigration,
   };
 }

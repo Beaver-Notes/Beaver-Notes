@@ -1,4 +1,4 @@
-import { isAppEncryptionEnabled } from '@/utils/appCrypto';
+import { isEncryptionEnabled } from '@/utils/encryption.js';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { base64ToUint8Array } from '@/utils/convert.js';
@@ -46,7 +46,7 @@ export async function saveFile(file, id) {
     await backend.invoke('fs:writeFile', {
       data: contentUint8Array,
       path: destPath,
-      skipAssetEncryption: !isAppEncryptionEnabled(),
+      skipAssetEncryption: !isEncryptionEnabled(),
     });
     return { fileName, relativePath };
   } catch (error) {

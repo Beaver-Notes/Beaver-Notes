@@ -30,7 +30,7 @@
     </div>
 
     <!-- Page content (no built-in Transition — curtain handles it) -->
-    <div class="ob-page-content relative z-10 w-full" :key="step">
+    <div :key="step" class="ob-page-content relative z-10 w-full">
       <!-- ── Welcome ── -->
       <div
         v-if="step === 'welcome'"
@@ -331,6 +331,7 @@
           v-model="migrationPlatform"
           :is-mac-o-s="isMacOS"
           :logo-url="logoUrl"
+          @select="selectMigrationPlatform"
         >
           <template #back>
             <ui-button @click="curtainNavigate('path')">
@@ -597,6 +598,59 @@
         </ui-card>
       </div>
 
+      <!-- ── Legacy Password ── -->
+      <div
+        v-else-if="step === 'legacyPassword'"
+        class="ob-screen flex flex-col items-center justify-center w-full"
+      >
+        <ui-card class="w-full max-w-lg">
+          <div class="flex flex-col items-center gap-2 my-8 text-center">
+            <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+              Enter your old password
+            </h2>
+            <p class="ob-body-text max-w-sm">
+              Your imported notes are locked. Enter your old Beaver Notes
+              password to decrypt and re-encrypt them with the new system.
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-3 px-4 pb-4">
+            <ui-input
+              v-model="legacyPasswordValue"
+              type="password"
+              placeholder="Old password"
+              class="w-full"
+              @keyup.enter="submitLegacyPassword"
+            />
+            <p
+              v-if="state.legacyPasswordError"
+              class="text-xs text-red-500 dark:text-red-400"
+            >
+              {{ state.legacyPasswordError }}
+            </p>
+          </div>
+
+          <div class="mt-2 flex justify-between gap-4 px-4 pb-4">
+            <ui-button variant="secondary" @click="skipLegacyPassword">
+              Skip for now
+            </ui-button>
+            <ui-button
+              variant="primary"
+              :loading="state.legacyPasswordLoading"
+              @click="submitLegacyPassword"
+            >
+              Decrypt notes
+            </ui-button>
+          </div>
+
+          <div class="mt-5 px-4 pb-4">
+            <ui-button @click="curtainNavigate('platform')">
+              <v-remixicon name="riArrowLeftLine" /> Back
+            </ui-button>
+          </div>
+        </ui-card>
+      </div>
+
       <!-- ── Finish ── -->
       <div
         v-else
@@ -675,25 +729,23 @@
 <script>
 import { ref, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { CURTAIN_DURATIONS } from '@/utils/onboarding-animations';
 import { useStorage } from '@/composable/storage';
 import { useImportExport } from '@/composable/useImportExport';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
+import { usePasswordStore } from '@/store/passwd';
 import { backend, clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
 import OnboardingSetupStep from '@/components/onboarding/OnboardingSetupStep.vue';
 import OnboardingPlatformStep from '@/components/onboarding/OnboardingPlatformStep.vue';
 
-/*
- * Curtain animation durations (ms) — keep in sync with CSS variables
- * CURTAIN_CLOSE : time for blocks to expand (cover the screen)
- * CURTAIN_HOLD  : brief pause at full cover before content swaps
- * CURTAIN_OPEN  : time for blocks to retract (reveal the screen)
- */
-const CURTAIN_CLOSE = 800; // rotateIn + blockOut
-const CURTAIN_HOLD = 120; // pause at peak coverage
-const CURTAIN_OPEN = 800; // rotateOut + blockIn
+const {
+  close: CURTAIN_CLOSE,
+  hold: CURTAIN_HOLD,
+  open: CURTAIN_OPEN,
+} = CURTAIN_DURATIONS;
 
 export default {
   name: 'AppOnboarding',
@@ -730,45 +782,55 @@ export default {
       runImportSource,
     });
 
-    // ── Curtain state ────────────────────────────────────────────────────────
     const curtainVisible = ref(false);
     let curtainLocked = false;
     let hasCurtainPlayed = false;
 
-    /**
-     * curtainNavigate(targetStep)
-     *
-     * 1. Close curtain (blocks sweep in)           → CURTAIN_CLOSE ms
-     * 2. At peak coverage swap the step            → CURTAIN_HOLD  ms
-     * 3. Open curtain (blocks retract)             → CURTAIN_OPEN  ms
-     *
-     * The curtain animation only plays the first time; after that it falls
-     * back to plain goToStep() so returning to previous steps feels instant.
-     */
+    const passwordStore = usePasswordStore();
+    const legacyPasswordValue = ref('');
+
+    async function submitLegacyPassword() {
+      if (!legacyPasswordValue.value) return;
+      const result = await flow.handleLegacyPasswordSubmit(
+        legacyPasswordValue.value,
+        passwordStore
+      );
+      if (result.success) {
+        legacyPasswordValue.value = '';
+        await curtainNavigate('migration');
+      }
+    }
+
+    async function skipLegacyPassword() {
+      legacyPasswordValue.value = '';
+      flow.handleLegacyPasswordSkip();
+      await curtainNavigate('migration');
+    }
+
     async function curtainNavigate(targetStep) {
       if (curtainLocked) return;
 
+      const actualStep =
+        targetStep === 'migration' && flow.state.legacyHasLockedNotes
+          ? 'legacyPassword'
+          : targetStep;
+
       if (hasCurtainPlayed) {
-        flow.goToStep(targetStep);
+        flow.goToStep(actualStep);
         return;
       }
 
       curtainLocked = true;
 
-      // Phase 1: close
       curtainVisible.value = true;
 
       await new Promise((r) => setTimeout(r, CURTAIN_CLOSE + CURTAIN_HOLD));
 
-      // Phase 2: swap content while screen is covered
-      flow.goToStep(targetStep);
+      flow.goToStep(actualStep);
       await nextTick();
 
-      // Keep the curtain closed a little longer so the browser can paint
-      // the newly mounted step before we start opening.
       await new Promise((r) => setTimeout(r, CURTAIN_HOLD));
 
-      // Phase 3: open
       curtainVisible.value = false;
 
       await new Promise((r) => setTimeout(r, CURTAIN_OPEN));
@@ -780,6 +842,9 @@ export default {
       ...flow,
       curtainVisible,
       curtainNavigate,
+      legacyPasswordValue,
+      submitLegacyPassword,
+      skipLegacyPassword,
     };
   },
 };
@@ -928,8 +993,7 @@ export default {
 /* ── Opening animation (curtain retracts) ── */
 /* We use a separate wrapper class to avoid fighting Vue's reactivity */
 .ob-curtain:not(.ob-curtain--visible) .ob-curtain__wrapper {
-  animation: ob-curtain-rotate-out 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0s
-    both;
+  animation: ob-curtain-rotate-out 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0s both;
 }
 .ob-curtain:not(.ob-curtain--visible) .ob-curtain__block--3 {
   animation: ob-curtain-block-in 0.7s ease-in-out 0s both;

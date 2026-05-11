@@ -63,7 +63,8 @@ export async function listRemoteCommits(commitsDir, cursors, decryptJSON) {
     try {
       const raw = await readSyncFile(path.join(commitsDir, file));
       commit = await decryptJSON(raw);
-    } catch {
+    } catch (err) {
+      console.warn('[sync-repository] listRemoteCommits: decryptJSON failed:', err);
       continue;
     }
 
@@ -212,7 +213,13 @@ export async function applySnapshotIfNeeded({
   const raw = await readSyncFile(snapshotPath).catch(() => null);
   if (!raw) return false;
 
-  const snapshot = await decryptJSON(raw);
+  let snapshot;
+  try {
+    snapshot = await decryptJSON(raw);
+  } catch (err) {
+    console.warn('[sync-repository] applySnapshotIfNeeded: decryptJSON failed:', err);
+    return false;
+  }
   if (!snapshot?.data || typeof snapshot.data !== 'object') return false;
 
   const snapshotTs = Number(snapshot.ts) || 0;

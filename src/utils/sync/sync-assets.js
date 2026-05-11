@@ -8,11 +8,9 @@ import {
   removePath as removeSyncPath,
   writeFile as writeSyncFile,
 } from '@/lib/native/fs';
-import { isAppEncryptionEnabled, isAppKeyLoaded } from '@/utils/appCrypto.js';
+import { isEncryptionEnabled, isKeyLoaded } from '@/utils/encryption.js';
 import {
   decryptAndWriteAsset,
-  isSyncEncryptionEnabled,
-  isSyncKeyLoaded,
   localAssetName,
   readAndEncryptAsset,
   syncAssetName,
@@ -31,28 +29,16 @@ function isIgnoredAssetEntry(name) {
 }
 
 async function copyRemoteToLocal(remotePath, localDest, mode) {
-  const {
-    appEncryptionEnabled,
-    appKeyLoaded,
-    syncEncryptionEnabled,
-    syncKeyLoaded,
-  } = mode;
+  const { encryptionEnabled, keyLoaded } = mode;
 
   if (remotePath.endsWith(ENCRYPTED_ASSET_EXT)) {
-    if (!syncEncryptionEnabled || !syncKeyLoaded) {
-      return;
-    }
-
-    if (appEncryptionEnabled && !appKeyLoaded) {
-      console.warn(
-        `[sync] Skipping encrypted asset restore while app key is locked: ${localDest}`
-      );
+    if (!encryptionEnabled || !keyLoaded) {
       return;
     }
 
     const cipher = await readSyncFile(remotePath);
     await decryptAndWriteAsset(cipher, localDest, {
-      skipAssetEncryption: !appEncryptionEnabled,
+      skipAssetEncryption: !encryptionEnabled,
     });
     return;
   }
@@ -61,11 +47,7 @@ async function copyRemoteToLocal(remotePath, localDest, mode) {
 }
 
 async function copyLocalToRemote(localPath, remoteDest, mode) {
-  if (
-    mode.syncEncryptionEnabled &&
-    mode.syncKeyLoaded &&
-    !mode.appEncryptionEnabled
-  ) {
+  if (mode.encryptionEnabled && mode.keyLoaded) {
     const cipher = await readAndEncryptAsset(localPath);
     await writeSyncFile(remoteDest, cipher);
     return;
@@ -79,10 +61,8 @@ export async function syncAssets(localDir, syncDir, onDeletedAssetsChanged) {
   const deletedAssets = await storage.get(STORAGE_KEY.DELETED_ASSETS, {});
   let deletedAssetsDirty = false;
   const mode = {
-    appEncryptionEnabled: isAppEncryptionEnabled(),
-    appKeyLoaded: isAppKeyLoaded(),
-    syncEncryptionEnabled: isSyncEncryptionEnabled(),
-    syncKeyLoaded: isSyncKeyLoaded(),
+    encryptionEnabled: isEncryptionEnabled(),
+    keyLoaded: isKeyLoaded(),
   };
 
   for (const assetType of assetTypes) {
@@ -176,7 +156,7 @@ export async function syncAssets(localDir, syncDir, onDeletedAssetsChanged) {
         }
 
         if (hasLocally && !hasRemotely) {
-          const remoteFileName = mode.appEncryptionEnabled
+          const remoteFileName = mode.encryptionEnabled
             ? file
             : syncAssetName(file);
           await copyLocalToRemote(

@@ -4,6 +4,11 @@ const textEncoder = new TextEncoder();
 
 const commandAliases = {
   'app:info': 'app_info',
+  'app:directory': 'app_directory',
+  'app:get-high-contrast': 'get_high_contrast',
+  'app:set-high-contrast': 'set_high_contrast',
+  'app:get-reduced-motion': 'get_reduced_motion',
+  'app:set-reduced-motion': 'set_reduced_motion',
   'migration:status': 'migration_status',
   'migration:run': 'migration_run',
   'migration:probe-path': 'migration_probe_path',
@@ -44,20 +49,25 @@ const commandAliases = {
   'assetCrypto:setAppPassphrase': 'asset_crypto_set_passphrase',
   'assetCrypto:clearAppPassphrase': 'asset_crypto_clear_passphrase',
   'assetCrypto:migrateDir': 'asset_crypto_migrate_dir',
+  'crypto:clearDecryptedCaches': 'clear_decrypted_caches',
   'encryption:getState': 'encryption_get_state',
   'encryption:submitPassword': 'encryption_submit_password',
-  'encryption:enableApp': 'encryption_enable_app',
-  'encryption:disableApp': 'encryption_disable_app',
-  'encryption:enableSync': 'encryption_enable_sync',
-  'encryption:disableSync': 'encryption_disable_sync',
+  'encryption:enable': 'encryption_enable',
+  'encryption:disable': 'encryption_disable',
   'encryption:unlock': 'encryption_unlock',
   'encryption:lock': 'encryption_lock',
+  'encryption:exportAppKey': 'encryption_export_app_key',
   'encryption:encryptNotePayload': 'encryption_encrypt_note_payload',
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'encryption:encryptSyncPayload': 'encryption_encrypt_sync_payload',
   'encryption:decryptSyncPayload': 'encryption_decrypt_sync_payload',
   'encryption:encryptSyncAssetBase64': 'encryption_encrypt_sync_asset_base64',
   'encryption:decryptSyncAssetBase64': 'encryption_decrypt_sync_asset_base64',
+  'assetCrypto:decryptAssetStream': 'decrypt_asset_stream',
+  'assetCrypto:encryptAssetStream': 'encrypt_asset_stream',
+  'crypto:cacheDecryptedNote': 'cache_decrypted_note',
+  'crypto:getCachedDecryptedNote': 'get_cached_decrypted_note',
+  'crypto:deriveArgon2Key': 'derive_argon2_key',
   'passwd:hash': 'passwd_hash',
   'passwd:compare': 'passwd_compare',
   'passwd:recordFailure': 'passwd_record_failure',
@@ -205,39 +215,24 @@ function normalizePayload(channel, payload) {
           ? withKeyVariants('create_if_missing', payload.createIfMissing)
           : {}),
       };
-    case 'encryption:enableApp':
+    case 'encryption:enable':
       return withKeyVariants('password', payload);
-    case 'encryption:disableApp':
+    case 'encryption:disable':
       return {
         ...withKeyVariants(
           'remove_manifest',
           payload?.removeManifest ?? payload?.remove_manifest ?? true
         ),
       };
-    case 'encryption:enableSync':
-      return {
-        ...withKeyVariants('sync_path', payload?.syncPath),
-        ...withKeyVariants('password', payload?.password),
-      };
-    case 'encryption:disableSync':
-      return {
-        ...(payload?.syncPath
-          ? withKeyVariants('sync_path', payload.syncPath)
-          : {}),
-        ...(payload?.removeManifest != null
-          ? withKeyVariants('remove_manifest', payload.removeManifest)
-          : {}),
-      };
     case 'encryption:unlock':
-      return {
-        ...withKeyVariants('password', payload?.password),
-        ...(payload?.syncPath
-          ? withKeyVariants('sync_path', payload.syncPath)
-          : {}),
-        targets: payload?.targets ?? [],
-      };
+      return withKeyVariants('password', payload?.password);
     case 'encryption:lock':
-      return { targets: payload?.targets ?? [] };
+      return {};
+    case 'crypto:cacheDecryptedNote':
+      return {
+        ...withKeyVariants('note_id', payload?.noteId),
+        content: payload?.content,
+      };
     case 'encryption:encryptNotePayload':
       return withKeyVariants('plain_json', payload);
     case 'encryption:decryptNotePayload':

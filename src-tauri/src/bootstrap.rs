@@ -23,6 +23,9 @@ const WINDOW_STATE_KEY: &str = "windowStateMain";
 #[cfg(desktop)]
 const LEGACY_DATA_FILES: &[&str] = &["config.json", "data.json"];
 
+#[cfg(desktop)]
+const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
+
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
     grant_trusted_path(state, Path::new(&path));
     if app
@@ -200,6 +203,21 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
         return Ok(false);
     };
     for (key, value) in map {
+        if COLLECTION_NAMESPACES.contains(&key.as_str()) {
+            if let Some(items) = value.as_object() {
+                for (id, item) in items {
+                    let flat_key = format!("{}.{}", key, id);
+                    if !crate::db::db_has(pool, &flat_key)? {
+                        crate::db::db_set(
+                            pool,
+                            &flat_key,
+                            &serde_json::to_string(item).map_err(to_error)?,
+                        )?;
+                    }
+                }
+                continue;
+            }
+        }
         if !crate::db::db_has(pool, key)? {
             crate::db::db_set(pool, key, &serde_json::to_string(value).map_err(to_error)?)?;
         }
@@ -223,20 +241,6 @@ fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), String> {
         }
     }
 
-    Ok(())
-}
-
-#[cfg(desktop)]
-fn copy_file_if_missing(source: &Path, target: &Path) -> Result<(), String> {
-    if !source.exists() || target.exists() {
-        return Ok(());
-    }
-
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(to_error)?;
-    }
-
-    fs::copy(source, target).map_err(to_error)?;
     Ok(())
 }
 
@@ -389,15 +393,6 @@ fn run_migration_core(
         }
     }
 
-    let legacy_password_file = old_dir.join("password.enc");
-    if legacy_password_file.exists() {
-        let _ = copy_file_if_missing(&legacy_password_file, &new_dir.join("password.enc"));
-    }
-
-    let legacy_app_crypto_dir = old_dir.join("app-crypto");
-    if legacy_app_crypto_dir.exists() {
-        let _ = copy_directory_missing(&legacy_app_crypto_dir, &new_dir.join("app-crypto"));
-    }
 
     let _ = import_legacy_auth_blobs(app, &old_dir.join(AUTH_STORE));
 

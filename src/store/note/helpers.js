@@ -1,8 +1,8 @@
 import { indexNote, removeNoteFromIndex } from '@/lib/native/search';
 import {
-  isAppEncryptionEnabled,
-  isAppEncryptedContent,
-} from '@/utils/appCrypto.js';
+  isEncryptionEnabled,
+  isEncryptedContent,
+} from '@/utils/encryption.js';
 import { useStorage } from '@/composable/storage.js';
 import { trackChange } from '@/utils/sync';
 import {
@@ -19,7 +19,7 @@ export const storage = useStorage();
  * Errors are swallowed — a stale index degrades gracefully to no results.
  */
 export function syncFtsIndex(note) {
-  if (!note?.id || note.isLocked || isAppEncryptedContent(note.content)) return;
+  if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
   indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
 }
 
