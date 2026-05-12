@@ -1,229 +1,89 @@
 import { getCurrentInstance, onMounted, onUnmounted, shallowRef } from 'vue';
 import { backend } from '@/lib/tauri-bridge';
-import { createSingleton } from 'tippy.js';
-import createTippy, { defaultOptions } from '@/lib/tippy';
-
-class ZoomHandler {
-  constructor() {
-    this.currentZoom = 1;
-    this.observers = new Set();
-    this.init();
-  }
-
-  init() {
-    this.detectZoom();
-    this.setupZoomListener();
-  }
-
-  detectZoom() {
-    const bodyStyle = window.getComputedStyle(document.body);
-    let zoom = parseFloat(bodyStyle.zoom) || 1;
-
-    if (zoom === 1 && bodyStyle.transform && bodyStyle.transform !== 'none') {
-      const match = bodyStyle.transform.match(/scale\(([^)]+)\)/);
-      if (match) {
-        zoom = parseFloat(match[1]);
-      }
-    }
-
-    this.currentZoom = zoom;
-    return zoom;
-  }
-
-  setupZoomListener() {
-    const observer = new MutationObserver(() => {
-      const newZoom = this.detectZoom();
-      if (newZoom !== this.currentZoom) {
-        this.currentZoom = newZoom;
-        this.notifyObservers(newZoom);
-      }
-    });
-
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ['style'],
-    });
-
-    window.addEventListener('resize', () => {
-      setTimeout(() => {
-        const newZoom = this.detectZoom();
-        if (newZoom !== this.currentZoom) {
-          this.currentZoom = newZoom;
-          this.notifyObservers(newZoom);
-        }
-      }, 100);
-    });
-  }
-
-  addObserver(callback) {
-    this.observers.add(callback);
-    return () => this.observers.delete(callback);
-  }
-
-  notifyObservers(zoom) {
-    this.observers.forEach((callback) => callback(zoom));
-  }
-
-  getZoom() {
-    return this.currentZoom;
-  }
-}
-
-const zoomHandler = new ZoomHandler();
-
-function createZoomAwareTippyOptions(baseOptions = {}) {
-  const zoom = zoomHandler.getZoom();
-
-  return {
-    ...defaultOptions,
-    ...baseOptions,
-
-    popperOptions: {
-      modifiers: [
-        {
-          name: 'zoomFix',
-          enabled: true,
-          phase: 'afterWrite',
-          fn({ state }) {
-            const zoom = zoomHandler.getZoom();
-            if (zoom !== 1) {
-              const popper = state.elements.popper;
-              const reference = state.elements.reference;
-
-              const refRect = reference.getBoundingClientRect();
-
-              const popperHeight = popper.offsetHeight / zoom;
-              const popperWidth = popper.offsetWidth / zoom;
-
-              const placement = state.placement;
-              let targetX, targetY;
-
-              switch (placement) {
-                case 'right':
-                case 'right-start':
-                case 'right-end':
-                  targetX = refRect.right / zoom + 8 / zoom;
-                  targetY =
-                    placement === 'right-start'
-                      ? refRect.top / zoom
-                      : placement === 'right-end'
-                      ? refRect.bottom / zoom - popperHeight
-                      : refRect.top / zoom +
-                        refRect.height / zoom / 2 -
-                        popperHeight / 2;
-                  break;
-
-                case 'left':
-                case 'left-start':
-                case 'left-end':
-                  targetX = refRect.left / zoom - popperWidth - 8 / zoom;
-                  targetY =
-                    placement === 'left-start'
-                      ? refRect.top / zoom
-                      : placement === 'left-end'
-                      ? refRect.bottom / zoom - popperHeight
-                      : refRect.top / zoom +
-                        refRect.height / zoom / 2 -
-                        popperHeight / 2;
-                  break;
-
-                case 'top':
-                case 'top-start':
-                case 'top-end':
-                  targetX =
-                    placement === 'top-start'
-                      ? refRect.left / zoom
-                      : placement === 'top-end'
-                      ? refRect.right / zoom - popperWidth
-                      : refRect.left / zoom +
-                        refRect.width / zoom / 2 -
-                        popperWidth / 2;
-                  targetY = refRect.top / zoom - popperHeight - 8 / zoom;
-                  break;
-
-                case 'bottom':
-                case 'bottom-start':
-                case 'bottom-end':
-                  targetX =
-                    placement === 'bottom-start'
-                      ? refRect.left / zoom
-                      : placement === 'bottom-end'
-                      ? refRect.right / zoom - popperWidth
-                      : refRect.left / zoom +
-                        refRect.width / zoom / 2 -
-                        popperWidth / 2;
-                  targetY = refRect.bottom / zoom + 8 / zoom;
-                  break;
-
-                default:
-                  targetX = refRect.right / zoom + 8 / zoom;
-                  targetY =
-                    refRect.top / zoom +
-                    refRect.height / zoom / 2 -
-                    popperHeight / 2;
-              }
-
-              popper.style.transform = `translate(${Math.round(
-                targetX
-              )}px, ${Math.round(targetY)}px)`;
-              popper.style.position = 'fixed';
-            }
-          },
-        },
-      ],
-    },
-
-    offset: [0, (baseOptions.offset?.[1] || 8) / zoom],
-  };
-}
+import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom';
 
 export function useGroupTooltip(elements, options = {}) {
-  const singleton = shallowRef(null);
-  let cleanupZoomListener = null;
+  const tooltipEl = shallowRef(null);
+  let cleanup = null;
+  const groupEntries = [];
+
+  function showTooltip(entry) {
+    hideTooltip();
+    const tip = tooltipEl.value;
+    if (!tip) return;
+    tip.textContent = entry.content || '';
+    tip.style.display = '';
+
+    cleanup = autoUpdate(entry.el, tip, () => {
+      computePosition(entry.el, tip, {
+        placement: entry.placement || 'right',
+        strategy: 'fixed',
+        middleware: [offset(8), flip(), shift({ padding: 5 })],
+      }).then(({ x, y }) => {
+        tip.style.transform = `translate(${x}px, ${y}px)`;
+      });
+    });
+  }
+
+  function hideTooltip() {
+    if (cleanup) {
+      cleanup();
+      cleanup = null;
+    }
+    if (tooltipEl.value) {
+      tooltipEl.value.style.display = 'none';
+    }
+  }
 
   onMounted(() => {
     if (backend.isMobileRuntime()) return;
-    let tippyInstances = [];
 
+    const tip = document.createElement('div');
+    tip.className = 'floating-tooltip';
+    Object.assign(tip.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      display: 'none',
+      pointerEvents: 'none',
+      zIndex: '9999',
+    });
+    document.body.appendChild(tip);
+    tooltipEl.value = tip;
+
+    let entries;
     if (Array.isArray(elements)) {
-      tippyInstances = elements.map((el) => el._tippy || createTippy(el));
+      entries = elements.map((el) => ({
+        el,
+        content: options.content || '',
+        placement: options.placement || 'right',
+      }));
     } else {
-      const ctx = getCurrentInstance() && getCurrentInstance().ctx;
-      tippyInstances = ctx._tooltipGroup || [];
+      const ctx = getCurrentInstance()?.ctx;
+      entries = ctx?._tooltipGroup || [];
     }
 
-    const zoomAwareOptions = createZoomAwareTippyOptions({
-      ...options,
-      theme: 'tooltip-theme',
-      placement: 'right',
-      moveTransition: 'transform 0.2s ease-out',
-      overrides: ['placement', 'theme'],
-    });
-
-    singleton.value = createSingleton(tippyInstances, zoomAwareOptions);
-
-    cleanupZoomListener = zoomHandler.addObserver(() => {
-      if (singleton.value) {
-        singleton.value.setProps(
-          createZoomAwareTippyOptions({
-            ...options,
-            theme: 'tooltip-theme',
-            placement: 'right',
-            moveTransition: 'transform 0.2s ease-out',
-            overrides: ['placement', 'theme'],
-          })
-        );
-
-        singleton.value.popperInstance?.update();
-      }
+    entries.forEach((entry) => {
+      const onEnter = () => showTooltip(entry);
+      const onLeave = hideTooltip;
+      entry.el.addEventListener('mouseenter', onEnter);
+      entry.el.addEventListener('mouseleave', onLeave);
+      entry.el.addEventListener('focus', onEnter);
+      entry.el.addEventListener('blur', onLeave);
+      groupEntries.push({ ...entry, onEnter, onLeave });
     });
   });
 
   onUnmounted(() => {
-    if (cleanupZoomListener) {
-      cleanupZoomListener();
-    }
+    hideTooltip();
+    groupEntries.forEach(({ el, onEnter, onLeave }) => {
+      el.removeEventListener('mouseenter', onEnter);
+      el.removeEventListener('mouseleave', onLeave);
+      el.removeEventListener('focus', onEnter);
+      el.removeEventListener('blur', onLeave);
+    });
+    tooltipEl.value?.remove();
   });
 
-  return singleton;
+  return tooltipEl;
 }

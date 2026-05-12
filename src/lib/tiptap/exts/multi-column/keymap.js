@@ -19,7 +19,7 @@ function findParentColumn($pos) {
 }
 
 const isSuggestionOpen = () => {
-  const popup = document.querySelector('.slash-tippy');
+  const popup = document.querySelector('[data-command-menu]');
   return !!popup;
 };
 

@@ -2,7 +2,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { PluginKey } from 'prosemirror-state';
 import Suggestion from '@tiptap/suggestion';
 import { VueRenderer } from '@tiptap/vue-3';
-import tippy from '@/lib/tippy';
+import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom';
 import SuggestionComponent from './SuggestionComponent.vue';
 
 export default function ({ name, props: customProps = {}, configure = {} }) {
@@ -24,6 +24,8 @@ export default function ({ name, props: customProps = {}, configure = {} }) {
           render: () => {
             let component;
             let popup;
+            let cleanup;
+            let virtualEl;
 
             return {
               onStart: (props) => {
@@ -32,26 +34,37 @@ export default function ({ name, props: customProps = {}, configure = {} }) {
                   editor: props.editor,
                 });
 
-                popup = tippy('body', {
-                  getReferenceClientRect: props.clientRect,
-                  appendTo: () => document.body,
-                  content: component.element,
-                  showOnCreate: true,
-                  interactive: true,
-                  trigger: 'manual',
-                  placement: 'bottom-start',
-                });
+                popup = document.createElement('div');
+                popup.style.position = 'absolute';
+                popup.style.top = '0';
+                popup.style.left = '0';
+                popup.style.zIndex = '1000';
+                document.body.appendChild(popup);
+                popup.appendChild(component.element);
+
+                virtualEl = { getBoundingClientRect: props.clientRect };
+
+                const updatePosition = () => {
+                  computePosition(virtualEl, popup, {
+                    placement: 'bottom-start',
+                    middleware: [offset(0), flip(), shift({ padding: 8 })],
+                  }).then(({ x, y }) => {
+                    Object.assign(popup.style, { left: `${x}px`, top: `${y}px` });
+                  });
+                };
+
+                cleanup = autoUpdate(virtualEl, popup, updatePosition);
               },
               onUpdate(props) {
                 component.updateProps({ ...props, ...customProps });
 
-                popup[0].setProps({
-                  getReferenceClientRect: props.clientRect,
-                });
+                if (!props.clientRect) return;
+
+                virtualEl.getBoundingClientRect = props.clientRect;
               },
               onKeyDown(props) {
                 if (props.event.key === 'Escape') {
-                  popup[0].hide();
+                  popup.style.display = 'none';
 
                   return true;
                 }
@@ -59,7 +72,8 @@ export default function ({ name, props: customProps = {}, configure = {} }) {
                 return component.ref?.onKeyDown(props);
               },
               onExit() {
-                popup[0].destroy();
+                if (cleanup) cleanup();
+                popup?.remove();
                 component.destroy();
               },
             };

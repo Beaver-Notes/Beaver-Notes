@@ -95,10 +95,12 @@ option {
   display: inline-block;
 }
 
-.tippy-box[data-theme~='tooltip-theme'] {
+.floating-tooltip {
   background-color: theme('colors.neutral.900');
   color: white;
   @apply px-2 py-1 text-sm text-neutral-200 rounded-md;
+  max-width: 200px;
+  word-wrap: break-word;
 }
 
 ::-webkit-scrollbar {

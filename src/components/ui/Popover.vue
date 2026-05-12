@@ -1,21 +1,25 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="ui-popover inline-block" :class="{ hidden: to }">
-    <div ref="targetEl" class="ui-popover__trigger h-full inline-block">
+    <div ref="targetEl" class="ui-popover__trigger h-full inline-block" @click="onTriggerClick">
       <slot name="trigger" v-bind="{ isShow }"></slot>
     </div>
-    <div
-      ref="content"
-      class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border"
-      :class="[padding]"
-    >
-      <slot v-bind="{ isShow }"></slot>
-    </div>
+    <Teleport to="body">
+      <div
+        v-if="isShow"
+        ref="content"
+        :style="floatingStyles"
+        class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border z-50"
+        :class="[padding]"
+      >
+        <slot v-bind="{ isShow }"></slot>
+      </div>
+    </Teleport>
   </div>
 </template>
 <script>
-import { ref, onMounted, watch, shallowRef, onUnmounted } from 'vue';
-import createTippy from '@/lib/tippy';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue';
 
 export default {
   props: {
@@ -49,64 +53,75 @@ export default {
     const targetEl = ref(null);
     const content = ref(null);
     const isShow = ref(false);
-    const instance = shallowRef(null);
+
+    const reference = computed(() => {
+      if (props.to) {
+        return typeof props.to === 'string'
+          ? document.querySelector(props.to)
+          : props.to;
+      }
+      return targetEl.value;
+    });
+
+    const placement = computed(() => props.placement);
+    const middleware = computed(() => [offset(0), flip(), shift({ padding: 8 })]);
+
+    const { floatingStyles } = useFloating(reference, content, {
+      placement,
+      middleware,
+      whileElementsMounted: autoUpdate,
+    });
+
+    const show = () => {
+      if (props.disabled) return;
+      isShow.value = true;
+      emit('show');
+      emit('trigger');
+    };
+
+    const hide = () => {
+      isShow.value = false;
+      emit('close');
+    };
+
+    const onTriggerClick = () => {
+      if (props.trigger !== 'click') return;
+      if (isShow.value) hide();
+      else show();
+    };
 
     watch(
-      () => props.disabled,
-      (value) => {
-        if (value) {
-          instance.value.enable();
-        } else {
-          instance.value.hide();
-          instance.value.disable();
+      () => props.modelValue,
+      (val) => {
+        if (val !== isShow.value) {
+          isShow.value = val;
         }
       }
     );
-    watch(
-      () => props.modelValue,
-      (value) => {
-        if (value === isShow.value) return;
 
-        isShow.value = value;
-
-        value ? instance.value.show() : instance.value.hide();
+    const handleClickOutside = (e) => {
+      if (!isShow.value) return;
+      const target = reference.value;
+      const floating = content.value;
+      if (target && !target.contains(e.target) && floating && !floating.contains(e.target)) {
+        hide();
       }
-    );
+    };
 
     onMounted(() => {
-      const target = props.to
-        ? typeof to === 'string'
-          ? document.querySelector(props.to)
-          : props.to
-        : targetEl.value;
-
-      instance.value = createTippy(target, {
-        role: 'popover',
-        theme: null,
-        content: content.value,
-        placement: props.placement,
-        trigger: props.trigger,
-        interactive: true,
-        appendTo: () => document.body,
-        onShow: (event) => {
-          emit('show', event);
-          isShow.value = true;
-        },
-        onHide: () => {
-          emit('close');
-          isShow.value = false;
-        },
-        onTrigger: () => emit('trigger'),
-      });
+      document.addEventListener('click', handleClickOutside, true);
     });
+
     onUnmounted(() => {
-      instance.value.destroy();
+      document.removeEventListener('click', handleClickOutside, true);
     });
 
     return {
       isShow,
       content,
       targetEl,
+      floatingStyles,
+      onTriggerClick,
     };
   },
 };
