@@ -4,6 +4,7 @@ import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
 import { hydrateNote, stripTransientFields } from '@/utils/noteSerializer.js';
+import { isEncryptionEnabled } from '@/utils/encryption.js';
 import { useFolderStore } from '../folder';
 import {
   saveNote,
@@ -20,7 +21,7 @@ export async function retrieve() {
     const localStorageData = await storage.get('notes', {});
     const merged = { ...localStorageData, ...this.data };
 
-    if (this.isAppEncryptionEnabled?.() ?? false) {
+    if (isEncryptionEnabled()) {
       const { decryptNoteForMemory } = await import(
         '@/utils/noteSerializer.js'
       );

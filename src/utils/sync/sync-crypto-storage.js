@@ -33,6 +33,6 @@ export function syncCryptoFileExists(syncPath, name) {
   return syncPathExists(path.join(getSyncCryptoDir(syncPath), name));
 }
 
-export function readLocalAssetData(localFilePath) {
-  return readSyncData(localFilePath);
+export function readLocalAssetData(localFilePath, options = {}) {
+  return readSyncData(localFilePath, options);
 }

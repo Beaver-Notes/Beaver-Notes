@@ -1,9 +1,11 @@
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
+import { forceSyncNow } from '@/utils/sync';
+import { listen } from '@tauri-apps/api/event';
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
@@ -16,6 +18,7 @@ import {
 } from '@/lib/native/fs';
 import { useAppStore } from '@/store/app';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { markRaw } from 'vue';
 import {
   clearAssetPassphrase,
   clearSecureBlob,
@@ -58,6 +61,9 @@ export function useSettingsData({
     lastUpdated: null,
     zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
   });
+
+  const syncProgress = ref(null);
+  let unlistenSyncProgress = null;
 
   let defaultPath = '';
 
@@ -290,6 +296,7 @@ export function useSettingsData({
       if (canceled) return;
       defaultPath = await setSyncPath(dir);
       state.syncPath = defaultPath;
+      forceSyncNow().catch(() => {});
       window.location.reload();
     } catch (error) {
       console.error(error);
@@ -348,13 +355,15 @@ export function useSettingsData({
 
   const handleAutoSyncChange = () => {
     if (!defaultPath || defaultPath.trim() === '') {
+      autoSync.value = false;
       showAlert(translations.value.settings.emptyPathWarn);
       return;
     }
 
-    const nextValue = !autoSync.value;
-    autoSync.value = nextValue;
-    void setSetting('autoSync', nextValue);
+    void setSetting('autoSync', autoSync.value);
+    if (autoSync.value) {
+      forceSyncNow().catch(() => {});
+    }
   };
 
   const toggleAdvancedSettings = () => {
@@ -399,6 +408,22 @@ export function useSettingsData({
     void setSetting('timeFormat', timeFormat.value);
   };
 
+  function registerSyncProgressListener() {
+    if (unlistenSyncProgress) return;
+    (async () => {
+      unlistenSyncProgress = await listen('sync:progress', (event) => {
+        syncProgress.value = markRaw(event.payload);
+      });
+    })();
+  }
+
+  function unregisterSyncProgressListener() {
+    if (unlistenSyncProgress) {
+      unlistenSyncProgress();
+      unlistenSyncProgress = null;
+    }
+  }
+
   onMounted(() => {
     void (async () => {
       defaultPath = await getSyncPath();
@@ -437,6 +462,9 @@ export function useSettingsData({
     clearPath,
     nukeAppDebugOnly,
     handleAutoSyncChange,
+    syncProgress,
+    registerSyncProgressListener,
+    unregisterSyncProgressListener,
     toggleAdvancedSettings,
     toggleSpellcheck,
     applySpellcheckAttribute,

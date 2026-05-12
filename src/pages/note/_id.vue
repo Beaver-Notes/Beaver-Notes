@@ -26,12 +26,12 @@
     </button>
 
     <template v-if="editor && !isLocked">
-      <note-menu v-bind="{ editor, id, note }" class="mb-6 mobile:hidden" />
       <editor-actions-mobile
         v-bind="{ editor, id, note, goBack, showSearch }"
         class="hidden mobile:flex"
         @toggle-search="showSearch = !showSearch"
       />
+      <note-menu v-bind="{ editor, id, note }" class="mb-6 mobile:hidden" />
       <transition
         enter-active-class="transition duration-200 ease-out"
         enter-from-class="opacity-0 translate-y-4"
@@ -113,6 +113,7 @@
 
 <script>
 import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
+import { debounce } from '@/utils/helper';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -130,7 +131,7 @@ import NoteMenu from '@/components/note/NoteMenu.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import { useAppStore } from '../../store/app';
 import { isEncryptedContent } from '@/utils/encryption.js';
-import { decryptNoteForMemory } from '@/utils/noteSerializer.js';
+import { decryptNoteForMemory, hydrateNote } from '@/utils/noteSerializer.js';
 import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -194,7 +195,7 @@ export default {
         if (currentNote && isEncryptedContent(currentNote.content)) {
           const decrypted = await decryptNoteForMemory(currentNote);
           if (decrypted !== currentNote) {
-            noteStore.data[n] = decrypted;
+            noteStore.data[n] = hydrateNote(decrypted);
           }
         }
         if (!appStore.setting.collapsibleHeading && !isLocked.value) {
@@ -205,9 +206,9 @@ export default {
     );
 
     // Title / content handlers
-    function handleTitleInput(event) {
+    const handleTitleInput = debounce((event) => {
       return updateNote(id.value, { title: event.target.innerText });
-    }
+    }, 150);
 
     function handleContentUpdate(content) {
       return updateNote(id.value, { content });

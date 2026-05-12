@@ -230,11 +230,16 @@ pub(crate) fn fs_read_data(
     app: AppHandle,
     state: State<AppState>,
     path: String,
+    skip_decryption: Option<bool>,
 ) -> Result<String, String> {
     let actual_path = resolve_asset_path_from_uri(&app, &path)?;
     assert_path_access(&app, &state, &actual_path, "read data")?;
     let raw = fs::read(&actual_path).map_err(to_error)?;
-    let plain = maybe_decrypt_asset(&app, &state, &actual_path, &raw)?;
+    let plain = if skip_decryption.unwrap_or(false) {
+        raw
+    } else {
+        maybe_decrypt_asset(&app, &state, &actual_path, &raw)?
+    };
     Ok(BASE64.encode(plain))
 }
 

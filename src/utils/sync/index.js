@@ -10,7 +10,10 @@ import { useNoteStore } from '@/store/note.js';
 import { useFolderStore } from '@/store/folder.js';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import { ensureDir as ensureSyncDir, readDir as readSyncDir } from '@/lib/native/fs';
+import {
+  ensureDir as ensureSyncDir,
+  readDir as readSyncDir,
+} from '@/lib/native/fs';
 import {
   applySnapshotIfNeeded,
   compactSync,
@@ -148,9 +151,20 @@ async function _sync(force = false) {
     }
 
     const localDir = await getAppDirectory();
-    await syncAssets(localDir, syncDir, async (deletedAssets) => {
-      await trackChange(OpType.DELETED_ASSETS, deletedAssets);
-    });
+    await syncAssets(
+      localDir,
+      syncDir,
+      async (deletedAssets) => {
+        await trackChange(OpType.DELETED_ASSETS, deletedAssets);
+      },
+      (progress) => {
+        try {
+          emit('sync:progress', progress);
+        } catch {
+          // event emission is non-critical
+        }
+      }
+    );
 
     const allFiles = await readSyncDir(commitsDir).catch(() => []);
     if (

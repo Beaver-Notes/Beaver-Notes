@@ -138,6 +138,12 @@ function normalizePayload(channel, payload) {
     case 'fs:stat':
     case 'fs:unlink':
     case 'fs:readData':
+      return {
+        ...withKeyVariants('path', payload?.path ?? payload),
+        ...(payload?.skipDecryption != null
+          ? withKeyVariants('skipDecryption', payload.skipDecryption)
+          : {}),
+      };
     case 'fs:isFile':
     case 'fs:access':
       return withKeyVariants('path', payload);

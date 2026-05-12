@@ -54,9 +54,10 @@ export function localAssetName(syncFilename) {
 }
 
 export async function readAndEncryptAsset(localFilePath) {
-  const base64 = await readLocalAssetData(localFilePath);
-  if (!isKeyLoaded()) return base64;
-  return encryptSyncAssetBase64(base64);
+  const base64 = await readLocalAssetData(localFilePath, {
+    skipDecryption: true,
+  });
+  return base64;
 }
 
 export async function decryptAndWriteAsset(

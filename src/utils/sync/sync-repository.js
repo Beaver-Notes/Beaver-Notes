@@ -37,9 +37,8 @@ export function getSyncDeviceId() {
 }
 
 export function cloneCommitData(data) {
-  return data !== undefined && data !== null
-    ? structuredClone(toRaw(data))
-    : null;
+  if (data === undefined || data === null) return null;
+  return JSON.parse(JSON.stringify(toRaw(data)));
 }
 
 export async function ensureCommitsDir(syncPath) {
@@ -64,7 +63,10 @@ export async function listRemoteCommits(commitsDir, cursors, decryptJSON) {
       const raw = await readSyncFile(path.join(commitsDir, file));
       commit = await decryptJSON(raw);
     } catch (err) {
-      console.warn('[sync-repository] listRemoteCommits: decryptJSON failed:', err);
+      console.warn(
+        '[sync-repository] listRemoteCommits: decryptJSON failed:',
+        err
+      );
       continue;
     }
 
@@ -217,7 +219,10 @@ export async function applySnapshotIfNeeded({
   try {
     snapshot = await decryptJSON(raw);
   } catch (err) {
-    console.warn('[sync-repository] applySnapshotIfNeeded: decryptJSON failed:', err);
+    console.warn(
+      '[sync-repository] applySnapshotIfNeeded: decryptJSON failed:',
+      err
+    );
     return false;
   }
   if (!snapshot?.data || typeof snapshot.data !== 'object') return false;

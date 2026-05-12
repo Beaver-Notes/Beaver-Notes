@@ -86,6 +86,36 @@
           </div>
           <ui-switch v-model="autoSync" @change="handleAutoSyncChange" />
         </div>
+
+        <transition name="setting-fade">
+          <div
+            v-if="syncProgress?.phase === 'assets' && syncProgress.total > 0"
+            class="px-4 pb-4"
+          >
+            <p class="text-xs text-primary">
+                Math.min(
+                  100,
+                  Math.floor(
+                    (syncProgress.processed / syncProgress.total) * 100
+                  )
+                )
+              }}%)
+            </p>
+            <div class="mt-1.5 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
+              <div
+                class="h-1.5 rounded bg-primary dark:bg-primary/80 transition-all duration-200"
+                :style="{
+                  width: `${Math.min(
+                    100,
+                    Math.floor(
+                      (syncProgress.processed / syncProgress.total) * 100
+                    )
+                  )}%`,
+                }"
+              />
+            </div>
+          </div>
+        </transition>
       </div>
     </section>
     <section class="space-y-2">
@@ -633,7 +663,7 @@
 </template>
 
 <script>
-import { computed } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useTheme } from '@/composable/theme';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
@@ -722,6 +752,14 @@ export default {
       passwordStore,
       translations,
       showDialogAlert: dataSettings.showDialogAlert,
+    });
+
+    onMounted(() => {
+      dataSettings.registerSyncProgressListener();
+    });
+
+    onUnmounted(() => {
+      dataSettings.unregisterSyncProgressListener();
     });
 
     return {
