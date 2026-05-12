@@ -1,32 +1,51 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <ui-card
-    class="border max-w-xs"
-    padding="p-2"
-    style="max-width: 16rem; min-width: 6rem"
+  <div
+    class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-2"
+    style="max-width: 18rem; min-width: 8rem"
   >
-    <ui-list
-      class="space-y-1 overflow-y-auto no-scrollbar"
-      style="max-height: calc(5 * 2.5rem)"
-    >
+    <ui-list class="overflow-y-auto no-scrollbar" style="max-height: 20rem">
       <ui-list-item
         v-for="(item, index) in filteredItems"
+        small
         :key="index"
         :active="index === selectedIndex"
-        class="label-item w-full text-overflow"
+        class="w-full"
         tag="button"
         :disabled="item.disabled"
         @click="handleItemClick(item)"
       >
-        <v-remixicon :name="item.icon" class="mr-2" :class="item.className" />
-        <div class="text-left overflow-hidden text-ellipsis whitespace-nowrap">
-          <h3 class="font-medium">
-            {{ translations.menu[item.name] || item.name }}
-          </h3>
+        <div class="flex items-start w-full">
+          <!-- Icon container with border -->
+          <div
+            class="flex items-center justify-center rounded-md border flex-shrink-0 bg-white dark:bg-neutral-900 p-2"
+          >
+            <v-remixicon
+              :name="item.icon"
+              class="text-base size-6"
+              :class="item.className"
+            />
+          </div>
+          <!-- Title and description -->
+          <div class="flex flex-col min-w-0 flex-1 items-start pl-4">
+            <span class="text-sm font-medium truncate leading-tight">
+              {{ translations.menu[item.name] || item.name }}
+            </span>
+            <span
+              class="text-xs leading-tight mt-0.5 truncate"
+              :class="
+                index === selectedIndex
+                  ? 'opacity-75'
+                  : 'text-neutral-500 dark:text-neutral-400'
+              "
+            >
+              {{ translations.menu[item.description] || '' }}
+            </span>
+          </div>
         </div>
       </ui-list-item>
     </ui-list>
-  </ui-card>
+  </div>
 </template>
 
 <script>
@@ -182,15 +201,26 @@ export default {
       }
     };
 
+    const headingDescriptions = [
+      'heading1Description',
+      'heading2Description',
+      'heading3Description',
+      'heading4Description',
+      'heading5Description',
+      'heading6Description',
+    ];
+
     const items = ref([
       {
         icon: 'riParagraph',
         name: 'paragraph',
+        description: 'paragraphDescription',
         action: () => props.editor.chain().focus().setParagraph().run(),
       },
       ...Array.from({ length: 6 }, (_, i) => ({
         icon: `riH${i + 1}`,
         name: `heading ${i + 1}`,
+        description: headingDescriptions[i],
         action: () =>
           props.editor
             .chain()
@@ -201,16 +231,19 @@ export default {
       {
         icon: 'riDoubleQuotesR',
         name: 'blockQuote',
+        description: 'blockQuoteDescription',
         action: () => props.editor.chain().focus().toggleBlockquote().run(),
       },
       {
         icon: 'riCodeBoxLine',
         name: 'codeBlock',
+        description: 'codeBlockDescription',
         action: () => props.editor.chain().focus().toggleCodeBlock().run(),
       },
       {
         icon: 'riTableLine',
         name: 'table',
+        description: 'tableDescription',
         action: () =>
           props.editor
             .chain()
@@ -221,21 +254,25 @@ export default {
       {
         icon: 'riListOrdered',
         name: 'orderedList',
+        description: 'orderedListDescription',
         action: () => props.editor.chain().focus().toggleOrderedList().run(),
       },
       {
         icon: 'riListUnordered',
         name: 'bulletList',
+        description: 'bulletListDescription',
         action: () => props.editor.chain().focus().toggleBulletList().run(),
       },
       {
         icon: 'riListCheck2',
         name: 'checkList',
+        description: 'checkListDescription',
         action: () => props.editor.chain().focus().toggleTaskList().run(),
       },
       {
         icon: 'riCalculatorLine',
         name: 'mathBlock',
+        description: 'mathBlockDescription',
         action: () => {
           props.editor.commands.insertMathBlock({
             content: '',
@@ -246,52 +283,61 @@ export default {
       {
         icon: 'riSingleQuotesR',
         name: 'blackCallout',
+        description: 'blackCalloutDescription',
         className: 'dark:text-neutral-400',
         action: () => props.editor.chain().focus().setBlackCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'blueCallout',
+        description: 'blueCalloutDescription',
         className: 'text-blue-500 dark:text-blue-500',
         action: () => props.editor.chain().focus().setBlueCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'greenCallout',
+        description: 'greenCalloutDescription',
         className: 'text-green-600 dark:text-green-600',
         action: () => props.editor.chain().focus().setGreenCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'purpleCallout',
+        description: 'purpleCalloutDescription',
         className: 'text-purple-500 dark:text-purple-500',
         action: () => props.editor.chain().focus().setPurpleCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'redCallout',
+        description: 'redCalloutDescription',
         className: 'text-red-500 dark:text-red-500',
         action: () => props.editor.chain().focus().setRedCallout().run(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'yellowCallout',
+        description: 'yellowCalloutDescription',
         className: 'text-yellow-500 dark:text-yellow-500',
         action: () => props.editor.chain().focus().setYellowCallout().run(),
       },
       {
         icon: 'riPieChart2Line',
         name: 'mermaid',
+        description: 'mermaidDescription',
         action: () => props.editor.chain().focus().setMermaidDiagram().run(),
       },
       {
         icon: 'riBrush3Fill',
         name: 'drawing',
+        description: 'drawingDescription',
         action: () => props.editor.chain().focus().insertPaper().run(),
       },
       {
         icon: 'riImageLine',
         name: 'image',
+        description: 'imageDescription',
         action: () => {
           editorImage.select(true);
         },
@@ -299,6 +345,7 @@ export default {
       {
         icon: 'riFile2Line',
         name: 'file',
+        description: 'fileDescription',
         action: () => {
           handleFileSelect();
         },
@@ -306,6 +353,7 @@ export default {
       {
         icon: 'riMovieLine',
         name: 'video',
+        description: 'videoDescription',
         action: () => {
           handleVideoSelect();
         },
@@ -313,6 +361,7 @@ export default {
       {
         icon: 'riMicLine',
         name: 'audio',
+        description: 'audioDescription',
         action: () => {
           handleAudioSelect();
         },
@@ -320,6 +369,7 @@ export default {
       {
         icon: 'riCalendarLine',
         name: 'todayDate',
+        description: 'todayDateDescription',
         action: () => {
           const customFormat = getSettingSync('todayDateFormat');
           props.editor
@@ -332,6 +382,7 @@ export default {
       {
         icon: 'riTimerLine',
         name: 'currentTime',
+        description: 'currentTimeDescription',
         action: () => {
           const customFormat = getSettingSync('timeFormat');
           props.editor
@@ -340,6 +391,12 @@ export default {
             .insertContent(dayjs().format(customFormat))
             .run();
         },
+      },
+      {
+        icon: 'riLayoutColumnLine',
+        name: 'columns',
+        description: 'columnsDescription',
+        action: () => props.editor.chain().focus().insertMultiColumn(2).run(),
       },
     ]);
 
