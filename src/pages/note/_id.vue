@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="note"
-    class="editor note-editor-page mx-auto relative px-4 lg:px-0 mb-32"
+    class="editor note-editor-page mx-auto relative px-4 lg:px-0"
     :class="{ 'mobile-search-open': showSearch }"
     :style="{
       'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
