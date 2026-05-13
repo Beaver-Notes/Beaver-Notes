@@ -1,5 +1,5 @@
 <template>
-  <div class="note-editor">
+  <div class="note-editor mb-64">
     <slot v-bind="{ editor }" />
     <drag-handle
       v-if="editor && showDragHandle"
@@ -53,12 +53,74 @@ export default {
       showDragHandle.value = window.innerWidth >= 768;
     }
 
+    const SCROLL_ZONE = 40;
+    const SCROLL_SPEED = 8;
+    let dragScrollRafId = null;
+    let lastClientY = 0;
+
+    function isOverEditor(x, y) {
+      if (!editor.value) return false;
+      const rect = editor.value.view.dom.getBoundingClientRect();
+      return (
+        x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+      );
+    }
+
+    function tickDragScroll() {
+      dragScrollRafId = null;
+      const viewportHeight = window.innerHeight;
+      let deltaY = 0;
+      if (lastClientY < SCROLL_ZONE) {
+        deltaY = -SCROLL_SPEED;
+      } else if (lastClientY > viewportHeight - SCROLL_ZONE) {
+        deltaY = SCROLL_SPEED;
+      }
+      if (deltaY !== 0) {
+        const before = window.scrollY;
+        window.scrollBy(0, deltaY);
+        if (window.scrollY !== before + deltaY) {
+          window.scrollTo(0, before + deltaY);
+        }
+        dragScrollRafId = requestAnimationFrame(tickDragScroll);
+      }
+    }
+
+    function onDragOver(e) {
+      if (!editor.value) return;
+      if (!isOverEditor(e.clientX, e.clientY)) return;
+      lastClientY = e.clientY;
+      if (!dragScrollRafId) {
+        dragScrollRafId = requestAnimationFrame(tickDragScroll);
+      }
+    }
+
+    function onDragEnd() {
+      if (dragScrollRafId) {
+        cancelAnimationFrame(dragScrollRafId);
+        dragScrollRafId = null;
+      }
+    }
+
+    function onDrop() {
+      onDragEnd();
+    }
+
     onMounted(() => {
       window.addEventListener('resize', updateDragHandleVisibility);
+      window.addEventListener('dragover', onDragOver);
+      window.addEventListener('dragend', onDragEnd);
+      window.addEventListener('drop', onDrop);
     });
 
     onBeforeUnmount(() => {
       window.removeEventListener('resize', updateDragHandleVisibility);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragend', onDragEnd);
+      window.removeEventListener('drop', onDrop);
+      if (dragScrollRafId) {
+        cancelAnimationFrame(dragScrollRafId);
+        dragScrollRafId = null;
+      }
     });
 
     const fixedGutterMiddleware = {
@@ -114,6 +176,20 @@ export default {
       extensions: exts,
       editorProps: {
         handleClick,
+        handleDOMEvents: {
+          drop: (view) => {
+            const scrollY = window.scrollY;
+            const origDispatch = view.dispatch.bind(view);
+            view.dispatch = function (tr) {
+              origDispatch(tr);
+              window.scrollTo(0, scrollY);
+            };
+            setTimeout(() => {
+              view.dispatch = origDispatch;
+            }, 0);
+            return false;
+          },
+        },
         attributes: {
           'data-testid': 'note-body-editor',
         },
