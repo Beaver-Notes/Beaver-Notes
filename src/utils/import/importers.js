@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import mammoth from 'mammoth';
+
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import {
@@ -104,56 +104,6 @@ function parseDataUri(value) {
     contentType: match[1],
     data: base64ToUint8Array(match[2]),
   };
-}
-
-async function convertWordToHtml(filePath) {
-  const fileBase64 = await readData(filePath);
-  const fileBytes = base64ToUint8Array(fileBase64);
-  const arrayBuffer = fileBytes.buffer.slice(
-    fileBytes.byteOffset,
-    fileBytes.byteOffset + fileBytes.byteLength
-  );
-
-  return mammoth.convertToHtml(
-    { arrayBuffer },
-    {
-      convertImage: mammoth.images.inline(async (image) => {
-        const base64 = await image.read('base64');
-        return {
-          src: `data:${image.contentType || 'image/png'};base64,${base64}`,
-        };
-      }),
-    }
-  );
-}
-
-async function storeWordImages(html, noteId, appDirectory) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html || '', 'text/html');
-  const images = Array.from(doc.querySelectorAll('img'));
-
-  if (!images.length) {
-    return doc.body.innerHTML;
-  }
-
-  const noteAssetsDir = path.join(appDirectory, 'notes-assets', noteId);
-  await ensureDir(noteAssetsDir);
-
-  let imageIndex = 1;
-
-  for (const image of images) {
-    const parsed = parseDataUri(image.getAttribute('src'));
-    if (!parsed?.data?.length) continue;
-
-    const extension = extensionForContentType(parsed.contentType);
-    const fileName = `word-image-${imageIndex}.${extension}`;
-    imageIndex += 1;
-
-    await writeFile(path.join(noteAssetsDir, fileName), parsed.data);
-    image.setAttribute('src', `assets://${noteId}/${fileName}`);
-  }
-
-  return doc.body.innerHTML;
 }
 
 async function listFilesRecursive(rootPath, extensions, options = {}) {
@@ -651,67 +601,4 @@ export async function importGenericMarkdown(
   return { imported, folders: createdFolderIds.size, errors };
 }
 
-export async function importWordDocuments(
-  filePaths,
-  noteStore,
-  _folderStore,
-  appDirectory,
-  onProgress
-) {
-  const resolvedAppDirectory = await ensureAppDirectory(appDirectory);
-  const files = (Array.isArray(filePaths) ? filePaths : [filePaths]).filter(
-    Boolean
-  );
-  const errors = [];
-  let imported = 0;
-  let done = 0;
 
-  for (const filePath of files) {
-    const title = stripExtension(path.basename(filePath)) || 'Untitled';
-
-    try {
-      const id = uuidv4();
-      const { value: html, messages = [] } = await convertWordToHtml(filePath);
-      const preparedHtml = await storeWordImages(
-        html,
-        id,
-        resolvedAppDirectory
-      );
-      const content = await htmlToTiptap(
-        preparedHtml,
-        id,
-        resolvedAppDirectory
-      );
-
-      await addImportedNote(noteStore, {
-        id,
-        title,
-        content,
-        labels: [],
-        folderId: null,
-      });
-
-      messages.forEach((message) => {
-        if (message?.message) {
-          errors.push({
-            title,
-            reason: message.message,
-          });
-        }
-      });
-
-      imported += 1;
-      onProgress?.({ done: done + 1, total: files.length, current: title });
-    } catch (error) {
-      errors.push({
-        title,
-        reason: error?.message || String(error),
-      });
-      onProgress?.({ done: done + 1, total: files.length, current: title });
-    } finally {
-      done += 1;
-    }
-  }
-
-  return { imported, folders: 0, errors };
-}

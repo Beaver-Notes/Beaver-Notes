@@ -1,7 +1,6 @@
 import { computed } from 'vue';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
-import { exportDOCX } from '@/utils/share/DOCX';
 import { printPdf } from '@/lib/native/app';
 
 const highlighterColors = [
@@ -127,12 +126,6 @@ export function useNoteMenuActions({
       title: 'Markdown',
       icon: 'riMarkdownLine',
       handler: () => exportMD(noteId, noteTitle, editor),
-    },
-    {
-      name: 'docx',
-      title: 'Word',
-      icon: 'riFileWord2Line',
-      handler: () => exportDOCX(noteId, noteTitle, editor),
     },
   ]);
 

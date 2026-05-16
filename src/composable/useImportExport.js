@@ -6,7 +6,6 @@ import {
   importBear,
   importSimplenote,
   importGenericMarkdown,
-  importWordDocuments,
 } from '@/utils/import/importers';
 import { startRustImport } from '@/utils/import/importRustBridge';
 import { openDialog } from '@/lib/native/dialog';
@@ -39,7 +38,6 @@ export function useImportExport({
     evernote: createProgressState({ notebookName: '' }),
     appleNotes: createProgressState(),
     simplenote: createProgressState(),
-    word: createProgressState(),
     genericMd: createProgressState(),
   });
   const showImportModal = ref(false);
@@ -260,28 +258,6 @@ export function useImportExport({
     );
   }
 
-  async function importWordHandler(options = {}) {
-    const filePaths = await pickDialogPaths({
-      title: 'Select Word Documents',
-      properties: ['openFile', 'multiSelections'],
-      filters: [{ name: 'Word Document', extensions: ['docx'] }],
-    });
-    if (!filePaths) return;
-    const appDirectory = await getAppDirectory();
-    return runImport(
-      'word',
-      (onProgress) =>
-        importWordDocuments(
-          filePaths,
-          noteStore,
-          folderStore,
-          appDirectory,
-          onProgress
-        ),
-      options
-    );
-  }
-
   async function runImportSource(key, options = {}) {
     switch (key) {
       case 'obsidian':
@@ -296,8 +272,6 @@ export function useImportExport({
         return importAppleNotesHandler(options);
       case 'simplenote':
         return importSimplenoteHandler(options);
-      case 'word':
-        return importWordHandler(options);
       case 'genericMd':
         return importGenericMarkdownHandler(options);
       default:
@@ -359,15 +333,6 @@ export function useImportExport({
             description:
               'In Simplenote, go to Settings -> Export and download notes.json. Select the file below.',
             buttonLabel: 'Select notes.json',
-          },
-          {
-            key: 'word',
-            title: 'Word',
-            icon: 'riFileWord2Line',
-            group: 'Direct',
-            description:
-              'Select one or more .docx files. Beaver Notes will import document text, links, tables, and embedded images.',
-            buttonLabel: 'Select .docx files',
           },
           {
             key: 'evernote',
@@ -456,7 +421,6 @@ export function useImportExport({
     importSourceGroups,
     importSources,
     importState,
-    importWordHandler,
     openImportModal,
     runImportSource,
     runImport,
