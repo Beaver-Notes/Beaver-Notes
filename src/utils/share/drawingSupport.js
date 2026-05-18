@@ -2,7 +2,6 @@ export const DRAWING_EXPORT_SUPPORT = Object.freeze({
   html: 'best',
   pdf: 'best',
   markdown: 'limited',
-  docx: 'limited',
 });
 
 export function getDrawingExportSupportCopy(name, translations = {}) {
@@ -25,6 +24,6 @@ export function getDrawingExportSupportCopy(name, translations = {}) {
 export function getDrawingExportHint(translations = {}) {
   return (
     translations.share?.drawingHint ||
-    'Drawings export best in PDF and HTML. Markdown and Word include limited drawing support.'
+    'Drawings export best in PDF and HTML. Markdown includes limited drawing support.'
   );
 }

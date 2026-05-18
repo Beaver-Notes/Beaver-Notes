@@ -10,7 +10,7 @@ export const ENTRANCE_DELAYS = {
 };
 
 export const CURTAIN_DURATIONS = {
-  close: 800,
-  hold: 120,
-  open: 800,
+  close: 1200,
+  hold: 200,
+  open: 1200,
 };

@@ -451,8 +451,9 @@ function selectColorIcon(color) {
 function deleteFolder() {
   dialog.confirm({
     title: translations.value.card.confirmPrompt,
-    onConfirm: () =>
-      folderStore.delete(props.folder.id, { deleteContents: true }),
+    onConfirm: () => {
+      folderStore.delete(props.folder.id, { deleteContents: true });
+    },
   });
 }
 

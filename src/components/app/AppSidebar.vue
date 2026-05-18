@@ -27,7 +27,7 @@
       </button>
     </div>
 
-    <hr class="w-8 border-neutral-200 dark:border-neutral-800 my-4" />
+    <hr class="w-8 border my-4" />
 
     <div class="flex flex-col items-center gap-2 w-full">
       <div class="relative flex items-center justify-center w-full">
@@ -123,7 +123,7 @@
         />
       </button>
 
-      <hr class="w-8 border-neutral-200 dark:border-neutral-800 my-2" />
+      <hr class="w-8 border my-4" />
 
       <div class="relative flex items-center justify-center w-full pb-2">
         <transition name="pill">
@@ -160,9 +160,11 @@ import emitter from 'tiny-emitter/instance';
 import { forceSyncNow } from '@/utils/sync';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 import { useAppShellActions } from '@/composable/useAppShellActions';
+import { useSounds } from '@/composable/useSounds';
 
 export default {
   setup() {
+    const { play } = useSounds();
     const spinning = ref(false);
     const theme = useTheme();
     const {
@@ -216,6 +218,7 @@ export default {
       forceSyncNow();
       setTimeout(() => {
         spinning.value = false;
+        play('sync');
       }, 1000);
     }
 

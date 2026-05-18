@@ -23,6 +23,7 @@ import {
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
 import { tryRestoreKeyFromSafeStorage } from '@/utils/encryption.js';
+import { useSoundActions } from './useSoundActions';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 
@@ -55,6 +56,8 @@ export function useAppShell() {
   const settingsStorage = useStorage('settings');
   const dataStorage = useStorage('data');
   const appStore = useAppStore();
+
+  useSoundActions();
 
   const retrieved = ref(false);
   const animateRouteChange = ref(true);

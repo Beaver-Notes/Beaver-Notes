@@ -4,13 +4,10 @@
     :class="isDark ? 'ob-dark' : 'ob-light'"
     :style="{ fontFamily: 'var(--selected-font, sans-serif)' }"
   >
-    <!-- Background -->
     <div class="ob-bg fixed inset-0 z-0" aria-hidden="true"></div>
-
-    <!-- ── Curtain overlay ── -->
     <div
       class="ob-curtain"
-      :class="{ 'ob-curtain--visible': curtainVisible }"
+      :class="{ 'ob-curtain--open': curtainOpen }"
       aria-hidden="true"
     >
       <div class="ob-curtain__half ob-curtain__half--left">
@@ -51,17 +48,10 @@
             :class="{ 'ob-headline--in': textIn }"
           >
             <div class="overflow-hidden pb-0.5">
-              <p
-                class="ob-eyebrow text-[0.68rem] font-bold uppercase tracking-[0.18em] ob-label-text"
-              >
-                Welcome to
-              </p>
-            </div>
-            <div class="overflow-hidden pb-0.5">
               <h1
                 class="ob-title text-5xl font-bold tracking-tight leading-none ob-heading-text"
               >
-                Beaver Notes
+                Meet Beaver Notes
               </h1>
             </div>
           </div>
@@ -71,7 +61,7 @@
             :class="{ 'ob-below--in': ctaIn }"
           >
             <p class="text-base leading-relaxed ob-body-text max-w-sm">
-              {{ onboardingSubtitle }}
+              Lets start by customizing your settings, or use the defaults.
             </p>
             <div class="flex flex-wrap justify-center gap-3">
               <ui-button
@@ -112,7 +102,7 @@
               How do you want to begin?
             </h2>
             <p class="ob-body-text">
-              Build a fresh workspace or bring over your notes from another app.
+              Start fresh or bring over your notes from another app.
             </p>
           </div>
 
@@ -195,11 +185,12 @@
           :interface-sizes="interfaceSizes"
           :fonts="fonts"
           :languages="languages"
+          :sounds-enabled="fresh.soundsEnabled"
           @select-theme="selectTheme"
           @select-accent="selectAccentColor"
-          @select-zoom="selectZoomLevel"
           @update-font="selectFont($event)"
           @update-language="selectLanguage($event)"
+          @update-sounds="selectSounds($event)"
         >
           <template #back>
             <ui-button
@@ -233,7 +224,8 @@
               Sync folder
             </h2>
             <p class="ob-body-text">
-              Optionally keep Beaver Notes synced with a folder you control.
+              Lets select a folder to sync your data with, you can skip this for
+              now and set it up later if you change your mind.
             </p>
           </div>
 
@@ -243,34 +235,36 @@
                 <div class="flex items-center justify-between gap-3">
                   <div>
                     <p
-                      class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1"
+                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                     >
                       Folder
                     </p>
                     <p class="text-sm ob-body-text">
                       {{
                         fresh.syncPath
-                          ? 'Beaver Notes will use this folder for sync data.'
-                          : 'Choose a folder if you want to enable sync later.'
+                          ? 'Beaver Notes sync with this folder.'
+                          : 'Choose a folder to sync with.'
                       }}
                     </p>
                   </div>
-                  <ui-button variant="secondary" @click="chooseSyncPath">
+                  <ui-button @click="chooseSyncPath">
                     {{ fresh.syncPath ? 'Change' : 'Choose folder' }}
                   </ui-button>
                 </div>
 
-                <div
-                  v-if="fresh.syncPath"
-                  class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
-                >
-                  {{ fresh.syncPath }}
-                </div>
-
-                <div v-if="fresh.syncPath" class="flex gap-3">
-                  <ui-button variant="secondary" @click="clearSyncPath"
-                    >Clear</ui-button
+                <div class="flex items-center justify-between gap-3">
+                  <div
+                    v-if="fresh.syncPath"
+                    class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
                   >
+                    {{ fresh.syncPath }}
+                  </div>
+
+                  <div v-if="fresh.syncPath" class="flex gap-3">
+                    <ui-button icon variant="danger" @click="clearSyncPath"
+                      ><v-remixicon name="riDeleteBin6Line"
+                    /></ui-button>
+                  </div>
                 </div>
               </div>
             </ui-card>
@@ -285,13 +279,8 @@
                     >Automatic sync</span
                   >
                   <span class="block text-xs ob-body-text mt-0.5">
-                    Sync changes automatically when a folder is configured.
-                  </span>
-                  <span
-                    v-if="!fresh.syncPath"
-                    class="block text-xs ob-body-text mt-1 opacity-80"
-                  >
-                    Choose a sync folder first to enable this.
+                    Lets you sync changes automatically when a folder is
+                    configured.
                   </span>
                 </div>
                 <ui-switch
@@ -377,12 +366,6 @@
                   </p>
                   <p class="text-sm ob-body-text">{{ migrationSourceCopy }}</p>
                 </div>
-                <span
-                  class="shrink-0 rounded-full px-3 py-1 text-xs font-semibold"
-                  :class="migrationSourceBadgeClass"
-                >
-                  {{ migrationSourceBadge }}
-                </span>
               </div>
             </ui-card>
 
@@ -666,18 +649,14 @@
             class="w-24 h-24 object-contain drop-shadow-xl"
           />
           <div class="flex flex-col items-center gap-2">
-            <p
-              class="text-xs font-bold uppercase tracking-[0.18em] text-primary"
-            >
-              {{ completionEyebrow }}
-            </p>
             <h1
               class="text-5xl font-bold tracking-tight leading-none ob-heading-text"
             >
-              {{ completionTitle }}
+              Ready, Set, Go!
             </h1>
             <p class="text-base leading-relaxed ob-body-text max-w-sm">
-              {{ completionSubtitle }}
+              You've successfully completed the onboarding process. It's time to
+              meet your notes.
             </p>
           </div>
           <div class="flex flex-wrap justify-center gap-3">
@@ -727,9 +706,8 @@
 </template>
 
 <script>
-import { ref, nextTick } from 'vue';
+import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CURTAIN_DURATIONS } from '@/utils/onboarding-animations';
 import { useStorage } from '@/composable/storage';
 import { useImportExport } from '@/composable/useImportExport';
 import { useStore } from '@/store';
@@ -737,9 +715,16 @@ import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { usePasswordStore } from '@/store/passwd';
 import { backend, clipboard, ipcRenderer } from '@/lib/tauri-bridge';
+import { useSounds } from '@/composable/useSounds';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
 import OnboardingSetupStep from '@/components/onboarding/OnboardingSetupStep.vue';
 import OnboardingPlatformStep from '@/components/onboarding/OnboardingPlatformStep.vue';
+
+const CURTAIN_DURATIONS = {
+  close: 1200,
+  hold: 900,
+  open: 1200,
+};
 
 const {
   close: CURTAIN_CLOSE,
@@ -782,9 +767,14 @@ export default {
       runImportSource,
     });
 
-    const curtainVisible = ref(false);
+    const curtainOpen = ref(false);
     let curtainLocked = false;
     let hasCurtainPlayed = false;
+    const { play } = useSounds();
+
+    const prefersReducedMotion = () =>
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     const passwordStore = usePasswordStore();
     const legacyPasswordValue = ref('');
@@ -807,6 +797,29 @@ export default {
       await curtainNavigate('migration');
     }
 
+    // ── Intro curtain on first load ────────────────────────────────────
+    // Starts closed (covering the screen by default), then opens
+    // once with a slow retract animation synced to the intro sound.
+    (async function playIntroCurtain() {
+      if (prefersReducedMotion()) {
+        hasCurtainPlayed = true;
+        return;
+      }
+
+      curtainLocked = true;
+
+      // Brief pause before the reveal
+      await new Promise((r) => setTimeout(r, CURTAIN_HOLD));
+
+      // Play the intro sound as the curtain begins to open
+      play('intro');
+      curtainOpen.value = true;
+
+      await new Promise((r) => setTimeout(r, CURTAIN_OPEN));
+      hasCurtainPlayed = true;
+      curtainLocked = false;
+    })();
+
     async function curtainNavigate(targetStep) {
       if (curtainLocked) return;
 
@@ -815,32 +828,13 @@ export default {
           ? 'legacyPassword'
           : targetStep;
 
-      if (hasCurtainPlayed) {
-        flow.goToStep(actualStep);
-        return;
-      }
-
-      curtainLocked = true;
-
-      curtainVisible.value = true;
-
-      await new Promise((r) => setTimeout(r, CURTAIN_CLOSE + CURTAIN_HOLD));
-
+      // Curtain only plays on first load — subsequent navigation is instant
       flow.goToStep(actualStep);
-      await nextTick();
-
-      await new Promise((r) => setTimeout(r, CURTAIN_HOLD));
-
-      curtainVisible.value = false;
-
-      await new Promise((r) => setTimeout(r, CURTAIN_OPEN));
-      hasCurtainPlayed = true;
-      curtainLocked = false;
     }
 
     return {
       ...flow,
-      curtainVisible,
+      curtainOpen,
       curtainNavigate,
       legacyPasswordValue,
       submitLegacyPassword,
@@ -873,8 +867,8 @@ export default {
 
 /* ── Background ── */
 .ob-light {
-  --ob-bg-start: #fde8b0;
-  --ob-bg-end: #fff8ee;
+  --ob-bg-start: #fff9ec;
+  --ob-bg-end: #fff9ec;
 }
 .ob-dark {
   --ob-bg-start: #1e0e02;
@@ -940,103 +934,57 @@ export default {
   z-index: 9999;
   display: flex;
   pointer-events: none;
-  /* curtain is always mounted; animation classes drive the motion */
 }
 
 /* Each half occupies 50% of the viewport */
 .ob-curtain__half {
   position: relative;
   width: 50%;
-  height: 130%; /* extra height so rotated blocks never show gaps */
+  height: 130%;
   top: -15%;
   overflow: hidden;
 }
 
-/* Mirror the right side */
 .ob-curtain__half--right {
   transform: scaleX(-1);
 }
 
-/* Rotating wrapper — houses the three blocks side-by-side */
+/* ── Default state: curtain closed (covers the screen) ── */
 .ob-curtain__wrapper {
   display: flex;
   flex-direction: row;
   position: absolute;
   inset: 0;
   transform-origin: top right;
-  /* default state: rotated away, blocks hidden */
-  transform: rotate(8deg);
+  transform: rotate(0deg);
+  transition: transform 1.25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
 }
 
 .ob-curtain__block {
   position: relative;
-  width: 0;
+  width: 33.34%;
   height: 100%;
   flex-shrink: 0;
+  transition: width 1.05s cubic-bezier(0.22, 0.8, 0.2, 1);
+  will-change: width;
 }
 
-/* ── Closing animation (curtain sweeps in) ── */
-.ob-curtain--visible .ob-curtain__wrapper {
-  animation: ob-curtain-rotate-in 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0s both;
+/* ── Opening: curtain retracts ── */
+.ob-curtain--open .ob-curtain__wrapper {
+  transform: rotate(8deg);
 }
-
-.ob-curtain--visible .ob-curtain__block--3 {
-  animation: ob-curtain-block-out 0.7s ease-in-out 0s both;
+.ob-curtain--open .ob-curtain__block--3 {
+  width: 0;
+  transition-delay: 0.1s;
 }
-.ob-curtain--visible .ob-curtain__block--2 {
-  animation: ob-curtain-block-out 0.7s ease-in-out 0.1s both;
+.ob-curtain--open .ob-curtain__block--2 {
+  width: 0;
+  transition-delay: 0.15s;
 }
-.ob-curtain--visible .ob-curtain__block--1 {
-  animation: ob-curtain-block-out 0.7s ease-in-out 0.2s both;
-}
-
-/* ── Opening animation (curtain retracts) ── */
-/* We use a separate wrapper class to avoid fighting Vue's reactivity */
-.ob-curtain:not(.ob-curtain--visible) .ob-curtain__wrapper {
-  animation: ob-curtain-rotate-out 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0s both;
-}
-.ob-curtain:not(.ob-curtain--visible) .ob-curtain__block--3 {
-  animation: ob-curtain-block-in 0.7s ease-in-out 0s both;
-}
-.ob-curtain:not(.ob-curtain--visible) .ob-curtain__block--2 {
-  animation: ob-curtain-block-in 0.7s ease-in-out 0.1s both;
-}
-.ob-curtain:not(.ob-curtain--visible) .ob-curtain__block--1 {
-  animation: ob-curtain-block-in 0.7s ease-in-out 0.2s both;
-}
-
-/* ── Keyframes ── */
-@keyframes ob-curtain-rotate-in {
-  from {
-    transform: rotate(8deg);
-  }
-  to {
-    transform: rotate(0deg);
-  }
-}
-@keyframes ob-curtain-rotate-out {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(8deg);
-  }
-}
-@keyframes ob-curtain-block-out {
-  from {
-    width: 0;
-  }
-  to {
-    width: 33.34%;
-  }
-}
-@keyframes ob-curtain-block-in {
-  from {
-    width: 33.34%;
-  }
-  to {
-    width: 0;
-  }
+.ob-curtain--open .ob-curtain__block--1 {
+  width: 0;
+  transition-delay: 0.3s;
 }
 
 /* ── Welcome entrance ── */
@@ -1129,7 +1077,10 @@ export default {
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .ob-curtain__wrapper,
-  .ob-curtain__block,
+  .ob-curtain__block {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
   .ob-confetti__bit {
     animation-duration: 0.01ms !important;
     animation-delay: 0ms !important;

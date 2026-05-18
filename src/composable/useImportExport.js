@@ -162,7 +162,13 @@ export function useImportExport({
     return runImport(
       'notion',
       (onProgress) =>
-        importNotion(filePaths[0], noteStore, folderStore, appDirectory, onProgress),
+        importNotion(
+          filePaths[0],
+          noteStore,
+          folderStore,
+          appDirectory,
+          onProgress
+        ),
       options
     );
   }
@@ -178,7 +184,13 @@ export function useImportExport({
     return runImport(
       'bear',
       (onProgress) =>
-        importBear(filePaths[0], noteStore, folderStore, appDirectory, onProgress),
+        importBear(
+          filePaths[0],
+          noteStore,
+          folderStore,
+          appDirectory,
+          onProgress
+        ),
       options
     );
   }

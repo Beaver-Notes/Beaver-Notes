@@ -8,14 +8,14 @@
         Your starting defaults
       </h2>
       <p class="ob-body-text">
-        These can be changed from Settings at any time.
+        Changed your mind? You can change these from Settings at any time.
       </p>
     </div>
 
     <div class="flex flex-col gap-4">
       <!-- Appearance -->
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
           Appearance
         </p>
         <div
@@ -41,22 +41,9 @@
         </div>
       </div>
 
-      <!-- Language -->
-      <div class="flex flex-col gap-2">
-        <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
-          Language
-        </p>
-        <ui-select
-          :options="languages"
-          block
-          :model-value="fresh.language"
-          @update:model-value="handleLanguageChange"
-        />
-      </div>
-
       <!-- Accent color -->
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
           Accent color
         </p>
         <div class="w-full items-center justify-center flex gap-4">
@@ -98,9 +85,22 @@
         </div>
       </div>
 
+      <!-- Language -->
+      <div class="flex flex-col gap-2">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+          Language
+        </p>
+        <ui-select
+          :options="languages"
+          block
+          :model-value="fresh.language"
+          @update:model-value="handleLanguageChange"
+        />
+      </div>
+
       <!-- App font -->
       <div class="flex flex-col gap-2">
-        <p class="text-xs font-bold uppercase tracking-widest ob-label-text">
+        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
           App font
         </p>
         <ui-select
@@ -118,6 +118,30 @@
             {{ font.label }}
           </option>
         </ui-select>
+      </div>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              Enable sounds
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Enable sounds for interactions around the app.
+            </p>
+          </div>
+          <ui-switch
+            :model-value="soundsEnabled"
+            @update:model-value="handleSoundsChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -138,9 +162,9 @@ export default {
     themes: { type: Array, required: true },
     themeLabels: { type: Object, required: true },
     accentColors: { type: Array, required: true },
-    interfaceSizes: { type: Array, required: true },
     fonts: { type: Array, required: true },
     languages: { type: Array, required: true },
+    soundsEnabled: { type: Boolean, required: true },
   },
 
   emits: [
@@ -149,6 +173,7 @@ export default {
     'select-zoom',
     'update-font',
     'update-language',
+    'update-sounds',
   ],
 
   methods: {
@@ -157,6 +182,9 @@ export default {
     },
     handleLanguageChange(event) {
       this.$emit('update-language', event);
+    },
+    handleSoundsChange(event) {
+      this.$emit('update-sounds', event);
     },
   },
 };

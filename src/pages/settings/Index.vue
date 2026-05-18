@@ -93,13 +93,8 @@
             class="px-4 pb-4"
           >
             <p class="text-xs text-primary">
-                Math.min(
-                  100,
-                  Math.floor(
-                    (syncProgress.processed / syncProgress.total) * 100
-                  )
-                )
-              }}%)
+              Math.min( 100, Math.floor( (syncProgress.processed /
+              syncProgress.total) * 100 ) ) }}%)
             </p>
             <div class="mt-1.5 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
               <div
@@ -133,26 +128,6 @@
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
             >
               {{
-                translations.settings.openLastEdited || 'Open last edited note'
-              }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              When the app launches, reopen the note you were last editing.
-            </p>
-          </div>
-          <ui-switch v-model="openLastEdited" />
-        </div>
-
-        <div
-          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
-        >
-          <div class="min-w-0 flex-1">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{
                 translations.settings.openAfterCreation ||
                 'Open note after creation'
               }}
@@ -164,6 +139,43 @@
             </p>
           </div>
           <ui-switch v-model="openAfterCreation" />
+        </div>
+
+        <div
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              {{
+                translations.settings.openLastEdited || 'Open last edited note'
+              }}
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              When the app launches, reopen the note you were last editing.
+            </p>
+          </div>
+          <ui-switch v-model="openLastEdited" />
+        </div>
+        <div
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              Enable sounds
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Enable sounds for interactions around the app.
+            </p>
+          </div>
+          <ui-switch v-model="soundsEnabled" />
         </div>
       </div>
     </section>
@@ -720,7 +732,6 @@ export default {
       importSourceGroups,
       importSources,
       importState,
-      importWordHandler,
       openImportModal,
       runImport,
       selectImportSource,
@@ -791,7 +802,6 @@ export default {
       importEvernoteHandler,
       importAppleNotesHandler,
       importSimplenoteHandler,
-      importWordHandler,
       importGenericMarkdownHandler,
       forceSyncNow,
       formatTime,

@@ -85,6 +85,18 @@ export function useSettingsData({
     },
   });
 
+  const soundsEnabled = computed({
+    get() {
+      return appStore.setting.soundsEnabled;
+    },
+    set(value) {
+      // Update the local store value synchronously so the switch toggle
+      // is reflected immediately, then persist asynchronously.
+      appStore.setting.soundsEnabled = value;
+      appStore.setSettingStorage('soundsEnabled', value);
+    },
+  });
+
   const openAfterCreation = computed({
     get() {
       return appStore.setting.openAfterCreation;
@@ -474,5 +486,6 @@ export function useSettingsData({
     showAlert,
     showDialogAlert,
     getEffectiveAppDirectory,
+    soundsEnabled,
   };
 }

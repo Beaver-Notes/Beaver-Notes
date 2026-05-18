@@ -102,6 +102,11 @@ const settingDefs = {
     defaultValue: true,
     parse: (value) => value === true || value === 'true',
   },
+  soundsEnabled: {
+    legacyKey: 'soundsEnabled',
+    defaultValue: true,
+    parse: (value) => value === true || value === 'true',
+  },
   toolbarConfig: {
     legacyKey: 'toolbarConfig',
     defaultValue: null,

@@ -97,6 +97,7 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
     setSetting('spellcheckEnabled', preferences.spellcheckEnabled),
     setSetting('openLastEdited', preferences.openLastEdited),
     setSetting('openAfterCreation', preferences.openAfterCreation),
+    setSetting('soundsEnabled', preferences.soundsEnabled),
   ]);
 
   theme.setTheme(preferences.theme, preferences.theme === 'system');

@@ -117,6 +117,7 @@ export function useOnboardingFlow({
     selectedFont: DEFAULT_UI_FONT_STACK,
     syncPath: '',
     autoSync: false,
+    soundsEnabled: true,
   });
 
   // ── Static config ──────────────────────────────────────────────────────────
@@ -324,13 +325,16 @@ export function useOnboardingFlow({
     document.documentElement.style.setProperty('--selected-font', font);
   };
 
-  const selectLanguage = (lang) => {
-    fresh.language = lang;
+  const selectLanguage = (language) => {
+    fresh.language = language;
+  };
+
+  const selectSounds = (value) => {
+    fresh.soundsEnabled = value;
   };
 
   const selectZoomLevel = (zoomLevel) => {
     fresh.zoomLevel = zoomLevel;
-    document.body.style.zoom = String(zoomLevel);
   };
 
   // ── Confetti ───────────────────────────────────────────────────────────────
@@ -627,7 +631,11 @@ export function useOnboardingFlow({
     } catch (e) {
       console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
       state.legacyPasswordError = e?.message || NOTE_CRYPTO_ERROR;
-      return { success: false, migratedCount, error: state.legacyPasswordError };
+      return {
+        success: false,
+        migratedCount,
+        error: state.legacyPasswordError,
+      };
     } finally {
       state.legacyPasswordLoading = false;
     }
@@ -753,6 +761,8 @@ export function useOnboardingFlow({
     fresh.zoomLevel =
       parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
     fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
+    fresh.soundsEnabled =
+      getSettingSync('soundsEnabled') ?? fresh.soundsEnabled;
     document.documentElement.style.setProperty(
       '--selected-font',
       fresh.selectedFont
@@ -826,6 +836,7 @@ export function useOnboardingFlow({
     selectAccentColor,
     selectFont,
     selectLanguage,
+    selectSounds,
     selectZoomLevel,
 
     refreshStatus,

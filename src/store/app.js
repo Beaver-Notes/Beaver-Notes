@@ -7,6 +7,7 @@ export const useAppStore = defineStore('appStore', () => {
     collapsibleHeading: getSettingSync('collapsibleHeading'),
     openLastEdited: getSettingSync('openLastEdited'),
     openAfterCreation: getSettingSync('openAfterCreation'),
+    soundsEnabled: getSettingSync('soundsEnabled'),
   });
 
   const loading = ref(false);

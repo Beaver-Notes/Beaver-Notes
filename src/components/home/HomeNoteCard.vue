@@ -266,6 +266,7 @@ import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import FolderTree from './FolderTree.vue';
 import { useLabelStore } from '@/store/label';
+import { useSounds } from '@/composable/useSounds';
 
 const props = defineProps({
   note: {
@@ -284,6 +285,7 @@ const labelStore = useLabelStore();
 const router = useRouter();
 const dialog = useDialog();
 const showMoveModal = ref(false);
+const { play } = useSounds();
 
 const { translations } = useTranslations();
 
@@ -310,8 +312,6 @@ const previewMeta = computed(() => {
   return 'More';
 });
 
-// Pre-compute a color map for all labels on this note so the template
-// performs a single O(1) lookup per label instead of calling getColor twice.
 const labelColorMap = computed(() => {
   const map = {};
   for (const label of props.note?.labels ?? []) {
@@ -331,8 +331,6 @@ const showCardAlert = (message) =>
     okText: translations.value.dialog?.close || 'Close',
   });
 
-// Detect mobile breakpoint to conditionally render the full action bar vs.
-// the simplified mobile bar — avoids keeping both sets of buttons in the DOM.
 const mobileQuery = window.matchMedia('(max-width: 767px)');
 const isMobile = ref(mobileQuery.matches);
 const onMobileChange = (e) => {
@@ -380,6 +378,7 @@ async function lockNote(note) {
           if (isValid) {
             await noteStore.lockNote(note, enteredPassword);
           } else {
+            play('error');
             showCardAlert(translations.value.card.wrongPasswd);
           }
         },
@@ -410,10 +409,12 @@ async function unlockNote(note) {
           if (isValid) {
             await noteStore.unlockNote(note, enteredPassword);
           } else {
+            play('error');
             showCardAlert(translations.value.card.wrongPasswd);
           }
         }
       } catch {
+        play('error');
         showCardAlert(translations.value.card.wrongPasswd);
       }
     },
