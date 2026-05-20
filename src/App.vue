@@ -48,7 +48,11 @@
     :style="bottomBannerStyle"
   >
     <ui-banner
-      :content="appEncryptionMigrationBanner.status === 'in_progress' ? 'App encryption migration is in progress. Please wait for it to complete.' : 'App encryption migration did not complete. Please re-enable app encryption from Settings.'"
+      :content="
+        appEncryptionMigrationBanner.status === 'in_progress'
+          ? 'App encryption migration is in progress. Please wait for it to complete.'
+          : 'App encryption migration did not complete. Please re-enable app encryption from Settings.'
+      "
       primary-text="Open Settings"
       secondary-text="Dismiss"
       @button-1="openAppEncryptionMigrationSettings"

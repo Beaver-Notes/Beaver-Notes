@@ -568,3 +568,59 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
 .ProseMirror .drag-handle.is-visible {
   opacity: 1;
 }
+.tableWrapper {
+  position: relative;
+  margin: 1.5em 0;
+}
+
+.tableWrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tableWrapper td,
+.tableWrapper th {
+  min-width: 1em;
+  border-width: 1.5px;
+  border-style: solid;
+  @apply border-neutral-200 dark:border-neutral-700;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  word-wrap: break-word;
+  position: relative;
+}
+
+.tableWrapper th {
+  @apply bg-neutral-50 dark:bg-neutral-800/50 font-semibold;
+}
+
+.selectedCell:after {
+  @apply bg-primary/5 content-[''] left-0 right-0 top-0 bottom-0 pointer-events-none absolute z-20;
+}
+
+td.is-active,
+th.is-active {
+  position: relative;
+}
+
+.resize-cursor {
+  cursor: col-resize;
+  user-select: none !important;
+  -webkit-user-select: none;
+}
+
+
+.dark .tableWrapper th {
+  @apply bg-neutral-800/50;
+}
+
+.ProseMirror[contenteditable='false'] .tableWrapper {
+  user-select: text;
+}
+
+@media (max-width: 768px) {
+  .tableWrapper {
+    overflow-x: auto;
+  }
+}
