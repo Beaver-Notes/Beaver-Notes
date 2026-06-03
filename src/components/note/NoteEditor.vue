@@ -15,6 +15,7 @@
       class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor }" />
+    <table-floating-menu v-if="editor" :editor="editor" />
   </div>
 </template>
 
@@ -30,9 +31,10 @@ import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
+import TableFloatingMenu from '@/lib/tiptap/exts/table/TableFloatingMenu.vue';
 
 export default {
-  components: { EditorContent, DragHandle, NoteBubbleMenu },
+  components: { EditorContent, DragHandle, NoteBubbleMenu, TableFloatingMenu },
   props: {
     modelValue: { type: [String, Object], default: '' },
     id: { type: String, default: '' },

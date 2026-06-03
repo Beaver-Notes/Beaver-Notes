@@ -11,7 +11,7 @@
 
 .ProseMirror pre,
 .ProseMirror .inline-code {
-  @apply bg-black bg-opacity-5 rounded-lg dark:bg-neutral-600 dark:bg-opacity-30 text-neutral-700 dark:text-neutral-200 pt-6 !important;
+  @apply border  bg-neutral-50 dark:bg-neutral-900 rounded-lg text-neutral-700 dark:text-neutral-200 pt-6 !important;
   font-family: 'Helvetica', 'Arial', sans-serif;
   tab-size: 2;
   font-variant-ligatures: normal;
@@ -354,6 +354,8 @@ img.ProseMirror-selectednode {
     font-family: var(--selected-font-code);
     padding: 0.75rem 1rem;
     border-radius: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 
     code {
       color: inherit;
@@ -425,6 +427,8 @@ div[data-type='column'] {
   position: relative;
   flex: 1;
   min-width: 0;
+  overflow-x: auto;
+  max-width: 100%;
   border-radius: 4px;
   margin: 0 -4px;
   padding: 0 4px;
@@ -571,10 +575,14 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
 .tableWrapper {
   position: relative;
   margin: 1.5em 0;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 .tableWrapper table {
-  width: 100%;
+  min-width: 100%;
+  width: auto;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -610,7 +618,6 @@ th.is-active {
   -webkit-user-select: none;
 }
 
-
 .dark .tableWrapper th {
   @apply bg-neutral-800/50;
 }
@@ -620,7 +627,8 @@ th.is-active {
 }
 
 @media (max-width: 768px) {
-  .tableWrapper {
-    overflow-x: auto;
+  .tableWrapper td,
+  .tableWrapper th {
+    padding: 8px;
   }
 }

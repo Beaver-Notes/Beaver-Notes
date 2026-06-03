@@ -103,19 +103,30 @@ option {
   word-wrap: break-word;
 }
 
-::-webkit-scrollbar {
+.custom-scrollbar ::-webkit-scrollbar {
   width: 10px;
-  height: 9px;
+  height: 10px;
 }
-::-webkit-scrollbar-thumb {
+.custom-scrollbar ::-webkit-scrollbar-thumb {
   @apply bg-[#d8d9d9] dark:bg-[#424546];
   border-radius: 8px;
 }
-::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar ::-webkit-scrollbar-thumb:hover {
   @apply bg-secondary bg-opacity-60;
 }
-::-webkit-scrollbar-track {
+.custom-scrollbar ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+.custom-scrollbar * {
+  scrollbar-width: thin;
+  scrollbar-color: #d8d9d9 transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  .custom-scrollbar * {
+    scrollbar-color: #424546 transparent;
+  }
 }
 
 .text-overflow {
