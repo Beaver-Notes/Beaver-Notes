@@ -296,9 +296,23 @@ yarn build:beta   # Build with beta config
 
 ## Translations
 
-Translations are JSON files in `src/assets/locales/`. Currently supported:
+Translations are stored as JSON files in `src/assets/locales/`.
 
-- Arabic (`ar`), German (`de`), English (`en`), Spanish (`es`), French (`fr`), Italian (`it`), Dutch (`nl`), Portuguese (`pt`), Russian (`ru`), Turkish (`tr`), Ukrainian (`uk`), Vietnamese (`vi`), Chinese (`zh`)
+| Language | Code |
+|----------|------|
+| Arabic | `ar` |
+| German | `de` |
+| English | `en` |
+| Spanish | `es` |
+| French | `fr` |
+| Italian | `it` |
+| Dutch | `nl` |
+| Portuguese | `pt` |
+| Russian | `ru` |
+| Turkish | `tr` |
+| Ukrainian | `uk` |
+| Vietnamese | `vi` |
+| Chinese | `zh` |
 
 **To add a new translation:**
 
