@@ -1,14 +1,8 @@
 import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
-import { getProcessedHTML } from './html-helper';
+import { buildExportDocument } from './export-html';
 import { path } from '@/lib/tauri-bridge';
-import { getAppDirectory } from '@/lib/native/app';
-import {
-  writeTextExportFile,
-  chooseRootExportDir,
-  ensureExportFolder,
-  copyNoteAssetDirectories,
-} from './export-staging';
+import { writeTextExportFile, chooseRootExportDir } from './export-staging';
 
 function getShareTranslations() {
   try {
@@ -38,35 +32,26 @@ function showDialogAlert(body) {
 
 export async function exportHTML(noteId, noteTitle, editor) {
   const share = getShareTranslations();
-  const finalHtml = await getProcessedHTML(noteId, editor);
+
+  const html = await buildExportDocument(editor, {
+    mode: 'self-contained',
+    title: noteTitle,
+    noteId,
+  });
 
   const rootDir = await chooseRootExportDir(
     share.selectExportFolderTitle || 'Select export folder'
   );
   if (!rootDir) return;
 
-  const folderName = noteTitle.replace(/[/\\?%*:|"<>]/g, '-') || 'ExportedNote';
-  const folderPath = path.join(rootDir, folderName);
+  const fileName = (noteTitle || 'ExportedNote').replace(/[/\\?%*:|"<>]/g, '-');
+  const filePath = path.join(rootDir, `${fileName}.html`);
 
-  await ensureExportFolder(folderPath);
-  await writeTextExportFile(
-    path.join(folderPath, `${noteTitle}.html`),
-    finalHtml
-  );
-
-  const appDirectory = await getAppDirectory();
-
-  const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
-
-  await copyNoteAssetDirectories(appDirectory, noteId, folderPath);
+  await writeTextExportFile(filePath, html);
 
   showDialogAlert(
-    interpolate(
-      share.exportedHtmlToFolder || 'Exported HTML to folder: {path}',
-      {
-        path: folderPath,
-      }
-    )
+    interpolate(share.exportedHtmlToFolder || 'Exported HTML to: {path}', {
+      path: filePath,
+    })
   );
 }
