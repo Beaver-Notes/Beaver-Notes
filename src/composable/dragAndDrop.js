@@ -1,6 +1,5 @@
 import { ref } from 'vue';
 
-const GHOST_CLEANUP_DELAY_MS = 100;
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { createFullSizeCardGhost, createAnimatedStackGhost } from './ghost.js';
@@ -61,7 +60,9 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     draggedNoteId.value = noteId;
     dragType.value = 'note';
     event.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => ghost.parentNode && document.body.removeChild(ghost), GHOST_CLEANUP_DELAY_MS);
+    requestAnimationFrame(() => {
+      if (ghost.parentNode) ghost.remove();
+    });
   }
 
   function handleFolderDragStart(event, folderId) {
@@ -98,7 +99,9 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     draggedFolderId.value = folderId;
     dragType.value = 'folder';
     event.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => ghost.parentNode && document.body.removeChild(ghost), GHOST_CLEANUP_DELAY_MS);
+    requestAnimationFrame(() => {
+      if (ghost.parentNode) ghost.remove();
+    });
   }
 
   function handleDragEnd() {
@@ -201,6 +204,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     touchGhost.style.left = '0';
     touchGhost.style.margin = '0';
     touchGhost.style.pointerEvents = 'none';
+    touchGhost.style.opacity = '1';
     touchGhost.style.transform = `translate(${touch.clientX + 14}px, ${
       touch.clientY + 14
     }px) scale(0.94)`;

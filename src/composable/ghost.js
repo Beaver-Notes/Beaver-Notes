@@ -11,6 +11,25 @@ function getCenteredOppositeTilt(index) {
   return { rot, scale };
 }
 
+/**
+ * Creates a container for the drag ghost that is positioned in the viewport
+ * (not off-screen) so the browser can render it for setDragImage.
+ */
+function createGhostContainer(rect) {
+  const ghost = document.createElement('div');
+  Object.assign(ghost.style, {
+    position: 'fixed',
+    top: '0px',
+    left: '0px',
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    pointerEvents: 'none',
+    zIndex: '2147483647',
+    opacity: '1',
+  });
+  return ghost;
+}
+
 function resetCloneStyles(clone) {
   clone.style.position = 'absolute';
   clone.style.top = '0';
@@ -19,36 +38,31 @@ function resetCloneStyles(clone) {
   clone.style.height = '100%';
   clone.style.margin = '0';
   clone.style.transition = 'none';
-  clone.style.opacity = '1';
+  clone.style.animation = 'none';
+  clone.style.setProperty('opacity', '1', 'important');
   clone.style.transformOrigin = 'center center';
 
-  clone.classList.remove('opacity-50', 'rotate-1', 'rotate-2', 'transform');
-  clone.classList.add('bg-neutral-50', 'dark:bg-neutral-750', 'rounded-xl');
-
-  if (clone.style.opacity !== '1') {
-    clone.style.setProperty('opacity', '1', 'important');
-  }
+  // Remove classes that add rotation/opacity effects that conflict with ghost layout.
+  // Do NOT remove the 'transform' utility class itself since it doesn't add a transform
+  // without configured CSS variables; removing it would break Tailwind's JIT rules.
+  clone.classList.remove(
+    'opacity-50',
+    'opacity-60',
+    'opacity-70',
+    'opacity-80',
+    'opacity-90',
+    'rotate-1',
+    'rotate-2',
+    'rotate-3',
+    'rotate-6'
+  );
 
   return clone;
 }
 
 export function createFullSizeCardGhost(element, count = 1) {
-  const ghost = document.createElement('div');
   const rect = element.getBoundingClientRect();
-
-  Object.assign(ghost.style, {
-    position: 'absolute',
-    top: '-9999px',
-    left: '-9999px',
-    width: `${rect.width}px`,
-    height: `${rect.height}px`,
-    pointerEvents: 'none',
-    zIndex: '9999',
-    transformOrigin: 'center center',
-    opacity: '1',
-    backgroundColor: 'var(--color-neutral-50)',
-    background: 'var(--tw-bg-opacity) bg-neutral-50',
-  });
+  const ghost = createGhostContainer(rect);
 
   if (count === 1) {
     const clone = resetCloneStyles(element.cloneNode(true));
@@ -98,33 +112,16 @@ export function createFullSizeCardGhost(element, count = 1) {
 }
 
 export function createAnimatedStackGhost(elements) {
-  const container = document.createElement('div');
   const rect = elements[0].getBoundingClientRect();
-
-  Object.assign(container.style, {
-    position: 'absolute',
-    top: '-9999px',
-    left: '-9999px',
-    pointerEvents: 'none',
-    zIndex: '9999',
-    width: `${rect.width}px`,
-    height: `${rect.height}px`,
-    opacity: '1',
-  });
+  const container = createGhostContainer(rect);
 
   elements.forEach((element, index) => {
     const clone = resetCloneStyles(element.cloneNode(true));
-    const delay = index * 50;
+    const { rot, scale } = getCenteredOppositeTilt(index);
 
-    clone.style.transform = `rotate(${Math.min(index * 3, 8)}deg) scale(0.9)`;
+    clone.style.transform = `rotate(${rot}deg) scale(${scale})`;
     clone.style.zIndex = String(1000 + (elements.length - index));
     container.appendChild(clone);
-
-    setTimeout(() => {
-      const { rot, scale } = getCenteredOppositeTilt(index);
-      clone.style.transition = 'transform 0.2s ease-out';
-      clone.style.transform = `rotate(${rot}deg) scale(${scale})`;
-    }, delay);
   });
 
   if (elements.length > 1) {
@@ -141,13 +138,13 @@ export function createAnimatedStackGhost(elements) {
       'text-[12px]',
       'font-bold',
       'border-2',
-      'opacity-100',
-      'z-[10000]',
       'bg-primary',
       'text-white',
       'border-white',
       'shadow-md',
     ].join(' ');
+    badge.style.opacity = '1';
+    badge.style.zIndex = '10000';
     badge.textContent = elements.length;
     container.appendChild(badge);
   }
