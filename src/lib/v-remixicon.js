@@ -150,6 +150,7 @@ import {
   RiEqualizer3Line,
   RiExpandWidthLine,
   RiPrinterLine,
+  RiFileAddLine,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -303,6 +304,7 @@ const RemixIcons = {
   riEqualizer3Line: RiEqualizer3Line,
   riExpandWidthLine: RiExpandWidthLine,
   riPrinterLine: RiPrinterLine,
+  riFileAddLine: RiFileAddLine,
 };
 
 const customIconPaths = {

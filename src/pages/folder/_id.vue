@@ -218,7 +218,7 @@
 </template>
 
 <script>
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
@@ -235,6 +235,7 @@ import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import { extractTextFromContent } from '@/utils/noteSerializer';
+import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
   components: {
@@ -376,6 +377,19 @@ export default {
       enableFilterPulse: true,
       listenForLabelEvents: true,
     });
+
+    const selectionBar = useSelectionBar();
+    watch(
+      () => pageController.selectedItems.value,
+      (items) => {
+        selectionBar.syncSelection(items, {
+          onClear: pageController.clearSelection,
+          onDelete: pageController.bulkDelete,
+          onMove: pageController.bulkMove,
+        });
+      },
+      { immediate: true }
+    );
 
     const folder = computed(() => {
       if (!currentFolderId.value) return null;
