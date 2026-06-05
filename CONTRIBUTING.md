@@ -228,7 +228,7 @@ Produces platform-specific bundles:
 yarn mobile:init:ios
 
 # Run on iOS simulator:
-yarn dev:ios "iPhone 16e"
+yarn dev:ios "iPhone 16"
 
 # Build iOS:
 yarn build:ios
