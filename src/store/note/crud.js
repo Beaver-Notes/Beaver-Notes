@@ -83,6 +83,7 @@ export async function add(note = {}) {
       isBookmarked: false,
       isArchived: false,
       isLocked: false,
+      isFullWidth: false,
       ...note,
       folderId,
     };

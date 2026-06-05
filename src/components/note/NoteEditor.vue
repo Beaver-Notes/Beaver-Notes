@@ -25,7 +25,7 @@ import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { isEncryptedContent } from '@/utils/encryption.js';
 import { sanitizeNoteContent } from '@/utils/contentSecurity';
 import { useRouter } from 'vue-router';
-import { extensions, CollapseHeading, heading, dropFile } from '@/lib/tiptap';
+import { extensions, CollapseHeading, heading, dropFile, Commands } from '@/lib/tiptap';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
@@ -164,6 +164,9 @@ export default {
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
     ];
+    if (typeof window === 'undefined' || window.innerWidth >= 768) {
+      exts.push(Commands);
+    }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
     const safeContent = computed(() =>

@@ -30,6 +30,16 @@
             ]"
           >
             <button
+              v-tooltip.group="'Insert block'"
+              :class="tbBtn()"
+              @click="showMobileBlockPicker = true"
+            >
+              <v-remixicon name="riAddLine" />
+            </button>
+
+            <span class="tb-divider" />
+
+            <button
               v-if="isItemVisible('paragraph')"
               v-tooltip.group="translations.menu.paragraph"
               :class="tbBtn(editor.isActive('paragraph'))"
@@ -728,6 +738,12 @@
         v-model="showCustomizer"
         @close="showCustomizer = false"
       />
+
+      <mobile-block-picker
+        v-model="showMobileBlockPicker"
+        :editor="editor"
+        :id="id"
+      />
     </div>
   </teleport>
 </template>
@@ -736,6 +752,7 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
+import MobileBlockPicker from './MobileBlockPicker.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
 import { useRoute } from 'vue-router';
@@ -743,20 +760,20 @@ import copyImage from '@/utils/copy-image';
 import { saveFile } from '@/utils/copy-doc';
 
 export default {
-  components: { NoteMenuHeadingsTree, ToolbarCustomizer },
+  components: { NoteMenuHeadingsTree, ToolbarCustomizer, MobileBlockPicker },
   props: {
     editor: { type: Object, default: () => ({}) },
-    tree: { type: Boolean, default: false },
     id: { type: String, default: '' },
     note: { type: Object, required: true },
     showSearch: { type: Boolean, default: false },
   },
-  emits: ['update:tree'],
 
   setup(props) {
     const route = useRoute();
     const shared = useNoteMenu(props);
     const { container } = shared;
+
+    const showMobileBlockPicker = ref(false);
 
     async function triggerFileInput() {
       const { canceled, filePaths } = await openDialog({
@@ -912,6 +929,7 @@ export default {
       triggerAudioInput,
       triggerVideoInput,
       triggerImageInput,
+      showMobileBlockPicker,
     };
   },
 };

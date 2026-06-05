@@ -135,7 +135,6 @@ const extensions = [
     defaultDirection: defaultDirection,
   }),
   Image,
-  Commands,
   Audio,
   SearchAndReplace.configure(),
   TextStyle,
@@ -143,6 +142,7 @@ const extensions = [
     types: ['heading', 'paragraph'],
   }),
   markdownEngine,
+
   Placeholder.configure({
     placeholder: translations.editor.tiptapPlaceholder,
   }),
@@ -166,7 +166,7 @@ const extensions = [
   }),
 ];
 
-export { extensions, CollapseHeading, heading, dropFile };
+export { extensions, CollapseHeading, heading, dropFile, Commands };
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

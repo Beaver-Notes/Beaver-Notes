@@ -18,7 +18,6 @@ const commandAliases = {
   'app:get-zoom': 'get_zoom',
   'app:change-menu-visibility': 'change_menu_visibility',
   'open-file-external': 'open_file_external',
-  'print-pdf': 'print_pdf',
   'fs:output-json': 'fs_output_json',
   'fs:read-json': 'fs_read_json',
   'fs:ensureDir': 'fs_ensure_dir',
@@ -259,11 +258,6 @@ function normalizePayload(channel, payload) {
     case 'dialog:message':
     case 'dialog:save':
       return { props: payload };
-    case 'print-pdf':
-      return {
-        ...payload,
-        ...withKeyVariants('pdf_name', payload?.pdfName ?? payload?.pdf_name),
-      };
     case 'migration:probe-path':
     case 'migration:run-with-path':
       return withKeyVariants('path', payload);

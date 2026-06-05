@@ -1,12 +1,5 @@
 <template>
-  <div
-    v-if="note"
-    class="editor note-editor-page mx-auto relative px-4 lg:px-0"
-    :class="{ 'mobile-search-open': showSearch }"
-    :style="{
-      'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
-    }"
-  >
+  <div v-if="note" class="flex flex-col">
     <button
       v-if="
         (showBack && !store.inReaderMode) ||
@@ -26,93 +19,116 @@
     </button>
 
     <template v-if="editor && !isLocked">
-      <editor-actions-mobile
-        v-bind="{ editor, id, note, goBack, showSearch }"
-        class="hidden mobile:flex"
-        @toggle-search="showSearch = !showSearch"
-      />
-      <note-menu v-bind="{ editor, id, note }" class="mb-6 mobile:hidden" />
-      <transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0 translate-y-4"
-        enter-to-class="opacity-100 translate-y-0"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100 translate-y-0"
-        leave-to-class="opacity-0 translate-y-4"
-      >
-        <note-search
-          v-if="showSearch"
-          v-bind="{ editor }"
-          @close="closeSearch"
-          @keyup.esc="closeSearch"
-        />
-      </transition>
-      <note-menu-mobile v-bind="{ editor, id, note, showSearch }" />
+      <note-actions v-bind="{ editor, id, note, showSearch, goBack }" />
     </template>
+
     <div
-      v-if="!isLocked"
-      ref="titleDiv"
-      data-testid="note-title-input"
-      contenteditable="true"
-      class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
-      :placeholder="translations.editor.untitledNote"
-      @input="handleTitleInput"
-      @keydown="disallowedEnter"
-    ></div>
-    <div v-else class="flex flex-col items-center justify-center h-screen">
-      <v-remixicon
-        class="w-24 h-auto text-gray-600 dark:text-white"
-        name="riLockLine"
-      />
-      <p class="text-center pb-2 text-gray-600 dark:text-gray-200">
-        {{
-          appEncryptedLocked
-            ? translations.settings?.unlockAppEncryption ||
-              'This note is encrypted at rest. Enter your password to unlock it.'
-            : translations.card.unlockToEdit
-        }}
-      </p>
-      <div class="pb-2">
-        <button
-          class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
-          @click="
-            appEncryptedLocked ? unlockAppEncryption() : unlockNote(note.id)
-          "
+      class="editor note-editor-page mobile:px-4 px-12 lg:px-0 sm:mx-auto"
+      :class="{ 'mobile-search-open': showSearch }"
+      :style="{
+        '--selected-width': note?.isFullWidth ? '100%' : '54rem',
+        'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
+        ...(note?.isFullWidth
+          ? { 'padding-left': '5rem', 'padding-right': '5rem' }
+          : {}),
+      }"
+    >
+      <template v-if="editor && !isLocked">
+        <transition
+          v-if="showSearch"
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 translate-y-4"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 translate-y-4"
         >
+          <note-search
+            v-bind="{ editor }"
+            @close="closeSearch"
+            @keyup.esc="closeSearch"
+          />
+        </transition>
+        <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
+      </template>
+      <div
+        v-if="!isLocked"
+        ref="titleDiv"
+        data-testid="note-title-input"
+        contenteditable="true"
+        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
+        :placeholder="translations.editor.untitledNote"
+        @input="handleTitleInput"
+        @keydown="disallowedEnter"
+      ></div>
+      <div v-else class="flex flex-col items-center justify-center h-screen">
+        <v-remixicon
+          class="w-24 h-auto text-gray-600 dark:text-white"
+          name="riLockLine"
+        />
+        <p class="text-center pb-2 text-gray-600 dark:text-gray-200">
           {{
             appEncryptedLocked
-              ? translations.settings?.unlock || 'Unlock'
-              : translations.card.unlock
+              ? translations.settings?.unlockAppEncryption ||
+                'This note is encrypted at rest. Enter your password to unlock it.'
+              : translations.card.unlockToEdit
           }}
-        </button>
+        </p>
+        <div class="pb-2">
+          <button
+            class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
+            @click="
+              appEncryptedLocked ? unlockAppEncryption() : unlockNote(note.id)
+            "
+          >
+            {{
+              appEncryptedLocked
+                ? translations.settings?.unlock || 'Unlock'
+                : translations.card.unlock
+            }}
+          </button>
+        </div>
+        <router-link
+          class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
+          :to="`/`"
+        >
+          {{ translations.index.close }}
+        </router-link>
       </div>
-      <router-link
-        class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
-        :to="`/`"
-      >
-        {{ translations.index.close }}
-      </router-link>
-    </div>
 
-    <note-editor
-      v-if="!isLocked"
-      :id="$route.params.id"
-      ref="noteEditor"
-      :key="$route.params.id"
-      :model-value="note.content"
-      :cursor-position="note.lastCursorPosition"
-      @update="
-        autoScroll();
-        handleContentUpdate($event);
-      "
-      @init="editor = $event"
-      @keyup.down="autoScroll"
+      <note-editor
+        v-if="!isLocked"
+        :id="$route.params.id"
+        ref="noteEditor"
+        :key="$route.params.id"
+        :model-value="note.content"
+        :cursor-position="note.lastCursorPosition"
+        @update="
+          autoScroll();
+          handleContentUpdate($event);
+        "
+        @init="editor = $event"
+        @keyup.down="autoScroll"
+      />
+    </div>
+    <note-headings-progress
+      v-if="editor"
+      :editor="editor"
+      class="mobile:hidden"
     />
   </div>
 </template>
 
 <script>
-import { ref, shallowRef, computed, watch, onMounted, onUnmounted } from 'vue';
+import {
+  ref,
+  shallowRef,
+  computed,
+  watch,
+  nextTick,
+  onMounted,
+  onUnmounted,
+} from 'vue';
 import { debounce } from '@/utils/helper';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
@@ -124,11 +140,11 @@ import { useNotePersistence } from '@/composable/useNotePersistence';
 import { useNoteBackNavigation } from '@/composable/useNoteBackNavigation';
 import { useNoteEncryption } from '@/composable/useNoteEncryption';
 import { useEditorAutoScroll } from '@/composable/useEditorAutoScroll';
-import NoteMenuMobile from '@/components/note/NoteMenuMobile.vue';
-import EditorActionsMobile from '@/components/note/EditorActionsMobile.vue';
+import NoteToolbar from '@/components/note/NoteToolbar.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
-import NoteMenu from '@/components/note/NoteMenu.vue';
+import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
+import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import { useAppStore } from '../../store/app';
 import { isEncryptedContent } from '@/utils/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/noteSerializer.js';
@@ -138,11 +154,12 @@ import { useTranslations } from '@/composable/useTranslations';
 export default {
   components: {
     NoteEditor,
-    NoteMenu,
+    NoteActions,
     NoteSearch,
-    NoteMenuMobile,
-    EditorActionsMobile,
+    NoteToolbar,
+    NoteHeadingsProgress,
   },
+  inheritAttrs: false,
   setup() {
     const store = useStore();
     const route = useRoute();
@@ -251,10 +268,40 @@ export default {
     };
     let removeGlobalShortcuts = () => {};
 
+    const scrollTitleIntoView = () => {
+      const titleEl = titleDiv.value;
+      if (!titleEl) return;
+      const rect = titleEl.getBoundingClientRect();
+      const stickyHeight = 56;
+      if (rect.top < stickyHeight) {
+        window.scrollTo({
+          top: Math.max(0, window.scrollY + rect.top - stickyHeight),
+          behavior: 'instant',
+        });
+      }
+    };
+
+    let removeEditorListeners = () => {};
+
+    watch(editor, (ed) => {
+      if (!ed) return;
+      const dom = ed.view.dom;
+      let isFirstFocus = true;
+
+      const onFocus = () => {
+        if (window.innerWidth >= 768) return;
+        if (!isFirstFocus) return;
+        isFirstFocus = false;
+        setTimeout(scrollTitleIntoView, 350);
+      };
+
+      dom.addEventListener('focusin', onFocus);
+      removeEditorListeners = () => dom.removeEventListener('focusin', onFocus);
+    });
+
     onMounted(() => {
       removeGlobalShortcuts = bindGlobalShortcuts({
         'mod+f': () => {
-          document.querySelector('.editor-search input')?.focus();
           showSearch.value = true;
         },
         'alt+left': () => {
@@ -272,6 +319,7 @@ export default {
     onUnmounted(() => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
+      removeEditorListeners();
     });
 
     onBeforeRouteLeave(() => {
@@ -321,10 +369,15 @@ export default {
     );
 
     watch(
-      () => note.value?.id,
-      () => {
+      () => note.value,
+      async (newNote) => {
+        if (!newNote) return;
+        await nextTick();
         if (!titleDiv.value) return;
-        titleDiv.value.innerText = note.value?.title || '';
+        const stored = newNote.title || '';
+        if (titleDiv.value.innerText !== stored) {
+          titleDiv.value.innerText = stored;
+        }
       },
       { immediate: true }
     );
@@ -375,6 +428,12 @@ export default {
 
   .note-editor-page.mobile-search-open {
     padding-top: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .note-editor-page {
+    padding-top: 5rem;
   }
 }
 </style>
