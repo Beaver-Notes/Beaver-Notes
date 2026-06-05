@@ -198,34 +198,6 @@ export function useAppShell() {
       backend.listen('menu-new-note', () => emitter.emit('new-note')),
       backend.listen('menu-zoom-in', () => updateZoomBy(0.1)),
       backend.listen('menu-zoom-out', () => updateZoomBy(-0.1)),
-      backend.listen('print-pdf-request', async (event, payload) => {
-        const pdfName = payload?.pdfName || payload?.pdf_name || 'Beaver Notes';
-        const previousTitle = document.title;
-
-        // Inject print styles (mirrors Electron's injectPrintStyles)
-        const style = document.createElement('style');
-        style.id = 'beaver-print-style';
-        style.innerHTML = `
-          @page { margin: 0; }
-          html, body { width: 100%; height: 100%; margin: 0; padding: 0; }
-          * { box-sizing: border-box; }
-        `;
-        document.head.appendChild(style);
-        document.body.style.margin = '0';
-        document.body.style.padding = '0';
-
-        const cleanup = () => {
-          document.title = previousTitle;
-          document.body.style.margin = '';
-          document.body.style.padding = '';
-          document.getElementById('beaver-print-style')?.remove();
-          window.removeEventListener('afterprint', cleanup);
-        };
-
-        window.addEventListener('afterprint', cleanup);
-        document.title = pdfName;
-        window.print();
-      }),
       backend.listen('update-banner', (_, bannerData) => {
         updateBanner.content = bannerData.content;
         updateBanner.primaryText = bannerData.primaryText;

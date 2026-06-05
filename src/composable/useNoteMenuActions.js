@@ -1,7 +1,7 @@
 import { computed } from 'vue';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
-import { printPdf } from '@/lib/native/app';
+import { exportBEA } from '@/utils/share/BEA';
 
 const highlighterColors = [
   'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
@@ -32,10 +32,6 @@ export function useNoteMenuActions({
   const isTableActive = computed(
     () => editor.isActive('tableCell') || editor.isActive('tableHeader')
   );
-
-  const printContent = () => {
-    printPdf(`${noteTitle}.pdf`);
-  };
 
   const fmtMap = computed(() => ({
     bold: {
@@ -110,79 +106,22 @@ export function useNoteMenuActions({
 
   const shareActions = computed(() => [
     {
+      name: 'bea',
+      title: 'BEA',
+      icon: 'riFileTextFill',
+      handler: () => exportBEA(noteId, noteTitle, editor),
+    },
+    {
       name: 'html',
       title: 'HTML',
       icon: 'riPagesLine',
       handler: () => exportHTML(noteId, noteTitle, editor),
     },
     {
-      name: 'pdf',
-      title: 'PDF',
-      icon: 'riArticleLine',
-      handler: printContent,
-    },
-    {
       name: 'markdown',
       title: 'Markdown',
       icon: 'riMarkdownLine',
       handler: () => exportMD(noteId, noteTitle, editor),
-    },
-  ]);
-
-  const tableActions = computed(() => [
-    {
-      name: 'addRowAbove',
-      label: translations.value.menu.addRowAbove,
-      icon: 'riInsertRowTop',
-      run: () => editor.chain().focus().addRowBefore().run(),
-    },
-    {
-      name: 'addRowBelow',
-      label: translations.value.menu.addRowBelow,
-      icon: 'riInsertRowBottom',
-      run: () => editor.chain().focus().addRowAfter().run(),
-    },
-    {
-      name: 'deleteRow',
-      label: translations.value.menu.deleteRow,
-      icon: 'riDeleteRow',
-      run: () => editor.chain().focus().deleteRow().run(),
-    },
-    {
-      name: 'addColLeft',
-      label: translations.value.menu.addColumnLeft,
-      icon: 'riInsertColumnLeft',
-      run: () => editor.chain().focus().addColumnBefore().run(),
-    },
-    {
-      name: 'addColRight',
-      label: translations.value.menu.addColumnRight,
-      icon: 'riInsertColumnRight',
-      run: () => editor.chain().focus().addColumnAfter().run(),
-    },
-    {
-      name: 'deleteCol',
-      label: translations.value.menu.deleteColumn,
-      icon: 'riDeleteColumn',
-      run: () => editor.chain().focus().deleteColumn().run(),
-    },
-    {
-      name: 'mergeOrSplit',
-      label: translations.value.menu.mergeOrSplit,
-      icon: 'riSplitCellsHorizontal',
-      run: () => editor.chain().focus().mergeOrSplit().run(),
-    },
-    {
-      name: 'toggleHeader',
-      label: translations.value.menu.toggleHeader,
-      icon: 'riBrush2Fill',
-      run: () => editor.chain().focus().toggleHeaderCell().run(),
-    },
-    {
-      name: 'deleteTable',
-      label: translations.value.menu.deleteTable,
-      icon: 'riDeleteBin6Line',
-      run: () => editor.chain().focus().deleteTable().run(),
     },
   ]);
 
@@ -215,11 +154,9 @@ export function useNoteMenuActions({
     highlighterColors,
     isTableActive,
     lists,
-    printContent,
     setHighlightColor,
     setTextColor,
     shareActions,
-    tableActions,
     textColors,
   };
 }

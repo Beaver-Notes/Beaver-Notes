@@ -184,33 +184,3 @@ pub(crate) fn get_system_fonts() -> Result<Vec<String>, String> {
         Ok(fonts)
     }
 }
-
-#[tauri::command]
-pub(crate) async fn print_pdf(app: AppHandle, pdf_name: String) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let default_path = path_for_name(&app, &state, "desktop")?.join(pdf_name.clone());
-    let save = dialog_save(
-        app.clone(),
-        state,
-        SaveDialogOptions {
-            title: Some("Save PDF".into()),
-            default_path: Some(default_path.to_string_lossy().to_string()),
-            filters: Some(vec![DialogFilter {
-                name: "PDF Files".into(),
-                extensions: vec!["pdf".into()],
-            }]),
-        },
-    )
-    .await?;
-
-    if !save.canceled {
-        app.emit_to(
-            MAIN_WINDOW_LABEL,
-            "print-pdf-request",
-            json!({ "pdfName": pdf_name, "filePath": save.file_path }),
-        )
-        .map_err(to_error)?;
-    }
-
-    Ok(())
-}

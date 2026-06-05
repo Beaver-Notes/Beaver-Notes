@@ -438,7 +438,7 @@
     "selectExportFolderTitle": "Select export folder",
     "bestSupport": "Best support",
     "limitedSupport": "Limited support",
-    "drawingHint": "Drawings export best in PDF and HTML. Markdown includes limited drawing support.",
+    "drawingHint": "Drawings export best in HTML. Markdown includes limited drawing support.",
     "noteWithIdNotFound": "Note with ID {id} not found.",
     "noteExportedToPath": "Note \"{title}\" exported to \"{path}\".",
     "invalidFileFormat": "Invalid file format or empty file.",

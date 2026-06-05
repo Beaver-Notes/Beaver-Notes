@@ -161,7 +161,6 @@ pub fn run() {
             commands::dialogs::dialog_message,
             commands::dialogs::dialog_save,
             commands::dialogs::get_system_fonts,
-            commands::dialogs::print_pdf,
             commands::updates::check_for_updates,
             commands::updates::download_update,
             commands::updates::install_update,

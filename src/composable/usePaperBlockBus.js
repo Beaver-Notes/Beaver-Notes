@@ -2,7 +2,7 @@
  * usePaperBlockBus.js
  *
  * Singleton reactive bus that lets the currently-focused paper block
- * expose its controls to NoteMenu / NoteMenuMobile without prop-drilling
+ * expose its controls to NoteActions / NoteToolbar without prop-drilling
  * or Tiptap-level hacks.
  *
  * Usage:

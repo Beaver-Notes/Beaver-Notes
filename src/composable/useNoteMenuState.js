@@ -16,7 +16,6 @@ export function useNoteMenuState({
   dialog,
   store,
   editorImage,
-  printContent,
 }) {
   const fontSize = ref(16);
   const imgUrl = shallowRef('');
@@ -148,7 +147,6 @@ export function useNoteMenuState({
     'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
     'mod+shift+d': deleteNode,
     'mod+shift+f': toggleReaderMode,
-    'mod+p': printContent,
   }));
 
   onMounted(() => {
