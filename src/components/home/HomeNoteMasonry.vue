@@ -407,11 +407,16 @@ onMounted(() => {
   scrollEl.addEventListener('scroll', onScroll, { passive: true });
 
   if (typeof ResizeObserver === 'function') {
+    let resizeRaf = null;
     containerRO = new ResizeObserver(() => {
-      updateWidth();
-      updateViewport();
-      updateOffset();
-      scheduleMeasure();
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        updateWidth();
+        updateViewport();
+        updateOffset();
+        scheduleMeasure();
+      });
     });
     containerRO.observe(containerRef.value);
     if (scrollEl !== window) containerRO.observe(scrollEl);

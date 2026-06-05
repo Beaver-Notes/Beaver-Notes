@@ -41,6 +41,9 @@
                 ></v-remixicon>
               </div>
             </div>
+            <div v-if="$slots.actions" class="px-2 pb-3">
+              <slot name="actions"></slot>
+            </div>
             <slot></slot>
           </ui-card>
         </div>

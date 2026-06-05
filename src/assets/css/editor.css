@@ -284,6 +284,10 @@ img.ProseMirror-selectednode {
 }
 
 @media (max-width: 720px) {
+  .note-editor {
+    --drag-handle-gutter: 0;
+  }
+
   .ProseMirror {
     min-height: max(18rem, calc(100dvh - var(--app-safe-area-top) - 11rem));
   }
@@ -315,14 +319,13 @@ img.ProseMirror-selectednode {
   }
 
   table {
-    @apply border-collapse table-fixed w-full overflow-hidden;
+    @apply border-collapse w-full overflow-hidden;
 
     td,
     th {
       @apply min-w-[1em] border-2 border-solid dark:border-neutral-600 p-3 box-border relative;
       word-wrap: break-word;
-      max-width: 10px;
-      text-align: initial; /* Reset text alignment */
+      text-align: initial;
     }
 
     th {
@@ -584,7 +587,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   min-width: 100%;
   width: auto;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .tableWrapper td,

@@ -6,7 +6,7 @@
       >
         <div ref="navRailRef" class="relative flex items-center gap-1.5">
           <div
-            class="pointer-events-none absolute inset-y-0 rounded-full bg-primary/15 shadow-[0_10px_30px_rgba(15,23,42,0.08)] ring-1 ring-white/60 transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-primary/20 dark:ring-white/10"
+            class="pointer-events-none absolute inset-y-0 rounded-full bg-primary/15 ring-1 ring-white/60 transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-primary/20 dark:ring-white/10"
             :style="activePillStyle"
           />
           <button

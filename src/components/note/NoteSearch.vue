@@ -6,7 +6,9 @@
       class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
-      <div class="flex items-center p-2 space-x-2 max-md:flex-wrap mobile:hidden">
+      <div
+        class="flex items-center p-2 space-x-2 max-md:flex-wrap mobile:hidden"
+      >
         <!-- Regex Toggle Button -->
         <ui-button
           v-tooltip="translations.search.useRegex"
@@ -106,7 +108,7 @@
           <div class="relative flex-1">
             <ui-input
               v-model="state.query"
-              autofocus
+              ref="mobileSearchInput"
               prepend-icon="riSearchLine"
               :placeholder="translations.search.searchPlaceholder"
               class="w-full editor-search"
@@ -243,7 +245,7 @@
 </template>
 
 <script>
-import { shallowReactive, onMounted, onUnmounted } from 'vue';
+import { shallowReactive, onMounted, onUnmounted, ref, nextTick } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 
@@ -261,6 +263,7 @@ export default {
   emits: ['close'],
   setup(props) {
     const { translations } = useTranslations();
+    const mobileSearchInput = ref(null);
 
     const state = shallowReactive({
       query: '',
@@ -360,6 +363,15 @@ export default {
       const text = editorState.doc.textBetween(from, to, ' ');
 
       if (text) state.query = text;
+
+      nextTick(() => {
+        const el =
+          mobileSearchInput.value?.$el?.querySelector?.('input') ??
+          mobileSearchInput.value?.$el;
+        if (el) {
+          el.focus({ preventScroll: window.innerWidth < 768 });
+        }
+      });
     });
 
     onUnmounted(() => {
@@ -376,6 +388,7 @@ export default {
       props,
       state,
       translations,
+      mobileSearchInput,
       startSearch,
       replaceText,
       replaceAllText,

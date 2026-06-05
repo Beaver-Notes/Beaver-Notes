@@ -1,7 +1,11 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="ui-popover inline-block" :class="{ hidden: to }">
-    <div ref="targetEl" class="ui-popover__trigger h-full inline-block" @click="onTriggerClick">
+    <div
+      ref="targetEl"
+      class="ui-popover__trigger h-full inline-block"
+      @click="onTriggerClick"
+    >
       <slot name="trigger" v-bind="{ isShow }"></slot>
     </div>
     <Teleport to="body">
@@ -20,6 +24,7 @@
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue';
+import { useScrollLock } from '@/composable/useScrollLock';
 
 export default {
   props: {
@@ -64,7 +69,11 @@ export default {
     });
 
     const placement = computed(() => props.placement);
-    const middleware = computed(() => [offset(0), flip(), shift({ padding: 8 })]);
+    const middleware = computed(() => [
+      offset(0),
+      flip(),
+      shift({ padding: 8 }),
+    ]);
 
     const { floatingStyles } = useFloating(reference, content, {
       placement,
@@ -72,15 +81,19 @@ export default {
       whileElementsMounted: autoUpdate,
     });
 
+    const { lock: lockScroll, unlock: unlockScroll } = useScrollLock();
+
     const show = () => {
       if (props.disabled) return;
       isShow.value = true;
+      lockScroll();
       emit('show');
       emit('trigger');
     };
 
     const hide = () => {
       isShow.value = false;
+      unlockScroll();
       emit('close');
     };
 
@@ -95,6 +108,11 @@ export default {
       (val) => {
         if (val !== isShow.value) {
           isShow.value = val;
+          if (val) {
+            lockScroll();
+          } else {
+            unlockScroll();
+          }
         }
       }
     );
@@ -103,7 +121,12 @@ export default {
       if (!isShow.value) return;
       const target = reference.value;
       const floating = content.value;
-      if (target && !target.contains(e.target) && floating && !floating.contains(e.target)) {
+      if (
+        target &&
+        !target.contains(e.target) &&
+        floating &&
+        !floating.contains(e.target)
+      ) {
         hide();
       }
     };
@@ -114,6 +137,9 @@ export default {
 
     onUnmounted(() => {
       document.removeEventListener('click', handleClickOutside, true);
+      if (isShow.value) {
+        unlockScroll();
+      }
     });
 
     return {

@@ -9,12 +9,18 @@ import { getSettingSync } from './composable/settings';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
+import './assets/css/one-light.css';
+import './assets/css/one-dark.css';
 
 const isMobileRuntime = backend.isMobileRuntime();
 document.documentElement.classList.toggle('runtime-mobile', isMobileRuntime);
 document.documentElement.dataset.runtime = isMobileRuntime
   ? 'mobile'
   : 'desktop';
+
+if (!navigator.platform.includes('Mac')) {
+  document.documentElement.classList.add('custom-scrollbar');
+}
 
 if (!isMobileRuntime) {
   const savedZoom = getStoredZoomLevel();

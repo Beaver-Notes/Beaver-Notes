@@ -844,7 +844,7 @@ function mediaIcon(tone) {
 
 .note-card-preview-table {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
   border-collapse: collapse;
   overflow: hidden;
   background: rgba(250, 250, 250, 0.95);

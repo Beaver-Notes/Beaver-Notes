@@ -122,6 +122,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
+import { useScrollLock } from '@/composable/useScrollLock';
 
 export default {
   props: {
@@ -220,7 +221,14 @@ export default {
       return option?.text || '';
     });
 
+    const { lock: lockScroll, unlock: unlockScroll } = useScrollLock();
+
     const toggle = () => {
+      if (!isOpen.value) {
+        lockScroll();
+      } else {
+        unlockScroll();
+      }
       isOpen.value = !isOpen.value;
       if (isOpen.value) {
         nextTick(() => {
@@ -247,6 +255,7 @@ export default {
       emit('update:modelValue', option.value);
       emit('change', option.value);
       isOpen.value = false;
+      unlockScroll();
       selectButton.value?.focus();
     };
 
@@ -291,6 +300,7 @@ export default {
         case 'Escape':
           e.preventDefault();
           isOpen.value = false;
+          unlockScroll();
           selectButton.value?.focus();
           break;
         case 'Enter':
@@ -326,6 +336,7 @@ export default {
         case 'Escape':
           e.preventDefault();
           isOpen.value = false;
+          unlockScroll();
           selectButton.value?.focus();
           break;
       }
@@ -335,6 +346,7 @@ export default {
       setTimeout(() => {
         if (!dropdown.value?.contains(document.activeElement)) {
           isOpen.value = false;
+          unlockScroll();
         }
       }, 150);
     };
@@ -345,6 +357,7 @@ export default {
         !dropdown.value?.contains(e.target)
       ) {
         isOpen.value = false;
+        unlockScroll();
       }
     };
 
@@ -354,6 +367,9 @@ export default {
 
     onUnmounted(() => {
       document.removeEventListener('click', onClickOutside);
+      if (isOpen.value) {
+        unlockScroll();
+      }
     });
 
     return {
