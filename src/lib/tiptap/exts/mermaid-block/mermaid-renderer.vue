@@ -101,9 +101,20 @@ export default defineComponent({
 <style scoped>
 .mermaid-viewer {
   width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
   display: flex;
   justify-content: center;
   cursor: pointer;
+}
+
+:deep(svg) {
+  max-width: 100%;
+  height: auto;
+}
+
+:deep(svg[style*='max-width']) {
+  max-width: 100% !important;
 }
 
 :deep(div.label) {

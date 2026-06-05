@@ -5,7 +5,7 @@
         ref="mermaidRef"
         :content="mermaidContent"
         :class="[
-          'w-full bg-neutral-50 dark:bg-neutral-900 pointer-events-none p-2 border min-h-20',
+          'w-full max-w-full overflow-x-auto bg-neutral-50 dark:bg-neutral-900 pointer-events-none p-2 border min-h-20',
           showTextarea ? 'rounded-t-lg border-b-0' : 'rounded-lg',
         ]"
       />
@@ -48,7 +48,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslations } from '@/composable/useTranslations';
-import MermaidComponent from '@/utils/mermaid-renderer.vue';
+import MermaidComponent from './mermaid-renderer.vue';
 
 export default {
   components: {
