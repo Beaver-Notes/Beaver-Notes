@@ -170,7 +170,7 @@
   <!-- Mobile -->
   <div
     ref="shellRef"
-    class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white dark:bg-neutral-900 top-0 mb-4"
+    class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white dark:bg-neutral-900 top-0 mb-4 hidden mobile:flex"
     :style="shellStyle"
   >
     <div class="flex w-full items-center justify-between p-1.5">
