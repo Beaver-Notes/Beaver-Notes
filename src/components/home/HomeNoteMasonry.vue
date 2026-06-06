@@ -129,6 +129,7 @@ let scrollEl = null,
   cardRO = null,
   measureRaf = null,
   scrollRaf = null,
+  cardResizeRaf = null,
   lastScrollTime = 0;
 
 const leavingItems = new Map();
@@ -290,7 +291,8 @@ function updateOffset() {
 
 function updateCardHeight(id, el) {
   const h = Math.round(el.getBoundingClientRect().height);
-  if (!h || cardHeights.get(id) === h) return false;
+  const prev = cardHeights.get(id);
+  if (!h || (prev !== undefined && Math.abs(prev - h) < 2)) return false;
   cardHeights.set(id, h);
   return true;
 }
@@ -421,18 +423,12 @@ onMounted(() => {
     containerRO.observe(containerRef.value);
     if (scrollEl !== window) containerRO.observe(scrollEl);
 
-    cardRO = new ResizeObserver((entries) => {
-      let changed = false;
-      for (const e of entries) {
-        const id = cardElementIds.get(e.target);
-        if (id != null && updateCardHeight(id, e.target)) changed = true;
-      }
-      if (changed) {
-        measuredVersion.value++;
-        if (!isMeasured.value && props.notes.length > 0) {
-          isMeasured.value = true;
-        }
-      }
+    cardRO = new ResizeObserver(() => {
+      if (cardResizeRaf) return;
+      cardResizeRaf = requestAnimationFrame(() => {
+        cardResizeRaf = null;
+        scheduleMeasure();
+      });
     });
     for (const [id, el] of cardElements) {
       cardElementIds.set(el, id);
@@ -459,6 +455,7 @@ onBeforeUnmount(() => {
   cardRO?.disconnect();
   if (measureRaf) cancelAnimationFrame(measureRaf);
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
+  if (cardResizeRaf) cancelAnimationFrame(cardResizeRaf);
   cardRefCbs.clear();
   scrollEl = containerRO = cardRO = null;
 });
@@ -480,6 +477,7 @@ onBeforeUnmount(() => {
   top: 0;
   left: 0;
   contain: style;
+  transition: transform 200ms ease;
 }
 
 .filter-pulse {
@@ -490,10 +488,12 @@ onBeforeUnmount(() => {
   animation: cardLeave 250ms ease-out forwards;
   pointer-events: none;
   z-index: 1;
+  transition: none;
 }
 
 .note-masonry__card.entering {
   animation: cardEnter 300ms ease-out forwards;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: no-preference) {

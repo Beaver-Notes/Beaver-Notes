@@ -2,7 +2,11 @@ import { ref } from 'vue';
 
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
-import { createFullSizeCardGhost, createAnimatedStackGhost } from './ghost.js';
+import {
+  createFullSizeCardGhost,
+  createAnimatedStackGhost,
+  createCountBadgeGhost,
+} from './ghost.js';
 
 export function useDragAndDrop({ selectedItems, clearSelection }) {
   const noteStore = useNoteStore();
@@ -34,20 +38,24 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     sourceElement?.setAttribute('data-dragging', '');
     const noteIds = getIdsForDrag('note', noteId);
 
-    const selectedElements = noteIds
-      .map((id) => document.querySelector(`[data-item-id="note-${id}"]`))
-      .filter(Boolean);
+    if (noteIds.length > 1) {
+      // Multi-select: simple count-badge ghost.
+      const ghost = createCountBadgeGhost(noteIds.length, sourceElement);
+      const r = ghost.getBoundingClientRect();
+      event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
+      requestAnimationFrame(() => {
+        if (ghost.parentNode) ghost.remove();
+      });
+    } else if (sourceElement) {
+      // Single note: use a cloned-card ghost that looks like the real card.
+      const ghost = createFullSizeCardGhost(sourceElement, 1);
+      const r = ghost.getBoundingClientRect();
+      event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
+      requestAnimationFrame(() => {
+        if (ghost.parentNode) ghost.remove();
+      });
+    }
 
-    const ghost =
-      selectedElements.length > 1
-        ? createAnimatedStackGhost(selectedElements)
-        : createFullSizeCardGhost(
-            event.target.closest('[data-item-id]'),
-            selectedElements.length
-          );
-
-    const r = ghost.getBoundingClientRect();
-    event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
     event.dataTransfer.setData(
       'application/json',
       JSON.stringify({
@@ -60,9 +68,6 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     draggedNoteId.value = noteId;
     dragType.value = 'note';
     event.dataTransfer.effectAllowed = 'move';
-    requestAnimationFrame(() => {
-      if (ghost.parentNode) ghost.remove();
-    });
   }
 
   function handleFolderDragStart(event, folderId) {
