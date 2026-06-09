@@ -10,6 +10,8 @@ if ! command -v cargo >/dev/null 2>&1; then
   exit 1
 fi
 
+cd "$(dirname "$0")/../src-tauri"
+
 set -- tauri ios xcode-script -v \
   --platform "${PLATFORM_DISPLAY_NAME:?}" \
   --sdk-root "${SDKROOT:?}" \
