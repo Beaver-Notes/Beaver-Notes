@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron-better-ipc';
-import { app, Notification, shell } from 'electron';
+import { app, Notification, shell, dialog } from 'electron';
 import path from 'path';
 import { copy, pathExists } from 'fs-extra';
 import chokidar from 'chokidar';
@@ -66,6 +66,37 @@ export class AppHandlers {
 
       await shell.openPath(tempFile);
       return tempFile;
+    });
+
+    ipcMain.answerRenderer('download-file', async (src) => {
+      src = decodeURI(src);
+
+      if (src.startsWith('file-assets:')) {
+        src = path.join(
+          app.getPath('userData'),
+          src.replace('file-assets:', 'file-assets')
+        );
+      }
+
+      const fullPath = path.isAbsolute(src)
+        ? src
+        : path.join(app.getPath('userData'), src);
+
+      if (!(await pathExists(fullPath))) {
+        throw new Error(`File not found: ${fullPath}`);
+      }
+
+      const fileName = path.basename(fullPath);
+      const win = this.windowManager.getWindow();
+
+      const { canceled, filePath } = await dialog.showSaveDialog(win, {
+        defaultPath: fileName,
+      });
+
+      if (canceled || !filePath) return null;
+
+      await copy(fullPath, filePath, { overwrite: true });
+      return filePath;
     });
 
     ipcMain.answerRenderer('app:set-zoom', (newZoomLevel) => {

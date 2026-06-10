@@ -69,12 +69,7 @@ export default {
       event.stopPropagation();
       let src = normalizeSrc(props.node.attrs.src);
       src = encodeURI(src);
-      const link = document.createElement('a');
-      link.href = src;
-      link.download = fileName.value;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      ipcRenderer.callMain('download-file', src);
     }
 
     return {
