@@ -69,30 +69,24 @@ export const usePasswordStore = defineStore('password', {
           const encryptedBase64 = await this.readEncryptedFile();
 
           if (!encryptedBase64) {
-            const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
-            if (legacyPassword) {
-              await this.importSharedKey(
-                legacyPassword,
-                deriveKeyFromPassword(legacyPassword)
-              );
-              return this.sharedKey;
-            }
-
-            this.sharedKey = '';
-            return '';
+            return this._fallbackToLegacyStorage();
           }
-
-          const decrypted = await decryptString(encryptedBase64);
 
           try {
-            const parsed = JSON.parse(decrypted);
-            this.sharedKey = parsed.hash;
-            this.derivedKey = parsed.key;
-          } catch {
-            this.sharedKey = decrypted;
-          }
+            const decrypted = await decryptString(encryptedBase64);
 
-          return this.sharedKey;
+            try {
+              const parsed = JSON.parse(decrypted);
+              this.sharedKey = parsed.hash;
+              this.derivedKey = parsed.key;
+            } catch {
+              this.sharedKey = decrypted;
+            }
+
+            return this.sharedKey;
+          } catch {
+            return this._fallbackToLegacyStorage();
+          }
         } else {
           const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
           this.sharedKey = legacyPassword;
@@ -102,6 +96,19 @@ export const usePasswordStore = defineStore('password', {
         console.error('Error retrieving global password:', error);
         return '';
       }
+    },
+
+    async _fallbackToLegacyStorage() {
+      const legacyPassword = await storage.get(LEGACY_STORAGE_KEY, '');
+      if (legacyPassword) {
+        await this.importSharedKey(
+          legacyPassword,
+          deriveKeyFromPassword(legacyPassword)
+        );
+        return this.sharedKey;
+      }
+      this.sharedKey = '';
+      return '';
     },
 
     async setsharedKey(password) {
