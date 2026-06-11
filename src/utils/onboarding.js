@@ -1,6 +1,8 @@
 import { DEFAULT_UI_FONT_STACK, setSetting } from '@/composable/settings';
 import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
+import { enableIndexing } from '@/lib/native/spotsearch';
+import { reindexAllNotes } from '@/utils/spotlightSync';
 import {
   getMigrationStatus,
   probeMigrationPath,
@@ -98,7 +100,19 @@ export async function applyOnboardingFreshPreferences(preferences, { theme }) {
     setSetting('openLastEdited', preferences.openLastEdited),
     setSetting('openAfterCreation', preferences.openAfterCreation),
     setSetting('soundsEnabled', preferences.soundsEnabled),
+    setSetting('spotlightEnabled', preferences.spotlightEnabled),
   ]);
+
+  if (backend.isAppleRuntime() && preferences.spotlightEnabled) {
+    try {
+      await enableIndexing(true);
+      const { useNoteStore } = await import('@/store/note');
+      const noteStore = useNoteStore();
+      await reindexAllNotes(noteStore.data, true);
+    } catch (e) {
+      console.error('[onboarding] Failed to enable Spotlight:', e);
+    }
+  }
 
   theme.setTheme(preferences.theme, preferences.theme === 'system');
   setStoredZoomLevel(preferences.zoomLevel, { syncDocument: true });
