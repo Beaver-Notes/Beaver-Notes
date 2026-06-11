@@ -40,7 +40,13 @@ pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: S
 
 fn bootstrap_file_open_from_argv(app: &AppHandle, state: &AppState) {
     for arg in std::env::args().skip(1) {
-        if arg.ends_with(".bea") {
+        let lower = arg.to_lowercase();
+        if lower.ends_with(".bea")
+            || lower.ends_with(".md")
+            || lower.ends_with(".mdx")
+            || lower.ends_with(".txt")
+            || lower.ends_with(".html")
+        {
             queue_or_emit_file_open(app, state, arg);
         }
     }
@@ -392,7 +398,6 @@ fn run_migration_core(
             copied_asset_dirs.push(folder.to_string());
         }
     }
-
 
     let _ = import_legacy_auth_blobs(app, &old_dir.join(AUTH_STORE));
 

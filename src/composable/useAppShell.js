@@ -61,6 +61,10 @@ export function useAppShell() {
 
   const retrieved = ref(false);
   const animateRouteChange = ref(true);
+  const showImportDialog = ref(false);
+  const importFilePath = ref('');
+  const importNoteTitle = ref('');
+  const importFileType = ref(''); // 'bea' | 'md' | 'mdx' | 'txt' | 'html'
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
@@ -270,8 +274,76 @@ export function useAppShell() {
     await router.isReady();
     while (!retrieved.value)
       await new Promise((resolve) => setTimeout(resolve, 100));
-    await importBEA(path, router, store);
+
+    const ext = path.split('.').pop().toLowerCase();
+
+    const SUPPORTED = ['bea', 'md', 'mdx', 'txt', 'html'];
+    if (!SUPPORTED.includes(ext)) {
+      console.warn('Unsupported file format for import:', ext, path);
+      return;
+    }
+
+    importFileType.value = ext;
+
+    try {
+      let title;
+
+      if (ext === 'bea') {
+        const fileContent = await import('@/lib/native/exports').then((m) =>
+          m.readImportJson(path)
+        );
+        title =
+          fileContent?.data?.title ||
+          path
+            .split('/')
+            .pop()
+            .replace(/\.bea$/i, '') ||
+          'Untitled';
+      } else {
+        const { extractImportTitle } = await import(
+          '@/utils/import/singleFileImport'
+        );
+        title = await extractImportTitle(path);
+      }
+
+      importNoteTitle.value = title;
+      importFilePath.value = path;
+      showImportDialog.value = true;
+    } catch (error) {
+      console.error('Failed to read file metadata:', error);
+    }
   });
+
+  async function handleImportConfirm(folderId) {
+    if (!importFilePath.value) return;
+    const path_ = importFilePath.value;
+    const type = importFileType.value;
+    try {
+      if (type === 'bea') {
+        await importBEA(path_, router, store, folderId);
+      } else {
+        const { importSingleFile } = await import(
+          '@/utils/import/singleFileImport'
+        );
+        const noteId = await importSingleFile(path_, folderId);
+        router.push(`/note/${noteId}`);
+      }
+    } catch (error) {
+      console.error(`Failed to import ${type} file:`, error);
+    } finally {
+      importFilePath.value = '';
+      importNoteTitle.value = '';
+      importFileType.value = '';
+      showImportDialog.value = false;
+    }
+  }
+
+  function handleImportCancel() {
+    importFilePath.value = '';
+    importNoteTitle.value = '';
+    importFileType.value = '';
+    showImportDialog.value = false;
+  }
 
   setZoomLevel(getStoredZoomLevel());
   setMenuVisibility(!getSettingSync('visibilityMenubar'));
@@ -279,6 +351,12 @@ export function useAppShell() {
   return {
     animateRouteChange,
     appStore,
+    handleImportCancel,
+    handleImportConfirm,
+    importFilePath,
+    importNoteTitle,
+    importFileType,
+    showImportDialog,
     bottomBannerStyle,
     dismissSyncBanner,
     getTopLevelRouteKey,

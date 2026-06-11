@@ -86,9 +86,17 @@
   </div>
 
   <ui-dialog />
+
+  <import-folder-picker
+    v-model="showImportDialog"
+    :note-title="importNoteTitle"
+    @confirm="handleImportConfirm"
+    @cancel="handleImportCancel"
+  />
 </template>
 
 <script>
+import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import { useAppShell } from './composable/useAppShell';
@@ -99,6 +107,7 @@ export default {
     AppSidebar,
     AppCommandPrompt,
     AppNavbar,
+    ImportFolderPicker,
   },
   setup() {
     return useAppShell();

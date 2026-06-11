@@ -63,7 +63,13 @@ pub fn run() {
             focus_main_window(app);
             let state = app.state::<AppState>();
             for arg in args {
-                if arg.ends_with(".bea") {
+                let lower = arg.to_lowercase();
+                if lower.ends_with(".bea")
+                    || lower.ends_with(".md")
+                    || lower.ends_with(".mdx")
+                    || lower.ends_with(".txt")
+                    || lower.ends_with(".html")
+                {
                     queue_or_emit_file_open(app, state.inner(), arg);
                 }
             }
@@ -206,7 +212,13 @@ pub fn run() {
             for url in urls {
                 if let Ok(path) = url.to_file_path() {
                     let path = path.to_string_lossy().to_string();
-                    if path.ends_with(".bea") {
+                    let lower = path.to_lowercase();
+                    if lower.ends_with(".bea")
+                        || lower.ends_with(".md")
+                        || lower.ends_with(".mdx")
+                        || lower.ends_with(".txt")
+                        || lower.ends_with(".html")
+                    {
                         queue_or_emit_file_open(app, state.inner(), path);
                     }
                 }
