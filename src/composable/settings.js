@@ -42,16 +42,7 @@ const settingDefs = {
     defaultValue: false,
     parse: (value) => value === true || value === 'true',
   },
-  editorWidth: {
-    legacyKey: 'editorWidth',
-    defaultValue: '54rem',
-    parse: String,
-  },
-  customEditorWidth: {
-    legacyKey: 'customEditorWidth',
-    defaultValue: '60rem',
-    parse: String,
-  },
+
   spellcheckEnabled: {
     legacyKey: 'spellcheckEnabled',
     defaultValue: true,

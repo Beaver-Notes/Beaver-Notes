@@ -180,58 +180,7 @@
         </ui-select>
       </div>
     </section>
-    <!-- Page width -->
-    <section>
-      <p class="mb-2">
-        {{ translations.appearence.editorSpacing || '-' }}
-      </p>
-      <div class="grid grid-cols-3 gap-4">
-        <!-- Normal Button -->
-        <ui-button
-          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
-          :class="{
-            'outline-none ring-1 ring-primary': selectedWidth === '54rem',
-          }"
-          @click="setWidth('54rem')"
-        >
-          {{ translations.appearence.normal || '-' }}
-        </ui-button>
-        <!-- Wide Button -->
-        <ui-button
-          class="bg-input py-2 px-4 rounded-lg transition duration-200 hover:bg-neutral-200"
-          :class="{
-            'outline-none ring-1 ring-primary': selectedWidth === '68rem',
-          }"
-          @click="setWidth('68rem')"
-        >
-          {{ translations.appearence.wide || '-' }}
-        </ui-button>
-        <div class="relative col-span-1">
-          <ui-button
-            v-if="!isEditingCustomWidth"
-            class="py-2 w-full px-4 rounded-lg bg-input transition duration-200 hover:bg-neutral-200"
-            :class="{
-              'outline-none ring-1 ring-primary': selectedWidth === customWidth,
-            }"
-            @click="isEditingCustomWidth = true"
-          >
-            {{ customWidth }}
-          </ui-button>
-          <div v-else class="relative">
-            <input
-              v-model="customWidthInput"
-              type="text"
-              class="w-full p-2 rounded-lg border text-center bg-input bg-transparent ring-1 ring-secondary"
-              :placeholder="translations.appearence.enterWidth"
-              style="appearance: none"
-              @blur="applyCustomWidth"
-              @keydown.enter="applyCustomWidth"
-            />
-            <span class="absolute top-2 right-2 text-neutral-500">rem</span>
-          </div>
-        </div>
-      </div>
-    </section>
+
     <section>
       <p class="mb-2">{{ translations.appearence.interfaceOptions || '-' }}</p>
       <div>
@@ -384,11 +333,6 @@ export default {
       }
     });
 
-    const selectedWidth = ref(getSettingSync('editorWidth'));
-    const customWidth = ref(getSettingSync('customEditorWidth'));
-    const customWidthInput = ref(customWidth.value.replace('rem', ''));
-    const isEditingCustomWidth = ref(false);
-
     onMounted(() => {
       defaultPath = localStorage.getItem('default-path') || '';
       state.defaultPath = defaultPath;
@@ -439,22 +383,7 @@ export default {
       state.zoomLevel = setStoredZoomLevel(newZoomLevel, { reload: true });
     };
 
-    const setWidth = (width) => {
-      selectedWidth.value = width;
-      void setSetting('editorWidth', width);
-      document.documentElement.style.setProperty('--selected-width', width);
-    };
 
-    const applyCustomWidth = () => {
-      if (customWidthInput.value) {
-        customWidth.value = `${customWidthInput.value}rem`;
-        selectedWidth.value = customWidth.value;
-        void setSetting('customEditorWidth', customWidth.value);
-        void setSetting('editorWidth', customWidth.value);
-        document.documentElement.style.setProperty(
-          '--selected-width',
-          customWidth.value
-        );
       }
       isEditingCustomWidth.value = false;
     };
@@ -470,12 +399,6 @@ export default {
       ClearFontChecked,
       visibilityMenubar,
       toggleVisibilityOfMenubar,
-      selectedWidth,
-      customWidth,
-      customWidthInput,
-      isEditingCustomWidth,
-      setWidth,
-      applyCustomWidth,
       isMacOS,
       toggleDirectionPreference,
       updateFont,
