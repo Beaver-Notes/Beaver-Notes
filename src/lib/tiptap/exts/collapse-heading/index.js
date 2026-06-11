@@ -4,7 +4,6 @@ import {
   mergeAttributes,
   textblockTypeInputRule,
 } from '@tiptap/vue-3';
-import { Plugin } from '@tiptap/pm/state';
 import { mergeCollapsedFootnotes } from '../footnote-block/utils';
 
 function createArrowSVG() {
@@ -154,82 +153,9 @@ export default Heading.extend({
       });
     });
   },
-
   addOptions() {
     return {
       levels: [1, 2, 3, 4, 5, 6],
-    };
-  },
-
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        appendTransaction: (transactions, _oldState, newState) => {
-          if (transactions.some((t) => t.getMeta('headingDelete'))) return null;
-          const tr = newState.tr;
-          let modified = false;
-          newState.doc.descendants((node, pos) => {
-            if (node.type.name === 'heading' && node.content.size === 0) {
-              tr.insertText(' ', pos + 1);
-              modified = true;
-              return false;
-            }
-          });
-          return modified ? tr : null;
-        },
-      }),
-    ];
-  },
-
-  addKeyboardShortcuts() {
-    return {
-      Backspace: ({ editor }) => {
-        const { state, commands } = editor;
-        const { selection } = state;
-        if (!selection.empty) return false;
-        const $pos = selection.$from;
-        if (
-          $pos.parent.type.name === 'heading' &&
-          $pos.parent.content.size === 1
-        ) {
-          return commands.command(({ tr }) => {
-            const from = $pos.before();
-            const to = $pos.after();
-            // Don't delete the last block in the document
-            if (from === 0 && to >= state.doc.content.size) {
-              tr.delete($pos.start(), $pos.start() + 1);
-            } else {
-              tr.delete(from, to);
-            }
-            tr.setMeta('headingDelete', true);
-            return true;
-          });
-        }
-        return false;
-      },
-      Delete: ({ editor }) => {
-        const { state, commands } = editor;
-        const { selection } = state;
-        if (!selection.empty) return false;
-        const $pos = selection.$from;
-        if (
-          $pos.parent.type.name === 'heading' &&
-          $pos.parent.content.size === 1
-        ) {
-          return commands.command(({ tr }) => {
-            const from = $pos.before();
-            const to = $pos.after();
-            if (from === 0 && to >= state.doc.content.size) {
-              tr.delete($pos.start(), $pos.start() + 1);
-            } else {
-              tr.delete(from, to);
-            }
-            tr.setMeta('headingDelete', true);
-            return true;
-          });
-        }
-        return false;
-      },
     };
   },
 
@@ -242,16 +168,19 @@ export default Heading.extend({
           return !element.hasAttribute('data-hide');
         },
         renderHTML: (attributes) => {
-          // Legacy compatible: resolve collapsedContent from JSON string
-          const collapsedContent =
-            typeof attributes.collapsedContent === 'string'
-              ? attributes.collapsedContent === ''
-                ? null
-                : parseJSON(attributes.collapsedContent)
-              : attributes.collapsedContent;
-          // Compute open value without mutating the original attributes
-          const open = collapsedContent == null;
-          return !open ? {} : { open: '' };
+          // legency compatible
+          if (typeof attributes.collapsedContent === 'string') {
+            if (attributes.collapsedContent === '') {
+              attributes.collapsedContent = null;
+            } else {
+              attributes.collapsedContent = parseJSON(
+                attributes.collapsedContent
+              );
+            }
+          }
+          // correct open value
+          attributes.open = attributes.collapsedContent == null;
+          return !attributes.open ? {} : { open: '' };
         },
       },
       collapsedFootnotes: {
@@ -269,7 +198,6 @@ export default Heading.extend({
     const { level = 1, ...rest } = HTMLAttributes;
     return [`h${level}`, mergeAttributes(rest), 0];
   },
-
   parseHTML() {
     return this.options.levels.map((level) => ({
       tag: `h${level}`,
@@ -359,7 +287,6 @@ export default Heading.extend({
 
         return true;
       },
-
       unCollapsedHeading: () => (e) => {
         const { state, chain } = e;
         const { selection } = state;
