@@ -1,161 +1,312 @@
 <template>
   <aside
-    class="w-16 text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-800 border-r border-neutral-200 dark:border-neutral-800 fixed flex flex-col items-center h-full left-0 top-0 z-40 py-4 no-print"
+    class="flex flex-col h-full shrink-0 no-print transition-all duration-200 ease-in-out bg-white dark:bg-neutral-900 border-r border-neutral-200/40 dark:border-neutral-800/40 select-none"
+    :class="expanded ? 'w-64' : 'w-16'"
+    :style="{ paddingTop: titlebarInset }"
   >
-    <div class="flex flex-col items-center gap-3 w-full px-2">
+    <div
+      class="pt-4 px-3 mb-3 shrink-0"
+      :class="expanded ? 'flex justify-end' : ''"
+    >
+      <button
+        v-tooltip:right="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
+        :aria-label="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
+        class="p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        @click="toggleExpanded"
+      >
+        <v-remixicon
+          name="riSideBarLine"
+          size="18"
+          :class="expanded ? 'rotate-180' : ''"
+        />
+      </button>
+    </div>
+
+    <div class="px-3 mb-4 shrink-0">
       <button
         v-tooltip:right="
-          translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+          !expanded
+            ? `${translations.sidebar.addNotes} (${keyBinding}+N)`
+            : undefined
         "
         :aria-label="translations.sidebar.addNotes"
         data-testid="add-note-button"
-        class="transition-all p-2.5 text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:hover:bg-primary/60 rounded-xl flex items-center justify-center"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
+        :class="expanded ? 'px-4 gap-2 h-10 w-full' : 'p-0 w-9 h-9'"
         @click="addNote"
       >
-        <v-remixicon name="riAddFill" size="24" />
+        <v-remixicon
+          name="riAddFill"
+          size="20"
+          class="transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
+        />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="text-sm font-medium whitespace-nowrap truncate"
+          >
+            {{ translations.sidebar.addNotes }}
+          </span>
+        </transition>
       </button>
+    </div>
 
+    <div class="px-3 mb-4">
       <button
         v-tooltip:right="
-          translations.sidebar.newFolder + ' (' + keyBinding + '+Shift+F)'
+          !expanded
+            ? `${
+                translations.sidebar.newFolder || 'New Folder'
+              } (${keyBinding}+Shift+F)`
+            : undefined
         "
-        :aria-label="translations.sidebar.newFolder"
-        class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
+        :aria-label="translations.sidebar.newFolder || 'New Folder'"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg flex items-center h-9 overflow-hidden"
+        :class="[
+          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
+          'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
+        ]"
         @click="addFolder"
       >
-        <v-remixicon name="riFolderAddLine" size="24" />
+        <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="text-sm font-medium whitespace-nowrap truncate"
+          >
+            {{ translations.sidebar.newFolder || 'New Folder' }}
+          </span>
+        </transition>
       </button>
     </div>
 
-    <hr class="w-8 border my-4" />
-
-    <div class="flex flex-col items-center gap-2 w-full">
-      <div class="relative flex items-center justify-center w-full">
-        <transition name="pill">
-          <div
-            v-if="$route.name === 'Note'"
-            class="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
-          />
-        </transition>
-        <button
-          v-tooltip:right="
-            translations.sidebar.editedNote + ' (' + keyBinding + '+Shift+W)'
-          "
-          :aria-label="translations.sidebar.editedNote"
-          class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
-          :class="[
-            $route.name === 'Note'
-              ? 'text-primary bg-primary/10'
-              : 'hover:text-neutral-900 dark:hover:text-neutral-100',
-          ]"
-          @click="openLastEdited"
-        >
-          <v-remixicon name="riEditLine" size="24" />
-        </button>
-      </div>
-
+    <nav class="flex flex-col gap-1 px-3 shrink-0 relative">
       <div
-        v-for="nav in navs"
-        :key="nav.name"
-        class="relative flex items-center justify-center w-full"
+        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        :style="pillStyle"
+      />
+
+      <button
+        ref="homeBtn"
+        v-tooltip:right="
+          !expanded
+            ? `${translations.sidebar.notes} (${keyBinding}+Shift+N)`
+            : undefined
+        "
+        :aria-label="translations.sidebar.notes"
+        data-testid="nav-notes-button"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg flex items-center h-9 overflow-hidden"
+        :class="[
+          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
+          isAllNotesActive
+            ? 'text-primary bg-primary/10'
+            : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
+        ]"
+        @click="goHome"
       >
-        <transition name="pill">
-          <div
-            v-if="$route.fullPath === nav.path"
-            class="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
-          />
+        <v-remixicon
+          name="riBookletLine"
+          size="20"
+          class="shrink-0 transition-transform duration-200"
+          :class="{ 'scale-105': isAllNotesActive }"
+        />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="text-sm font-medium whitespace-nowrap truncate"
+          >
+            {{ translations.sidebar.notes || 'All Notes' }}
+          </span>
         </transition>
-        <button
-          v-tooltip:right="
-            `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
-          "
-          :aria-label="nav.name"
-          :aria-current="$route.fullPath === nav.path ? 'page' : undefined"
-          :data-testid="getNavTestId(nav.path)"
-          class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
-          :class="[
-            $route.fullPath === nav.path
-              ? 'text-primary bg-primary/10'
-              : 'hover:text-neutral-900 dark:hover:text-neutral-100',
-          ]"
-          @click="handleNavigation(nav)"
+      </button>
+
+      <button
+        ref="archiveBtn"
+        v-tooltip:right="
+          !expanded
+            ? `${translations.sidebar.archive} (${keyBinding}+Shift+A)`
+            : undefined
+        "
+        :aria-label="translations.sidebar.archive"
+        data-testid="nav-archive-button"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg flex items-center h-9 overflow-hidden"
+        :class="[
+          expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
+          isArchiveActive
+            ? 'text-primary bg-primary/10'
+            : 'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
+        ]"
+        @click="goArchive"
+      >
+        <v-remixicon
+          name="riArchiveDrawerLine"
+          size="20"
+          class="shrink-0 transition-transform duration-200"
+          :class="{ 'scale-105': isArchiveActive }"
+        />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="text-sm font-medium whitespace-nowrap truncate"
+          >
+            {{ translations.sidebar.archive || 'Archive' }}
+          </span>
+        </transition>
+      </button>
+    </nav>
+
+    <transition name="fade-fast">
+      <div
+        v-show="expanded"
+        class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
+      >
+        <div
+          class="text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 mb-2 px-3 select-none shrink-0"
         >
-          <v-remixicon :name="nav.icon" size="24" />
-        </button>
+          Recent
+        </div>
+        <div v-if="recentItems.length > 0" class="flex flex-col gap-0.5">
+          <button
+            v-for="item in recentItems"
+            :key="`${item.type}-${item.id}`"
+            class="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 transition-colors text-left group"
+            :title="item.title"
+            @click="
+              item.type === 'folder' ? openFolder(item.id) : openNote(item.id)
+            "
+          >
+            <v-remixicon
+              :name="item.type === 'folder' ? 'riFolder5Fill' : 'riArticleLine'"
+              size="14"
+              class="text-neutral-400 shrink-0 transition-transform duration-200 group-hover:scale-105"
+            />
+            <span
+              class="text-sm truncate flex-1 min-w-0 text-neutral-600 dark:text-neutral-400"
+            >
+              {{ item.title }}
+            </span>
+            <span
+              class="text-[11px] text-neutral-400 dark:text-neutral-500 shrink-0 tabular-nums"
+            >
+              {{ formatRelativeTime(item.updatedAt) }}
+            </span>
+          </button>
+        </div>
+        <div v-else class="px-3 py-1.5">
+          <p class="text-xs text-neutral-400/80 italic">No recent items</p>
+        </div>
       </div>
-    </div>
+    </transition>
 
-    <div class="flex-grow" />
+    <div v-if="!expanded" class="flex-grow" />
 
-    <div class="flex flex-col items-center gap-2 w-full">
+    <div
+      class="flex flex-col items-center gap-1 px-3 pb-4 pt-3 border-t border-neutral-200/50 dark:border-neutral-800/50 shrink-0 relative"
+    >
+      <div
+        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        :style="footerPillStyle"
+      />
+
       <button
         v-tooltip:right="
-          translations.sidebar.toggleSync + ' (' + keyBinding + '+Shift+Y)'
+          !expanded
+            ? `${translations.sidebar.toggleSync} (${keyBinding}+Shift+Y)`
+            : undefined
         "
         :aria-label="translations.sidebar.toggleSync"
-        class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 hover:text-neutral-900 dark:hover:text-neutral-100 flex items-center justify-center"
-        :class="{ 'text-primary': spinning }"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        :class="[
+          expanded ? 'w-full px-3' : 'justify-center w-9',
+          { '!text-primary': spinning },
+        ]"
         @click="manualSync"
       >
         <v-remixicon
           name="riLoopRightLine"
-          size="24"
+          size="20"
           :class="{ 'animate-spin': spinning }"
+          class="shrink-0 transition-transform duration-200"
         />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+          >
+            Sync
+          </span>
+        </transition>
       </button>
 
       <button
         v-tooltip:right="
-          translations.sidebar.toggleDarkTheme + ' (' + keyBinding + '+Shift+L)'
+          !expanded
+            ? `${translations.sidebar.toggleDarkTheme} (${keyBinding}+Shift+L)`
+            : undefined
         "
         :aria-label="translations.sidebar.toggleDarkTheme"
-        class="transition-colors p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        :class="expanded ? 'w-full px-3' : 'justify-center w-9'"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
         <v-remixicon
-          size="24"
-          :class="
-            theme.isDark()
-              ? 'text-primary'
-              : 'text-neutral-500 hover:text-neutral-900'
-          "
+          size="20"
+          :class="theme.isDark() ? 'text-primary' : ''"
           :name="theme.isDark() ? 'riSunLine' : 'riMoonClearLine'"
+          class="shrink-0 transition-transform duration-200"
         />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+          >
+            {{ theme.isDark() ? 'Light' : 'Dark' }}
+          </span>
+        </transition>
       </button>
 
-      <hr class="w-8 border my-4" />
-
-      <div class="relative flex items-center justify-center w-full pb-2">
-        <transition name="pill">
-          <div
-            v-if="$route.path === '/settings'"
-            class="absolute left-0 w-1 h-6 bg-primary rounded-r-full"
-          />
+      <router-link
+        ref="settingsBtn"
+        v-tooltip:right="
+          !expanded
+            ? `${translations.settings.title} (${keyBinding}+,)`
+            : undefined
+        "
+        :aria-label="translations.settings.title"
+        to="/settings"
+        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
+        active-class="text-primary bg-primary/10"
+        :class="[
+          !isSettingsActive
+            ? 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100'
+            : '',
+          expanded ? 'w-full px-3' : 'justify-center w-9',
+        ]"
+      >
+        <v-remixicon
+          name="riSettingsLine"
+          size="20"
+          class="shrink-0 transition-transform duration-200"
+        />
+        <transition name="fade-fast">
+          <span
+            v-if="expanded"
+            class="ml-3 text-sm text-neutral-600 dark:text-neutral-400 whitespace-nowrap truncate"
+          >
+            {{ translations.settings.title }}
+          </span>
         </transition>
-        <router-link
-          v-tooltip:right="
-            translations.settings.title + ' (' + keyBinding + '+,)'
-          "
-          :aria-label="translations.settings.title"
-          to="/settings"
-          class="transition-all p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-800/50 flex items-center justify-center"
-          active-class="text-primary bg-primary/10"
-          :class="[
-            $route.path !== '/settings'
-              ? 'hover:text-neutral-900 dark:hover:text-neutral-100'
-              : '',
-          ]"
-        >
-          <v-remixicon name="riSettingsLine" size="24" />
-        </router-link>
-      </div>
+      </router-link>
     </div>
   </aside>
 </template>
 
 <script>
-import { onUnmounted, ref } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
 import { useTheme } from '@/composable/theme';
+import { useNoteStore } from '@/store/note';
+import { useFolderStore } from '@/store/folder';
 import emitter from 'tiny-emitter/instance';
 import { forceSyncNow } from '@/utils/sync';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
@@ -165,8 +316,25 @@ import { useSounds } from '@/composable/useSounds';
 export default {
   setup() {
     const { play } = useSounds();
+    const router = useRouter();
+    const route = useRoute();
     const spinning = ref(false);
     const theme = useTheme();
+    const noteStore = useNoteStore();
+    const folderStore = useFolderStore();
+    const titlebarInset = ref('0px');
+
+    // DOM Element pointers to calculate indicator pill transitions cleanly
+    const homeBtn = ref(null);
+    const archiveBtn = ref(null);
+
+    const settingsBtn = ref(null);
+
+    const pillTop = ref(0);
+    const pillHeight = ref(0);
+    const footerPillTop = ref(0);
+    const footerPillHeight = ref(0);
+
     const {
       translations,
       navItems,
@@ -177,8 +345,160 @@ export default {
       handleNavigation,
       createShortcutMap,
     } = useAppShellActions();
+
     const isMacOS = navigator.platform.toUpperCase().includes('MAC');
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
+
+    onMounted(() => {
+      const computedStyle = window.getComputedStyle(document.documentElement);
+
+      const envTop = computedStyle
+        .getPropertyValue('--safe-area-inset-top')
+        .trim();
+      if (envTop && envTop !== '0px') {
+        titlebarInset.value = envTop;
+      } else {
+        titlebarInset.value = '0px';
+      }
+
+      if (typeof window !== 'undefined') {
+        window.addNote = addNote;
+      }
+
+      calculatePillPositions();
+    });
+
+    const expanded = ref(localStorage.getItem('sidebarExpanded') !== 'false');
+
+    function toggleExpanded() {
+      expanded.value = !expanded.value;
+      localStorage.setItem('sidebarExpanded', String(expanded.value));
+      nextTick(() => calculatePillPositions());
+    }
+
+    // Fixed path structural matches for nested routes (`/settings/labels` won't drop parent highlight)
+    const isAllNotesActive = computed(
+      () =>
+        (route.path === '/' || route.name === 'Home') &&
+        route.query.archived !== 'true'
+    );
+    const isArchiveActive = computed(() => route.query.archived === 'true');
+
+    const isSettingsActive = computed(() => route.path.startsWith('/settings'));
+
+    // Compute active styles for a single fluid moving side indicator bar
+    const pillStyle = computed(() => ({
+      top: `${pillTop.value}px`,
+      height: `${pillHeight.value}px`,
+      opacity: pillHeight.value > 0 ? 1 : 0,
+    }));
+
+    const footerPillStyle = computed(() => ({
+      top: `${footerPillTop.value}px`,
+      height: `${footerPillHeight.value}px`,
+      opacity: footerPillHeight.value > 0 ? 1 : 0,
+    }));
+
+    function calculatePillPositions() {
+      // Main navigation pill calculations
+      let activeNavEl = null;
+      if (isAllNotesActive.value) activeNavEl = homeBtn.value;
+      else if (isArchiveActive.value) activeNavEl = archiveBtn.value;
+
+      if (activeNavEl && activeNavEl.$el ? activeNavEl.$el : activeNavEl) {
+        const el = activeNavEl.$el || activeNavEl;
+        pillTop.value = el.offsetTop + 6; // slightly centered
+        pillHeight.value = el.offsetHeight - 12;
+      } else {
+        pillHeight.value = 0;
+      }
+
+      // Footer utilities pill calculations
+      if (isSettingsActive.value && settingsBtn.value) {
+        const el = settingsBtn.value.$el || settingsBtn.value;
+        footerPillTop.value = el.offsetTop + 6;
+        footerPillHeight.value = el.offsetHeight - 12;
+      } else {
+        footerPillHeight.value = 0;
+      }
+    }
+
+    watch(
+      () => route.fullPath,
+      () => {
+        nextTick(() => calculatePillPositions());
+      }
+    );
+
+    function goHome() {
+      router.push('/');
+    }
+    function goArchive() {
+      router.push('/?archived=true');
+    }
+
+    function openNote(noteId) {
+      router.push(`/note/${noteId}`);
+    }
+
+    function openFolder(folderId) {
+      router.push(`/folder/${folderId}`);
+    }
+
+    // Optimized Reactive loop layer
+    const recentNotes = computed(() => {
+      return Object.values(noteStore.data)
+        .filter((note) => note.id && !note.isArchived)
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+        .slice(0, 5)
+        .map((note) => ({
+          id: note.id,
+          updatedAt: note.updatedAt,
+          title: note.title || 'Untitled',
+          type: 'note',
+        }));
+    });
+
+    const recentFolders = computed(() => {
+      return Object.values(folderStore.data)
+        .filter(
+          (folder) =>
+            folder.id &&
+            !folderStore.deletedIds[folder.id] &&
+            !folder.isArchived
+        )
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+        .slice(0, 5)
+        .map((folder) => ({
+          id: folder.id,
+          updatedAt: folder.updatedAt,
+          title: folder.name || 'Untitled',
+          type: 'folder',
+          icon: folder.icon || '',
+          color: folder.color || '',
+        }));
+    });
+
+    const recentItems = computed(() => {
+      return [...recentNotes.value, ...recentFolders.value]
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+        .slice(0, 8);
+    });
+
+    function formatRelativeTime(timestamp) {
+      if (!timestamp) return '';
+      const diffMs = Date.now() - timestamp;
+      const diffMinutes = Math.floor(diffMs / 60000);
+
+      if (diffMinutes < 1) return 'now';
+      if (diffMinutes < 60) return `${diffMinutes}m`;
+      const diffHours = Math.floor(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours}h`;
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffDays < 7) return `${diffDays}d`;
+      return `${Math.floor(diffDays / 7)}w`;
+    }
+
     const enableDarkTheme = () => theme.setTheme('dark');
     const enableLightTheme = () => theme.setTheme('light');
 
@@ -187,10 +507,6 @@ export default {
     emitter.on('open-settings', openSettings);
     emitter.on('dark', enableDarkTheme);
     emitter.on('light', enableLightTheme);
-
-    if (typeof window !== 'undefined') {
-      window.addNote = addNote;
-    }
 
     useGlobalShortcuts(() =>
       createShortcutMap({
@@ -205,15 +521,15 @@ export default {
       emitter.off('open-settings', openSettings);
       emitter.off('dark', enableDarkTheme);
       emitter.off('light', enableLightTheme);
+
+      // CRITICAL FIX: Safe memory leak cleanup
+      if (typeof window !== 'undefined' && window.addNote) {
+        delete window.addNote;
+      }
     });
 
-    function getNavTestId(path) {
-      if (path === '/') return 'nav-notes-button';
-      if (path === '/?archived=true') return 'nav-archive-button';
-      return null;
-    }
-
     function manualSync() {
+      if (spinning.value) return;
       spinning.value = true;
       forceSyncNow();
       setTimeout(() => {
@@ -223,44 +539,54 @@ export default {
     }
 
     return {
-      navs: navItems,
+      expanded,
+      toggleExpanded,
+      isAllNotesActive,
+      isArchiveActive,
+
+      isSettingsActive,
+      pillStyle,
+      footerPillStyle,
+      homeBtn,
+      archiveBtn,
+
+      settingsBtn,
+      recentItems,
+      formatRelativeTime,
+      openFolder,
+      goHome,
+      goArchive,
+
+      openNote,
+      titlebarInset,
       translations,
       theme,
       spinning,
       addNote,
       addFolder,
       manualSync,
-      openLastEdited,
       keyBinding,
-      handleNavigation,
-      getNavTestId,
+      folderStore,
     };
   },
 };
 </script>
 
 <style scoped>
-.pill-enter-active,
-.pill-leave-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.pill-enter-from,
-.pill-leave-to {
-  transform: scaleY(0);
-  opacity: 0;
-}
-
-.shadow-inner {
-  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.04);
-}
-
-/* Hide scrollbar but keep scroll functionality */
 .scrollbar-none {
   scrollbar-width: none;
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+.fade-fast-enter-active,
+.fade-fast-leave-active {
+  transition: opacity 0.2s ease-in-out;
+}
+.fade-fast-enter-from,
+.fade-fast-leave-to {
+  opacity: 0;
 }
 
 @media print {

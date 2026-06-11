@@ -1,5 +1,11 @@
 import { backend } from '@/lib/tauri-bridge';
-import { computePosition, autoUpdate, offset, flip, shift } from '@floating-ui/dom';
+import {
+  computePosition,
+  autoUpdate,
+  offset,
+  flip,
+  shift,
+} from '@floating-ui/dom';
 
 function parseContent(value) {
   if (typeof value === 'string') return value;
@@ -13,7 +19,11 @@ export default {
 
     if (modifiers.group) {
       if (!Array.isArray(instance._tooltipGroup)) instance._tooltipGroup = [];
-      instance._tooltipGroup.push({ el, content: parseContent(value), placement: arg });
+      instance._tooltipGroup.push({
+        el,
+        content: parseContent(value),
+        placement: arg,
+      });
       return;
     }
 
@@ -46,6 +56,7 @@ export default {
     };
 
     const show = () => {
+      if (!tooltipEl.textContent) return;
       tooltipEl.style.display = '';
       updatePosition();
     };
@@ -72,7 +83,9 @@ export default {
         el.removeEventListener('focus', show);
         el.removeEventListener('blur', hide);
       },
-      setContent: (text) => { tooltipEl.textContent = text; },
+      setContent: (text) => {
+        tooltipEl.textContent = text;
+      },
     };
   },
   updated(el, { value, arg = 'top' }) {
