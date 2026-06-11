@@ -71,6 +71,9 @@ debug = 1
 incremental = true
 codegen-units = 256
 
+[profile.release]
+strip = true
+
 [profile.dev.package.rusqlite]
 opt-level = 3
 [profile.dev.package.aes-gcm]

@@ -457,6 +457,7 @@ dependencies = [
  "sha2",
  "tauri",
  "tauri-build",
+ "tauri-plugin-app-icon",
  "tauri-plugin-audio-recorder",
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-dialog",
@@ -468,6 +469,7 @@ dependencies = [
  "tauri-plugin-safe-area-insets-css",
  "tauri-plugin-scoped-storage",
  "tauri-plugin-single-instance",
+ "tauri-plugin-spotsearch",
  "tauri-plugin-store",
  "tauri-plugin-swipe-back-ios",
  "tauri-plugin-updater",
@@ -3314,7 +3316,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a180dd8642fa45cdb7dd721cd4c11b1cadd4929ce112ebd8b9f5803cc79d536"
 dependencies = [
  "bitflags 2.11.0",
+ "block2",
  "dispatch2",
+ "libc",
  "objc2",
 ]
 
@@ -5367,6 +5371,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tauri-plugin-app-icon"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8482b67b1c5ecab49415937ab35dad48deb42fe5bfbb75330fca068d593fa36"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "tauri-plugin-audio-recorder"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5545,6 +5562,20 @@ dependencies = [
  "tracing",
  "windows-sys 0.60.2",
  "zbus 5.14.0",
+]
+
+[[package]]
+name = "tauri-plugin-spotsearch"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "177008e67d43e7dcbb69ed98aadad9a9bea5996496abe9ede9e252722fcaeb99"
+dependencies = [
+ "cc",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

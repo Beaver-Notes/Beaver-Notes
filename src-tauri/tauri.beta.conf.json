@@ -7,7 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "node scripts/tauri-dev-server.mjs",
-    "beforeBuildCommand": "vite build --config vite.config.js"
+    "beforeBuildCommand": "yarn vite build --config vite.config.js"
   },
   "app": {
     "windows": [
