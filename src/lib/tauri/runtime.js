@@ -25,6 +25,12 @@ export function isIPadRuntime() {
   );
 }
 
+export function isTabletRuntime() {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined')
+    return false;
+  return isIPadRuntime() || (isPhoneRuntime() && window.innerWidth >= 768);
+}
+
 export function isIOSRuntime() {
   return (
     typeof navigator !== 'undefined' &&

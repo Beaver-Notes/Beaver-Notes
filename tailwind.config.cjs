@@ -27,7 +27,7 @@ module.exports = {
   plugins: [
     function ({ addVariant }) {
       addVariant('mobile', '.runtime-mobile &');
-      addVariant('ipad', '.runtime-ipad &');
+      addVariant('tablet', '.runtime-tablet &');
     },
     require('@tailwindcss/typography'),
     require('@eioluseyi/tailwind-fade')({

@@ -12,17 +12,34 @@ import './assets/css/style.css';
 import './assets/css/one-light.css';
 import './assets/css/one-dark.css';
 
-const isMobileRuntime = backend.isMobileRuntime();
-document.documentElement.classList.toggle('runtime-mobile', isMobileRuntime);
-document.documentElement.dataset.runtime = isMobileRuntime
-  ? 'mobile'
-  : 'desktop';
+const isPhoneRuntime = backend.isPhoneRuntime();
+
+function updateRuntimeClass() {
+  const isLarge = window.innerWidth >= 768;
+  const isPhone = isPhoneRuntime && !isLarge;
+  const isTablet = backend.isIPadRuntime() || (isPhoneRuntime && isLarge);
+
+  document.documentElement.classList.toggle('runtime-mobile', isPhone);
+  document.documentElement.classList.toggle('runtime-tablet', isTablet);
+
+  return isPhone;
+}
+
+// Run once at startup
+let isPhoneDevice = updateRuntimeClass();
+
+// React to viewport changes — only relevant on phone UA
+if (isPhoneRuntime) {
+  window.matchMedia('(min-width: 768px)').addEventListener('change', () => {
+    isPhoneDevice = updateRuntimeClass();
+  });
+}
 
 if (!navigator.platform.includes('Mac')) {
   document.documentElement.classList.add('custom-scrollbar');
 }
 
-if (!isMobileRuntime) {
+if (!isPhoneDevice) {
   const savedZoom = getStoredZoomLevel();
   setStoredZoomLevel(savedZoom).catch(console.error);
 }
