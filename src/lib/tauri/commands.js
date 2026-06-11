@@ -97,6 +97,10 @@ const commandAliases = {
   'spotsearch:indexItems': 'index_items',
   'spotsearch:deleteItems': 'delete_items',
   'spotsearch:deleteDomain': 'delete_domain',
+  'app-icon:isSupported': 'is_supported',
+  'app-icon:getName': 'get_name',
+  'app-icon:change': 'change',
+  'app-icon:reset': 'reset',
 };
 
 function withKeyVariants(key, value) {
