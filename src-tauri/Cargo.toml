@@ -53,6 +53,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
+tauri-plugin-spotsearch = "0.2.0"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 font-kit = "0.13"

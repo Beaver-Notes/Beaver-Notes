@@ -97,6 +97,16 @@ export function useSettingsData({
     },
   });
 
+  const spotlightEnabled = computed({
+    get() {
+      return appStore.setting.spotlightEnabled;
+    },
+    set(value) {
+      appStore.setting.spotlightEnabled = value;
+      appStore.setSettingStorage('spotlightEnabled', value);
+    },
+  });
+
   const openAfterCreation = computed({
     get() {
       return appStore.setting.openAfterCreation;
@@ -487,5 +497,6 @@ export function useSettingsData({
     showDialogAlert,
     getEffectiveAppDirectory,
     soundsEnabled,
+    spotlightEnabled,
   };
 }

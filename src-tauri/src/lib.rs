@@ -76,6 +76,7 @@ pub fn run() {
         }));
     }
 
+        .plugin(tauri_plugin_spotsearch::init())
     #[cfg(target_os = "ios")]
     {
         builder = builder.plugin(tauri_plugin_swipe_back_ios::init());
@@ -83,6 +84,10 @@ pub fn run() {
 
     let mut builder = bootstrap::register_asset_protocols(builder)
         .invoke_handler(tauri::generate_handler![
+            tauri_plugin_spotsearch::commands::enable_indexing,
+            tauri_plugin_spotsearch::commands::index_items,
+            tauri_plugin_spotsearch::commands::delete_items,
+            tauri_plugin_spotsearch::commands::delete_domain,
             commands::app::app_info,
             commands::app::app_directory,
             commands::app::migration_status,

@@ -93,6 +93,10 @@ const commandAliases = {
   'search:indexNote': 'search_index_note',
   'search:removeNote': 'search_remove_note',
   'search:rebuildIndex': 'search_rebuild_index',
+  'spotsearch:enableIndexing': 'enable_indexing',
+  'spotsearch:indexItems': 'index_items',
+  'spotsearch:deleteItems': 'delete_items',
+  'spotsearch:deleteDomain': 'delete_domain',
 };
 
 function withKeyVariants(key, value) {

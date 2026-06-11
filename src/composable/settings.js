@@ -107,6 +107,11 @@ const settingDefs = {
     defaultValue: true,
     parse: (value) => value === true || value === 'true',
   },
+  spotlightEnabled: {
+    legacyKey: 'spotlightEnabled',
+    defaultValue: false,
+    parse: (value) => value === true || value === 'true',
+  },
   toolbarConfig: {
     legacyKey: 'toolbarConfig',
     defaultValue: null,
