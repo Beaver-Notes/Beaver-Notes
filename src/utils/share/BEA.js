@@ -132,7 +132,7 @@ export async function exportBEA(noteId, noteTitle) {
   }
 }
 
-export async function importBEA(filePath, router, store) {
+export async function importBEA(filePath, router, store, folderId = null) {
   const share = getShareTranslations();
   try {
     const fileContent = await readImportJson(filePath);
@@ -166,7 +166,7 @@ export async function importBEA(filePath, router, store) {
       );
     }
 
-    await processImportedNote(fileData, router, store);
+    await processImportedNote(fileData, router, store, folderId);
 
     return true;
   } catch (error) {
@@ -175,7 +175,7 @@ export async function importBEA(filePath, router, store) {
   }
 }
 
-async function processImportedNote(noteData, router) {
+async function processImportedNote(noteData, router, folderId = null) {
   const storage = useStorage();
   const noteStore = useNoteStore();
   const labelStore = useLabelStore();
@@ -193,6 +193,7 @@ async function processImportedNote(noteData, router) {
       title: noteData.title,
       content: sanitizeNoteContent(noteData.content),
       labels: noteData.labels || [],
+      folderId,
     };
     if (noteStore.data[noteData.id]) {
       await noteStore.update(noteData.id, notePayload);
@@ -214,8 +215,12 @@ async function processImportedNote(noteData, router) {
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
 
-      await ensureExportFolder(path.join(appDirectory, 'notes-assets', noteData.id));
-      await ensureExportFolder(path.join(appDirectory, 'file-assets', noteData.id));
+      await ensureExportFolder(
+        path.join(appDirectory, 'notes-assets', noteData.id)
+      );
+      await ensureExportFolder(
+        path.join(appDirectory, 'file-assets', noteData.id)
+      );
 
       for (const [filename, base64Data] of Object.entries(notesAssets || {})) {
         const byteArray = Uint8Array.from(atob(base64Data), (char) =>
