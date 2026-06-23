@@ -4,7 +4,9 @@ const ONBOARDING_ROUTE_NAME = 'Onboarding';
 
 export function useAppShellLayout({ store, route, backend }) {
   const keyboardVisible = ref(false);
+  const pluginKeyboardVisible = ref(false);
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
+  const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
     () => !store.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
   );
@@ -12,10 +14,10 @@ export function useAppShellLayout({ store, route, backend }) {
     () =>
       showSidebar.value &&
       route.name !== 'Note' &&
-      (!isMobileRuntime.value || !keyboardVisible.value)
+      (!isPhoneRuntime.value || !keyboardVisible.value)
   );
   const useMobileBottomDockSpacing = computed(
-    () => isMobileRuntime.value && showMobileNavbar.value
+    () => isPhoneRuntime.value && showMobileNavbar.value
   );
   const mainStyle = computed(() => {
     if (!isMobileRuntime.value || route.name === ONBOARDING_ROUTE_NAME)
@@ -77,13 +79,15 @@ export function useAppShellLayout({ store, route, backend }) {
     const activeElement = document.activeElement;
     const hasEditableFocus = isEditableElement(activeElement);
     const keyboardDelta = maxVisualViewportHeight - viewportHeight;
-    keyboardVisible.value = hasEditableFocus && keyboardDelta > 120;
+    keyboardVisible.value =
+      hasEditableFocus &&
+      (keyboardDelta > 120 || pluginKeyboardVisible.value);
   };
 
   watch(
     showMobileNavbar,
     (visible) => {
-      if (typeof document === 'undefined' || !isMobileRuntime.value) return;
+      if (typeof document === 'undefined' || !isPhoneRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-mobile-dock-height-active',
         visible ? 'var(--app-mobile-dock-height)' : '0px'
@@ -138,9 +142,11 @@ export function useAppShellLayout({ store, route, backend }) {
 
     unlistenFns.push(
       backend.listen('keyboard_shown', () => {
+        pluginKeyboardVisible.value = true;
         keyboardVisible.value = true;
       }),
       backend.listen('keyboard_hidden', () => {
+        pluginKeyboardVisible.value = false;
         keyboardVisible.value = false;
       })
     );

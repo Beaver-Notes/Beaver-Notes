@@ -1,6 +1,13 @@
 <template>
   <div
-    class="folder-card relative group cursor-pointer w-full"
+    :class="{
+      'is-drag-over': isDragOver,
+      'folder-card': true,
+      relative: true,
+      group: true,
+      'cursor-pointer': true,
+      'w-full': true,
+    }"
     style="
       aspect-ratio: 6/5;
       min-height: 130px;
@@ -18,7 +25,7 @@
     ></div>
 
     <div
-      class="absolute top-[20%] left-0 z-0 w-full rounded-xl rounded-tl-none transition-colors shadow-sm"
+      class="absolute top-[20%] left-0 z-0 w-full rounded-xl rounded-tl-none transition-colors"
       style="height: 80%"
       :style="{
         backgroundColor: folder.color || DEFAULT_FOLDER_COLOR,
@@ -28,7 +35,7 @@
 
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 shadow-sm"
+      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3"
       style="top: 15%; left: 14%; width: 72%; height: 58%"
     >
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
@@ -38,7 +45,7 @@
 
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 shadow-md"
+      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4"
       style="top: 23%; left: 21%; width: 72%; height: 64%"
     >
       <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
@@ -48,7 +55,7 @@
     </div>
 
     <div
-      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col justify-between rounded-xl p-3 shadow-sm text-neutral-800"
+      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col justify-between rounded-xl p-3 text-neutral-800"
       style="height: 65%"
       :style="{
         background: `linear-gradient(to bottom, ${
@@ -63,7 +70,7 @@
           <template v-if="!isMobileRuntime">
             <div v-if="!isRenaming" class="flex flex-col">
               <h3
-                class="text-white font-bold text-sm truncate leading-tight drop-shadow-sm"
+                class="text-white font-bold text-sm truncate leading-tight"
                 @click.stop="startRenaming"
               >
                 {{ folder.name || translations.card.untitledFolder }}
@@ -228,6 +235,20 @@
         class="folder-card__actions flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
       >
         <button
+          v-tooltip.group="
+            folder.isArchived
+              ? translations.card.unarchive
+              : translations.card.archive
+          "
+          class="folder-card__action size-6 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded text-white"
+          @click.stop="toggleArchive"
+        >
+          <v-remixicon
+            :name="folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'"
+            class="size-3.5"
+          />
+        </button>
+        <button
           v-tooltip.group="translations.card.moveToFolder"
           class="folder-card__action size-6 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded text-white"
           @click.stop="showFolderMoveModal = true"
@@ -388,6 +409,7 @@ import emojis from 'emoji.json';
 const props = defineProps({
   folder: { type: Object, required: true },
   disableOpen: { type: Boolean, default: false },
+  isDragOver: { type: Boolean, default: false },
 });
 
 const folderStore = useFolderStore();
@@ -622,40 +644,46 @@ function deleteFolder() {
   });
 }
 
+function toggleArchive() {
+  if (props.folder.isArchived) {
+    folderStore.unarchive(props.folder.id);
+  } else {
+    folderStore.archive(props.folder.id);
+  }
+}
+
 const { translations } = useTranslations();
 </script>
 
 <style scoped>
-/* Base card behavior */
 .folder-card {
-  transition: transform 0.3s ease;
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .folder-card:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
+}
+.folder-card:active {
+  transform: translateY(0) scale(0.99);
 }
 
-/* Front body flap - Added 3D rotation and shadow updates */
 .folder-card .folder-card__body {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.35s ease;
-}
-.folder-card:hover .folder-card__body {
-  transform: rotateX(-25deg);
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Internal paper sheet lifting offsets */
 .folder-card .folder-card__sheet--front {
   transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.folder-card:hover .folder-card__sheet--front {
-  transform: translateY(-6px) rotate(3deg) !important;
-}
-
 .folder-card .folder-card__sheet--rear {
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.folder-card:hover .folder-card__sheet--rear {
+
+.folder-card.is-drag-over .folder-card__body {
+  transform: rotateX(-25deg);
+}
+.folder-card.is-drag-over .folder-card__sheet--front {
+  transform: translateY(-6px) rotate(3deg) !important;
+}
+.folder-card.is-drag-over .folder-card__sheet--rear {
   transform: translateY(-8px) !important;
 }
 </style>

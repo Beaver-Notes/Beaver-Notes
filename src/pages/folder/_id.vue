@@ -117,6 +117,7 @@
                 :key="childFolder.id"
                 :folder="childFolder"
                 :disable-open="selectionMode"
+                :is-drag-over="dragOverFolderId === childFolder.id"
                 :class="{
                   'transform scale-[1.02]':
                     dragOverFolderId === childFolder.id ||
@@ -273,9 +274,18 @@ export default {
     const notes = computed(() => filterNotes(sortedNotes.value));
 
     const folders = computed(() => {
-      const childFolders = folderStore.folders.filter(
+      const isArchiveView = route.query.archived === 'true';
+
+      let childFolders = folderStore.folders.filter(
         (f) =>
           f.parentId === currentFolderId.value && !folderStore.deletedIds[f.id]
+      );
+
+      // Filter by archive status:
+      // In archive view, show only archived folders
+      // In normal view, show only non-archived folders
+      childFolders = childFolders.filter((f) =>
+        isArchiveView ? f.isArchived : !f.isArchived
       );
 
       return {

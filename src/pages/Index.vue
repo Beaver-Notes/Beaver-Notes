@@ -62,6 +62,7 @@
               <home-folder-card
                 :folder="folder"
                 :disable-open="selectionMode"
+                :is-drag-over="dragOverFolderId === folder.id"
                 :class="{
                   'transform scale-[1.02]':
                     dragOverFolderId === folder.id ||
@@ -212,8 +213,17 @@ export default {
     const notes = computed(() => filterNotes(sortedNotes.value));
 
     const folders = computed(() => {
-      const rootFolders = folderStore.rootFolders.filter(
+      const isArchiveView = route.query.archived === 'true';
+
+      let rootFolders = folderStore.rootFolders.filter(
         (f) => !folderStore.deletedIds[f.id]
+      );
+
+      // Filter by archive status:
+      // In archive view, show only archived folders
+      // In normal view, show only non-archived folders
+      rootFolders = rootFolders.filter((f) =>
+        isArchiveView ? f.isArchived : !f.isArchived
       );
 
       const sortedFolders = sortArray({

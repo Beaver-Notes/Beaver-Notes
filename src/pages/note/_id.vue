@@ -23,7 +23,7 @@
     </template>
 
     <div
-      class="editor note-editor-page mobile:px-4 px-12 lg:px-0 sm:mx-auto"
+      class="editor note-editor-page self-center w-full mobile:px-4 px-12 lg:px-0"
       :class="{ 'mobile-search-open': showSearch }"
       :style="{
         '--selected-width': note?.isFullWidth ? '100%' : '54rem',
@@ -102,6 +102,7 @@
         ref="noteEditor"
         :key="$route.params.id"
         :model-value="note.content"
+        :note="note"
         :cursor-position="note.lastCursorPosition"
         @update="
           autoScroll();
@@ -114,7 +115,7 @@
     <note-headings-progress
       v-if="editor"
       :editor="editor"
-      class="mobile:hidden"
+      class="mobile:hidden ipad:hidden"
     />
   </div>
 </template>
@@ -411,10 +412,6 @@ export default {
 .title-placeholder:empty::before {
   content: attr(placeholder);
   color: #a1a1aa;
-}
-
-:root {
-  --selected-width: 54rem;
 }
 
 .editor {

@@ -48,6 +48,10 @@ export const useStore = defineStore('main', {
         .map(({ value }) => value);
     },
 
+    async _ensureSpotlightIndex(noteStore) {
+      reindexAllNotes(noteStore.data);
+    },
+
     async _ensureFtsIndex() {
       const storedVersion = await storage.get('fts_index_version', 0);
       if (storedVersion >= FTS_INDEX_VERSION) return;
