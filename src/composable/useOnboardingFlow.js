@@ -118,6 +118,7 @@ export function useOnboardingFlow({
     syncPath: '',
     autoSync: false,
     soundsEnabled: true,
+    spotlightEnabled: false,
   });
 
   // ── Static config ──────────────────────────────────────────────────────────
@@ -331,6 +332,10 @@ export function useOnboardingFlow({
 
   const selectSounds = (value) => {
     fresh.soundsEnabled = value;
+  };
+
+  const selectSpotlight = (value) => {
+    fresh.spotlightEnabled = value;
   };
 
   const selectZoomLevel = (zoomLevel) => {
@@ -763,6 +768,8 @@ export function useOnboardingFlow({
     fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
     fresh.soundsEnabled =
       getSettingSync('soundsEnabled') ?? fresh.soundsEnabled;
+    fresh.spotlightEnabled =
+      getSettingSync('spotlightEnabled') ?? fresh.spotlightEnabled;
     document.documentElement.style.setProperty(
       '--selected-font',
       fresh.selectedFont
@@ -837,6 +844,7 @@ export function useOnboardingFlow({
     selectFont,
     selectLanguage,
     selectSounds,
+    selectSpotlight,
     selectZoomLevel,
 
     refreshStatus,

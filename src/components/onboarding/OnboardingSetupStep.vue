@@ -142,6 +142,27 @@
             @update:model-value="handleSoundsChange"
           />
         </div>
+        <div
+          v-if="isMobileRuntime"
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              Spotlight indexing
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Let iOS / macOS Spotlight index your notes so they can be found via system search.
+            </p>
+          </div>
+          <ui-switch
+            :model-value="spotlightEnabled"
+            @update:model-value="handleSpotlightChange"
+          />
+        </div>
       </div>
     </div>
 
@@ -165,6 +186,8 @@ export default {
     fonts: { type: Array, required: true },
     languages: { type: Array, required: true },
     soundsEnabled: { type: Boolean, required: true },
+    spotlightEnabled: { type: Boolean, required: false },
+    isMobileRuntime: { type: Boolean, required: false },
   },
 
   emits: [
@@ -174,6 +197,7 @@ export default {
     'update-font',
     'update-language',
     'update-sounds',
+    'update-spotlight',
   ],
 
   methods: {
@@ -185,6 +209,9 @@ export default {
     },
     handleSoundsChange(event) {
       this.$emit('update-sounds', event);
+    },
+    handleSpotlightChange(event) {
+      this.$emit('update-spotlight', event);
     },
   },
 };

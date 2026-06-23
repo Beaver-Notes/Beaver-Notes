@@ -186,11 +186,14 @@
           :fonts="fonts"
           :languages="languages"
           :sounds-enabled="fresh.soundsEnabled"
+          :spotlight-enabled="fresh.spotlightEnabled"
+          :is-mobile-runtime="isMobileRuntime"
           @select-theme="selectTheme"
           @select-accent="selectAccentColor"
           @update-font="selectFont($event)"
           @update-language="selectLanguage($event)"
           @update-sounds="selectSounds($event)"
+          @update-spotlight="selectSpotlight($event)"
         >
           <template #back>
             <ui-button
