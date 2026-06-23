@@ -217,11 +217,30 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
     notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval ?? 0.25
   }
 
+  private func isFloatingKeyboard(for notification: Notification) -> Bool {
+    guard UIDevice.current.userInterfaceIdiom == .pad else { return false }
+    guard
+      let userInfo = notification.userInfo,
+      let keyboardFrameValue = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue
+    else {
+      return false
+    }
+    let keyboardFrame = keyboardFrameValue.cgRectValue
+    let screenBounds = UIScreen.main.bounds
+    let isNarrow = keyboardFrame.width < screenBounds.width * 0.85
+    let isAboveBottom = keyboardFrame.maxY < screenBounds.height - 50
+    return isNarrow && isAboveBottom
+  }
+
   private func applyKeyboardLayout(notification: Notification, forceHidden: Bool) {
     guard let webview = trackedWebView, let parent = webview.superview else { return }
 
     captureBaselineInsetsIfNeeded(for: webview)
     applyBackgroundColors(for: webview)
+
+    if !forceHidden && isFloatingKeyboard(for: notification) {
+      return
+    }
 
     let overlap = keyboardOverlap(for: notification, in: webview, forceHidden: forceHidden)
     var resizedFrame = parent.bounds
