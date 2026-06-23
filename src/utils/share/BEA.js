@@ -1,5 +1,4 @@
 import { useStorage } from '@/composable/storage';
-import { useDialog } from '@/composable/dialog';
 import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
@@ -29,16 +28,6 @@ function interpolate(template, params = {}) {
     out = out.split(`{${key}}`).join(String(value));
   }
   return out;
-}
-
-function showDialogAlert(body) {
-  const i18n = useI18nStore();
-  const dialog = useDialog();
-  dialog.alert({
-    title: i18n.messages?.settings?.alertTitle || 'Alert',
-    body,
-    okText: i18n.messages?.dialog?.close || 'Close',
-  });
 }
 
 async function encodeAssets(sourcePath) {
@@ -84,12 +73,7 @@ export async function exportBEA(noteId, noteTitle) {
     const noteToExport = notesArray.find((note) => note.id === noteId);
 
     if (!noteToExport) {
-      showDialogAlert(
-        interpolate(
-          share.noteWithIdNotFound || 'Note with ID {id} not found.',
-          { id: noteId }
-        )
-      );
+      console.warn(`Note with ID ${noteId} not found for export.`);
       return;
     }
 
@@ -117,16 +101,6 @@ export async function exportBEA(noteId, noteTitle) {
     const outputPath = path.join(rootDir, outputFileName);
 
     await writeExportJson(outputPath, exportedData);
-
-    showDialogAlert(
-      interpolate(
-        share.noteExportedToPath || 'Note "{title}" exported to "{path}".',
-        {
-          title: noteToExport.title,
-          path: outputPath,
-        }
-      )
-    );
   } catch (error) {
     console.error(error);
   }

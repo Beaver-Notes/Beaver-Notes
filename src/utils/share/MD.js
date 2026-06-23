@@ -1,4 +1,3 @@
-import { useDialog } from '@/composable/dialog';
 import { useI18nStore } from '@/store/i18n';
 import { useNoteStore } from '@/store/note';
 import { path } from '@/lib/tauri-bridge';
@@ -13,24 +12,6 @@ function getShareTranslations() {
   } catch {
     return {};
   }
-}
-
-function interpolate(template, params = {}) {
-  let out = template;
-  for (const [key, value] of Object.entries(params)) {
-    out = out.split(`{${key}}`).join(String(value));
-  }
-  return out;
-}
-
-function showDialogAlert(body) {
-  const i18n = useI18nStore();
-  const dialog = useDialog();
-  dialog.alert({
-    title: i18n.messages?.settings?.alertTitle || 'Alert',
-    body,
-    okText: i18n.messages?.dialog?.close || 'Close',
-  });
 }
 
 export async function exportMD(noteId, noteTitle, editor) {
@@ -78,13 +59,6 @@ export async function exportMD(noteId, noteTitle, editor) {
   try {
     await copyPath(fileAssetsSource, fileAssetsDest);
   } catch {}
-
-  showDialogAlert(
-    interpolate(
-      share.exportedNoteAndAssetsTo || 'Exported note and assets to "{path}"',
-      { path: folderPath }
-    )
-  );
 }
 
 function sanitize(name) {
