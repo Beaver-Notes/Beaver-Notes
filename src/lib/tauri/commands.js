@@ -101,6 +101,7 @@ const commandAliases = {
   'app-icon:getName': 'get_name',
   'app-icon:change': 'change',
   'app-icon:reset': 'reset',
+  'pdf:render': 'render_pdf',
 };
 
 function withKeyVariants(key, value) {
@@ -292,6 +293,18 @@ function normalizePayload(channel, payload) {
       return withKeyVariants('id', payload?.id);
     case 'search:rebuildIndex':
       return {};
+    case 'pdf:create':
+      return withKeyVariants('outputPath', payload);
+    case 'pdf:create-from-html':
+      return {
+        ...withKeyVariants(
+          'htmlContent',
+          payload?.htmlContent ?? payload?.html
+        ),
+        ...withKeyVariants('outputPath', payload?.outputPath),
+      };
+    case 'pdf:print':
+      return withKeyVariants('outputPath', payload);
     default:
       return payload ?? {};
   }
