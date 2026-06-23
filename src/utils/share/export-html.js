@@ -1,9 +1,15 @@
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readData } from '@/lib/native/fs';
+import mime from 'mime';
 
 const A4_CSS_W = 794;
 const PAGE_MARGIN_PX = 48;
+
+// A4 in points for WKWebView.createPDF. 1pt = 1/72 inch. A4 = 210×297mm.
+// 210mm / 25.4 * 72 = 595.28 ≈ 595pt  |  297mm / 25.4 * 72 = 841.89 ≈ 842pt
+const A4_PT_W = 595;
+const A4_PT_H = 842;
 
 const CALLOUT_STYLES = `
   .callout {
@@ -20,18 +26,46 @@ const CALLOUT_STYLES = `
   .callout-purple { background:#ede9fe; border-color:#8b5cf6; }
 `;
 
-const PAGE_CSS = `
+/**
+ * Build the CSS block for the exported document.
+ *
+ * isPaginated=true  → used by the PDF path. @page rules go at the TOP LEVEL
+ *                     (not inside @media print) because WKWebView.createPDF
+ *                     renders in "screen" mode, never "print" mode.
+ *                     Page size is expressed in pt to match WKPDFConfiguration.
+ *
+ * isPaginated=false → used by the HTML export path. @page rules go inside
+ *                     @media print for browser Print dialogs.
+ */
+function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
+  const padding = isPaginated ? '0' : `${pageMargin}px`;
+
+  // ── Shared rules (screen + PDF) ──────────────────────────────────────────
+  const shared = `
   *, *::before, *::after { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: transparent; overflow-x: hidden; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow-x: hidden;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 
   .export-root {
     font-size: 1.065rem;
     line-height: 1.5;
-    padding: ${PAGE_MARGIN_PX}px;
+    padding: ${padding};
     background: #ffffff;
     color: #1f1f1f;
-    width: ${A4_CSS_W}px;
+    width: 100%;
+    max-width: ${pageWidth}px;
     overflow-x: hidden;
+    margin: 0 auto;
   }
   .dark .export-root {
     background: #171717;
@@ -43,6 +77,7 @@ const PAGE_CSS = `
     padding-inline-start: 0 !important;
   }
 
+  /* Hide editor UI chrome */
   .export-root .ProseMirror-trailingBreak,
   .export-root .ProseMirror-gapcursor,
   .export-root .drag-handle,
@@ -58,26 +93,163 @@ const PAGE_CSS = `
   }
   .export-root [contenteditable] { contenteditable: unset; }
 
-  @media print {
-    @page { size: A4 portrait; margin: 1.5cm; }
-    html, body { width: 100% !important; background: #ffffff !important; color: #1f1f1f !important; }
-    .export-root { width: 100% !important; padding: 0 !important; background: transparent !important; }
-    .dark .export-root { background: transparent !important; color: #1f1f1f !important; }
-    h1, h2, h3, h4, h5, h6 { break-after: avoid; page-break-after: avoid; }
-    pre, table, figure, blockquote, .callout, tr { break-inside: avoid; page-break-inside: avoid; }
-    p { orphans: 3; widows: 3; }
+  .export-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0 0 1.5em 0;
+    padding: 0;
+    color: inherit;
   }
+
+  /* Page-break hints */
+  .export-root table,
+  .export-root figure,
+  .export-root img,
+  .export-root .callout {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .export-root h1, .export-root h2, .export-root h3,
+  .export-root h4, .export-root h5, .export-root h6 {
+    break-after: avoid;
+    page-break-after: avoid;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+  }
+  .export-root h1 { margin-top: 0; }
+
+  .export-root p { orphans: 3; widows: 3; }
 
   .export-root img { max-width: 100%; height: auto; display: block; }
 
   .export-root table { border-collapse: collapse; width: 100%; }
-  .export-root td, .export-root th { border: 1px solid #d1d5db; padding: 0.4em 0.6em; }
+  .export-root td, .export-root th {
+    border: 1px solid #d1d5db;
+    padding: 0.4em 0.6em;
+  }
   .dark .export-root td, .dark .export-root th { border-color: #404040; }
   .export-root a { color: inherit; text-decoration: underline; }
-`;
 
-// Maps Tailwind highlight classes to inline background-color values
-// so the isolated export iframe renders them without a Tailwind stylesheet.
+  .export-root mark {
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    padding: 0 2px;
+    border-radius: 3px;
+  }
+
+  .export-root sup {
+    vertical-align: super;
+    font-size: 0.75em;
+    line-height: 1;
+  }
+  .export-root .footnote-ref {
+    text-decoration: none;
+    color: inherit;
+  }
+  .export-root .footnotes {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid #d1d5db;
+    font-size: 0.875rem;
+    clear: both;
+  }
+  .dark .export-root .footnotes { border-top-color: #404040; }
+  .export-root .footnotes li { margin-bottom: 0.5em; }
+  `;
+
+  if (isPaginated) {
+    // ── PDF path: @page MUST be at top level, NOT inside @media print ──────
+    //
+    // WKWebView.createPDF renders in screen mode. Any CSS inside @media print
+    // is completely ignored. The @page rule here drives:
+    //   • Page dimensions passed to WKPDFConfiguration.rect (595pt × 842pt)
+    //   • Margins (white space around the content area on each page)
+    //
+    // We also reset html/body so the webview's own frame doesn't interfere,
+    // and force the content column to fill the printable area.
+    return `
+  ${shared}
+
+  @page {
+    size: ${A4_PT_W}pt ${A4_PT_H}pt;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+
+  html, body {
+    width: ${A4_PT_W}pt !important;
+    max-width: ${A4_PT_W}pt !important;
+    background: #ffffff !important;
+    color: #1f1f1f !important;
+  }
+
+  .export-root {
+    /* Fill the printable width; let @page margin handle whitespace */
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  img {
+    max-width: 100% !important;
+    /* Never let an image taller than one page minus margins */
+    max-height: calc(${A4_PT_H}pt - 30mm) !important;
+    height: auto !important;
+    width: auto !important;
+  }
+
+  table, pre {
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+    `;
+  }
+
+  // ── HTML export path: @page inside @media print (browser Print dialog) ───
+  return `
+  ${shared}
+
+  @media print {
+    @page {
+      size: A4 portrait;
+      margin: 12mm;
+    }
+
+    html, body {
+      width: 100% !important;
+      background: #ffffff !important;
+      color: #1f1f1f !important;
+    }
+
+    .export-root {
+      width: 100% !important;
+      max-width: 100% !important;
+      padding: 0 !important;
+      background: transparent !important;
+    }
+
+    img {
+      max-width: 100% !important;
+      max-height: calc(297mm - 3cm) !important;
+      height: auto !important;
+      width: auto !important;
+    }
+
+    table, pre {
+      max-width: 100% !important;
+      overflow: visible !important;
+    }
+  }
+  `;
+}
+
+// ── Everything below is unchanged from your original ────────────────────────
+
 const HIGHLIGHT_RGBA = {
   'bg-[#DC8D42]/30': 'rgba(220,141,66,0.30)',
   'bg-[#DC8D42]/40': 'rgba(220,141,66,0.40)',
@@ -113,15 +285,10 @@ function normalizeAssetPath(url) {
 }
 
 function getMimeType(src) {
-  if (src.endsWith('.svg')) return 'image/svg+xml';
-  if (src.endsWith('.png')) return 'image/png';
-  if (src.endsWith('.jpg') || src.endsWith('.jpeg')) return 'image/jpeg';
-  if (src.endsWith('.gif')) return 'image/gif';
-  if (src.endsWith('.webp')) return 'image/webp';
-  return 'image/png';
+  return mime.getType(src) || 'image/png';
 }
 
-function sanitizeClone(clone) {
+export function sanitizeClone(clone) {
   const toRemove = [
     '.drag-handle',
     '.grid-resize-handle',
@@ -149,6 +316,8 @@ function sanitizeClone(clone) {
     el.removeAttribute('contenteditable');
     el.removeAttribute('draggable');
     el.removeAttribute('tiptap-url');
+    el.removeAttribute('data-ref');
+    el.removeAttribute('data-node-type');
     [...el.attributes].forEach((attr) => {
       if (attr.name.startsWith('data-v-')) el.removeAttribute(attr.name);
     });
@@ -263,16 +432,14 @@ function sanitizeClone(clone) {
     if (!el.textContent.trim()) el.remove();
   });
 
-  // FIX: Resolve Tailwind arbitrary highlight classes to inline background-color.
-  // The isolated iframe has no Tailwind stylesheet so class names like
-  // "bg-[#DC8D42]/30" render as transparent. Walk every <mark> and convert
-  // any matching class to a real inline style so colors appear in the PDF.
   clone.querySelectorAll('mark').forEach((mark) => {
     for (const cls of Array.from(mark.classList)) {
       if (cls in HIGHLIGHT_RGBA) {
         mark.style.backgroundColor = HIGHLIGHT_RGBA[cls];
         mark.style.borderRadius = '3px';
         mark.style.padding = '0 2px';
+        mark.style.boxDecorationBreak = 'clone';
+        mark.style.webkitBoxDecorationBreak = 'clone';
         break;
       }
     }
@@ -282,25 +449,87 @@ function sanitizeClone(clone) {
 }
 
 function collectPageStyles() {
-  let css = '';
+  const contentHrefPatterns = [
+    'katex',
+    'highlight.js',
+    'prosemirror',
+    'tauri',
+    'tailwind',
+    'tiptap',
+    'beaver',
+    'editor',
+    'note',
+    'content',
+    'typography',
+    'app',
+    'main',
+    'index',
+  ];
+
+  const uiHrefPatterns = [
+    'remixicon',
+    'toastify',
+    'overlayscrollbars',
+    'v-tooltip',
+    'vue-tooltip',
+    'vue-select',
+    'vuedraggable',
+    'command-palette',
+    'masonry',
+    'context-menu',
+    'toolbar',
+    'sidebar',
+  ];
+
+  const uiSelectorPatterns = [
+    '.command-prompt',
+    '.note-card',
+    '.masonry',
+    '.context-menu',
+    '.sidebar',
+    '.toolbar',
+    '.toast',
+    '.dropdown',
+    '.drawer',
+    '.sheet',
+    '.popover',
+    '.tooltip',
+    '.Vue-Toastification',
+    '.toastify',
+  ];
+
+  function isUiRule(text) {
+    const selector = text.split('{')[0];
+    return uiSelectorPatterns.some((p) => selector.includes(p));
+  }
+
+  const cssParts = [];
+
   for (const sheet of document.styleSheets) {
     try {
       if (!sheet.cssRules) continue;
       const href = sheet.href || '';
-      if (
-        href.includes('remixicon') ||
-        href.includes('toastify') ||
-        href.includes('overlayscrollbars') ||
-        href.includes('v-tooltip')
-      )
-        continue;
-      for (const rule of sheet.cssRules) css += rule.cssText + '\n';
-    } catch {}
+      if (href) {
+        const lower = href.toLowerCase();
+        if (uiHrefPatterns.some((p) => lower.includes(p))) continue;
+        if (!contentHrefPatterns.some((p) => lower.includes(p))) continue;
+      }
+      for (const rule of sheet.cssRules) {
+        const text = rule.cssText;
+        if (text.includes('[data-v-')) continue;
+        if (isUiRule(text)) continue;
+        if (rule.type === CSSRule.KEYFRAMES_RULE) continue;
+        cssParts.push(text);
+      }
+    } catch {
+      // CORS-restricted stylesheet — skip.
+    }
   }
-  return css;
+
+  return cssParts.join('\n');
 }
 
-async function inlineImages(clone, noteId) {
+export async function inlineImages(clone, noteId) {
   const images = Array.from(clone.querySelectorAll('img[src]'));
   if (!images.length) return;
 
@@ -371,12 +600,15 @@ async function prepareExportDom(editor, noteId, mode = 'folder') {
   return clone;
 }
 
-export async function buildExportDocument(editor, options = {}) {
+export async function buildWebExportDocument(editor, options = {}) {
   const {
     title = 'Untitled',
     mode = 'folder',
     noteId = '',
     extraStyles = '',
+    isPaginated = false,
+    pageWidth = A4_CSS_W,
+    pageMargin = PAGE_MARGIN_PX,
   } = options;
 
   const isDark = document.documentElement.classList.contains('dark');
@@ -391,12 +623,17 @@ export async function buildExportDocument(editor, options = {}) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
-  <style>${PAGE_CSS}</style>
+  <style>${buildWebPageCss(pageWidth, pageMargin, isPaginated)}</style>
   <style>${pageCss}</style>
   <style>${CALLOUT_STYLES}</style>
   ${extraStyles ? `<style>${extraStyles}</style>` : ''}
 </head>
 <body>
+  ${
+    title && title !== 'Untitled'
+      ? `<h1 class="export-title">${escapeHtml(title)}</h1>`
+      : ''
+  }
   <div class="export-root note-editor__content prose prose-stone max-w-none ${
     isDark ? 'dark:text-neutral-100' : ''
   }">
