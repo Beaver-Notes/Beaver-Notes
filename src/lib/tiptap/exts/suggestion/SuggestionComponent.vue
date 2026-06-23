@@ -1,7 +1,7 @@
 <template>
   <ui-card
     class="border max-w-xs"
-    padding="p-2"
+    padding="p-1.5"
     style="max-width: 16rem; min-width: 6rem"
   >
     <ui-list class="space-y-1">
