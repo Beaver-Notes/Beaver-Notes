@@ -55,6 +55,7 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
+import Paper from './exts/paper-block';
 import { dropFile } from './exts/drop-file';
 import { getTranslations } from '@/utils/getTranslations';
 import { getSettingSync } from '@/composable/settings';
@@ -142,6 +143,7 @@ const extensions = [
     types: ['heading', 'paragraph'],
   }),
   markdownEngine,
+  Paper,
 
   Placeholder.configure({
     placeholder: translations.editor.tiptapPlaceholder,
