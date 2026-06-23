@@ -16,7 +16,7 @@
           <ui-card
             v-else
             ref="modalContent"
-            class="modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.5rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-[0_-20px_40px_rgba(15,23,42,0.08),0_-2px_10px_rgba(15,23,42,0.06)]"
+            class="modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-[0_-20px_40px_rgba(15,23,42,0.08),0_-2px_10px_rgba(15,23,42,0.06)]"
             :class="[contentClass, { '!transition-none': isDragging }]"
             :style="modalContentStyle"
             @touchstart.passive="handleTouchStart"
@@ -25,7 +25,7 @@
             @touchcancel="handleTouchCancel"
           >
             <div
-              class="mx-auto mt-2 hidden h-1.5 w-11 rounded-full bg-neutral-400/40 mobile:block"
+              class="mx-auto mt-2 hidden h-1 w-9 rounded-full bg-neutral-400/60 mobile:block"
             ></div>
             <div class="p-2 mobile:px-4 mobile:pt-2.5">
               <div class="flex items-center justify-between gap-3">
@@ -265,6 +265,7 @@ export default {
 @media (max-width: 767px) {
   .modal-ui__content {
     transform-origin: center bottom;
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 0.75rem) !important;
   }
 
   .modal-enter-from .modal-ui__content,

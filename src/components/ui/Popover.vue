@@ -38,7 +38,7 @@ export default {
     },
     padding: {
       type: String,
-      default: 'p-3',
+      default: 'p-1.5',
     },
     to: {
       type: [String, Object, HTMLElement],
