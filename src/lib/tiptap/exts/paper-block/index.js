@@ -22,21 +22,32 @@ export default Node.create({
       linesV2: {
         default: [],
         parseHTML: (el) => {
-          try { return JSON.parse(el.getAttribute('data-lines-v2') || '[]'); }
-          catch { return []; }
+          try {
+            return JSON.parse(el.getAttribute('data-lines-v2') || '[]');
+          } catch {
+            return [];
+          }
         },
-        renderHTML: (attrs) => ({ 'data-lines-v2': JSON.stringify(attrs.linesV2 ?? []) }),
+        renderHTML: (attrs) => ({
+          'data-lines-v2': JSON.stringify(attrs.linesV2 ?? []),
+        }),
       },
       // lines: kept for backward-compat HTML export / old note parsing
       lines: {
         default: [],
         parseHTML: (el) => {
-          try { return JSON.parse(el.getAttribute('data-lines') || '[]'); }
-          catch { return []; }
+          try {
+            return JSON.parse(el.getAttribute('data-lines') || '[]');
+          } catch {
+            return [];
+          }
         },
-        renderHTML: (attrs) => ({ 'data-lines': JSON.stringify(attrs.lines ?? []) }),
+        renderHTML: (attrs) => ({
+          'data-lines': JSON.stringify(attrs.lines ?? []),
+        }),
       },
-      height:    { default: 400 },
+      height: { default: 400 },
+      // NEW: pen-mode state (not persisted, re-initialized on load)
       paperType: { default: 'plain' },
     };
   },

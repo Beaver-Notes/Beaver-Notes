@@ -1,5 +1,7 @@
 <template>
-  <div class="p-2">
+  <div
+    class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-2 rounded-lg shadow-lg no-print"
+  >
     <!-- View Mode -->
     <div v-if="!isEditing" class="flex items-center gap-2">
       <button
@@ -10,14 +12,14 @@
       </button>
       <button
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-        :title="translations.editor.editLink || 'Edit link'"
+        :title="translations.editor?.editLink || 'Edit link'"
         @click="startEditing"
       >
         <v-remixicon name="riPencilLine" class="size-5" />
       </button>
       <button
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-        :title="translations.editor.removeLink || 'Remove link'"
+        :title="translations.editor?.removeLink || 'Remove link'"
         @click="editor.chain().focus().unsetLink().run()"
       >
         <v-remixicon name="riLinkUnlinkM" class="size-5" />
@@ -32,7 +34,7 @@
           v-model="currentLinkVal"
           type="url"
           :placeholder="
-            translations.editor.linkPlaceholder || 'Enter URL or @note'
+            translations.editor?.linkPlaceholder || 'Enter URL or @note'
           "
           class="flex-1 min-w-0 px-1 py-1 rounded-xl bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 transition-shadow"
           @keydown="keydownHandler"
@@ -41,14 +43,14 @@
         />
         <button
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-          :title="translations.common.cancel || 'Cancel'"
+          :title="translations.common?.cancel || 'Cancel'"
           @click="cancelEditing"
         >
           <v-remixicon name="riCloseLine" class="size-5" />
         </button>
         <button
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
-          :title="translations.common.save || 'Save'"
+          :title="translations.common?.save || 'Save'"
           :disabled="!currentLinkVal.trim()"
           @click="saveAndClose"
         >
@@ -71,7 +73,7 @@
             >
               {{
                 note.title ||
-                translations.editor.untitledNote ||
+                translations.editor?.untitledNote ||
                 'Untitled Note'
               }}
             </ui-list-item>
@@ -81,7 +83,9 @@
           v-else-if="currentLinkVal.startsWith('@') && notes.length === 0"
           class="px-3 py-2 text-sm text-neutral-500 dark:text-neutral-400 italic"
         >
-          {{ translations.editor.noMatchingNotes || 'No matching notes found' }}
+          {{
+            translations.editor?.noMatchingNotes || 'No matching notes found'
+          }}
         </div>
       </expand-transition>
     </div>
@@ -98,7 +102,7 @@ export default {
   props: {
     editor: {
       type: Object,
-      default: () => ({}),
+      default: null,
     },
   },
   setup(props) {
@@ -128,7 +132,7 @@ export default {
     });
 
     const displayLink = computed(() => {
-      const href = props.editor.getAttributes('link')?.href;
+      const href = props.editor?.getAttributes?.('link')?.href;
       if (!href) return '';
 
       if (href.startsWith('note://')) {
@@ -151,12 +155,12 @@ export default {
 
     function cancelEditing() {
       if (originalLinkVal.value === '') {
-        props.editor.chain().focus().unsetLink().run();
+        props.editor?.chain().focus().unsetLink().run();
       } else {
         currentLinkVal.value = originalLinkVal.value;
       }
       isEditing.value = false;
-      props.editor.commands.focus();
+      props.editor?.commands?.focus();
     }
 
     function saveAndClose() {
@@ -167,7 +171,7 @@ export default {
 
       updateLink();
       isEditing.value = false;
-      props.editor.commands.focus();
+      props.editor?.commands?.focus();
     }
 
     function updateLink(id) {
@@ -184,7 +188,7 @@ export default {
       }
 
       props.editor
-        .chain()
+        ?.chain()
         .focus()
         .extendMarkRange('link')
         .setLink({ href: value })
@@ -194,11 +198,11 @@ export default {
     function selectNote(id) {
       updateLink(id);
       isEditing.value = false;
-      props.editor.commands.focus();
+      props.editor?.commands?.focus();
     }
 
     function handleClick() {
-      const href = props.editor.getAttributes('link')?.href;
+      const href = props.editor?.getAttributes?.('link')?.href;
 
       if (!href) return;
 
@@ -242,18 +246,19 @@ export default {
     });
 
     watch(
-      () => props.editor.getAttributes('link')?.href,
+      () => props.editor?.getAttributes?.('link')?.href,
       (newHref) => {
         const href = newHref ?? '';
         currentLinkVal.value = href.replace('note://', '@');
         originalLinkVal.value = currentLinkVal.value;
 
-        // Auto-open edit mode when href is empty
-        if (href === '') {
+        if (href === '' && !isEditing.value) {
           isEditing.value = true;
           nextTick(() => {
             inputRef.value?.focus();
           });
+        } else if (href && href !== '') {
+          isEditing.value = false;
         }
       },
       { immediate: true }

@@ -289,6 +289,34 @@
       </div>
     </section>
 
+    <section v-if="isIOSRuntime" class="space-y-2">
+      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+        Spotlight
+      </p>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div
+          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
+        >
+          <div class="min-w-0 flex-1">
+            <p
+              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+            >
+              Spotlight indexing
+            </p>
+            <p
+              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+            >
+              Let iOS / macOS Spotlight index your notes so they can be found
+              via system search.
+            </p>
+          </div>
+          <ui-switch v-model="spotlightEnabled" @change="toggleSpotlight" />
+        </div>
+      </div>
+    </section>
+
     <section class="space-y-2">
       <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         Export
@@ -692,6 +720,9 @@ import { useTranslations } from '../../composable/useTranslations';
 import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import { useSettingsData } from '@/composable/useSettingsData';
 import { useSettingsSecurity } from '@/composable/useSettingsSecurity';
+import { enableIndexing } from '@/lib/native/spotsearch';
+import { reindexAllNotes } from '@/utils/spotlightSync';
+import { backend } from '@/lib/tauri-bridge';
 
 export default {
   setup() {
@@ -711,6 +742,8 @@ export default {
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
     );
+    const isMobileRuntime = backend.isMobileRuntime();
+    const isIOSRuntime = backend.isAppleRuntime();
 
     const {
       activeImportIssuesText,
@@ -773,6 +806,23 @@ export default {
       dataSettings.unregisterSyncProgressListener();
     });
 
+    async function toggleSpotlight(value) {
+      try {
+        if (value) {
+          await enableIndexing(true);
+          reindexAllNotes(noteStore.data, true);
+        } else {
+          await enableIndexing(false);
+        }
+      } catch (e) {
+        dialog.alert({
+          title: 'Spotlight Error',
+          body: e?.toString?.() || 'Unknown error',
+          okText: 'OK',
+        });
+      }
+    }
+
     return {
       theme,
       themes,
@@ -806,7 +856,10 @@ export default {
       forceSyncNow,
       formatTime,
       isMacOS,
+      isMobileRuntime,
+      isIOSRuntime,
       isDebugMode,
+      toggleSpotlight,
       ...dataSettings,
       ...securitySettings,
     };

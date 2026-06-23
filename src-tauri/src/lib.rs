@@ -76,9 +76,11 @@ pub fn run() {
         }));
     }
 
-    builder = builder
-        .plugin(tauri_plugin_spotsearch::init())
-        .plugin(tauri_plugin_app_icon::init());
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.plugin(tauri_plugin_spotsearch::init());
+    }
+    builder = builder.plugin(tauri_plugin_app_icon::init());
 
     #[cfg(target_os = "ios")]
     {
@@ -87,9 +89,13 @@ pub fn run() {
 
     let mut builder = bootstrap::register_asset_protocols(builder)
         .invoke_handler(tauri::generate_handler![
+            #[cfg(not(target_os = "android"))]
             tauri_plugin_spotsearch::commands::enable_indexing,
+            #[cfg(not(target_os = "android"))]
             tauri_plugin_spotsearch::commands::index_items,
+            #[cfg(not(target_os = "android"))]
             tauri_plugin_spotsearch::commands::delete_items,
+            #[cfg(not(target_os = "android"))]
             tauri_plugin_spotsearch::commands::delete_domain,
             tauri_plugin_app_icon::commands::is_supported,
             tauri_plugin_app_icon::commands::get_name,
@@ -192,6 +198,7 @@ pub fn run() {
             commands::search::search_index_note,
             commands::search::search_remove_note,
             commands::search::search_rebuild_index,
+            commands::pdf::render_pdf,
         ])
         .setup(|app| {
             bootstrap::setup_app(app)?;
@@ -245,7 +252,5 @@ pub fn run() {
 }
 
 fn install_rustls_provider() {
-    // reqwest/rustls can be reached during early webview bootstrap on iOS.
-    // Installing the default provider up front avoids a runtime panic.
     let _ = rustls::crypto::ring::default_provider().install_default();
 }

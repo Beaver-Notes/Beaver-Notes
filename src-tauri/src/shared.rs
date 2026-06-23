@@ -19,13 +19,13 @@ use argon2::{
     Argon2, Params, Version,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use hmac::Hmac;
 use http::{
     header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
     Response, StatusCode,
 };
 use keyring::Entry;
 use lru::LruCache;
-use hmac::Hmac;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -640,8 +640,7 @@ fn random_nonce() -> [u8; 12] {
 
 fn derive_chunk_nonce(seed: &[u8; 12], chunk_index: u64, key: &[u8; 32]) -> [u8; 12] {
     use hmac::Mac;
-    let mut h = <Hmac<sha2::Sha384> as Mac>::new_from_slice(key)
-        .expect("HMAC key length is valid");
+    let mut h = <Hmac<sha2::Sha384> as Mac>::new_from_slice(key).expect("HMAC key length is valid");
     h.update(seed);
     h.update(b"BeaverNotes-asset-chunk");
     h.update(&chunk_index.to_le_bytes());
@@ -989,7 +988,7 @@ pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<
 }
 
 pub(crate) static KEYRING_AVAILABLE: std::sync::atomic::AtomicBool =
-std::sync::atomic::AtomicBool::new(!cfg!(target_os = "android"));
+    std::sync::atomic::AtomicBool::new(!cfg!(target_os = "android"));
 
 pub(crate) fn read_master_key() -> Result<Vec<u8>, String> {
     if KEYRING_AVAILABLE.load(std::sync::atomic::Ordering::Relaxed) {
@@ -1044,16 +1043,14 @@ pub(crate) fn file_based_master_key() -> Result<Vec<u8>, String> {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(parent, fs::Permissions::from_mode(0o700))
-                .map_err(to_error)?;
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).map_err(to_error)?;
         }
     }
     fs::write(&key_path, encoded).map_err(to_error)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))
-            .map_err(to_error)?;
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600)).map_err(to_error)?;
     }
     Ok(key)
 }
@@ -1347,14 +1344,12 @@ pub(crate) fn clear_decrypted_caches(state: &AppState) {
 }
 
 pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
-    (buffer.len() > 4 + 12 + 16
-        && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3))
-    || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
+    (buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3))
+        || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
 }
 
 pub(crate) fn is_encrypted_asset_v2(buffer: &[u8]) -> bool {
-    buffer.len() > 4 + 12 + 16
-        && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3)
+    buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3)
 }
 
 pub(crate) fn maybe_encrypt_asset(

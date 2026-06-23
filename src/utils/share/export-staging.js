@@ -39,7 +39,11 @@ export async function copyExportAssetDir(sourcePath, destPath) {
   }
 }
 
-export async function copyNoteAssetDirectories(appDirectory, noteId, outputDir) {
+export async function copyNoteAssetDirectories(
+  appDirectory,
+  noteId,
+  outputDir
+) {
   if (!appDirectory) return;
 
   await copyExportAssetDir(

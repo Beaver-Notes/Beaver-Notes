@@ -204,15 +204,19 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
   function positionTouchGhost(touch) {
     if (!touchGhost) return;
 
+    const rect = touchGhost.getBoundingClientRect();
+    const x = touch.clientX - rect.width / 2;
+    const y = touch.clientY - rect.height / 2;
+
     touchGhost.style.position = 'fixed';
     touchGhost.style.top = '0';
     touchGhost.style.left = '0';
     touchGhost.style.margin = '0';
     touchGhost.style.pointerEvents = 'none';
     touchGhost.style.opacity = '1';
-    touchGhost.style.transform = `translate(${touch.clientX + 14}px, ${
-      touch.clientY + 14
-    }px) scale(0.94)`;
+    touchGhost.style.transform = `translate(${Math.round(x)}px, ${Math.round(
+      y
+    )}px) scale(0.94)`;
   }
 
   function startTouchDrag(kind, id, touch, sourceElement) {

@@ -1,7 +1,7 @@
 <template>
   <teleport to="body">
     <div
-      class="fixed inset-x-0 z-50 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
+      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
         store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
       "
@@ -167,7 +167,7 @@
               v-if="isItemVisible('image')"
               v-tooltip.group="translations.menu.image"
               :class="tbBtn()"
-              @click="openSub('image')"
+              @click="isMobile ? triggerImageInput() : openSub('image')"
             >
               <v-remixicon name="riImageLine" />
             </button>
@@ -175,7 +175,7 @@
               v-if="isItemVisible('file')"
               v-tooltip.group="translations.menu.file"
               :class="tbBtn()"
-              @click="openSub('file')"
+              @click="isMobile ? triggerFileInput() : openSub('file')"
             >
               <v-remixicon name="riFile2Line" />
             </button>
@@ -183,7 +183,7 @@
               v-if="isItemVisible('video')"
               v-tooltip.group="translations.menu.video"
               :class="tbBtn()"
-              @click="openSub('video')"
+              @click="isMobile ? triggerVideoInput() : openSub('video')"
             >
               <v-remixicon name="riMovieLine" />
             </button>
@@ -740,9 +740,9 @@
       />
 
       <mobile-block-picker
+        :id="id"
         v-model="showMobileBlockPicker"
         :editor="editor"
-        :id="id"
       />
     </div>
   </teleport>
@@ -755,6 +755,7 @@ import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
+import { backend } from '@/lib/tauri-bridge';
 import { useRoute } from 'vue-router';
 import copyImage from '@/utils/copy-image';
 import { saveFile } from '@/utils/copy-doc';
@@ -774,6 +775,7 @@ export default {
     const { container } = shared;
 
     const showMobileBlockPicker = ref(false);
+    const isMobile = backend.isMobileRuntime();
 
     async function triggerFileInput() {
       const { canceled, filePaths } = await openDialog({
@@ -930,6 +932,7 @@ export default {
       triggerVideoInput,
       triggerImageInput,
       showMobileBlockPicker,
+      isMobile,
     };
   },
 };

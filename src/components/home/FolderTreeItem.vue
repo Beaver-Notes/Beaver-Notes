@@ -52,6 +52,13 @@
       {{ folder.name || translations.folderTree.untitledFolder }}
     </span>
 
+    <v-remixicon
+      v-if="folder.isArchived"
+      name="riArchiveLine"
+      class="w-3.5 h-3.5 text-neutral-400 shrink-0 ml-1"
+      title="Archived"
+    />
+
     <span
       v-if="isCurrentFolder"
       class="text-[10px] uppercase tracking-wider opacity-60 ml-2"

@@ -8,7 +8,14 @@ import {
   extnameSync,
   parseSync,
 } from '@/lib/tauri/path';
-import { isMobileRuntime } from '@/lib/tauri/runtime';
+import {
+  isMobileRuntime,
+  isPhoneRuntime,
+  isIPadRuntime,
+  isIOSRuntime,
+  isMacOSRuntime,
+  isAppleRuntime,
+} from '@/lib/tauri/runtime';
 import { invokeWithScopedSupport } from '@/lib/tauri/scoped-storage';
 
 export const backend = {
@@ -23,6 +30,21 @@ export const backend = {
   },
   isMobileRuntime() {
     return isMobileRuntime();
+  },
+  isPhoneRuntime() {
+    return isPhoneRuntime();
+  },
+  isIPadRuntime() {
+    return isIPadRuntime();
+  },
+  isIOSRuntime() {
+    return isIOSRuntime();
+  },
+  isMacOSRuntime() {
+    return isMacOSRuntime();
+  },
+  isAppleRuntime() {
+    return isAppleRuntime();
   },
 };
 

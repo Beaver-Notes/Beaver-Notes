@@ -14,6 +14,7 @@
         :class="{
           leaving: isItemLeaving(item.note.id),
           entering: isItemEntering(item.note.id),
+          'not-ready': !isMeasured,
         }"
         :style="{
           transform: `translate3d(${item.x}px,${item.y}px,0)`,
@@ -189,15 +190,17 @@ const layoutResult = computed(() => {
     width = containerWidth.value;
   if (!width || !props.notes.length) return { items: [], stageHeight: 0 };
 
-  const colW = Math.floor((width - gap * (cols - 1)) / cols);
+  const colW = Math.round((width - gap * (cols - 1)) / cols);
+  // Distribute leftover pixels so the last column isn't visually short
+  const remainder = width - gap * (cols - 1) - colW * cols;
   const colH = new Array(cols).fill(0);
   const items = [];
 
   for (const [index, note] of props.notes.entries()) {
     const col = index % cols;
     const h = getCardHeight(note.id, note);
-    const x = col * (colW + gap),
-      y = colH[col];
+    const x = col * (colW + gap) + Math.min(col, remainder);
+    const y = colH[col];
     items.push({ note, x, y, w: colW, h });
     colH[col] += h + gap;
   }
@@ -211,10 +214,9 @@ const visibleItems = computed(() => {
   const { items } = layoutResult.value;
   if (!items.length) return [];
 
-  if (!isMeasured.value) {
-    const maxInitial = Math.min(items.length, 30);
-    return items.slice(0, maxInitial);
-  }
+  // Before first measurement, show everything to avoid blank areas.
+  // Virtualization kicks in only after measured.
+  if (!isMeasured.value) return items;
 
   const over =
     containerWidth.value < 480
@@ -244,6 +246,8 @@ const onScroll = () => {
     scrollRaf = null;
     scrollTop.value =
       scrollEl === window ? window.scrollY : scrollEl?.scrollTop ?? 0;
+    // Recalculate offset in case the page layout shifted
+    updateOffset();
   });
 };
 
@@ -317,9 +321,19 @@ function scheduleMeasure() {
     }
     if (changed) {
       measuredVersion.value++;
-      if (!isMeasured.value && props.notes.length > 0) {
+      if (
+        !isMeasured.value &&
+        props.notes.length > 0 &&
+        containerWidth.value > 0
+      ) {
         isMeasured.value = true;
       }
+    } else if (
+      !isMeasured.value &&
+      cardElements.size > 0 &&
+      containerWidth.value > 0
+    ) {
+      isMeasured.value = true;
     }
   });
 }
@@ -476,8 +490,12 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   left: 0;
-  contain: style;
+  contain: layout style;
   transition: transform 200ms ease;
+}
+
+.note-masonry__card.not-ready {
+  transition: none;
 }
 
 .filter-pulse {

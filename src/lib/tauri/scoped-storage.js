@@ -404,11 +404,16 @@ async function handleScopedFsInvoke(channel, payload) {
 }
 
 async function handleMobileScopedDialog() {
-  const folder = await scopedPickFolder();
-  return {
-    canceled: !folder?.id,
-    filePaths: folder?.id ? [`${SCOPED_PATH_PREFIX}${folder.id}`] : [],
-  };
+  try {
+    const folder = await scopedPickFolder();
+    return {
+      canceled: !folder?.id,
+      filePaths: folder?.id ? [`${SCOPED_PATH_PREFIX}${folder.id}`] : [],
+    };
+  } catch (error) {
+    console.error('handleMobileScopedDialog failed:', error);
+    return { canceled: true, filePaths: [] };
+  }
 }
 
 function pickFilesWithBrowserInput(payload = {}) {
