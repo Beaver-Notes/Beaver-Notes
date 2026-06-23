@@ -236,6 +236,7 @@
       </button>
     </div>
   </ui-modal>
+
 </template>
 
 <script>
@@ -248,7 +249,6 @@ import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { extractTextFromContent } from '@/utils/noteSerializer';
 import { verifyPassphrase } from '@/utils/encryption';
-
 export default {
   props: {
     editor: { type: Object, default: () => ({}) },

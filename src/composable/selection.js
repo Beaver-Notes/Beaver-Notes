@@ -94,7 +94,10 @@ export function useSelection({ suppressNextClick } = {}) {
   }
 
   function handleItemClick(event, type, id, getAllVisibleItems) {
-    if (suppressNextClick?.value) return event.preventDefault();
+    if (suppressNextClick?.value) {
+      suppressNextClick.value = false;
+      return event.preventDefault();
+    }
     if (isSelecting.value) return event.preventDefault();
 
     const itemKey = `${type}-${id}`;

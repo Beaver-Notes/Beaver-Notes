@@ -41,10 +41,6 @@ function applyDocumentSettings() {
     getSettingSync('selectedDarkText')
   );
   document.documentElement.classList.add(getSettingSync('colorScheme'));
-  document.documentElement.style.setProperty(
-    '--selected-width',
-    getSettingSync('editorWidth')
-  );
 }
 
 export function useAppShell() {
@@ -289,6 +285,7 @@ export function useAppShell() {
       let title;
 
       if (ext === 'bea') {
+        // Read just the metadata from the BEA JSON
         const fileContent = await import('@/lib/native/exports').then((m) =>
           m.readImportJson(path)
         );
@@ -300,6 +297,7 @@ export function useAppShell() {
             .replace(/\.bea$/i, '') ||
           'Untitled';
       } else {
+        // Use lightweight title extraction for text-based formats
         const { extractImportTitle } = await import(
           '@/utils/import/singleFileImport'
         );

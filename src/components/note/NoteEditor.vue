@@ -14,7 +14,7 @@
       :editor="editor"
       class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
-    <note-bubble-menu v-if="editor" v-bind="{ editor }" />
+    <note-bubble-menu v-if="editor" v-bind="{ editor, note }" />
     <table-floating-menu v-if="editor" :editor="editor" />
   </div>
 </template>
@@ -25,7 +25,13 @@ import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { isEncryptedContent } from '@/utils/encryption.js';
 import { sanitizeNoteContent } from '@/utils/contentSecurity';
 import { useRouter } from 'vue-router';
-import { extensions, CollapseHeading, heading, dropFile, Commands } from '@/lib/tiptap';
+import {
+  extensions,
+  CollapseHeading,
+  heading,
+  dropFile,
+  Commands,
+} from '@/lib/tiptap';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
@@ -39,6 +45,7 @@ export default {
     modelValue: { type: [String, Object], default: '' },
     id: { type: String, default: '' },
     cursorPosition: { type: Number, default: 0 },
+    note: { type: Object, default: () => ({}) },
   },
   emits: ['init', 'update', 'update:modelValue'],
   setup(props, { emit }) {
