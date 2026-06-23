@@ -91,10 +91,6 @@ export function getHelperPath(name) {
   return backend.invoke('helper:get-path', name);
 }
 
-export function printPdf(pdfName) {
-  return backend.invoke('print-pdf', { pdfName });
-}
-
 export function openFileExternal(path) {
   return backend.invoke('open-file-external', path);
 }
