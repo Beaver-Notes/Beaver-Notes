@@ -32,3 +32,5 @@ coverage/
 *.log
 *.orig
 .env.development
+
+package-lock.json
