@@ -17,7 +17,7 @@
           </div>
           <div class="flex gap-2">
             <ui-button
-              v-if="selectedNotes.length > 0"
+              v-if="selectedNotes.length > 0 || selectedFolders.length > 0"
               v-tooltip.group="
                 shouldArchive
                   ? translations.card.archive
@@ -72,6 +72,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useNoteStore } from '@/store/note';
+import { useFolderStore } from '@/store/folder';
 import { useTranslations } from '@/composable/useTranslations';
 import { parseItemId } from '@/utils/helper';
 
@@ -85,6 +86,7 @@ const props = defineProps({
 const emit = defineEmits(['clear', 'delete', 'move']);
 
 const noteStore = useNoteStore();
+const folderStore = useFolderStore();
 const { translations } = useTranslations();
 
 const selectedNotes = computed(() => {
@@ -95,14 +97,38 @@ const selectedNotes = computed(() => {
     .filter(Boolean);
 });
 
-// Archive logic
-const shouldArchive = computed(() => {
-  const notes = selectedNotes.value;
-  const archivedCount = notes.filter((n) => n.isArchived).length;
-  return archivedCount < notes.length / 2;
+const selectedFolders = computed(() => {
+  return Array.from(props.selectedItems)
+    .map(parseItemId)
+    .filter(({ type, id }) => type === 'folder' && id)
+    .map(({ id }) => folderStore.getById(id))
+    .filter(Boolean);
 });
 
-// Bookmark logic
+// Archive logic — notes + folders
+const shouldArchive = computed(() => {
+  const notes = selectedNotes.value;
+  const folders = selectedFolders.value;
+
+  // If only folders selected, check folder archive status
+  if (notes.length === 0 && folders.length > 0) {
+    const archivedCount = folders.filter((f) => f.isArchived).length;
+    return archivedCount < folders.length / 2;
+  }
+
+  // If only notes selected, check note archive status
+  if (folders.length === 0 && notes.length > 0) {
+    const archivedCount = notes.filter((n) => n.isArchived).length;
+    return archivedCount < notes.length / 2;
+  }
+
+  // Mixed selection: archive if any item is not archived
+  const allNotesArchived = notes.every((n) => n.isArchived);
+  const allFoldersArchived = folders.every((f) => f.isArchived);
+  return !(allNotesArchived && allFoldersArchived);
+});
+
+// Bookmark logic (notes only)
 const shouldBookmark = computed(() => {
   const notes = selectedNotes.value;
   const bookmarkedCount = notes.filter((n) => n.isBookmarked).length;
@@ -111,9 +137,21 @@ const shouldBookmark = computed(() => {
 
 async function handleToggleArchive() {
   const archive = shouldArchive.value;
+
+  // Archive/unarchive selected folders
+  for (const folder of selectedFolders.value) {
+    if (archive && !folder.isArchived) {
+      await folderStore.archive(folder.id);
+    } else if (!archive && folder.isArchived) {
+      await folderStore.unarchive(folder.id);
+    }
+  }
+
+  // Archive/unarchive selected notes
   for (const note of selectedNotes.value) {
     await noteStore.update(note.id, { isArchived: archive });
   }
+
   emit('clear');
 }
 

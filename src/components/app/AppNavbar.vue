@@ -68,6 +68,23 @@
             <button
               v-if="selectionBar.hasSelectedNotes"
               v-tooltip:right="
+                selectionBar.shouldLock
+                  ? translations.card.lock || 'Lock'
+                  : translations.card.unlock || 'Unlock'
+              "
+              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200"
+              @click="selectionBar.toggleLock()"
+            >
+              <v-remixicon
+                :name="
+                  selectionBar.shouldLock ? 'riLockLine' : 'riLockUnlockLine'
+                "
+                size="20"
+              />
+            </button>
+            <button
+              v-if="selectionBar.hasSelectedNotes"
+              v-tooltip:right="
                 selectionBar.shouldBookmark
                   ? translations.card.bookmark || 'Bookmark'
                   : translations.card.removeBookmark || 'Unbookmark'
@@ -85,6 +102,24 @@
                   selectionBar.shouldBookmark
                     ? 'riBookmarkLine'
                     : 'riBookmarkFill'
+                "
+                size="20"
+              />
+            </button>
+            <button
+              v-tooltip:right="
+                selectionBar.shouldArchive
+                  ? translations.card.archive || 'Archive'
+                  : translations.card.unarchive || 'Unarchive'
+              "
+              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
+              @click="selectionBar.toggleArchive()"
+            >
+              <v-remixicon
+                :name="
+                  selectionBar.shouldArchive
+                    ? 'riArchiveDrawerLine'
+                    : 'riInboxUnarchiveLine'
                 "
                 size="20"
               />

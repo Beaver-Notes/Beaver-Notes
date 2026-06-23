@@ -2,24 +2,9 @@ import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage.js';
 import { trackChange } from '@/utils/sync';
+import { pruneExpiredIds, collectExpiredIds } from '@/utils/deletedIds';
 
 const storage = useStorage();
-
-// ─── Deleted-IDs auto-cleanup ─────────────────────────────────────────────────
-
-const DELETED_IDS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-function pruneDeletedIds(deletedIds) {
-  const cutoff = Date.now() - DELETED_IDS_TTL_MS;
-  let dirty = false;
-  for (const id of Object.keys(deletedIds)) {
-    if (deletedIds[id] < cutoff) {
-      delete deletedIds[id];
-      dirty = true;
-    }
-  }
-  return dirty;
-}
 
 // ─── Children index helpers ───────────────────────────────────────────────────
 //
@@ -160,6 +145,12 @@ export const useFolderStore = defineStore('folder', {
         (folder) => folder.id && !state.deletedIds[folder.id]
       ),
 
+    archivedFolders: (state) =>
+      Object.values(state.data).filter(
+        (folder) =>
+          folder.id && !state.deletedIds[folder.id] && folder.isArchived
+      ),
+
     exists: (state) => (id) => !!state.data[id] && !state.deletedIds[id],
   },
 
@@ -179,7 +170,7 @@ export const useFolderStore = defineStore('folder', {
 
         const deletedIds = (await storage.get('deletedFolderIds', {})) || {};
         // Prune stale entries on every load — keeps the object from growing forever
-        if (pruneDeletedIds(deletedIds)) {
+        if (pruneExpiredIds(deletedIds)) {
           await storage.set('deletedFolderIds', deletedIds);
         }
         this.deletedIds = deletedIds;
@@ -204,7 +195,9 @@ export const useFolderStore = defineStore('folder', {
           createdAt: Date.now(),
           updatedAt: Date.now(),
           color: folder.color || null,
-          isExpanded: folder.isExpanded !== undefined ? folder.isExpanded : true,
+          isExpanded:
+            folder.isExpanded !== undefined ? folder.isExpanded : true,
+          isArchived: folder.isArchived || false,
           icon: folder.icon || '',
           sortOrder: folder.sortOrder || 0,
           ...folder,
@@ -237,7 +230,9 @@ export const useFolderStore = defineStore('folder', {
           data.parentId !== this.data[id].parentId
         ) {
           if (this.wouldCreateCircularReference(id, data.parentId)) {
-            throw new Error('Cannot move folder: would create circular reference');
+            throw new Error(
+              'Cannot move folder: would create circular reference'
+            );
           }
         }
 
@@ -304,10 +299,72 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
+    // ── Archive / Unarchive ────────────────────────────────────────────
+
+    async archive(id) {
+      try {
+        if (!this.data[id]) throw new Error('Folder not found');
+
+        // Collect all descendant folder IDs (including self)
+        const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
+
+        // Archive all affected folders
+        for (const folderId of allIds) {
+          await this.update(folderId, { isArchived: true });
+        }
+
+        // Also archive all notes inside these folders
+        const { useNoteStore } = await import('./note');
+        const noteStore = useNoteStore();
+        const notesToArchive = Object.values(noteStore.data).filter(
+          (note) => note.id && allIds.includes(note.folderId)
+        );
+        for (const note of notesToArchive) {
+          await noteStore.update(note.id, { isArchived: true });
+        }
+
+        return { archivedFolderIds: allIds };
+      } catch (error) {
+        console.error('Error archiving folder:', error);
+        throw error;
+      }
+    },
+
+    async unarchive(id) {
+      try {
+        if (!this.data[id]) throw new Error('Folder not found');
+
+        // Collect all descendant folder IDs (including self)
+        const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
+
+        // Unarchive all affected folders
+        for (const folderId of allIds) {
+          await this.update(folderId, { isArchived: false });
+        }
+
+        // Also unarchive all notes inside these folders
+        const { useNoteStore } = await import('./note');
+        const noteStore = useNoteStore();
+        const notesToUnarchive = Object.values(noteStore.data).filter(
+          (note) => note.id && allIds.includes(note.folderId)
+        );
+        for (const note of notesToUnarchive) {
+          await noteStore.update(note.id, { isArchived: false });
+        }
+
+        return { unarchivedFolderIds: allIds };
+      } catch (error) {
+        console.error('Error unarchiving folder:', error);
+        throw error;
+      }
+    },
+
     async move(folderId, newParentId) {
       try {
         if (this.wouldCreateCircularReference(folderId, newParentId)) {
-          throw new Error('Cannot move folder: would create circular reference');
+          throw new Error(
+            'Cannot move folder: would create circular reference'
+          );
         }
         return await this.update(folderId, { parentId: newParentId });
       } catch (error) {
@@ -328,11 +385,7 @@ export const useFolderStore = defineStore('folder', {
     },
 
     cleanupDeletedIds(days = 30) {
-      const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-      const toDelete = [];
-      for (const [id, timestamp] of Object.entries(this.deletedIds || {})) {
-        if (timestamp < cutoff) toDelete.push(id);
-      }
+      const toDelete = collectExpiredIds(this.deletedIds, days);
       for (const id of toDelete) delete this.deletedIds[id];
       storage.set('deletedFolderIds', this.deletedIds);
       trackChange('deletedFolderIds', this.deletedIds);
@@ -355,7 +408,10 @@ export const useFolderStore = defineStore('folder', {
         }
 
         if (!existingFolder) {
-          existingFolder = await this.add({ name: folderName, parentId: currentParentId });
+          existingFolder = await this.add({
+            name: folderName,
+            parentId: currentParentId,
+          });
         }
 
         createdFolders.push(existingFolder);
