@@ -1,15 +1,24 @@
 {
   "identifier": "mobile-capability",
-  "platforms": [
-    "android",
-    "iOS"
-  ],
-  "windows": [
-    "main"
-  ],
+  "platforms": ["android", "iOS"],
+  "windows": ["main"],
   "permissions": [
-    "haptics:default",
+    "haptics:allow-impact-feedback",
+    "haptics:allow-notification-feedback",
+    "haptics:allow-selection-feedback",
+    "haptics:allow-vibrate",
     "core:webview:default",
-    "core:webview:allow-print"
+    "core:webview:allow-print",
+    "scoped-storage:default",
+    "fs:default",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        "$APPDATA/com.danielerolli.beaver-notes/**",
+        "$DOCUMENT/Beaver Notes/**",
+        "$DOCUMENT/**",
+        "$TEMP/beaver-notes*/**"
+      ]
+    }
   ]
 }
