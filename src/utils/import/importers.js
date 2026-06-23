@@ -81,19 +81,10 @@ async function isFile(targetPath) {
 }
 
 import { base64ToUint8Array } from '@/utils/convert.js';
+import mime from 'mime';
 
 function extensionForContentType(contentType) {
-  switch (String(contentType || '').toLowerCase()) {
-    case 'image/jpeg':
-      return 'jpg';
-    case 'image/gif':
-      return 'gif';
-    case 'image/webp':
-      return 'webp';
-    case 'image/png':
-    default:
-      return 'png';
-  }
+  return mime.getExtension(String(contentType || '').toLowerCase()) || 'png';
 }
 
 function parseDataUri(value) {
@@ -600,5 +591,3 @@ export async function importGenericMarkdown(
 
   return { imported, folders: createdFolderIds.size, errors };
 }
-
-
