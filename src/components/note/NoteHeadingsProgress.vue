@@ -86,7 +86,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 
 export default {
   props: { editor: Object },
@@ -100,9 +100,13 @@ export default {
     const popoverRef = ref(null);
     const pillRefs = ref([]);
 
+    const scrollContainer = ref(null);
+
     let hoverTimeout = null;
     let ticking = false;
     let positions = [];
+    let removeEditorUpdate = null;
+    let removeScrollListener = null;
 
     const visibleHeadings = computed(() => headings.value.slice(0, 500));
 
@@ -116,9 +120,50 @@ export default {
       pillRefs.value[i] = el;
     }
 
+    function findScrollContainer(el) {
+      let node = el?.parentElement;
+      while (
+        node &&
+        node !== document.body &&
+        node !== document.documentElement
+      ) {
+        const ov = window.getComputedStyle(node).overflowY;
+        if (ov === 'auto' || ov === 'scroll') return node;
+        node = node.parentElement;
+      }
+      return window;
+    }
+
+    function getScrollInfo() {
+      const c = scrollContainer.value;
+      if (!c || c === window) {
+        return { scrollY: window.scrollY, innerHeight: window.innerHeight };
+      }
+      return { scrollY: c.scrollTop, innerHeight: c.clientHeight };
+    }
+
+    function setupScrollListener() {
+      if (removeScrollListener) {
+        removeScrollListener();
+        removeScrollListener = null;
+      }
+      const target = scrollContainer.value || window;
+      target.addEventListener('scroll', onScroll, { passive: true });
+      removeScrollListener = () => {
+        target.removeEventListener('scroll', onScroll);
+      };
+    }
+
     function build() {
       const el = props.editor?.options?.element;
       if (!el) return;
+
+      // Determine the scroll container from the editor's DOM position
+      if (!scrollContainer.value) {
+        scrollContainer.value = findScrollContainer(el);
+        setupScrollListener();
+      }
+
       headings.value = Array.from(el.querySelectorAll('h1,h2,h3,h4')).map(
         (node, i) => ({
           id: i,
@@ -132,14 +177,16 @@ export default {
     }
 
     function cache() {
+      const { scrollY } = getScrollInfo();
       positions = headings.value.map((h) => ({
         item: h,
-        top: h.el.getBoundingClientRect().top + window.scrollY,
+        top: h.el.getBoundingClientRect().top + scrollY,
       }));
     }
 
     function update() {
-      const cy = window.scrollY + window.innerHeight / 2;
+      const { scrollY, innerHeight } = getScrollInfo();
+      const cy = scrollY + innerHeight / 2;
       let found = positions[0]?.item;
       for (const p of positions) {
         if (p.top <= cy) found = p.item;
@@ -251,9 +298,34 @@ export default {
       }
     }
 
+    function setupEditorListener() {
+      if (removeEditorUpdate) {
+        removeEditorUpdate();
+        removeEditorUpdate = null;
+      }
+      if (props.editor) {
+        const onUpdate = () => {
+          requestAnimationFrame(build);
+        };
+        props.editor.on('update', onUpdate);
+        removeEditorUpdate = () => {
+          props.editor.off('update', onUpdate);
+        };
+      }
+    }
+
+    watch(
+      () => props.editor,
+      () => {
+        requestAnimationFrame(build);
+        setupEditorListener();
+      },
+      { immediate: true }
+    );
+
     onMounted(() => {
-      requestAnimationFrame(build);
-      window.addEventListener('scroll', onScroll, { passive: true });
+      // Fallback: attach to window initially (build() will switch to the real container)
+      setupScrollListener();
       window.addEventListener('resize', cache);
       document.addEventListener('keydown', onKeydown);
       document.addEventListener('click', onClickOutside);
@@ -262,7 +334,8 @@ export default {
     onUnmounted(() => {
       if (animFrame) cancelAnimationFrame(animFrame);
       clearTimeout(hoverTimeout);
-      window.removeEventListener('scroll', onScroll);
+      if (removeEditorUpdate) removeEditorUpdate();
+      if (removeScrollListener) removeScrollListener();
       window.removeEventListener('resize', cache);
       document.removeEventListener('keydown', onKeydown);
       document.removeEventListener('click', onClickOutside);

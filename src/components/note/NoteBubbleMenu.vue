@@ -2,11 +2,14 @@
   <bubble-menu
     v-if="editor"
     :editor="editor"
-    :update-delay="0"
+    :update-delay="100"
     :should-show="shouldShowMenuFn"
-    :class="menuClass"
   >
-    <component :is="currentMenuComponent" v-bind="{ editor, id, note }" />
+    <component
+      :is="currentMenuComponent"
+      v-if="currentMenuComponent"
+      v-bind="{ editor, id, note }"
+    />
   </bubble-menu>
 </template>
 
@@ -26,7 +29,7 @@ export default {
     NoteBubbleMenuEditor,
   },
   props: {
-    editor: { type: Object, default: () => ({}) },
+    editor: { type: Object, default: null },
     id: { type: String, default: '' },
     note: { type: Object, required: true },
   },
@@ -40,50 +43,36 @@ export default {
       // Always show for images and links
       if (editor.isActive('image') || editor.isActive('link')) return true;
 
-      // Don't show for non-editable text nodes
+      // Don't show for atomic / drawing blocks
       if (
         !empty &&
         (editor.isActive('codeBlock') ||
           editor.isActive('mathBlock') ||
-          editor.isActive('mermaidBlock'))
+          editor.isActive('mermaidBlock') ||
+          editor.isActive('paper'))
       )
         return false;
 
       return !empty;
     };
 
-    const shouldShowMenu = computed(() => {
-      if (!props.editor) return false;
-
-      return (
-        props.editor.isActive('image') ||
-        props.editor.isActive('link') ||
-        !props.editor.state.selection.empty
-      );
-    });
-
     const currentMenuComponent = computed(() => {
+      if (!props.editor) return null;
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
       if (props.editor.isActive('link')) return 'note-bubble-menu-link';
 
       if (props.editor.state.selection.empty) return null;
 
-      // Don't show editor toolbar inside blocks where formatting doesn't apply
       if (
         props.editor.isActive('codeBlock') ||
         props.editor.isActive('mathBlock') ||
-        props.editor.isActive('mermaidBlock')
+        props.editor.isActive('mermaidBlock') ||
+        props.editor.isActive('paper')
       )
         return null;
 
       return 'note-bubble-menu-editor';
     });
-
-    const menuClass = computed(() =>
-      props.editor?.isActive('image')
-        ? 'max-w-none border-0 bg-transparent shadow-none'
-        : 'bg-white dark:bg-neutral-800 rounded-xl max-w-xs border shadow-xl'
-    );
 
     onMounted(() => {
       if (props.editor) {
@@ -104,9 +93,7 @@ export default {
 
     return {
       shouldShowMenuFn,
-      shouldShowMenu,
       currentMenuComponent,
-      menuClass,
     };
   },
 };

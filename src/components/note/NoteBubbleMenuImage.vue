@@ -3,7 +3,7 @@
     class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-1 rounded-lg shadow-lg no-print flex items-center"
   >
     <button
-      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+      class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :class="
         currentLayout === 'wrap-left'
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
@@ -12,10 +12,10 @@
       :title="translations.editor.wrapRight || 'Wrap text on the right'"
       @click="setLayout('wrap-left')"
     >
-      <v-remixicon name="riAlignLeft" class="text-sm" />
+      <v-remixicon name="riAlignLeft" class="size-5" />
     </button>
     <button
-      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+      class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :class="
         currentLayout === 'block'
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
@@ -26,10 +26,10 @@
       "
       @click="setLayout('block')"
     >
-      <v-remixicon name="riAlignCenter" class="text-sm" />
+      <v-remixicon name="riAlignCenter" class="size-5" />
     </button>
     <button
-      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+      class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :class="
         currentLayout === 'wrap-right'
           ? 'bg-primary/10 text-primary ring-1 ring-primary/20 dark:bg-primary/15'
@@ -38,23 +38,23 @@
       :title="translations.editor.wrapLeft || 'Wrap text on the left'"
       @click="setLayout('wrap-right')"
     >
-      <v-remixicon name="riAlignRight" class="text-sm" />
+      <v-remixicon name="riAlignRight" class="size-5" />
     </button>
     <span class="border-r mx-1 h-6" />
     <button
-      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+      class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :title="translations.editor.downloadImage || 'Download image'"
       @click="downloadImage"
     >
-      <v-remixicon name="riDownload2Line" />
+      <v-remixicon name="riDownload2Line" class="size-5" />
     </button>
     <span class="border-r mx-1 h-6" />
     <button
-      class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+      class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :title="deleteTitle"
       @click="removeImage"
     >
-      <v-remixicon name="riDeleteBin6Line" />
+      <v-remixicon name="riDeleteBin6Line" class="size-5" />
     </button>
   </div>
 </template>
@@ -146,7 +146,7 @@ export default {
   props: {
     editor: {
       type: Object,
-      default: () => ({}),
+      default: null,
     },
   },
   setup(props) {
