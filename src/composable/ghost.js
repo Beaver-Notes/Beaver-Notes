@@ -36,7 +36,6 @@ function createGhostContainer(rect) {
  * already handles placement — the clone should render naturally inside it.
  */
 function prepareClone(clone) {
-  // Clear the masonry translate3d — irrelevant for the floating drag ghost.
   clone.style.transform = '';
   clone.style.position = 'relative';
   clone.style.top = '0';
@@ -49,9 +48,16 @@ function prepareClone(clone) {
   clone.style.opacity = '1';
   clone.style.contain = 'none';
   clone.style.transformOrigin = 'center center';
+  clone.style.contentVisibility = 'visible';
+  clone.style.containIntrinsicSize = 'none';
+  clone.style.willChange = 'auto';
 
-  // Remove Tailwind classes that add transforms or reduced opacity,
-  // which would conflict with the ghost layout.
+  clone.querySelectorAll('*').forEach((child) => {
+    child.style.contain = 'none';
+    child.style.contentVisibility = 'visible';
+    child.style.willChange = 'auto';
+  });
+
   clone.classList.remove(
     'opacity-50',
     'opacity-60',

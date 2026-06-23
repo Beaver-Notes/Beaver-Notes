@@ -12,16 +12,16 @@ let animationFrame = null;
 
 function showDragGhost(payload) {
   const { items: dragItems, kind: dragKind, clientX, clientY } = payload;
-  
+
   items.value = dragItems;
   kind.value = dragKind;
   position.value = { x: clientX, y: clientY };
   isVisible.value = true;
-  
+
   if (animationFrame) {
     cancelAnimationFrame(animationFrame);
   }
-  
+
   animationFrame = requestAnimationFrame(() => {
     if (componentRef.value) {
       componentRef.value.$forceUpdate();
@@ -36,7 +36,7 @@ function updateDragGhost(clientX, clientY) {
 function hideDragGhost() {
   isVisible.value = false;
   items.value = [];
-  
+
   if (animationFrame) {
     cancelAnimationFrame(animationFrame);
     animationFrame = null;
