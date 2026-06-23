@@ -1,6 +1,7 @@
 <template>
   <div
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 top-2 w-fit mx-auto p-1 sticky rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
+    v-if="editor"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
   >
     <div class="flex items-center justify-start w-max h-full gap-1">
       <ui-popover>
@@ -25,9 +26,9 @@
             <ui-list-item
               v-for="item in menuOptions"
               :key="item.label"
-              @click="item.command"
               small
               class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer"
+              @click="item.command"
             >
               <v-remixicon
                 :name="item.icon"
@@ -135,7 +136,6 @@
             <ui-list-item
               v-for="item in alignmentOptions"
               :key="item.label"
-              @click="item.command"
               small
               :class="
                 item.isActive
@@ -143,6 +143,7 @@
                   : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
               "
               class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm"
+              @click="item.command"
             >
               <v-remixicon :name="item.icon" class="size-6 text-neutral-500" />
               <span class="w-full text-left">{{ item.label }}</span>
@@ -262,7 +263,7 @@ import { useNoteMenu } from '@/composable/useNoteMenu';
 
 export default {
   props: {
-    editor: { type: Object, default: () => ({}) },
+    editor: { type: Object, default: null },
     id: { type: String, default: '' },
     note: { type: Object, required: true },
   },
