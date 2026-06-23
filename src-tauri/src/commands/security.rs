@@ -139,7 +139,8 @@ pub(crate) async fn asset_crypto_migrate_dir(
                     // encrypted and move on — the manifest is about to be removed anyway.
                     match maybe_decrypt_asset(&app, &state_inner, path, &raw) {
                         Ok(plain) => {
-                            let payload = maybe_encrypt_asset(&app, &state_inner, path, &plain, true)?;
+                            let payload =
+                                maybe_encrypt_asset(&app, &state_inner, path, &plain, true)?;
                             fs::write(path, payload).map_err(to_error)
                         }
                         Err(e) => {
@@ -155,10 +156,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
             match result {
                 Ok(()) => processed += 1,
                 Err(e) => {
-                    eprintln!(
-                        "[asset-migration] FAILED: {} | error: {}",
-                        current, e
-                    );
+                    eprintln!("[asset-migration] FAILED: {} | error: {}", current, e);
                     // If the key is not loaded, every file will fail — abort early.
                     if e.contains("App encryption is enabled but locked") {
                         return Err(format!(
@@ -245,11 +243,8 @@ pub(crate) fn encryption_submit_password(
         )?;
         *state.app_data_key.lock().map_err(to_error)? = Some(key);
     } else if create_if_missing {
-        let (manifest, key) = create_encryption_manifest(
-            APP_ENCRYPTION_SCOPE,
-            APP_PASSWORD_CHECK,
-            &password,
-        )?;
+        let (manifest, key) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
         write_encryption_manifest(&manifest_path, &manifest)?;
         *state.app_data_key.lock().map_err(to_error)? = Some(key);
         crate::shared::set_app_encryption_active(state.inner(), true);
@@ -559,8 +554,11 @@ pub(crate) async fn decrypt_asset_stream(
 
     if let Some(cached) = get_cached_decrypted_asset(&state_inner, &path) {
         let metadata = fs::metadata(&path_buf).map_err(to_error)?;
-        let cache_path =
-            crate::shared::decrypted_cache_path(&state_inner.asset_cache_dir, &path_buf, &metadata)?;
+        let cache_path = crate::shared::decrypted_cache_path(
+            &state_inner.asset_cache_dir,
+            &path_buf,
+            &metadata,
+        )?;
         fs::write(&cache_path, &cached).map_err(to_error)?;
         return Ok(cache_path.to_string_lossy().to_string());
     }
@@ -571,8 +569,11 @@ pub(crate) async fn decrypt_asset_stream(
 
     if is_encrypted_asset_v2(&raw) || is_encrypted_asset_buffer(&raw) {
         let metadata = fs::metadata(&path_buf).map_err(to_error)?;
-        let output_path =
-            crate::shared::decrypted_cache_path(&state_inner.asset_cache_dir, &path_buf, &metadata)?;
+        let output_path = crate::shared::decrypted_cache_path(
+            &state_inner.asset_cache_dir,
+            &path_buf,
+            &metadata,
+        )?;
         if is_encrypted_asset_v2(&raw) {
             decrypt_asset_streaming(&path_buf, &output_path, &key)?;
         } else {

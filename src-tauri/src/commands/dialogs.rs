@@ -2,8 +2,7 @@ use std::path::PathBuf;
 
 #[cfg(not(target_os = "android"))]
 use font_kit::source::SystemSource;
-use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use tauri_plugin_dialog::{DialogExt, FilePath, MessageDialogButtons, MessageDialogKind};
 
 use crate::shared::*;

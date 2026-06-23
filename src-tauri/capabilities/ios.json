@@ -1,0 +1,6 @@
+{
+  "identifier": "ios-capability",
+  "platforms": ["iOS"],
+  "windows": ["main"],
+  "permissions": ["spotsearch:default", "app-icon:default"]
+}
