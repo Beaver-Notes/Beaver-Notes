@@ -12,35 +12,20 @@
         class="drag-ghost-single"
         :style="singleStyle"
       >
-        <component
-          :is="itemComponent"
-          :data="items[0]"
-          :is-ghost="true"
-        />
+        <component :is="itemComponent" :data="items[0]" :is-ghost="true" />
       </div>
-      
-      <div
-        v-else
-        class="drag-ghost-stack"
-        :style="stackContainerStyle"
-      >
+
+      <div v-else class="drag-ghost-stack" :style="stackContainerStyle">
         <div
           v-for="(item, index) in items"
           :key="item.id"
           class="drag-ghost-stack-card"
           :style="getStackCardStyle(index)"
         >
-          <component
-            :is="itemComponent"
-            :data="item"
-            :is-ghost="true"
-          />
+          <component :is="itemComponent" :data="item" :is-ghost="true" />
         </div>
-        
-        <div
-          class="drag-ghost-badge"
-          :style="badgeStyle"
-        >
+
+        <div class="drag-ghost-badge" :style="badgeStyle">
           {{ items.length }}
         </div>
       </div>
@@ -62,7 +47,7 @@ const props = defineProps({
   scale: { type: Number, default: 0.94 },
 });
 
-const itemComponent = computed(() => 
+const itemComponent = computed(() =>
   props.kind === 'note' ? HomeNoteCard : HomeFolderCard
 );
 
@@ -77,7 +62,9 @@ const overlayStyle = computed(() => ({
   left: '0',
   pointerEvents: 'none',
   zIndex: 2147483647,
-  transform: `translate(${props.position.x + props.offset.x}px, ${props.position.y + props.offset.y}px) scale(${props.scale})`,
+  transform: `translate(${props.position.x + props.offset.x}px, ${
+    props.position.y + props.offset.y
+  }px) scale(${props.scale})`,
   transition: 'transform 0.05s linear',
   willChange: 'transform',
 }));
@@ -98,18 +85,20 @@ const stackContainerStyle = computed(() => ({
 function getStackCardStyle(index) {
   const count = props.items.length;
   const reverseIndex = count - 1 - index;
-  
+
   let rot = 0;
   let scale = 1;
-  
+
   if (reverseIndex > 0) {
-    rot = Math.min(reverseIndex * STACK_ROT_STEP, STACK_ROT_MAX) * (reverseIndex % 2 === 0 ? 1 : -1);
+    rot =
+      Math.min(reverseIndex * STACK_ROT_STEP, STACK_ROT_MAX) *
+      (reverseIndex % 2 === 0 ? 1 : -1);
     scale = Math.max(1 - reverseIndex * 0.015, STACK_SCALE_MIN);
   }
-  
+
   const offsetX = reverseIndex * STACK_OFFSET;
   const offsetY = reverseIndex * STACK_OFFSET;
-  
+
   return {
     position: 'absolute',
     top: `${offsetY}px`,
