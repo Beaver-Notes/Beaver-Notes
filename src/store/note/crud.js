@@ -13,6 +13,8 @@ import {
   storage,
   removeNoteFromFts,
 } from './helpers';
+import { reindexAllNotes } from '@/utils/spotlightSync';
+import { pruneExpiredIds, collectExpiredIds } from '@/utils/deletedIds';
 
 // ─── Load & hydration ────────────────────────────────────────────────────────
 
@@ -39,17 +41,9 @@ export async function retrieve() {
 
     this.data = merged;
 
-    // Load and prune stale deleted-note IDs (>30 days old) on every launch
+    // Load and prune stale deleted-note IDs on every launch
     const deletedIds = await storage.get('deletedIds', {});
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    let deletedDirty = false;
-    for (const id of Object.keys(deletedIds)) {
-      if (deletedIds[id] < cutoff) {
-        delete deletedIds[id];
-        deletedDirty = true;
-      }
-    }
-    if (deletedDirty) {
+    if (pruneExpiredIds(deletedIds)) {
       await storage.set('deletedIds', deletedIds);
     }
     this.deletedIds = deletedIds;
@@ -59,6 +53,8 @@ export async function retrieve() {
       await this.migrateLockData();
       await storage.set('migration_completed', true);
     }
+
+    reindexAllNotes(this.data);
 
     return this.data;
   } catch (error) {
@@ -183,10 +179,7 @@ export async function deleteNote(id) {
 }
 
 export async function cleanupDeletedIds(days = 30) {
-  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  const toDelete = Object.entries(this.deletedIds || {})
-    .filter(([, timestamp]) => timestamp < cutoff)
-    .map(([id]) => id);
+  const toDelete = collectExpiredIds(this.deletedIds, days);
 
   for (const id of toDelete) {
     delete this.deletedIds[id];

@@ -8,6 +8,7 @@ export const useAppStore = defineStore('appStore', () => {
     openLastEdited: getSettingSync('openLastEdited'),
     openAfterCreation: getSettingSync('openAfterCreation'),
     soundsEnabled: getSettingSync('soundsEnabled'),
+    spotlightEnabled: getSettingSync('spotlightEnabled'),
   });
 
   const loading = ref(false);

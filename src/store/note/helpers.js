@@ -10,6 +10,10 @@ import {
   stripTransientFields,
 } from '@/utils/noteSerializer.js';
 import { useFolderStore } from '../folder';
+import {
+  indexNoteForSpotlight,
+  deleteNoteFromSpotlight,
+} from '@/utils/spotlightSync';
 
 export const storage = useStorage();
 
@@ -31,6 +35,7 @@ export async function saveNote(id, noteData) {
   const toStore = await encryptNoteForStorage(stripTransientFields(noteData));
   await storage.set(`notes.${id}`, toStore);
   syncFtsIndex(noteData);
+  indexNoteForSpotlight(noteData);
 }
 
 export async function resolveFolderId(folderId) {
@@ -40,4 +45,5 @@ export async function resolveFolderId(folderId) {
 
 export async function removeNoteFromFts(id) {
   removeNoteFromIndex(id).catch(() => {});
+  deleteNoteFromSpotlight(id);
 }
