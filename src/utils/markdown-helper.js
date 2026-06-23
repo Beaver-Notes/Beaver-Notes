@@ -1,646 +1,286 @@
 import { marked } from 'marked';
 import { v4 as uuidv4 } from 'uuid';
-import { useStorage } from '@/composable/storage';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import {
-  createMediaFallbackNode,
-  sanitizeImageSource,
-  sanitizeMediaSource,
-} from '@/utils/contentSecurity';
+import { generateJSON } from '@tiptap/core';
+import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
 
-const storage = useStorage('settings');
+const handlers = [];
+
+export function registerMarkdownHandler(handler) {
+  if (!handler || !handler.name) {
+    throw new Error('Markdown handler must have a name');
+  }
+  handlers.push(handler);
+  return () => {
+    const idx = handlers.indexOf(handler);
+    if (idx !== -1) handlers.splice(idx, 1);
+  };
+}
+
+export function getMarkdownHandlers() {
+  return handlers;
+}
+
+export function clearMarkdownHandlers() {
+  handlers.length = 0;
+}
+
+function applyPreprocessors(markdown, context) {
+  let result = markdown;
+  for (const h of handlers) {
+    if (h.preprocess) result = h.preprocess(result, context);
+  }
+  return result;
+}
+
+async function applyPostprocessors(json, context) {
+  for (const h of handlers) {
+    if (h.postprocess) await h.postprocess(json, context);
+  }
+}
+
+async function copyLocalAsset(fileName, directoryPath, id, subDir) {
+  const fullSource = path.join(directoryPath, subDir, fileName);
+  const assetsDir = path.join(await getAppDirectory(), subDir, id);
+  const dest = path.join(assetsDir, fileName);
+  try {
+    await backend.invoke('fs:copy', { path: fullSource, dest });
+    return `${subDir}://${id}/${fileName}`;
+  } catch (error) {
+    console.error(
+      'Error copying ' + subDir + ' asset ' + fileName + ':',
+      error
+    );
+    return null;
+  }
+}
+
+function getFileTypeFromExtension(fileName) {
+  const ext = (fileName || '').split('.').pop()?.toLowerCase();
+  const videoExts = ['mp4', 'webm', 'mov', 'avi', 'mkv', 'wmv'];
+  const audioExts = ['mp3', 'wav', 'ogg', 'flac', 'aac', 'wma', 'm4a'];
+  if (videoExts.includes(ext)) return 'video';
+  if (audioExts.includes(ext)) return 'audio';
+  return 'file';
+}
+
+registerMarkdownHandler({
+  name: 'footnote-definitions',
+
+  preprocess(markdown, context) {
+    const regex = /\[\^(\d+)\]:\s+(.*)/g;
+    let match;
+    while ((match = regex.exec(markdown)) !== null) {
+      const refNum = match[1];
+      const definition = match[2];
+      const uid = uuidv4();
+      context.referenceNumberToId[refNum] = uid;
+      context.footnoteDefinitions.push({
+        type: 'footnote',
+        attrs: { id: 'fn:' + refNum, 'data-id': uid },
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: definition }],
+          },
+        ],
+      });
+    }
+    return markdown.replace(regex, '');
+  },
+});
+
+registerMarkdownHandler({
+  name: 'math-block',
+
+  preprocess(markdown, _context) {
+    return markdown.replace(/\$\$([\s\S]*?)\$\$/g, (_match, content) => {
+      const escaped = content.trim().replace(/"/g, '&quot;');
+      return '<math-block content="' + escaped + '"></math-block>';
+    });
+  },
+});
+
+registerMarkdownHandler({
+  name: 'math-inline',
+
+  preprocess(markdown, _context) {
+    return markdown.replace(
+      /(?<!\$)\$([^$]+)\$(?!\$)/g,
+      '<math-inline>$1</math-inline>'
+    );
+  },
+});
+
+registerMarkdownHandler({
+  name: 'footnote-references',
+
+  preprocess(markdown, context) {
+    return markdown.replace(/\[\^(\d+)\]/g, (_match, refNum) => {
+      const uid = context.referenceNumberToId[refNum] || uuidv4();
+      if (!context.referenceNumberToId[refNum]) {
+        context.referenceNumberToId[refNum] = uid;
+      }
+      return (
+        '<sup id="fnref:' +
+        refNum +
+        '"><a class="footnote-ref" href="#fn:' +
+        refNum +
+        '" data-id="' +
+        uid +
+        '" data-reference-number="' +
+        refNum +
+        '">' +
+        refNum +
+        '</a></sup>'
+      );
+    });
+  },
+});
+
+registerMarkdownHandler({
+  name: 'image-assets',
+
+  async postprocess(json, context) {
+    const { id, directoryPath } = context;
+    const ops = [];
+
+    function walk(node) {
+      if (!node || typeof node !== 'object') return;
+      if (
+        node.type === 'image' &&
+        node.attrs?.src &&
+        !node.attrs.src.startsWith('http://') &&
+        !node.attrs.src.startsWith('https://') &&
+        !node.attrs.src.startsWith('assets://')
+      ) {
+        const fileName = node.attrs.src.split('/').pop();
+        ops.push(async () => {
+          const newSrc = await copyLocalAsset(
+            fileName,
+            directoryPath,
+            id,
+            'notes-assets'
+          );
+          if (newSrc) node.attrs.src = newSrc;
+        });
+      }
+      if (Array.isArray(node.content)) node.content.forEach(walk);
+      if (Array.isArray(node.marks)) node.marks.forEach(walk);
+    }
+
+    walk(json);
+    for (const op of ops) await op();
+  },
+});
+
+registerMarkdownHandler({
+  name: 'file-links',
+
+  async postprocess(json, context) {
+    const { id, directoryPath } = context;
+    const ops = [];
+
+    function convert(node) {
+      if (!node || typeof node !== 'object') return node;
+
+      if (node.type === 'text' && Array.isArray(node.marks)) {
+        const linkIdx = node.marks.findIndex((m) => m.type === 'link');
+        if (linkIdx !== -1) {
+          const href = node.marks[linkIdx].attrs?.href || '';
+          if (
+            !href.startsWith('http://') &&
+            !href.startsWith('https://') &&
+            !href.startsWith('mailto:') &&
+            !href.startsWith('#')
+          ) {
+            const fileName = href.split('/').pop();
+            const fileType = getFileTypeFromExtension(fileName);
+            const displayName = node.text || fileName;
+
+            const nodeType =
+              fileType === 'video'
+                ? 'Video'
+                : fileType === 'audio'
+                ? 'Audio'
+                : 'fileEmbed';
+
+            const newNode = {
+              type: nodeType,
+              attrs: { src: '', fileName: displayName },
+            };
+
+            ops.push(async () => {
+              const newSrc = await copyLocalAsset(
+                fileName,
+                directoryPath,
+                id,
+                'file-assets'
+              );
+              if (newSrc) newNode.attrs.src = newSrc;
+            });
+
+            return newNode;
+          }
+        }
+      }
+
+      if (Array.isArray(node.content)) {
+        node.content = node.content.map(convert).filter(Boolean);
+      }
+      if (Array.isArray(node.marks)) {
+        node.marks = node.marks.map(convert).filter(Boolean);
+      }
+      return node;
+    }
+
+    convert(json);
+    for (const op of ops) await op();
+  },
+});
 
 export const readMarkdownFile = async (filePath) => {
   try {
     const markdown = await backend.invoke('fs:readFile', filePath);
     return markdown;
   } catch (error) {
-    console.error(`Error reading file ${filePath}:`, error);
+    console.error('Error reading file ' + filePath + ':', error);
     throw error;
   }
 };
 
 export const convertMarkdownToTiptap = async (markdown, id, directoryPath) => {
-  const footnoteDefinitions = [];
-  const referenceNumberToId = {};
-
-  const footnoteRegex = /\[\^(\d+)\]:\s+(.*)/g;
-
-  let match;
-  while ((match = footnoteRegex.exec(markdown)) !== null) {
-    const referenceNumber = match[1];
-    const definition = match[2];
-    const uuid = uuidv4();
-    referenceNumberToId[referenceNumber] = uuid;
-    footnoteDefinitions.push({
-      type: 'footnote',
-      attrs: {
-        id: `fn:${referenceNumber}`,
-        'data-id': uuid,
-      },
-      content: [
-        {
-          type: 'paragraph',
-          content: [{ type: 'text', text: definition }],
-        },
-      ],
-    });
-  }
-
-  const cleanedMarkdown = markdown.replace(footnoteRegex, '');
-
-  const html = marked(cleanedMarkdown);
-  const json = {
-    type: 'doc',
-    content: [],
+  const context = {
+    id,
+    directoryPath,
+    referenceNumberToId: {},
+    footnoteDefinitions: [],
   };
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
+  const processedMarkdown = applyPreprocessors(markdown, context);
 
-  const convertElementToTiptap = async (element) => {
-    if (element.nodeType === Node.TEXT_NODE) {
-      const text = element.textContent;
+  const html = marked(processedMarkdown);
+  const json = generateJSON(html, [...extensions, CollapseHeading, heading]);
 
-      const inlineMathPattern = /\$([^$]+)\$/g;
-      const inlineMathMatches = text.match(inlineMathPattern);
-      if (inlineMathMatches) {
-        const content = [];
-        let lastIndex = 0;
-
-        inlineMathMatches.forEach((match) => {
-          const index = text.indexOf(match, lastIndex);
-          if (index > lastIndex) {
-            content.push({
-              type: 'text',
-              text: text.substring(lastIndex, index),
-            });
-          }
-          const mathContent = match.slice(1, -1);
-          content.push({
-            type: 'math_inline',
-            content: [{ type: 'text', text: mathContent }],
-          });
-          lastIndex = index + match.length;
-        });
-
-        if (lastIndex < text.length) {
-          content.push({ type: 'text', text: text.substring(lastIndex) });
-        }
-
-        return { type: 'paragraph', content };
-      }
-
-      const footnotePattern = /\[\^(\d+)\]/g;
-      const footnoteMatches = text.match(footnotePattern);
-      if (footnoteMatches) {
-        const content = [];
-        let lastIndex = 0;
-
-        footnoteMatches.forEach((match) => {
-          const index = text.indexOf(match, lastIndex);
-          if (index > lastIndex) {
-            content.push({
-              type: 'text',
-              text: text.substring(lastIndex, index),
-            });
-          }
-          const referenceNumber = match.slice(2, -1);
-          const uuid = referenceNumberToId[referenceNumber];
-          content.push({
-            type: 'footnoteReference',
-            attrs: {
-              class: 'footnote-ref',
-              'data-id': uuid,
-              referenceNumber,
-              href: null,
-            },
-          });
-          lastIndex = index + match.length;
-        });
-
-        if (lastIndex < text.length) {
-          content.push({ type: 'text', text: text.substring(lastIndex) });
-        }
-
-        return { type: 'paragraph', content };
-      }
-
-      if (text.trim()) {
-        return { type: 'text', text };
-      }
-      return null;
-    }
-
-    let content = await Promise.all(
-      Array.from(element.childNodes).map(convertElementToTiptap)
-    );
-    content = content.filter(Boolean);
-
-    switch (element.tagName) {
-      case 'P': {
-        const blockMathPattern = /^\$\$([^$]+)\$\$$/;
-        const blockMathMatch = element.textContent.match(blockMathPattern);
-        if (blockMathMatch) {
-          const mathContent = blockMathMatch[1].trim();
-          return {
-            type: 'mathBlock',
-            attrs: {
-              content: mathContent,
-              macros: '{\\f: "#1f(#2)"}',
-              init: 'true',
-            },
-          };
-        }
-        return { type: 'paragraph', content };
-      }
-      case 'H1':
-        return { type: 'heading', attrs: { level: 1 }, content };
-      case 'H2':
-        return { type: 'heading', attrs: { level: 2 }, content };
-      case 'H3':
-        return { type: 'heading', attrs: { level: 3 }, content };
-      case 'H4':
-        return { type: 'heading', attrs: { level: 4 }, content };
-      case 'H5':
-        return { type: 'heading', attrs: { level: 5 }, content };
-      case 'H6':
-        return { type: 'heading', attrs: { level: 6 }, content };
-      case 'DETAILS': {
-        const summaryElement = element.querySelector('summary');
-        const summaryContent = summaryElement
-          ? await convertElementToTiptap(summaryElement)
-          : null;
-
-        const detailsContent = await Promise.all(
-          Array.from(element.childNodes)
-            .filter((child) => child !== summaryElement) // Exclude the <summary> node
-            .map(convertElementToTiptap)
-        );
-
-        const nodes = [];
-        if (summaryContent) {
-          nodes.push({
-            type: 'heading',
-            attrs: { level: 4, open: true, collapsedContent: null },
-            content: summaryContent.content,
-          });
-        }
-
-        nodes.push(...detailsContent);
-
-        return nodes;
-      }
-      case 'SUMMARY': {
-        // This case might not be needed if SUMMARY is handled within DETAILS
-        // but included here for completeness
-        const summaryText = element.textContent;
-        return {
-          type: 'heading',
-          attrs: { level: 4, open: true, collapsedContent: null },
-          content: [{ type: 'text', text: summaryText }],
-        };
-      }
-      case 'UL': {
-        const isTaskList = Array.from(element.childNodes).some(
-          (child) =>
-            child.nodeType === Node.ELEMENT_NODE &&
-            child.querySelector('input[type="checkbox"]')
-        );
-        if (isTaskList) {
-          return {
-            type: 'taskList',
-            content: await Promise.all(
-              Array.from(element.childNodes)
-                .filter((child) => child.tagName === 'LI')
-                .map(async (li) => {
-                  const checkbox = li.querySelector('input[type="checkbox"]');
-                  const checked = checkbox ? checkbox.checked : false;
-                  return {
-                    type: 'taskItem',
-                    attrs: { checked },
-                    content: [
-                      {
-                        type: 'paragraph',
-                        content: (
-                          await Promise.all(
-                            Array.from(li.childNodes).map(
-                              convertElementToTiptap
-                            )
-                          )
-                        ).filter(Boolean),
-                      },
-                    ],
-                  };
-                })
-            ),
-          };
-        }
-        return {
-          type: 'bulletList',
-          content: await Promise.all(
-            Array.from(element.childNodes)
-              .filter((child) => child.tagName === 'LI')
-              .map(async (li) => ({
-                type: 'listItem',
-                content: [
-                  {
-                    type: 'paragraph',
-                    content: (
-                      await Promise.all(
-                        Array.from(li.childNodes).map(convertElementToTiptap)
-                      )
-                    ).filter(Boolean),
-                  },
-                ],
-              }))
-          ),
-        };
-      }
-      case 'OL':
-        return {
-          type: 'orderedList',
-          attrs: {
-            order: parseInt(element.getAttribute('start') || '1', 10),
-          },
-          content: await Promise.all(
-            Array.from(element.childNodes)
-              .filter((child) => child.tagName === 'LI')
-              .map(async (li) => ({
-                type: 'listItem',
-                content: [
-                  {
-                    type: 'paragraph',
-                    content: (
-                      await Promise.all(
-                        Array.from(li.childNodes).map(convertElementToTiptap)
-                      )
-                    ).filter(Boolean),
-                  },
-                ],
-              }))
-          ),
-        };
-      case 'LI':
-        return { type: 'listItem', content };
-      case 'CODE': {
-        if (element.parentElement.tagName !== 'PRE') {
-          return {
-            type: 'text',
-            marks: [{ type: 'code' }],
-            text: element.textContent,
-          };
-        } else {
-          const codeContent = element.textContent;
-          const language = element.parentElement.getAttribute('class') || '';
-
-          if (language.startsWith('language-mermaid')) {
-            return {
-              type: 'mermaidDiagram',
-              attrs: {
-                content: codeContent,
-                init: '', // Add any initialization settings if needed
-              },
-            };
-          }
-
-          return {
-            type: 'codeBlock',
-            attrs: { language: language.replace('language-', '') },
-            content: [{ type: 'text', text: codeContent }],
-          };
-        }
-      }
-      case 'PRE': {
-        const codeElement = element.querySelector('code');
-        if (codeElement) {
-          const codeContent = codeElement.textContent;
-          const language = codeElement.getAttribute('class') || '';
-
-          if (language.startsWith('language-mermaid')) {
-            return {
-              type: 'mermaidDiagram',
-              attrs: {
-                content: codeContent,
-                init: '', // Add any initialization settings if needed
-              },
-            };
-          }
-
-          return {
-            type: 'codeBlock',
-            attrs: { language: language.replace('language-', '') },
-            content: [{ type: 'text', text: codeContent }],
-          };
-        }
-        return null;
-      }
-      case 'BLOCKQUOTE':
-        return { type: 'blockquote', content };
-      case 'STRONG':
-        return {
-          type: 'text',
-          marks: [{ type: 'bold' }],
-          text: element.textContent,
-        };
-      case 'EM':
-        return {
-          type: 'text',
-          marks: [{ type: 'italic' }],
-          text: element.textContent,
-        };
-      case 'S':
-        return {
-          type: 'text',
-          marks: [{ type: 'strike' }],
-          text: element.textContent,
-        };
-      case 'A': {
-        const href = element.getAttribute('href') || '';
-        const imgElement = element.querySelector('img');
-
-        if (imgElement) {
-          return convertElementToTiptap(imgElement);
-        }
-
-        if (href.startsWith('http://') || href.startsWith('https://')) {
-          return {
-            type: 'text',
-            marks: [
-              {
-                type: 'link',
-                attrs: {
-                  href,
-                  target: '_blank',
-                  rel: 'noopener noreferrer nofollow',
-                },
-              },
-            ],
-            text: element.textContent,
-          };
-        }
-
-        if (href.startsWith('mailto:')) {
-          return {
-            type: 'text',
-            marks: [
-              {
-                type: 'link',
-                attrs: {
-                  href,
-                  target: '_blank',
-                  rel: 'noopener noreferrer nofollow',
-                  class: null,
-                },
-              },
-            ],
-            text: element.textContent,
-          };
-        }
-
-        const appDirectory = await getAppDirectory();
-        const fileName = href.split('/').pop();
-        const file = path.join(directoryPath, 'file-assets', fileName);
-        const assetsPath = path.join(appDirectory, 'file-assets', id);
-        try {
-          await backend.invoke('fs:copy', {
-            path: file,
-            dest: path.join(assetsPath, fileName),
-          });
-          return {
-            type: 'fileEmbed',
-            attrs: {
-              src: `file-assets/${id}/${fileName}`,
-              fileName,
-            },
-          };
-        } catch (error) {
-          console.error(`Error processing file ${fileName}:`, error);
-          return null;
-        }
-      }
-      case 'HR':
-        return {
-          type: 'horizontalRule',
-        };
-      case 'SUP':
-        return {
-          type: 'text',
-          marks: [{ type: 'superscript' }],
-          text: element.textContent,
-        };
-      case 'SUB':
-        return {
-          type: 'text',
-          marks: [{ type: 'subscript' }],
-          text: element.textContent,
-        };
-      case 'IFRAME':
-        return createMediaFallbackNode(
-          'iframe',
-          { src: element.getAttribute('src') },
-          element.parentElement?.tagName?.toLowerCase()
-        );
-      case 'VIDEO': {
-        const src =
-          element.getAttribute('src') ||
-          element.querySelector('source')?.getAttribute('src') ||
-          '';
-
-        if (src.startsWith('http://') || src.startsWith('https://')) {
-          const safeSrc = sanitizeMediaSource(src);
-          return safeSrc
-            ? {
-                type: 'Video',
-                attrs: {
-                  src: safeSrc,
-                  fileName: null,
-                },
-              }
-            : createMediaFallbackNode('video', { src });
-        }
-
-        const appDirectory = await getAppDirectory();
-        const fileName = src.split('/').pop();
-        const file = path.join(directoryPath, 'file-assets', fileName);
-        const assetsPath = path.join(appDirectory, 'file-assets', id);
-
-        try {
-          await backend.invoke('fs:copy', {
-            path: file,
-            dest: path.join(assetsPath, fileName),
-          });
-          return {
-            type: 'Video',
-            attrs: {
-              src: `file-assets://${id}/${fileName}`,
-              fileName: null,
-            },
-          };
-        } catch (error) {
-          console.error(`Error processing file ${fileName}:`, error);
-          return null;
-        }
-      }
-      case 'AUDIO': {
-        const src =
-          element.getAttribute('src') ||
-          element.querySelector('source')?.getAttribute('src') ||
-          '';
-
-        if (src.startsWith('http://') || src.startsWith('https://')) {
-          const safeSrc = sanitizeMediaSource(src);
-          return safeSrc
-            ? {
-                type: 'Audio',
-                attrs: {
-                  src: safeSrc,
-                  fileName: null,
-                },
-              }
-            : createMediaFallbackNode('audio', { src });
-        }
-
-        const appDirectory = await getAppDirectory();
-        const fileName = src.split('/').pop();
-        const file = path.join(directoryPath, 'file-assets', fileName);
-        const assetsPath = path.join(appDirectory, 'file-assets', id);
-
-        try {
-          await backend.invoke('fs:copy', {
-            path: file,
-            dest: path.join(assetsPath, fileName),
-          });
-          return {
-            type: 'Audio',
-            attrs: {
-              src: `file-assets://${id}/${fileName}`,
-              fileName: null,
-            },
-          };
-        } catch (error) {
-          console.error(`Error processing file ${fileName}:`, error);
-          return null;
-        }
-      }
-      case 'IMG': {
-        const src = element.getAttribute('src') || '';
-        const alt = element.getAttribute('alt') || '';
-
-        if (src.startsWith('http://') || src.startsWith('https://')) {
-          const safeSrc = sanitizeImageSource(src);
-          return safeSrc
-            ? {
-                type: 'image',
-                attrs: {
-                  src: safeSrc,
-                  alt,
-                },
-              }
-            : createMediaFallbackNode('image', { src, alt });
-        }
-
-        const appDirectory = await getAppDirectory();
-        const filename = src.split('/').pop();
-        const file = path.join(directoryPath, 'notes-assets', filename);
-        const assetsPath = path.join(appDirectory, 'notes-assets', id);
-        try {
-          await backend.invoke('fs:copy', {
-            path: file,
-            dest: path.join(assetsPath, filename),
-          });
-          return {
-            type: 'image',
-            attrs: {
-              src: `assets://${id}/${filename}`,
-              alt,
-            },
-          };
-        } catch (error) {
-          console.error(`Error processing image ${filename}:`, error);
-          return null;
-        }
-      }
-      case 'TABLE':
-        return {
-          type: 'table',
-          content: (
-            await Promise.all(
-              Array.from(element.querySelectorAll('tr')).map(
-                async (row, rowIndex) => {
-                  const isHeaderRow = rowIndex === 0;
-                  return {
-                    type: 'tableRow',
-                    content: (
-                      await Promise.all(
-                        Array.from(row.cells).map(async (cell) => {
-                          const cellType = isHeaderRow
-                            ? 'tableHeader'
-                            : 'tableCell';
-                          return {
-                            type: cellType,
-                            attrs: {
-                              colspan: cell.colSpan || 1,
-                              rowspan: cell.rowSpan || 1,
-                            },
-                            content: [
-                              {
-                                type: 'paragraph',
-                                content: (
-                                  await Promise.all(
-                                    Array.from(cell.childNodes).map(
-                                      convertElementToTiptap
-                                    )
-                                  )
-                                ).filter(Boolean),
-                              },
-                            ],
-                          };
-                        })
-                      )
-                    ).filter(Boolean),
-                  };
-                }
-              )
-            )
-          ).filter(Boolean),
-        };
-      case 'FOOTNOTE': {
-        // Skip footnote elements as they are already processed
-        return null;
-      }
-      default:
-        return null;
-    }
-  };
-
-  const bodyContent = await Promise.all(
-    Array.from(doc.body.childNodes).map(convertElementToTiptap)
-  );
+  await applyPostprocessors(json, context);
 
   let title = '';
-  if (
-    bodyContent.length > 0 &&
-    bodyContent[0].type === 'heading' &&
-    bodyContent[0].attrs.level === 1
-  ) {
-    title = bodyContent
-      .shift()
-      .content.map((node) => node.text)
-      .join('');
+  if (Array.isArray(json.content) && json.content.length > 0) {
+    const first = json.content[0];
+    if (first.type === 'heading' && first.attrs?.level === 1) {
+      title = (first.content || []).map((n) => n.text || '').join('');
+      json.content.shift();
+    }
   }
 
-  const flattenedBodyContent = bodyContent.flat().filter(Boolean);
-
-  json.content = [...flattenedBodyContent];
-
-  if (footnoteDefinitions.length > 0) {
+  if (context.footnoteDefinitions.length > 0) {
     json.content.push({
       type: 'footnotes',
       attrs: { class: 'footnotes' },
-      content: footnoteDefinitions,
+      content: context.footnoteDefinitions,
     });
   }
+
   return { title, content: json };
 };
