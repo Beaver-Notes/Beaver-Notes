@@ -1,4 +1,4 @@
-import { debounce } from '@/utils/helper';
+import { debounce } from '@/utils/helpers/index.js';
 
 const AUTO_SCROLL_DEBOUNCE_MS = 50;
 

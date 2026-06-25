@@ -2,7 +2,7 @@ import { computed, reactive } from 'vue';
 import {
   encryptionIsConfigured,
   isKeyLoaded,
-} from '@/utils/encryption.js';
+} from '@/utils/crypto/encryption.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';

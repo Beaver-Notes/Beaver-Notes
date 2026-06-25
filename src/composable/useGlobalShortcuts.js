@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted } from 'vue';
-import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 
 export function useGlobalShortcuts(shortcuts, options) {
   let removeGlobalShortcuts = () => {};

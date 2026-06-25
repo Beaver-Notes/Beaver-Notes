@@ -1,13 +1,13 @@
 import { computed, ref, shallowReactive } from 'vue';
-import { exportAllMarkdown, exportAllHTML } from '@/utils/share/ExportBulk';
+import { exportAllMarkdown, exportAllHTML } from '@/utils/share/exportBulk';
 import {
   importObsidian,
   importNotion,
   importBear,
   importSimplenote,
   importGenericMarkdown,
-} from '@/utils/import/importers';
-import { startRustImport } from '@/utils/import/importRustBridge';
+  startRustImport,
+} from '@/utils/import/bulkImport';
 import { openDialog } from '@/lib/native/dialog';
 import { getAppDirectory } from '@/lib/native/app';
 import { importAppleNotes, importEvernote } from '@/lib/native/imports';

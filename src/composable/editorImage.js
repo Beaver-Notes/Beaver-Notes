@@ -1,5 +1,5 @@
 import { useRoute } from 'vue-router';
-import copyImage from '@/utils/copy-image';
+import copyImage from '@/utils/assets/storage.js';
 import { openDialog } from '@/lib/native/dialog';
 
 export function useEditorImage(editor) {

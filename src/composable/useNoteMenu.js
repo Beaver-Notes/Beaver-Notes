@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import useAudioRecorder from '@/utils/record';
+import useAudioRecorder from '@/utils/assets/record.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';

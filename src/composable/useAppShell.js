@@ -22,7 +22,7 @@ import {
   installUpdate,
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
-import { tryRestoreKeyFromSafeStorage } from '@/utils/encryption.js';
+import { tryRestoreKeyFromSafeStorage } from '@/utils/crypto/encryption.js';
 import { useSoundActions } from './useSoundActions';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
@@ -299,7 +299,7 @@ export function useAppShell() {
       } else {
         // Use lightweight title extraction for text-based formats
         const { extractImportTitle } = await import(
-          '@/utils/import/singleFileImport'
+          '@/utils/import/fileImport'
         );
         title = await extractImportTitle(path);
       }
@@ -320,9 +320,7 @@ export function useAppShell() {
       if (type === 'bea') {
         await importBEA(path_, router, store, folderId);
       } else {
-        const { importSingleFile } = await import(
-          '@/utils/import/singleFileImport'
-        );
+        const { importSingleFile } = await import('@/utils/import/fileImport');
         const noteId = await importSingleFile(path_, folderId);
         router.push(`/note/${noteId}`);
       }
