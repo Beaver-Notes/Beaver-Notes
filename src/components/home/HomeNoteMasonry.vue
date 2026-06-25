@@ -4,7 +4,45 @@
     class="note-masonry"
     :class="{ 'filter-pulse': pulse }"
   >
-    <div class="note-masonry__stage" :style="{ height: `${stageHeight}px` }">
+    <div
+      v-if="!isReady && containerWidth > 0"
+      ref="measureRef"
+      class="note-masonry__measure"
+      aria-hidden="true"
+    >
+      <div
+        v-for="note in notes"
+        :key="`measure-${note.id}`"
+        :ref="setMeasureRef(note.id)"
+        class="note-masonry__measure-item"
+        :style="{ width: `${columnWidth}px` }"
+      >
+        <home-note-card
+          :note="note"
+          :is-locked="note.isLocked"
+          :disable-open="selectionMode"
+          class="w-full"
+        />
+      </div>
+    </div>
+
+    <div
+      v-if="!isReady && containerWidth > 0"
+      class="note-masonry__skeleton"
+      aria-hidden="true"
+    >
+      <div
+        v-for="i in skeletonCount"
+        :key="`skel-${i}`"
+        class="note-masonry__skeleton-card animate-pulse"
+      />
+    </div>
+
+    <div
+      v-show="isReady"
+      class="note-masonry__stage"
+      :style="{ height: `${stageHeight}px` }"
+    >
       <div
         v-for="item in visibleItems"
         :key="item.note.id"
@@ -14,7 +52,6 @@
         :class="{
           leaving: isItemLeaving(item.note.id),
           entering: isItemEntering(item.note.id),
-          'not-ready': !isMeasured,
         }"
         :style="{
           transform: `translate3d(${item.x}px,${item.y}px,0)`,
@@ -69,11 +106,9 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
-  shallowRef,
   watch,
 } from 'vue';
 
-// Must stay in sync with the @keyframes durations in <style> below.
 const CARD_LEAVE_DURATION_MS = 250;
 const CARD_ENTER_DURATION_MS = 300;
 const CARD_LEAVE_CLEANUP_MS = CARD_LEAVE_DURATION_MS + 50;
@@ -119,7 +154,12 @@ const viewportHeight = ref(
 );
 const containerOffset = ref(0);
 const measuredVersion = ref(0);
-const isMeasured = ref(false);
+
+const isReady = ref(false);
+const measureRef = ref(null);
+const measureElements = new Map();
+const measureRefCbs = new Map();
+const measuredIds = new Set();
 
 const cardElements = new Map();
 const cardElementIds = new WeakMap();
@@ -128,23 +168,16 @@ const cardRefCbs = new Map();
 let scrollEl = null,
   containerRO = null,
   cardRO = null,
+  measureRO = null,
   measureRaf = null,
   scrollRaf = null,
   cardResizeRaf = null,
-  lastScrollTime = 0;
+  measureTimeout = null;
 
 const leavingItems = new Map();
 const enteringItems = new Map();
-const lastSeenIds = new Set();
 
 const isSelected = (id) => props.selectedItems?.has?.(`note-${id}`) ?? false;
-
-const getLeavingItems = () => leavingItems;
-
-const clearLeavingItem = (id) => {
-  leavingItems.delete(id);
-};
-
 const isItemLeaving = (id) => leavingItems.has(id);
 const isItemEntering = (id) => enteringItems.has(id);
 
@@ -183,6 +216,14 @@ const resolvedGap = computed(() =>
     : props.gapPx
 );
 
+const columnWidth = computed(() => {
+  const cols = columnCount.value;
+  const gap = resolvedGap.value;
+  const width = containerWidth.value;
+  if (!width) return 0;
+  return Math.floor((width - gap * (cols - 1)) / cols);
+});
+
 const layoutResult = computed(() => {
   void measuredVersion.value;
   const cols = columnCount.value,
@@ -190,8 +231,7 @@ const layoutResult = computed(() => {
     width = containerWidth.value;
   if (!width || !props.notes.length) return { items: [], stageHeight: 0 };
 
-  const colW = Math.round((width - gap * (cols - 1)) / cols);
-  // Distribute leftover pixels so the last column isn't visually short
+  const colW = Math.floor((width - gap * (cols - 1)) / cols);
   const remainder = width - gap * (cols - 1) - colW * cols;
   const colH = new Array(cols).fill(0);
   const items = [];
@@ -213,10 +253,7 @@ const stageHeight = computed(() => layoutResult.value.stageHeight);
 const visibleItems = computed(() => {
   const { items } = layoutResult.value;
   if (!items.length) return [];
-
-  // Before first measurement, show everything to avoid blank areas.
-  // Virtualization kicks in only after measured.
-  if (!isMeasured.value) return items;
+  if (!isReady.value) return [];
 
   const over =
     containerWidth.value < 480
@@ -232,21 +269,14 @@ const visibleItems = computed(() => {
   });
 });
 
-const getItemState = (id) => {
-  if (leavingItems.has(id)) return 'leaving';
-  return 'visible';
-};
+const skeletonCount = computed(() => columnCount.value * 3);
 
 const onScroll = () => {
-  const now = Date.now();
-  if (now - lastScrollTime < 16) return;
-  lastScrollTime = now;
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
     scrollRaf = null;
     scrollTop.value =
       scrollEl === window ? window.scrollY : scrollEl?.scrollTop ?? 0;
-    // Recalculate offset in case the page layout shifted
     updateOffset();
   });
 };
@@ -277,17 +307,11 @@ function updateViewport() {
 }
 
 function updateOffset() {
-  if (!containerRef.value) return;
+  if (!containerRef.value || !scrollEl) return;
+  const cr = containerRef.value.getBoundingClientRect();
   if (scrollEl === window) {
-    let top = 0,
-      el = containerRef.value;
-    while (el) {
-      top += el.offsetTop ?? 0;
-      el = el.offsetParent;
-    }
-    containerOffset.value = top;
+    containerOffset.value = cr.top + window.scrollY;
   } else {
-    const cr = containerRef.value.getBoundingClientRect();
     const sr = scrollEl.getBoundingClientRect();
     containerOffset.value = cr.top - sr.top + scrollEl.scrollTop;
   }
@@ -319,22 +343,7 @@ function scheduleMeasure() {
         changed = true;
       }
     }
-    if (changed) {
-      measuredVersion.value++;
-      if (
-        !isMeasured.value &&
-        props.notes.length > 0 &&
-        containerWidth.value > 0
-      ) {
-        isMeasured.value = true;
-      }
-    } else if (
-      !isMeasured.value &&
-      cardElements.size > 0 &&
-      containerWidth.value > 0
-    ) {
-      isMeasured.value = true;
-    }
+    if (changed) measuredVersion.value++;
   });
 }
 
@@ -352,11 +361,77 @@ function setCardRef(id) {
         cardElements.delete(id);
         cardRefCbs.delete(id);
       }
-      scheduleMeasure();
     });
   }
   return cardRefCbs.get(id);
 }
+
+function setMeasureRef(id) {
+  if (!measureRefCbs.has(id)) {
+    measureRefCbs.set(id, (el) => {
+      const prev = measureElements.get(id);
+      if (prev && prev !== el && measureRO) measureRO.unobserve(prev);
+      if (el) {
+        measureElements.set(id, el);
+        cardElementIds.set(el, id);
+        if (measureRO) measureRO.observe(el);
+      } else {
+        if (prev && measureRO) measureRO.unobserve(prev);
+        measureElements.delete(id);
+        measureRefCbs.delete(id);
+      }
+    });
+  }
+  return measureRefCbs.get(id);
+}
+
+function onMeasureObserved(entries) {
+  let changed = false;
+  for (const entry of entries) {
+    const el = entry.target;
+    const id = cardElementIds.get(el);
+    if (!id) continue;
+    const h = Math.round(entry.contentRect.height);
+    const prev = cardHeights.get(id);
+    if (h > 0 && (prev === undefined || Math.abs(prev - h) >= 2)) {
+      cardHeights.set(id, h);
+      measuredIds.add(id);
+      changed = true;
+    }
+  }
+  if (changed) measuredVersion.value++;
+  if (props.notes.length > 0 && measuredIds.size >= props.notes.length) {
+    finishMeasurement();
+  }
+}
+
+function finishMeasurement() {
+  if (isReady.value) return;
+  isReady.value = true;
+  if (measureTimeout) {
+    clearTimeout(measureTimeout);
+    measureTimeout = null;
+  }
+  if (measureRO) {
+    measureRO.disconnect();
+    measureRO = null;
+  }
+  measureElements.clear();
+  measureRefCbs.clear();
+}
+
+// On container resize the column count changes, which means cards
+// reflow to a new width and their heights change. Clear the cache and
+// let the runtime ResizeObserver on each card repopulate it. Without
+// this, the layout still uses heights from the old column width and
+// positions are wrong, which is what causes the "half the cards are
+// gone" symptom after a window resize.
+watch(columnCount, () => {
+  cardHeights.clear();
+  measuredVersion.value++;
+  updateOffset();
+  scheduleMeasure();
+});
 
 watch(
   () =>
@@ -381,15 +456,8 @@ watch(
 
     for (const id of oldIds) {
       if (!newIds.has(id) && !leavingItems.has(id)) {
-        const el = cardElements.get(id);
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          leavingItems.set(id, {
-            rect: { width: rect.width, height: rect.height },
-            timestamp: Date.now(),
-          });
-          setTimeout(() => leavingItems.delete(id), CARD_LEAVE_CLEANUP_MS);
-        }
+        leavingItems.set(id, { timestamp: Date.now() });
+        setTimeout(() => leavingItems.delete(id), CARD_LEAVE_CLEANUP_MS);
       }
     }
 
@@ -406,16 +474,18 @@ watch(
   { immediate: true }
 );
 
-watch(columnCount, async () => {
-  cardHeights.clear();
-  measuredVersion.value++;
-  await nextTick();
-  scheduleMeasure();
-});
-
-onMounted(() => {
+onMounted(async () => {
   scrollEl = findScrollParent(containerRef.value);
   updateWidth();
+
+  await nextTick();
+  updateWidth();
+
+  const fixedScrollEl = findScrollParent(containerRef.value);
+  if (fixedScrollEl !== scrollEl) {
+    scrollEl?.removeEventListener?.('scroll', onScroll);
+    scrollEl = fixedScrollEl;
+  }
   updateViewport();
   updateOffset();
   scrollTop.value =
@@ -431,7 +501,6 @@ onMounted(() => {
         updateWidth();
         updateViewport();
         updateOffset();
-        scheduleMeasure();
       });
     });
     containerRO.observe(containerRef.value);
@@ -444,10 +513,16 @@ onMounted(() => {
         scheduleMeasure();
       });
     });
-    for (const [id, el] of cardElements) {
-      cardElementIds.set(el, id);
-      cardRO.observe(el);
+
+    if (containerWidth.value > 0 && measureRef.value) {
+      measureRO = new ResizeObserver(onMeasureObserved);
+      for (const [id, el] of measureElements) {
+        cardElementIds.set(el, id);
+        measureRO.observe(el);
+      }
     }
+
+    measureTimeout = setTimeout(finishMeasurement, 5000);
   } else {
     window.addEventListener(
       'resize',
@@ -458,20 +533,22 @@ onMounted(() => {
       },
       { passive: true }
     );
+    finishMeasurement();
   }
-
-  scheduleMeasure();
 });
 
 onBeforeUnmount(() => {
   scrollEl?.removeEventListener('scroll', onScroll);
   containerRO?.disconnect();
   cardRO?.disconnect();
+  if (measureRO) measureRO.disconnect();
   if (measureRaf) cancelAnimationFrame(measureRaf);
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
   if (cardResizeRaf) cancelAnimationFrame(cardResizeRaf);
+  if (measureTimeout) clearTimeout(measureTimeout);
   cardRefCbs.clear();
-  scrollEl = containerRO = cardRO = null;
+  measureRefCbs.clear();
+  scrollEl = containerRO = cardRO = measureRO = null;
 });
 </script>
 
@@ -479,6 +556,43 @@ onBeforeUnmount(() => {
 .note-masonry {
   position: relative;
   width: 100%;
+}
+
+.note-masonry__measure {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: 100%;
+}
+
+.note-masonry__measure-item {
+  display: block;
+}
+
+.note-masonry__skeleton {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+@media (min-width: 1024px) {
+  .note-masonry__skeleton {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .note-masonry__skeleton {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.note-masonry__skeleton-card {
+  height: 200px;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
 }
 
 .note-masonry__stage {
@@ -492,10 +606,6 @@ onBeforeUnmount(() => {
   left: 0;
   contain: layout style;
   transition: transform 200ms ease;
-}
-
-.note-masonry__card.not-ready {
-  transition: none;
 }
 
 .filter-pulse {
@@ -538,6 +648,7 @@ onBeforeUnmount(() => {
       opacity: 1;
       transform: translate3d(var(--x), var(--y), 0) scale(1);
     }
+
     100% {
       opacity: 0;
       transform: translate3d(var(--x), var(--y), 0) scale(0.95);
@@ -549,6 +660,7 @@ onBeforeUnmount(() => {
       opacity: 0;
       transform: translate3d(var(--x), var(--y), 0) scale(0.96);
     }
+
     100% {
       opacity: 1;
       transform: translate3d(var(--x), var(--y), 0) scale(1);
