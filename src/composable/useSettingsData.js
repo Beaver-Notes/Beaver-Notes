@@ -27,7 +27,7 @@ import {
 import {
   ONBOARDING_LANGUAGE_CONFIG,
   getLanguageDirection,
-} from '@/utils/onboarding';
+} from '@/utils/onboarding/index.js';
 
 export function useSettingsData({
   dialog,

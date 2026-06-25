@@ -713,7 +713,7 @@ import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
-import { formatTime } from '@/utils/time-format';
+import { formatTime } from '@/utils/helpers/index.js';
 import { forceSyncNow } from '../../utils/sync';
 import { useFolderStore } from '../../store/folder';
 import { useTranslations } from '../../composable/useTranslations';
@@ -721,7 +721,7 @@ import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
 import { useSettingsData } from '@/composable/useSettingsData';
 import { useSettingsSecurity } from '@/composable/useSettingsSecurity';
 import { enableIndexing } from '@/lib/native/spotsearch';
-import { reindexAllNotes } from '@/utils/spotlightSync';
+import { reindexAllNotes } from '@/utils/platform/spotlightSync.js';
 import { backend } from '@/lib/tauri-bridge';
 
 export default {

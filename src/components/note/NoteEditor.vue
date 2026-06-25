@@ -22,8 +22,8 @@
 <script>
 import { onMounted, onBeforeUnmount, watch, computed, ref } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
-import { isEncryptedContent } from '@/utils/encryption.js';
-import { sanitizeNoteContent } from '@/utils/contentSecurity';
+import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
 import { useRouter } from 'vue-router';
 import {
   extensions,

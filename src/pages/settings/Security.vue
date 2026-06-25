@@ -137,9 +137,7 @@
                 @keyup.enter="confirmEncryption"
               />
               <ui-button
-                :disabled="
-                  !passphraseInput || encryptionBusy || unlockBusy
-                "
+                :disabled="!passphraseInput || encryptionBusy || unlockBusy"
                 @click="confirmEncryption"
               >
                 {{ translations.settings.unlock || 'Unlock' }}
@@ -165,7 +163,7 @@ import {
   disableEncryption,
   encryptionIsConfigured,
   verifyPassphrase,
-} from '@/utils/encryption.js';
+} from '@/utils/crypto/encryption.js';
 import {
   migrateAssetEncryption,
   onAssetMigrationProgress,

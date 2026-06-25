@@ -11,7 +11,7 @@ import {
   disableEncryption,
   encryptionIsConfigured,
   verifyPassphrase,
-} from '@/utils/encryption.js';
+} from '@/utils/crypto/encryption.js';
 
 export function useSettingsSecurity({
   dialog,

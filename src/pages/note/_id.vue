@@ -130,7 +130,7 @@ import {
   onMounted,
   onUnmounted,
 } from 'vue';
-import { debounce } from '@/utils/helper';
+import { debounce } from '@/utils/helpers/index.js';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -147,9 +147,9 @@ import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import { useAppStore } from '../../store/app';
-import { isEncryptedContent } from '@/utils/encryption.js';
-import { decryptNoteForMemory, hydrateNote } from '@/utils/noteSerializer.js';
-import { bindGlobalShortcuts } from '@/utils/global-shortcuts';
+import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
 
 export default {

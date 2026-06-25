@@ -9,8 +9,8 @@ import {
 } from 'vue';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
-import KeyboardNavigation from '@/utils/keyboard-navigation';
-import { parseItemId, areSetsEqual } from '@/utils/helper';
+import KeyboardNavigation from '@/utils/ui/keyboardNavigation.js';
+import { parseItemId, areSetsEqual } from '@/utils/helpers/index.js';
 import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
 import { triggerSelectionHaptic } from '@/lib/native/haptics';

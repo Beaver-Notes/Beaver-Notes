@@ -52,7 +52,7 @@ import dayjs from '@/lib/dayjs';
 import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/composable/editorImage';
-import { saveFile } from '@/utils/copy-doc';
+import { saveFile } from '@/utils/assets/storage.js';
 import { openDialog } from '@/lib/native/dialog';
 
 export default {

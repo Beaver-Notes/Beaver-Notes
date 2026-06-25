@@ -1,7 +1,7 @@
 import { useI18nStore } from '@/store/i18n';
-import { buildWebExportDocument } from './export-html';
+import { buildWebExportDocument, sanitizeFileName } from './exportBulk';
 import { path } from '@/lib/tauri-bridge';
-import { writeTextExportFile, chooseRootExportDir } from './export-staging';
+import { chooseExportDirectory, writeExportFile } from '@/lib/native/exports';
 
 function getShareTranslations() {
   try {
@@ -13,20 +13,15 @@ function getShareTranslations() {
 
 export async function exportHTML(noteId, noteTitle, editor) {
   const share = getShareTranslations();
-
   const html = await buildWebExportDocument(editor, {
     mode: 'self-contained',
     title: noteTitle,
     noteId,
   });
-
-  const rootDir = await chooseRootExportDir(
+  const { canceled, filePaths = [] } = await chooseExportDirectory(
     share.selectExportFolderTitle || 'Select export folder'
   );
-  if (!rootDir) return;
-
-  const fileName = (noteTitle || 'ExportedNote').replace(/[/\\?%*:|"<>]/g, '-');
-  const filePath = path.join(rootDir, `${fileName}.html`);
-
-  await writeTextExportFile(filePath, html);
+  if (canceled || !filePaths.length) return;
+  const fileName = sanitizeFileName(noteTitle);
+  await writeExportFile(path.join(filePaths[0], `${fileName}.html`), html);
 }

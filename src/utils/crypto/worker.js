@@ -16,7 +16,7 @@ import {
   HASH_SHA_256,
   IV_LENGTH_BYTES,
   KEY_LENGTH_256,
-} from '@/utils/crypto-constants.js';
+} from './constants.js';
 
 function _bufToBase64(buf) {
   const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);

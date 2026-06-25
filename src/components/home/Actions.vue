@@ -74,7 +74,7 @@ import { computed } from 'vue';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useTranslations } from '@/composable/useTranslations';
-import { parseItemId } from '@/utils/helper';
+import { parseItemId } from '@/utils/helpers/index.js';
 
 const props = defineProps({
   selectedItems: {

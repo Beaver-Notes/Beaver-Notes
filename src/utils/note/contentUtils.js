@@ -95,7 +95,8 @@ export function uncollapseHeadings(contents, footnotes) {
 
     let collapsedContent = node.attrs.collapsedContent ?? [];
     if (typeof collapsedContent === 'string') {
-      collapsedContent = collapsedContent === '' ? [] : JSON.parse(collapsedContent);
+      collapsedContent =
+        collapsedContent === '' ? [] : JSON.parse(collapsedContent);
     }
 
     node.attrs.open = true;

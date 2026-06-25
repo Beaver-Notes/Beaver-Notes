@@ -12,7 +12,7 @@ import {
   clearSecureBlob,
   loadSecureBlob,
   persistSecureBlobInBackground,
-} from '@/utils/safeStorageBlob.js';
+} from './safeStorageBlob.js';
 
 const state = {
   enabled: false,
@@ -87,11 +87,7 @@ export async function verifyPassphrase(passphrase) {
   }
 
   try {
-    const result = await submitEncryptionPassword(
-      passphrase,
-      null,
-      false
-    );
+    const result = await submitEncryptionPassword(passphrase, null, false);
     if (!result?.ok) {
       return { ok: false, error: result?.error || 'Wrong passphrase.' };
     }

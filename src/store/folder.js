@@ -2,7 +2,7 @@ import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage.js';
 import { trackChange } from '@/utils/sync';
-import { pruneExpiredIds, collectExpiredIds } from '@/utils/deletedIds';
+import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
 
 const storage = useStorage();
 

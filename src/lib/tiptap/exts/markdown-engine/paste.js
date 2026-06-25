@@ -3,7 +3,7 @@ import { Plugin, PluginKey } from 'prosemirror-state';
 import MarkdownIt from 'markdown-it';
 import { generateJSON } from '@tiptap/core';
 import { extensions, CollapseHeading, heading } from '@/lib/tiptap';
-import { sanitizeImportedHtml } from '@/utils/contentSecurity';
+import { sanitizeImportedHtml } from '@/utils/note/contentSecurity.js';
 
 export const Paste = Extension.create({
   name: 'paste',

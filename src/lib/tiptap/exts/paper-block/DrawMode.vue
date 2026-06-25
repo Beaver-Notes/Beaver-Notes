@@ -218,7 +218,7 @@ import useSelectionHelper from './helpers/selectionHelper.js';
 import useTransformHelper from './helpers/transformHelper.js';
 import { openDialog } from '@/lib/native/dialog';
 import mime from 'mime';
-import copyImage from '@/utils/copy-image';
+import copyImage from '@/utils/assets/storage.js';
 
 // ---------------------------------------------------------------------------
 // Constants

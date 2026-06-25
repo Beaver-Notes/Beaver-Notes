@@ -126,7 +126,7 @@ function uint8ArrayToBase64(data) {
   return btoa(binary);
 }
 
-import { base64ToUint8Array } from '@/utils/convert.js';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 function isScopedPath(value) {
   return String(value || '').startsWith(SCOPED_PATH_PREFIX);

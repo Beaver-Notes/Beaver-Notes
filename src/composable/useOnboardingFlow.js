@@ -29,14 +29,17 @@ import {
   probeCustomMigrationPath,
   runOnboardingMigration,
   runOnboardingMigrationFromPath,
-} from '@/utils/onboarding';
+} from '@/utils/onboarding/index.js';
 import {
   decryptNoteWithPassword,
   encryptNoteWithPassword,
   LEGACY_CRYPTOJS_PREFIX,
   NOTE_CRYPTO_ERROR,
-} from '@/utils/noteCrypto';
-import { findLegacyLockedNotes, unwrapLegacyData } from '@/utils/legacy-lock';
+} from '@/utils/crypto/noteCrypto.js';
+import {
+  findLegacyLockedNotes,
+  unwrapLegacyData,
+} from '@/utils/platform/legacyLock.js';
 import {
   ALL_PLATFORMS as ALL_MIGRATION_PLATFORMS,
   ONBOARDING_IMPORT_SOURCE_MAP,
@@ -44,8 +47,8 @@ import {
   PLATFORM_ICONS,
   getMigrationSourceCopy,
   getMigrationWhatGetsCopied,
-} from '@/utils/onboarding-platforms';
-import { ENTRANCE_DELAYS } from '@/utils/onboarding-animations';
+} from '@/utils/onboarding/platforms.js';
+import { ENTRANCE_DELAYS } from '@/utils/onboarding/index.js';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import { readLegacyData, writeLegacyData } from '@/lib/native/app';

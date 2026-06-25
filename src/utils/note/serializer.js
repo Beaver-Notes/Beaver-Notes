@@ -7,14 +7,17 @@
  *   - rebuilding computed fields (cardPreview, searchText) after read
  *   - handling app-level encryption transparently on load/save
  */
-import { buildCardPreview, EMPTY_CARD_PREVIEW } from '@/utils/cardPreview.js';
+import {
+  buildCardPreview,
+  EMPTY_CARD_PREVIEW,
+} from '@/utils/note/cardPreview.js';
 import {
   isEncryptionEnabled,
   ensureKeyReadyForWrite,
   decryptContent,
   encryptContent,
   isEncryptedContent,
-} from '@/utils/encryption.js';
+} from '@/utils/crypto/encryption.js';
 
 let _appKeyRaw = null;
 let _decryptWorkerInFlight = null;

@@ -3,8 +3,8 @@ import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
-import { hydrateNote, stripTransientFields } from '@/utils/noteSerializer.js';
-import { isEncryptionEnabled } from '@/utils/encryption.js';
+import { hydrateNote, stripTransientFields } from '@/utils/note/serializer.js';
+import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
 import {
   saveNote,
@@ -13,8 +13,8 @@ import {
   storage,
   removeNoteFromFts,
 } from './helpers';
-import { reindexAllNotes } from '@/utils/spotlightSync';
-import { pruneExpiredIds, collectExpiredIds } from '@/utils/deletedIds';
+import { reindexAllNotes } from '@/utils/platform/spotlightSync.js';
+import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
 
 // ─── Load & hydration ────────────────────────────────────────────────────────
 
@@ -25,7 +25,7 @@ export async function retrieve() {
 
     if (isEncryptionEnabled()) {
       const { decryptNoteForMemory } = await import(
-        '@/utils/noteSerializer.js'
+        '@/utils/note/serializer.js'
       );
       await Promise.all(
         Object.keys(merged).map(async (id) => {

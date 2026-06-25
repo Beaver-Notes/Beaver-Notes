@@ -3,12 +3,12 @@ import {
   bufToBase64,
   bufToHex,
   hexToBuf,
-} from '@/utils/crypto-codec.js';
+} from '@/utils/crypto/codec.js';
 import {
   ALGO_AES_GCM,
   ENVELOPE_VERSION,
   IV_LENGTH_BYTES,
-} from '@/utils/crypto-constants.js';
+} from '@/utils/crypto/constants.js';
 
 export async function gcmEncryptStr(plaintext, key) {
   const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));

@@ -236,7 +236,6 @@
       </button>
     </div>
   </ui-modal>
-
 </template>
 
 <script>
@@ -247,8 +246,8 @@ import { usePasswordStore } from '@/store/passwd';
 import { useClipboard } from '@/composable/clipboard';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
-import { extractTextFromContent } from '@/utils/noteSerializer';
-import { verifyPassphrase } from '@/utils/encryption';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
+import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 export default {
   props: {
     editor: { type: Object, default: () => ({}) },

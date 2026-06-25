@@ -149,7 +149,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStore } from '@/store';
-import commands from '@/utils/commands';
+import commands from '@/utils/ui/commands.js';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';

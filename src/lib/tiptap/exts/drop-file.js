@@ -1,5 +1,5 @@
 import { Extension } from '@tiptap/core';
-import { saveFile } from '@/utils/copy-doc';
+import { saveFile } from '@/utils/assets/storage.js';
 import { useStore } from '@/store';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { insertImages } from './image';

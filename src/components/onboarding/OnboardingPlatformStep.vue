@@ -71,7 +71,7 @@
 
 <script setup>
 import { computed } from 'vue';
-import { ALL_PLATFORMS } from '@/utils/onboarding-platforms';
+import { ALL_PLATFORMS } from '@/utils/onboarding/platforms.js';
 
 const props = defineProps({
   modelValue: { type: String, default: null },

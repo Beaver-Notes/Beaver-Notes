@@ -1,5 +1,5 @@
 import { searchNotesFts } from '@/lib/native/search';
-import { extractTextFromContent } from '@/utils/noteSerializer.js';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useFolderStore } from '../folder';
 
 // ─── Simple getters (kept together for discoverability) ──────────────────────

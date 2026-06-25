@@ -14,7 +14,7 @@
 
 import { ref, computed } from 'vue';
 import { useAppStore } from '@/store/app';
-import { toolbarRegistry } from '@/utils/toolbarRegistry';
+import { toolbarRegistry } from '@/utils/ui/toolbarRegistry.js';
 
 // ─── Shared singleton ─────────────────────────────────────────────────────────
 // One instance is created and reused across NoteMenu + ToolbarCustomizer

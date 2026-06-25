@@ -1,9 +1,9 @@
-import { isEncryptedContent } from '@/utils/encryption.js';
+import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import {
   hydrateNote,
   decryptNoteForMemory,
   stripTransientFields,
-} from '@/utils/noteSerializer.js';
+} from '@/utils/note/serializer.js';
 import { saveNote, storage } from './helpers';
 
 export async function decryptAllNotesForAppEncryption(options = {}) {

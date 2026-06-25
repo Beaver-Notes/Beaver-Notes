@@ -2,18 +2,18 @@ import { indexNote, removeNoteFromIndex } from '@/lib/native/search';
 import {
   isEncryptionEnabled,
   isEncryptedContent,
-} from '@/utils/encryption.js';
+} from '@/utils/crypto/encryption.js';
 import { useStorage } from '@/composable/storage.js';
 import { trackChange } from '@/utils/sync';
 import {
   encryptNoteForStorage,
   stripTransientFields,
-} from '@/utils/noteSerializer.js';
+} from '@/utils/note/serializer.js';
 import { useFolderStore } from '../folder';
 import {
   indexNoteForSpotlight,
   deleteNoteFromSpotlight,
-} from '@/utils/spotlightSync';
+} from '@/utils/platform/spotlightSync.js';
 
 export const storage = useStorage();
 

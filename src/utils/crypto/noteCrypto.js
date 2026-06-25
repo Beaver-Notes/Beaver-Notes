@@ -5,14 +5,14 @@ import {
   KEY_LENGTH_256,
   PBKDF2_ITERATIONS,
   SALT_LENGTH_BYTES,
-} from '@/utils/crypto-constants.js';
+} from './constants.js';
 import {
   base64ToBuf,
   bufToBase64,
   bufToHex,
   deriveAesGcmKeyFromPassphrase,
   hexToBuf,
-} from '@/utils/crypto-codec.js';
+} from './codec.js';
 import { AES } from 'crypto-es/lib/aes';
 import { Utf8 } from 'crypto-es/lib/core';
 

@@ -7,8 +7,8 @@ import {
   isEncryptionEnabled,
   isKeyLoaded,
   verifyPassphrase,
-} from '@/utils/encryption.js';
-import { decryptNoteForMemory } from '@/utils/noteSerializer.js';
+} from '@/utils/crypto/encryption.js';
+import { decryptNoteForMemory } from '@/utils/note/serializer.js';
 
 /**
  * Composable that handles per-note password locking and app-level

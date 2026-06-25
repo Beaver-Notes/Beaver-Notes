@@ -225,7 +225,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useDialog } from '@/composable/dialog';
-import { sortArray } from '@/utils/helper';
+import { sortArray } from '@/utils/helpers/index.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeImg from '@/assets/images/home.png';
 import ArchiveImg from '@/assets/images/archive.png';
@@ -235,7 +235,7 @@ import HomeSearch from '@/components/home/HomeSearch.vue';
 import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
-import { extractTextFromContent } from '@/utils/noteSerializer';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {

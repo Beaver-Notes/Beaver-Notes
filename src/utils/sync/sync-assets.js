@@ -8,7 +8,7 @@ import {
   removePath as removeSyncPath,
   writeFile as writeSyncFile,
 } from '@/lib/native/fs';
-import { isEncryptionEnabled, isKeyLoaded } from '@/utils/encryption.js';
+import { isEncryptionEnabled, isKeyLoaded } from '@/utils/crypto/encryption.js';
 import { decryptAndWriteAsset, localAssetName } from './crypto.js';
 import {
   ASSET_TYPES,
@@ -157,7 +157,6 @@ export async function syncAssets(
     }
   }
 
-
   const total = ops.length;
   let processed = 0;
 
@@ -196,7 +195,6 @@ export async function syncAssets(
   if (processed > 0) {
     onProgress?.({ phase: 'assets', processed, total });
   }
-
 
   if (deletedAssetsDirty) {
     await storage.set(STORAGE_KEY.DELETED_ASSETS, deletedAssets);

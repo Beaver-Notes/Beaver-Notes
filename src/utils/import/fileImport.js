@@ -2,11 +2,9 @@ import { v4 as uuidv4 } from 'uuid';
 import { path } from '@/lib/tauri-bridge';
 import { readFile } from '@/lib/native/fs';
 import { useNoteStore } from '@/store/note';
-import { parseFrontmatter } from './importUtils';
-import { convertMarkdownToTiptap } from '@/utils/markdown-helper';
-import { htmlToTiptap } from './importRustBridge';
-
-// Extact title
+import { convertMarkdownToTiptap } from '@/utils/markdown';
+import { htmlToTiptap } from './bulkImport';
+import { parseFrontmatter, addImportedNote, parseDateValue } from './helpers';
 
 export async function extractImportTitle(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -39,7 +37,6 @@ export async function extractImportTitle(filePath) {
   }
 }
 
-// Import markdown/mdx files
 export async function importSingleMarkdown(filePath, folderId = null) {
   const noteStore = useNoteStore();
   const raw = await readFile(filePath);
@@ -55,22 +52,19 @@ export async function importSingleMarkdown(filePath, folderId = null) {
     path.dirname(filePath)
   );
 
-  await noteStore.add({
+  await addImportedNote(noteStore, {
     id,
     title,
     content,
     labels: meta.labels || [],
     folderId,
-    createdAt: meta.created ? Date.parse(meta.created) : Date.now(),
-    updatedAt: meta.updated ? Date.parse(meta.updated) : Date.now(),
-    isBookmarked: false,
-    isArchived: false,
+    createdAt: parseDateValue(meta.created),
+    updatedAt: parseDateValue(meta.updated),
   });
 
   return id;
 }
 
-// Import txt files
 export async function importSingleText(filePath, folderId = null) {
   const noteStore = useNoteStore();
   const raw = await readFile(filePath);
@@ -87,20 +81,17 @@ export async function importSingleText(filePath, folderId = null) {
     ],
   };
 
-  await noteStore.add({
+  await addImportedNote(noteStore, {
     id,
     title: fileName,
     content,
     labels: [],
     folderId,
-    isBookmarked: false,
-    isArchived: false,
   });
 
   return id;
 }
 
-// Import HTML files
 export async function importSingleHTML(filePath, folderId = null) {
   const noteStore = useNoteStore();
   const raw = await readFile(filePath);
@@ -113,14 +104,12 @@ export async function importSingleHTML(filePath, folderId = null) {
 
   const content = await htmlToTiptap(raw, id, '');
 
-  await noteStore.add({
+  await addImportedNote(noteStore, {
     id,
     title,
     content,
     labels: [],
     folderId,
-    isBookmarked: false,
-    isArchived: false,
   });
 
   return id;
@@ -135,7 +124,6 @@ const EXTENSION_MAP = {
 
 export const SUPPORTED_EXTENSIONS = Object.keys(EXTENSION_MAP);
 
-// Import a single file based on its extension
 export async function importSingleFile(filePath, folderId = null) {
   const ext = path.extname(filePath).toLowerCase().replace('.', '');
   const importer = EXTENSION_MAP[ext];

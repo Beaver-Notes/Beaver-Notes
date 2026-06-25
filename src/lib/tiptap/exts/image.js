@@ -1,8 +1,8 @@
 import Image from '@tiptap/extension-image';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { useStore } from '@/store';
-import copyImage from '@/utils/copy-image';
-import { writeImageFile } from '@/utils/copy-image';
+import copyImage from '@/utils/assets/storage.js';
+import { writeImageFile } from '@/utils/assets/storage.js';
 
 const HANDLE_SIDES = ['left', 'right'];
 const IMAGE_LAYOUTS = new Set(['block', 'wrap-left', 'wrap-right']);
@@ -283,13 +283,20 @@ class ImageNodeView {
             if (node.type.name === 'column') {
               const colPos = $pos.before(d);
               const parentColumn = this.wrapper.closest('[data-type="column"]');
-              const columnContainer = parentColumn?.closest('[data-type="column-container"]');
+              const columnContainer = parentColumn?.closest(
+                '[data-type="column-container"]'
+              );
 
               if (parentColumn && columnContainer) {
-                const containerWidth = columnContainer.getBoundingClientRect().width;
-                const currentColWidth = parentColumn.getBoundingClientRect().width;
+                const containerWidth =
+                  columnContainer.getBoundingClientRect().width;
+                const currentColWidth =
+                  parentColumn.getBoundingClientRect().width;
                 const padding = 24;
-                const targetColWidth = Math.min(newWidth + padding, containerWidth * 0.9);
+                const targetColWidth = Math.min(
+                  newWidth + padding,
+                  containerWidth * 0.9
+                );
 
                 if (currentColWidth > 0 && containerWidth > 0) {
                   const ratio = targetColWidth / currentColWidth;

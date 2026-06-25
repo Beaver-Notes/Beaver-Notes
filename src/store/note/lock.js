@@ -3,12 +3,12 @@ import {
   encryptNoteWithPassword,
   decryptNoteWithPassword,
   NOTE_CRYPTO_ERROR,
-} from '@/utils/noteCrypto.js';
-import { hydrateNote } from '@/utils/noteSerializer.js';
+} from '@/utils/crypto/noteCrypto.js';
+import { hydrateNote } from '@/utils/note/serializer.js';
 import {
   reconcileFootnotes,
   uncollapseHeadings,
-} from '@/utils/noteContentUtils.js';
+} from '@/utils/note/contentUtils.js';
 import { saveNote, trackNoteChange, storage } from './helpers';
 
 export async function lockNote(id, password) {

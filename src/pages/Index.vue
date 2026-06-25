@@ -166,7 +166,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/composable/dialog';
-import { sortArray } from '@/utils/helper';
+import { sortArray } from '@/utils/helpers/index.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
@@ -175,7 +175,7 @@ import FolderTree from '../components/home/FolderTree.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
-import { extractTextFromContent } from '@/utils/noteSerializer';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {

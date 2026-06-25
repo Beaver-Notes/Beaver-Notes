@@ -2,7 +2,7 @@ import { DEFAULT_UI_FONT_STACK, setSetting } from '@/composable/settings';
 import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
-import { reindexAllNotes } from '@/utils/spotlightSync';
+import { reindexAllNotes } from '@/utils/platform/spotlightSync';
 import {
   getMigrationStatus,
   probeMigrationPath,
@@ -10,6 +10,22 @@ import {
   runMigrationFromPath,
 } from '@/lib/native/app';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
+
+// ─── Animation timing constants ──────────────────────────────────────────────
+
+export const ENTRANCE_DELAYS = {
+  logo: 120,
+  text: 580,
+  cta: 1020,
+};
+
+export const CURTAIN_DURATIONS = {
+  close: 1200,
+  hold: 200,
+  open: 1200,
+};
+
+// ─── Language / theme config data ────────────────────────────────────────────
 
 export const ONBOARDING_LANGUAGE_CONFIG = {
   ar: { name: 'العربية', dir: 'rtl' },
@@ -85,6 +101,8 @@ export const ONBOARDING_FONTS = [
 export function getLanguageDirection(languageCode) {
   return ONBOARDING_LANGUAGE_CONFIG[languageCode]?.dir || 'ltr';
 }
+
+// ─── Onboarding actions ──────────────────────────────────────────────────────
 
 export async function applyOnboardingFreshPreferences(preferences, { theme }) {
   const languageCode = preferences.language;

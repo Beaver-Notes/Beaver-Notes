@@ -1,5 +1,5 @@
 import { readLocalAssetData } from './sync-crypto-storage.js';
-import { base64ToBuf } from '@/utils/crypto-codec.js';
+import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { writeFile as writeSyncFile } from '@/lib/native/fs.js';
 import {
   decryptSyncAssetBase64,
@@ -12,7 +12,7 @@ import {
   isKeyLoaded,
   encryptPayload,
   decryptPayload,
-} from '@/utils/encryption.js';
+} from '@/utils/crypto/encryption.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
 export async function ensureSyncKeyReadyForWrite() {

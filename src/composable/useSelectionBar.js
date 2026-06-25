@@ -4,7 +4,7 @@ import { useFolderStore } from '@/store/folder';
 import { usePasswordStore } from '@/store/passwd';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
-import { parseItemId } from '@/utils/helper';
+import { parseItemId } from '@/utils/helpers/index.js';
 
 const _selectedKeys = ref(new Set());
 

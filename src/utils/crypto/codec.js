@@ -9,7 +9,7 @@ import {
   KEY_LENGTH_256,
   PBKDF2_ITERATIONS,
   WORKER_POOL_MAX,
-} from '@/utils/crypto-constants.js';
+} from './constants.js';
 
 export function hexToBuf(hex) {
   const clean = (hex || '').trim();
@@ -50,7 +50,7 @@ let _workerRoundRobin = 0;
 let _cryptoWorkerRequestId = 0;
 
 function _createWorker() {
-  const w = new Worker(new URL('./crypto-worker.js', import.meta.url), {
+  const w = new Worker(new URL('./worker.js', import.meta.url), {
     type: 'module',
   });
   w.addEventListener('message', ({ data }) => {

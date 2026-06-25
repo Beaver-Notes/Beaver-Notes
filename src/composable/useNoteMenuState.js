@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
-import { saveFile } from '@/utils/copy-doc';
+import { saveFile } from '@/utils/assets/storage.js';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/composable/zoom';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 

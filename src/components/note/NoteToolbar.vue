@@ -757,8 +757,8 @@ import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import { useRoute } from 'vue-router';
-import copyImage from '@/utils/copy-image';
-import { saveFile } from '@/utils/copy-doc';
+import copyImage from '@/utils/assets/storage.js';
+import { saveFile } from '@/utils/assets/storage.js';
 
 export default {
   components: { NoteMenuHeadingsTree, ToolbarCustomizer, MobileBlockPicker },
