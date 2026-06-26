@@ -356,7 +356,7 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
     .export-root {
       width: 100% !important;
       max-width: 100% !important;
-      padding: 0 !important;
+    padding: ${PDF_PAGE_MARGIN_CSS_PX}px 0 !important;
       background: transparent !important;
     }
 

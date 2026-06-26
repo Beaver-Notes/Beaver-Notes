@@ -31,13 +31,18 @@ const A4_CSS_H: f64 = 1123.0;
 
 /// A4 in PostScript points: 210mm / 25.4 * 72 = 595.28pt;
 /// 297mm / 25.4 * 72 = 841.89pt.
+#[cfg(any(target_os = "ios", target_os = "android"))]
 const A4_PT_W: f64 = 595.0;
+#[cfg(any(target_os = "ios", target_os = "android"))]
 const A4_PT_H: f64 = 842.0;
 
 /// CSS-px to PostScript points: 1 CSS-px = 72/96 pt.
+/// Used by the mobile splitter only (macOS uses rect-based capture).
+#[cfg(any(target_os = "ios", target_os = "android"))]
 const CSS_PX_TO_PT: f64 = 72.0 / 96.0;
 
-/// Page margin applied to each A4 page in points.
+/// Page margin applied to each A4 page in points (mobile splitter only).
+#[cfg(any(target_os = "ios", target_os = "android"))]
 const PDF_PAGE_MARGIN_PT: f64 = 44.75;
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -150,69 +155,33 @@ async fn render_pdf_native(
     if doc_h <= 0.0 {
         doc_h = A4_CSS_H;
     }
-    eprintln!("[pdf] macOS: doc_h={:.0}px", doc_h);
-
-    // 5) Read content-aware page cuts from JS, then capture each
-    //    page as a variable-height rect and pad to A4 via lopdf.
-    let cuts = read_page_cuts(&window).await.unwrap_or_default();
+    let num_pages = (doc_h / A4_CSS_H).ceil().max(1.0) as usize;
     eprintln!(
-        "[pdf] macOS: __bnPageCuts has {} entries → {:?}",
-        cuts.len(),
-        cuts.iter().map(|c| format!("{:.0}", c)).collect::<Vec<_>>()
+        "[pdf] macOS: doc_h={:.0}px → {} A4 pages",
+        doc_h, num_pages
     );
 
+    // 5) Capture fixed-size A4 rects at regular intervals.
+    //    Every page is exactly A4_CSS_W × A4_CSS_H CSS-px.
+    //    The CSS adds top/bottom padding on .export-root so the
+    //    first and last pages have breathing room.
     let mut page_pdfs: Vec<Vec<u8>> = Vec::new();
 
-    if cuts.is_empty() {
-        // Content fits on a single page — capture the full height.
-        eprintln!("[pdf] macOS: single page (no cuts), capturing full height {:.0}px", doc_h);
-        match capture_page_rect(&window, 0.0, 0.0, A4_CSS_W, doc_h).await {
-            Ok(bytes) => {
-                match pad_page_to_a4(&bytes) {
-                    Ok(padded) => page_pdfs.push(padded),
-                    Err(e) => {
-                        let _ = window.destroy();
-                        let _ = std::fs::remove_file(&html_path);
-                        return Err(format!("pad_page_to_a4 failed: {e}"));
-                    }
-                }
-            }
+    for page_idx in 0..num_pages {
+        let y = (page_idx as f64) * A4_CSS_H;
+        eprintln!(
+            "[pdf] macOS: capturing page {} / {} (y={:.0})",
+            page_idx + 1,
+            num_pages,
+            y
+        );
+        match capture_page_rect(&window, 0.0, y, A4_CSS_W, A4_CSS_H).await {
+            Ok(bytes) => page_pdfs.push(bytes),
             Err(e) => {
                 let _ = window.destroy();
                 let _ = std::fs::remove_file(&html_path);
-                return Err(format!("Page capture failed: {e}"));
+                return Err(format!("Page {} capture failed: {e}", page_idx + 1));
             }
-        }
-    } else {
-        // Multi-page: each cut is the Y where a page ENDS.
-        // Page 1: y=0..cuts[0], Page 2: cuts[0]..cuts[1], etc.
-        let mut prev = 0.0_f64;
-        for (idx, &cut) in cuts.iter().enumerate() {
-            let height = (cut - prev).max(1.0);
-            eprintln!(
-                "[pdf] macOS: page {} capturing y={:.0} h={:.0}",
-                idx + 1,
-                prev,
-                height
-            );
-            match capture_page_rect(&window, 0.0, prev, A4_CSS_W, height).await {
-                Ok(bytes) => {
-                    match pad_page_to_a4(&bytes) {
-                        Ok(padded) => page_pdfs.push(padded),
-                        Err(e) => {
-                            let _ = window.destroy();
-                            let _ = std::fs::remove_file(&html_path);
-                            return Err(format!("pad_page_to_a4 failed on page {}: {e}", idx + 1));
-                        }
-                    }
-                }
-                Err(e) => {
-                    let _ = window.destroy();
-                    let _ = std::fs::remove_file(&html_path);
-                    return Err(format!("Page {} capture failed: {e}", idx + 1));
-                }
-            }
-            prev = cut;
         }
     }
 
@@ -290,68 +259,6 @@ fn run_evaluate_doc_height(
         }
         if result.is_null() {
             let _ = tx.send(Ok(String::new()));
-            return;
-        }
-        let s: &NSString = unsafe { &*(result as *const NSString) };
-        let _ = tx.send(Ok(s.to_string()));
-    });
-
-    unsafe {
-        webview.evaluateJavaScript_completionHandler(&ns_script, Some(&completion));
-    }
-    Ok(())
-}
-
-/// Read `window.__bnPageCuts` from the WKWebView.  Returns the Y-positions
-/// (in CSS-px) where each page ENDS.  An empty vec means the content fits
-/// on a single page.
-#[cfg(target_os = "macos")]
-async fn read_page_cuts(window: &tauri::WebviewWindow) -> Result<Vec<f64>, String> {
-    let (tx, rx) = oneshot::channel::<Result<String, String>>();
-    let (raw_tx, raw_rx) = mpsc::channel::<Result<String, String>>();
-    tokio::spawn(async move {
-        if let Ok(data) = raw_rx.recv() {
-            let _ = tx.send(data);
-        }
-    });
-
-    window
-        .with_webview(move |webview| {
-            if let Err(e) = run_evaluate_page_cuts(webview.inner(), raw_tx) {
-                eprintln!("Failed to evaluate page-cuts script: {e}");
-            }
-        })
-        .map_err(|e| e.to_string())?;
-
-    let raw = rx.await.map_err(|e| e.to_string())??;
-    let cuts: Vec<f64> = serde_json::from_str(&raw).unwrap_or_default();
-    Ok(cuts)
-}
-
-#[cfg(target_os = "macos")]
-fn run_evaluate_page_cuts(
-    webview_ptr: *mut std::ffi::c_void,
-    tx: std::sync::mpsc::Sender<Result<String, String>>,
-) -> Result<(), String> {
-    use objc2::rc::Retained;
-    use objc2::runtime::AnyObject;
-    use objc2_foundation::{NSError, NSString};
-    use objc2_web_kit::WKWebView;
-
-    let webview: Retained<WKWebView> = unsafe { Retained::retain(webview_ptr as *mut WKWebView) }
-        .ok_or_else(|| "Invalid WKWebView pointer".to_string())?;
-
-    let script = "JSON.stringify((window.__bnPageCuts || []))";
-    let ns_script = NSString::from_str(script);
-
-    let completion = block2::RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
-        if !error.is_null() {
-            let e: &NSError = unsafe { &*error };
-            let _ = tx.send(Err(format!("{}", e.localizedDescription())));
-            return;
-        }
-        if result.is_null() {
-            let _ = tx.send(Ok("[]".to_string()));
             return;
         }
         let s: &NSString = unsafe { &*(result as *const NSString) };
@@ -448,155 +355,6 @@ fn run_capture_pdf_rect(
         webview.createPDFWithConfiguration_completionHandler(Some(&config), &completion);
     }
     Ok(())
-}
-
-// ── Pad a captured page to A4 via lopdf ─────────────────────────────
-//
-// Each captured page may have a non-A4 height (variable-width rects).
-// This function wraps the page content in a form XObject and stamps
-// it centered vertically onto a fresh A4 page (595×842 PT).
-
-fn pad_page_to_a4(page_bytes: &[u8]) -> Result<Vec<u8>, String> {
-    use lopdf::{Dictionary, Document, Object, Stream};
-
-    let mut doc =
-        Document::load_mem(page_bytes).map_err(|e| format!("pad_page_to_a4: failed to load PDF: {e}"))?;
-
-    doc.decompress();
-
-    let source_page_id = *doc
-        .get_pages()
-        .values()
-        .next()
-        .ok_or_else(|| "pad_page_to_a4: PDF has no pages".to_string())?;
-
-    // Read the source page's MediaBox to determine content dimensions.
-    let (src_w_pt, src_h_pt) = {
-        let page = doc
-            .get_dictionary(source_page_id)
-            .map_err(|e| format!("pad_page_to_a4: failed to get page dict: {e}"))?;
-        let mb = page
-            .get(b"MediaBox")
-            .map_err(|_| "pad_page_to_a4: page has no MediaBox".to_string())?
-            .as_array()
-            .map_err(|_| "pad_page_to_a4: MediaBox is not an array".to_string())?;
-        if mb.len() != 4 {
-            return Err("pad_page_to_a4: invalid MediaBox".to_string());
-        }
-        let nums: Vec<f64> = mb
-            .iter()
-            .map(|o| match o {
-                Object::Real(n) => *n as f64,
-                Object::Integer(n) => *n as f64,
-                _ => 0.0,
-            })
-            .collect();
-        (nums[2] - nums[0], nums[3] - nums[1])
-    };
-
-    // If already A4 height (within 1pt), return as-is.
-    if (src_h_pt - A4_PT_H).abs() < 1.0 {
-        let mut buf = Vec::new();
-        doc.save_to(&mut buf)
-            .map_err(|e| format!("pad_page_to_a4: failed to save: {e}"))?;
-        return Ok(buf);
-    }
-
-    // Extract content streams from the source page.
-    let page = doc
-        .get_dictionary(source_page_id)
-        .map_err(|e| format!("pad_page_to_a4: failed to get page dict: {e}"))?
-        .clone();
-
-    let mut combined = Vec::new();
-    if let Ok(contents) = page.get(b"Contents") {
-        let refs: Vec<lopdf::ObjectId> = match contents {
-            Object::Array(arr) => arr.iter().filter_map(|o| o.as_reference().ok()).collect(),
-            Object::Reference(id) => vec![*id],
-            _ => Vec::new(),
-        };
-        for stream_id in refs {
-            if let Ok(stream_obj) = doc.get_object(stream_id) {
-                if let Ok(s) = stream_obj.as_stream() {
-                    combined.extend_from_slice(&s.content);
-                }
-            }
-        }
-    }
-
-    // Build a form XObject from the decompressed content.
-    let mut xobj_dict = Dictionary::new();
-    xobj_dict.set("Type", Object::Name(b"XObject".to_vec()));
-    xobj_dict.set("Subtype", Object::Name(b"Form".to_vec()));
-    xobj_dict.set(
-        "BBox",
-        Object::Array(vec![
-            Object::Real(0.0),
-            Object::Real(0.0),
-            Object::Real(src_w_pt as f32),
-            Object::Real(src_h_pt as f32),
-        ]),
-    );
-    if let Ok(resources) = page.get(b"Resources") {
-        xobj_dict.set("Resources", resources.clone());
-    }
-    let form_id = doc.add_object(Stream::new(xobj_dict, combined));
-
-    // Vertical centering: y_offset = (A4_PT_H - src_h_pt) / 2
-    let y_offset = (A4_PT_H - src_h_pt) / 2.0;
-    let content_bytes = format!("q\n1 0 0 1 0 {y_offset:.2} cm\n/Fm0 Do\nQ\n").into_bytes();
-    let content_id = doc.add_object(Stream::new(Dictionary::new(), content_bytes));
-
-    // Resources pointing to the form XObject.
-    let mut xobj_res = Dictionary::new();
-    xobj_res.set("Fm0", Object::Reference(form_id));
-    let mut res_dict = Dictionary::new();
-    res_dict.set("XObject", Object::Dictionary(xobj_res));
-    let res_id = doc.add_object(res_dict);
-
-    // Create the new A4 page.
-    let root_id: lopdf::ObjectId = doc
-        .trailer
-        .get(b"Root")
-        .and_then(|o| o.as_reference())
-        .map_err(|_| "pad_page_to_a4: missing Root reference".to_string())?;
-    let pages_id: lopdf::ObjectId = doc
-        .get_dictionary(root_id)
-        .map_err(|e| format!("pad_page_to_a4: failed to get Root: {e}"))?
-        .get(b"Pages")
-        .and_then(|o| o.as_reference())
-        .map_err(|_| "pad_page_to_a4: missing Pages reference".to_string())?;
-
-    let mut a4_page = Dictionary::new();
-    a4_page.set("Type", Object::Name(b"Page".to_vec()));
-    a4_page.set("Parent", Object::Reference(pages_id));
-    a4_page.set(
-        "MediaBox",
-        Object::Array(vec![
-            Object::Real(0.0),
-            Object::Real(0.0),
-            Object::Real(A4_PT_W as f32),
-            Object::Real(A4_PT_H as f32),
-        ]),
-    );
-    a4_page.set("Resources", Object::Reference(res_id));
-    a4_page.set("Contents", Object::Reference(content_id));
-    let new_page_id = doc.add_object(a4_page);
-
-    // Update the Pages tree to point to the new page.
-    {
-        let pages_dict = doc
-            .get_dictionary_mut(pages_id)
-            .map_err(|e| format!("pad_page_to_a4: failed to get Pages: {e}"))?;
-        pages_dict.set("Kids", Object::Array(vec![Object::Reference(new_page_id)]));
-        pages_dict.set("Count", Object::Integer(1));
-    }
-    doc.objects.remove(&source_page_id);
-
-    let mut buf = Vec::new();
-    doc.save_to(&mut buf)
-        .map_err(|e| format!("pad_page_to_a4: failed to save: {e}"))?;
-    Ok(buf)
 }
 
 // ── Platform-agnostic PDF concatenation (the reusable part) ────────
