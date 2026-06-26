@@ -7,6 +7,7 @@
     "haptics:allow-notification-feedback",
     "haptics:allow-selection-feedback",
     "haptics:allow-vibrate",
+    "pdf-render:allow-render",
     "core:webview:default",
     "core:webview:allow-print",
     "scoped-storage:default",

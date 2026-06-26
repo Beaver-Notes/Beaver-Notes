@@ -29,6 +29,7 @@ tauri-plugin-clipboard-manager = "2"
 tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-safe-area-insets-css = { path = "../vendor/tauri-plugin-safe-area-insets-css" }
+tauri-plugin-pdf-render = { path = "../vendor/tauri-plugin-pdf-render" }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -89,6 +90,7 @@ windows = { version = "0.61", features = ["Win32_System_Com"] }
 
 [patch.crates-io]
 mac-notification-sys = { path = "../vendor/mac-notification-sys" }
+tauri-plugin-spotsearch = { path = "../vendor/tauri-plugin-spotsearch" }
 
 [profile.dev]
 opt-level = 0

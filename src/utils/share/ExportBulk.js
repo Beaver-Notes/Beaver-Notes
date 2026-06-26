@@ -18,7 +18,6 @@ import {
   getNodeChildren,
   getDocContent,
   collectDescendantText,
-  resolveAssetSrc,
   resolveAssetOutputPath,
   getFootnoteNumber,
   createRenderContext,
@@ -219,10 +218,28 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
   .export-root table,
   .export-root figure,
   .export-root img,
-  .export-root .callout {
+  .export-root .callout,
+  .export-root pre,
+  .export-root blockquote {
     break-inside: avoid;
     page-break-inside: avoid;
   }
+
+  /* Table rows stay together; the table itself can split between rows */
+  .export-root tr,
+  .export-root thead {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Oversized images / SVGs: scale down instead of being cropped */
+  .export-root svg {
+    max-width: 100%;
+    max-height: 95vh;
+    height: auto;
+  }
+
+  /* Prevent single-line orphans on headings */
 
   .export-root h1, .export-root h2, .export-root h3,
   .export-root h4, .export-root h5, .export-root h6 {
@@ -287,18 +304,24 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
    * points (the splitter applies the pt equivalent of this CSS value).
    */
 
-  html, body {
-    width: ${contentW}px !important;
-    max-width: ${contentW}px !important;
+  html {
+    width: ${A4_CSS_W}px !important;
+    max-width: ${A4_CSS_W}px !important;
+  }
+
+  body {
+    width: ${A4_CSS_W}px !important;
+    max-width: ${A4_CSS_W}px !important;
+    margin: 0 auto !important;
     background: #ffffff !important;
     color: #1f1f1f !important;
   }
 
   .export-root {
-    width: 100% !important;
-    max-width: 100% !important;
+    width: ${contentW}px !important;
+    max-width: ${contentW}px !important;
     padding: 0 !important;
-    margin: 0 !important;
+    margin: 0 auto !important;
     background: transparent !important;
   }
 
@@ -1067,7 +1090,9 @@ export async function buildWebExportDocument(editor, options = {}) {
     pageMargin = PAGE_MARGIN_PX,
   } = options;
 
-  const isDark = document.documentElement.classList.contains('dark');
+  const isDark = isPaginated
+    ? false // PDFs must always render in light mode
+    : document.documentElement.classList.contains('dark');
   const theme = isDark ? 'dark' : 'light';
 
   const clone = await prepareExportDom(editor, noteId, mode);
@@ -1085,19 +1110,44 @@ export async function buildWebExportDocument(editor, options = {}) {
   ${extraStyles ? `<style>${extraStyles}</style>` : ''}
 </head>
 <body>
-  ${
-    title && title !== 'Untitled'
-      ? `<h1 class="export-title">${escapeHtml(title)}</h1>`
-      : ''
-  }
   <div class="export-root note-editor__content prose prose-stone max-w-none ${
     isDark ? 'dark:text-neutral-100' : ''
   }">
+    ${
+      title && title !== 'Untitled'
+        ? `<h1 class="export-title">${escapeHtml(title)}</h1>`
+        : ''
+    }
     ${clone.outerHTML}
   </div>
   ${
     isPaginated
-      ? `<script>(function(){function rect(){var s='h1,h2,h3,h4,h5,h6,figure,img,table,.callout,pre,blockquote'.split(',');var r=[];var i;for(i=0;i<s.length;i++){var nodes=document.querySelectorAll(s[i]);var k;for(k=0;k<nodes.length;k++){var n=nodes[k];if(!n||!n.getBoundingClientRect)continue;var b=n.getBoundingClientRect();if(b.width===0&&b.height===0)continue;r.push({tag:s[i],top:Math.round(b.top+window.scrollY),bottom:Math.round(b.bottom+window.scrollY)})}}window.__bnPageBreaks=r;window.__bnDocHeight=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)}if(document.readyState==='complete'||document.readyState==='interactive'){setTimeout(rect,0)}else{document.addEventListener('DOMContentLoaded',function(){setTimeout(rect,0)})}})();</script>`
+      ? `<script>(function(){var C=0.75,M=44.75,H=842,S=(H-2*M)/C,K=90,P=Math.max(S/4,50);`
+      + `function run(){var r=document.querySelector('.export-root');if(!r)return;var bl=[],seen=new Set();`
+      + `function a(e,t){var g=e.getBoundingClientRect();if(g.width&&g.height)bl.push({tag:t,top:Math.round(g.top+scrollY),bottom:Math.round(g.bottom+scrollY),el:e})}`
+      + `var k=r.querySelectorAll('h1,h2,h3,h4,h5,h6,figure,img,.callout,pre,blockquote,li[data-type],div[data-type],[data-bn-keep]');`
+      + `for(var i=0;i<k.length;i++){seen.add(k[i]);a(k[i],k[i].tagName.toLowerCase())}`
+      + `var d=r.querySelectorAll('div,section,article,li,td,th,tr,thead,tbody,caption,figcaption,details,summary,fieldset');`
+      + `for(var i=0;i<d.length;i++){var e=d[i];if(seen.has(e)||e.offsetHeight<10)continue;var cs=getComputedStyle(e);if(cs.breakInside!=='avoid'&&cs.pageBreakInside!=='avoid')continue;a(e,e.tagName.toLowerCase())}`
+      + `window.__bnDocHeight=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight);`
+      + `window.__bnPageBreaks=bl.map(function(x){return{tag:x.tag,top:x.top,bottom:x.bottom}});`
+      + `var fl=[],i;for(i=0;i<bl.length;i++){var x=bl[i];if(x.bottom>x.top&&x.top<window.__bnDocHeight&&x.bottom>0)fl.push(x)}`
+      + `fl.sort(function(a,b){return a.top-b.top});var ct=[],cu=0,ms=Math.ceil(window.__bnDocHeight/S)+10;`
+      + `while(cu<window.__bnDocHeight-0.5&&ct.length<ms){var sb=Math.min(cu+S,window.__bnDocHeight);`
+      + `var mx=sb,mn=cu;for(i=0;i<fl.length;i++){var x=fl[i];if(x.bottom<=cu||x.top>=sb)continue;`
+      + `if(x.top<=cu)mn=Math.max(mn,x.bottom);else if(x.bottom>sb){if(x.tag==='img'||x.tag==='figure'||(x.bottom-x.top<=sb-cu))mx=Math.min(mx,x.top)}}`
+      + `var nc=Math.max(Math.min(mx,sb),mn);if(nc>=sb-0.5){var be=null;for(i=0;i<fl.length;i++){var x=fl[i];`
+      + `if(!/^h[1-6]$/.test(x.tag))continue;if(x.bottom<=cu||x.top>=sb)continue;var di=nc-x.bottom;`
+      + `if(di>=0&&di<=K){if(be===null||x.top>be)be=x.top}}if(be!==null)nc=be}`
+      + `for(i=0;i<fl.length;i++){var x=fl[i];if(x.top<nc&&nc<x.bottom){nc=Math.max(Math.min(mx,sb),mn);break}}`
+      + `var f=cu+1;nc=Math.max(nc,f);nc=Math.min(nc,sb);if(nc<=cu)nc=cu+1;if(nc-cu<P)nc=Math.min(cu+S,window.__bnDocHeight);`
+      + `ct.push(nc);if(Math.abs(nc-window.__bnDocHeight)<0.5)break;cu=nc}`
+      + `window.__bnPageCuts=ct;var sr=bl.slice().sort(function(a,b){return a.top-b.top});`
+      + `for(i=0;i<ct.length-1;i++){var c=ct[i],be=null,bb=-Infinity;`
+      + `for(var j=0;j<sr.length;j++){var x=sr[j];if(x.bottom<=c+2&&x.bottom>bb&&x.el){be=x;bb=x.bottom}}`
+      + `if(be&&be.el){be.el.style.setProperty('break-after','page','important');be.el.style.setProperty('page-break-after','always','important')}}}`
+      + `if(document.readyState==='complete'||document.readyState==='interactive'){setTimeout(run,0)}`
+      + `else{document.addEventListener('DOMContentLoaded',function(){setTimeout(run,0)})}})();</script>`
       : ''
   }
 </body>

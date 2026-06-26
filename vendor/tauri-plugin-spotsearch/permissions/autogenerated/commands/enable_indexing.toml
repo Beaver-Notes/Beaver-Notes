@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-enable-indexing"
+description = "Enables the enable_indexing command without any pre-configured scope."
+commands.allow = ["enable_indexing"]
+
+[[permission]]
+identifier = "deny-enable-indexing"
+description = "Denies the enable_indexing command without any pre-configured scope."
+commands.deny = ["enable_indexing"]

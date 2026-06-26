@@ -7,6 +7,10 @@ src-tauri/target/
 src-tauri/.cargo/
 src-tauri/gen/
 
+# Vendor build artifacts (keep source code tracked)
+vendor/**/target/
+vendor/**/android/build/
+
 # Node
 node_modules/
 
