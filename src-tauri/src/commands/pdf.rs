@@ -357,26 +357,64 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
 // ── Windows ────────────────────────────────────────────────────────
 
 #[cfg(target_os = "windows")]
+const A4_CSS_W: i32 = 794;
+
+#[cfg(target_os = "windows")]
+const A4_CSS_H: i32 = 1123;
+
+#[cfg(target_os = "windows")]
 async fn render_native(_app: AppHandle, html: String, output_path: String) -> Result<(), String> {
     use std::sync::mpsc as smpsc;
+    use std::time::Duration;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
-        CreateCoreWebView2EnvironmentCompletedHandler, CreateCoreWebView2EnvironmentWithOptions,
-        ExecuteScriptCompletedHandler, ICoreWebView2, ICoreWebView2Controller,
-        ICoreWebView2Environment, NavigationCompletedEventHandler, PrintToPdfCompletedHandler,
+        CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2, ICoreWebView2Controller,
+        ICoreWebView2Environment, ICoreWebView2_7,
+    };
+    use webview2_com::{
+        CreateCoreWebView2ControllerCompletedHandler,
+        CreateCoreWebView2EnvironmentCompletedHandler, ExecuteScriptCompletedHandler,
+        NavigationCompletedEventHandler, PrintToPdfCompletedHandler,
     };
     use windows::core::{Interface, HSTRING, PCWSTR};
     use windows::Win32::Foundation::{HWND, RECT};
     use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DestroyWindow, RegisterClassExW, HWND_MESSAGE, WNDCLASSEXW,
-        WS_EX_LAYERED, WS_OVERLAPPEDWINDOW,
+        CreateWindowExW, DestroyWindow, PeekMessageW, RegisterClassExW, DispatchMessageW,
+        HWND_MESSAGE, MSG, PM_REMOVE, WNDCLASSEXW, WNDCLASS_STYLES, WINDOW_EX_STYLE,
+        WS_OVERLAPPEDWINDOW,
     };
+
+    fn pump_messages() {
+        unsafe {
+            let mut msg = MSG::default();
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = DispatchMessageW(&msg);
+            }
+        }
+    }
+
+    fn recv_with_pump<T>(rx: &smpsc::Receiver<T>) -> Result<T, String> {
+        loop {
+            match rx.try_recv() {
+                Ok(val) => return Ok(val),
+                Err(smpsc::TryRecvError::Empty) => {
+                    pump_messages();
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(smpsc::TryRecvError::Disconnected) => {
+                    return Err("channel disconnected".into());
+                }
+            }
+        }
+    }
 
     let html_path = write_export_html_to_temp(&html)?;
     let url_string = format!(
         "file:///{}",
-        html_path.display().to_string_lossy().replace('\\', "/")
+        html_path.display().to_string().replace('\\', "/")
     );
+
+    eprintln!("[pdf] Windows render: html at {} output={}", html_path.display(), output_path);
 
     let (result_tx, result_rx) = smpsc::channel::<Result<Vec<u8>, String>>();
 
@@ -384,6 +422,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
         let run = || -> Result<Vec<u8>, String> {
             unsafe {
                 CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+                    .ok()
                     .map_err(|e| format!("CoInitializeEx: {e}"))?;
             }
 
@@ -397,57 +436,59 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                 use windows::Win32::UI::WindowsAndMessaging::DefWindowProcW;
                 unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
             }
-            unsafe {
-                let instance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
+            let instance = unsafe {
+                let hmod = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
                     .map_err(|e| format!("GetModuleHandleW: {e}"))?;
                 let wc = WNDCLASSEXW {
                     cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
-                    style: 0,
+                    style: WNDCLASS_STYLES(0),
                     lpfnWndProc: Some(wndproc),
                     cbClsExtra: 0,
                     cbWndExtra: 0,
-                    hInstance: instance,
+                    hInstance: hmod.into(),
                     hIcon: Default::default(),
                     hCursor: Default::default(),
                     hbrBackground: Default::default(),
                     lpszMenuName: PCWSTR::null(),
-                    lpszClassName: PCWSTR(class_name.as_wide().as_ptr()),
+                    lpszClassName: PCWSTR(class_name.as_ptr()),
                     hIconSm: Default::default(),
                 };
                 let _ = RegisterClassExW(&wc);
-            }
+                hmod
+            };
             let hwnd = unsafe {
                 CreateWindowExW(
-                    WS_EX_LAYERED,
-                    PCWSTR(class_name.as_wide().as_ptr()),
+                    WINDOW_EX_STYLE(0),
+                    &class_name,
                     PCWSTR::null(),
                     WS_OVERLAPPEDWINDOW,
                     0,
                     0,
-                    A4_CSS_W as i32,
-                    A4_CSS_H as i32,
-                    HWND_MESSAGE,
+                    A4_CSS_W,
+                    A4_CSS_H,
+                    Some(HWND_MESSAGE),
                     None,
-                    None,
+                    Some(instance.into()),
                     None,
                 )
             }
             .map_err(|e| format!("CreateWindowExW: {e}"))?;
+
+            eprintln!("[pdf] Window created, creating WebView2 env");
 
             let (env_tx, env_rx) = smpsc::channel::<Result<ICoreWebView2Environment, String>>();
             let (ctrl_tx, ctrl_rx) = smpsc::channel::<Result<ICoreWebView2Controller, String>>();
             let (nav_tx, nav_rx) = smpsc::channel::<Result<(), String>>();
             let (pdf_tx, pdf_rx) = smpsc::channel::<Result<Vec<u8>, String>>();
 
-            let hwnd_for_env = hwnd;
             let env_handler =
-                CreateCoreWebView2EnvironmentCompletedHandler::create(move |_result, env| {
+                CreateCoreWebView2EnvironmentCompletedHandler::create(Box::new(move |_result, env| {
                     let _ = env_tx.send(match env {
                         Some(e) => Ok(e),
                         None => Err("WebView2 env creation returned null".into()),
                     });
                     Ok(())
-                });
+                }));
             unsafe {
                 CreateCoreWebView2EnvironmentWithOptions(
                     PCWSTR::null(),
@@ -457,24 +498,24 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                 )
                 .map_err(|e| format!("CreateCoreWebView2EnvironmentWithOptions: {e}"))?;
             }
-            let env = env_rx.recv().map_err(|e| format!("env channel: {e}"))??;
+            let env = recv_with_pump(&env_rx).map_err(|e| format!("env: {e}"))??;
+            eprintln!("[pdf] WebView2 env created");
 
             let ctrl_handler =
-                webview2_com::Microsoft::Web::WebView2::Win32::CreateCoreWebView2ControllerCompletedHandler::create(
-                    move |_result, controller| {
-                        let _ = ctrl_tx.send(match controller {
-                            Some(c) => Ok(c),
-                            None => Err("WebView2 controller creation returned null".into()),
-                        });
-                        Ok(())
-                    },
-                );
+                CreateCoreWebView2ControllerCompletedHandler::create(Box::new(move |_result, controller| {
+                    let _ = ctrl_tx.send(match controller {
+                        Some(c) => Ok(c),
+                        None => Err("WebView2 controller creation returned null".into()),
+                    });
+                    Ok(())
+                }));
             unsafe {
-                env.CreateCoreWebView2ControllerWithOptions(hwnd_for_env, None, &ctrl_handler)
+                env.CreateCoreWebView2Controller(hwnd, &ctrl_handler)
                     .map_err(|e| format!("CreateCoreWebView2Controller: {e}"))?;
             }
             let controller: ICoreWebView2Controller =
-                ctrl_rx.recv().map_err(|e| format!("ctrl channel: {e}"))??;
+                recv_with_pump(&ctrl_rx).map_err(|e| format!("ctrl: {e}"))??;
+            eprintln!("[pdf] WebView2 controller created");
 
             let webview: ICoreWebView2 = unsafe {
                 controller
@@ -483,45 +524,49 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
             };
             unsafe {
                 controller
-                    .put_Bounds(RECT {
+                    .SetBounds(RECT {
                         left: 0,
                         top: 0,
-                        right: A4_CSS_W as i32,
-                        bottom: A4_CSS_H as i32,
+                        right: A4_CSS_W,
+                        bottom: A4_CSS_H,
                     })
-                    .map_err(|e| format!("put_Bounds: {e}"))?;
+                    .map_err(|e| format!("SetBounds: {e}"))?;
                 controller
-                    .put_IsVisible(false)
-                    .map_err(|e| format!("put_IsVisible: {e}"))?;
+                    .SetIsVisible(false)
+                    .map_err(|e| format!("SetIsVisible: {e}"))?;
             }
 
-            let nav_token = {
+            let mut nav_token: i64 = 0;
+            {
                 let nav_tx = nav_tx.clone();
-                let handler = NavigationCompletedEventHandler::create(move |_w, _args| {
+                let handler = NavigationCompletedEventHandler::create(Box::new(move |_w, _args| {
                     let _ = nav_tx.send(Ok(()));
                     Ok(())
-                });
+                }));
                 unsafe {
                     webview
-                        .add_NavigationCompleted(&handler)
-                        .map_err(|e| format!("add_NavigationCompleted: {e}"))?
+                        .add_NavigationCompleted(&handler, &mut nav_token)
+                        .map_err(|e| format!("add_NavigationCompleted: {e}"))?;
                 }
-            };
+            }
             unsafe {
                 webview
-                    .Navigate(PCWSTR(HSTRING::from(&url_string).as_wide().as_ptr()))
+                    .Navigate(&HSTRING::from(&url_string))
                     .map_err(|e| format!("Navigate: {e}"))?;
             }
-            nav_rx.recv().map_err(|e| format!("nav channel: {e}"))??;
+            eprintln!("[pdf] Navigated, waiting for page load");
+            recv_with_pump(&nav_rx).map_err(|e| format!("nav: {e}"))??;
+            eprintln!("[pdf] Page loaded");
 
             std::thread::sleep(std::time::Duration::from_millis(150));
-            let noop_handler = ExecuteScriptCompletedHandler::create(move |_result, _val| {
+            let noop_handler = ExecuteScriptCompletedHandler::create(Box::new(move |_result, _val| {
                 let _ = _val;
                 Ok(())
-            });
+            }));
             unsafe {
+                let script = HSTRING::from("JSON.stringify((window.__bnLayout || []))");
                 let _ = webview.ExecuteScript(
-                    PCWSTR(HSTRING::from("JSON.stringify((window.__bnLayout || []))").as_wide().as_ptr()),
+                    &script,
                     &noop_handler,
                 );
             }
@@ -536,23 +581,28 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
                     .unwrap_or(0)
             ));
             let pdf_path_hstring = HSTRING::from(pdf_path.to_string_lossy().as_ref());
-            let pdf_handler = PrintToPdfCompletedHandler::create(move |_result| {
-                let _ = pdf_tx.send(match std::fs::read(&pdf_path) {
+            let pdf_path_clone = pdf_path.clone();
+            let pdf_handler = PrintToPdfCompletedHandler::create(Box::new(move |_result, _success| {
+                let _ = pdf_tx.send(match std::fs::read(&pdf_path_clone) {
                     Ok(b) => Ok(b),
                     Err(e) => Err(format!("Read staged PDF: {e}")),
                 });
                 Ok(())
-            });
+            }));
             unsafe {
-                webview
+                let webview_7: ICoreWebView2_7 =
+                    webview.cast().map_err(|e| format!("Cast ICoreWebView2_7: {e}"))?;
+                webview_7
                     .PrintToPdf(
-                        PCWSTR(pdf_path_hstring.as_wide().as_ptr()),
+                        PCWSTR(pdf_path_hstring.as_ptr()),
                         None,
                         &pdf_handler,
                     )
                     .map_err(|e| format!("PrintToPdf: {e}"))?;
             }
-            let pdf_bytes = pdf_rx.recv().map_err(|e| format!("pdf channel: {e}"))??;
+            eprintln!("[pdf] PrintToPdf called, waiting for result");
+            let pdf_bytes = recv_with_pump(&pdf_rx).map_err(|e| format!("pdf: {e}"))??;
+            eprintln!("[pdf] Got PDF ({} bytes)", pdf_bytes.len());
 
             let _ = std::fs::remove_file(&pdf_path);
             unsafe {
@@ -572,6 +622,7 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
         .map_err(|e| format!("Windows render channel closed: {e}"))??;
 
     let _ = std::fs::remove_file(&html_path);
+    eprintln!("[pdf] Writing PDF to {}", output_path);
     std::fs::write(&output_path, &pdf_bytes)
         .map_err(|e| format!("Failed to write PDF: {e}"))
 }
