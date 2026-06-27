@@ -77,6 +77,7 @@ child = spawn(viteBin, ['--config', 'vite.config.js'], {
   cwd: rootDir,
   stdio: 'inherit',
   env: process.env,
+  shell: isWindows,
 });
 
 child.on('exit', (code, signal) => {

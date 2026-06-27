@@ -25,10 +25,8 @@ pub fn init<R: Runtime, C: DeserializeOwned>(
 pub struct PdfRender<R: Runtime>(PluginHandle<R>);
 
 impl<R: Runtime> PdfRender<R> {
-    /// Render the HTML at `html_path` through the native WebView and
-    /// write the resulting PDF to `output_path`. Returns the
-    /// keep-blocks JSON string (already un-stringified) extracted
-    /// from the page during measurement.
+    /// Render the HTML through the native WebView and write a correctly
+    /// paginated A4 PDF to `output_path`.
     pub fn render(&self, request: RenderRequest) -> Result<RenderResponse> {
         let response: RenderResponse = self
             .0
@@ -37,11 +35,7 @@ impl<R: Runtime> PdfRender<R> {
         Ok(response)
     }
 
-    /// Copy a file from `source_path` (a local temp path) into a
-    /// scoped-storage destination. The native plugin resolves the
-    /// `scoped:` URL via the platform's folder-bookmark store
-    /// (UserDefaults on iOS, SharedPreferences on Android) and
-    /// writes the file through the security-scoped / content-URI APIs.
+    /// Copy a file from a local temp path into a scoped-storage destination.
     pub fn write_to_scoped(&self, request: WriteScopedRequest) -> Result<()> {
         self.0
             .run_mobile_plugin::<serde_json::Value>("writeScoped", request)

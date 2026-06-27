@@ -56,7 +56,6 @@ urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
-lopdf = "0.41"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
@@ -68,11 +67,22 @@ tauri-plugin-haptics = "2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = "0.3"
+objc2-foundation = { version = "0.3", features = ["NSURL"] }
 objc2-core-foundation = "0.3"
-objc2-app-kit = "0.3"
+objc2-app-kit = { version = "0.3", features = [
+    "NSPrintInfo",
+    "NSPrintOperation",
+    "NSWindow",
+    "NSView",
+    "NSResponder",
+    "objc2-core-foundation",
+] }
 block2 = "0.6"
-objc2-web-kit = { version = "0.3", features = ["block2", "objc2-core-foundation"] }
+objc2-web-kit = { version = "0.3", features = [
+    "block2",
+    "objc2-core-foundation",
+    "objc2-app-kit",
+] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"

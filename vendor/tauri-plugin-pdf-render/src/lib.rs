@@ -1,7 +1,10 @@
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    Runtime,
 };
+
+#[cfg(mobile)]
+use tauri::Manager;
 
 pub use models::*;
 
