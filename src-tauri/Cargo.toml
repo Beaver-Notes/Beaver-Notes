@@ -93,6 +93,7 @@ objc2-web-kit = { version = "0.3", features = ["block2", "objc2-core-foundation"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = "2"
+gtk = "0.18"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"

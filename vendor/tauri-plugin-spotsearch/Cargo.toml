@@ -53,5 +53,5 @@ version = "2"
 version = "2"
 features = ["build"]
 
-[target.'cfg(target_os = "macos")'.build-dependencies.cc]
+[build-dependencies.cc]
 version = "1"

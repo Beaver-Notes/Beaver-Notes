@@ -630,113 +630,108 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
 // ── Linux ──────────────────────────────────────────────────────────
 
 #[cfg(target_os = "linux")]
-async fn render_native(_app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+    // Force only the file print backend so GTK doesn't require CUPS
+    // to have a printer configured. Set before any GTK init.
+    std::env::set_var("GTK_PRINT_BACKENDS", "file");
+
     use std::sync::mpsc as smpsc;
+    use tauri::webview::PageLoadEvent;
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
 
     let html_path = write_export_html_to_temp(&html)?;
+    let url = format!("file://{}", html_path.display());
+
+    let (loaded_tx, loaded_rx) = smpsc::channel::<()>();
+
+    let label = format!("pdf-render-{}", std::process::id());
+
+    let builder = WebviewWindowBuilder::new(
+        &app,
+        &label,
+        WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {e}"))?),
+    )
+    .title("Beaver Notes – PDF Render")
+    .visible(false)
+    .inner_size(794.0, 1123.0)
+    .min_inner_size(794.0, 1123.0)
+    .resizable(false)
+    .decorations(false)
+    .on_page_load(move |_window, payload| {
+        if payload.event() == PageLoadEvent::Finished {
+            let _ = loaded_tx.send(());
+        }
+    });
+
+    let window = builder
+        .build()
+        .map_err(|e| format!("Failed to create PDF render window: {e}"))?;
+
+    loaded_rx
+        .recv()
+        .map_err(|_| "PDF render window load channel closed".to_string())?;
+
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    let pdf_stage = std::env::temp_dir().join(format!(
+        "beaver-pdf-stage-{}-{}.pdf",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let pdf_uri = format!("file://{}", pdf_stage.display());
 
     let (result_tx, result_rx) = smpsc::channel::<Result<Vec<u8>, String>>();
+    let pdf_stage_print = pdf_stage.clone();
+    let output_path_clone = output_path.clone();
 
-    std::thread::spawn(move || {
-        let run = || -> Result<Vec<u8>, String> {
-            use gio::Cancellable;
-            use glib::MainLoop;
-            use gtk::glib;
-            use gtk::prelude::*;
-            use std::cell::RefCell;
-            use std::rc::Rc;
-            use webkit2gtk::prelude::*;
-            use webkit2gtk::WebViewExt as _;
-            use webkit2gtk::{
-                PrintOperation, PrintOperationResult, WebView, WebViewExt, WebViewExtManual,
-            };
+    window
+        .with_webview(move |webview| {
+            use webkit2gtk::PrintOperation;
+            use webkit2gtk::PrintOperationExt;
 
-            gtk::init().map_err(|e| format!("gtk::init: {e}"))?;
+            let wk = webview.inner();
+            let print_op = PrintOperation::new(&wk);
+            let settings = gtk::PrintSettings::new();
+            settings.set_bool("print-to-file", true);
+            settings.set("output-file-format", Some("pdf"));
+            settings.set("output-uri", Some(&pdf_uri));
+            settings.set_printer("Print to File");
+            print_op.set_print_settings(&settings);
 
-            let window = gtk::Window::new(gtk::WindowType::Toplevel);
-            window.set_default_size(A4_CSS_W as i32, A4_CSS_H as i32);
+            let page_setup = gtk::PageSetup::new();
+            let paper_size = gtk::PaperSize::new(Some("iso_a4"));
+            page_setup.set_paper_size(&paper_size);
+            page_setup.set_orientation(gtk::PageOrientation::Portrait);
+            print_op.set_page_setup(&page_setup);
 
-            let webview = WebView::new();
-            window.add(&webview);
-            webview.set_size_request(A4_CSS_W as i32, A4_CSS_H as i32);
-
-            let load_result: Rc<RefCell<Option<Result<(), String>>>> = Rc::new(RefCell::new(None));
-            let pdf_result: Rc<RefCell<Option<Result<Vec<u8>, String>>>> =
-                Rc::new(RefCell::new(None));
-
-            let loop_load = MainLoop::new(None, false);
-            let loop_pdf = MainLoop::new(None, false);
-
-            let file_uri = format!("file://{}", html_path.display());
-            webview.load_uri(&file_uri);
-
-            let load_result_clone = load_result.clone();
-            let loop_load_clone = loop_load.clone();
-            webview.connect_load_changed(move |_w, event| {
-                use webkit2gtk::LoadEvent;
-                if event == LoadEvent::Finished {
-                    *load_result_clone.borrow_mut() = Some(Ok(()));
-                    loop_load_clone.quit();
-                }
+            let tx_ok = result_tx.clone();
+            let tx_err = result_tx;
+            let stage = pdf_stage_print;
+            print_op.connect_finished(move |_op| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let outcome =
+                    std::fs::read(&stage).map_err(|e| format!("read staged PDF: {e}"));
+                let _ = tx_ok.send(outcome);
             });
-            loop_load.run();
-            load_result
-                .borrow_mut()
-                .take()
-                .ok_or_else(|| "load event never fired".to_string())??;
-
-            glib::timeout_future(150).wait();
-
-            let pdf_stage = std::env::temp_dir().join(format!(
-                "beaver-pdf-stage-{}-{}.pdf",
-                std::process::id(),
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0)
-            ));
-            let pdf_uri = format!("file://{}", pdf_stage.display());
-
-            let print_op = PrintOperation::new(&webview);
-            let settings = print_op.print_settings();
-            settings.set_print_to_file(true);
-            settings.set_output_format(webkit2gtk::PrintOutputFormat::Pdf);
-            settings.set_output_uri(&pdf_uri);
-
-            let pdf_result_clone = pdf_result.clone();
-            let loop_pdf_clone = loop_pdf.clone();
-            print_op.connect_finished(move |_op, result| {
-                let outcome = if result == PrintOperationResult::Finished {
-                    std::fs::read(&pdf_stage).map_err(|e| format!("read staged PDF: {e}"))
-                } else {
-                    Err(format!("PrintOperation did not finish: {result:?}"))
-                };
-                *pdf_result_clone.borrow_mut() = Some(outcome);
-                loop_pdf_clone.quit();
+            print_op.connect_failed(move |_op, err| {
+                let _ = tx_err.send(Err(format!("print failed: {err}")));
             });
-            print_op.run();
-            loop_pdf.run();
-            let pdf_bytes = pdf_result
-                .borrow_mut()
-                .take()
-                .ok_or_else(|| "print operation never completed".to_string())??;
-            let _ = std::fs::remove_file(&pdf_stage);
-
-            window.destroy();
-
-            Ok(pdf_bytes)
-        };
-
-        let result = run();
-        let _ = result_tx.send(result);
-    });
+            print_op.print();
+        })
+        .map_err(|e| format!("with_webview failed: {e}"))?;
 
     let pdf_bytes = result_rx
         .recv()
         .map_err(|e| format!("Linux render channel closed: {e}"))??;
 
+    let _ = window.destroy();
+    let _ = std::fs::remove_file(&pdf_stage);
     let _ = std::fs::remove_file(&html_path);
-    std::fs::write(&output_path, &pdf_bytes)
+
+    std::fs::write(&output_path_clone, &pdf_bytes)
         .map_err(|e| format!("Failed to write PDF: {e}"))
 }
 

@@ -441,6 +441,7 @@ dependencies = [
  "chrono",
  "dirs 5.0.1",
  "font-kit",
+ "gtk",
  "hex",
  "hmac",
  "http",
