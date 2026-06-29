@@ -1,85 +1,71 @@
-<h1 align="center">Beaver Notes</h1>
+<div align="center">
+<div align="center">
+  <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
+</div>
 
-<!-- Core badges -->
+  <h1>Beaver Notes</h1>
 
-<!-- Contributors badge -->
-<div style="text-align: center;">
+  <p><strong>Built for people who actually read privacy policies.</strong></p>
+  <p>Your notes, your rules. On your device, your server, or ours.</p>
 
 [![All Contributors](https://img.shields.io/badge/all_contributors-8-orange.svg?style=flat)](#contributors-)
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
 ![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat)
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat)
 
+[Website](https://beavernotes.com) · [Blog](https://blog.beavernotes.com) · [Docs](https://docs.beavernotes.com) · [Downloads](https://beavernotes.com/#/Download) · [Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
+
 </div>
 
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Beaver-Notes/beaver-website/main/src/assets/logo.png" alt="Beaver Logo" width="100">
+---
 
-  <h3><b>Build ideas, block the noise</b></h3>
-  <p>No trackers. No spies. Just your dam of thoughts.</p>
+> **You're on the `tauri` branch. The v5 rewrite.** This is where Beaver Notes is heading. The current stable release lives on [`development`](https://github.com/Beaver-Notes/Beaver-Notes/tree/development).
 
-[🌐 Website](https://beavernotes.com) | [📝 Blog](https://blog.beavernotes.com) | [📖 Docs](https://docs.beavernotes.com) | [⬇️ Downloads](https://beavernotes.com/#/Download) | [🚧 Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
-</div>
+Most note-taking apps make the same quiet trade: your convenience in exchange for access to your data. It's easy to miss in the onboarding flow, buried somewhere in a terms-of-service document most people never open.
 
-# Overview
+Beaver Notes starts from a different place. Your notes live on your device. They're not indexed, not processed, not readable by anyone but you. When you want to sync, you choose how, your own cloud storage, a self-hosted server, or BeaverSync (coming later this year) if you'd rather not think about it. No vendor lock-in either way.
 
-Beaver Notes is a **privacy-first, local-first note-taking app** built to help you capture ideas, organize knowledge, and connect notes without ever sending your data to the cloud by default.
-
-- 🏆 **Cross-platform:** macOS, Windows, GNU/Linux, Android, iOS
-- 🔒 **Secure:** data stored locally, optional sync with your provider  
-- 📝 **Markdown support:** write quickly without breaking flow  
-- 🧩 **Community-driven:** open-source with contributions always welcome from everyone
-
+We're rebuilding Beaver Notes from the ground up in Tauri for v5, faster, smaller, and properly cross-platform, including mobile, because we outgrew our original Electron foundation.
 
 ![Beaver Notes demo](https://github.com/Beaver-Notes/Beaver-Notes/assets/67503004/a7b38689-0363-49f0-8ed8-60e7358b1df6)
 
-## 🎯 Features
+## What it is
 
-- 🔒 **Privacy-Respecting** — data stays on your device
-- 📝 **Markdown Support** — write without breaking flow
-- 🏷️ **Tags** — organize your notes quickly
-- 🗂️ **Folders** — organize notes into structured collections
-- 🔗 **Note Linking** — connect ideas naturally  
-- 🔐 **Locked Notes** — protect sensitive information  
-- 🔄 **Flexible Sync** — choose your preferred cloud or offline workflow
-- 💻 **Open-source** — shaped by contributors like you  
+Beaver Notes is a local-first, markdown-native notes app for macOS, Windows, Linux, Android, and iOS. It has folders, tags, note linking, locked notes, and flexible sync. It starts fast. It works offline. It doesn't ask you to create an account to use it.
 
-👉 Discover more on [our website](https://beavernotes.com).
+The things that make it worth switching to aren't features. It's the absence of things. Beaver has no telemetry in the editor, no account wall, no monthly fee to keep your notes accessible and no moment where you wonder who else can read what you're writing.
 
-## ⬇️ Installation
+## What's new in v5
 
-- Visit our [Downloads page](https://beavernotes.com/#/Download) for the latest installers  
-- Use package managers if preferred:  
-  - **AUR:** `yay -S beaver-notes`  
-  - **Flatpak:** `flatpak install flathub com.beavernotes.beavernotes`
-  - **Scoop:** `scoop install extras/beaver-notes`  
-  - **Brew:** `brew install --cask beaver-notes`
+Version 5 is a rewrite, not an update. We moved from Electron to Tauri, which means meaningfully smaller binaries and better native behaviour on every platform. More importantly, mobile is no longer a separate app, Beaver Pocket is being folded into Beaver Notes itself, so the experience is consistent whether you're on a laptop in a coffee shop or on your phone at 2am.
 
-## 💖 Contributing
+We're also adding things people have asked for since the early days: real-time collaboration, version history, backlinks, and a plugin system. These were hard to build correctly on the old architecture. On the new one, they're not.
 
-Beaver is made by the community, for the community.  
+The [roadmap](https://github.com/orgs/Beaver-Notes/projects/5) is public if you want to follow along or push back on priorities.
 
-You can help by:
+## Installing v5 (beta)
 
-- 🌍 Translating
-- 💻 Coding
-- 🐛 Reporting bugs
-- 🎨 Designing features  
-- ☕ Supporting financially  
+> v5 is in active development. It will have rough edges. We'd genuinely love bug reports.
 
-**Get started:** [How to Contribute](https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html)
+```bash
+git clone https://github.com/Beaver-Notes/Beaver-Notes.git
+cd Beaver-Notes
+git checkout tauri
+yarn install
+yarn tauri dev
+```
 
-## Support & Community
+For stable builds, the [Downloads page](https://beavernotes.com/#/Download) has installers for every platform. Package managers (AUR, Flatpak, Scoop, Brew) will track stable once v5 ships.
 
-- 💬 [Reddit](https://www.reddit.com/r/BeaverNotes/)  
-- 🐘 [Mastodon](https://mastodon.social/@Beavernotes)  
-- 🦋 [Bluesky](https://bsky.app/profile/beavernotes.com)  
-- 📖 [Documentation](https://docs.beavernotes.com)  
-- ✉️ [Email](mailto:danielerolli@proton.me)  
+## Contributing
 
-## ✨ Contributors
+Beaver Notes exists because people decided to build something better and kept showing up. The contributors below translated strings, wrote code, caught bugs, improved docs, and packaged the app for platforms we'd have missed. That kind of work is what makes the difference between a project that goes somewhere and one that doesn't.
 
-Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/docs/en/emoji-key)):
+If you want to get involved, whether that's code, translations, design, or just a well-written bug report, the [contributing guide](<https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html>) is a good place to start.
+
+The community is on [Reddit](https://www.reddit.com/r/BeaverNotes/), [Mastodon](https://mastodon.social/@Beavernotes), and [Bluesky](https://bsky.app/profile/beavernotes.com). For everything else: [danielerolli@proton.me](mailto:danielerolli@proton.me).
+
+## Contributors
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -103,20 +89,17 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     </tr>
   </tbody>
 </table>
-
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
-
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-## ✨ Honorable mentions
+Also: Verthandii, [Mondstern](https://moooon.dresden.network/), Gabriel Soleil, and Rem, for translations and community work that rarely shows up in commit graphs but matters just as much.
 
-- Verthandii - 🌎
-- <a href="https://moooon.dresden.network/">Mondstern</a> - 🌎
-- Gabriel Soleil - 🌎
-- Rem - 🌎
+## Support
 
-## 💖 Support the Project
+Beaver Notes is free. It will stay free. If it's been useful to you, the most valuable things you can do are tell someone about it and file a bug when you find one.
+
+If you'd like to contribute financially:
 
 <div align="center">
   <a href="https://www.buymeacoffee.com/beavernotes">
