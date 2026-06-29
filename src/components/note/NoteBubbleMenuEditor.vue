@@ -204,7 +204,7 @@
 
           <div class="grid grid-cols-4 gap-1.5 mb-4 justify-items-center">
             <button
-              class="w-7 h-7 flex items-center justify-center rounded-md border hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition-colors"
+              class="w-7 h-7 flex items-center justify-center rounded-lg border hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition-colors"
               @click="editor.chain().focus().unsetColor().run()"
             >
               <v-remixicon name="riFontColor" class="w-3.5 h-3.5" />
@@ -213,7 +213,7 @@
             <button
               v-for="c in textColors"
               :key="c"
-              class="w-7 h-7 rounded-md border border-neutral-100 dark:border-neutral-800 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+              class="w-7 h-7 rounded-lg border border-neutral-100 dark:border-neutral-800 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
               :style="{ backgroundColor: c + '22' }"
               @click="setTextColor(c)"
             >
@@ -233,7 +233,7 @@
 
           <div class="grid grid-cols-4 gap-1.5 justify-items-center">
             <button
-              class="w-7 h-7 rounded-md border flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-xs font-medium transition-colors"
+              class="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-xs font-medium transition-colors"
               @click="editor.commands.unsetHighlight()"
             >
               —
@@ -243,7 +243,7 @@
               v-for="c in highlighterColors"
               :key="c"
               :class="[
-                'w-7 h-7 rounded-md hover:scale-105 active:scale-95 transition-all shadow-sm border border-black/5',
+                'w-7 h-7 rounded-lg hover:scale-105 active:scale-95 transition-all shadow-sm border border-black/5',
                 c,
               ]"
               @click="setHighlightColor(c)"

@@ -1,13 +1,13 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-out bottom-4 md:pl-16 mobile:bottom-[var(--app-mobile-floating-offset)]"
+    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-out bottom-4 md:pl-16"
   >
     <div
       class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
     >
       <!-- Desktop Layout -->
       <div
-        class="flex items-center p-2 space-x-2 max-md:flex-wrap mobile:hidden"
+        class="flex items-center p-2 space-x-2 max-md:flex-wrap max-md:hidden"
       >
         <!-- Regex Toggle Button -->
         <ui-button
@@ -101,7 +101,7 @@
       </div>
 
       <!-- Mobile Layout -->
-      <div class="hidden mobile:block">
+      <div class="hidden max-md:block">
         <!-- Search Row -->
         <div class="flex items-center p-2 space-x-2">
           <!-- Search Term Input -->

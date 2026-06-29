@@ -18,7 +18,7 @@
         <div class="flex items-start w-full">
           <!-- Icon container with border -->
           <div
-            class="flex items-center justify-center rounded-md border flex-shrink-0 bg-white dark:bg-neutral-900 p-1.5"
+            class="flex items-center justify-center rounded-lg border flex-shrink-0 bg-white dark:bg-neutral-900 p-1.5"
           >
             <v-remixicon
               :name="item.icon"

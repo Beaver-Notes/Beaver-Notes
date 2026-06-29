@@ -61,6 +61,15 @@
         <v-remixicon name="riArticleLine" />
       </button>
 
+      <button
+        v-tooltip.group="'Search'"
+        :class="{ 'is-active': showSearch }"
+        class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+        @click="$emit('toggle-search')"
+      >
+        <v-remixicon name="riSearchLine" />
+      </button>
+
       <ui-popover>
         <template #trigger>
           <button

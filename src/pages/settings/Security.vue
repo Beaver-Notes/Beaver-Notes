@@ -93,7 +93,7 @@
           <transition name="setting-fade">
             <div
               v-if="encryptionBusy"
-              class="mt-2 rounded-md dark:bg-primary/10"
+              class="mt-2 rounded-lg dark:bg-primary/10"
             >
               <p class="text-xs text-primary">
                 {{ encryptionProgressLabel }}:

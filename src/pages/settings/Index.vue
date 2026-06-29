@@ -51,7 +51,7 @@
           </div>
           <div class="flex items-center gap-2 justify-between">
             <span
-              class="max-w-32 sm:max-w-64 truncate rounded-md bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400"
+              class="max-w-32 sm:max-w-64 truncate rounded-lg bg-neutral-100 px-2 py-1 font-mono text-xs text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400"
               >{{
                 state.syncPath ||
                 translations.settings.pathPlaceholder ||
@@ -483,7 +483,7 @@
                 v-for="source in importSources"
                 :key="source.key"
                 type="button"
-                class="w-full rounded-md px-2.5 py-2 text-left text-sm transition-colors"
+                class="w-full rounded-lg px-2.5 py-2 text-left text-sm transition-colors"
                 :class="
                   selectedImportSource === source.key
                     ? 'bg-primary/10 font-medium text-primary'

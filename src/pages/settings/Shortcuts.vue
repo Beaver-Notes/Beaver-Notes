@@ -2,7 +2,9 @@
 <template>
   <div class="general space-y-8 mb-14 w-full max-w-xl">
     <div v-for="shortcut in shortcuts" :key="shortcut.title">
-      <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300 mb-2">
+      <p
+        class="text-sm font-semibold text-neutral-600 dark:text-neutral-300 mb-2"
+      >
         {{ translations.shortcuts[shortcut.title] || '-' }}
       </p>
       <ui-card>

@@ -750,7 +750,6 @@
 
 <script>
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-import NoteMenuHeadingsTree from './NoteMenuHeadingsTree.vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
@@ -761,7 +760,7 @@ import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
 export default {
-  components: { NoteMenuHeadingsTree, ToolbarCustomizer, MobileBlockPicker },
+  components: { ToolbarCustomizer, MobileBlockPicker },
   props: {
     editor: { type: Object, default: () => ({}) },
     id: { type: String, default: '' },

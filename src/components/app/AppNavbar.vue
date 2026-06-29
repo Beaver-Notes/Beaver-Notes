@@ -64,7 +64,7 @@
             {{ selectionBar.selectedCount }}
             {{ selectionBar.selectedCount === 1 ? 'item' : 'items' }}
           </span>
-          <div class="flex items-center gap-0.5">
+          <div class="flex items-center">
             <button
               v-if="selectionBar.hasSelectedNotes"
               v-tooltip:right="

@@ -19,7 +19,10 @@
     </button>
 
     <template v-if="editor && !isLocked">
-      <note-actions v-bind="{ editor, id, note, showSearch, goBack }" />
+      <note-actions
+        v-bind="{ editor, id, note, showSearch, goBack }"
+        @toggle-search="showSearch = !showSearch"
+      />
     </template>
 
     <div

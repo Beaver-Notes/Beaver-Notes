@@ -1,7 +1,7 @@
 <template>
   <node-view-wrapper class="relative">
     <div
-      class="absolute right-2 top-2 z-10 flex items-center gap-1 border bg-neutral-50 dark:bg-neutral-900 rounded-md px-2 py-1 print:hidden"
+      class="absolute right-2 top-2 z-10 flex items-center gap-1 border bg-neutral-50 dark:bg-neutral-900 rounded-lg px-2 py-1 print:hidden"
     >
       <ui-select
         v-model="selectedLanguage"

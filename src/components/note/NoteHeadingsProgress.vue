@@ -4,6 +4,7 @@
       class="fixed right-4 top-1/2 -translate-y-1/2 z-40"
       @mouseenter="onEnter"
       @mouseleave="onLeave"
+      @click="onClickRail"
     >
       <div
         ref="railRef"
@@ -24,7 +25,7 @@
               ? 'w-3 h-1.5 bg-primary ring-2 ring-white/60 dark:ring-neutral-900/60'
               : 'w-2 h-1 bg-neutral-400/15 hover:bg-neutral-400/30'
           "
-          @click="goTo(item)"
+          @click="onPillClick(item, $event)"
         />
       </div>
     </div>
@@ -98,6 +99,7 @@ export default {
     const popoverStyle = ref({});
     const railRef = ref(null);
     const popoverRef = ref(null);
+    const isTouchDevice = ref(false);
     const pillRefs = ref([]);
 
     const scrollContainer = ref(null);
@@ -187,9 +189,18 @@ export default {
     function update() {
       const { scrollY, innerHeight } = getScrollInfo();
       const cy = scrollY + innerHeight / 2;
-      let found = positions[0]?.item;
-      for (const p of positions) {
-        if (p.top <= cy) found = p.item;
+
+      if (!positions.length) return;
+
+      let found = positions[0].item;
+      let closestDist = Math.abs(positions[0].top - cy);
+
+      for (let i = 1; i < positions.length; i++) {
+        const dist = Math.abs(positions[i].top - cy);
+        if (dist < closestDist) {
+          closestDist = dist;
+          found = positions[i].item;
+        }
       }
 
       if (activeHeading.value !== found) {
@@ -261,6 +272,7 @@ export default {
     }
 
     function onEnter() {
+      if (isTouchDevice.value) return;
       clearTimeout(hoverTimeout);
       showMenu.value = true;
       const r = railRef.value?.getBoundingClientRect();
@@ -274,10 +286,38 @@ export default {
     }
 
     function onLeave() {
+      if (isTouchDevice.value) return;
       hoverTimeout = setTimeout(() => {
         showMenu.value = false;
         search.value = '';
       }, 200);
+    }
+
+    function onClickRail() {
+      if (isTouchDevice.value) {
+        showMenu.value = !showMenu.value;
+      } else if (!showMenu.value) {
+        showMenu.value = true;
+      }
+
+      if (showMenu.value) {
+        const r = railRef.value?.getBoundingClientRect();
+        if (r) {
+          popoverStyle.value = {
+            top: `${r.top}px`,
+            left: `${r.left - 12}px`,
+            transform: 'translateX(-100%)',
+          };
+        }
+      } else {
+        search.value = '';
+      }
+    }
+
+    function onPillClick(item, event) {
+      if (isTouchDevice.value) return;
+      event.stopPropagation();
+      goTo(item);
     }
 
     function onKeydown(e) {
@@ -324,6 +364,8 @@ export default {
     );
 
     onMounted(() => {
+      isTouchDevice.value =
+        'ontouchstart' in window || navigator.maxTouchPoints > 0;
       // Fallback: attach to window initially (build() will switch to the real container)
       setupScrollListener();
       window.addEventListener('resize', cache);
@@ -355,6 +397,7 @@ export default {
       goTo,
       onEnter,
       onLeave,
+      onClickRail,
     };
   },
 };

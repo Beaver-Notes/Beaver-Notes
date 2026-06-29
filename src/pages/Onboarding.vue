@@ -121,7 +121,7 @@
             >
               <div class="flex items-center gap-4 p-4">
                 <div
-                  class="shrink-0 w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"
+                  class="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
                 >
                   <v-remixicon name="riStarFill" />
                 </div>
@@ -153,7 +153,7 @@
             >
               <div class="flex items-center gap-4 p-4">
                 <div
-                  class="shrink-0 w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center"
+                  class="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
                 >
                   <v-remixicon name="riSendPlaneFill" />
                 </div>
@@ -485,7 +485,7 @@
                     Portable data folder
                   </span>
                   <code
-                    class="text-xs font-mono break-all px-2 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                    class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
                   >
                     {{ customLegacyPath }}
                   </code>
@@ -500,7 +500,7 @@
                     Beaver Notes (Legacy)
                   </span>
                   <code
-                    class="text-xs font-mono break-all px-2 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                    class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
                   >
                     {{ state.status.legacyDir }}
                   </code>
@@ -512,7 +512,7 @@
                     New Beaver Notes
                   </span>
                   <code
-                    class="text-xs font-mono break-all px-2 py-1.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                    class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
                   >
                     {{ state.status.appDir }}
                   </code>

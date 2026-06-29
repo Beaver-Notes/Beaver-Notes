@@ -83,7 +83,7 @@
             <template v-else>
               <div
                 :class="[
-                  'h-8 w-8 rounded-md flex items-center justify-center flex-shrink-0',
+                  'h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0',
                   GROUP_STYLES[item.meta?.group]?.bg ??
                     'bg-neutral-100 dark:bg-neutral-800',
                 ]"

@@ -216,7 +216,7 @@
         <button
           v-for="icon in alternateIcons"
           :key="icon.key"
-          class="flex flex-col items-center gap-1 p-2 rounded-xl bg-input border transition focus:outline-none focus:ring-1 focus:ring-primary"
+          class="flex flex-col items-center gap-1 p-2 rounded-lg bg-input border transition focus:outline-none focus:ring-1 focus:ring-primary"
           :class="{
             'ring-1 ring-primary border-primary':
               currentIconName === icon.name ||

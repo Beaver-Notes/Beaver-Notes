@@ -98,7 +98,7 @@
             v-for="bg in paperTypes.slice(0, 4)"
             :key="bg"
             type="button"
-            class="w-6 h-6 rounded-md border-2 border-neutral-200 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700 shrink-0 touch-manipulation transition-all"
+            class="w-6 h-6 rounded-lg border-2 border-neutral-200 dark:border-neutral-600 bg-neutral-50 dark:bg-neutral-700 shrink-0 touch-manipulation transition-all"
             :class="[
               bgClass(bg),
               toolbarState.background === bg

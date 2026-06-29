@@ -28,14 +28,14 @@
             v-for="item in themes"
             :key="item.name"
             type="button"
-            class="bg-input p-2 rounded-lg transition-all w-full"
+            class="bg-input p-2 transition-all w-full"
             :class="fresh.theme === item.name ? 'ring-1 ring-primary' : ''"
             @click="$emit('select-theme', item.name)"
           >
             <img
               :src="item.img"
               :alt="item.label"
-              class="w-full border-2 mb-1 rounded-lg"
+              class="w-full border-2 mb-1"
             />
             <p
               class="capitalize text-center text-sm text-neutral-800 dark:text-neutral-200"
