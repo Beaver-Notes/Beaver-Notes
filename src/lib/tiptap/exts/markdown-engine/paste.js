@@ -56,7 +56,7 @@ export const Paste = Extension.create({
                     const textNode = document.createTextNode(
                       span.textContent || ''
                     );
-                    link.replaceChild(textNode, span);
+                    span.parentNode.replaceChild(textNode, span);
                     for (const attr of span.attributes) {
                       if (attr.name.startsWith('data-')) {
                         link.setAttribute(

@@ -284,14 +284,6 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
     return `
   ${shared}
 
-  /*
-   * Note: WKWebView.createPDF ignores @page rules, so the page margin
-   * is enforced by (a) shrinking the rendered content width below and
-   * (b) the Rust splitter insetting each A4 page by the same margin in
-   * points. PDF_PAGE_MARGIN_CSS_PX must match the splitter's margin in
-   * points (the splitter applies the pt equivalent of this CSS value).
-   */
-
   html, body {
     width: ${contentW}px !important;
     max-width: ${contentW}px !important;
@@ -774,8 +766,7 @@ function collectPageStyles() {
         if (isUiRule(text)) continue;
         cssParts.push(text);
       }
-    } catch {
-    }
+    } catch {}
   }
 
   return cssParts.join('\n');
@@ -1299,7 +1290,9 @@ export async function buildWebExportDocument(editor, options = {}) {
     pageMargin = PAGE_MARGIN_PX,
   } = options;
 
-  const isDark = isPaginated ? false : document.documentElement.classList.contains('dark');
+  const isDark = isPaginated
+    ? false
+    : document.documentElement.classList.contains('dark');
   const theme = isDark ? 'dark' : 'light';
 
   const clone = await prepareExportDom(editor, noteId, mode);

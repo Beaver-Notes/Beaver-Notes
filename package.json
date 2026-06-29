@@ -117,6 +117,7 @@
     "dayjs": "^1.10.6",
     "emoji.json": "^16.0.0",
     "highlight.js": "^11.9.0",
+    "jszip": "^3.10.1",
     "katex": "^0.13.0",
     "lowlight": "^3.3.0",
     "marked": "^13.0.2",

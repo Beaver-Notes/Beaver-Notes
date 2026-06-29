@@ -34,4 +34,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.webkit:webkit:1.10.0")
+    implementation(project(":tauri-android"))
+    implementation("com.crittercism.dexmaker:dexmaker:1.4")
+    implementation("com.crittercism.dexmaker:dexmaker-dx:1.4")
 }

@@ -64,6 +64,7 @@ tauri-plugin-spotsearch = "0.2.1"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-haptics = "2"
+tauri-plugin-sharesheet = { path = "../vendor/tauri-plugin-sharesheet" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"

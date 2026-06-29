@@ -7,20 +7,14 @@ import os.log
 
 private let logger = OSLog(subsystem: "com.plugin.pdf.render", category: "PdfRender")
 
-// MARK: - Argument / response models
+private let A4_PT_W: CGFloat = 595
+private let A4_PT_H: CGFloat = 842
+private let PAGE_MARGIN_PT: CGFloat = 48
 
 class RenderArgs: Decodable {
     let htmlPath: String
     let outputPath: String
-    let measureScript: String
     let timeoutMs: UInt64
-}
-
-class RenderResponse: Encodable {
-    let keepBlocksJson: String
-    init(keepBlocksJson: String) {
-        self.keepBlocksJson = keepBlocksJson
-    }
 }
 
 class WriteScopedArgs: Decodable {
@@ -28,16 +22,12 @@ class WriteScopedArgs: Decodable {
     let scopedOutputPath: String
 }
 
-// MARK: - Scoped-storage resolution helpers
+// MARK: - Scoped-storage resolution
 
-/// Resolves a `scoped:<folder_id>/<relative_path>` into a file URL
-/// by looking up the security-scoped bookmark in UserDefaults
-/// (the same store that `tauri-plugin-scoped-storage` uses).
 @available(iOS 14.0, *)
 private enum ScopedPathResolver {
     private static let bookmarkPrefix = "scoped_storage.bookmark."
 
-    /// Parse a `scoped:` path into `(folderId, relativePath)`.
     static func parse(_ path: String) -> (folderId: String, relativePath: String)? {
         guard path.hasPrefix("scoped:") else { return nil }
         let remainder = String(path.dropFirst("scoped:".count))
@@ -48,9 +38,6 @@ private enum ScopedPathResolver {
         return (folderId, relative)
     }
 
-    /// Look up the security-scoped bookmark for `folderId` and return
-    /// a resolved URL pointing to the folder. The caller must call
-    /// `startAccessingSecurityScopedResource()` on the returned URL.
     static func resolveFolder(_ folderId: String) -> URL? {
         guard let bookmark = UserDefaults.standard.data(forKey: bookmarkPrefix + folderId) else {
             return nil
@@ -64,7 +51,6 @@ private enum ScopedPathResolver {
         ) else {
             return nil
         }
-        // Refresh stale bookmarks (same as the scoped-storage plugin).
         if isStale {
             if let refreshed = try? url.bookmarkData(
                 options: [],
@@ -77,11 +63,6 @@ private enum ScopedPathResolver {
         return url
     }
 
-    /// Resolve a full `scoped:` destination.  Returns the resolved
-    /// destination URL **and** the folder URL (needed so the caller
-    /// can pair `startAccessing` / `stopAccessing` on the same object).
-    /// Returns `nil` when the path cannot be resolved or the folder
-    /// is no longer accessible.
     static func resolve(_ scopedPath: String) -> (destUrl: URL, folderUrl: URL)? {
         guard let (folderId, relativePath) = parse(scopedPath) else { return nil }
         guard let folderUrl = resolveFolder(folderId) else { return nil }
@@ -91,12 +72,10 @@ private enum ScopedPathResolver {
     }
 }
 
-// MARK: - File-writing helper
+// MARK: - File writing
 
 @available(iOS 14.0, *)
 private enum FileWriter {
-    /// Writes `data` to `pathOrUrl`, transparently handling
-    /// `file://` URLs (security-scoped) and plain paths.
     static func write(_ data: Data, to pathOrUrl: String) -> NSError? {
         let url: URL
         var scoped = false
@@ -122,7 +101,7 @@ private enum FileWriter {
     }
 }
 
-// MARK: - Render state
+// MARK: - Render session
 
 @available(iOS 14.0, *)
 private final class RenderSession: NSObject, WKNavigationDelegate {
@@ -138,8 +117,6 @@ private final class RenderSession: NSObject, WKNavigationDelegate {
     }
 
     func start() {
-        // Timeout: bail with an error if the WebView doesn't finish
-        // loading + capturing the PDF within the configured budget.
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Int(args.timeoutMs))) { [weak self] in
             guard let self = self, !self.didFinish else { return }
             self.fail("timed out after \(self.args.timeoutMs)ms")
@@ -152,9 +129,8 @@ private final class RenderSession: NSObject, WKNavigationDelegate {
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        // Give inlined images and `setTimeout(0)` measurement a beat.
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
-            self?.captureMeasureAndPDF()
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(300)) { [weak self] in
+            self?.capturePDF()
         }
     }
 
@@ -162,50 +138,46 @@ private final class RenderSession: NSObject, WKNavigationDelegate {
         fail("navigation failed: \(error.localizedDescription)")
     }
 
-    private func captureMeasureAndPDF() {
-        webView.evaluateJavaScript(args.measureScript) { [weak self] result, error in
-            guard let self = self, !self.didFinish else { return }
-            if let error = error {
-                self.fail("measure eval: \(error.localizedDescription)")
-                return
-            }
-            // `result` is a JSON.stringify(...) string. Unwrap the
-            // surrounding quotes so the Rust side gets a plain JSON
-            // array string.
-            var blocksJson = (result as? String) ?? "[]"
-            if blocksJson.count >= 2,
-               blocksJson.hasPrefix("\""),
-               blocksJson.hasSuffix("\"") {
-                let inner = blocksJson.index(blocksJson.startIndex, offsetBy: 1)
-                let endIdx = blocksJson.index(blocksJson.endIndex, offsetBy: -1)
-                blocksJson = String(blocksJson[inner..<endIdx])
-                    .replacingOccurrences(of: "\\\"", with: "\"")
-                    .replacingOccurrences(of: "\\\\", with: "\\")
-            }
+    private func capturePDF() {
+        let formatter = webView.viewPrintFormatter()
+        let renderer = UIPrintPageRenderer()
+        renderer.addPrintFormatter(formatter, startingAtPageAt: 0)
 
-            let config = WKPDFConfiguration()
-            webView.createPDF(configuration: config) { [weak self] result in
-                guard let self = self, !self.didFinish else { return }
-                switch result {
-                case .failure(let err):
-                    self.fail("createPDF: \(err.localizedDescription)")
-                case .success(let pdfData):
-                    if pdfData.isEmpty {
-                        self.fail("PDF data is empty")
-                        return
-                    }
-                    if let writeError = FileWriter.write(pdfData, to: self.args.outputPath) {
-                        self.fail("write pdf: \(writeError.localizedDescription)")
-                        return
-                    }
-                    os_log("wrote PDF (%d bytes) to %@", log: logger, type: .info,
-                           pdfData.count, self.args.outputPath)
-                    self.didFinish = true
-                    let response = RenderResponse(keepBlocksJson: blocksJson)
-                    self.invoke.resolve(response)
-                }
-            }
+        let paperRect = CGRect(x: 0, y: 0, width: A4_PT_W, height: A4_PT_H)
+        let printableRect = paperRect.insetBy(dx: PAGE_MARGIN_PT, dy: PAGE_MARGIN_PT)
+        renderer.setValue(NSValue(cgRect: paperRect), forKey: "paperRect")
+        renderer.setValue(NSValue(cgRect: printableRect), forKey: "printableRect")
+
+        let pdfData = NSMutableData()
+        UIGraphicsBeginPDFContextToData(pdfData, paperRect, nil)
+
+        let totalPages = renderer.numberOfPages
+        guard totalPages > 0 else {
+            UIGraphicsEndPDFContext()
+            fail("print renderer produced zero pages")
+            return
         }
+
+        for page in 0..<totalPages {
+            UIGraphicsBeginPDFPageWithInfo(paperRect, nil)
+            renderer.drawPage(at: page, in: paperRect)
+        }
+        UIGraphicsEndPDFContext()
+
+        guard (pdfData as Data).count > 0 else {
+            fail("PDF data is empty")
+            return
+        }
+
+        if let writeError = FileWriter.write(pdfData as Data, to: args.outputPath) {
+            fail("write pdf: \(writeError.localizedDescription)")
+            return
+        }
+
+        os_log("wrote PDF (%d bytes, %d pages) to %@",
+               log: logger, type: .info, (pdfData as Data).count, totalPages, args.outputPath)
+        didFinish = true
+        invoke.resolve()
     }
 
     private func fail(_ message: String) {
@@ -222,10 +194,7 @@ private final class RenderSession: NSObject, WKNavigationDelegate {
 class PdfRenderPlugin: Plugin {
     private var session: RenderSession?
 
-    override func load(webview: WKWebView) {
-        // No-op: the actual WKWebView is the Tauri-provided one, and
-        // is only attached for the lifetime of a single `render` call.
-    }
+    override func load(webview: WKWebView) {}
 
     @objc public func render(_ invoke: Invoke) throws {
         let args = try invoke.parseArgs(RenderArgs.self)
@@ -235,7 +204,7 @@ class PdfRenderPlugin: Plugin {
 
         DispatchQueue.main.async {
             let config = WKWebViewConfiguration()
-            let frame = CGRect(x: 0, y: 0, width: 794, height: 1123) // A4 in CSS-px
+            let frame = CGRect(x: 0, y: 0, width: 794, height: 1123)
             let webView = WKWebView(frame: frame, configuration: config)
             let session = RenderSession(webView: webView, args: args, invoke: invoke)
             self.session = session
@@ -243,16 +212,12 @@ class PdfRenderPlugin: Plugin {
         }
     }
 
-    /// Copy a file from a local temp path into a `scoped:` destination.
-    /// Called by the Rust side after the A4-split step completes,
-    /// because `std::fs::write` cannot resolve the scoped scheme.
     @objc public func writeScoped(_ invoke: Invoke) throws {
         let args = try invoke.parseArgs(WriteScopedArgs.self)
         os_log("writeScoped request: source=%@ dest=%@",
                log: logger, type: .info,
                args.sourcePath, args.scopedOutputPath)
 
-        // Read the source file.
         let sourceUrl = URL(fileURLWithPath: args.sourcePath)
         let data: Data
         do {
@@ -264,7 +229,6 @@ class PdfRenderPlugin: Plugin {
             return
         }
 
-        // Resolve the scoped destination.
         guard let (destUrl, folderUrl) = ScopedPathResolver.resolve(args.scopedOutputPath) else {
             os_log("writeScoped: failed to resolve scoped path: %@", log: logger, type: .error,
                    args.scopedOutputPath)
@@ -273,7 +237,6 @@ class PdfRenderPlugin: Plugin {
         }
         defer { folderUrl.stopAccessingSecurityScopedResource() }
 
-        // Ensure parent directories exist inside the scoped folder.
         let parentDir = destUrl.deletingLastPathComponent()
         do {
             try FileManager.default.createDirectory(
@@ -288,7 +251,6 @@ class PdfRenderPlugin: Plugin {
             return
         }
 
-        // Write the data.
         do {
             try data.write(to: destUrl, options: .atomic)
         } catch {
