@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
@@ -249,8 +249,11 @@ export function useAppShell() {
         Boolean(from.name) && to.fullPath !== from.fullPath;
       next();
     });
-    removeRouteGuard = router.afterEach(() => {
+    removeRouteGuard = router.afterEach(async () => {
       void refreshSyncLockBanner();
+      await nextTick();
+      const mainEl = document.querySelector('[data-testid="app-main"]');
+      if (mainEl) mainEl.scrollTop = 0;
     });
   });
 

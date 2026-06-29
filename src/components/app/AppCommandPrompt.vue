@@ -37,7 +37,7 @@
         >
           <p
             v-if="items.length === 0"
-            class="px-4 py-6 text-center text-sm text-neutral-400"
+            class="p-1.5 text-center text-sm text-neutral-400"
           >
             {{
               (
@@ -53,7 +53,7 @@
             name="command-prompt-item"
             tag="ul"
             role="listbox"
-            class="max-h-80 overflow-y-auto py-1.5 no-scrollbar scroll-py-1.5"
+            class="max-h-80 overflow-y-auto py-2 no-scrollbar scroll-py-2"
           >
             <li
               v-for="(item, index) in items"
@@ -61,7 +61,7 @@
               :ref="(el) => (itemRefs[index] = el)"
               role="option"
               :aria-selected="index === state.selectedIndex"
-              class="command-prompt-item flex items-center gap-3 mx-2 px-2 py-2 rounded-lg cursor-pointer"
+              class="command-prompt-item flex items-center gap-3 mx-2 p-1.5 rounded-lg cursor-pointer"
               :class="
                 index === state.selectedIndex
                   ? 'is-selected bg-neutral-100 dark:bg-neutral-700'

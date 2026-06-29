@@ -49,7 +49,7 @@
           >
             <div class="overflow-hidden pb-0.5">
               <h1
-                class="ob-title text-5xl font-bold tracking-tight leading-none ob-heading-text"
+                class="ob-title text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
               >
                 Meet Beaver Notes
               </h1>
@@ -60,7 +60,9 @@
             class="ob-below flex flex-col items-center gap-4"
             :class="{ 'ob-below--in': ctaIn }"
           >
-            <p class="text-base leading-relaxed ob-body-text max-w-sm">
+            <p
+              class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
+            >
               Lets start by customizing your settings, or use the defaults.
             </p>
             <div class="flex flex-wrap justify-center gap-3">
@@ -82,7 +84,7 @@
 
         <div
           v-if="state.status?.hasLegacyData && !isMobileRuntime"
-          class="ob-floating-action fixed z-20"
+          class="fixed z-20 bottom-[calc(var(--app-safe-area-bottom)+1.5rem)]"
         >
           <ui-button @click="openMigrationFlow">
             <v-remixicon name="riSendPlaneFill" class="mr-1" />
@@ -96,17 +98,21 @@
         v-else-if="step === 'path'"
         class="ob-screen flex flex-col items-center justify-center w-full"
       >
-        <ui-card class="w-full max-w-lg">
-          <div class="flex flex-col items-center gap-2 my-8 text-center">
-            <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+        <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+          <div
+            class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+          >
+            <h2
+              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+            >
               How do you want to begin?
             </h2>
-            <p class="ob-body-text">
+            <p class="text-neutral-600 dark:text-neutral-400">
               Start fresh or bring over your notes from another app.
             </p>
           </div>
 
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
             <ui-card
               tag="button"
               padding="p-0"
@@ -120,10 +126,14 @@
                   <v-remixicon name="riStarFill" />
                 </div>
                 <div class="flex-1 min-w-0">
-                  <h3 class="font-semibold text-sm ob-heading-text">
+                  <h3
+                    class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
+                  >
                     Start fresh
                   </h3>
-                  <p class="text-sm ob-body-text mt-0.5">
+                  <p
+                    class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5"
+                  >
                     Pick your theme, language, and a few app defaults before
                     opening Beaver Notes.
                   </p>
@@ -148,10 +158,14 @@
                   <v-remixicon name="riSendPlaneFill" />
                 </div>
                 <div class="flex-1 min-w-0">
-                  <h3 class="font-semibold text-sm ob-heading-text">
+                  <h3
+                    class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
+                  >
                     Import from apps
                   </h3>
-                  <p class="text-sm ob-body-text mt-0.5">
+                  <p
+                    class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5"
+                  >
                     Copy notes, folders, labels, etc. from your previous notes
                     app.
                   </p>
@@ -164,7 +178,7 @@
             </ui-card>
           </div>
 
-          <div class="mt-5">
+          <div class="mt-5 shrink-0">
             <ui-button @click="curtainNavigate('welcome')">
               <v-remixicon name="riArrowLeftLine" /> Back
             </ui-button>
@@ -221,18 +235,22 @@
         v-else-if="step === 'sync'"
         class="ob-screen flex flex-col items-center justify-center w-full"
       >
-        <ui-card class="w-full max-w-lg">
-          <div class="flex flex-col items-center gap-2 my-8 text-center">
-            <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+        <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+          <div
+            class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+          >
+            <h2
+              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+            >
               Sync folder
             </h2>
-            <p class="ob-body-text">
+            <p class="text-neutral-600 dark:text-neutral-400">
               Lets select a folder to sync your data with, you can skip this for
               now and set it up later if you change your mind.
             </p>
           </div>
 
-          <div class="flex flex-col gap-3">
+          <div class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
             <ui-card class="bg-input">
               <div class="flex flex-col gap-3 p-4">
                 <div class="flex items-center justify-between gap-3">
@@ -242,7 +260,7 @@
                     >
                       Folder
                     </p>
-                    <p class="text-sm ob-body-text">
+                    <p class="text-sm text-neutral-600 dark:text-neutral-400">
                       {{
                         fresh.syncPath
                           ? 'Beaver Notes sync with this folder.'
@@ -278,10 +296,13 @@
                 @click="toggleAutoSync"
               >
                 <div>
-                  <span class="block text-sm font-semibold ob-heading-text"
+                  <span
+                    class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200"
                     >Automatic sync</span
                   >
-                  <span class="block text-xs ob-body-text mt-0.5">
+                  <span
+                    class="block text-xs text-neutral-600 dark:text-neutral-400 mt-0.5"
+                  >
                     Lets you sync changes automatically when a folder is
                     configured.
                   </span>
@@ -294,7 +315,7 @@
             </ui-card>
           </div>
 
-          <div class="mt-5 flex justify-between gap-4">
+          <div class="mt-5 flex justify-between gap-4 shrink-0">
             <ui-button @click="curtainNavigate('setup')">
               <v-remixicon name="riArrowLeftLine" /> Back
             </ui-button>
@@ -317,7 +338,7 @@
       <!-- ── Platform ── -->
       <div
         v-else-if="step === 'platform'"
-        class="ob-screen ob-screen--scroll flex flex-col items-center justify-start w-full"
+        class="ob-screen flex flex-col items-center justify-start w-full pt-8 pb-8"
       >
         <onboarding-platform-step
           v-model="migrationPlatform"
@@ -347,27 +368,33 @@
         v-else-if="step === 'migration'"
         class="ob-screen flex flex-col items-center justify-center w-full"
       >
-        <ui-card class="w-full max-w-lg">
-          <div class="flex flex-col items-center gap-2 my-8 text-center">
-            <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+        <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+          <div
+            class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+          >
+            <h2
+              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+            >
               Import your {{ migrationPlatformLabel }} workspace
             </h2>
-            <p class="ob-body-text max-w-sm">
+            <p class="text-neutral-600 dark:text-neutral-400 max-w-sm">
               Your original workspace stays untouched. Notes, folders, labels,
               settings, and assets will be copied into the new app.
             </p>
           </div>
 
-          <div class="flex flex-col gap-2">
+          <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
             <ui-card class="bg-input">
               <div class="flex items-center justify-between gap-4 p-4">
                 <div>
                   <p
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                   >
                     {{ migrationSourceHeading }}
                   </p>
-                  <p class="text-sm ob-body-text">{{ migrationSourceCopy }}</p>
+                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                    {{ migrationSourceCopy }}
+                  </p>
                 </div>
               </div>
             </ui-card>
@@ -378,7 +405,7 @@
             >
               <div class="flex flex-col gap-2 p-4">
                 <p
-                  class="text-xs font-bold uppercase tracking-widest ob-label-text"
+                  class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                 >
                   Evernote notebook
                 </p>
@@ -397,7 +424,7 @@
               <div class="flex flex-col gap-3 p-4">
                 <div class="flex items-center justify-between">
                   <p
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                   >
                     {{ state.migrationDone ? 'Import complete' : 'Importing…' }}
                   </p>
@@ -413,10 +440,12 @@
                     :style="{ width: state.migrationProgress + '%' }"
                   ></div>
                 </div>
-                <p class="text-xs ob-body-text">{{ state.migrationStatus }}</p>
+                <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                  {{ state.migrationStatus }}
+                </p>
                 <p
                   v-if="state.migrationCurrent"
-                  class="text-xs ob-body-text opacity-80"
+                  class="text-xs text-neutral-600 dark:text-neutral-400 opacity-80"
                 >
                   {{ state.migrationCurrent }}
                 </p>
@@ -429,11 +458,11 @@
             >
               <div class="flex flex-col gap-1 p-4">
                 <p
-                  class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1"
+                  class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                 >
                   What gets copied
                 </p>
-                <p class="text-sm ob-body-text">
+                <p class="text-sm text-neutral-600 dark:text-neutral-400">
                   {{ migrationWhatGetsCopied }}
                 </p>
               </div>
@@ -451,7 +480,7 @@
               <div class="flex flex-col gap-4 p-4">
                 <div v-if="customLegacyPath" class="flex flex-col gap-1">
                   <span
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                   >
                     Portable data folder
                   </span>
@@ -466,7 +495,7 @@
                   class="flex flex-col gap-1"
                 >
                   <span
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                   >
                     Beaver Notes (Legacy)
                   </span>
@@ -478,7 +507,7 @@
                 </div>
                 <div v-if="state.status?.appDir" class="flex flex-col gap-1">
                   <span
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                   >
                     New Beaver Notes
                   </span>
@@ -503,11 +532,11 @@
               <div class="flex items-center justify-between gap-4 p-4">
                 <div>
                   <p
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                   >
                     Windows Portable
                   </p>
-                  <p class="text-sm ob-body-text">
+                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
                     Using the portable version? Locate your data folder
                     manually.
                   </p>
@@ -522,11 +551,11 @@
             >
               <div class="flex flex-col gap-1 p-4">
                 <p
-                  class="text-xs font-bold uppercase tracking-widest ob-label-text mb-1"
+                  class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
                 >
                   Import summary
                 </p>
-                <p class="text-sm ob-body-text">
+                <p class="text-sm text-neutral-600 dark:text-neutral-400">
                   Imported {{ state.migrationResult.imported || 0 }} notes
                   across {{ state.migrationResult.folders || 0 }} folders.
                 </p>
@@ -540,7 +569,7 @@
               <div class="flex flex-col gap-3 p-4">
                 <div class="flex items-center justify-between gap-3">
                   <p
-                    class="text-xs font-bold uppercase tracking-widest ob-label-text"
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
                   >
                     Issues
                   </p>
@@ -557,7 +586,7 @@
             </ui-card>
           </div>
 
-          <div class="mt-5 flex justify-between gap-4">
+          <div class="mt-5 flex justify-between gap-4 shrink-0">
             <ui-button
               :disabled="state.migrating"
               @click="curtainNavigate('platform')"
@@ -589,18 +618,22 @@
         v-else-if="step === 'legacyPassword'"
         class="ob-screen flex flex-col items-center justify-center w-full"
       >
-        <ui-card class="w-full max-w-lg">
-          <div class="flex flex-col items-center gap-2 my-8 text-center">
-            <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+        <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+          <div
+            class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+          >
+            <h2
+              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+            >
               Enter your old password
             </h2>
-            <p class="ob-body-text max-w-sm">
+            <p class="text-neutral-600 dark:text-neutral-400 max-w-sm">
               Your imported notes are locked. Enter your old Beaver Notes
               password to decrypt and re-encrypt them with the new system.
             </p>
           </div>
 
-          <div class="flex flex-col gap-3 px-4 pb-4">
+          <div class="flex flex-col gap-3 px-4 overflow-y-auto flex-1 min-h-0">
             <ui-input
               v-model="legacyPasswordValue"
               type="password"
@@ -616,7 +649,7 @@
             </p>
           </div>
 
-          <div class="mt-2 flex justify-between gap-4 px-4 pb-4">
+          <div class="mt-2 flex justify-between gap-4 px-4 pb-4 shrink-0">
             <ui-button variant="secondary" @click="skipLegacyPassword">
               Skip for now
             </ui-button>
@@ -629,7 +662,7 @@
             </ui-button>
           </div>
 
-          <div class="mt-5 px-4 pb-4">
+          <div class="mt-5 px-4 pb-4 shrink-0">
             <ui-button @click="curtainNavigate('platform')">
               <v-remixicon name="riArrowLeftLine" /> Back
             </ui-button>
@@ -653,11 +686,13 @@
           />
           <div class="flex flex-col items-center gap-2">
             <h1
-              class="text-5xl font-bold tracking-tight leading-none ob-heading-text"
+              class="text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
             >
               Ready, Set, Go!
             </h1>
-            <p class="text-base leading-relaxed ob-body-text max-w-sm">
+            <p
+              class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
+            >
               You've successfully completed the onboarding process. It's time to
               meet your notes.
             </p>
@@ -686,7 +721,7 @@
     <Transition name="ob-toast">
       <div
         v-if="state.error"
-        class="ob-toast-card fixed left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg px-4 py-3 rounded-xl text-sm text-center backdrop-blur bg-red-50/80 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800"
+        class="fixed left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-lg px-4 py-3 rounded-xl text-sm text-center backdrop-blur bg-red-50/80 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-800 bottom-[calc(var(--app-safe-area-bottom)+5rem)]"
       >
         {{ state.error }}
       </div>
@@ -848,26 +883,6 @@ export default {
 </script>
 
 <style scoped>
-/* ── Contrast tokens ── */
-.ob-light .ob-heading-text {
-  color: #1a1a1a;
-}
-.ob-light .ob-body-text {
-  color: #555555;
-}
-.ob-light .ob-label-text {
-  color: #888888;
-}
-.ob-dark .ob-heading-text {
-  color: #f0f0f0;
-}
-.ob-dark .ob-body-text {
-  color: #a0a0a0;
-}
-.ob-dark .ob-label-text {
-  color: #6b6b6b;
-}
-
 /* ── Background ── */
 .ob-light {
   --ob-bg-start: #fff9ec;
@@ -897,16 +912,6 @@ export default {
     100dvh - var(--app-safe-area-top) - var(--app-safe-area-bottom)
   );
   padding: 1.5rem;
-}
-.ob-screen--scroll {
-  padding-top: 2rem;
-  padding-bottom: 2rem;
-}
-.ob-floating-action {
-  bottom: calc(var(--app-safe-area-bottom) + 1.5rem);
-}
-.ob-toast-card {
-  bottom: calc(var(--app-safe-area-bottom) + 5rem);
 }
 
 /* ── Curtain overlay ────────────────────────────────────────────────────── */

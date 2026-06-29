@@ -95,7 +95,7 @@
           </button>
           <div
             v-show="showSpeedOptions"
-            class="absolute bg-white border border-gray-300 rounded mt-2 py-1 shadow-lg dark:dark:bg-[#353333] dark:border-gray-500"
+            class="absolute bg-white border border-gray-300 rounded mt-2 py-1 shadow-lg dark:bg-neutral-700 dark:border-gray-500"
           >
             <button
               v-for="speed in playbackRates"

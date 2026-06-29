@@ -64,7 +64,7 @@
           @change="toggleAutoUpdate"
         />
         <div
-          class="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-[#353333] after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full peer-checked:bg-primary"
+          class="peer h-6 w-11 rounded-full bg-neutral-200 dark:bg-neutral-700 after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full peer-checked:bg-primary"
         ></div>
       </label>
     </section>
@@ -247,7 +247,8 @@ export default {
           console.error('Bridge error:', e);
         }
 
-        if (state.autoUpdateEnabled) setTimeout(checkForUpdates, INITIAL_UPDATE_CHECK_DELAY_MS);
+        if (state.autoUpdateEnabled)
+          setTimeout(checkForUpdates, INITIAL_UPDATE_CHECK_DELAY_MS);
       }
     });
 

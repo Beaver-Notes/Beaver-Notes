@@ -19,7 +19,7 @@
             class="block"
           >
             <ui-list-item :active="isExactActive">
-              <v-remixicon :name="item.icon" class="ltr:mr-2 rtl:ml-2 -ml-1" />
+              <v-remixicon :name="item.icon" class="ltr:mr-2 rtl:ml-2" />
               {{ item.name }}
             </ui-list-item>
           </router-link>

@@ -23,7 +23,7 @@
     </template>
 
     <div
-      class="editor note-editor-page self-center w-full mobile:px-4 px-12 lg:px-0"
+      class="editor note-editor-page self-center w-full mobile:px-4 px-12 lg:px-0 mobile:pt-0 pt-20"
       :class="{ 'mobile-search-open': showSearch }"
       :style="{
         '--selected-width': note?.isFullWidth ? '100%' : '54rem',
@@ -416,21 +416,5 @@ export default {
 
 .editor {
   max-width: var(--selected-width);
-}
-
-@media (max-width: 767px) {
-  .note-editor-page {
-    padding-top: 0;
-  }
-
-  .note-editor-page.mobile-search-open {
-    padding-top: 0;
-  }
-}
-
-@media (min-width: 768px) {
-  .note-editor-page {
-    padding-top: 5rem;
-  }
 }
 </style>

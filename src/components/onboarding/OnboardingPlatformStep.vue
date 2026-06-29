@@ -1,13 +1,17 @@
 <template>
-  <ui-card class="w-full max-w-lg">
-    <div class="flex flex-col items-center gap-2 my-8 text-center">
-      <h2 class="text-3xl font-semibold tracking-tight ob-heading-text">
+  <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+    <div class="flex flex-col items-center gap-2 my-8 text-center shrink-0">
+      <h2
+        class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+      >
         Import from apps
       </h2>
-      <p class="ob-body-text">Choose which app to migrate from.</p>
+      <p class="text-neutral-600 dark:text-neutral-400">
+        Choose which app to migrate from.
+      </p>
     </div>
 
-    <div class="flex flex-col gap-2">
+    <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
       <ui-card
         v-for="platform in visiblePlatforms"
         :key="platform.id"
@@ -37,7 +41,9 @@
           </div>
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-0.5">
-              <h3 class="font-semibold text-sm ob-heading-text">
+              <h3
+                class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
+              >
                 {{ platform.label }}
               </h3>
               <span
@@ -46,7 +52,9 @@
                 >{{ platform.badge }}</span
               >
             </div>
-            <p class="text-sm ob-body-text">{{ platform.description }}</p>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400">
+              {{ platform.description }}
+            </p>
           </div>
           <v-remixicon
             v-if="modelValue === platform.id"
@@ -62,7 +70,7 @@
       </ui-card>
     </div>
 
-    <div class="mt-5 flex justify-between gap-4">
+    <div class="mt-5 flex justify-between gap-4 shrink-0">
       <slot name="back" />
       <slot name="next" />
     </div>

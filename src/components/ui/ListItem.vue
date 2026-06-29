@@ -7,7 +7,7 @@
       active
         ? 'bg-primary bg-opacity-10 text-primary dark:bg-secondary dark:bg-opacity-10 dark:text-secondary'
         : 'hoverable',
-      small ? 'p-1.5' : 'py-2 px-4',
+      'p-1.5',
       { 'pointer-events-none bg-opacity-75': disabled },
     ]"
   >

@@ -13,8 +13,7 @@
         v-if="isShow"
         ref="content"
         :style="floatingStyles"
-        class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border z-50"
-        :class="[padding]"
+        class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border z-50 p-1.5"
       >
         <slot v-bind="{ isShow }"></slot>
       </div>
@@ -35,10 +34,6 @@ export default {
     trigger: {
       type: String,
       default: 'click',
-    },
-    padding: {
-      type: String,
-      default: 'p-1.5',
     },
     to: {
       type: [String, Object, HTMLElement],
@@ -70,7 +65,7 @@ export default {
 
     const placement = computed(() => props.placement);
     const middleware = computed(() => [
-      offset(0),
+      offset(4),
       flip(),
       shift({ padding: 8 }),
     ]);

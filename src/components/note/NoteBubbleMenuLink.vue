@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-2 rounded-lg shadow-lg no-print"
+    class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-1.5 rounded-lg shadow-lg no-print"
   >
     <!-- View Mode -->
     <div v-if="!isEditing" class="flex items-center gap-2">
@@ -81,7 +81,7 @@
         </div>
         <div
           v-else-if="currentLinkVal.startsWith('@') && notes.length === 0"
-          class="px-3 py-2 text-sm text-neutral-500 dark:text-neutral-400 italic"
+          class="p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
         >
           {{
             translations.editor?.noMatchingNotes || 'No matching notes found'

@@ -1,7 +1,7 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
-    class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-2"
+    class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-1.5"
     style="max-width: 18rem; min-width: 8rem"
   >
     <ui-list class="overflow-y-auto no-scrollbar" style="max-height: 20rem">
@@ -18,7 +18,7 @@
         <div class="flex items-start w-full">
           <!-- Icon container with border -->
           <div
-            class="flex items-center justify-center rounded-md border flex-shrink-0 bg-white dark:bg-neutral-900 p-2"
+            class="flex items-center justify-center rounded-md border flex-shrink-0 bg-white dark:bg-neutral-900 p-1.5"
           >
             <v-remixicon
               :name="item.icon"

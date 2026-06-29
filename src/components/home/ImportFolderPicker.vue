@@ -12,7 +12,7 @@
     <div>
       <!-- Root option -->
       <div
-        class="group flex items-center p-2 rounded-md cursor-pointer transition-all duration-200"
+        class="group flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200"
         :class="{
           'bg-primary/10 text-primary font-medium ring-1 ring-primary/30':
             selectedId === null,

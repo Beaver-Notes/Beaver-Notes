@@ -5,18 +5,18 @@
     :style="{ paddingTop: titlebarInset }"
   >
     <div
-      class="pt-4 px-3 mb-3 shrink-0"
+      class="pt-5 px-3 mb-3 shrink-0"
       :class="expanded ? 'flex justify-end' : ''"
     >
       <button
         v-tooltip:right="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
         :aria-label="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
-        class="p-2 rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+        class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
         @click="toggleExpanded"
       >
         <v-remixicon
           name="riSideBarLine"
-          size="18"
+          size="20"
           :class="expanded ? 'rotate-180' : ''"
         />
       </button>

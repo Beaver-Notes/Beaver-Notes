@@ -62,27 +62,27 @@
         <div
           v-if="isOpen"
           ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-neutral-50 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-600 rounded-lg shadow-lg z-50 overflow-hidden"
+          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-800 border rounded-xl shadow-xl z-50 p-1.5"
         >
           <!-- Search Input -->
-          <div v-if="search" class="p-2">
+          <div v-if="search" class="mb-2">
             <ui-input
               ref="searchInput"
               v-model="searchQuery"
               type="text"
               :placeholder="translations.index.search"
-              class="w-full p-1"
+              class="w-full"
               @keydown="onSearchKeydown"
             />
           </div>
 
           <!-- Options -->
-          <div class="max-h-48 overflow-y-auto">
+          <div class="max-h-48 overflow-y-auto space-y-0.5">
             <div
               v-if="placeholder && !hideePlaceholderInDropdown"
-              class="px-4 py-2 hover:bg-neutral-200 dark:hover:bg-neutral-600 text-neutral-500"
+              class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-500 transition-colors"
               :class="{
-                'bg-neutral-200 dark:bg-neutral-600': modelValue === '',
+                'bg-neutral-100 dark:bg-neutral-700': modelValue === '',
               }"
               @click="select({ value: '', text: placeholder })"
             >
@@ -93,13 +93,12 @@
               v-for="(option, index) in filteredOptions"
               :key="`${option.value}-${index}`"
               :ref="(el) => setOptionRef(el, index)"
-              class="px-4 py-2 hover:bg-secondary hover:bg-opacity-20 transition-colors"
+              class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
               :class="{
                 'bg-neutral-100 dark:bg-neutral-700':
-                  option.value === String(modelValue),
+                  option.value === String(modelValue) ||
+                  (index === focusedIndex && !option.disabled),
                 'opacity-50 cursor-not-allowed': option.disabled,
-                'bg-secondary bg-opacity-20':
-                  index === focusedIndex && !option.disabled,
               }"
               @click="select(option)"
             >
@@ -108,7 +107,7 @@
 
             <div
               v-if="search && searchQuery && filteredOptions.length === 0"
-              class="px-4 py-2 text-neutral-500 text-center"
+              class="p-1.5 rounded-lg text-neutral-500 text-center"
             >
               {{ translations.index?.notFound || 'No options found' }}
             </div>

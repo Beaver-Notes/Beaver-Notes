@@ -9,7 +9,7 @@
       @click.stop
     >
       <div
-        class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-2"
+        class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-1.5"
         style="max-width: 18rem; min-width: 8rem"
       >
         <ui-list>
@@ -158,7 +158,6 @@ export default {
       },
     ]);
 
-
     function getActiveCell() {
       if (!props.editor) return null;
       try {
@@ -190,7 +189,6 @@ export default {
           props.editor.isActive('tableHeader'))
       );
     }
-
 
     function removeTrigger() {
       if (triggerEl && triggerEl.parentNode) {
@@ -236,7 +234,6 @@ export default {
       wrapper.appendChild(btn);
       triggerEl = btn;
     }
-
 
     function toggleMenu(cell) {
       if (showMenu.value) {
@@ -286,7 +283,6 @@ export default {
       if (e.key === 'Escape' && showMenu.value) closeMenu();
     }
 
-
     let wasIn = false;
 
     function onSel() {
@@ -301,7 +297,6 @@ export default {
       }
       wasIn = now;
     }
-
 
     onMounted(() => {
       if (!props.editor) return;

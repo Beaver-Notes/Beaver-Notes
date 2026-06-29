@@ -106,11 +106,7 @@
         </div>
 
         <!-- Desktop: popover with single-section customization -->
-        <ui-popover
-          v-if="!isMobileRuntime"
-          padding="p-3 flex flex-col print:hidden"
-          @click.stop
-        >
+        <ui-popover v-if="!isMobileRuntime" @click.stop>
           <template #trigger>
             <button
               class="folder-card__icon-button size-7 flex items-center justify-center bg-white/20 hover:bg-white/30 rounded-lg text-white shrink-0"
@@ -186,7 +182,7 @@
               <button
                 v-for="emoji in filteredEmojis"
                 :key="emoji.char"
-                class="text-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 p-2 rounded-md transition-colors duration-150"
+                class="text-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 p-1.5 rounded-lg transition-colors duration-150"
                 :class="{
                   'bg-primary/15 ring-1 ring-primary':
                     folder.icon === emoji.char,

@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="editor"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
   >
     <div class="flex items-center justify-start w-max h-full gap-1">
       <ui-popover>
@@ -20,14 +20,14 @@
 
         <div>
           <ui-list
-            class="overflow-y-auto no-scrollbar p-1 min-w-[160px]"
+            class="overflow-y-auto no-scrollbar min-w-[160px]"
             style="max-height: 20rem"
           >
             <ui-list-item
               v-for="item in menuOptions"
               :key="item.label"
               small
-              class="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer"
+              class="flex items-center gap-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm text-neutral-700 dark:text-neutral-300 cursor-pointer"
               @click="item.command"
             >
               <v-remixicon
@@ -43,14 +43,14 @@
 
       <span class="border-r mx-0.5 h-5" />
 
-      <ui-popover padding="p-1 flex flex-col">
+      <ui-popover>
         <template #trigger>
           <div
-            class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 border overflow-hidden flex-shrink-0"
+            class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 overflow-hidden flex-shrink-0"
           >
             <button
               type="button"
-              class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-md transition-colors"
+              class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-lg transition-colors"
               @click.stop="
                 fontSize = Math.max(1, fontSize - 1);
                 updateFontSize();
@@ -70,7 +70,7 @@
 
             <button
               type="button"
-              class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-md transition-colors"
+              class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-lg transition-colors"
               @click.stop="
                 fontSize += 1;
                 updateFontSize();
@@ -81,11 +81,9 @@
           </div>
         </template>
 
-        <div
-          class="flex flex-col gap-0.5 max-h-44 overflow-y-auto no-scrollbar p-0.5 w-24"
-        >
+        <div class="flex flex-col max-h-44 overflow-y-auto no-scrollbar w-24">
           <button
-            class="px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300"
+            class="w-full p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
             @click="
               editor.chain().focus().unsetFontSize().run();
               fontSize = null;
@@ -97,7 +95,7 @@
           <button
             v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
             :key="size"
-            class="px-2 py-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs text-neutral-600 dark:text-neutral-400"
+            class="w-full p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs text-neutral-600 dark:text-neutral-400 transition-colors cursor-pointer"
             @click="
               editor
                 .chain()
@@ -130,7 +128,7 @@
 
         <div>
           <ui-list
-            class="overflow-y-auto no-scrollbar p-1 min-w-[140px]"
+            class="overflow-y-auto no-scrollbar min-w-[140px]"
             style="max-height: 20rem"
           >
             <ui-list-item
@@ -142,7 +140,7 @@
                   ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
                   : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
               "
-              class="flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer text-sm"
+              class="flex items-center gap-2 cursor-pointer text-sm"
               @click="item.command"
             >
               <v-remixicon :name="item.icon" class="size-6 text-neutral-500" />
@@ -183,7 +181,7 @@
         <v-remixicon name="riLink" class="size-6" />
       </button>
 
-      <ui-popover padding="p-3">
+      <ui-popover>
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.highlight"
@@ -204,7 +202,7 @@
             {{ translations.menu.textColor }}
           </p>
 
-          <div class="grid grid-cols-4 gap-1.5 mb-4">
+          <div class="grid grid-cols-4 gap-1.5 mb-4 justify-items-center">
             <button
               class="w-7 h-7 flex items-center justify-center rounded-md border hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition-colors"
               @click="editor.chain().focus().unsetColor().run()"
@@ -233,7 +231,7 @@
             {{ translations.menu.highlighterColor }}
           </p>
 
-          <div class="grid grid-cols-4 gap-1.5">
+          <div class="grid grid-cols-4 gap-1.5 justify-items-center">
             <button
               class="w-7 h-7 rounded-md border flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-xs font-medium transition-colors"
               @click="editor.commands.unsetHighlight()"

@@ -27,7 +27,7 @@
 
       <hr class="border-r mx-1 h-6" />
 
-      <ui-popover padding="p-1 flex flex-col">
+      <ui-popover>
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.share"
@@ -40,7 +40,7 @@
         <button
           v-for="s in shareActions"
           :key="s.name"
-          class="flex w-full items-center gap-2 rounded-lg p-1 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           @click="s.handler"
         >
           <v-remixicon :name="s.icon" />
@@ -61,7 +61,7 @@
         <v-remixicon name="riArticleLine" />
       </button>
 
-      <ui-popover padding="p-1 flex flex-col">
+      <ui-popover>
         <template #trigger>
           <button
             v-tooltip.group="'Note actions'"
@@ -72,7 +72,7 @@
         </template>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           :class="{ 'text-primary': note.isBookmarked }"
           @click="toggleBookmark"
         >
@@ -87,7 +87,7 @@
         </button>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           :class="{ 'text-primary': note.isArchived }"
           @click="toggleArchive"
         >
@@ -102,7 +102,7 @@
         </button>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           @click="lockNote"
         >
           <v-remixicon name="riLockLine" />
@@ -114,7 +114,7 @@
         </button>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1 text-left transition-colors group"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left transition-colors group"
           @click="deleteNode"
         >
           <v-remixicon
@@ -131,7 +131,7 @@
         <hr class="border-t my-1 border-neutral-200 dark:border-neutral-700" />
 
         <div
-          class="flex w-full items-center justify-between gap-2 rounded-lg p-1 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+          class="flex w-full items-center justify-between gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
         >
           <div class="flex items-center gap-2">
             <v-remixicon name="riExpandWidthLine" />
@@ -151,7 +151,7 @@
 
         <!-- Copy note content -->
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1 text-left hover:bg-neutral-100 dark:hover:bg-[#353333] transition-colors"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
           @click="copyNoteContent"
         >
           <v-remixicon
