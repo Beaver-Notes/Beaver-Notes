@@ -4,12 +4,14 @@ import UIKit
 import WebKit
 import os
 
+@available(iOS 14.0, *)
 let logger = Logger(subsystem: "com.plugin.safe.area.insets.css", category: "InsetPlugin")
 
 class SetScribbleEnabledArgs: Decodable {
   let enabled: Bool
 }
 
+@available(iOS 14.0, *)
 class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
   private weak var trackedWebView: WKWebView?
   private var baselineContentInset = UIEdgeInsets.zero
@@ -270,5 +272,15 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
 // MARK: - Initialisation plugin Tauri
 @_cdecl("init_plugin_safe_area_insets_css")
 func initPlugin() -> Plugin {
-  return InsetPlugin()
+  if #available(iOS 14.0, *) {
+    return InsetPlugin()
+  }
+  // iOS < 14: return a minimal no-op plugin so the C entry point
+  // always succeeds. The deployment target is 14, so this branch is
+  // never taken in practice.
+  return NoopPlugin()
+}
+
+final class NoopPlugin: Plugin {
+  override func load(webview: WKWebView) {}
 }

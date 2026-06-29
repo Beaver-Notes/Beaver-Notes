@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-index-items"
+description = "Enables the index_items command without any pre-configured scope."
+commands.allow = ["index_items"]
+
+[[permission]]
+identifier = "deny-index-items"
+description = "Denies the index_items command without any pre-configured scope."
+commands.deny = ["index_items"]

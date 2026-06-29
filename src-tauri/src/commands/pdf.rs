@@ -1,65 +1,88 @@
 //! PDF export for Beaver Notes.
 //!
-//! The export pipeline has two distinct stages:
+//! The export HTML (built by `exportBulk.js`) includes a measurement script
+//! that inserts `break-after:page` markers into the DOM. Every platform
+//! then uses its native print / PDF-capture API to produce a correctly
+//! paginated multi-page A4 PDF — no post-hoc PDF surgery is needed.
 //!
-//! 1. **Render HTML to PDF bytes** (platform-specific).
-//!    macOS uses `WKWebView.createPDF`; iOS does the same on its WebView.
-//!    Windows/Linux/Android will plug in their own native renderer. The
-//!    renderer must return a single PDF document containing the full
-//!    note, in any page size.
-//!
-//! 2. **Split a single-page PDF into A4 pages** (platform-agnostic).
-//!    `split_into_a4_pages` rewrites the PDF's page tree so the content
-//!    is sliced horizontally into 595×842pt pages. This is implemented
-//!    with `lopdf` and is the only piece of reusable logic in the file
-//!    — every platform uses the same routine.
-//!
-//! Keeping the two stages separate means a future iOS / Windows / Linux
-//! renderer only has to produce a single PDF; the slicing step is shared.
+//! - **macOS**: hidden `WKWebView` inside a Tauri `WebviewWindow`,
+//!   captured via `WKWebView.printOperationWithPrintInfo:`.
+//! - **Windows**: hidden `WebView2` via `webview2-com`, printed via
+//!   `ICoreWebView2.PrintToPdf`.
+//! - **Linux**: hidden `WebKitGTK` `WebView`, printed via
+//!   `WebKitPrintOperation`.
+//! - **iOS/Android**: handled by `tauri-plugin-pdf-render`.
+//!   - **iOS**: `WKWebView` with `UIPrintPageRenderer`.
+//!   - **Android**: `WebView` with `PrintDocumentAdapter`.
 
 use std::path::PathBuf;
-use std::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder};
+use tauri::AppHandle;
+
+#[cfg(target_os = "macos")]
+use std::sync::mpsc;
+
+#[cfg(target_os = "macos")]
 use tokio::sync::oneshot;
 
-/// A4 in CSS pixels at 96 DPI: 210mm × 297mm.
+#[cfg(target_os = "macos")]
+use tauri::webview::PageLoadEvent;
+
+#[cfg(target_os = "macos")]
+use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+#[cfg(target_os = "macos")]
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(target_os = "macos")]
+static PDF_WINDOW_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+#[cfg(target_os = "macos")]
+fn next_pdf_window_label() -> String {
+    let n = PDF_WINDOW_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("pdf-render-{n}")
+}
+
+#[cfg(target_os = "macos")]
 const A4_CSS_W: f64 = 794.0;
+
+#[cfg(target_os = "macos")]
 const A4_CSS_H: f64 = 1123.0;
 
-/// A4 in PostScript points: 210mm / 25.4 * 72 = 595.28pt;
-/// 297mm / 25.4 * 72 = 841.89pt.
+#[cfg(target_os = "macos")]
 const A4_PT_W: f64 = 595.0;
+
+#[cfg(target_os = "macos")]
 const A4_PT_H: f64 = 842.0;
 
-const PDF_WINDOW_LABEL: &str = "pdf-render";
+#[cfg(target_os = "macos")]
+const CSS_PX_TO_PT: f64 = 72.0 / 96.0;
 
-/// Render an export-ready HTML document to an A4-paginated PDF on disk.
-///
-/// On macOS this loads the HTML into a hidden `WKWebView`, calls
-/// `createPDF` to get a single-page PDF, then hands the bytes off to
-/// `split_into_a4_pages`. On other platforms the command currently
-/// returns an error — plug in a native renderer there when needed.
+#[cfg(target_os = "macos")]
+const PDF_PAGE_MARGIN_CSS_PX: f64 = 60.0;
+
+#[cfg(target_os = "macos")]
+const PDF_PAGE_MARGIN_PT: f64 =
+    (A4_PT_W - (A4_CSS_W - 2.0 * PDF_PAGE_MARGIN_CSS_PX) * CSS_PX_TO_PT) / 2.0;
+
 #[tauri::command]
 pub(crate) async fn render_pdf(
     app: AppHandle,
     html: String,
     output_path: String,
 ) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        render_pdf_native(app, html, output_path).await
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (app, html, output_path);
-        Err("Native PDF rendering is currently supported on macOS only".to_string())
-    }
+    render_native(app, html, output_path).await
 }
 
-// ── macOS-specific render: hidden WKWebView → PDF bytes ────────────
+// ── macOS ──────────────────────────────────────────────────────────
+
+#[cfg(target_os = "macos")]
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+    render_pdf_native(app, html, output_path).await
+}
+
+
 
 #[cfg(target_os = "macos")]
 async fn render_pdf_native(
@@ -67,23 +90,20 @@ async fn render_pdf_native(
     html: String,
     output_path: String,
 ) -> Result<(), String> {
-    // 1) Write the export HTML to a temp file. We avoid `WebviewUrl::App`
-    //    because the render window must not run the main app's HTML.
     let html_path = write_html_to_temp(&html)?;
     let url = format!("file://{}", html_path.display());
+    eprintln!(
+        "[pdf] macOS render: html={} output={} html_len={}",
+        html_path.display(),
+        output_path,
+        html.len()
+    );
 
-    // 2) Make sure the output directory exists.
-    let output_path_buf = PathBuf::from(&output_path);
-    if let Some(parent) = output_path_buf.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {e}"))?;
-    }
-
-    // 3) Create a hidden webview window sized to A4 in CSS pixels.
     let (page_tx, page_rx) = oneshot::channel::<()>();
     let (load_tx, load_rx) = mpsc::channel::<()>();
     let builder = WebviewWindowBuilder::new(
         &app,
-        PDF_WINDOW_LABEL,
+        &next_pdf_window_label(),
         WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {e}"))?),
     )
     .title("Beaver Notes – PDF Render")
@@ -103,7 +123,6 @@ async fn render_pdf_native(
         .build()
         .map_err(|e| format!("Failed to create PDF render window: {e}"))?;
 
-    // Bridge the sync page-load signal into the async world.
     tokio::spawn(async move {
         if load_rx.recv().is_ok() {
             let _ = page_tx.send(());
@@ -116,19 +135,34 @@ async fn render_pdf_native(
         return Err("PDF render window signaled an error while loading".to_string());
     }
 
-    // 4) Let inlined images and any remaining reflows settle.
-    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-    // 5) Capture the entire document as a single tall PDF page.
-    let pdf_bytes = create_full_page_pdf(&window).await;
+    let (pdf_tx, pdf_rx) = oneshot::channel::<Result<Vec<u8>, String>>();
+    let (raw_tx, raw_rx) = mpsc::channel::<Result<Vec<u8>, String>>();
+    tokio::spawn(async move {
+        if let Ok(data) = raw_rx.recv() {
+            let _ = pdf_tx.send(data);
+        }
+    });
 
-    // 6) Tear the hidden window down regardless of capture outcome.
+    let output_path_clone = output_path.clone();
+    window
+        .with_webview(move |webview| {
+            if let Err(e) = run_print_page_pdf(webview.inner(), &output_path_clone, raw_tx) {
+                eprintln!("Failed to start PDF print: {e}");
+            }
+        })
+        .map_err(|e| e.to_string())?;
+
+    let pdf_bytes = pdf_rx.await.map_err(|e| e.to_string())??;
+
     let _ = window.destroy();
     let _ = std::fs::remove_file(&html_path);
 
-    // 7) Split the tall page into A4 pages and write to disk.
-    let pdf_bytes = pdf_bytes?;
-    split_into_a4_pages(&pdf_bytes, &output_path)
+    std::fs::write(&output_path, &pdf_bytes)
+        .map_err(|e| format!("Failed to write output PDF: {e}"))?;
+    eprintln!("[pdf] macOS: done → {} bytes written", pdf_bytes.len());
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -143,365 +177,609 @@ fn write_html_to_temp(html: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
-/// Capture the entire document as a single PDF page sized to fit the
-/// content, and return the bytes. WebKit's `createPDF` with no rect
-/// captures the document's full bounds in screen mode — this is the
-/// "single tall page" the splitter will slice into A4 pages.
 #[cfg(target_os = "macos")]
-async fn create_full_page_pdf(window: &tauri::WebviewWindow) -> Result<Vec<u8>, String> {
-    let (tx, rx) = oneshot::channel::<Result<Vec<u8>, String>>();
-    let (raw_tx, raw_rx) = mpsc::channel::<Result<Vec<u8>, String>>();
-    tokio::spawn(async move {
-        if let Ok(data) = raw_rx.recv() {
-            let _ = tx.send(data);
-        }
-    });
-
-    window
-        .with_webview(move |webview| {
-            if let Err(e) = run_create_pdf(webview.inner(), raw_tx) {
-                eprintln!("Failed to start PDF generation: {e}");
-            }
-        })
-        .map_err(|e| e.to_string())?;
-
-    rx.await.map_err(|e| e.to_string())?
-}
-
-#[cfg(target_os = "macos")]
-fn run_create_pdf(
+fn run_print_page_pdf(
     webview_ptr: *mut std::ffi::c_void,
+    output_path: &str,
     tx: std::sync::mpsc::Sender<Result<Vec<u8>, String>>,
 ) -> Result<(), String> {
     use objc2::rc::Retained;
     use objc2::MainThreadMarker;
-    use objc2_foundation::{NSData, NSError};
-    use objc2_web_kit::{WKPDFConfiguration, WKWebView};
+    use objc2_app_kit::{
+        NSPrintInfo, NSPrintJobSavingURL, NSPrintSaveJob, NSPaperOrientation,
+    };
+    use objc2_core_foundation::CGSize;
+    use objc2_foundation::NSString;
+    use objc2_web_kit::WKWebView;
 
-    let mtm =
+    let _mtm =
         MainThreadMarker::new().ok_or_else(|| "Must be called from the main thread".to_string())?;
     let webview: Retained<WKWebView> = unsafe { Retained::retain(webview_ptr as *mut WKWebView) }
         .ok_or_else(|| "Invalid WKWebView pointer".to_string())?;
-    let config = unsafe { WKPDFConfiguration::new(mtm) };
-    // Leave `rect` at the default (the null rect) so WebKit captures the
-    // entire document. The document is rendered at its natural size in
-    // a single PDF page; we slice it into A4 pages in `split_into_a4_pages`.
 
-    let completion = block2::RcBlock::new(move |pdf_data: *mut NSData, error: *mut NSError| {
-        if !error.is_null() {
-            let e: &NSError = unsafe { &*error };
-            let _ = tx.send(Err(format!("{}", e.localizedDescription())));
-            return;
-        }
-        if pdf_data.is_null() {
-            let _ = tx.send(Err("PDF generation returned no data".to_string()));
-            return;
-        }
-        let data: &NSData = unsafe { &*pdf_data };
-        let len = data.length() as usize;
-        if len == 0 {
-            let _ = tx.send(Err("Generated PDF data is empty".to_string()));
-            return;
-        }
-        let mut bytes = vec![0u8; len];
-        unsafe {
-            use std::ptr::NonNull;
-            data.getBytes_length(
-                NonNull::new(bytes.as_mut_ptr() as *mut std::ffi::c_void).expect("non-null"),
-                len as objc2_foundation::NSUInteger,
-            );
-        }
-        let _ = tx.send(Ok(bytes));
-    });
-
+    let print_info = NSPrintInfo::new();
+    print_info.setPaperSize(CGSize { width: A4_PT_W, height: A4_PT_H });
+    print_info.setOrientation(NSPaperOrientation::Portrait);
+    print_info.setTopMargin(PDF_PAGE_MARGIN_PT);
+    print_info.setBottomMargin(PDF_PAGE_MARGIN_PT);
+    print_info.setLeftMargin(PDF_PAGE_MARGIN_PT);
+    print_info.setRightMargin(PDF_PAGE_MARGIN_PT);
+    print_info.setHorizontallyCentered(false);
+    print_info.setVerticallyCentered(false);
     unsafe {
-        webview.createPDFWithConfiguration_completionHandler(Some(&config), &completion);
+        print_info.setJobDisposition(NSPrintSaveJob);
+    }
+
+    let save_url = objc2_foundation::NSURL::fileURLWithPath_isDirectory(
+        &NSString::from_str(output_path),
+        false,
+    );
+    unsafe {
+        let dict = print_info.dictionary();
+        dict.insert(NSPrintJobSavingURL, &*save_url);
+    }
+
+    let print_op = unsafe { webview.printOperationWithPrintInfo(&print_info) };
+    print_op.setShowsPrintPanel(false);
+    print_op.setShowsProgressPanel(false);
+
+    let window = webview
+        .window()
+        .ok_or_else(|| "WKWebView has no window".to_string())?;
+    unsafe {
+        print_op.runOperationModalForWindow_delegate_didRunSelector_contextInfo(
+            &window, None, None, std::ptr::null_mut(),
+        );
+    }
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    match std::fs::read(output_path) {
+        Ok(bytes) => {
+            let _ = tx.send(Ok(bytes));
+        }
+        Err(e) => {
+            let _ = tx.send(Err(format!(
+                "PDF not found at {output_path} after print operation: {e}"
+            )));
+        }
     }
     Ok(())
 }
 
-// ── Platform-agnostic A4 splitter (the reusable part) ──────────────
+// ── iOS ────────────────────────────────────────────────────────────
 
-/// Take a PDF that consists of a single page whose height is taller than
-/// A4, and rewrite it so the content is split horizontally across N
-/// pages of `A4_PT_W × A4_PT_H` (595×842 pt). The source page is
-/// reused as a form XObject that is stamped onto each new A4 page with
-/// the appropriate vertical translation.
-///
-/// This routine is the only piece of platform-agnostic PDF logic in
-/// this file. Any future renderer (iOS WebView, Windows WebView2,
-/// Linux webkit2gtk, mobile WebView) just needs to hand its raw PDF
-/// bytes to this function; the output is always an A4-paginated PDF
-/// on disk.
-pub(crate) fn split_into_a4_pages(pdf_bytes: &[u8], output_path: &str) -> Result<(), String> {
-    use lopdf::{Dictionary, Document, Object, ObjectId, Stream};
+#[cfg(target_os = "ios")]
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+    use tauri_plugin_pdf_render::{PdfRenderExt, RenderRequest, WriteScopedRequest};
 
-    if pdf_bytes.is_empty() {
-        return Err("Empty PDF input".to_string());
+    let html_path = write_export_html_to_temp(&html)?;
+
+    let scoped_info = parse_scoped_path(&output_path);
+    let render_output = if scoped_info.is_some() {
+        scoped_temp_output_path()
+    } else {
+        output_path.clone()
+    };
+
+    let request = RenderRequest {
+        html_path: html_path.to_string_lossy().into_owned(),
+        output_path: render_output.clone(),
+        timeout_ms: 30_000,
+    };
+
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || app_clone.pdf_render().render(request))
+        .await
+        .map_err(|e| format!("PDF render task join error: {e}"))?
+        .map_err(|e| format!("iOS PDF render failed: {e}"))?;
+
+    let _ = std::fs::remove_file(&html_path);
+
+    let pdf_bytes =
+        std::fs::read(&render_output).map_err(|e| format!("Failed to read iOS PDF: {e}"))?;
+
+    std::fs::write(&render_output, &pdf_bytes)
+        .map_err(|e| format!("Failed to write PDF: {e}"))?;
+
+    if scoped_info.is_some() {
+        let app_clone = app.clone();
+        let temp_path = render_output.clone();
+        let orig_output = output_path.clone();
+        tokio::task::spawn_blocking(move || {
+            app_clone.pdf_render().write_to_scoped(WriteScopedRequest {
+                source_path: temp_path,
+                scoped_output_path: orig_output,
+            })
+        })
+        .await
+        .map_err(|e| format!("PDF scoped write join error: {e}"))?
+        .map_err(|e| format!("Failed to copy PDF to scoped storage: {e}"))?;
+        let _ = std::fs::remove_file(&render_output);
     }
 
-    let mut doc = Document::load_mem(pdf_bytes).map_err(|e| format!("Failed to parse PDF: {e}"))?;
+    Ok(())
+}
 
-    if doc.get_pages().is_empty() {
-        return Err("PDF has no pages".to_string());
+// ── Android ────────────────────────────────────────────────────────
+
+#[cfg(target_os = "android")]
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+    use tauri_plugin_pdf_render::{PdfRenderExt, RenderRequest, WriteScopedRequest};
+
+    let html_path = write_export_html_to_temp(&html)?;
+
+    let scoped_info = parse_scoped_path(&output_path);
+    let render_output = if scoped_info.is_some() {
+        scoped_temp_output_path()
+    } else {
+        output_path.clone()
+    };
+
+    let request = RenderRequest {
+        html_path: html_path.to_string_lossy().into_owned(),
+        output_path: render_output.clone(),
+        timeout_ms: 30_000,
+    };
+
+    let app_clone = app.clone();
+    tokio::task::spawn_blocking(move || app_clone.pdf_render().render(request))
+        .await
+        .map_err(|e| format!("PDF render task join error: {e}"))?
+        .map_err(|e| format!("Android PDF render failed: {e}"))?;
+
+    let _ = std::fs::remove_file(&html_path);
+
+    let pdf_bytes =
+        std::fs::read(&render_output).map_err(|e| format!("Failed to read Android PDF: {e}"))?;
+
+    std::fs::write(&render_output, &pdf_bytes)
+        .map_err(|e| format!("Failed to write PDF: {e}"))?;
+
+    if scoped_info.is_some() {
+        let app_clone = app.clone();
+        let temp_path = render_output.clone();
+        let orig_output = output_path.clone();
+        tokio::task::spawn_blocking(move || {
+            app_clone.pdf_render().write_to_scoped(WriteScopedRequest {
+                source_path: temp_path,
+                scoped_output_path: orig_output,
+            })
+        })
+        .await
+        .map_err(|e| format!("PDF scoped write join error: {e}"))?
+        .map_err(|e| format!("Failed to copy PDF to scoped storage: {e}"))?;
+        let _ = std::fs::remove_file(&render_output);
     }
 
-    // We expect a single source page. Read its media box so we know
-    // how tall the content is and how to scale the form onto A4.
-    // `read_page_size` returns CSS-px (the source's native units; see
-    // its doc comment).
-    let source_page_id = *doc
-        .get_pages()
-        .values()
-        // .values() yields &ObjectId; we need ObjectId by value
-        .next()
-        .ok_or_else(|| "PDF has no pages".to_string())?;
-    let (src_w_css_px, src_h_css_px) = read_page_size(&doc, source_page_id)?;
+    Ok(())
+}
 
-    // CSS-px → pt: 1 CSS-px = 72/96 pt. WebKit's `createPDF` produces a
-    // PDF in CSS-px units; the A4 pages we emit are in points. The
-    // form XObject's content is in CSS-px, so the transform has to do
-    // the unit conversion.
-    let css_px_to_pt = 72.0 / 96.0;
-    let src_h_pt = src_h_css_px * css_px_to_pt;
+// ── Windows ────────────────────────────────────────────────────────
 
-    let n_strips = ((src_h_pt / A4_PT_H).ceil() as usize).max(1);
+#[cfg(target_os = "windows")]
+const A4_CSS_W: i32 = 794;
 
-    // Build a form XObject from the source page so we can stamp it
-    // onto multiple A4 pages with different vertical translations.
-    // The form's BBox is in CSS-px (matching the source's coord
-    // system) so the form's content is rendered at its natural size
-    // before the transform scales it to A4's pt.
-    let form_id = build_page_form_xobject(&mut doc, source_page_id)?;
+#[cfg(target_os = "windows")]
+const A4_CSS_H: i32 = 1123;
 
-    // Find the unified Pages dict (the one the source page references).
-    let root_id: lopdf::ObjectId = doc
-        .trailer
-        .get(b"Root")
-        .and_then(|o| o.as_reference())
-        .map_err(|_| "Missing Root reference".to_string())?;
-    let root_dict = doc
-        .get_dictionary(root_id)
-        .map_err(|e| format!("Failed to get Root: {e}"))?;
-    let pages_id: lopdf::ObjectId = root_dict
-        .get(b"Pages")
-        .and_then(|o| o.as_reference())
-        .map_err(|_| "Missing Pages reference".to_string())?;
+#[cfg(target_os = "windows")]
+async fn render_native(_app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+    use std::sync::mpsc as smpsc;
+    use std::time::Duration;
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2, ICoreWebView2Controller,
+        ICoreWebView2Environment, ICoreWebView2_7,
+    };
+    use webview2_com::{
+        CreateCoreWebView2ControllerCompletedHandler,
+        CreateCoreWebView2EnvironmentCompletedHandler, ExecuteScriptCompletedHandler,
+        NavigationCompletedEventHandler, PrintToPdfCompletedHandler,
+    };
+    use windows::core::{Interface, HSTRING, PCWSTR};
+    use windows::Win32::Foundation::{HWND, RECT};
+    use windows::Win32::System::Com::{CoInitializeEx, COINIT_APARTMENTTHREADED};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DestroyWindow, PeekMessageW, RegisterClassExW, DispatchMessageW,
+        HWND_MESSAGE, MSG, PM_REMOVE, WNDCLASSEXW, WNDCLASS_STYLES, WINDOW_EX_STYLE,
+        WS_OVERLAPPEDWINDOW,
+    };
 
-    // Create N A4 pages, each rendering the form translated and scaled
-    // so the i-th A4-tall strip of the source (in CSS-px) fills the
-    // A4 page (in pt).
-    //
-    // The transform `cm a b c d e f` maps form-coord (x, y) to
-    // page-coord (a*x + c*y + e, b*x + d*y + f). We want:
-    //   - form-x in [0, src_w_css_px]  -> page-x in [0, A4_PT_W]
-    //   - form-y in [src_h_css_px - (i+1)*A4_CSS_H, src_h_css_px - i*A4_CSS_H]
-    //     -> page-y in [0, A4_PT_H]
-    //
-    // The form's content is in CSS-px, the page is in pt, so the
-    // natural scale is `css_px_to_pt` (≈ 0.75). One A4 strip in
-    // CSS-px is `A4_CSS_H` = 1123 CSS-px = 842 pt (after conversion).
-    let x_scale = css_px_to_pt;
-    for i in 0..n_strips {
-        // Solve page-y = d * form-y + f with d = css_px_to_pt and the
-        // strip's top mapping to A4_PT_H.
-        let y_offset = A4_PT_H - css_px_to_pt * (src_h_css_px - (i as f64) * A4_CSS_H);
-
-        let content_bytes =
-            format!("q\n{x_scale} 0 0 {x_scale} 0 {y_offset} cm\n/Im0 Do\nQ\n").into_bytes();
-
-        let content_id = doc.add_object(Stream::new(Dictionary::new(), content_bytes));
-
-        // Build the resources for the new page: just the form XObject.
-        let mut xobject_dict = Dictionary::new();
-        xobject_dict.set("Im0", Object::Reference(form_id));
-        let mut resources_dict = Dictionary::new();
-        resources_dict.set("XObject", Object::Dictionary(xobject_dict));
-        let resources_id = doc.add_object(resources_dict);
-
-        // Build the new A4 page.
-        let mut page_dict = Dictionary::new();
-        page_dict.set("Type", Object::Name(b"Page".to_vec()));
-        page_dict.set("Parent", Object::Reference(pages_id));
-        page_dict.set(
-            "MediaBox",
-            Object::Array(vec![
-                Object::Real(0.0),
-                Object::Real(0.0),
-                Object::Real(A4_PT_W as f32),
-                Object::Real(A4_PT_H as f32),
-            ]),
-        );
-        page_dict.set("Resources", Object::Reference(resources_id));
-        page_dict.set("Contents", Object::Reference(content_id));
-        let page_id: ObjectId = doc.add_object(page_dict);
-
-        // Append the new page to the page tree.
-        let pages_dict = doc
-            .get_dictionary_mut(pages_id)
-            .map_err(|e| format!("Failed to get Pages: {e}"))?;
-        let kids = pages_dict
-            .get_mut(b"Kids")
-            .map_err(|_| "Pages dict has no Kids".to_string())?;
-        let kids_arr = kids
-            .as_array_mut()
-            .map_err(|_| "Pages Kids is not an array".to_string())?;
-        kids_arr.push(Object::Reference(page_id));
-        let count = pages_dict
-            .get_mut(b"Count")
-            .map_err(|_| "Pages dict has no Count".to_string())?;
-        if let Object::Integer(c) = count {
-            *c += 1;
+    fn pump_messages() {
+        unsafe {
+            let mut msg = MSG::default();
+            while PeekMessageW(&mut msg, None, 0, 0, PM_REMOVE).as_bool() {
+                let _ = DispatchMessageW(&msg);
+            }
         }
     }
 
-    // Remove the original tall source page from the page tree and
-    // from the object table.
-    remove_page(&mut doc, source_page_id)?;
-
-    // Save.
-    let mut buf = Vec::new();
-    doc.save_to(&mut buf)
-        .map_err(|e| format!("Failed to save PDF: {e}"))?;
-    std::fs::write(output_path, &buf).map_err(|e| format!("Failed to write PDF: {e}"))?;
-
-    Ok(())
-}
-
-/// Read a page's media box and return `(width, height)` in the source's
-/// native units.
-///
-/// `WKWebView.createPDF` produces a PDF where the MediaBox is in **CSS
-/// pixels** (not points), and the content stream is also in CSS-px
-/// (WebKit's internal render units). This is unlike most other PDF
-/// producers. We return the raw CSS-px values here; the splitter's
-/// transform handles the CSS-px → pt conversion when stamping the
-/// source onto new A4 pages.
-fn read_page_size(doc: &lopdf::Document, page_id: lopdf::ObjectId) -> Result<(f64, f64), String> {
-    use lopdf::Object;
-
-    let page = doc
-        .get_dictionary(page_id)
-        .map_err(|e| format!("Failed to get page: {e}"))?;
-    let mb = page
-        .get(b"MediaBox")
-        .map_err(|_| "Page has no MediaBox".to_string())?;
-    let arr = mb
-        .as_array()
-        .map_err(|_| "MediaBox is not an array".to_string())?;
-    if arr.len() != 4 {
-        return Err(format!("MediaBox has {} entries, expected 4", arr.len()));
-    }
-    let nums: Vec<f64> = arr
-        .iter()
-        .map(|o| match o {
-            Object::Real(n) => *n as f64,
-            Object::Integer(n) => *n as f64,
-            _ => 0.0,
-        })
-        .collect();
-    Ok((nums[2] - nums[0], nums[3] - nums[1]))
-}
-
-/// Build a form XObject from a page's content stream + resources.
-/// Returns the new XObject's id. Fonts, images, and other resources are
-/// preserved in the form so the new pages render exactly the same.
-///
-/// **Important:** the source's content stream may be FlateDecode-compressed.
-/// We must preserve the source's `Filter` / `DecodeParms` on the form
-/// XObject's dict, otherwise the PDF interpreter will try to render the
-/// raw compressed bytes as plain PostScript and produce blank pages.
-fn build_page_form_xobject(
-    doc: &mut lopdf::Document,
-    page_id: lopdf::ObjectId,
-) -> Result<lopdf::ObjectId, String> {
-    use lopdf::{Dictionary, Object, Stream};
-
-    let page = doc
-        .get_dictionary(page_id)
-        .map_err(|e| format!("Failed to get page dict: {e}"))?
-        .clone();
-
-    // Concatenate all content streams (Contents may be a single ref or
-    // an array of refs). We keep the first stream's dict (with its
-    // Filter/DecodeParms) so the form can be decoded the same way.
-    let mut combined = Vec::new();
-    let mut source_dict: Option<Dictionary> = None;
-    if let Ok(contents) = page.get(b"Contents") {
-        let refs: Vec<lopdf::ObjectId> = match contents {
-            Object::Array(arr) => arr.iter().filter_map(|o| o.as_reference().ok()).collect(),
-            Object::Reference(id) => vec![*id],
-            _ => Vec::new(),
-        };
-        for stream_id in refs {
-            if let Ok(stream_obj) = doc.get_object(stream_id) {
-                if let Ok(s) = stream_obj.as_stream() {
-                    if source_dict.is_none() {
-                        source_dict = Some(s.dict.clone());
-                    }
-                    combined.extend_from_slice(&s.content);
+    fn recv_with_pump<T>(rx: &smpsc::Receiver<T>) -> Result<T, String> {
+        loop {
+            match rx.try_recv() {
+                Ok(val) => return Ok(val),
+                Err(smpsc::TryRecvError::Empty) => {
+                    pump_messages();
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(smpsc::TryRecvError::Disconnected) => {
+                    return Err("channel disconnected".into());
                 }
             }
         }
     }
 
-    let (src_w_pt, src_h_pt) = read_page_size(doc, page_id)?;
-
-    // Start from the source's stream dict so Filter / DecodeParms /
-    // etc. carry over. Drop `Length` because the writer recomputes it.
-    let mut dict = source_dict.unwrap_or_else(Dictionary::new);
-    dict.remove(b"Length");
-    dict.set("Type", Object::Name(b"XObject".to_vec()));
-    dict.set("Subtype", Object::Name(b"Form".to_vec()));
-    dict.set(
-        "BBox",
-        Object::Array(vec![
-            Object::Real(0.0),
-            Object::Real(0.0),
-            Object::Real(src_w_pt as f32),
-            Object::Real(src_h_pt as f32),
-        ]),
+    let html_path = write_export_html_to_temp(&html)?;
+    let url_string = format!(
+        "file:///{}",
+        html_path.display().to_string().replace('\\', "/")
     );
-    if let Ok(resources) = page.get(b"Resources") {
-        dict.set("Resources", resources.clone());
-    }
 
-    let id = doc.add_object(Stream::new(dict, combined));
-    Ok(id)
+    eprintln!("[pdf] Windows render: html at {} output={}", html_path.display(), output_path);
+
+    let (result_tx, result_rx) = smpsc::channel::<Result<Vec<u8>, String>>();
+
+    std::thread::spawn(move || {
+        let run = || -> Result<Vec<u8>, String> {
+            unsafe {
+                CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+                    .ok()
+                    .map_err(|e| format!("CoInitializeEx: {e}"))?;
+            }
+
+            let class_name = HSTRING::from("BeaverNotesPdfRenderClass");
+            unsafe extern "system" fn wndproc(
+                hwnd: HWND,
+                msg: u32,
+                wparam: windows::Win32::Foundation::WPARAM,
+                lparam: windows::Win32::Foundation::LPARAM,
+            ) -> windows::Win32::Foundation::LRESULT {
+                use windows::Win32::UI::WindowsAndMessaging::DefWindowProcW;
+                unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+            }
+            let instance = unsafe {
+                let hmod = windows::Win32::System::LibraryLoader::GetModuleHandleW(None)
+                    .map_err(|e| format!("GetModuleHandleW: {e}"))?;
+                let wc = WNDCLASSEXW {
+                    cbSize: std::mem::size_of::<WNDCLASSEXW>() as u32,
+                    style: WNDCLASS_STYLES(0),
+                    lpfnWndProc: Some(wndproc),
+                    cbClsExtra: 0,
+                    cbWndExtra: 0,
+                    hInstance: hmod.into(),
+                    hIcon: Default::default(),
+                    hCursor: Default::default(),
+                    hbrBackground: Default::default(),
+                    lpszMenuName: PCWSTR::null(),
+                    lpszClassName: PCWSTR(class_name.as_ptr()),
+                    hIconSm: Default::default(),
+                };
+                let _ = RegisterClassExW(&wc);
+                hmod
+            };
+            let hwnd = unsafe {
+                CreateWindowExW(
+                    WINDOW_EX_STYLE(0),
+                    &class_name,
+                    PCWSTR::null(),
+                    WS_OVERLAPPEDWINDOW,
+                    0,
+                    0,
+                    A4_CSS_W,
+                    A4_CSS_H,
+                    Some(HWND_MESSAGE),
+                    None,
+                    Some(instance.into()),
+                    None,
+                )
+            }
+            .map_err(|e| format!("CreateWindowExW: {e}"))?;
+
+            eprintln!("[pdf] Window created, creating WebView2 env");
+
+            let (env_tx, env_rx) = smpsc::channel::<Result<ICoreWebView2Environment, String>>();
+            let (ctrl_tx, ctrl_rx) = smpsc::channel::<Result<ICoreWebView2Controller, String>>();
+            let (nav_tx, nav_rx) = smpsc::channel::<Result<(), String>>();
+            let (pdf_tx, pdf_rx) = smpsc::channel::<Result<Vec<u8>, String>>();
+
+            let env_handler =
+                CreateCoreWebView2EnvironmentCompletedHandler::create(Box::new(move |_result, env| {
+                    let _ = env_tx.send(match env {
+                        Some(e) => Ok(e),
+                        None => Err("WebView2 env creation returned null".into()),
+                    });
+                    Ok(())
+                }));
+            unsafe {
+                CreateCoreWebView2EnvironmentWithOptions(
+                    PCWSTR::null(),
+                    PCWSTR::null(),
+                    None,
+                    &env_handler,
+                )
+                .map_err(|e| format!("CreateCoreWebView2EnvironmentWithOptions: {e}"))?;
+            }
+            let env = recv_with_pump(&env_rx).map_err(|e| format!("env: {e}"))??;
+            eprintln!("[pdf] WebView2 env created");
+
+            let ctrl_handler =
+                CreateCoreWebView2ControllerCompletedHandler::create(Box::new(move |_result, controller| {
+                    let _ = ctrl_tx.send(match controller {
+                        Some(c) => Ok(c),
+                        None => Err("WebView2 controller creation returned null".into()),
+                    });
+                    Ok(())
+                }));
+            unsafe {
+                env.CreateCoreWebView2Controller(hwnd, &ctrl_handler)
+                    .map_err(|e| format!("CreateCoreWebView2Controller: {e}"))?;
+            }
+            let controller: ICoreWebView2Controller =
+                recv_with_pump(&ctrl_rx).map_err(|e| format!("ctrl: {e}"))??;
+            eprintln!("[pdf] WebView2 controller created");
+
+            let webview: ICoreWebView2 = unsafe {
+                controller
+                    .CoreWebView2()
+                    .map_err(|e| format!("CoreWebView2: {e}"))?
+            };
+            unsafe {
+                controller
+                    .SetBounds(RECT {
+                        left: 0,
+                        top: 0,
+                        right: A4_CSS_W,
+                        bottom: A4_CSS_H,
+                    })
+                    .map_err(|e| format!("SetBounds: {e}"))?;
+                controller
+                    .SetIsVisible(false)
+                    .map_err(|e| format!("SetIsVisible: {e}"))?;
+            }
+
+            let mut nav_token: i64 = 0;
+            {
+                let nav_tx = nav_tx.clone();
+                let handler = NavigationCompletedEventHandler::create(Box::new(move |_w, _args| {
+                    let _ = nav_tx.send(Ok(()));
+                    Ok(())
+                }));
+                unsafe {
+                    webview
+                        .add_NavigationCompleted(&handler, &mut nav_token)
+                        .map_err(|e| format!("add_NavigationCompleted: {e}"))?;
+                }
+            }
+            unsafe {
+                webview
+                    .Navigate(&HSTRING::from(&url_string))
+                    .map_err(|e| format!("Navigate: {e}"))?;
+            }
+            eprintln!("[pdf] Navigated, waiting for page load");
+            recv_with_pump(&nav_rx).map_err(|e| format!("nav: {e}"))??;
+            eprintln!("[pdf] Page loaded");
+
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let noop_handler = ExecuteScriptCompletedHandler::create(Box::new(move |_result, _val| {
+                let _ = _val;
+                Ok(())
+            }));
+            unsafe {
+                let script = HSTRING::from("JSON.stringify((window.__bnLayout || []))");
+                let _ = webview.ExecuteScript(
+                    &script,
+                    &noop_handler,
+                );
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+
+            let pdf_path = std::env::temp_dir().join(format!(
+                "beaver-pdf-stage-{}-{}.pdf",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            ));
+            let pdf_path_hstring = HSTRING::from(pdf_path.to_string_lossy().as_ref());
+            let pdf_path_clone = pdf_path.clone();
+            let pdf_handler = PrintToPdfCompletedHandler::create(Box::new(move |_result, _success| {
+                let _ = pdf_tx.send(match std::fs::read(&pdf_path_clone) {
+                    Ok(b) => Ok(b),
+                    Err(e) => Err(format!("Read staged PDF: {e}")),
+                });
+                Ok(())
+            }));
+            unsafe {
+                let webview_7: ICoreWebView2_7 =
+                    webview.cast().map_err(|e| format!("Cast ICoreWebView2_7: {e}"))?;
+                webview_7
+                    .PrintToPdf(
+                        PCWSTR(pdf_path_hstring.as_ptr()),
+                        None,
+                        &pdf_handler,
+                    )
+                    .map_err(|e| format!("PrintToPdf: {e}"))?;
+            }
+            eprintln!("[pdf] PrintToPdf called, waiting for result");
+            let pdf_bytes = recv_with_pump(&pdf_rx).map_err(|e| format!("pdf: {e}"))??;
+            eprintln!("[pdf] Got PDF ({} bytes)", pdf_bytes.len());
+
+            let _ = std::fs::remove_file(&pdf_path);
+            unsafe {
+                let _ = webview.remove_NavigationCompleted(nav_token);
+                let _ = DestroyWindow(hwnd);
+            }
+
+            Ok(pdf_bytes)
+        };
+
+        let result = run();
+        let _ = result_tx.send(result);
+    });
+
+    let pdf_bytes = result_rx
+        .recv()
+        .map_err(|e| format!("Windows render channel closed: {e}"))??;
+
+    let _ = std::fs::remove_file(&html_path);
+    eprintln!("[pdf] Writing PDF to {}", output_path);
+    std::fs::write(&output_path, &pdf_bytes)
+        .map_err(|e| format!("Failed to write PDF: {e}"))
 }
 
-/// Remove a page from the document's page tree and from the object
-/// table, fixing up `Kids` and `Count`.
-fn remove_page(doc: &mut lopdf::Document, page_id: lopdf::ObjectId) -> Result<(), String> {
-    use lopdf::Object;
+// ── Linux ──────────────────────────────────────────────────────────
 
-    let root_id: lopdf::ObjectId = doc
-        .trailer
-        .get(b"Root")
-        .and_then(|o| o.as_reference())
-        .map_err(|_| "Missing Root reference".to_string())?;
-    let root_dict = doc
-        .get_dictionary(root_id)
-        .map_err(|e| format!("Failed to get Root: {e}"))?;
-    let pages_id: lopdf::ObjectId = root_dict
-        .get(b"Pages")
-        .and_then(|o| o.as_reference())
-        .map_err(|_| "Missing Pages reference".to_string())?;
+#[cfg(target_os = "linux")]
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+    // Force only the file print backend so GTK doesn't require CUPS
+    // to have a printer configured. Set before any GTK init.
+    std::env::set_var("GTK_PRINT_BACKENDS", "file");
 
-    let pages_dict = doc
-        .get_dictionary_mut(pages_id)
-        .map_err(|e| format!("Failed to get Pages: {e}"))?;
-    if let Ok(kids) = pages_dict.get_mut(b"Kids") {
-        if let Ok(arr) = kids.as_array_mut() {
-            arr.retain(|k| !matches!(k, Object::Reference(id) if *id == page_id));
+    use std::sync::mpsc as smpsc;
+    use tauri::webview::PageLoadEvent;
+    use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+    let html_path = write_export_html_to_temp(&html)?;
+    let url = format!("file://{}", html_path.display());
+
+    let (loaded_tx, loaded_rx) = smpsc::channel::<()>();
+
+    let label = format!("pdf-render-{}", std::process::id());
+
+    let builder = WebviewWindowBuilder::new(
+        &app,
+        &label,
+        WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {e}"))?),
+    )
+    .title("Beaver Notes – PDF Render")
+    .visible(false)
+    .inner_size(794.0, 1123.0)
+    .min_inner_size(794.0, 1123.0)
+    .resizable(false)
+    .decorations(false)
+    .on_page_load(move |_window, payload| {
+        if payload.event() == PageLoadEvent::Finished {
+            let _ = loaded_tx.send(());
         }
-    }
-    if let Ok(count) = pages_dict.get_mut(b"Count") {
-        if let Object::Integer(c) = count {
-            *c -= 1;
-        }
-    }
+    });
 
-    doc.objects.remove(&page_id);
-    Ok(())
+    let window = builder
+        .build()
+        .map_err(|e| format!("Failed to create PDF render window: {e}"))?;
+
+    loaded_rx
+        .recv()
+        .map_err(|_| "PDF render window load channel closed".to_string())?;
+
+    std::thread::sleep(std::time::Duration::from_millis(150));
+
+    let pdf_stage = std::env::temp_dir().join(format!(
+        "beaver-pdf-stage-{}-{}.pdf",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    let pdf_uri = format!("file://{}", pdf_stage.display());
+
+    let (result_tx, result_rx) = smpsc::channel::<Result<Vec<u8>, String>>();
+    let pdf_stage_print = pdf_stage.clone();
+    let output_path_clone = output_path.clone();
+
+    window
+        .with_webview(move |webview| {
+            use webkit2gtk::PrintOperation;
+            use webkit2gtk::PrintOperationExt;
+
+            let wk = webview.inner();
+            let print_op = PrintOperation::new(&wk);
+            let settings = gtk::PrintSettings::new();
+            settings.set_bool("print-to-file", true);
+            settings.set("output-file-format", Some("pdf"));
+            settings.set("output-uri", Some(&pdf_uri));
+            settings.set_printer("Print to File");
+            print_op.set_print_settings(&settings);
+
+            let page_setup = gtk::PageSetup::new();
+            let paper_size = gtk::PaperSize::new(Some("iso_a4"));
+            page_setup.set_paper_size(&paper_size);
+            page_setup.set_orientation(gtk::PageOrientation::Portrait);
+            print_op.set_page_setup(&page_setup);
+
+            let tx_ok = result_tx.clone();
+            let tx_err = result_tx;
+            let stage = pdf_stage_print;
+            print_op.connect_finished(move |_op| {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                let outcome =
+                    std::fs::read(&stage).map_err(|e| format!("read staged PDF: {e}"));
+                let _ = tx_ok.send(outcome);
+            });
+            print_op.connect_failed(move |_op, err| {
+                let _ = tx_err.send(Err(format!("print failed: {err}")));
+            });
+            print_op.print();
+        })
+        .map_err(|e| format!("with_webview failed: {e}"))?;
+
+    let pdf_bytes = result_rx
+        .recv()
+        .map_err(|e| format!("Linux render channel closed: {e}"))??;
+
+    let _ = window.destroy();
+    let _ = std::fs::remove_file(&pdf_stage);
+    let _ = std::fs::remove_file(&html_path);
+
+    std::fs::write(&output_path_clone, &pdf_bytes)
+        .map_err(|e| format!("Failed to write PDF: {e}"))
+}
+
+// ── Shared helpers ─────────────────────────────────────────────────
+
+#[cfg(any(
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "android"
+))]
+fn write_export_html_to_temp(html: &str) -> Result<PathBuf, String> {
+    let mut path = std::env::temp_dir();
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    path.push(format!("beaver-pdf-{}-{}.html", std::process::id(), nanos));
+    std::fs::write(&path, html).map_err(|e| format!("Failed to write temp HTML: {e}"))?;
+    Ok(path)
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+fn parse_scoped_path(path: &str) -> Option<(String, String)> {
+    let remainder = path.strip_prefix("scoped:")?;
+    let (folder_id, relative) = remainder.split_once('/')?;
+    if folder_id.is_empty() || relative.is_empty() {
+        return None;
+    }
+    Some((folder_id.to_string(), relative.to_string()))
+}
+
+#[cfg(any(target_os = "ios", target_os = "android"))]
+fn scoped_temp_output_path() -> String {
+    let mut temp = std::env::temp_dir();
+    temp.push(format!("beaver-pdf-scoped-{}.pdf", std::process::id()));
+    temp.to_string_lossy().into_owned()
+}
+
+// ── Fallback ───────────────────────────────────────────────────────
+
+#[cfg(not(any(
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows",
+    target_os = "linux",
+    target_os = "android"
+)))]
+async fn render_native(_app: AppHandle, _html: String, _output_path: String) -> Result<(), String> {
+    Err("Native PDF rendering is not implemented for this platform".to_string())
 }

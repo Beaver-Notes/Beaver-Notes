@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-delete-domain"
+description = "Enables the delete_domain command without any pre-configured scope."
+commands.allow = ["delete_domain"]
+
+[[permission]]
+identifier = "deny-delete-domain"
+description = "Denies the delete_domain command without any pre-configured scope."
+commands.deny = ["delete_domain"]

@@ -18,7 +18,6 @@ import {
   getNodeChildren,
   getDocContent,
   collectDescendantText,
-  resolveAssetSrc,
   resolveAssetOutputPath,
   getFootnoteNumber,
   createRenderContext,
@@ -33,14 +32,10 @@ const PAGE_MARGIN_PX = 48;
 const A4_PT_W = 595;
 const A4_PT_H = 842;
 
-// Page margin applied to the PDF output. The CSS shrinks the rendered
-// content width by 2× this value on each side, and the Rust splitter
-// applies the same margin in points when stamping onto A4 pages.
-//
-// The Rust constant `PDF_PAGE_MARGIN_PT` is derived from this value:
-//   content width (pt) = (A4_CSS_W - 2 × PDF_PAGE_MARGIN_CSS_PX) × 0.75
-//   margin (pt) = (A4_PT_W - content width) / 2
-// Keep the two in sync if you change this number.
+// Must match the Rust constant CSS_PX_TO_PT in pdf.rs.
+const CSS_PX_TO_PT = 72 / 96;
+
+// Must match the Rust constant PDF_PAGE_MARGIN_CSS_PX / PDF_PAGE_MARGIN_PT.
 const PDF_PAGE_MARGIN_CSS_PX = 60; // ≈ 12.7mm
 
 const CALLOUT_STYLES = `
@@ -74,8 +69,6 @@ const HIGHLIGHT_RGBA = {
   'bg-[#E75C5C]/30': 'rgba(231,92,92,0.30)',
   'bg-[#E75C5C]/40': 'rgba(231,92,92,0.40)',
 };
-
-// ── Inlined from export-staging.js ──────────────────────────────────────────
 
 export async function chooseRootExportDir(title) {
   const { canceled, filePaths = [] } = await chooseExportDirectory(title);
@@ -126,8 +119,6 @@ export async function copyNoteAssetDirectories(
   );
 }
 
-// ── Exported utility functions ──────────────────────────────────────────────
-
 export function sanitizeFileName(value) {
   const sanitized = String(value || '')
     .replace(INVALID_FILE_CHARS, '-')
@@ -150,8 +141,6 @@ function normalizeAssetPath(url) {
 function getMimeType(src) {
   return mime.getType(src) || 'image/png';
 }
-
-// ── Web page CSS builder (from export-html.js) ──────────────────────────────
 
 function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
   const padding = isPaginated ? '0' : `${pageMargin}px`;
@@ -224,6 +213,22 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
     page-break-inside: avoid;
   }
 
+  /* Table rows stay together; the table itself can split between rows */
+  .export-root tr,
+  .export-root thead {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Oversized images / SVGs: scale down instead of being cropped */
+  .export-root svg {
+    max-width: 100%;
+    max-height: 95vh;
+    height: auto;
+  }
+
+  /* Prevent single-line orphans on headings */
+
   .export-root h1, .export-root h2, .export-root h3,
   .export-root h4, .export-root h5, .export-root h6 {
     break-after: avoid;
@@ -278,14 +283,6 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
     const contentW = Math.max(A4_CSS_W - 2 * PDF_PAGE_MARGIN_CSS_PX, 100);
     return `
   ${shared}
-
-  /*
-   * Note: WKWebView.createPDF ignores @page rules, so the page margin
-   * is enforced by (a) shrinking the rendered content width below and
-   * (b) the Rust splitter insetting each A4 page by the same margin in
-   * points. PDF_PAGE_MARGIN_CSS_PX must match the splitter's margin in
-   * points (the splitter applies the pt equivalent of this CSS value).
-   */
 
   html, body {
     width: ${contentW}px !important;
@@ -351,8 +348,6 @@ function buildWebPageCss(pageWidth, pageMargin, isPaginated) {
   }
   `;
 }
-
-// ── HTML renderers ──────────────────────────────────────────────────────────
 
 function renderHtmlInline(nodes, ctx) {
   return (nodes || []).map((node) => renderHtmlInlineNode(node, ctx)).join('');
@@ -595,8 +590,6 @@ function renderHtmlBlocks(nodes, ctx) {
   return (nodes || []).map((node) => renderHtmlBlock(node, ctx)).join('');
 }
 
-// ── Tiptap JSON → HTML converter ───────────────────────────────────────────
-
 export function tiptapToHtml(content, options = {}) {
   const { noteId = '' } = options;
   const nodes = getDocContent(content);
@@ -604,8 +597,6 @@ export function tiptapToHtml(content, options = {}) {
   const ctx = createRenderContext(noteId);
   return renderHtmlBlocks(nodes, ctx).trim();
 }
-
-// ── Folder tree helpers (used by bulk export) ──────────────────────────────
 
 export function getFolderPath(folderId, folders) {
   if (!folderId || !folders) return '';
@@ -631,8 +622,6 @@ export function buildFolderTree(folders) {
   });
   return tree;
 }
-
-// ── Bulk export: Markdown ──────────────────────────────────────────────────
 
 export async function exportAllMarkdown(onProgress) {
   const storage = useStorage();
@@ -680,8 +669,6 @@ export async function exportAllMarkdown(onProgress) {
   }
   return { outputRoot };
 }
-
-// ── Bulk export: HTML ──────────────────────────────────────────────────────
 
 export async function exportAllHTML(onProgress) {
   const storage = useStorage();
@@ -742,42 +729,11 @@ export async function exportAllHTML(onProgress) {
   return { outputRoot };
 }
 
-// ── Web export document builder (from export-html.js) ───────────────────────
-
 function collectPageStyles() {
-  const contentHrefPatterns = [
-    'katex',
-    'highlight.js',
-    'prosemirror',
-    'tauri',
-    'tailwind',
-    'tiptap',
-    'beaver',
-    'editor',
-    'note',
-    'content',
-    'typography',
-    'app',
-    'main',
-    'index',
-  ];
-
-  const uiHrefPatterns = [
-    'remixicon',
-    'toastify',
-    'overlayscrollbars',
-    'v-tooltip',
-    'vue-tooltip',
-    'vue-select',
-    'vuedraggable',
-    'command-palette',
-    'masonry',
-    'context-menu',
-    'toolbar',
-    'sidebar',
-  ];
-
-  const uiSelectorPatterns = [
+  // Walk cssRules directly rather than filtering by href so this works
+  // with Vite's content-hashed filenames (e.g. index-a3f91bc2.css).
+  // UI-only rules are still excluded by selector text.
+  const UI_SELECTOR_PATTERNS = [
     '.command-prompt',
     '.note-card',
     '.masonry',
@@ -792,11 +748,11 @@ function collectPageStyles() {
     '.tooltip',
     '.Vue-Toastification',
     '.toastify',
+    '[data-v-',
   ];
 
   function isUiRule(text) {
-    const selector = text.split('{')[0];
-    return uiSelectorPatterns.some((p) => selector.includes(p));
+    return UI_SELECTOR_PATTERNS.some((p) => text.includes(p));
   }
 
   const cssParts = [];
@@ -804,22 +760,13 @@ function collectPageStyles() {
   for (const sheet of document.styleSheets) {
     try {
       if (!sheet.cssRules) continue;
-      const href = sheet.href || '';
-      if (href) {
-        const lower = href.toLowerCase();
-        if (uiHrefPatterns.some((p) => lower.includes(p))) continue;
-        if (!contentHrefPatterns.some((p) => lower.includes(p))) continue;
-      }
       for (const rule of sheet.cssRules) {
-        const text = rule.cssText;
-        if (text.includes('[data-v-')) continue;
-        if (isUiRule(text)) continue;
         if (rule.type === CSSRule.KEYFRAMES_RULE) continue;
+        const text = rule.cssText;
+        if (isUiRule(text)) continue;
         cssParts.push(text);
       }
-    } catch {
-      // CORS-restricted stylesheet — skip.
-    }
+    } catch {}
   }
 
   return cssParts.join('\n');
@@ -1056,6 +1003,282 @@ async function prepareExportDom(editor, noteId, mode = 'folder') {
   return clone;
 }
 
+// Self-contained IIFE that walks every Tiptap block,
+// computes page cuts, and inserts break-after:page markers.
+// The resulting multi-page A4 PDF is produced by each platform's
+// native print / PDF-capture API (no Rust-side splitting needed).
+
+function buildMeasurementScript(stripHeightPx) {
+  var MIN_USEFUL_STRIP = 120;
+  var HEADING_KEEP_NEXT = 90;
+  var MIN_HEADING_ORPHAN = 200;
+
+  return `<script>
+(function () {
+  var PAGE_H = ${Math.round(stripHeightPx)};
+  var MIN_CUT = ${MIN_USEFUL_STRIP};
+  var HEADING_GAP = ${HEADING_KEEP_NEXT};
+  var MIN_ORPHAN = ${MIN_HEADING_ORPHAN};
+
+  function computeCuts(srcH, hints) {
+    if (srcH <= 0.5) return [Math.max(srcH, 0)];
+
+    var mandatory = [0];
+    var sorted = hints.slice().sort(function(a, b) { return a.top - b.top; });
+
+    for (var i = 0; i < sorted.length; i++) {
+      var h = sorted[i];
+      if (h.kind === 'force_break') {
+        var y = Math.min(Math.max(h.top, 0), srcH);
+        if (y - mandatory[mandatory.length - 1] > 1) mandatory.push(y);
+      } else if (h.kind === 'tall_block') {
+        var bs = Math.min(Math.max(h.top, 0), srcH);
+        var be = Math.min(Math.max(h.bottom, 0), srcH);
+        if (be - bs < 1) continue;
+        if (bs - mandatory[mandatory.length - 1] > 1) mandatory.push(bs);
+
+        var candidates = (h.natural_splits || []).filter(function(y) {
+          return y > bs && y < be;
+        }).sort(function(a, b) { return a - b; });
+
+        var prev = bs;
+        for (var k = 0; k < candidates.length; k++) {
+          if (candidates[k] - prev >= PAGE_H * 0.5) {
+            mandatory.push(candidates[k]);
+            prev = candidates[k];
+          }
+        }
+
+        var internalCuts = 0;
+        for (var m = 0; m < mandatory.length; m++) {
+          if (mandatory[m] > bs && mandatory[m] < be) internalCuts++;
+        }
+        if (internalCuts === 0) {
+          var fy = bs + PAGE_H;
+          while (fy < be - 1) { mandatory.push(fy); fy += PAGE_H; }
+        }
+
+        if (be - mandatory[mandatory.length - 1] > 1) mandatory.push(be);
+      }
+    }
+    mandatory.push(srcH);
+    // Dedup and sort
+    mandatory.sort(function(a, b) { return a - b; });
+    mandatory = mandatory.filter(function(y, idx) {
+      return idx === 0 || y - mandatory[idx - 1] > 0.5;
+    });
+
+    // Pass 2: soft constraints per mandatory segment
+    var cuts = [];
+    for (var seg = 0; seg < mandatory.length - 1; seg++) {
+      var segStart = mandatory[seg];
+      var segEnd = mandatory[seg + 1];
+      var segHints = sorted.filter(function(h) {
+        return h.bottom > segStart && h.top < segEnd;
+      });
+      var cursor = segStart;
+      var maxStrips = Math.ceil((segEnd - segStart) / PAGE_H) + 10;
+      for (var s = 0; s < maxStrips; s++) {
+        if (cursor >= segEnd - 0.5) break;
+        var stripBottom = Math.min(cursor + PAGE_H, segEnd);
+        var best = pickCut(cursor, stripBottom, segEnd, segHints);
+        cuts.push(best);
+        cursor = best;
+      }
+    }
+    if (cuts.length === 0 || Math.abs(cuts[cuts.length - 1] - srcH) > 0.5) {
+      cuts.push(srcH);
+    }
+
+    var merged = [cuts[0]];
+    for (var c = 1; c < cuts.length; c++) {
+      var stripLen = cuts[c] - merged[merged.length - 1];
+      if (stripLen < MIN_CUT && cuts[c] < srcH - 0.5) continue;
+      merged.push(cuts[c]);
+    }
+    if (merged.length === 0 || Math.abs(merged[merged.length - 1] - srcH) > 0.5) {
+      merged.push(srcH);
+    }
+    return merged;
+  }
+
+  function pickCut(stripTop, stripBottom, segEnd, hints) {
+    var best = stripBottom;
+
+    for (var i = 0; i < hints.length; i++) {
+      var h = hints[i];
+      if (h.top <= stripTop || h.bottom <= stripBottom) continue;
+
+      if (h.kind === 'keep_together') {
+        if (h.top - stripTop >= MIN_CUT) best = Math.min(best, h.top);
+      } else if (h.kind === 'table_region') {
+        var rows = h.row_tops || [];
+        var rowCut = null;
+        for (var r = 0; r < rows.length; r++) {
+          if (rows[r] > stripTop && rows[r] <= stripBottom) {
+            rowCut = rowCut === null ? rows[r] : Math.max(rowCut, rows[r]);
+          }
+        }
+        if (rowCut !== null) {
+          if (rowCut - stripTop >= MIN_CUT) best = Math.min(best, rowCut);
+        } else if (h.top - stripTop >= MIN_CUT) {
+          best = Math.min(best, h.top);
+        }
+      }
+    }
+
+    for (var i = 0; i < hints.length; i++) {
+      var h = hints[i];
+      if (h.kind !== 'keep_with_next') continue;
+      if (h.bottom <= stripTop || h.top >= stripBottom) continue;
+      var gap = Math.min(best, stripBottom) - h.bottom;
+      if (gap < 0 || gap > HEADING_GAP) continue;
+      if (h.top - stripTop >= MIN_ORPHAN) best = Math.min(best, h.top);
+    }
+
+    return Math.max(stripTop + 1, Math.min(best, segEnd));
+  }
+
+  function paginate() {
+    var root = document.querySelector('.export-root') || document.body;
+    var hints = [];
+    var seen = new WeakSet();
+
+    function docY(el) {
+      var r = el.getBoundingClientRect();
+      return {
+        top: Math.round(r.top + window.scrollY),
+        bottom: Math.round(r.bottom + window.scrollY),
+        h: Math.round(r.height),
+      };
+    }
+
+    function addSeen(el) {
+      seen.add(el);
+      var kids = el.querySelectorAll('*');
+      for (var i = 0; i < kids.length; i++) seen.add(kids[i]);
+    }
+
+    var stack = Array.prototype.slice.call(root.children);
+    while (stack.length) {
+      var el = stack.shift();
+      if (seen.has(el)) continue;
+
+      var style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden') continue;
+
+      var pos = docY(el);
+      if (pos.h < 4) continue;
+
+      var tag = el.tagName.toLowerCase();
+
+      if (el.hasAttribute('data-pdf-break-before') || el.hasAttribute('data-pdf-break-after')) {
+        hints.push({ kind: 'force_break', tag: tag, top: pos.top, bottom: pos.bottom });
+        continue;
+      }
+
+      if (tag === 'table') {
+        var rows = el.querySelectorAll('tr');
+        var rowTops = [];
+        for (var i = 0; i < rows.length; i++) {
+          rowTops.push(Math.round(rows[i].getBoundingClientRect().top + window.scrollY));
+        }
+        hints.push({ kind: 'table_region', tag: 'table', top: pos.top, bottom: pos.bottom, row_tops: rowTops });
+        addSeen(el);
+        continue;
+      }
+
+      if (pos.h > PAGE_H * 0.9) {
+        var splitEls = el.querySelectorAll('p,li');
+        var splits = [];
+        for (var i = 0; i < splitEls.length; i++) {
+          if (seen.has(splitEls[i])) continue;
+          var sy = Math.round(splitEls[i].getBoundingClientRect().bottom + window.scrollY);
+          if (sy > pos.top && sy < pos.bottom) splits.push(sy);
+        }
+        hints.push({ kind: 'tall_block', tag: tag, top: pos.top, bottom: pos.bottom, natural_splits: splits });
+        addSeen(el);
+        continue;
+      }
+
+      if (tag === 'h1' || tag === 'h2' || tag === 'h3' || tag === 'h4' || tag === 'h5' || tag === 'h6') {
+        hints.push({ kind: 'keep_with_next', tag: tag, top: pos.top, bottom: pos.bottom });
+        addSeen(el);
+        continue;
+      }
+
+      var isNodeView = el.classList.contains('node-view-wrapper') ||
+                       el.hasAttribute('data-node-view-root') ||
+                       el.hasAttribute('data-pdf-keep');
+      var hasBreakAvoid = style.breakInside === 'avoid' || style.pageBreakInside === 'avoid';
+
+      if (isNodeView || hasBreakAvoid) {
+        hints.push({ kind: 'keep_together', tag: tag, top: pos.top, bottom: pos.bottom });
+        addSeen(el);
+        continue;
+      }
+
+      var children = el.children;
+      for (var i = children.length - 1; i >= 0; i--) {
+        stack.unshift(children[i]);
+      }
+    }
+
+    var docH = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight
+    );
+
+    window.__bnLayout = hints;
+    window.__bnPageBreaks = hints.map(function(h) {
+      return { tag: h.tag, top: h.top, bottom: h.bottom };
+    });
+    window.__bnDocHeight = docH;
+
+    var cuts = computeCuts(docH, hints);
+    window.__bnCuts = cuts;
+
+    var body = document.body;
+    for (var c = 0; c < cuts.length - 1; c++) {
+      var brk = document.createElement('div');
+      brk.style.cssText = 'break-after:page;page-break-after:always;height:0;margin:0;padding:0;';
+      brk.setAttribute('data-pdf-break', '');
+      body.appendChild(brk);
+    }
+
+    window.__bnLayoutReady = true;
+  }
+
+  // Exposed so the host platform (e.g. Android plugin) can call
+  // paginate explicitly after onPageFinished.
+  window.__bnPaginate = paginate;
+
+  function run() {
+    var fontReady = document.fonts ? document.fonts.ready : Promise.resolve();
+    var imgs = Array.prototype.slice.call(document.images);
+    var imgReady = Promise.all(imgs.map(function(img) {
+      if (img.complete) return Promise.resolve();
+      return new Promise(function(resolve) {
+        img.addEventListener('load', resolve);
+        img.addEventListener('error', resolve);
+      });
+    }));
+    Promise.all([fontReady, imgReady]).then(function() {
+      requestAnimationFrame(function() {
+        setTimeout(paginate, 0);
+      });
+    });
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    run();
+  } else {
+    document.addEventListener('DOMContentLoaded', run);
+  }
+})();
+</script>`;
+}
+
 export async function buildWebExportDocument(editor, options = {}) {
   const {
     title = 'Untitled',
@@ -1067,11 +1290,21 @@ export async function buildWebExportDocument(editor, options = {}) {
     pageMargin = PAGE_MARGIN_PX,
   } = options;
 
-  const isDark = document.documentElement.classList.contains('dark');
+  const isDark = isPaginated
+    ? false
+    : document.documentElement.classList.contains('dark');
   const theme = isDark ? 'dark' : 'light';
 
   const clone = await prepareExportDom(editor, noteId, mode);
   const pageCss = collectPageStyles();
+
+  const marginPt =
+    (A4_PT_W - (A4_CSS_W - 2 * PDF_PAGE_MARGIN_CSS_PX) * CSS_PX_TO_PT) / 2;
+  const stripHeightPx = Math.round((A4_PT_H - 2 * marginPt) / CSS_PX_TO_PT);
+
+  const measurementScript = isPaginated
+    ? buildMeasurementScript(stripHeightPx)
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="en" class="${theme}">
@@ -1095,11 +1328,7 @@ export async function buildWebExportDocument(editor, options = {}) {
   }">
     ${clone.outerHTML}
   </div>
-  ${
-    isPaginated
-      ? `<script>(function(){function rect(){var s='h1,h2,h3,h4,h5,h6,figure,img,table,.callout,pre,blockquote'.split(',');var r=[];var i;for(i=0;i<s.length;i++){var nodes=document.querySelectorAll(s[i]);var k;for(k=0;k<nodes.length;k++){var n=nodes[k];if(!n||!n.getBoundingClientRect)continue;var b=n.getBoundingClientRect();if(b.width===0&&b.height===0)continue;r.push({tag:s[i],top:Math.round(b.top+window.scrollY),bottom:Math.round(b.bottom+window.scrollY)})}}window.__bnPageBreaks=r;window.__bnDocHeight=Math.max(document.documentElement.scrollHeight,document.body.scrollHeight)}if(document.readyState==='complete'||document.readyState==='interactive'){setTimeout(rect,0)}else{document.addEventListener('DOMContentLoaded',function(){setTimeout(rect,0)})}})();</script>`
-      : ''
-  }
+  ${measurementScript}
 </body>
 </html>`;
 }

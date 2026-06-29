@@ -7,12 +7,19 @@ import { buildWebExportDocument } from '@/utils/share/exportBulk';
 import { tiptapToMarkdown, buildFrontmatter } from '@/utils/markdown';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
-import { readDir } from '@/lib/native/fs';
+import {
+  ensureDir,
+  readDir,
+  readData,
+  writeFile,
+  removePath,
+} from '@/lib/native/fs';
 import { readExportData } from '@/lib/native/exports';
 import { useNoteStore } from '@/store/note';
 import { saveDialog } from '@/lib/native/dialog';
 import { useStorage } from '@/composable/storage';
 import { useDialog } from '@/composable/dialog';
+import { shareFileViaNative } from '@/lib/native/share';
 import mime from 'mime';
 
 const highlighterColors = [
@@ -49,6 +56,28 @@ export function useNoteMenuActions({
   const dialog = useDialog();
 
   async function handlePdfExport() {
+    if (isMobile) {
+      const noteName = (noteTitle || 'Untitled').replace(/[/\\?%*:|"<>]/g, '-');
+      const tempPath = await getTempSharePath(`${noteName}.pdf`);
+      try {
+        await exportPDF(noteId, noteTitle, editor, tempPath);
+        await shareFileViaNative(tempPath, 'application/pdf');
+        try {
+          await removePath(tempPath);
+        } catch {}
+      } catch (error) {
+        console.error('[PDF export]', error);
+        dialog.alert({
+          title: 'Error',
+          body: error?.message || 'Failed to export PDF. Please try again.',
+        });
+        try {
+          await removePath(tempPath);
+        } catch {}
+      }
+      return;
+    }
+
     const noteName = (noteTitle || 'Untitled').replace(/[/\\?%*:|"<>]/g, '-');
     const { canceled, filePath } = await saveDialog({
       defaultPath: `${noteName}.pdf`,
@@ -68,6 +97,27 @@ export function useNoteMenuActions({
   }
 
   async function shareFile(fileName, content, mimeType) {
+    if (isMobile) {
+      const tempPath = await getTempSharePath(fileName);
+      try {
+        const data =
+          typeof content === 'string'
+            ? new TextEncoder().encode(content)
+            : content;
+        await writeFile(tempPath, Array.from(data));
+        const shared = await shareFileViaNative(tempPath, mimeType);
+        try {
+          await removePath(tempPath);
+        } catch {}
+        return shared;
+      } catch {
+        try {
+          await removePath(tempPath);
+        } catch {}
+        return false;
+      }
+    }
+
     const blob = new Blob([content], { type: mimeType });
     const file = new File([blob], fileName, { type: mimeType });
     if (
@@ -79,6 +129,13 @@ export function useNoteMenuActions({
       return true;
     }
     return false;
+  }
+
+  async function getTempSharePath(fileName) {
+    const tempDir = await backend.invoke('helper:get-path', 'temp');
+    const shareDir = path.join(tempDir, 'beaver-notes-share');
+    await ensureDir(shareDir);
+    return path.join(shareDir, fileName);
   }
 
   async function tryShareOrExport(shareFn, exportFn) {
@@ -138,12 +195,20 @@ export function useNoteMenuActions({
   }
 
   async function shareHTML() {
+    if (isMobile) {
+      const html = await buildWebExportDocument(editor, {
+        mode: 'folder',
+        title: noteTitle,
+        noteId,
+      });
+      return await shareAsZip(html, 'html', noteId);
+    }
     const html = await buildWebExportDocument(editor, {
       mode: 'self-contained',
       title: noteTitle,
       noteId,
     });
-    await shareFile(
+    return await shareFile(
       `${noteTitle}.html`,
       html,
       mime.getType('html') || 'text/html'
@@ -159,10 +224,50 @@ export function useNoteMenuActions({
     const markdown = frontmatter
       ? `${frontmatter}\n${markdownBody}`
       : markdownBody;
-    await shareFile(
+    if (isMobile) {
+      return await shareAsZip(markdown, 'md', noteId);
+    }
+    return await shareFile(
       `${noteTitle}.md`,
       markdown,
       mime.getType('md') || 'text/markdown'
+    );
+  }
+
+  async function shareAsZip(content, ext, sourceNoteId) {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    const safeName = noteTitle || 'Untitled';
+    zip.file(`${safeName}.${ext}`, content);
+
+    const appDir = await getAppDirectory();
+    const assetRegex =
+      /(assets\/([^/]+)\/([^)]+)|file-assets\/([^/]+)\/([^)]+))/g;
+    let match;
+    const seen = new Set();
+    while ((match = assetRegex.exec(content)) !== null) {
+      const [full, , assetNoteId, assetFile, fileAssetNoteId, fileAssetFile] =
+        match;
+      const zipPath = full;
+      if (seen.has(zipPath)) continue;
+      seen.add(zipPath);
+      const nid = assetNoteId || fileAssetNoteId;
+      const fname = assetFile || fileAssetFile;
+      const assetType = assetFile ? 'notes-assets' : 'file-assets';
+      const srcPath = path.join(appDir, assetType, nid, fname);
+      try {
+        const base64 = await readData(srcPath);
+        if (base64) zip.file(zipPath, base64, { base64: true });
+      } catch {}
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const zipBuffer = await zipBlob.arrayBuffer();
+    const zipName = `${safeName}.zip`;
+    return await shareFile(
+      zipName,
+      new Uint8Array(zipBuffer),
+      'application/zip'
     );
   }
 

@@ -29,6 +29,7 @@ tauri-plugin-clipboard-manager = "2"
 tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-safe-area-insets-css = { path = "../vendor/tauri-plugin-safe-area-insets-css" }
+tauri-plugin-pdf-render = { path = "../vendor/tauri-plugin-pdf-render" }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
 rusqlite = { version = "0.31", features = ["bundled"] }
@@ -55,7 +56,6 @@ urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
-lopdf = "0.41"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
@@ -64,14 +64,26 @@ tauri-plugin-spotsearch = "0.2.1"
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-haptics = "2"
+tauri-plugin-sharesheet = { path = "../vendor/tauri-plugin-sharesheet" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = "0.3"
+objc2-foundation = { version = "0.3", features = ["NSURL"] }
 objc2-core-foundation = "0.3"
-objc2-app-kit = "0.3"
+objc2-app-kit = { version = "0.3", features = [
+    "NSPrintInfo",
+    "NSPrintOperation",
+    "NSWindow",
+    "NSView",
+    "NSResponder",
+    "objc2-core-foundation",
+] }
 block2 = "0.6"
-objc2-web-kit = { version = "0.3", features = ["block2", "objc2-core-foundation"] }
+objc2-web-kit = { version = "0.3", features = [
+    "block2",
+    "objc2-core-foundation",
+    "objc2-app-kit",
+] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
 objc2 = "0.6"
@@ -82,6 +94,7 @@ objc2-web-kit = { version = "0.3", features = ["block2", "objc2-core-foundation"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit2gtk = "2"
+gtk = "0.18"
 
 [target.'cfg(windows)'.dependencies]
 webview2-com = "0.38"
@@ -89,6 +102,7 @@ windows = { version = "0.61", features = ["Win32_System_Com"] }
 
 [patch.crates-io]
 mac-notification-sys = { path = "../vendor/mac-notification-sys" }
+tauri-plugin-spotsearch = { path = "../vendor/tauri-plugin-spotsearch" }
 
 [profile.dev]
 opt-level = 0

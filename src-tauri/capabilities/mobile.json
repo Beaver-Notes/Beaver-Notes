@@ -7,10 +7,13 @@
     "haptics:allow-notification-feedback",
     "haptics:allow-selection-feedback",
     "haptics:allow-vibrate",
+    "pdf-render:allow-render",
     "core:webview:default",
     "core:webview:allow-print",
     "scoped-storage:default",
     "fs:default",
+    "sharesheet:allow-share-file",
+    "sharesheet:allow-share-text",
     {
       "identifier": "fs:scope",
       "allow": [

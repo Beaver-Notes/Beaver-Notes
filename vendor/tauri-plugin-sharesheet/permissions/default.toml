@@ -1,0 +1,12 @@
+[default]
+permissions = ["sharesheet:allow-share-text", "sharesheet:allow-share-file"]
+
+[[permission]]
+identifier = "sharesheet:allow-share-text"
+description = "Allows sharing text via the native share sheet"
+commands.allow = ["share_text"]
+
+[[permission]]
+identifier = "sharesheet:allow-share-file"
+description = "Allows sharing files via the native share sheet"
+commands.allow = ["share_file"]

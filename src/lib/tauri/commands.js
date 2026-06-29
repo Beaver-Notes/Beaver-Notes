@@ -293,18 +293,6 @@ function normalizePayload(channel, payload) {
       return withKeyVariants('id', payload?.id);
     case 'search:rebuildIndex':
       return {};
-    case 'pdf:create':
-      return withKeyVariants('outputPath', payload);
-    case 'pdf:create-from-html':
-      return {
-        ...withKeyVariants(
-          'htmlContent',
-          payload?.htmlContent ?? payload?.html
-        ),
-        ...withKeyVariants('outputPath', payload?.outputPath),
-      };
-    case 'pdf:print':
-      return withKeyVariants('outputPath', payload);
     default:
       return payload ?? {};
   }
