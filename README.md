@@ -6,7 +6,7 @@
   <h1>Beaver Notes</h1>
 
   <p><strong>Built for people who actually read privacy policies.</strong></p>
-  <p>Your notes, your rules. On your device, your server, or ours.</p>
+  <p>Your notes, your rules: on your device, your server, or ours.</p>
 
 [![All Contributors](https://img.shields.io/badge/all_contributors-8-orange.svg?style=flat)](#contributors-)
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
