@@ -603,7 +603,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
             });
             let _ = window.eval(
                 r#"
-            if (!window.__beaverContextMenuBound) {
+              if (!window.__beaverContextMenuBound) {
               window.__beaverContextMenuBound = true;
               window.addEventListener('contextmenu', (event) => {
                 const target = event.target;
@@ -614,7 +614,10 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
                 if (!editable) return;
                 event.preventDefault();
                 if (window.__TAURI_INTERNALS__?.invoke) {
-                  window.__TAURI_INTERNALS__.invoke('show_edit_context_menu');
+                  window.__TAURI_INTERNALS__.invoke('show_edit_context_menu', {
+                    x: event.screenX,
+                    y: event.screenY,
+                  });
                 }
               });
             }

@@ -1,5 +1,5 @@
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, State, Theme};
+use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, Theme};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::shared::*;
@@ -273,18 +273,41 @@ pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub(crate) fn show_edit_context_menu(app: AppHandle) -> Result<(), String> {
+pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
     #[cfg(desktop)]
     {
         let window = app
             .get_webview_window(MAIN_WINDOW_LABEL)
             .ok_or_else(|| "Main window not found".to_string())?;
         let menu = build_context_menu(&app)?;
-        return window.popup_menu(&menu).map_err(to_error);
+
+        #[cfg(target_os = "linux")]
+        {
+            // x,y are screen-relative CSS pixels from JS (event.screenX/Y).
+            // Tauri's popup_menu_at expects coordinates relative to the
+            // window GdkWindow origin (includes CSD decorations).
+            // We compute window-relative physical pixels by subtracting
+            // the window's outer position from the screen cursor position.
+            let window_pos = window.outer_position().map_err(|e| e.to_string())?;
+            let dpr = window.scale_factor().map_err(|e| e.to_string())?;
+
+            // screenX/Y are CSS pixels → multiply by DPR → subtract window origin in physical px
+            let phys_x = (x * dpr) - window_pos.x as f64;
+            let phys_y = (y * dpr) - window_pos.y as f64;
+
+            return window
+                .popup_menu_at(&menu, PhysicalPosition::new(phys_x as i32, phys_y as i32))
+                .map_err(to_error);
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        return window
+            .popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))
+            .map_err(to_error);
     }
 
     #[cfg(not(desktop))]
-    let _ = app;
+    let _ = (app, x, y);
 
     #[cfg(not(desktop))]
     {
