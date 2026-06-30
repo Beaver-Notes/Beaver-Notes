@@ -149,14 +149,22 @@ export function useNoteMenuState({
     'mod+shift+f': toggleReaderMode,
   }));
 
+  function onKeydown(e) {
+    if (e.key === 'Escape' && store.inReaderMode) {
+      toggleReaderMode();
+    }
+  }
+
   onMounted(() => {
     if (editor) {
       editor.on('selectionUpdate', handleSelectionUpdate);
     }
+    document.addEventListener('keydown', onKeydown);
   });
 
   onUnmounted(() => {
     editor?.off?.('selectionUpdate', handleSelectionUpdate);
+    document.removeEventListener('keydown', onKeydown);
   });
 
   return {
