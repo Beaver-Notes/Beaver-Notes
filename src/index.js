@@ -9,8 +9,6 @@ import { getSettingSync } from './composable/settings';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
-import './assets/css/one-light.css';
-import './assets/css/one-dark.css';
 
 const isPhoneRuntime = backend.isPhoneRuntime();
 

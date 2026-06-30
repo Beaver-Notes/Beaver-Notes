@@ -1,21 +1,17 @@
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
-import { all, createLowlight } from 'lowlight';
-import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
+import CodeBlock from '@tiptap/extension-code-block';
 import CodeBlockComponent from './CodeBlockComponent.vue';
+import { createCodeHighlightPlugin } from './plugin';
 
-const lowlight = createLowlight(all);
-
-export default CodeBlockLowlight.extend({
+export default CodeBlock.extend({
   addNodeView() {
     return VueNodeViewRenderer(CodeBlockComponent);
   },
 
   addKeyboardShortcuts() {
     return {
-      // Include parent keyboard shortcuts (Mod-Alt-c, Tab/Shift-Tab, Enter, ArrowDown, etc.)
       ...(typeof this.parent === 'function' ? this.parent() : {}),
 
-      // Override Backspace to reliably delete/lift the code block when cursor is at the start
       Backspace: () => {
         const { empty, $anchor } = this.editor.state.selection;
 
@@ -23,7 +19,6 @@ export default CodeBlockLowlight.extend({
           return false;
         }
 
-        // Clear the code block (turn into paragraph) when cursor is at position 0
         if ($anchor.parentOffset === 0) {
           return this.editor.commands.clearNodes();
         }
@@ -32,4 +27,19 @@ export default CodeBlockLowlight.extend({
       },
     };
   },
-}).configure({ lowlight });
+
+  addAttributes() {
+    return {
+      language: {
+        default: null,
+        parseHTML: (element) =>
+          element.getAttribute('language') || element.dataset?.language,
+        renderHTML: (attributes) => ({ language: attributes.language }),
+      },
+    };
+  },
+
+  addProseMirrorPlugins() {
+    return [createCodeHighlightPlugin(this.name)];
+  },
+});

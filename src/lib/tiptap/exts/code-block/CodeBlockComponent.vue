@@ -9,8 +9,7 @@
         class="code-lang-select"
         :options="languageOptions"
         :search="true"
-        hidee-placeholder-in-dropdown
-        placeholder="auto"
+        hide-placeholder-in-dropdown
       />
       <span class="border-r h-4 mx-0.5" />
       <v-remixicon :name="copyIcon" class="size-4" @click="copyToClipboard" />
@@ -20,31 +19,81 @@
         @click="deleteNode"
       />
     </div>
-    <pre><code ref="codeRef" class="hljs" :class="languageClass"><node-view-content as="code" /></code></pre>
+    <pre><code class="hljs" :class="languageClass"><node-view-content as="code" /></code></pre>
   </node-view-wrapper>
 </template>
 
 <script>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { NodeViewWrapper, NodeViewContent, nodeViewProps } from '@tiptap/vue-3';
 import { useClipboard } from '../../../../composable/clipboard';
+import { detectLanguage } from '@speed-highlight/core/detect';
+import { highlightText } from '@speed-highlight/core';
+import defaultThemeStyles from '@speed-highlight/core/themes/default.css?raw';
+import darkThemeStyles from '@speed-highlight/core/themes/atom-dark.css?raw';
+import { codeHighlightPluginKey, parseHighlightedHtml } from './plugin';
 
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+const LANGUAGES = [
+  'bash',
+  'c',
+  'css',
+  'csv',
+  'diff',
+  'docker',
+  'git',
+  'go',
+  'html',
+  'http',
+  'ini',
+  'java',
+  'js',
+  'json',
+  'lua',
+  'make',
+  'md',
+  'pl',
+  'py',
+  'regex',
+  'rs',
+  'sql',
+  'toml',
+  'ts',
+  'xml',
+  'yaml',
+  'asm',
+  'bf',
+  'log',
+  'todo',
+  'uri',
+];
+
+let themesInjected = false;
+function injectThemes() {
+  if (themesInjected) return;
+  themesInjected = true;
+  const light = document.createElement('style');
+  light.textContent = defaultThemeStyles;
+  document.head.appendChild(light);
+  const dark = document.createElement('style');
+  dark.textContent = `.dark {\n${darkThemeStyles}\n}`;
+  document.head.appendChild(dark);
+}
+
+function extractCodeHtml(html) {
+  const marker = '</div><div>';
+  const start = html.indexOf(marker);
+  if (start === -1) return null;
+  const contentStart = start + marker.length;
+  const contentEnd = html.lastIndexOf('</div></div>');
+  if (contentEnd === -1) return null;
+  return html.substring(contentStart, contentEnd);
 }
 
 export default {
-  components: {
-    NodeViewWrapper,
-    NodeViewContent,
-  },
+  components: { NodeViewWrapper, NodeViewContent },
   props: nodeViewProps,
   setup(props) {
-    const codeRef = ref(null);
+    const detectedLanguage = ref(null);
 
     const selectedLanguage = computed({
       set(language) {
@@ -55,50 +104,92 @@ export default {
       },
     });
 
-    const languageOptions = computed(() => {
-      try {
-        const languages = props.extension.options.lowlight.listLanguages();
-        return [
-          { value: '', text: 'auto' },
-          ...languages.map((lang) => ({ value: lang, text: lang })),
-        ];
-      } catch (e) {
-        return [{ value: '', text: 'auto' }];
+    function detectLang(code) {
+      if (!code || !code.trim()) {
+        detectedLanguage.value = null;
+        return;
       }
+      try {
+        const raw = detectLanguage(code);
+        detectedLanguage.value = raw === 'plain' ? null : raw;
+      } catch (e) {
+        console.warn('[CodeBlock] detection failed:', e);
+        detectedLanguage.value = null;
+      }
+    }
+
+    const autoLabel = computed(() => {
+      if (!selectedLanguage.value && detectedLanguage.value) {
+        return `auto (detected: ${detectedLanguage.value})`;
+      }
+      return 'auto';
+    });
+
+    const languageOptions = computed(() => {
+      return [
+        { value: '', text: autoLabel.value },
+        ...LANGUAGES.map((l) => ({ value: l, text: l })),
+      ];
     });
 
     const languageClass = computed(() => {
-      const lang = props.node.attrs.language;
+      const lang = props.node.attrs.language || detectedLanguage.value;
       return lang ? `language-${lang}` : '';
     });
 
-    function applyHighlight() {
-      const contentDom = codeRef.value?.querySelector(
-        '[data-node-view-content]'
-      );
-      if (!contentDom) return;
-
+    async function applyHighlight() {
       const code = props.node.textContent;
-      const language = props.node.attrs.language;
-
-      if (language) {
-        try {
-          const lowlight = props.extension.options.lowlight;
-          const result = lowlight.highlight(language, code);
-          contentDom.innerHTML = lowlight.valueToHtml(result);
-          return;
-        } catch (e) {
-          // fall through
-        }
+      if (!code) {
+        updateDecorations([]);
+        return;
       }
+      const language = props.node.attrs.language || detectedLanguage.value;
+      const lang = LANGUAGES.includes(language) ? language : 'plain';
 
-      contentDom.innerHTML = escapeHtml(code);
+      try {
+        const html = await highlightText(code, lang);
+        const inner = extractCodeHtml(html);
+        if (!inner) {
+          updateDecorations([]);
+          return;
+        }
+        updateDecorations(parseHighlightedHtml(inner));
+      } catch (e) {
+        console.warn('[CodeBlock] highlight failed:', e);
+        updateDecorations([]);
+      }
     }
+
+    function updateDecorations(tokens) {
+      const editor = props.editor;
+      if (!editor?.view) return;
+      const pos = props.getPos();
+      if (pos == null) return;
+      const { state, dispatch } = editor.view;
+      const tr = state.tr.setMeta(codeHighlightPluginKey, {
+        nodePos: pos,
+        tokens,
+      });
+      dispatch(tr);
+    }
+
+    onMounted(() => {
+      injectThemes();
+      applyHighlight();
+    });
 
     watch(
       [() => props.node.textContent, () => props.node.attrs.language],
       () => {
-        nextTick().then(applyHighlight);
+        applyHighlight();
+      },
+      { immediate: true }
+    );
+
+    watch(
+      () => props.node.textContent,
+      (code) => {
+        detectLang(code);
       },
       { immediate: true }
     );
@@ -113,8 +204,7 @@ export default {
     );
 
     const copy = () => {
-      const code = props.node.textContent;
-      copyToClipboard(code);
+      copyToClipboard(props.node.textContent);
     };
 
     const deleteNode = () => {
@@ -124,7 +214,6 @@ export default {
     };
 
     return {
-      codeRef,
       selectedLanguage,
       languageOptions,
       languageClass,
@@ -140,6 +229,16 @@ export default {
 <style lang="postcss" scoped>
 pre code {
   display: block;
+  overflow-x: auto;
+  padding: 0.5em;
+  color: #383a42;
+}
+
+.dark {
+  pre code {
+    color: #abb2bf;
+    background: #191919;
+  }
 }
 
 .code-lang-select {
