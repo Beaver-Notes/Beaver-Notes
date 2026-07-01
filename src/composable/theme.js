@@ -1,5 +1,6 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { getSettingSync, setSetting } from './settings';
+import { isTauri } from '@tauri-apps/api/core';
 import { backend } from '@/lib/tauri-bridge';
 import { getNativeDarkTheme } from '@/lib/native/app';
 const currentTheme = ref('');
@@ -103,12 +104,15 @@ function clearSystemThemeSync() {
 async function syncSystemThemeFromNative() {
   if (currentTheme.value !== 'system') return;
 
-  try {
-    const nativeDark = await getNativeDarkTheme();
-    applyResolvedTheme(nativeDark);
-  } catch {
-    applyResolvedTheme(getBrowserDarkPreference());
+  if (isTauri()) {
+    try {
+      const nativeDark = await getNativeDarkTheme();
+      applyResolvedTheme(nativeDark);
+      return;
+    } catch {}
   }
+
+  applyResolvedTheme(getBrowserDarkPreference());
 }
 
 function ensureSystemThemeSync() {
