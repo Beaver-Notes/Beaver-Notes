@@ -2,11 +2,7 @@ import { ref } from 'vue';
 
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
-import {
-  createFullSizeCardGhost,
-  createAnimatedStackGhost,
-  createCountBadgeGhost,
-} from './ghost.js';
+import { createFullSizeCardGhost, createAnimatedStackGhost } from './ghost.js';
 
 export function useDragAndDrop({ selectedItems, clearSelection }) {
   const noteStore = useNoteStore();
@@ -38,17 +34,18 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     sourceElement?.setAttribute('data-dragging', '');
     const noteIds = getIdsForDrag('note', noteId);
 
-    if (noteIds.length > 1) {
-      // Multi-select: simple count-badge ghost.
-      const ghost = createCountBadgeGhost(noteIds.length, sourceElement);
-      const r = ghost.getBoundingClientRect();
-      event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
-      requestAnimationFrame(() => {
-        if (ghost.parentNode) ghost.remove();
-      });
-    } else if (sourceElement) {
-      // Single note: use a cloned-card ghost that looks like the real card.
-      const ghost = createFullSizeCardGhost(sourceElement, 1);
+    const selectedElements = noteIds
+      .map((id) => document.querySelector(`[data-item-id="note-${id}"]`))
+      .filter(Boolean);
+
+    const ghost =
+      selectedElements.length > 1
+        ? createAnimatedStackGhost(selectedElements, 'note')
+        : selectedElements.length === 1 && sourceElement
+        ? createFullSizeCardGhost(sourceElement, 1, 'note')
+        : null;
+
+    if (ghost) {
       const r = ghost.getBoundingClientRect();
       event.dataTransfer.setDragImage(ghost, r.width / 2, r.height / 2);
       requestAnimationFrame(() => {
@@ -84,10 +81,11 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
 
     const ghost =
       selectedElements.length > 1
-        ? createAnimatedStackGhost(selectedElements)
+        ? createAnimatedStackGhost(selectedElements, 'folder')
         : createFullSizeCardGhost(
             event.target.closest('[data-item-id]'),
-            selectedElements.length
+            selectedElements.length,
+            'folder'
           );
 
     const r = ghost.getBoundingClientRect();
@@ -237,8 +235,12 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
 
     touchGhost =
       selectedElements.length > 1
-        ? createAnimatedStackGhost(selectedElements)
-        : createFullSizeCardGhost(sourceElement, selectedElements.length || 1);
+        ? createAnimatedStackGhost(selectedElements, kind)
+        : createFullSizeCardGhost(
+            sourceElement,
+            selectedElements.length || 1,
+            kind
+          );
 
     dragType.value = kind;
     if (kind === 'note') draggedNoteId.value = id;

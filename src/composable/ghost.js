@@ -1,28 +1,26 @@
-const STACK_ROT_STEP = 0.9;
-const STACK_ROT_MAX = 4;
-const STACK_SCALE_MIN = 0.9;
+const PEEK_OFFSET = 10;
+const PEEK_ROT = 1.8;
+const MAX_VISIBLE = 2;
+const GHOST_SCALE = 0.98;
 
-function getCenteredOppositeTilt(index) {
-  if (index === 0) {
-    return { rot: 0, scale: 0.98 };
-  }
-  const rot = Math.min(index * STACK_ROT_STEP, STACK_ROT_MAX);
-  const scale = Math.max(0.98 - index * 0.01, STACK_SCALE_MIN);
-  return { rot, scale };
+const debug = console.log.bind(console, '[ghost]');
+
+function getPeekTransform(index) {
+  if (index === 0) return { offset: 0, rot: 0, scale: GHOST_SCALE };
+  const rot = index % 2 === 0 ? -PEEK_ROT : PEEK_ROT;
+  const scale = 0.97;
+  const offset = index * PEEK_OFFSET;
+  return { offset, rot, scale };
 }
 
-/**
- * Creates a container for the drag ghost, positioned in the viewport
- * so the browser can render it for setDragImage.
- */
-function createGhostContainer(rect) {
+function createGhostContainer(w, h) {
   const ghost = document.createElement('div');
   ghost.style.cssText = `
     position: fixed;
     top: 0;
     left: 0;
-    width: ${rect.width}px;
-    height: ${rect.height}px;
+    width: ${w}px;
+    height: ${h}px;
     pointer-events: none;
     z-index: 2147483647;
     opacity: 1;
@@ -30,12 +28,7 @@ function createGhostContainer(rect) {
   return ghost;
 }
 
-/**
- * Prepares a cloned card element for use as a drag image.
- * Clears the masonry positioning transform since the ghost container
- * already handles placement — the clone should render naturally inside it.
- */
-function prepareClone(clone) {
+function prepareClone(clone, original) {
   clone.style.transform = '';
   clone.style.position = 'relative';
   clone.style.top = '0';
@@ -51,6 +44,25 @@ function prepareClone(clone) {
   clone.style.contentVisibility = 'visible';
   clone.style.containIntrinsicSize = 'none';
   clone.style.willChange = 'auto';
+
+  if (original) {
+    const bg = getComputedStyle(original).backgroundColor;
+    debug(
+      'prepareClone bg:',
+      bg,
+      'original classes:',
+      original.className?.slice(0, 120)
+    );
+    const alpha = parseFloat(bg?.match(/[\d.]+(?=\))/)?.[0] ?? '1');
+    if (
+      bg &&
+      bg !== 'transparent' &&
+      bg !== 'rgba(0, 0, 0, 0)' &&
+      alpha >= 0.9
+    ) {
+      clone.style.backgroundColor = bg;
+    }
+  }
 
   clone.querySelectorAll('*').forEach((child) => {
     child.style.contain = 'none';
@@ -69,156 +81,133 @@ function prepareClone(clone) {
     'rotate-3',
     'rotate-6'
   );
+  Array.from(clone.classList).forEach((cls) => {
+    if (/^bg-.+\/\d+$/.test(cls)) {
+      clone.classList.remove(cls);
+    }
+  });
+
+  clone.querySelectorAll('*').forEach((child) => {
+    child.classList.remove(
+      'opacity-50',
+      'opacity-60',
+      'opacity-70',
+      'opacity-80',
+      'opacity-90',
+      'rotate-1',
+      'rotate-2',
+      'rotate-3',
+      'rotate-6'
+    );
+  });
 
   return clone;
 }
 
-/**
- * Helper: Applies scale/rotate transforms for the ghost stack effect.
- * The original masonry translate3d is never preserved — it's irrelevant
- * for the floating drag ghost.
- */
 function composeTransform(originalTransform, scale, rotate = 0) {
   return rotate !== 0
     ? `rotate(${rotate}deg) scale(${scale})`
     : `scale(${scale})`;
 }
 
-/**
- * Simple count-badge ghost for multi-select drags.
- * No DOM cloning — just a clean card with a count badge.
- */
-export function createCountBadgeGhost(count, templateElement) {
-  const rect = templateElement
-    ? templateElement.getBoundingClientRect()
-    : { width: 200, height: 140 };
-  const ghost = document.createElement('div');
-
-  ghost.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: ${rect.width}px;
-    height: ${rect.height}px;
-    pointer-events: none;
-    z-index: 2147483647;
-    background: #ffffff;
-    border-radius: 12px;
-    border: 1.5px solid rgba(0,0,0,0.15);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  `;
-
-  const badge = document.createElement('div');
-  badge.style.cssText = `
-    background: #3b82f6;
-    color: white;
-    border-radius: 50%;
-    width: 48px;
-    height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: bold;
-    font-family: system-ui, sans-serif;
-  `;
-  badge.textContent = count;
-
-  ghost.appendChild(badge);
-  document.body.appendChild(ghost);
-  return ghost;
-}
-
-export function createFullSizeCardGhost(element, count = 1) {
-  const rect = element.getBoundingClientRect();
-  const ghost = createGhostContainer(rect);
-
-  if (count === 1) {
-    const clone = prepareClone(element.cloneNode(true));
-    clone.style.transform = composeTransform(null, 0.98);
-    ghost.appendChild(clone);
-  } else {
-    for (let i = count - 1; i >= 0; i--) {
-      const stackCard = prepareClone(element.cloneNode(true));
-      const { rot, scale } = getCenteredOppositeTilt(i);
-      stackCard.style.transform = composeTransform(null, scale, rot);
-      stackCard.style.zIndex = String(1000 + (count - i));
-      ghost.appendChild(stackCard);
-    }
-
-    const topCard = ghost.lastElementChild;
-    if (topCard && count > 1) {
-      const badge = document.createElement('div');
-      badge.style.cssText = `
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        background-color: #3b82f6;
-        color: white;
-        border-radius: 50%;
-        width: 24px;
-        height: 24px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: bold;
-        border: 2px solid white;
-        opacity: 1;
-        z-index: 10;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-      `;
-      badge.textContent = count;
-      topCard.style.position = 'relative';
-      topCard.appendChild(badge);
-    }
+function resolveCardElement(element, kind) {
+  if (!element) {
+    debug('resolveCardElement: null element', kind);
+    return null;
   }
-
-  document.body.appendChild(ghost);
-  return ghost;
+  const selector =
+    kind === 'note' ? '[data-testid="note-card"]' : '.folder-card';
+  const found = element.querySelector(selector);
+  debug(
+    'resolveCardElement',
+    kind,
+    'found:',
+    !!found,
+    'tag:',
+    (found || element).tagName,
+    'id:',
+    (found || element).dataset?.itemId || (found || element).id || 'none'
+  );
+  return found || element;
 }
 
-export function createAnimatedStackGhost(elements) {
-  const rect = elements[0].getBoundingClientRect();
-  const container = createGhostContainer(rect);
-
-  elements.forEach((element, index) => {
-    const clone = prepareClone(element.cloneNode(true));
-    const { rot, scale } = getCenteredOppositeTilt(index);
-
-    clone.style.transform = composeTransform(null, scale, rot);
-    clone.style.zIndex = String(1000 + (elements.length - index));
-    container.appendChild(clone);
+export function createFullSizeCardGhost(element, count = 1, kind = 'note') {
+  const card = resolveCardElement(element, kind);
+  const rect = card.getBoundingClientRect();
+  debug('createFullSizeCardGhost', {
+    kind,
+    count,
+    rect: { w: rect.width, h: rect.height },
+    cardTag: card.tagName,
+    cardClasses: card.className?.slice(0, 100),
   });
 
-  if (elements.length > 1) {
-    const badge = document.createElement('div');
-    badge.className = [
-      'absolute',
-      'top-4',
-      'right-6',
-      'rounded-full',
-      'size-6',
-      'flex',
-      'items-center',
-      'justify-center',
-      'text-[12px]',
-      'font-bold',
-      'border-2',
-      'bg-primary',
-      'text-white',
-      'border-white',
-      'shadow-md',
-    ].join(' ');
-    badge.style.opacity = '1';
-    badge.style.zIndex = '10000';
-    badge.textContent = elements.length;
-    container.appendChild(badge);
+  if (count === 1) {
+    const ghost = createGhostContainer(rect.width, rect.height);
+    const clone = prepareClone(card.cloneNode(true), card);
+    clone.style.transform = composeTransform(null, GHOST_SCALE);
+    ghost.appendChild(clone);
+    document.body.appendChild(ghost);
+    return ghost;
   }
 
-  document.body.appendChild(container);
-  return container;
+  const visualCount = Math.min(count, MAX_VISIBLE);
+  const extra = (visualCount - 1) * PEEK_OFFSET;
+  const ghost = createGhostContainer(rect.width + extra, rect.height + extra);
+
+  for (let i = visualCount - 1; i >= 0; i--) {
+    const clone = prepareClone(card.cloneNode(true), card);
+    const { offset, rot, scale } = getPeekTransform(i);
+    clone.style.position = 'absolute';
+    clone.style.top = `${offset}px`;
+    clone.style.left = `${offset}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    clone.style.transform = composeTransform(null, scale, rot);
+    clone.style.transformOrigin = 'center center';
+    clone.style.zIndex = String(1000 + (visualCount - i));
+    ghost.appendChild(clone);
+  }
+
+  document.body.appendChild(ghost);
+  return ghost;
+}
+
+export function createAnimatedStackGhost(elements, kind = 'note') {
+  const cards = elements
+    .map((el) => resolveCardElement(el, kind))
+    .filter(Boolean);
+  if (!cards.length) {
+    cards.push(resolveCardElement(elements[0], kind));
+  }
+  const rect = cards[0].getBoundingClientRect();
+  const count = cards.length;
+  debug('createAnimatedStackGhost', {
+    kind,
+    elements: elements.length,
+    cards: cards.length,
+    rect: { w: rect.width, h: rect.height },
+    firstCardClasses: cards[0]?.className?.slice(0, 100),
+  });
+  const visualCount = Math.min(count, MAX_VISIBLE);
+  const extra = (visualCount - 1) * PEEK_OFFSET;
+  const ghost = createGhostContainer(rect.width + extra, rect.height + extra);
+
+  for (let i = visualCount - 1; i >= 0; i--) {
+    const el = cards[i] || cards[0];
+    const clone = prepareClone(el.cloneNode(true), el);
+    const { offset, rot, scale } = getPeekTransform(i);
+    clone.style.position = 'absolute';
+    clone.style.top = `${offset}px`;
+    clone.style.left = `${offset}px`;
+    clone.style.width = `${rect.width}px`;
+    clone.style.height = `${rect.height}px`;
+    clone.style.transform = composeTransform(null, scale, rot);
+    clone.style.transformOrigin = 'center center';
+    clone.style.zIndex = String(1000 + (visualCount - i));
+    ghost.appendChild(clone);
+  }
+
+  document.body.appendChild(ghost);
+  return ghost;
 }

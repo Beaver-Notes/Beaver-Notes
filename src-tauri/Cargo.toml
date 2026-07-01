@@ -111,6 +111,10 @@ incremental = true
 codegen-units = 256
 
 [profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
 strip = true
 
 [profile.dev.package.rusqlite]
