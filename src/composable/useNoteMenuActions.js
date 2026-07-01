@@ -342,6 +342,63 @@ export function useNoteMenuActions({
     },
   ]);
 
+  const tableActions = computed(() => [
+    {
+      name: 'addRowAbove',
+      label: translations.value.menu.addRowAbove || 'Add row above',
+      icon: 'riInsertRowTop',
+      run: () => editor.chain().focus().addRowBefore().run(),
+    },
+    {
+      name: 'addRowBelow',
+      label: translations.value.menu.addRowBelow || 'Add row below',
+      icon: 'riInsertRowBottom',
+      run: () => editor.chain().focus().addRowAfter().run(),
+    },
+    {
+      name: 'deleteRow',
+      label: translations.value.menu.deleteRow || 'Delete row',
+      icon: 'riDeleteRow',
+      run: () => editor.chain().focus().deleteRow().run(),
+    },
+    {
+      name: 'addColumnLeft',
+      label: translations.value.menu.addColumnLeft || 'Add column left',
+      icon: 'riInsertColumnLeft',
+      run: () => editor.chain().focus().addColumnBefore().run(),
+    },
+    {
+      name: 'addColumnRight',
+      label: translations.value.menu.addColumnRight || 'Add column right',
+      icon: 'riInsertColumnRight',
+      run: () => editor.chain().focus().addColumnAfter().run(),
+    },
+    {
+      name: 'deleteColumn',
+      label: translations.value.menu.deleteColumn || 'Delete column',
+      icon: 'riDeleteColumn',
+      run: () => editor.chain().focus().deleteColumn().run(),
+    },
+    {
+      name: 'mergeOrSplit',
+      label: translations.value.menu.mergeOrSplit || 'Merge / Split cells',
+      icon: 'riSplitCellsHorizontal',
+      run: () => editor.chain().focus().mergeOrSplit().run(),
+    },
+    {
+      name: 'toggleHeader',
+      label: translations.value.menu.toggleHeader || 'Toggle header cell',
+      icon: 'riBrush2Fill',
+      run: () => editor.chain().focus().toggleHeaderCell().run(),
+    },
+    {
+      name: 'deleteTable',
+      label: translations.value.menu.deleteTable || 'Delete table',
+      icon: 'riDeleteBin6Line',
+      run: () => editor.chain().focus().deleteTable().run(),
+    },
+  ]);
+
   const shareActions = computed(() => [
     {
       name: 'bea',
@@ -421,6 +478,7 @@ export function useNoteMenuActions({
     setHighlightColor,
     setTextColor,
     shareActions,
+    tableActions,
     textColors,
   };
 }

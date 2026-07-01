@@ -50,6 +50,7 @@ export function useNoteMenu(props) {
     setHighlightColor,
     setTextColor,
     shareActions,
+    tableActions,
     textColors,
   } = useNoteMenuActions({
     editor: props.editor,
@@ -129,6 +130,7 @@ export function useNoteMenu(props) {
     setHighlightColor,
     setTextColor,
     shareActions,
+    tableActions,
     textColors,
     isItemVisible,
     visibleInlineFormatItems,
