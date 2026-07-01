@@ -3,7 +3,7 @@
     data-testid="note-card"
     class="hover:ring-1 hover:ring-primary/20 hover:shadow-md hover:shadow-neutral-200/60 dark:hover:shadow-neutral-900 group note-card flex flex-col cursor-pointer"
     padding="p-0"
-    @click="openNote(note.id)"
+    @click="openNote($event, note.id)"
   >
     <!-- Conflict banner -->
     <div
@@ -440,8 +440,9 @@ function formatDate(date) {
   return dayjs(date).fromNow();
 }
 
-function openNote(noteId) {
+function openNote(event, noteId) {
   if (props.disableOpen) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey) return;
   router.push(`/note/${noteId}`);
 }
 

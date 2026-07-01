@@ -74,11 +74,13 @@
       @mousedown="handleMouseDown"
       @click="handleGridClick"
     >
-      <div
-        v-if="isSelecting"
-        class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
-        :style="selectionBoxStyle"
-      />
+      <Teleport to="body">
+        <div
+          v-if="isSelecting"
+          class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
+          :style="selectionBoxStyle"
+        />
+      </Teleport>
 
       <template v-if="noteStore.notes.length !== 0 || folders.all.length !== 0">
         <section v-if="folders.all.length" class="mb-10">

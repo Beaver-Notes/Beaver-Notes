@@ -22,11 +22,13 @@
       @mousedown="handleMouseDown"
       @click="handleGridClick"
     >
-      <div
-        v-if="isSelecting"
-        class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
-        :style="selectionBoxStyle"
-      />
+      <Teleport to="body">
+        <div
+          v-if="isSelecting"
+          class="fixed border-2 border-primary bg-primary bg-opacity-30 pointer-events-none z-50"
+          :style="selectionBoxStyle"
+        />
+      </Teleport>
 
       <template
         v-if="

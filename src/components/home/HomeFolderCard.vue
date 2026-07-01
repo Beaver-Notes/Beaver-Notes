@@ -14,7 +14,7 @@
       max-height: 180px;
       perspective: 1000px;
     "
-    @click="!isRenaming && $router.push(`/folder/${folder.id}`)"
+    @click="handleCardClick($event, folder.id)"
   >
     <div
       class="absolute top-[10%] left-0 z-0 h-[20%] w-[40%] rounded-tl-xl rounded-tr-md transition-colors"
@@ -468,6 +468,13 @@ const emojiCategories = [
 
 const dialog = useDialog();
 const isRenaming = ref(false);
+
+function handleCardClick(event, folderId) {
+  if (isRenaming.value) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey) return;
+  if (props.disableOpen) return;
+  router.push(`/folder/${folderId}`);
+}
 const newName = ref(props.folder.name);
 const renameInput = ref(null);
 const mobileRenameInput = ref(null);

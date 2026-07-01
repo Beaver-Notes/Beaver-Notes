@@ -35,13 +35,10 @@ export function useSelection({ suppressNextClick } = {}) {
   const selectionEnd = ref({ x: 0, y: 0 });
 
   const selectionBoxStyle = computed(() => {
-    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    const scrollX = window.scrollX || document.documentElement.scrollLeft || 0;
-
-    const x1 = selectionStart.value.x + scrollX;
-    const y1 = selectionStart.value.y + scrollY;
-    const x2 = selectionEnd.value.x + scrollX;
-    const y2 = selectionEnd.value.y + scrollY;
+    const x1 = selectionStart.value.x;
+    const y1 = selectionStart.value.y;
+    const x2 = selectionEnd.value.x;
+    const y2 = selectionEnd.value.y;
 
     const left = Math.min(x1, x2);
     const top = Math.min(y1, y2);
@@ -49,7 +46,7 @@ export function useSelection({ suppressNextClick } = {}) {
     const height = Math.abs(y2 - y1);
 
     return {
-      position: 'absolute',
+      position: 'fixed',
       left: `${left}px`,
       top: `${top}px`,
       width: `${width}px`,
@@ -117,7 +114,6 @@ export function useSelection({ suppressNextClick } = {}) {
     } else if (event.shiftKey && lastSelectedItem.value) {
       event.preventDefault();
       selectRange(lastSelectedItem.value, itemKey, getAllVisibleItems);
-      lastSelectedItem.value = itemKey;
       event.stopPropagation();
     } else {
       clearSelection();

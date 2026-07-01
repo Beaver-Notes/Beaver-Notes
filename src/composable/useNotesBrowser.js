@@ -145,7 +145,7 @@ export function useNotesBrowser({
     selectionEnd.value = { x: event.clientX, y: event.clientY };
 
     if (!event.ctrlKey && !event.metaKey) {
-      selectedItems.value.clear();
+      selectedItems.value = new Set();
     }
 
     baseSelection.value = new Set(selectedItems.value);
@@ -162,7 +162,6 @@ export function useNotesBrowser({
   }
 
   function tickSelection() {
-    rafId = null;
     const viewportHeight = window.innerHeight;
     let deltaY = 0;
     if (pendingPointer.y < SCROLL_ZONE_SIZE) deltaY = -SCROLL_SPEED;
@@ -184,7 +183,11 @@ export function useNotesBrowser({
     }
 
     updateSelection();
-    if (isSelecting.value) rafId = requestAnimationFrame(tickSelection);
+    if (isSelecting.value) {
+      rafId = requestAnimationFrame(tickSelection);
+    } else {
+      rafId = null;
+    }
   }
 
   function updateSelection() {
@@ -196,6 +199,8 @@ export function useNotesBrowser({
     const scrollDelta =
       (window.scrollY || document.documentElement.scrollTop || 0) -
       cachedScrollY;
+
+    dragAccumulated = new Set(baseSelection.value);
 
     let detectedType = null;
     for (const { id, rect } of cachedItems) {
