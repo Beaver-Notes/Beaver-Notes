@@ -154,6 +154,7 @@ import {
   RiFileAddLine,
   RiPaletteLine,
   RiMore2Fill,
+  RiMoreFill,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -311,6 +312,7 @@ const RemixIcons = {
   riFileAddLine: RiFileAddLine,
   riPaletteLine: RiPaletteLine,
   riMore2Fill: RiMore2Fill,
+  riMoreFill: RiMoreFill,
 };
 
 const customIconPaths = {

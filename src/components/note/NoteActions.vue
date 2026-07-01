@@ -123,15 +123,15 @@
         </button>
 
         <button
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left transition-colors group"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left transition-colors group hover:bg-red-500/10"
           @click="deleteNode"
         >
           <v-remixicon
             name="riDeleteBin6Line"
-            class="group-hover:text-red-600 dark:group-hover:text-red-400"
+            class="text-red-600 dark:text-red-400"
           />
           <span
-            class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)] group-hover:text-red-600 dark:group-hover:text-red-400"
+            class="block text-sm font-medium text-red-600 dark:text-red-400"
           >
             Delete
           </span>
