@@ -131,9 +131,9 @@ function buildHtmlInlineFallback(node) {
 }
 
 function normalizeAssetPath(url) {
-  const m1 = url.match(/^file-assets:\/\/[^/]+\/(.+)$/);
+  const m1 = url.match(/^file-assets:\/\/(.+)$/);
   if (m1) return `file-assets/${m1[1]}`;
-  const m2 = url.match(/^assets:\/\/[^/]+\/(.+)$/);
+  const m2 = url.match(/^assets:\/\/(.+)$/);
   if (m2) return `assets/${m2[1]}`;
   return url;
 }
@@ -951,14 +951,12 @@ export async function inlineImages(clone, noteId) {
         filePath = path.join(
           appDir,
           'notes-assets',
-          noteId,
           normalized.replace('assets/', '')
         );
       } else if (normalized.startsWith('file-assets/')) {
         filePath = path.join(
           appDir,
           'file-assets',
-          noteId,
           normalized.replace('file-assets/', '')
         );
       }

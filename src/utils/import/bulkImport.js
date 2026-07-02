@@ -242,11 +242,19 @@ async function processRustImportNote(note, state) {
   const noteAssetDir = path.join(appDirectory, 'notes-assets', id);
   await ensureDir(noteAssetDir);
 
+  const fileAssetDir = path.join(appDirectory, 'file-assets', id);
+  await ensureDir(fileAssetDir);
+
   for (const resource of note.resources || []) {
     try {
+      const data = base64ToUint8Array(resource.data || '');
       await writeFile(
         path.join(noteAssetDir, resource.filename || resource.hash),
-        base64ToUint8Array(resource.data || '')
+        data
+      );
+      await writeFile(
+        path.join(fileAssetDir, resource.filename || resource.hash),
+        data
       );
     } catch (error) {
       console.warn('Resource write failed:', error);
