@@ -173,7 +173,7 @@ export default {
       isEmpty.value = false;
     });
 
-    function fireCallback(type) {
+    async function fireCallback(type) {
       const callback = state.options[type];
       const param =
         state.type === 'prompt'
@@ -195,7 +195,15 @@ export default {
       if (callback) {
         const cbReturn = callback(param);
 
-        if (typeof cbReturn === 'boolean') hide = cbReturn;
+        if (cbReturn instanceof Promise) {
+          try {
+            await cbReturn;
+          } catch (e) {
+            console.error(e);
+          }
+        } else if (typeof cbReturn === 'boolean') {
+          hide = cbReturn;
+        }
       }
 
       if (hide) {

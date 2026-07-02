@@ -405,7 +405,8 @@ export function useNotesBrowser({
   }
 
   function bulkDelete() {
-    const count = selectedItems.value.size;
+    const items = Array.from(selectedItems.value);
+    const count = items.length;
     const title =
       count === 1
         ? translations.value.card.deleteItem
@@ -420,7 +421,7 @@ export function useNotesBrowser({
       cancelText: translations.value.card.cancel,
       onConfirm: async () => {
         const deleted = [];
-        for (const item of selectedItems.value) {
+        for (const item of items) {
           const { type, id } = parseItemId(item);
           if (type === 'note') {
             const note = noteStore.getById(id);

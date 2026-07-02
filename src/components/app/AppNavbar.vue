@@ -188,6 +188,7 @@ import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 import { useDialog } from '@/composable/dialog';
+import { useNoteStore } from '@/store/note';
 
 export default {
   setup() {
@@ -213,6 +214,8 @@ export default {
     });
     const showAddMenu = ref(false);
     const selectionBar = reactive(useSelectionBar());
+    const dialog = useDialog();
+    const noteStore = useNoteStore();
 
     // ── Rail width ──
     const railWidthClass = computed(() => {
@@ -262,17 +265,22 @@ export default {
     }
 
     function handleDeleteSelection() {
-      const performed = selectionBar.deleteSelection();
-      if (!performed) {
-        const t = translations.value || {};
-        useDialog().alert({
-          title: t.dialog?.notice || 'Notice',
-          body:
-            t.card?.noActionAvailable ||
-            'No items selected. Please go to your notes first.',
-          okText: t.dialog?.close || 'Close',
-        });
-      }
+      const notes = selectionBar.selectedNotes;
+      if (!notes.length) return;
+
+      const t = translations.value || {};
+
+      dialog.confirm({
+        title: t.card?.confirmPrompt || 'Delete note?',
+        okText: t.card?.confirm || 'Delete',
+        cancelText: t.card?.cancel || 'Cancel',
+        onConfirm: async () => {
+          for (const note of notes) {
+            await noteStore.delete(note.id);
+          }
+          selectionBar.clearSelection();
+        },
+      });
     }
 
     function handleMoveSelection() {
