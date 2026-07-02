@@ -434,6 +434,7 @@ export function useOnboardingFlow({
       } = await openDialog({
         title: 'Locate Beaver Notes portable data folder',
         properties: ['openDirectory'],
+        useScopedStorage: true,
       });
       if (canceled || !dir) return;
       const probed = await probeCustomMigrationPath(dir);

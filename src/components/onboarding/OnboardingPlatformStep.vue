@@ -17,8 +17,7 @@
         :key="platform.id"
         tag="button"
         padding="p-0"
-        class="w-full text-left"
-        :class="modelValue === platform.id ? 'ring-2 ring-primary' : ''"
+        class="w-full text-left shrink-0"
         @click="handleSelect(platform.id)"
       >
         <div class="flex items-center gap-4 p-4">
@@ -56,16 +55,7 @@
               {{ platform.description }}
             </p>
           </div>
-          <v-remixicon
-            v-if="modelValue === platform.id"
-            name="riCheckLine"
-            class="shrink-0 text-primary"
-          />
-          <v-remixicon
-            v-else
-            name="riArrowRightLine"
-            class="shrink-0 opacity-30"
-          />
+          <v-remixicon name="riArrowRightLine" class="shrink-0 opacity-30" />
         </div>
       </ui-card>
     </div>

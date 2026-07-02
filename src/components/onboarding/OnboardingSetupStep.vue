@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-800 rounded-xl border max-h-[80dvh] flex flex-col"
+    class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-800 rounded-xl mobile:rounded-b-none border mobile:border-b-0 max-h-[80dvh] flex flex-col"
   >
     <div
       class="flex flex-col items-center gap-2 my-8 text-center shrink-0 px-6"
@@ -28,14 +28,14 @@
             v-for="item in themes"
             :key="item.name"
             type="button"
-            class="bg-input p-2 transition-all w-full"
+            class="bg-input p-2 transition-all w-full rounded-lg"
             :class="fresh.theme === item.name ? 'ring-1 ring-primary' : ''"
             @click="$emit('select-theme', item.name)"
           >
             <img
               :src="item.img"
               :alt="item.label"
-              class="w-full border-2 mb-1"
+              class="w-full border-2 mb-1 rounded-lg"
             />
             <p
               class="capitalize text-center text-sm text-neutral-800 dark:text-neutral-200"
@@ -47,44 +47,60 @@
       </div>
 
       <!-- Accent color -->
-      <div class="flex flex-col gap-2">
-        <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+      <div class="flex flex-row items-center justify-center gap-4">
+        <p
+          class="text-sm font-medium text-neutral-800 dark:text-neutral-200 w-full justify-center"
+        >
           Accent color
         </p>
-        <div class="w-full items-center justify-center flex gap-4">
+        <div class="w-full justify-center flex gap-2 right-0">
           <button
-            class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'red' }"
+            class="bg-red-500 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'red',
+            }"
             @click="$emit('select-accent', 'red')"
           ></button>
           <button
-            class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'light' }"
+            class="bg-amber-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'light',
+            }"
             @click="$emit('select-accent', 'light')"
           ></button>
           <button
-            class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'green' }"
+            class="bg-emerald-500 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'green',
+            }"
             @click="$emit('select-accent', 'green')"
           ></button>
           <button
-            class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'blue' }"
+            class="bg-blue-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'blue',
+            }"
             @click="$emit('select-accent', 'blue')"
           ></button>
           <button
-            class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'purple' }"
+            class="bg-purple-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'purple',
+            }"
             @click="$emit('select-accent', 'purple')"
           ></button>
           <button
-            class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'pink' }"
+            class="bg-pink-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'pink',
+            }"
             @click="$emit('select-accent', 'pink')"
           ></button>
           <button
-            class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-            :class="{ 'ring-1 ring-primary': fresh.accentColor === 'neutral' }"
+            class="bg-neutral-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+            :class="{
+              'ring-2 ring-primary border': fresh.accentColor === 'neutral',
+            }"
             @click="$emit('select-accent', 'neutral')"
           ></button>
         </div>
@@ -124,12 +140,8 @@
           </option>
         </ui-select>
       </div>
-      <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
-      >
-        <div
-          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
-        >
+      <div class="space-y-1 bg-neutral-50 dark:bg-neutral-800">
+        <div class="flex flex-row gap-3 items-center justify-between">
           <div class="min-w-0 flex-1">
             <p
               class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
@@ -149,7 +161,7 @@
         </div>
         <div
           v-if="isMobileRuntime"
-          class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
+          class="flex flex-row gap-3 items-center justify-between"
         >
           <div class="min-w-0 flex-1">
             <p
@@ -173,7 +185,7 @@
     </div>
 
     <!-- Navigation -->
-    <div class="mt-5 flex justify-between gap-4 shrink-0 px-6 pb-6">
+    <div class="mt-5 flex mobile:flex-col mobile:items-stretch mobile:w-full justify-between gap-3 shrink-0 px-6 pb-6 mobile:pb-4">
       <slot name="back" />
       <slot name="next" />
     </div>

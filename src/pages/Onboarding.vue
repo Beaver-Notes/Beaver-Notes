@@ -31,55 +31,62 @@
       <!-- ── Welcome ── -->
       <div
         v-if="step === 'welcome'"
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center w-full mobile:p-1"
       >
         <div
-          class="flex flex-col items-center gap-6 text-center max-w-md w-full"
+          class="mobile:flex-1 mobile:flex mobile:flex-col mobile:items-center mobile:justify-center w-full"
         >
-          <img
-            :src="logoUrl"
-            alt="Beaver Notes"
-            class="w-24 h-24 object-contain ob-logo"
-            :class="{ 'ob-logo--in': logoIn }"
-          />
-
           <div
-            class="ob-headline flex flex-col items-center gap-1"
-            :class="{ 'ob-headline--in': textIn }"
+            class="flex flex-col items-center gap-6 text-center max-w-md w-full"
           >
-            <div class="overflow-hidden pb-0.5">
-              <h1
-                class="ob-title text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
-              >
-                Meet Beaver Notes
-              </h1>
-            </div>
-          </div>
+            <img
+              :src="logoUrl"
+              alt="Beaver Notes"
+              class="w-24 h-24 object-contain ob-logo"
+              :class="{ 'ob-logo--in': logoIn }"
+            />
 
-          <div
-            class="ob-below flex flex-col items-center gap-4"
-            :class="{ 'ob-below--in': ctaIn }"
-          >
-            <p
-              class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
+            <div
+              class="ob-headline flex flex-col items-center gap-1"
+              :class="{ 'ob-headline--in': textIn }"
             >
-              Lets start by customizing your settings, or use the defaults.
-            </p>
-            <div class="flex flex-wrap justify-center gap-3">
-              <ui-button
-                :loading="state.savingPreferences"
-                @click="useDefaultPreferences"
+              <div class="overflow-hidden pb-0.5">
+                <h1
+                  class="ob-title text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
+                >
+                  Meet Beaver Notes
+                </h1>
+              </div>
+            </div>
+
+            <div
+              class="ob-below flex flex-col items-center gap-4"
+              :class="{ 'ob-below--in': ctaIn }"
+            >
+              <p
+                class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                <template v-if="!state.savingPreferences">
-                  <v-remixicon name="riMagicLine" class="mr-1" />
-                  Use defaults
-                </template>
-              </ui-button>
-              <ui-button variant="primary" @click="handlePrimaryContinue">
-                Continue <v-remixicon name="riArrowRightLine" />
-              </ui-button>
+                Lets start by customizing your settings, or use the defaults.
+              </p>
             </div>
           </div>
+        </div>
+
+        <div
+          class="flex flex-wrap mobile:flex-col mobile:w-full mobile:items-stretch mobile:px-4 ob-bottom-nav justify-center gap-3"
+        >
+          <ui-button
+            :loading="state.savingPreferences"
+            @click="useDefaultPreferences"
+          >
+            <template v-if="!state.savingPreferences">
+              <v-remixicon name="riMagicLine" class="mr-1" />
+              Use defaults
+            </template>
+          </ui-button>
+          <ui-button variant="primary" @click="handlePrimaryContinue">
+            Continue <v-remixicon name="riArrowRightLine" />
+          </ui-button>
         </div>
 
         <div
@@ -96,7 +103,7 @@
       <!-- ── Path ── -->
       <div
         v-else-if="step === 'path'"
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
       >
         <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
           <div
@@ -148,7 +155,7 @@
             <ui-card
               tag="button"
               padding="p-0"
-              class="w-full text-left"
+              class="w-full text-left mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm"
               @click="chooseMode('migration')"
             >
               <div class="flex items-center gap-4 p-4">
@@ -189,7 +196,7 @@
       <!-- ── Setup ── -->
       <div
         v-else-if="step === 'setup'"
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
       >
         <onboarding-setup-step
           :fresh="fresh"
@@ -233,9 +240,11 @@
       <!-- ── Sync ── -->
       <div
         v-else-if="step === 'sync'"
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
       >
-        <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+        <ui-card
+          class="w-full max-w-lg mobile:max-w-full max-h-[80dvh] flex flex-col mobile:rounded-b-none mobile:border-b-0"
+        >
           <div
             class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
           >
@@ -251,86 +260,86 @@
           </div>
 
           <div class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
-            <ui-card class="bg-input">
-              <div class="flex flex-col gap-3 p-4">
-                <div class="flex items-center justify-between gap-3">
-                  <div>
-                    <p
-                      class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                    >
-                      Folder
-                    </p>
-                    <p class="text-sm text-neutral-600 dark:text-neutral-400">
-                      {{
-                        fresh.syncPath
-                          ? 'Beaver Notes sync with this folder.'
-                          : 'Choose a folder to sync with.'
-                      }}
-                    </p>
-                  </div>
-                  <ui-button @click="chooseSyncPath">
-                    {{ fresh.syncPath ? 'Change' : 'Choose folder' }}
-                  </ui-button>
+            <div class="flex flex-col p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p
+                    class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                  >
+                    Folder
+                  </p>
+                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                    {{
+                      fresh.syncPath
+                        ? 'Beaver Notes sync with this folder.'
+                        : 'Choose a folder to sync with.'
+                    }}
+                  </p>
+                </div>
+                <ui-button @click="chooseSyncPath">
+                  {{ fresh.syncPath ? 'Change' : 'Choose folder' }}
+                </ui-button>
+              </div>
+
+              <div class="flex items-center justify-between gap-3">
+                <div
+                  v-if="fresh.syncPath"
+                  class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                >
+                  {{ fresh.syncPath }}
                 </div>
 
-                <div class="flex items-center justify-between gap-3">
-                  <div
-                    v-if="fresh.syncPath"
-                    class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
-                  >
-                    {{ fresh.syncPath }}
-                  </div>
-
-                  <div v-if="fresh.syncPath" class="flex gap-3">
-                    <ui-button icon variant="danger" @click="clearSyncPath"
-                      ><v-remixicon name="riDeleteBin6Line"
-                    /></ui-button>
-                  </div>
+                <div v-if="fresh.syncPath" class="flex gap-3">
+                  <ui-button icon variant="danger" @click="clearSyncPath"
+                    ><v-remixicon name="riDeleteBin6Line"
+                  /></ui-button>
                 </div>
               </div>
-            </ui-card>
+            </div>
 
-            <ui-card class="bg-input">
-              <button
-                class="flex items-center justify-between w-full px-4 py-3 text-left"
-                @click="toggleAutoSync"
-              >
-                <div>
-                  <span
-                    class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200"
-                    >Automatic sync</span
-                  >
-                  <span
-                    class="block text-xs text-neutral-600 dark:text-neutral-400 mt-0.5"
-                  >
-                    Lets you sync changes automatically when a folder is
-                    configured.
-                  </span>
-                </div>
-                <ui-switch
-                  v-model="fresh.autoSync"
-                  :disabled="!fresh.syncPath"
-                />
-              </button>
-            </ui-card>
+            <button
+              class="flex items-center justify-between w-full px-4 py-3 text-left gap-2"
+              @click="toggleAutoSync"
+            >
+              <div>
+                <span
+                  class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+                  >Automatic sync</span
+                >
+                <span
+                  class="block text-xs text-neutral-600 dark:text-neutral-400 mt-0.5"
+                >
+                  Lets you sync changes automatically when a folder is
+                  configured.
+                </span>
+              </div>
+              <ui-switch v-model="fresh.autoSync" :disabled="!fresh.syncPath" />
+            </button>
           </div>
 
-          <div class="mt-5 flex justify-between gap-4 shrink-0">
+          <div
+            class="mt-5 flex mobile:flex-col-reverse justify-between gap-4 shrink-0"
+          >
             <ui-button @click="curtainNavigate('setup')">
-              <v-remixicon name="riArrowLeftLine" /> Back
+              <v-remixicon name="riArrowLeftLine" />
+              Back
             </ui-button>
-            <div class="flex gap-3">
-              <ui-button @click="finishFreshOnboarding">Skip for now</ui-button>
-              <ui-button
-                variant="primary"
-                :loading="state.savingPreferences"
-                @click="finishFreshOnboarding"
-              >
-                <template v-if="!state.savingPreferences">
-                  Continue <v-remixicon name="riArrowRightLine" />
-                </template>
-              </ui-button>
-            </div>
+
+            <ui-button
+              v-if="fresh.syncPath"
+              variant="primary"
+              :loading="state.savingPreferences"
+              @click="finishFreshOnboarding"
+            >
+              <template v-if="!state.savingPreferences">
+                Continue
+                <v-remixicon name="riArrowRightLine" />
+              </template>
+            </ui-button>
+
+            <ui-button v-else @click="finishFreshOnboarding">
+              Skip for now
+            </ui-button>
           </div>
         </ui-card>
       </div>
@@ -338,7 +347,7 @@
       <!-- ── Platform ── -->
       <div
         v-else-if="step === 'platform'"
-        class="ob-screen flex flex-col items-center justify-start w-full pt-8 pb-8"
+        class="ob-screen flex flex-col items-center justify-center w-full pt-8 pb-8"
       >
         <onboarding-platform-step
           v-model="migrationPlatform"
@@ -366,7 +375,7 @@
       <!-- ── Migration ── -->
       <div
         v-else-if="step === 'migration'"
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
       >
         <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
           <div
@@ -375,29 +384,29 @@
             <h2
               class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
             >
-              Import your {{ migrationPlatformLabel }} workspace
+              Import your notes from {{ migrationPlatformLabel }}
             </h2>
             <p class="text-neutral-600 dark:text-neutral-400 max-w-sm">
-              Your original workspace stays untouched. Notes, folders, labels,
-              settings, and assets will be copied into the new app.
+              Your original data stays untouched. Notes, folders, labels,
+              settings, and assets will be copied over.
             </p>
           </div>
 
           <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
-            <ui-card class="bg-input">
-              <div class="flex items-center justify-between gap-4 p-4">
-                <div>
-                  <p
-                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
-                  >
-                    {{ migrationSourceHeading }}
-                  </p>
-                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
-                    {{ migrationSourceCopy }}
-                  </p>
-                </div>
+            <div class="flex items-center justify-between gap-4 p-4">
+              <div>
+                <p
+                  class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+                >
+                  {{ migrationSourceHeading }}
+                </p>
+                <p
+                  class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+                >
+                  {{ migrationSourceCopy }}
+                </p>
               </div>
-            </ui-card>
+            </div>
 
             <ui-card
               v-if="migrationPlatform === 'evernote' && !state.migrating"
@@ -616,7 +625,7 @@
       <!-- ── Legacy Password ── -->
       <div
         v-else-if="step === 'legacyPassword'"
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
       >
         <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
           <div
@@ -673,45 +682,52 @@
       <!-- ── Finish ── -->
       <div
         v-else
-        class="ob-screen flex flex-col items-center justify-center w-full"
+        class="ob-screen flex flex-col items-center justify-center w-full mobile:p-1"
       >
         <div
-          class="flex flex-col items-center gap-5 text-center max-w-md w-full ob-finish"
-          :class="{ 'ob-finish--in': finishIn }"
+          class="mobile:flex-1 mobile:flex mobile:flex-col mobile:items-center mobile:justify-center w-full"
         >
-          <img
-            :src="logoUrl"
-            alt="Beaver Notes"
-            class="w-24 h-24 object-contain drop-shadow-xl"
-          />
-          <div class="flex flex-col items-center gap-2">
-            <h1
-              class="text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
-            >
-              Ready, Set, Go!
-            </h1>
-            <p
-              class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
-            >
-              You've successfully completed the onboarding process. It's time to
-              meet your notes.
-            </p>
+          <div
+            class="flex flex-col items-center gap-5 text-center max-w-md w-full ob-finish"
+            :class="{ 'ob-finish--in': finishIn }"
+          >
+            <img
+              :src="logoUrl"
+              alt="Beaver Notes"
+              class="w-24 h-24 object-contain drop-shadow-xl"
+            />
+            <div class="flex flex-col items-center gap-2">
+              <h1
+                class="text-5xl font-bold tracking-tight leading-none text-neutral-800 dark:text-neutral-200"
+              >
+                Ready, Set, Go!
+              </h1>
+              <p
+                class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
+              >
+                You've successfully completed the onboarding process. It's time to
+                meet your notes.
+              </p>
+            </div>
           </div>
-          <div class="flex flex-wrap justify-center gap-3">
-            <ui-button @click="goToPreviousStep">
-              <v-remixicon name="riArrowLeftLine" /> Back
-            </ui-button>
-            <ui-button
-              variant="primary"
-              :loading="state.openingWorkspace"
-              @click="completeAndOpenWorkspace"
-            >
-              <template v-if="!state.openingWorkspace">
-                <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver
-                Notes
-              </template>
-            </ui-button>
-          </div>
+        </div>
+
+        <div
+          class="flex flex-wrap mobile:flex-col mobile:w-full mobile:items-stretch mobile:px-4 ob-bottom-nav justify-center gap-3"
+        >
+          <ui-button @click="goToPreviousStep">
+            <v-remixicon name="riArrowLeftLine" /> Back
+          </ui-button>
+          <ui-button
+            variant="primary"
+            :loading="state.openingWorkspace"
+            @click="completeAndOpenWorkspace"
+          >
+            <template v-if="!state.openingWorkspace">
+              <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver
+              Notes
+            </template>
+          </ui-button>
         </div>
       </div>
     </div>
@@ -912,6 +928,20 @@ export default {
     100dvh - var(--app-safe-area-top) - var(--app-safe-area-bottom)
   );
   padding: 1.5rem;
+}
+
+@media (max-width: 767px) {
+  .ob-screen {
+    padding: 0;
+  }
+
+  .ob-bottom-nav {
+    padding-bottom: max(
+      var(--app-safe-area-bottom, 0px),
+      env(safe-area-inset-bottom, 0px),
+      1rem
+    );
+  }
 }
 
 /* ── Curtain overlay ────────────────────────────────────────────────────── */
