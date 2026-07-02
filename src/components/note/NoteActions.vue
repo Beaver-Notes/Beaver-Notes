@@ -310,6 +310,8 @@ export default {
         } else {
           dialog.prompt({
             title: t.enterPasswd || 'Enter password',
+            body: t.warning || 'Warning, if you forget your password, you will lose access to your locked notes.',
+            icon: 'riLockLine',
             okText: t.lock || 'Lock',
             cancelText: t.cancel || 'Cancel',
             placeholder: t.password || 'Password',

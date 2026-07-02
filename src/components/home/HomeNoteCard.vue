@@ -370,6 +370,8 @@ async function lockNote(note) {
     } else {
       dialog.prompt({
         title: translations.value.card.enterPasswd,
+        body: translations.value.card.warning,
+        icon: 'riLockLine',
         okText: translations.value.card.lock,
         cancelText: translations.value.card.cancel,
         placeholder: translations.value.card.password,
@@ -394,6 +396,8 @@ async function unlockNote(note) {
   const noteStore = useNoteStore();
   dialog.prompt({
     title: translations.value.card.enterPasswd,
+    body: translations.value.card.isLocked,
+    icon: 'riLockUnlockLine',
     okText: translations.value.card.unlock,
     cancelText: translations.value.card.cancel,
     placeholder: translations.value.card.password,
@@ -425,6 +429,9 @@ async function deleteNote(note) {
   const noteStore = useNoteStore();
   dialog.confirm({
     title: translations.value.card.confirmPrompt,
+    body: translations.value.card?.deleteAction || 'This action cannot be undone',
+    icon: 'riDeleteBin6Line',
+    okVariant: 'danger',
     okText: translations.value.card.confirm,
     cancelText: translations.value.card.cancel,
     onConfirm: async () => {

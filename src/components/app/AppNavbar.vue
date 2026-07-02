@@ -187,6 +187,7 @@ import { useRoute } from 'vue-router';
 import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import { useDialog } from '@/composable/dialog';
 
 export default {
   setup() {
@@ -261,11 +262,31 @@ export default {
     }
 
     function handleDeleteSelection() {
-      selectionBar.deleteSelection();
+      const performed = selectionBar.deleteSelection();
+      if (!performed) {
+        const t = translations.value || {};
+        useDialog().alert({
+          title: t.dialog?.notice || 'Notice',
+          body:
+            t.card?.noActionAvailable ||
+            'No items selected. Please go to your notes first.',
+          okText: t.dialog?.close || 'Close',
+        });
+      }
     }
 
     function handleMoveSelection() {
-      selectionBar.moveSelection();
+      const performed = selectionBar.moveSelection();
+      if (!performed) {
+        const t = translations.value || {};
+        useDialog().alert({
+          title: t.dialog?.notice || 'Notice',
+          body:
+            t.card?.noActionAvailable ||
+            'No items selected. Please go to your notes first.',
+          okText: t.dialog?.close || 'Close',
+        });
+      }
     }
 
     // ── Active pill ──
@@ -286,7 +307,22 @@ export default {
 
     watch(
       () => route.fullPath,
-      () => {
+      (newPath) => {
+        // Browser pages where the selection bar is valid:
+        //   /                 (notes index)
+        //   /?archived=true   (archive)
+        //   /folder/:id       (folder detail)
+        // Navigating to any other page (settings, note detail, etc.)
+        // should clear the selection so stale handlers can't be invoked.
+        const isBrowserPage =
+          newPath === '/' ||
+          newPath === '/?archived=true' ||
+          newPath.startsWith('/folder/');
+
+        if (!isBrowserPage && selectionBar.hasSelection) {
+          selectionBar.clearSelection();
+        }
+
         void updateActivePill();
       },
       { flush: 'post' }

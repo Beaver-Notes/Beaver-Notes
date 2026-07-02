@@ -227,6 +227,8 @@ function showDialogAlert(message) {
 async function resetPasswordDialog() {
   dialog.prompt({
     title: translations.value.settings.resetPasswordTitle,
+    body: translations.value.settings.body || 'This data is encrypted, you need to input the password to get access',
+    icon: 'riLockLine',
     okText: translations.value.settings.next,
     cancelText: translations.value.settings.cancel,
     placeholder: translations.value.settings.password,

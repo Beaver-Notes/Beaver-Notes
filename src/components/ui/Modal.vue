@@ -8,7 +8,7 @@
       <transition name="modal" mode="out-in">
         <div
           v-if="show"
-          class="modal-ui__content-container fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/20 p-0 md:items-center md:p-5"
+          class="modal-ui__content-container fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/20 p-0 md:p-5 mobile:items-end"
           :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
           @click.self="closeModal"
         >
@@ -16,8 +16,11 @@
           <ui-card
             v-else
             ref="modalContent"
-            class="modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-[0_-20px_40px_rgba(15,23,42,0.08),0_-2px_10px_rgba(15,23,42,0.06)]"
-            :class="[contentClass, { '!transition-none': isDragging }]"
+            :class="[
+              'modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm',
+              contentClass,
+              { '!transition-none': isDragging },
+            ]"
             :style="modalContentStyle"
             @touchstart.passive="handleTouchStart"
             @touchmove="handleTouchMove"
@@ -27,24 +30,24 @@
             <div
               class="mx-auto mt-2 hidden h-1 w-9 rounded-full bg-neutral-400/60 mobile:block"
             ></div>
-            <div class="p-2 mobile:px-4 mobile:pt-2.5">
+            <div>
               <div class="flex items-center justify-between gap-3">
                 <span class="content-header w-full">
                   <slot name="header"></slot>
                 </span>
                 <v-remixicon
                   v-show="!persist"
-                  class="cursor-pointer shrink-0 text-neutral-600 mobile:hidden"
+                  class="cursor-pointer shrink-0 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
                   name="riCloseLine"
                   size="20"
                   @click="closeModal"
                 ></v-remixicon>
               </div>
             </div>
-            <div v-if="$slots.actions" class="px-2 pb-3">
+            <div>
               <slot name="actions"></slot>
+              <slot></slot>
             </div>
-            <slot></slot>
           </ui-card>
         </div>
       </transition>

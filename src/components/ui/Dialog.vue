@@ -1,84 +1,111 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
-  <ui-modal :model-value="state.show" content-class="max-w-sm" persist>
-    <template #header>
-      <template v-if="state.type !== 'alert'">
-        <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
-      </template>
-    </template>
-
-    <!-- Alert: centered layout with optional icon -->
+  <ui-modal :model-value="state.show" content-class="max-w-md" persist>
+    <!-- Alert -->
     <template v-if="state.type === 'alert'">
-      <div class="flex flex-col items-center text-center px-1 pb-2">
+      <div class="text-left mb-6 mobile:text-center">
         <div
-          v-if="state.options.icon"
-          class="w-12 h-12 rounded-full flex items-center justify-center mb-3"
-          :class="
-            state.options.okVariant === 'danger'
-              ? 'bg-red-100 dark:bg-red-900/30'
-              : 'bg-neutral-100 dark:bg-neutral-700'
-          "
+          class="flex flex-row items-start gap-7 mb-2 mobile:flex-col mobile:items-center mobile:gap-4 mobile:mt-6"
         >
-          <v-remixicon
-            :name="state.options.icon"
-            size="24"
-            :class="
-              state.options.okVariant === 'danger'
-                ? 'text-red-500'
-                : 'text-neutral-600 dark:text-neutral-300'
-            "
-          />
+          <div v-if="state.options.icon" class="flex-shrink-0">
+            <div
+              class="w-12 h-12 rounded-lg flex items-center justify-center"
+              :class="
+                state.options.okVariant === 'danger'
+                  ? 'bg-red-100 dark:bg-red-900/30'
+                  : 'bg-neutral-100 dark:bg-neutral-700'
+              "
+            >
+              <v-remixicon
+                :name="state.options.icon"
+                size="24"
+                :class="
+                  state.options.okVariant === 'danger'
+                    ? 'text-red-500'
+                    : 'text-neutral-600 dark:text-neutral-300'
+                "
+              />
+            </div>
+          </div>
+          <h3 class="font-semibold text-lg">{{ state.options.title }}</h3>
         </div>
-        <h3 class="font-semibold text-lg mb-1">{{ state.options.title }}</h3>
-        <p class="text-neutral-600 dark:text-neutral-200 leading-tight mb-6">
+        <p class="text-neutral-600 dark:text-neutral-200 leading-relaxed">
           {{ state.options.body }}
         </p>
-        <ui-button
-          class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
-          :variant="state.options.okVariant"
-          @click="fireCallback('onConfirm')"
-        >
-          {{
-            state.options.okText !== 'Confirm'
-              ? state.options.okText
-              : translations.dialog.close || 'Close'
-          }}
-        </ui-button>
       </div>
+      <ui-button
+        class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+        :variant="state.options.okVariant"
+        @click="fireCallback('onConfirm')"
+      >
+        {{
+          state.options.okText !== 'Confirm'
+            ? state.options.okText
+            : translations.dialog.close || 'Close'
+        }}
+      </ui-button>
     </template>
 
     <!-- Confirm / Prompt / Auth -->
     <template v-else>
-      <p
-        class="text-neutral-600 dark:text-neutral-200 leading-tight break-words overflow-hidden"
-      >
-        {{ state.options.body }}
-      </p>
-      <ui-input
-        v-if="state.type === 'prompt'"
-        v-model="state.input"
-        autofocus
-        :placeholder="state.options.placeholder"
-        :label="state.options.label"
-        :password="true"
-        class="w-full mt-4"
-      ></ui-input>
-      <div v-if="isEmpty" class="text-sm text-red-500 mt-2">
-        {{ translations.dialog.inputEmpty }}
-      </div>
       <div
-        v-if="state.type === 'auth'"
-        class="w-full mt-4 flex flex-wrap gap-2"
+        class="flex flex-col items-start text-left mobile:flex-col mobile:items-center mobile:text-center gap-3 mb-4 mobile:mt-6"
       >
-        <ui-checkbox v-for="p in auths" :key="p.label" v-model="p.value">{{
-          p.label
-        }}</ui-checkbox>
+        <div v-if="state.options.icon" class="flex-shrink-0">
+          <div
+            class="w-12 h-12 rounded-lg flex items-center justify-center"
+            :class="
+              state.options.okVariant === 'danger'
+                ? 'bg-red-100 dark:bg-red-900/30'
+                : 'bg-neutral-100 dark:bg-neutral-700'
+            "
+          >
+            <v-remixicon
+              :name="state.options.icon"
+              size="24"
+              :class="
+                state.options.okVariant === 'danger'
+                  ? 'text-red-500'
+                  : 'text-neutral-600 dark:text-neutral-300'
+              "
+            />
+          </div>
+        </div>
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-lg mb-3">{{ state.options.title }}</h3>
+
+          <div v-if="state.options.body" class="mb-4">
+            <p
+              class="text-neutral-600 dark:text-neutral-200 leading-relaxed break-words overflow-hidden"
+            >
+              {{ state.options.body }}
+            </p>
+          </div>
+
+          <ui-input
+            v-if="state.type === 'prompt'"
+            v-model="state.input"
+            autofocus
+            :placeholder="state.options.placeholder"
+            :label="state.options.label"
+            :password="true"
+            class="w-full"
+          ></ui-input>
+          <div v-if="isEmpty" class="text-sm text-red-500 mt-2">
+            {{ translations.dialog.inputEmpty }}
+          </div>
+          <div v-if="state.type === 'auth'" class="w-full flex flex-wrap gap-2">
+            <ui-checkbox v-for="p in auths" :key="p.label" v-model="p.value">{{
+              p.label
+            }}</ui-checkbox>
+          </div>
+        </div>
       </div>
-      <div
-        class="mt-8 flex flex-col-reverse gap-3 md:flex-row md:gap-0 md:space-x-2 rtl:space-x-0"
-      >
+
+      <!-- Actions -->
+      <div class="flex gap-3 mobile:flex-col-reverse">
         <ui-button
-          class="w-full md:w-6/12 mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3 rtl:ml-2"
+          class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           @click="fireCallback('onCancel')"
         >
           {{
@@ -88,7 +115,7 @@
           }}
         </ui-button>
         <ui-button
-          class="w-full md:w-6/12 mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+          class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           :variant="state.options.okVariant"
           @click="fireCallback('onConfirm')"
         >

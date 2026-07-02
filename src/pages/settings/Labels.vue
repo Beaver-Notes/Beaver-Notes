@@ -126,9 +126,11 @@ function deleteLabel(name) {
 
   dialog.confirm({
     title,
+    body: translations.value.card?.deleteAction || 'This action cannot be undone',
+    icon: 'riDeleteBin6Line',
+    okVariant: 'danger',
     okText: translations.value.card?.delete || 'Delete',
     cancelText: translations.value.dialog?.cancel || 'Cancel',
-    destructive: true,
     onConfirm: () => labelStore.delete(name),
   });
 }

@@ -724,6 +724,9 @@ function selectColorIcon(color) {
 function deleteFolder() {
   dialog.confirm({
     title: translations.value.card.confirmPromptFolder,
+    body: translations.value.card?.deleteAction || 'This action cannot be undone',
+    icon: 'riDeleteBin6Line',
+    okVariant: 'danger',
     onConfirm: () => {
       folderStore.delete(props.folder.id, { deleteContents: true });
     },

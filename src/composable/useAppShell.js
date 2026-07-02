@@ -20,6 +20,7 @@ import {
   checkForUpdates,
   getAutoUpdateStatus,
   installUpdate,
+  isUpdateManaged,
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
 import { tryRestoreKeyFromSafeStorage } from '@/utils/crypto/encryption.js';
@@ -221,16 +222,20 @@ export function useAppShell() {
     initializeMobileKeyboardTracking(unlistenFns);
 
     try {
-      const autoUpdateEnabled = await getAutoUpdateStatus();
+      const managed = await isUpdateManaged();
 
-      if (autoUpdateEnabled) {
-        setTimeout(async () => {
-          try {
-            await checkForUpdates();
-          } catch (error) {
-            console.warn('Auto-update check failed:', error);
-          }
-        }, AUTO_UPDATE_CHECK_DELAY_MS);
+      if (!managed) {
+        const autoUpdateEnabled = await getAutoUpdateStatus();
+
+        if (autoUpdateEnabled) {
+          setTimeout(async () => {
+            try {
+              await checkForUpdates();
+            } catch (error) {
+              console.warn('Auto-update check failed:', error);
+            }
+          }, AUTO_UPDATE_CHECK_DELAY_MS);
+        }
       }
     } catch (error) {
       console.error('Error checking auto-update status:', error);
