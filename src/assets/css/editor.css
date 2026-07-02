@@ -319,6 +319,7 @@ img.ProseMirror-selectednode {
   }
 
   table {
+    min-width: 100% !important;
     @apply border-collapse w-full overflow-hidden;
 
     td,

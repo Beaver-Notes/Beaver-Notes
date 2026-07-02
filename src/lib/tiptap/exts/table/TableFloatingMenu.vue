@@ -1,13 +1,13 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <Teleport :to="teleportTarget" v-if="teleportTarget">
-    <div
-      v-if="showMenu"
-      ref="menuRef"
-      class="absolute z-10"
-      :style="menuStyle"
-      @click.stop
-    >
+      <div
+        v-if="showMenu"
+        ref="menuRef"
+        class="z-50"
+        :style="menuStyle"
+        @click.stop
+      >
       <div
         class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-1.5"
         style="max-width: 18rem; min-width: 8rem"
@@ -179,7 +179,7 @@ export default {
     }
 
     function updateTeleportTarget() {
-      teleportTarget.value = getTableWrapper();
+      teleportTarget.value = document.body;
     }
 
     function isInCell() {
@@ -211,8 +211,6 @@ export default {
       btn.innerHTML =
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 16L6 10H18L12 16Z"></path></svg>';
       btn.setAttribute('aria-label', 'Table options');
-
-      updateTeleportTarget();
 
       btn.className =
         'absolute flex items-center justify-center w-5 h-5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border rounded shadow-sm cursor-pointer z-10 ' +
@@ -246,14 +244,12 @@ export default {
     function openMenu(cell) {
       if (!cell) cell = getActiveCell();
       if (!cell) return;
-      const wrapper = getTableWrapper();
-      if (!wrapper) return;
-      const wr = wrapper.getBoundingClientRect();
       const br = triggerEl?.getBoundingClientRect();
       if (!br) return;
       menuStyle.value = {
-        top: `${br.bottom - wr.top + 4}px`,
-        right: `${wr.right - br.right}px`,
+        position: 'fixed',
+        top: `${br.bottom + 4}px`,
+        right: `${window.innerWidth - br.right}px`,
       };
       showMenu.value = true;
     }
@@ -298,17 +294,24 @@ export default {
       wasIn = now;
     }
 
+    function onScroll() {
+      if (showMenu.value) closeMenu();
+    }
+
     onMounted(() => {
+      teleportTarget.value = document.body;
       if (!props.editor) return;
       props.editor.on('selectionUpdate', onSel);
       document.addEventListener('click', onClick, true);
       document.addEventListener('keydown', onKey);
+      document.addEventListener('scroll', onScroll, true);
     });
 
     onUnmounted(() => {
       if (props.editor) props.editor.off('selectionUpdate', onSel);
       document.removeEventListener('click', onClick, true);
       document.removeEventListener('keydown', onKey);
+      document.removeEventListener('scroll', onScroll, true);
       removeTrigger();
     });
 
@@ -329,7 +332,7 @@ export default {
 </script>
 
 <style scoped>
-.absolute {
+.z-50 {
   pointer-events: auto;
 }
 </style>

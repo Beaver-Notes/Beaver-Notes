@@ -6549,10 +6549,10 @@
           "markdownDescription": "Denies the render command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-set-scribble-enabled`\n- `allow-registerListener`\n- `allow-unregister-listener`\n- `allow-set-style`\n- `allow-set-background-color`\n- `allow-set-overlays-web-view`\n- `allow-get-info`\n- `allow-show`\n- `allow-hide`",
+          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-set-scribble-enabled`\n- `allow-registerListener`\n- `allow-unregister-listener`",
           "type": "string",
           "const": "safe-area-insets-css:default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-set-scribble-enabled`\n- `allow-registerListener`\n- `allow-unregister-listener`\n- `allow-set-style`\n- `allow-set-background-color`\n- `allow-set-overlays-web-view`\n- `allow-get-info`\n- `allow-show`\n- `allow-hide`"
+          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-get-bottom-inset`\n- `allow-get-top-inset`\n- `allow-set-scribble-enabled`\n- `allow-registerListener`\n- `allow-unregister-listener`"
         },
         {
           "description": "Enables the get_bottom_inset command without any pre-configured scope.",
@@ -6561,22 +6561,10 @@
           "markdownDescription": "Enables the get_bottom_inset command without any pre-configured scope."
         },
         {
-          "description": "Enables the get_info command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:allow-get-info",
-          "markdownDescription": "Enables the get_info command without any pre-configured scope."
-        },
-        {
           "description": "Enables the get_top_inset command without any pre-configured scope.",
           "type": "string",
           "const": "safe-area-insets-css:allow-get-top-inset",
           "markdownDescription": "Enables the get_top_inset command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the hide command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:allow-hide",
-          "markdownDescription": "Enables the hide command without any pre-configured scope."
         },
         {
           "description": "Enables the ping command without any pre-configured scope.",
@@ -6597,34 +6585,10 @@
           "markdownDescription": "Enables the registerListener command without any pre-configured scope."
         },
         {
-          "description": "Enables the set_background_color command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:allow-set-background-color",
-          "markdownDescription": "Enables the set_background_color command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the set_overlays_web_view command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:allow-set-overlays-web-view",
-          "markdownDescription": "Enables the set_overlays_web_view command without any pre-configured scope."
-        },
-        {
           "description": "Enables the set_scribble_enabled command without any pre-configured scope.",
           "type": "string",
           "const": "safe-area-insets-css:allow-set-scribble-enabled",
           "markdownDescription": "Enables the set_scribble_enabled command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the set_style command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:allow-set-style",
-          "markdownDescription": "Enables the set_style command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the show command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:allow-show",
-          "markdownDescription": "Enables the show command without any pre-configured scope."
         },
         {
           "description": "Enables the unregister_listener command without any pre-configured scope.",
@@ -6639,22 +6603,10 @@
           "markdownDescription": "Denies the get_bottom_inset command without any pre-configured scope."
         },
         {
-          "description": "Denies the get_info command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:deny-get-info",
-          "markdownDescription": "Denies the get_info command without any pre-configured scope."
-        },
-        {
           "description": "Denies the get_top_inset command without any pre-configured scope.",
           "type": "string",
           "const": "safe-area-insets-css:deny-get-top-inset",
           "markdownDescription": "Denies the get_top_inset command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the hide command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:deny-hide",
-          "markdownDescription": "Denies the hide command without any pre-configured scope."
         },
         {
           "description": "Denies the ping command without any pre-configured scope.",
@@ -6675,34 +6627,10 @@
           "markdownDescription": "Denies the registerListener command without any pre-configured scope."
         },
         {
-          "description": "Denies the set_background_color command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:deny-set-background-color",
-          "markdownDescription": "Denies the set_background_color command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the set_overlays_web_view command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:deny-set-overlays-web-view",
-          "markdownDescription": "Denies the set_overlays_web_view command without any pre-configured scope."
-        },
-        {
           "description": "Denies the set_scribble_enabled command without any pre-configured scope.",
           "type": "string",
           "const": "safe-area-insets-css:deny-set-scribble-enabled",
           "markdownDescription": "Denies the set_scribble_enabled command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the set_style command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:deny-set-style",
-          "markdownDescription": "Denies the set_style command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the show command without any pre-configured scope.",
-          "type": "string",
-          "const": "safe-area-insets-css:deny-show",
-          "markdownDescription": "Denies the show command without any pre-configured scope."
         },
         {
           "description": "Denies the unregister_listener command without any pre-configured scope.",
