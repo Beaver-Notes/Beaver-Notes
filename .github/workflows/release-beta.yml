@@ -93,13 +93,11 @@ jobs:
             runner: ubuntu-24.04
             rust_targets: 'x86_64-unknown-linux-gnu'
             tauri_target: 'x86_64-unknown-linux-gnu'
-            bundle_args: '--bundles appimage,deb,rpm'
             asset_suffix: 'linux-x64'
           - id: linux-arm64
             runner: ubuntu-24.04-arm
             rust_targets: 'aarch64-unknown-linux-gnu'
             tauri_target: 'aarch64-unknown-linux-gnu'
-            bundle_args: '--bundles appimage,deb,rpm'
             asset_suffix: 'linux-arm64'
           - id: windows-x64
             runner: windows-latest
@@ -113,6 +111,14 @@ jobs:
             tauri_target: 'aarch64-pc-windows-msvc'
             bundle_args: '--bundles nsis'
             asset_suffix: 'windows-arm64'
+          - id: android
+            runner: ubuntu-24.04
+            rust_targets: 'aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android'
+            asset_suffix: 'android'
+          - id: ios
+            runner: macos-latest
+            rust_targets: 'aarch64-apple-ios'
+            asset_suffix: 'ios'
 
     steps:
       - name: Checkout
@@ -169,14 +175,6 @@ jobs:
         run: |
           yarn install --frozen-lockfile
 
-      - name: Import Linux GPG key
-        if: ${{ startsWith(matrix.id, 'linux-') }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' "${{ secrets.LINUX_GPG_PRIVATE_KEY }}" | gpg --batch --import
-          gpg --list-secret-keys --keyid-format LONG
-
       - name: Build macOS beta bundles
         if: ${{ matrix.id == 'macos-universal' }}
         shell: bash
@@ -197,24 +195,17 @@ jobs:
             ${{ matrix.bundle_args }} \
             --ci
 
-      - name: Build Linux beta bundles
+      - name: Build Linux beta binary
         if: ${{ startsWith(matrix.id, 'linux-') }}
         shell: bash
         env:
           CI: 'true'
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          SIGN: '1'
-          SIGN_KEY: ${{ secrets.LINUX_GPG_KEY_ID }}
-          APPIMAGETOOL_SIGN_PASSPHRASE: ${{ secrets.LINUX_GPG_PASSPHRASE }}
-          APPIMAGETOOL_FORCE_SIGN: '1'
-          TAURI_SIGNING_RPM_KEY: ${{ secrets.TAURI_SIGNING_RPM_KEY }}
-          TAURI_SIGNING_RPM_KEY_PASSPHRASE: ${{ secrets.TAURI_SIGNING_RPM_KEY_PASSPHRASE }}
         run: |
           yarn tauri build \
             --config src-tauri/tauri.beta.conf.json \
             --target "${{ matrix.tauri_target }}" \
-            ${{ matrix.bundle_args }} \
             --ci
 
       # Install OSSign for Windows code signing
@@ -269,13 +260,63 @@ jobs:
 
           mkdir -p "$OUT"
 
-          find "src-tauri/target/${TARGET}/release/bundle" -type f \
-            \( -name "*.AppImage" -o -name "*.deb" -o -name "*.rpm" -o -name "*.sig" -o -name "latest.json" \) \
-            -exec cp {} "$OUT"/ \;
+          cp "src-tauri/target/${TARGET}/release/bundle/latest.json" "$OUT/" 2>/dev/null || true
+
+          find "src-tauri/target/${TARGET}/release/bundle" -type f -name "*.sig" -exec cp {} "$OUT"/ \; 2>/dev/null || true
 
           mkdir -p portable-root
           cp "$BIN_PATH" portable-root/
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
+
+      # Android build
+      - name: Install Java
+        if: ${{ matrix.id == 'android' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android SDK
+        if: ${{ matrix.id == 'android' }}
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Android keystore
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/beaver-notes.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/beaver-notes.jks" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build Android beta app
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          CI: 'true'
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cargo tauri android build --apk --aab --config src-tauri/tauri.beta.conf.json
+
+      # iOS build
+      - name: Build iOS beta app
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        env:
+          CI: 'true'
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          cargo tauri ios build --config src-tauri/tauri.beta.conf.json
 
       - name: Stage Windows beta assets
         if: ${{ startsWith(matrix.id, 'windows-') }}
@@ -295,6 +336,58 @@ jobs:
           $Binary = "src-tauri/target/$Target/release/beaver-notes.exe"
           $PortableName = "Beaver Notes Beta-$Version-portable-${{ matrix.asset_suffix }}.zip"
           Compress-Archive -Path $Binary -DestinationPath (Join-Path $OutDir $PortableName) -Force
+
+      # Android release assets: APK and AAB
+      - name: Stage Android beta assets
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="release-assets"
+          mkdir -p "$OUT"
+          find "src-tauri/gen/android/app/build/outputs" -type f \
+            \( -name "*.apk" -o -name "*.aab" \) \
+            -exec cp {} "$OUT"/ \;
+
+      # iOS release assets
+      - name: Stage iOS beta assets
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="release-assets"
+          mkdir -p "$OUT"
+          cp -R "src-tauri/gen/apple/build/beaver-notes_iOS.ipa" "$OUT/" 2>/dev/null || true
+
+      # --- Store submission (uncomment when ready) ---
+
+      # Upload Android AAB to Google Play Console (beta track)
+      # Requires: PLAY_SERVICE_ACCOUNT_JSON secret
+      #
+      # - name: Upload to Google Play (beta)
+      #   if: ${{ matrix.id == 'android' }}
+      #   uses: r0adkll/upload-google-play@v1
+      #   with:
+      #     serviceAccountJson: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+      #     packageName: com.danielerolli.beaver_notes
+      #     releaseFiles: src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+      #     track: beta
+      #     status: completed
+
+      # Upload iOS IPA to TestFlight via Transporter
+      # Requires: APPLE_ID + APPLE_ID_PASSWORD (app-specific password) secrets
+      #
+      # - name: Upload to TestFlight
+      #   if: ${{ matrix.id == 'ios' }}
+      #   shell: bash
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      #   run: |
+      #     xcrun transporter --upload \
+      #       -f "src-tauri/gen/apple/build/beaver-notes_iOS.ipa" \
+      #       -u "$APPLE_ID" \
+      #       -p "$APPLE_ID_PASSWORD"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
