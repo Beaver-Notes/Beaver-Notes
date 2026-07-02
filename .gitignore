@@ -5,7 +5,11 @@ dist-ssr/
 # Rust / Tauri
 src-tauri/target/
 src-tauri/.cargo/
-src-tauri/gen/
+src-tauri/gen/android/app/build/
+src-tauri/gen/apple/build/
+src-tauri/gen/apple/beaver-notes.xcodeproj/
+src-tauri/gen/apple/Externals/
+src-tauri/gen/apple/assets/
 
 # Vendor build artifacts (keep source code tracked)
 vendor/**/target/
