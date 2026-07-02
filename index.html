@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="light">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -13,6 +13,18 @@
     <meta name="theme-color" content="#fafafa" />
 
     <meta name="referrer" content="no-referrer" />
+    <script>
+      (function() {
+        var t = localStorage.getItem('theme');
+        if (t === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else if (t === 'system' || !t) {
+          if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+          }
+        }
+      })();
+    </script>
     <title>Beaver Notes</title>
   </head>
   <body>

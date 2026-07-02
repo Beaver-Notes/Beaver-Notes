@@ -1,8 +1,9 @@
 import { ref, onMounted, onUnmounted } from 'vue';
 import { getSettingSync, setSetting } from './settings';
-import { isTauri } from '@tauri-apps/api/core';
+import { isTauri, invoke } from '@tauri-apps/api/core';
 import { backend } from '@/lib/tauri-bridge';
 import { getNativeDarkTheme } from '@/lib/native/app';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
 const currentTheme = ref('');
 const resolvedDarkTheme = ref(
   typeof document !== 'undefined' &&
@@ -64,6 +65,42 @@ function getBrowserDarkPreference() {
   return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
 }
 
+let pendingStatusBarSync = null;
+
+async function syncNativeStatusBar() {
+  if (!isTauri() || !isMobileRuntime()) return;
+
+  const rootElement = document.documentElement;
+  const appBackground =
+    window
+      .getComputedStyle(rootElement)
+      .getPropertyValue('--app-theme-background')
+      .trim() || window.getComputedStyle(rootElement).backgroundColor;
+
+  if (!appBackground) return;
+
+  try {
+    await invoke('plugin:safe-area-insets-css|set_background_color', {
+      color: appBackground,
+    });
+    await invoke('plugin:safe-area-insets-css|set_style', {
+      style: resolvedDarkTheme.value ? 'DARK' : 'LIGHT',
+    });
+  } catch (error) {
+    console.warn('Failed to sync native status bar:', error);
+  }
+}
+
+function scheduleNativeStatusBarSync() {
+  if (pendingStatusBarSync !== null) {
+    cancelAnimationFrame(pendingStatusBarSync);
+  }
+  pendingStatusBarSync = requestAnimationFrame(async () => {
+    pendingStatusBarSync = null;
+    await syncNativeStatusBar();
+  });
+}
+
 function isDark() {
   return resolvedDarkTheme.value;
 }
@@ -79,6 +116,7 @@ function applyResolvedTheme(isDarkTheme) {
   }
 
   syncDocumentThemeSurface();
+  scheduleNativeStatusBarSync();
 }
 
 function clearSystemThemeSync() {
@@ -104,7 +142,7 @@ function clearSystemThemeSync() {
 async function syncSystemThemeFromNative() {
   if (currentTheme.value !== 'system') return;
 
-  if (isTauri()) {
+  if (isTauri() && !backend.isMobileRuntime()) {
     try {
       const nativeDark = await getNativeDarkTheme();
       applyResolvedTheme(nativeDark);
