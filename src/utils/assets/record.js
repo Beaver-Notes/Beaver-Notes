@@ -91,7 +91,7 @@ function useAudioRecorder(props, backend, storage, path) {
         if (result?.filePath) {
           const filename = path.basename(result.filePath);
           const audioPath = `file-assets://${props.id}/${filename}`;
-          props.editor.commands.setAudio(audioPath);
+          props.editor.commands.setAudio(audioPath, filename);
         }
       } catch (error) {
         console.error('Failed to stop recording.', error);

@@ -38,9 +38,9 @@ export default Node.create({
   addCommands() {
     return {
       setAudio:
-        (src) =>
+        (src, fileName) =>
         ({ tr, dispatch }) => {
-          const node = this.type.create({ src });
+          const node = this.type.create({ src, fileName });
           const transaction = tr.replaceSelectionWith(node);
           if (transaction) {
             dispatch(transaction);
