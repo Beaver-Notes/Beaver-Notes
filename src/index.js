@@ -6,9 +6,12 @@ import compsUi from './lib/comps-ui';
 import { backend } from './lib/tauri-bridge';
 import { getStoredZoomLevel, setStoredZoomLevel } from './composable/zoom';
 import { getSettingSync } from './composable/settings';
+import { initializeThemeHandling } from './utils/themeHandler';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
+
+initializeThemeHandling();
 
 const isPhoneRuntime = backend.isPhoneRuntime();
 

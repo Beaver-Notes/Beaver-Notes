@@ -20,7 +20,8 @@
         "minHeight": 400,
         "decorations": true,
         "transparent": false,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "disableInputAccessoryView": true
       }
     ],
     "security": {
