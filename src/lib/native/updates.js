@@ -19,3 +19,16 @@ export function getAutoUpdateStatus() {
 export function toggleAutoUpdate(enabled) {
   return backend.invoke('toggle-auto-update', enabled);
 }
+
+export function getInstallationSource() {
+  return backend.invoke('get-installation-source');
+}
+
+export async function isUpdateManaged() {
+  try {
+    const source = await getInstallationSource();
+    return source !== 'standalone';
+  } catch {
+    return true;
+  }
+}

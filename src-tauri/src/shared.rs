@@ -331,6 +331,39 @@ pub(crate) fn app_storage_dir(app: &AppHandle, _state: &AppState) -> Result<Path
     app.path().app_data_dir().map_err(to_error)
 }
 
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum InstallationSource {
+    Standalone,
+    Scoop,
+    Brew,
+    LinuxPackage,
+    AppStore,
+}
+
+pub(crate) fn current_installation_source() -> InstallationSource {
+    #[cfg(mobile)]
+    { InstallationSource::AppStore }
+
+    #[cfg(all(not(mobile), target_os = "macos"))]
+    {
+        let is_brew = std::env::current_exe().ok()
+            .and_then(|p| std::fs::canonicalize(&p).ok())
+            .is_some_and(|p| p.to_string_lossy().to_lowercase().contains("/cellar/"));
+        if is_brew { InstallationSource::Brew } else { InstallationSource::Standalone }
+    }
+
+    #[cfg(all(not(mobile), target_os = "windows"))]
+    {
+        let is_scoop = std::env::current_exe().ok()
+            .is_some_and(|p| p.to_string_lossy().to_lowercase().contains("scoop"));
+        if is_scoop { InstallationSource::Scoop } else { InstallationSource::Standalone }
+    }
+
+    #[cfg(not(any(mobile, target_os = "macos", target_os = "windows")))]
+    { InstallationSource::LinuxPackage }
+}
+
 pub(crate) fn to_error<E: std::fmt::Display>(error: E) -> String {
     error.to_string()
 }

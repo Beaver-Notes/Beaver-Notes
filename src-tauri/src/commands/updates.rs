@@ -1,10 +1,30 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::shared::*;
+
+fn source() -> &'static InstallationSource {
+    static S: OnceLock<InstallationSource> = OnceLock::new();
+    S.get_or_init(crate::shared::current_installation_source)
+}
+
+fn standalone() -> bool {
+    source() == &InstallationSource::Standalone
+}
+
+fn managed_err(msg: &str) -> String {
+    let name = match source() {
+        InstallationSource::Scoop => "Scoop",
+        InstallationSource::Brew => "Homebrew",
+        InstallationSource::LinuxPackage => "your package manager",
+        InstallationSource::AppStore => "your app store",
+        InstallationSource::Standalone => "",
+    };
+    format!("{msg} {name}")
+}
 
 fn emit_update_status(
     app: &AppHandle,
@@ -69,6 +89,16 @@ pub(crate) async fn check_for_updates(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<CheckResult, String> {
+    if !standalone() {
+        let msg = managed_err("Updates are managed by");
+        let _ = emit_update_status(&app, &msg, "managed", json!({ "installationSource": source() }));
+        return Ok(CheckResult {
+            success: false,
+            available: false,
+            version: None,
+            error: Some(msg),
+        });
+    }
     {
         let mut updater = state.updater.lock().map_err(to_error)?;
         if updater.is_checking || updater.is_downloading {
@@ -167,6 +197,9 @@ pub(crate) async fn download_update(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), String> {
+    if !standalone() {
+        return Err(managed_err("Updates are managed by"));
+    }
     let update = {
         let mut updater = state.updater.lock().map_err(to_error)?;
         if updater.is_downloading {
@@ -233,6 +266,9 @@ pub(crate) async fn download_update(
 
 #[tauri::command]
 pub(crate) fn install_update(state: State<AppState>) -> Result<(), String> {
+    if !standalone() {
+        return Err(managed_err("Updates are managed by"));
+    }
     let updater = state.updater.lock().map_err(to_error)?;
     let update = updater
         .downloaded_update
@@ -246,11 +282,19 @@ pub(crate) fn install_update(state: State<AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub(crate) fn get_installation_source() -> InstallationSource {
+    source().clone()
+}
+
+#[tauri::command]
 pub(crate) fn toggle_auto_update(
     app: AppHandle,
     state: State<AppState>,
     enabled: bool,
 ) -> Result<(), String> {
+    if !standalone() {
+        return Err("Auto-update is managed by your package manager.".into());
+    }
     save_auto_update_enabled(&app, enabled)?;
     state.updater.lock().map_err(to_error)?.auto_update_enabled = enabled;
     Ok(())
@@ -258,16 +302,32 @@ pub(crate) fn toggle_auto_update(
 
 #[tauri::command]
 pub(crate) fn get_auto_update_status(state: State<AppState>) -> Result<bool, String> {
+    if !standalone() {
+        return Ok(false);
+    }
     Ok(state.updater.lock().map_err(to_error)?.auto_update_enabled)
 }
 
 #[tauri::command]
 pub(crate) fn is_update_downloading(state: State<AppState>) -> Result<bool, String> {
+    if !standalone() {
+        return Ok(false);
+    }
     Ok(state.updater.lock().map_err(to_error)?.is_downloading)
 }
 
 #[tauri::command]
 pub(crate) fn get_update_info(state: State<AppState>) -> Result<UpdateInfo, String> {
+    if !standalone() {
+        return Ok(UpdateInfo {
+            is_checking: false,
+            is_downloading: false,
+            current_version: None,
+            available_version: None,
+            auto_update_enabled: false,
+            is_busy: false,
+        });
+    }
     let updater = state.updater.lock().map_err(to_error)?;
     Ok(UpdateInfo {
         is_checking: updater.is_checking,
