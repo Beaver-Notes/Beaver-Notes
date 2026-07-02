@@ -139,38 +139,40 @@ export async function deleteNote(id) {
     const lastEditedNote = localStorage.getItem('lastNoteEdit');
     if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
 
-    const appDirectory = await getAppDirectory();
-
     this.deletedIds = this.deletedIds || {};
     if (!this.deletedIds[id]) {
       this.deletedIds[id] = Date.now();
     }
 
+    delete this.data[id];
+    await storage.delete(`notes.${id}`);
+
     await trackChange(`notes.${id}`, null);
     await trackChange('deletedIds', this.deletedIds);
-
-    delete this.data[id];
-
-    await storage.delete(`notes.${id}`);
     removeNoteFromFts(id);
     await storage.set('deletedIds', this.deletedIds);
 
+    this.cleanupDeletedIds(30);
+
+    // Best-effort cleanup of asset files on disk
     try {
-      for (const assetType of ['notes-assets', 'file-assets']) {
-        const assetDir = path.join(appDirectory, assetType, id);
-        try {
-          const files = await readDir(assetDir);
-          if (files?.length) await trackDeletedAssets(assetType, id, files);
-        } catch {
-          // Asset folder may not exist — that's fine
+      const appDirectory = await getAppDirectory();
+      if (appDirectory) {
+        for (const assetType of ['notes-assets', 'file-assets']) {
+          const assetDir = path.join(appDirectory, assetType, id);
+          try {
+            const files = await readDir(assetDir);
+            if (files?.length) await trackDeletedAssets(assetType, id, files);
+          } catch {
+            // Asset folder may not exist — that's fine
+          }
+          await removePath(path.join(appDirectory, assetType, id));
         }
-        await removePath(path.join(appDirectory, assetType, id));
       }
     } catch (fileError) {
       console.warn('Error removing note files:', fileError);
     }
 
-    this.cleanupDeletedIds(30);
     return id;
   } catch (error) {
     console.error('Error deleting note:', error);

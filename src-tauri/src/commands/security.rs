@@ -29,11 +29,8 @@ pub(crate) struct AssetMigrationProgressPayload {
 pub(crate) struct EncryptionStateResult {
     pub(crate) enabled: bool,
     pub(crate) unlocked: bool,
-    // Backward-compat aliases so missed call-sites don't hard-crash
     pub(crate) app_enabled: bool,
     pub(crate) app_unlocked: bool,
-    pub(crate) sync_enabled: bool,
-    pub(crate) sync_unlocked: bool,
 }
 
 #[derive(Serialize)]
@@ -206,18 +203,15 @@ pub(crate) async fn asset_crypto_migrate_dir(
 pub(crate) fn encryption_get_state(
     app: AppHandle,
     state: State<AppState>,
-    _sync_path: Option<String>,
 ) -> Result<EncryptionStateResult, String> {
     let enabled = app_encryption_manifest_path(&app, state.inner())?.exists();
-    let unlocked = app_key_loaded(state.inner())?;
+    let unlocked = current_app_key(state.inner())?.is_some();
 
     Ok(EncryptionStateResult {
         enabled,
         unlocked,
         app_enabled: enabled,
         app_unlocked: unlocked,
-        sync_enabled: enabled,
-        sync_unlocked: unlocked,
     })
 }
 
@@ -226,7 +220,6 @@ pub(crate) fn encryption_submit_password(
     app: AppHandle,
     state: State<AppState>,
     password: String,
-    _sync_path: Option<String>,
     create_if_missing: Option<bool>,
 ) -> Result<EncryptionSubmitResult, String> {
     let create_if_missing = create_if_missing.unwrap_or(true);
@@ -252,14 +245,14 @@ pub(crate) fn encryption_submit_password(
         return Ok(EncryptionSubmitResult {
             ok: false,
             error: Some("Encryption is not enabled.".to_string()),
-            state: encryption_get_state(app, state, None)?,
+            state: encryption_get_state(app, state)?,
         });
     }
 
     Ok(EncryptionSubmitResult {
         ok: true,
         error: None,
-        state: encryption_get_state(app, state, None)?,
+        state: encryption_get_state(app, state)?,
     })
 }
 
@@ -392,14 +385,6 @@ pub(crate) fn encryption_encrypt_sync_asset_base64(
     let key = current_app_key(state.inner())?
         .ok_or_else(|| "Encryption is enabled but locked.".to_string())?;
     sync_envelope_json(encrypt_bytes_with_key(&key, base64_data.as_bytes())?)
-}
-
-#[tauri::command]
-pub(crate) fn encryption_decrypt_sync_asset_base64(
-    state: State<AppState>,
-    payload: String,
-) -> Result<Option<String>, String> {
-    encryption_decrypt_sync_payload(state, payload)
 }
 
 #[tauri::command]

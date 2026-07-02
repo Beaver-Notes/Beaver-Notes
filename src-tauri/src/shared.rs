@@ -777,15 +777,7 @@ pub(crate) fn unlock_key_from_manifest(
     Ok(out)
 }
 
-pub(crate) fn app_key_loaded(state: &AppState) -> Result<bool, String> {
-    Ok(state.app_data_key.lock().map_err(to_error)?.is_some())
-}
-
 pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
-    Ok(*state.app_data_key.lock().map_err(to_error)?)
-}
-
-pub(crate) fn get_unified_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
     Ok(*state.app_data_key.lock().map_err(to_error)?)
 }
 
@@ -1191,25 +1183,6 @@ pub(crate) fn decrypt_asset_bytes_with_key(
     Ok(encrypted.to_vec())
 }
 
-pub(crate) fn decrypt_asset_bytes_with_key_legacy(
-    encrypted: &[u8],
-    key: &[u8; 32],
-) -> Result<Vec<u8>, String> {
-    if encrypted.len() < 4 + 12 + 16 || &encrypted[..4] != b"BNA1" {
-        return Ok(encrypted.to_vec());
-    }
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let iv = &encrypted[4..16];
-    let tag = &encrypted[16..32];
-    let ciphertext = &encrypted[32..];
-    let mut payload = Vec::with_capacity(ciphertext.len() + tag.len());
-    payload.extend_from_slice(ciphertext);
-    payload.extend_from_slice(tag);
-    cipher
-        .decrypt(Nonce::from_slice(iv), payload.as_slice())
-        .map_err(to_error)
-}
-
 pub(crate) fn encrypt_asset_streaming(
     input_path: &Path,
     output_path: &Path,
@@ -1277,7 +1250,7 @@ pub(crate) fn decrypt_asset_streaming(
     if &magic != ASSET_MAGIC && &magic != ASSET_MAGIC_V3 {
         drop(reader);
         let data = fs::read(input_path).map_err(to_error)?;
-        let plain = decrypt_asset_bytes_with_key_legacy(&data, key)?;
+        let plain = decrypt_asset_bytes_with_key(&data, key)?;
         fs::write(output_path, plain).map_err(to_error)?;
         return Ok(());
     }
@@ -1638,13 +1611,6 @@ pub(crate) fn dialog_file_paths_to_strings(paths: Vec<FilePath>) -> Vec<String> 
             FilePath::Url(url) => Some(url.to_string()),
         })
         .collect()
-}
-
-pub(crate) fn dialog_file_path_to_string(path: FilePath) -> Option<String> {
-    match path {
-        FilePath::Path(path) => Some(path.to_string_lossy().to_string()),
-        FilePath::Url(url) => Some(url.to_string()),
-    }
 }
 
 pub(crate) fn dialog_file_path_to_trusted_path(path: &FilePath) -> Option<PathBuf> {

@@ -169,7 +169,6 @@ pub fn run() {
             commands::security::encryption_encrypt_sync_payload,
             commands::security::encryption_decrypt_sync_payload,
             commands::security::encryption_encrypt_sync_asset_base64,
-            commands::security::encryption_decrypt_sync_asset_base64,
             commands::security::passwd_hash,
             commands::security::passwd_compare,
             commands::security::passwd_record_failure,

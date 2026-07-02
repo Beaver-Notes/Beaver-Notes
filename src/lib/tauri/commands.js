@@ -61,7 +61,7 @@ const commandAliases = {
   'encryption:encryptSyncPayload': 'encryption_encrypt_sync_payload',
   'encryption:decryptSyncPayload': 'encryption_decrypt_sync_payload',
   'encryption:encryptSyncAssetBase64': 'encryption_encrypt_sync_asset_base64',
-  'encryption:decryptSyncAssetBase64': 'encryption_decrypt_sync_asset_base64',
+  'encryption:decryptSyncAssetBase64': 'encryption_decrypt_sync_payload',
   'assetCrypto:decryptAssetStream': 'decrypt_asset_stream',
   'assetCrypto:encryptAssetStream': 'encrypt_asset_stream',
   'crypto:cacheDecryptedNote': 'cache_decrypted_note',
@@ -215,16 +215,10 @@ function normalizePayload(channel, payload) {
         ...withKeyVariants('encrypt_at_rest', payload?.encryptAtRest),
       };
     case 'encryption:getState':
-      return payload?.syncPath
-        ? withKeyVariants('sync_path', payload.syncPath)
-        : {};
+      return {};
     case 'encryption:submitPassword':
       return {
         ...withKeyVariants('password', payload?.password),
-        ...withKeyVariants('target', payload?.target),
-        ...(payload?.syncPath
-          ? withKeyVariants('sync_path', payload.syncPath)
-          : {}),
         ...(payload?.createIfMissing != null
           ? withKeyVariants('create_if_missing', payload.createIfMissing)
           : {}),

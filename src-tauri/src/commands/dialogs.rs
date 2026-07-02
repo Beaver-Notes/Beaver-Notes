@@ -162,7 +162,10 @@ pub(crate) async fn dialog_save(
 
     Ok(SaveDialogResult {
         canceled: file_path.is_none(),
-        file_path: file_path.and_then(dialog_file_path_to_string),
+        file_path: file_path.and_then(|fp: FilePath| match fp {
+            FilePath::Path(p) => Some(p.to_string_lossy().to_string()),
+            FilePath::Url(url) => Some(url.to_string()),
+        }),
     })
 }
 
