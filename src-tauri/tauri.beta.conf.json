@@ -39,6 +39,9 @@
     "macOS": {
       "entitlements": "../buildResources/entitlements.mac.plist"
     },
+    "windows": {
+      "signCommand": "ossign.exe -t pecoff -o %1 %1"
+    },
     "linux": {
       "deb": {
         "depends": []

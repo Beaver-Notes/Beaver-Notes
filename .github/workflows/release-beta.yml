@@ -217,11 +217,20 @@ jobs:
             ${{ matrix.bundle_args }} \
             --ci
 
+      # Install OSSign for Windows code signing
+      - name: Install OSSign
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        uses: ossign/ossign@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          installOnly: true
+
       - name: Build Windows beta bundles
         if: ${{ startsWith(matrix.id, 'windows-') }}
         shell: bash
         env:
           CI: 'true'
+          OSSIGN_CONFIG_BASE64: ${{ secrets.OSSIGN_CONFIG_BASE64 }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -229,8 +238,7 @@ jobs:
             --config src-tauri/tauri.beta.conf.json \
             --target "${{ matrix.tauri_target }}" \
             ${{ matrix.bundle_args }} \
-            --ci \
-            --no-sign
+            --ci
 
       - name: Stage macOS beta assets
         if: ${{ matrix.id == 'macos-universal' }}

@@ -250,20 +250,27 @@ jobs:
             ${{ matrix.bundle_args }} \
             --ci
 
-      # Windows build singing TBA
+      # Install OSSign for Windows code signing
+      - name: Install OSSign
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        uses: ossign/ossign@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          installOnly: true
+
       - name: Build Windows bundles
         if: ${{ startsWith(matrix.id, 'windows-') }}
         shell: bash
         env:
           CI: 'true'
+          OSSIGN_CONFIG_BASE64: ${{ secrets.OSSIGN_CONFIG_BASE64 }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           yarn tauri build \
             --target "${{ matrix.tauri_target }}" \
             ${{ matrix.bundle_args }} \
-            --ci \
-            --no-sign
+            --ci
 
       # macOS release assets: DMG plus updater files
       - name: Stage macOS assets
