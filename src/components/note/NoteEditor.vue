@@ -20,7 +20,7 @@
 </template>
 
 <script>
-import { onMounted, onBeforeUnmount, watch, computed, ref } from 'vue';
+import { onMounted, onBeforeUnmount, watch, computed, ref, nextTick } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';

@@ -17,16 +17,12 @@
 
       <div v-else class="drag-ghost-stack" :style="stackContainerStyle">
         <div
-          v-for="(item, index) in items"
+          v-for="(item, index) in visibleItems"
           :key="item.id"
           class="drag-ghost-stack-card"
           :style="getStackCardStyle(index)"
         >
           <component :is="itemComponent" :data="item" :is-ghost="true" />
-        </div>
-
-        <div class="drag-ghost-badge" :style="badgeStyle">
-          {{ items.length }}
         </div>
       </div>
     </div>
@@ -34,27 +30,33 @@
 </template>
 
 <script setup>
-import { computed, shallowRef } from 'vue';
+import { computed } from 'vue';
 import HomeNoteCard from '@/components/home/HomeNoteCard.vue';
 import HomeFolderCard from '@/components/home/HomeFolderCard.vue';
 
 const props = defineProps({
   isVisible: Boolean,
   items: Array,
-  kind: String, // 'note' | 'folder'
+  kind: String,
   position: { type: Object, default: () => ({ x: 0, y: 0 }) },
   offset: { type: Object, default: () => ({ x: 14, y: 14 }) },
   scale: { type: Number, default: 0.94 },
 });
 
+const MAX_VISIBLE = 2;
+const PEEK_OFFSET = 10;
+const BASE_WIDTH = 320;
+const BASE_HEIGHT = 260;
+
 const itemComponent = computed(() =>
   props.kind === 'note' ? HomeNoteCard : HomeFolderCard
 );
 
-const STACK_ROT_STEP = 0.9;
-const STACK_ROT_MAX = 4;
-const STACK_SCALE_MIN = 0.9;
-const STACK_OFFSET = 8;
+const visibleItems = computed(() => props.items.slice(0, MAX_VISIBLE));
+
+const extra = computed(() =>
+  Math.max(0, Math.min(props.items.length - 1, MAX_VISIBLE - 1) * PEEK_OFFSET)
+);
 
 const overlayStyle = computed(() => ({
   position: 'fixed',
@@ -71,64 +73,43 @@ const overlayStyle = computed(() => ({
 
 const singleStyle = computed(() => ({
   transformOrigin: 'top left',
-  width: '320px',
+  width: `${BASE_WIDTH}px`,
   aspectRatio: '16/13',
 }));
 
 const stackContainerStyle = computed(() => ({
   position: 'relative',
-  width: '320px',
-  aspectRatio: '16/13',
+  width: `${BASE_WIDTH + extra.value}px`,
+  height: `${BASE_HEIGHT + extra.value}px`,
   transformOrigin: 'top left',
 }));
 
 function getStackCardStyle(index) {
-  const count = props.items.length;
-  const reverseIndex = count - 1 - index;
-
-  let rot = 0;
-  let scale = 1;
-
-  if (reverseIndex > 0) {
-    rot =
-      Math.min(reverseIndex * STACK_ROT_STEP, STACK_ROT_MAX) *
-      (reverseIndex % 2 === 0 ? 1 : -1);
-    scale = Math.max(1 - reverseIndex * 0.015, STACK_SCALE_MIN);
+  if (index === 0) {
+    return {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      transform: 'scale(0.98)',
+      transformOrigin: 'center center',
+      zIndex: 1000 + MAX_VISIBLE,
+      width: '100%',
+      height: '100%',
+    };
   }
-
-  const offsetX = reverseIndex * STACK_OFFSET;
-  const offsetY = reverseIndex * STACK_OFFSET;
-
+  const rot = index % 2 === 0 ? -1.8 : 1.8;
+  const offset = index * PEEK_OFFSET;
   return {
     position: 'absolute',
-    top: `${offsetY}px`,
-    left: `${offsetX}px`,
-    transform: `rotate(${rot}deg) scale(${scale})`,
+    top: `${offset}px`,
+    left: `${offset}px`,
+    transform: `rotate(${rot}deg) scale(0.97)`,
     transformOrigin: 'center center',
-    zIndex: 1000 + index,
+    zIndex: 1000 + (MAX_VISIBLE - index),
     width: '100%',
     height: '100%',
   };
 }
-
-const badgeStyle = computed(() => ({
-  position: 'absolute',
-  top: '8px',
-  right: '8px',
-  backgroundColor: '#3b82f6',
-  color: 'white',
-  borderRadius: '50%',
-  width: '24px',
-  height: '24px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: '12px',
-  fontWeight: 'bold',
-  border: '2px solid white',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-  zIndex: 10000,
-}));
 </script>
 
 <style scoped>

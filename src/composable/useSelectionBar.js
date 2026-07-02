@@ -4,6 +4,7 @@ import { useFolderStore } from '@/store/folder';
 import { usePasswordStore } from '@/store/passwd';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
+import { useUndoStack } from '@/composable/useUndoStack';
 import { parseItemId } from '@/utils/helpers/index.js';
 
 const _selectedKeys = ref(new Set());
@@ -78,29 +79,46 @@ export function useSelectionBar() {
   }
 
   function deleteSelection() {
-    _deleteFn?.();
+    if (!_deleteFn) return false;
+    _deleteFn();
+    return true;
   }
 
   function moveSelection() {
-    _moveFn?.();
+    if (!_moveFn) return false;
+    _moveFn();
+    return true;
   }
 
   async function toggleArchive() {
     const archive = shouldArchive.value;
+    const undoNotes = [];
+    const undoFolders = [];
 
     for (const note of selectedNotes.value) {
+      const prev = note.isArchived;
       await noteStore.update(note.id, { isArchived: archive });
+      undoNotes.push({ id: note.id, prev });
     }
 
     for (const folder of selectedFolders.value) {
+      const prev = folder.isArchived;
       if (archive) {
         await folderStore.archive(folder.id);
       } else {
         await folderStore.unarchive(folder.id);
       }
+      undoFolders.push({ id: folder.id, prev });
     }
 
     clearSelection();
+    if (undoNotes.length || undoFolders.length) {
+      useUndoStack().push({
+        type: 'toggle-archive',
+        notes: undoNotes,
+        folders: undoFolders,
+      });
+    }
   }
 
   const shouldLock = computed(() => {
@@ -195,10 +213,14 @@ export function useSelectionBar() {
 
   async function toggleBookmark() {
     const bookmark = shouldBookmark.value;
+    const undoInfo = [];
     for (const note of selectedNotes.value) {
+      const prev = note.isBookmarked;
       await noteStore.update(note.id, { isBookmarked: bookmark });
+      undoInfo.push({ id: note.id, prev });
     }
     clearSelection();
+    useUndoStack().push({ type: 'toggle-bookmark', notes: undoInfo });
   }
 
   return {

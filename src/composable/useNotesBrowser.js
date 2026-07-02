@@ -14,6 +14,7 @@ import { parseItemId, areSetsEqual } from '@/utils/helpers/index.js';
 import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
 import { triggerSelectionHaptic } from '@/lib/native/haptics';
+import { useUndoStack } from '@/composable/useUndoStack';
 
 export function useNotesBrowser({
   state = reactive({
@@ -33,6 +34,7 @@ export function useNotesBrowser({
   enableFilterPulse = false,
   listenForLabelEvents = false,
 }) {
+  const undoStack = useUndoStack();
   const keyboardNavigation = shallowRef(null);
   const suppressNextClick = ref(false);
   const isSorting = ref(false);
@@ -411,16 +413,31 @@ export function useNotesBrowser({
 
     dialog.confirm({
       title,
+      body: translations.value.card?.deleteAction || 'This action cannot be undone',
+      icon: 'riDeleteBin6Line',
+      okVariant: 'danger',
       okText: translations.value.card.delete,
       cancelText: translations.value.card.cancel,
-      destructive: true,
       onConfirm: async () => {
+        const deleted = [];
         for (const item of selectedItems.value) {
           const { type, id } = parseItemId(item);
-          if (type === 'note') await noteStore.delete(id);
-          else if (type === 'folder') await folderStore.delete(id);
+          if (type === 'note') {
+            const note = noteStore.getById(id);
+            if (note) {
+              await noteStore.delete(id);
+              deleted.push({ type: 'note', data: JSON.parse(JSON.stringify(note)) });
+            }
+          } else if (type === 'folder') {
+            const folder = folderStore.data[id];
+            if (folder) {
+              await folderStore.delete(id);
+              deleted.push({ type: 'folder', data: JSON.parse(JSON.stringify(folder)) });
+            }
+          }
         }
         clearSelection();
+        undoStack.push({ type: 'bulk-delete', items: deleted });
       },
     });
   }
@@ -433,13 +450,21 @@ export function useNotesBrowser({
 
   function handleMoved(result) {
     const targetFolderId = result.folderId;
+    const undoNotes = [];
+    const undoFolders = [];
 
     for (const item of selectedItems.value) {
       const { type, id } = parseItemId(item);
       if (type === 'note') {
-        noteStore.update(id, { folderId: targetFolderId });
+        const note = noteStore.getById(id);
+        if (note) {
+          undoNotes.push({ id, prevFolderId: note.folderId });
+          noteStore.update(id, { folderId: targetFolderId });
+        }
       } else if (type === 'folder') {
-        if (!folderStore.wouldCreateCircularReference(id, targetFolderId)) {
+        const folder = folderStore.data[id];
+        if (folder && !folderStore.wouldCreateCircularReference(id, targetFolderId)) {
+          undoFolders.push({ id, prevParentId: folder.parentId });
           folderStore.update(id, { parentId: targetFolderId });
         }
       }
@@ -447,6 +472,9 @@ export function useNotesBrowser({
 
     clearSelection();
     showMoveModal.value = false;
+    if (undoNotes.length || undoFolders.length) {
+      undoStack.push({ type: 'move', notes: undoNotes, folders: undoFolders });
+    }
   }
 
   watch(
@@ -530,11 +558,20 @@ export function useNotesBrowser({
       if (key === 'Enter') {
         router.push(`/note/${noteId}`);
       } else if (['Backspace', 'Delete'].includes(key)) {
+        const note = noteStore.getById(noteId);
+        if (!note) return;
         dialog.confirm({
           title: translations.value.card.confirmPrompt,
+          body: translations.value.card?.deleteAction || 'This action cannot be undone',
+          icon: 'riDeleteBin6Line',
+          okVariant: 'danger',
           okText: translations.value.card.confirm,
           cancelText: translations.value.card.cancel,
-          onConfirm: async () => await noteStore.delete(noteId),
+          onConfirm: async () => {
+            const data = JSON.parse(JSON.stringify(note));
+            await noteStore.delete(noteId);
+            undoStack.push({ type: 'bulk-delete', items: [{ type: 'note', data }] });
+          },
         });
       }
     });
@@ -550,6 +587,11 @@ export function useNotesBrowser({
         event.preventDefault();
         bulkDelete();
       }
+    });
+
+    Mousetrap.bind(['command+z', 'ctrl+z'], async (event) => {
+      event.preventDefault();
+      await undoStack.undo();
     });
 
     Mousetrap.bind(['command+a', 'ctrl+a'], (event) => {

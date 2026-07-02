@@ -146,7 +146,7 @@ export default {
         if (canceled || !filePaths.length) return;
 
         for (const path of filePaths) {
-          const { relativePath } = await saveFile(path, props.id);
+          const { fileName, relativePath } = await saveFile(path, props.id);
           const type = mime.getType(path) || '';
 
           if (type.startsWith('audio/')) {
@@ -154,7 +154,8 @@ export default {
               editor: props.editor,
               range: range.value,
               props: {
-                action: () => props.editor.commands.setAudio(relativePath),
+                action: () =>
+                  props.editor.commands.setAudio(relativePath, fileName),
               },
             });
           }
