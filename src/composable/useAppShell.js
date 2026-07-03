@@ -13,7 +13,7 @@ const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
 import { useStorage } from './storage';
 import { getSettingSync, hydrateSettingsStore, setSetting } from './settings';
-import { useStore } from '@/store';
+import { useUiState } from '@/composable/useUiState';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
@@ -68,8 +68,7 @@ export function useAppShell() {
 
   useSoundActions();
 
-  const storeForOverlay = useStore();
-  const { overlayCount } = storeForOverlay;
+  const uiState = useUiState();
   const retrieved = ref(false);
   const animateRouteChange = ref(true);
   const showImportDialog = ref(false);
@@ -85,7 +84,7 @@ export function useAppShell() {
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
-    () => !store.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode.value && route.name !== ONBOARDING_ROUTE_NAME
   );
   const showMobileNavbar = computed(
     () =>
@@ -123,7 +122,7 @@ export function useAppShell() {
   const showSafeAreaOverlay = computed(() => {
     if (!isMobileRuntime.value) return false;
     if (route.name === ONBOARDING_ROUTE_NAME) return false;
-    if (overlayCount.value > 0) return false;
+    if (uiState.overlayCount.value > 0) return false;
     return true;
   });
 
@@ -634,5 +633,6 @@ export function useAppShell() {
     dismissAppEncryptionMigrationBanner,
     openAppEncryptionMigrationSettings,
     showSafeAreaOverlay,
+    uiState,
   };
 }

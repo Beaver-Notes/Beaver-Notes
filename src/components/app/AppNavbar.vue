@@ -184,7 +184,7 @@ import {
 } from 'vue';
 import emitter from 'tiny-emitter/instance';
 import { useRoute } from 'vue-router';
-import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 import { useDialog } from '@/composable/dialog';
@@ -213,7 +213,7 @@ export default {
       visible: false,
     });
     const showAddMenu = ref(false);
-    const selectionBar = reactive(useSelectionBar());
+    const selectionBar = useSelectionBar();
     const dialog = useDialog();
     const noteStore = useNoteStore();
 
@@ -233,7 +233,11 @@ export default {
       window.addNote = addNote;
     }
 
-    useGlobalShortcuts(() => createShortcutMap());
+    let _unregNavbarShortcuts;
+    onMounted(() => {
+      _unregNavbarShortcuts = bindGlobalShortcuts(createShortcutMap());
+    });
+    onUnmounted(() => _unregNavbarShortcuts?.());
 
     // ── Close add menu when clicking outside ──
     function onDocumentClick(event) {

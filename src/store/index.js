@@ -14,9 +14,7 @@ const FTS_INDEX_VERSION = 1;
 
 export const useStore = defineStore('main', {
   state: () => ({
-    inReaderMode: false,
     activeNoteId: '',
-    showPrompt: false,
   }),
   actions: {
     async retrieve() {

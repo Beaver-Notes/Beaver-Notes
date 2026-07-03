@@ -1,7 +1,7 @@
 <template>
   <Transition name="command-prompt-shell">
     <div
-      v-if="store.showPrompt"
+      v-if="uiState.showPrompt.value"
       class="command-prompt-shell fixed left-1/2 -translate-x-1/2 top-14 z-[60] w-full max-w-lg px-4"
       role="combobox"
       aria-haspopup="listbox"
@@ -143,14 +143,21 @@
 </template>
 
 <script setup>
-import { shallowReactive, computed, watch, ref, nextTick } from 'vue';
+import {
+  shallowReactive,
+  computed,
+  watch,
+  ref,
+  nextTick,
+  onMounted,
+} from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { useStore } from '@/store';
 import commands from '@/utils/ui/commands.js';
-import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { useUiState } from '@/composable/useUiState';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
@@ -160,7 +167,7 @@ const router = useRouter();
 const { translations } = useTranslations();
 const noteStore = useNoteStore();
 const folderStore = useFolderStore();
-const store = useStore();
+const uiState = useUiState();
 
 const listRef = ref(null);
 const itemRefs = ref([]);
@@ -235,7 +242,7 @@ const formatDate = (ts) => {
 };
 
 const clear = () => {
-  store.showPrompt = false;
+  uiState.showPrompt.value = false;
   state.query = '';
   state.selectedIndex = 0;
 };
@@ -288,19 +295,20 @@ watch(
   }
 );
 
-useGlobalShortcuts(() => {
-  const togglePrompt = (_, combo) => {
-    const editorFocused = Boolean(
-      document.activeElement?.closest('.ProseMirror')
-    );
-    if (combo === 'mod+k' && editorFocused) return false;
-    store.showPrompt ? clear() : (store.showPrompt = true);
-  };
+const togglePrompt = (_, combo) => {
+  const editorFocused = Boolean(
+    document.activeElement?.closest('.ProseMirror')
+  );
+  if (combo === 'mod+k' && editorFocused) return false;
+  uiState.showPrompt.value ? clear() : (uiState.showPrompt.value = true);
+};
 
-  return {
+let _unregPromptShortcuts;
+onMounted(() => {
+  _unregPromptShortcuts = bindGlobalShortcuts({
     'mod+shift+p': togglePrompt,
     'mod+k': togglePrompt,
-  };
+  });
 });
 </script>
 

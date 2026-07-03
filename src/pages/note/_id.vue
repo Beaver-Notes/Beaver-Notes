@@ -2,8 +2,8 @@
   <div v-if="note" class="flex flex-col">
     <button
       v-if="
-        (showBack && !store.inReaderMode) ||
-        ($route.query.linked && !store.inReaderMode)
+        (showBack && !uiState.inReaderMode.value) ||
+        ($route.query.linked && !uiState.inReaderMode.value)
       "
       class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden mobile:hidden"
       :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
@@ -13,7 +13,7 @@
         name="riArrowDownLine"
         class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
       />
-      <span v-if="$route.query.linked && !store.inReaderMode">
+      <span v-if="$route.query.linked && !uiState.inReaderMode.value">
         {{ translations.editor.previousNote || '-' }}
       </span>
     </button>
@@ -137,7 +137,7 @@ import { debounce } from '@/utils/helpers/index.js';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
-import { useStore } from '@/store';
+import { useUiState } from '@/composable/useUiState';
 import { useStorage } from '@/composable/storage';
 import { addCloseHandler } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/composable/useNotePersistence';
@@ -163,7 +163,7 @@ export default {
   },
   inheritAttrs: false,
   setup() {
-    const store = useStore();
+    const uiState = useUiState();
     const route = useRoute();
     const router = useRouter();
     const storage = useStorage();
@@ -389,7 +389,7 @@ export default {
     };
 
     watch(
-      () => store.showPrompt,
+      () => uiState.showPrompt.value,
       (n) => {
         if (!n) {
           focusEditor();
@@ -419,7 +419,7 @@ export default {
       noteEditor,
       note,
       translations,
-      store,
+      uiState,
       unlockNote,
       unlockAppEncryption,
       appEncryptedLocked,

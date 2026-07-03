@@ -1,8 +1,8 @@
-import { computed, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import useAudioRecorder from '@/utils/assets/record.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { useStore } from '@/store';
+import { useUiState } from '@/composable/useUiState';
 import { useNoteStore } from '@/store/note';
 import { useEditorImage } from '@/composable/editorImage';
 import { useDialog } from '@/composable/dialog';
@@ -32,7 +32,7 @@ export function useNoteMenu(props) {
   const { isRecording, formattedTime, toggleRecording, isPaused, pauseResume } =
     useAudioRecorder(props, backend, storage, path);
 
-  const store = useStore();
+  const uiState = useUiState();
   const noteStore = useNoteStore();
   const router = useRouter();
   const dialog = useDialog();
@@ -67,7 +67,7 @@ export function useNoteMenu(props) {
     noteId: props.id,
     noteStore,
     router,
-    store,
+    store: reactive(uiState),
     translations,
   });
 
@@ -110,7 +110,7 @@ export function useNoteMenu(props) {
   );
 
   return {
-    store,
+    store: reactive(uiState),
     translations,
     editorImage,
     visibleItems,

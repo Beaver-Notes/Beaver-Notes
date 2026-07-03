@@ -55,7 +55,8 @@
   </div>
 </template>
 <script>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, onUnmounted } from 'vue';
+import { useUiState } from '@/composable/useUiState';
 
 export default {
   props: {
@@ -78,6 +79,7 @@ export default {
   },
   emits: ['close', 'update:modelValue'],
   setup(props, { emit }) {
+    const uiState = useUiState();
     const show = ref(false);
     const modalContent = ref(null);
     const dragOffsetY = ref(0);
@@ -122,8 +124,17 @@ export default {
     );
 
     watch(show, (value) => {
-      if (value) window.addEventListener('keyup', keyupHandler);
-      else window.removeEventListener('keyup', keyupHandler);
+      if (value) {
+        window.addEventListener('keyup', keyupHandler);
+        uiState.openOverlay();
+      } else {
+        window.removeEventListener('keyup', keyupHandler);
+        uiState.closeOverlay();
+      }
+    });
+    onUnmounted(() => {
+      if (show.value) uiState.closeOverlay();
+      window.removeEventListener('keyup', keyupHandler);
     });
 
     const modalContentStyle = computed(() => ({
