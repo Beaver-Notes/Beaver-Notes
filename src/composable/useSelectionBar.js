@@ -7,65 +7,76 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useUndoStore } from '@/store/undo';
 import { parseItemId } from '@/utils/helpers/index.js';
 
-const selectedKeys = ref(new Set());
-let clearFn = null;
-let deleteFn = null;
-let moveFn = null;
-
-const noteStore = useNoteStore();
-const folderStore = useFolderStore();
-
-const hasSelection = computed(() => selectedKeys.value.size > 0);
-const selectedCount = computed(() => selectedKeys.value.size);
-
-const selectedNotes = computed(() =>
-  Array.from(selectedKeys.value)
-    .map(parseItemId)
-    .filter(({ type, id }) => type === 'note' && id)
-    .map(({ id }) => noteStore.getById(id))
-    .filter(Boolean)
-);
-
-const hasSelectedNotes = computed(() => selectedNotes.value.length > 0);
-
-const selectedFolders = computed(() =>
-  Array.from(selectedKeys.value)
-    .map(parseItemId)
-    .filter(({ type, id }) => type === 'folder' && id)
-    .map(({ id }) => folderStore.data[id])
-    .filter(Boolean)
-);
-
-const hasSelectedFolders = computed(() => selectedFolders.value.length > 0);
-
-const shouldArchive = computed(() => {
-  const notes = selectedNotes.value;
-  const folders = selectedFolders.value;
-  if (!notes.length && !folders.length) return true;
-
-  let archivedCount = 0;
-  let totalCount = 0;
-
-  for (const n of notes) {
-    totalCount++;
-    if (n.isArchived) archivedCount++;
-  }
-  for (const f of folders) {
-    totalCount++;
-    if (f.isArchived) archivedCount++;
-  }
-
-  return archivedCount < totalCount / 2;
-});
-
-const shouldBookmark = computed(() => {
-  const notes = selectedNotes.value;
-  if (!notes.length) return true;
-  const bookmarkedCount = notes.filter((n) => n.isBookmarked).length;
-  return bookmarkedCount < notes.length / 2;
-});
+let _instance = null;
 
 export function useSelectionBar() {
+  if (_instance) return _instance;
+
+  const selectedKeys = ref(new Set());
+  let clearFn = null;
+  let deleteFn = null;
+  let moveFn = null;
+
+  const noteStore = useNoteStore();
+  const folderStore = useFolderStore();
+
+  const hasSelection = computed(() => selectedKeys.value.size > 0);
+  const selectedCount = computed(() => selectedKeys.value.size);
+
+  const selectedNotes = computed(() =>
+    Array.from(selectedKeys.value)
+      .map(parseItemId)
+      .filter(({ type, id }) => type === 'note' && id)
+      .map(({ id }) => noteStore.getById(id))
+      .filter(Boolean)
+  );
+
+  const hasSelectedNotes = computed(() => selectedNotes.value.length > 0);
+
+  const selectedFolders = computed(() =>
+    Array.from(selectedKeys.value)
+      .map(parseItemId)
+      .filter(({ type, id }) => type === 'folder' && id)
+      .map(({ id }) => folderStore.data[id])
+      .filter(Boolean)
+  );
+
+  const hasSelectedFolders = computed(() => selectedFolders.value.length > 0);
+
+  const shouldArchive = computed(() => {
+    const notes = selectedNotes.value;
+    const folders = selectedFolders.value;
+    if (!notes.length && !folders.length) return true;
+
+    let archivedCount = 0;
+    let totalCount = 0;
+
+    for (const n of notes) {
+      totalCount++;
+      if (n.isArchived) archivedCount++;
+    }
+    for (const f of folders) {
+      totalCount++;
+      if (f.isArchived) archivedCount++;
+    }
+
+    return archivedCount < totalCount / 2;
+  });
+
+  const shouldBookmark = computed(() => {
+    const notes = selectedNotes.value;
+    if (!notes.length) return true;
+    const bookmarkedCount = notes.filter((n) => n.isBookmarked).length;
+    return bookmarkedCount < notes.length / 2;
+  });
+
+  const shouldLock = computed(() => {
+    const notes = selectedNotes.value;
+    if (!notes.length) return true;
+    const lockedCount = notes.filter((n) => n.isLocked).length;
+    return lockedCount < notes.length / 2;
+  });
+
   function syncSelection(items, handlers = {}) {
     selectedKeys.value = items;
     if (handlers.onClear) clearFn = handlers.onClear;
@@ -110,13 +121,6 @@ export function useSelectionBar() {
     undoStore.commitBatch();
     clearSelection();
   }
-
-  const shouldLock = computed(() => {
-    const notes = selectedNotes.value;
-    if (!notes.length) return true;
-    const lockedCount = notes.filter((n) => n.isLocked).length;
-    return lockedCount < notes.length / 2;
-  });
 
   async function toggleLock() {
     const dialog = useDialog();
@@ -215,7 +219,7 @@ export function useSelectionBar() {
     clearSelection();
   }
 
-  return reactive({
+  _instance = reactive({
     selectedKeys,
     hasSelection,
     selectedCount,
@@ -234,4 +238,6 @@ export function useSelectionBar() {
     toggleLock,
     toggleBookmark,
   });
+
+  return _instance;
 }

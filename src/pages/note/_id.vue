@@ -139,6 +139,7 @@ import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useUiState } from '@/composable/useUiState';
 import { useStorage } from '@/composable/storage';
+import { useStore } from '@/store';
 import { addCloseHandler } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/composable/useNotePersistence';
 import { useNoteEncryption } from '@/composable/useNoteEncryption';
@@ -165,6 +166,7 @@ export default {
   setup() {
     const uiState = useUiState();
     const route = useRoute();
+    const store = useStore();
     const router = useRouter();
     const storage = useStorage();
     const noteStore = useNoteStore();
@@ -203,9 +205,18 @@ export default {
     });
     function goBack() {
       const from = router.options.history.state.back;
-      if (!from) { router.push('/'); return; }
-      if (from.includes('/folder/') || from.includes('/archive/')) { router.go(-1); return; }
-      if (from.includes('/note/')) { router.go(-1); return; }
+      if (!from) {
+        router.push('/');
+        return;
+      }
+      if (from.includes('/folder/') || from.includes('/archive/')) {
+        router.go(-1);
+        return;
+      }
+      if (from.includes('/note/')) {
+        router.go(-1);
+        return;
+      }
       router.push('/');
     }
 
@@ -218,9 +229,16 @@ export default {
     // Auto-scroll
     const autoScroll = debounce(() => {
       if (!noteEditor.value) return;
-      const lastChild = noteEditor.value.$el.querySelector('.ProseMirror')?.lastChild;
+      const lastChild =
+        noteEditor.value.$el.querySelector('.ProseMirror')?.lastChild;
       if (!lastChild) return;
-      if (!(document.body.scrollHeight > (window.innerHeight || document.documentElement.clientHeight))) return;
+      if (
+        !(
+          document.body.scrollHeight >
+          (window.innerHeight || document.documentElement.clientHeight)
+        )
+      )
+        return;
       const selection = window.getSelection();
       if (!lastChild.contains(selection.anchorNode)) return;
       const range = selection.getRangeAt(0);

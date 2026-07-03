@@ -144,6 +144,7 @@ function normalizePayload(channel, payload) {
     case 'fs:readdir':
     case 'fs:stat':
     case 'fs:unlink':
+    case 'fs:remove':
     case 'fs:readData':
       return {
         ...withKeyVariants('path', payload?.path ?? payload),
@@ -242,7 +243,10 @@ function normalizePayload(channel, payload) {
       };
     case 'crypto:decryptLegacyNote':
       return {
-        ...withKeyVariants('ciphertext_b64', payload?.ciphertextB64 ?? payload?.ciphertext_b64 ?? payload),
+        ...withKeyVariants(
+          'ciphertext_b64',
+          payload?.ciphertextB64 ?? payload?.ciphertext_b64 ?? payload
+        ),
         ...withKeyVariants('password', payload?.password),
       };
     case 'encryption:encryptNotePayload':

@@ -18,6 +18,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
+import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
 import { getSyncPath } from '@/utils/sync/path';
