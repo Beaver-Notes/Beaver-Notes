@@ -75,7 +75,7 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { useTranslations } from '@/composable/useTranslations.js';
+import { useTranslations } from '@/composable/useTranslations';
 
 const { translations } = useTranslations();
 const route = useRoute();

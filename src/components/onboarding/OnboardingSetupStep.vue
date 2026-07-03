@@ -126,9 +126,9 @@
         </p>
         <ui-select
           :model-value="fresh.selectedFont"
-          @update:model-value="handleFontChange"
           class="w-full ob-font-select"
           :search="true"
+          @update:model-value="handleFontChange"
         >
           <option
             v-for="font in fonts"
@@ -185,7 +185,9 @@
     </div>
 
     <!-- Navigation -->
-    <div class="mt-5 flex mobile:flex-col mobile:items-stretch mobile:w-full justify-between gap-3 shrink-0 px-6 pb-6 mobile:pb-4">
+    <div
+      class="mt-5 flex mobile:flex-col mobile:items-stretch mobile:w-full justify-between gap-3 shrink-0 px-6 pb-6 mobile:pb-4"
+    >
       <slot name="back" />
       <slot name="next" />
     </div>

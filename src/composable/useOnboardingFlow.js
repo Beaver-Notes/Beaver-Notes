@@ -64,7 +64,6 @@ export function useOnboardingFlow({
   noteStore,
   settingsStorage,
   clipboard,
-  ipcRenderer,
   runImportSource,
 }) {
   const { translations } = useTranslations();
