@@ -23,7 +23,7 @@
 <script>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue';
-import { useScrollLock } from '@/composable/useScrollLock';
+import { useScrollLock } from '@/utils/ui/scrollLock.js';
 
 export default {
   props: {

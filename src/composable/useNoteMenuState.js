@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import { saveFile } from '@/utils/assets/storage.js';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/composable/zoom';
-import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 
 function normalizePath(value) {
   return value.replace(/\\/g, '');
@@ -143,11 +143,15 @@ export function useNoteMenuState({
     }
   };
 
-  useGlobalShortcuts(() => ({
-    'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
-    'mod+shift+d': deleteNode,
-    'mod+shift+f': toggleReaderMode,
-  }));
+  let _unregShortcuts;
+  onMounted(() => {
+    _unregShortcuts = bindGlobalShortcuts({
+      'mod+alt+h': () => (showHeadingsTree.value = !showHeadingsTree.value),
+      'mod+shift+d': deleteNode,
+      'mod+shift+f': toggleReaderMode,
+    });
+  });
+  onUnmounted(() => _unregShortcuts?.());
 
   function onKeydown(e) {
     if (e.key === 'Escape' && store.inReaderMode) {

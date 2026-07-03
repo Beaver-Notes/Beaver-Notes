@@ -121,7 +121,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
-import { useScrollLock } from '@/composable/useScrollLock';
+import { useScrollLock } from '@/utils/ui/scrollLock.js';
 
 export default {
   props: {

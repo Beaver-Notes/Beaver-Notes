@@ -2,10 +2,6 @@ let lockCount = 0;
 let originalOverflow = '';
 let originalPaddingRight = '';
 
-/**
- * Composable to lock body scroll when overlays/popovers/menus are open.
- * Uses a counter to support multiple simultaneous open elements.
- */
 export function useScrollLock() {
   function lock() {
     if (lockCount === 0) {

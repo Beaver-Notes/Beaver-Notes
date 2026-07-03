@@ -1,4 +1,3 @@
-// src/composable/useTranslations.js
 import { useI18nStore } from '@/store/i18n';
 import { computed } from 'vue';
 

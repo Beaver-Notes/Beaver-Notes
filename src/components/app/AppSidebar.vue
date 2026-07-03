@@ -309,7 +309,7 @@ import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import emitter from 'tiny-emitter/instance';
 import { forceSyncNow } from '@/utils/sync';
-import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSounds } from '@/composable/useSounds';
 
@@ -508,12 +508,16 @@ export default {
     emitter.on('dark', enableDarkTheme);
     emitter.on('light', enableLightTheme);
 
-    useGlobalShortcuts(() =>
-      createShortcutMap({
-        'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
-        'mod+shift+y': () => manualSync(),
-      })
-    );
+    let _unregSidebarShortcuts;
+    onMounted(() => {
+      _unregSidebarShortcuts = bindGlobalShortcuts(
+        createShortcutMap({
+          'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
+          'mod+shift+y': () => manualSync(),
+        })
+      );
+    });
+    onUnmounted(() => _unregSidebarShortcuts?.());
 
     onUnmounted(() => {
       emitter.off('new-note', addNote);
