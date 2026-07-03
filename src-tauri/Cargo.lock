@@ -433,11 +433,13 @@ dependencies = [
 name = "beaver-notes"
 version = "5.0.0-beta.1"
 dependencies = [
+ "aes",
  "aes-gcm",
  "argon2",
  "base64 0.22.1",
  "bcrypt",
  "block2",
+ "cbc",
  "chrono",
  "dirs 5.0.1",
  "font-kit",
