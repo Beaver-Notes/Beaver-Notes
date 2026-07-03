@@ -3,6 +3,7 @@ import { defineStore } from 'pinia';
 import { useStorage } from '../composable/storage.js';
 import { trackChange } from '@/utils/sync';
 import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
+import { useUndoStore } from './undo';
 
 const storage = useStorage();
 
@@ -242,6 +243,7 @@ export const useFolderStore = defineStore('folder', {
         // Keep index in sync when parentId changes
         if (data.parentId !== undefined && data.parentId !== oldParentId) {
           indexMove(this._index, this.data[id], oldParentId);
+          useUndoStore().push({ type: 'move', notes: [], folders: [{ id, prevParentId: oldParentId }] });
         }
 
         await storage.set(`folders.${id}`, this.data[id]);
@@ -269,6 +271,9 @@ export const useFolderStore = defineStore('folder', {
           moveContentsTo ||
           (moveContentsToParent ? folderToDelete.parentId : null);
 
+        const undoStore = useUndoStore();
+        undoStore.startBatch();
+
         // O(1) child lookup via index — no Object.values scan
         const childIds = [...(this._index.get(id) ?? new Set())];
         for (const childId of childIds) {
@@ -288,6 +293,10 @@ export const useFolderStore = defineStore('folder', {
         await trackChange(`folders.${id}`, null);
         await trackChange('deletedFolderIds', this.deletedIds);
 
+        const snapshot = JSON.parse(JSON.stringify(folderToDelete));
+        undoStore.cancelBatch();
+        undoStore.push({ type: 'bulk-delete', items: [{ type: 'folder', data: snapshot }] });
+
         return {
           deletedFolderId: id,
           targetFolderId,
@@ -305,23 +314,28 @@ export const useFolderStore = defineStore('folder', {
       try {
         if (!this.data[id]) throw new Error('Folder not found');
 
-        // Collect all descendant folder IDs (including self)
         const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
 
-        // Archive all affected folders
+        const undoStore = useUndoStore();
+        undoStore.startBatch();
+
+        const undoFolders = allIds.map((fid) => ({ id: fid, prev: false }));
         for (const folderId of allIds) {
           await this.update(folderId, { isArchived: true });
         }
 
-        // Also archive all notes inside these folders
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToArchive = Object.values(noteStore.data).filter(
           (note) => note.id && allIds.includes(note.folderId)
         );
+        const undoNotes = notesToArchive.map((n) => ({ id: n.id, prev: false }));
         for (const note of notesToArchive) {
           await noteStore.update(note.id, { isArchived: true });
         }
+
+        undoStore.cancelBatch();
+        undoStore.push({ type: 'toggle-archive', notes: undoNotes, folders: undoFolders });
 
         return { archivedFolderIds: allIds };
       } catch (error) {
@@ -334,23 +348,28 @@ export const useFolderStore = defineStore('folder', {
       try {
         if (!this.data[id]) throw new Error('Folder not found');
 
-        // Collect all descendant folder IDs (including self)
         const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
 
-        // Unarchive all affected folders
+        const undoStore = useUndoStore();
+        undoStore.startBatch();
+
+        const undoFolders = allIds.map((fid) => ({ id: fid, prev: true }));
         for (const folderId of allIds) {
           await this.update(folderId, { isArchived: false });
         }
 
-        // Also unarchive all notes inside these folders
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToUnarchive = Object.values(noteStore.data).filter(
           (note) => note.id && allIds.includes(note.folderId)
         );
+        const undoNotes = notesToUnarchive.map((n) => ({ id: n.id, prev: true }));
         for (const note of notesToUnarchive) {
           await noteStore.update(note.id, { isArchived: false });
         }
+
+        undoStore.cancelBatch();
+        undoStore.push({ type: 'toggle-archive', notes: undoNotes, folders: undoFolders });
 
         return { unarchivedFolderIds: allIds };
       } catch (error) {

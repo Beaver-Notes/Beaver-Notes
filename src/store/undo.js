@@ -1,13 +1,44 @@
 import { defineStore } from 'pinia';
+import { ref } from 'vue';
 
 const MAX_STACK = 50;
 
 export const useUndoStore = defineStore('undo', () => {
   const stack = [];
+  const _batchStack = [];
+  let _batch = null;
+  const lastAction = ref(null);
 
   function push(action) {
+    if (_batch) {
+      _batch.push(action);
+      return;
+    }
     stack.push(action);
     if (stack.length > MAX_STACK) stack.shift();
+    lastAction.value = action;
+  }
+
+  function startBatch() {
+    _batchStack.push(_batch);
+    _batch = [];
+  }
+
+  function commitBatch() {
+    const actions = _batch || [];
+    _batch = _batchStack.pop() ?? null;
+    if (actions.length) {
+      const merged = mergeActions(actions);
+      push(merged);
+    }
+  }
+
+  function cancelBatch() {
+    _batch = _batchStack.pop() ?? null;
+  }
+
+  function clearLastAction() {
+    lastAction.value = null;
   }
 
   async function undo() {
@@ -60,5 +91,20 @@ export const useUndoStore = defineStore('undo', () => {
     }
   }
 
-  return { push, undo, stack };
+  return { push, undo, stack, lastAction, clearLastAction, startBatch, commitBatch, cancelBatch };
 });
+
+function mergeActions(actions) {
+  if (actions.length === 1) return actions[0];
+
+  const result = { notes: [], folders: [], items: [] };
+  let type = actions[0]?.type;
+
+  for (const a of actions) {
+    if (a.notes) result.notes.push(...a.notes);
+    if (a.folders) result.folders.push(...a.folders);
+    if (a.items) result.items.push(...a.items);
+  }
+
+  return { ...result, type };
+}

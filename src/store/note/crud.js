@@ -6,6 +6,7 @@ import { trackChange, trackDeletedAssets } from '@/utils/sync';
 import { hydrateNote, stripTransientFields } from '@/utils/note/serializer.js';
 import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
+import { useUndoStore } from '../undo';
 import {
   saveNote,
   trackNoteChange,
@@ -15,6 +16,8 @@ import {
 } from './helpers';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync.js';
 import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
+
+const _skipUndo = { value: false };
 
 // ─── Load & hydration ────────────────────────────────────────────────────────
 
@@ -104,8 +107,20 @@ export async function update(id, data = {}) {
       }
     }
 
+    const prevBm = this.data[id]?.isBookmarked;
+    const prevArch = this.data[id]?.isArchived;
+
     this.patchLocal(id, data);
     await this.persist(id);
+
+    if (prevBm !== undefined && data.isBookmarked !== undefined && prevBm !== data.isBookmarked) {
+      useUndoStore().push({ type: 'toggle-bookmark', notes: [{ id, prev: prevBm }] });
+    }
+
+    if (prevArch !== undefined && data.isArchived !== undefined && prevArch !== data.isArchived) {
+      useUndoStore().push({ type: 'toggle-archive', notes: [{ id, prev: prevArch }], folders: [] });
+    }
+
     return this.data[id];
   } catch (error) {
     console.error('Error updating note:', error);
@@ -136,6 +151,8 @@ export async function persist(id) {
 
 export async function deleteNote(id) {
   try {
+    const snapshot = !_skipUndo.value && this.data[id] ? JSON.parse(JSON.stringify(this.data[id])) : null;
+
     const lastEditedNote = localStorage.getItem('lastNoteEdit');
     if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
 
@@ -173,6 +190,10 @@ export async function deleteNote(id) {
       console.warn('Error removing note files:', fileError);
     }
 
+    if (snapshot) {
+      useUndoStore().push({ type: 'bulk-delete', items: [{ type: 'note', data: snapshot }] });
+    }
+
     return id;
   } catch (error) {
     console.error('Error deleting note:', error);
@@ -205,12 +226,16 @@ export async function moveToFolder(noteIds, folderId) {
       }
     }
 
+    const undoNotes = [];
     const results = [];
     for (const noteId of noteIds) {
       if (this.data[noteId]) {
+        undoNotes.push({ id: noteId, prevFolderId: this.data[noteId].folderId });
         results.push(await this.update(noteId, { folderId: targetFolderId }));
       }
     }
+
+    useUndoStore().push({ type: 'move', notes: undoNotes, folders: [] });
     return results;
   } catch (error) {
     console.error('Error moving multiple notes to folder:', error);
@@ -228,6 +253,7 @@ export async function handleFolderDeletion(deletionResult) {
       affectedFolderIds.includes(note.folderId)
     );
 
+    _skipUndo.value = true;
     for (const note of affectedNotes) {
       if (deleteContents) {
         await this.delete(note.id);
@@ -235,8 +261,13 @@ export async function handleFolderDeletion(deletionResult) {
         await this.update(note.id, { folderId: moveContentsTo });
       }
     }
+    _skipUndo.value = false;
 
-    return affectedNotes.map((note) => note.id);
+    const snapshots = deleteContents
+      ? affectedNotes.map((note) => ({ type: 'note', data: JSON.parse(JSON.stringify(note)) }))
+      : [];
+
+    return { noteIds: affectedNotes.map((note) => note.id), noteSnapshots: snapshots };
   } catch (error) {
     console.error('Error handling folder deletion:', error);
     throw error;

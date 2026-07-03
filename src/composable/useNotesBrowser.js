@@ -13,8 +13,8 @@ import KeyboardNavigation from '@/utils/ui/keyboardNavigation.js';
 import { parseItemId, areSetsEqual } from '@/utils/helpers/index.js';
 import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
-import { triggerSelectionHaptic } from '@/lib/native/haptics';
-import { useUndoStack } from '@/composable/useUndoStack';
+import { useUndoStore } from '@/store/undo';
+import { useNotesBrowserTouch } from '@/composable/useNotesBrowserTouch';
 
 export function useNotesBrowser({
   state = reactive({
@@ -34,7 +34,7 @@ export function useNotesBrowser({
   enableFilterPulse = false,
   listenForLabelEvents = false,
 }) {
-  const undoStack = useUndoStack();
+  const undoStack = useUndoStore();
   const keyboardNavigation = shallowRef(null);
   const suppressNextClick = ref(false);
   const isSorting = ref(false);
@@ -51,18 +51,10 @@ export function useNotesBrowser({
   let mouseMoveListener = null;
   let sortTimer = null;
   let filterTimer = null;
-  let longPressTimer = null;
-  let touchStartPoint = null;
-  let touchPressItem = null;
-  let touchLongPressTriggered = false;
-  let touchDragStarted = false;
   let lastReflowAtDelta = 0;
 
   const SCROLL_ZONE_SIZE = 80;
   const SCROLL_SPEED = 5;
-  const LONG_PRESS_MS = 360;
-  const TOUCH_CANCEL_DISTANCE = 10;
-  const TOUCH_DRAG_DISTANCE = 8;
 
   const {
     selectedItems,
@@ -90,6 +82,24 @@ export function useNotesBrowser({
     finishTouchDrag,
     cancelTouchDrag,
   } = useDragAndDrop({ selectedItems, clearSelection });
+
+  const {
+    handleItemTouchStart,
+    handleItemTouchMove,
+    handleItemTouchEnd,
+    handleItemTouchCancel,
+    cleanupTouch,
+  } = useNotesBrowserTouch({
+    selectionMode,
+    selectedItems,
+    enterSelectionMode,
+    clearSelection,
+    suppressNextClick,
+    startTouchDrag,
+    updateTouchDrag,
+    finishTouchDrag,
+    cancelTouchDrag,
+  });
 
   const selectedNotes = computed(() =>
     Array.from(selectedItems.value)
@@ -268,112 +278,6 @@ export function useNotesBrowser({
     }
   }
 
-  function getTouchPoint(event) {
-    return event.touches?.[0] || event.changedTouches?.[0] || null;
-  }
-
-  function resetTouchInteraction() {
-    clearTimeout(longPressTimer);
-    longPressTimer = null;
-    touchStartPoint = null;
-    touchPressItem = null;
-    touchLongPressTriggered = false;
-    touchDragStarted = false;
-  }
-
-  function touchDistanceFromStart(touch) {
-    if (!touch || !touchStartPoint) return 0;
-    return Math.hypot(
-      touch.clientX - touchStartPoint.x,
-      touch.clientY - touchStartPoint.y
-    );
-  }
-
-  function handleItemTouchStart(event, type, id) {
-    const touch = getTouchPoint(event);
-    if (!touch) return;
-
-    resetTouchInteraction();
-    touchPressItem = { type, id, key: `${type}-${id}` };
-    touchStartPoint = { x: touch.clientX, y: touch.clientY };
-
-    longPressTimer = setTimeout(() => {
-      touchLongPressTriggered = true;
-      suppressNextClick.value = true;
-
-      if (
-        !selectionMode.value ||
-        !selectedItems.value.has(touchPressItem.key)
-      ) {
-        enterSelectionMode(touchPressItem.key);
-      } else {
-        triggerSelectionHaptic();
-      }
-    }, LONG_PRESS_MS);
-  }
-
-  function handleItemTouchMove(event) {
-    const touch = getTouchPoint(event);
-    if (!touchPressItem || !touch) return;
-
-    const distance = touchDistanceFromStart(touch);
-
-    if (!touchLongPressTriggered) {
-      if (distance > TOUCH_CANCEL_DISTANCE) {
-        resetTouchInteraction();
-      }
-      return;
-    }
-
-    if (!touchDragStarted && distance >= TOUCH_DRAG_DISTANCE) {
-      const sourceElement = document.querySelector(
-        `[data-item-id="${touchPressItem.key}"]`
-      );
-      if (sourceElement) {
-        startTouchDrag(
-          touchPressItem.type,
-          touchPressItem.id,
-          touch,
-          sourceElement
-        );
-        touchDragStarted = true;
-      }
-    }
-
-    if (touchDragStarted) {
-      event.preventDefault();
-      updateTouchDrag(touch);
-    }
-  }
-
-  function handleItemTouchEnd(event, type, id) {
-    const itemKey = `${type}-${id}`;
-    if (touchPressItem?.key !== itemKey) return;
-
-    clearTimeout(longPressTimer);
-    longPressTimer = null;
-
-    if (touchDragStarted) {
-      event.preventDefault();
-      const didMove = finishTouchDrag();
-      if (didMove) clearSelection();
-      resetTouchInteraction();
-      return;
-    }
-
-    if (touchLongPressTriggered) {
-      event.preventDefault();
-      resetTouchInteraction();
-    }
-  }
-
-  function handleItemTouchCancel() {
-    if (touchDragStarted) {
-      cancelTouchDrag();
-    }
-    resetTouchInteraction();
-  }
-
   function handleDocumentSelectionBoundary(event) {
     if (!selectionMode.value) return;
 
@@ -420,25 +324,17 @@ export function useNotesBrowser({
       okText: translations.value.card.delete,
       cancelText: translations.value.card.cancel,
       onConfirm: async () => {
-        const deleted = [];
+        undoStack.startBatch();
         for (const item of items) {
           const { type, id } = parseItemId(item);
           if (type === 'note') {
-            const note = noteStore.getById(id);
-            if (note) {
-              await noteStore.delete(id);
-              deleted.push({ type: 'note', data: JSON.parse(JSON.stringify(note)) });
-            }
+            await noteStore.delete(id);
           } else if (type === 'folder') {
-            const folder = folderStore.data[id];
-            if (folder) {
-              await folderStore.delete(id);
-              deleted.push({ type: 'folder', data: JSON.parse(JSON.stringify(folder)) });
-            }
+            await folderStore.delete(id);
           }
         }
+        undoStack.commitBatch();
         clearSelection();
-        undoStack.push({ type: 'bulk-delete', items: deleted });
       },
     });
   }
@@ -451,31 +347,26 @@ export function useNotesBrowser({
 
   function handleMoved(result) {
     const targetFolderId = result.folderId;
-    const undoNotes = [];
-    const undoFolders = [];
 
+    undoStack.startBatch();
     for (const item of selectedItems.value) {
       const { type, id } = parseItemId(item);
       if (type === 'note') {
         const note = noteStore.getById(id);
         if (note) {
-          undoNotes.push({ id, prevFolderId: note.folderId });
-          noteStore.update(id, { folderId: targetFolderId });
+          noteStore.moveToFolder([id], targetFolderId);
         }
       } else if (type === 'folder') {
         const folder = folderStore.data[id];
         if (folder && !folderStore.wouldCreateCircularReference(id, targetFolderId)) {
-          undoFolders.push({ id, prevParentId: folder.parentId });
           folderStore.update(id, { parentId: targetFolderId });
         }
       }
     }
+    undoStack.commitBatch();
 
     clearSelection();
     showMoveModal.value = false;
-    if (undoNotes.length || undoFolders.length) {
-      undoStack.push({ type: 'move', notes: undoNotes, folders: undoFolders });
-    }
   }
 
   watch(
@@ -569,9 +460,7 @@ export function useNotesBrowser({
           okText: translations.value.card.confirm,
           cancelText: translations.value.card.cancel,
           onConfirm: async () => {
-            const data = JSON.parse(JSON.stringify(note));
             await noteStore.delete(noteId);
-            undoStack.push({ type: 'bulk-delete', items: [{ type: 'note', data }] });
           },
         });
       }
@@ -623,7 +512,7 @@ export function useNotesBrowser({
     );
     clearTimeout(sortTimer);
     clearTimeout(filterTimer);
-    clearTimeout(longPressTimer);
+    cleanupTouch();
     if (listenForLabelEvents) {
       emitter.off('set-label');
     }
