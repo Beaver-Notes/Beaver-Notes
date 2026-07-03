@@ -12,7 +12,6 @@ use tauri::{App, AppHandle, Emitter, Manager, Wry};
 #[cfg(desktop)]
 use tauri::{PhysicalPosition, PhysicalSize, WindowEvent};
 
-use crate::shared::set_app_encryption_active;
 use crate::{commands, shared::*};
 
 #[cfg(desktop)]
@@ -627,7 +626,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
     if let Ok(manifest_path) = app_encryption_manifest_path(app.handle(), state.inner()) {
-        set_app_encryption_active(state.inner(), manifest_path.exists());
+        state.inner().app_encryption_active.store(manifest_path.exists(), std::sync::atomic::Ordering::Release);
     }
     Ok(())
 }

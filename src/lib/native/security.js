@@ -90,16 +90,6 @@ export function decryptSyncPayload(payload) {
   return backend.invoke('encryption:decryptSyncPayload', payload);
 }
 
-export function encryptSyncAssetBase64(base64Data) {
-  return backend.invoke('encryption:encryptSyncAssetBase64', {
-    base64Data,
-  });
-}
-
-export function decryptSyncAssetBase64(payload) {
-  return backend.invoke('encryption:decryptSyncAssetBase64', payload);
-}
-
 export function decryptAssetStream(path) {
   return backend.invoke('assetCrypto:decryptAssetStream', path);
 }
@@ -118,6 +108,10 @@ export function getCachedDecryptedNote(noteId) {
 
 export function clearDecryptedCaches() {
   return backend.invoke('crypto:clearDecryptedCaches');
+}
+
+export function decryptLegacyCryptoJSNote(ciphertextB64, password) {
+  return backend.invoke('crypto:decryptLegacyNote', { ciphertextB64, password });
 }
 
 export function deriveArgon2Key(passphrase, salt) {

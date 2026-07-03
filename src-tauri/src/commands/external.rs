@@ -23,7 +23,7 @@ pub(crate) fn sync_external_temp_file(
     let raw = fs::read(temp_file).map_err(to_error)?;
     let existing = fs::read(original_path).map_err(to_error)?;
     let payload = if is_encrypted_asset_buffer(&existing) {
-        maybe_encrypt_asset(app, &state, original_path, &raw, false)?
+        encrypt_asset(app, &state, original_path, &raw, false)?
     } else {
         raw
     };
@@ -142,7 +142,7 @@ pub(crate) fn open_file_external(
         format!("{stem}-{}.{}", now_millis(), ext)
     });
     let raw = fs::read(&full_path).map_err(to_error)?;
-    let payload = maybe_decrypt_asset(&app, &state, &full_path, &raw)?;
+    let payload = decrypt_asset(&app, &state, &full_path, &raw)?;
     fs::write(&temp_file, payload).map_err(to_error)?;
     track_temp_file(&app, &full_path, &temp_file);
     watch_external_temp_file(app.clone(), full_path.clone(), temp_file.clone())?;

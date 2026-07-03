@@ -1,4 +1,12 @@
-import { nextTick, onMounted, onUnmounted, reactive, ref } from 'vue';
+import {
+  nextTick,
+  onMounted,
+  onUnmounted,
+  reactive,
+  ref,
+  computed,
+  watch,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
@@ -6,12 +14,11 @@ import { useTheme } from './theme';
 import { useStorage } from './storage';
 import { getSettingSync, hydrateSettingsStore, setSetting } from './settings';
 import { useStore } from '@/store';
-import { useTranslations } from './useTranslations';
+import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
-import { useAppShellLayout } from './useAppShellLayout';
-import { useAppShellBanners } from './useAppShellBanners';
+
 import { importBEA } from '@/utils/share/BEA';
 import { getSyncPath } from '@/utils/sync/path';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
@@ -23,10 +30,15 @@ import {
   isUpdateManaged,
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
-import { tryRestoreKeyFromSafeStorage } from '@/utils/crypto/encryption.js';
+import {
+  tryRestoreKeyFromSafeStorage,
+  encryptionIsConfigured,
+  isKeyLoaded,
+} from '@/utils/crypto/encryption.js';
 import { useSoundActions } from './useSoundActions';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
+const SETTINGS_ROUTE_PREFIX = '/settings';
 
 function applyDocumentSettings() {
   document.documentElement.style.setProperty(
@@ -56,6 +68,8 @@ export function useAppShell() {
 
   useSoundActions();
 
+  const storeForOverlay = useStore();
+  const { overlayCount } = storeForOverlay;
   const retrieved = ref(false);
   const animateRouteChange = ref(true);
   const showImportDialog = ref(false);
@@ -65,37 +79,276 @@ export function useAppShell() {
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
-  const {
-    bottomBannerStyle,
-    initializeMobileKeyboardTracking,
-    initializeSafeAreaInsets,
-    mainStyle,
-    mobileNavbarStyle,
+  // ── Layout ──
+  const keyboardVisible = ref(false);
+  const pluginKeyboardVisible = ref(false);
+  const isMobileRuntime = computed(() => backend.isMobileRuntime());
+  const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
+  const showSidebar = computed(
+    () => !store.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
+  );
+  const showMobileNavbar = computed(
+    () =>
+      showSidebar.value &&
+      route.name !== 'Note' &&
+      (!isPhoneRuntime.value || !keyboardVisible.value)
+  );
+  const useMobileBottomDockSpacing = computed(
+    () => isPhoneRuntime.value && showMobileNavbar.value
+  );
+  const mainStyle = computed(() => {
+    if (!isMobileRuntime.value || route.name === ONBOARDING_ROUTE_NAME)
+      return undefined;
+    return {
+      paddingTop: 'var(--app-safe-area-top)',
+      paddingBottom: useMobileBottomDockSpacing.value
+        ? 'var(--app-mobile-content-offset)'
+        : 'var(--app-safe-area-bottom)',
+    };
+  });
+  const bottomBannerStyle = computed(() => {
+    if (!isMobileRuntime.value) return undefined;
+    return {
+      bottom: useMobileBottomDockSpacing.value
+        ? 'var(--app-mobile-floating-offset)'
+        : 'var(--app-safe-area-bottom)',
+    };
+  });
+  const mobileNavbarStyle = computed(() => {
+    if (!isMobileRuntime.value || !showMobileNavbar.value) return undefined;
+    return {
+      bottom: 'var(--app-safe-area-bottom)',
+    };
+  });
+  const showSafeAreaOverlay = computed(() => {
+    if (!isMobileRuntime.value) return false;
+    if (route.name === ONBOARDING_ROUTE_NAME) return false;
+    if (overlayCount.value > 0) return false;
+    return true;
+  });
+
+  let maxVisualViewportHeight = 0;
+  let pendingBlurTimeout = null;
+  let removeMobileKeyboardListeners = () => {};
+
+  const isEditableElement = (element) => {
+    if (!element || typeof element !== 'object') return false;
+    const tagName = element.tagName?.toLowerCase?.() || '';
+    if (tagName === 'input' || tagName === 'textarea' || tagName === 'select') {
+      return true;
+    }
+    return Boolean(element.isContentEditable);
+  };
+
+  const syncKeyboardVisibility = () => {
+    if (
+      typeof window === 'undefined' ||
+      !isMobileRuntime.value ||
+      !window.visualViewport
+    ) {
+      return;
+    }
+    const viewportHeight = window.visualViewport.height;
+    if (viewportHeight > maxVisualViewportHeight) {
+      maxVisualViewportHeight = viewportHeight;
+    }
+    const activeElement = document.activeElement;
+    const hasEditableFocus = isEditableElement(activeElement);
+    const keyboardDelta = maxVisualViewportHeight - viewportHeight;
+    keyboardVisible.value =
+      hasEditableFocus && (keyboardDelta > 120 || pluginKeyboardVisible.value);
+  };
+
+  watch(
     showMobileNavbar,
-    showSidebar,
-  } = useAppShellLayout({
-    backend,
-    route,
-    store,
+    (visible) => {
+      if (typeof document === 'undefined' || !isPhoneRuntime.value) return;
+      document.documentElement.style.setProperty(
+        '--app-mobile-dock-height-active',
+        visible ? 'var(--app-mobile-dock-height)' : '0px'
+      );
+    },
+    { immediate: true }
+  );
+
+  watch(
+    keyboardVisible,
+    (visible) => {
+      if (typeof document === 'undefined' || !isMobileRuntime.value) return;
+      document.documentElement.style.setProperty(
+        '--app-keyboard-inset-bottom',
+        visible ? '0px' : 'var(--app-safe-area-bottom)'
+      );
+    },
+    { immediate: true }
+  );
+
+  const initializeSafeAreaInsets = async () => {
+    if (!isMobileRuntime.value) return;
+    try {
+      const { getTopInset, getBottomInset } = await import(
+        '@saurl/tauri-plugin-safe-area-insets-css-api'
+      );
+      const topInset = await getTopInset();
+      const bottomInset = await getBottomInset();
+      const bottomInsetValue = `${bottomInset?.inset ?? 0}px`;
+      const rootStyle = document.documentElement.style;
+      rootStyle.setProperty(
+        '--safe-area-inset-top',
+        `${topInset?.inset ?? 0}px`
+      );
+      rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
+      rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
+      rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
+      rootStyle.setProperty(
+        '--app-note-page-padding',
+        `calc(54px + ${bottomInsetValue} + 0.75rem)`
+      );
+    } catch (error) {
+      console.warn('Safe area inset CSS plugin failed to initialize:', error);
+    }
+  };
+
+  const initializeMobileKeyboardTracking = (unlistenFns) => {
+    if (!isMobileRuntime.value) return;
+    unlistenFns.push(
+      backend.listen('keyboard_shown', () => {
+        pluginKeyboardVisible.value = true;
+        keyboardVisible.value = true;
+      }),
+      backend.listen('keyboard_hidden', () => {
+        pluginKeyboardVisible.value = false;
+        keyboardVisible.value = false;
+      })
+    );
+    maxVisualViewportHeight =
+      window.visualViewport?.height ?? window.innerHeight ?? 0;
+    const handleFocusIn = () => {
+      if (pendingBlurTimeout) {
+        clearTimeout(pendingBlurTimeout);
+        pendingBlurTimeout = null;
+      }
+      requestAnimationFrame(syncKeyboardVisibility);
+    };
+    const handleFocusOut = () => {
+      pendingBlurTimeout = window.setTimeout(() => {
+        syncKeyboardVisibility();
+        pendingBlurTimeout = null;
+      }, 180);
+    };
+    const handleViewportChange = () => {
+      requestAnimationFrame(syncKeyboardVisibility);
+    };
+    document.addEventListener('focusin', handleFocusIn);
+    document.addEventListener('focusout', handleFocusOut);
+    window.visualViewport?.addEventListener('resize', handleViewportChange);
+    window.visualViewport?.addEventListener('scroll', handleViewportChange);
+    removeMobileKeyboardListeners = () => {
+      document.removeEventListener('focusin', handleFocusIn);
+      document.removeEventListener('focusout', handleFocusOut);
+      window.visualViewport?.removeEventListener(
+        'resize',
+        handleViewportChange
+      );
+      window.visualViewport?.removeEventListener(
+        'scroll',
+        handleViewportChange
+      );
+      if (pendingBlurTimeout) {
+        clearTimeout(pendingBlurTimeout);
+        pendingBlurTimeout = null;
+      }
+    };
+    syncKeyboardVisibility();
+  };
+
+  onUnmounted(() => {
+    removeMobileKeyboardListeners();
   });
-  const {
-    dismissSyncBanner,
-    handleUpdateDismiss,
-    handleUpdateInstall,
-    openSyncSettings,
-    refreshSyncLockBanner,
-    syncLockBanner,
-    syncLockBannerCopy,
-    updateBanner,
-    appEncryptionMigrationBanner,
-    dismissAppEncryptionMigrationBanner,
-    openAppEncryptionMigrationSettings,
-    checkAppEncryptionMigration,
-  } = useAppShellBanners({
-    route,
-    router,
-    translations,
+
+  // ── Banners ──
+  const updateBanner = reactive({
+    show: false,
+    content: '',
+    primaryText: '',
+    secondaryText: '',
+    version: '',
   });
+  const syncLockBanner = reactive({
+    show: false,
+    dismissed: false,
+  });
+  const appEncryptionMigrationBanner = reactive({
+    show: false,
+    dismissed: false,
+    status: null,
+    error: null,
+  });
+
+  const syncLockBannerCopy = computed(() => ({
+    content:
+      translations.value.app?.syncLockContent ||
+      'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
+    primaryText: translations.value.app?.openSettings || 'Open Settings',
+    secondaryText: translations.value.app?.dismiss || 'Dismiss',
+  }));
+
+  const handleUpdateInstall = (installUpdate) => {
+    installUpdate();
+    updateBanner.show = false;
+  };
+
+  const handleUpdateDismiss = () => {
+    updateBanner.show = false;
+  };
+
+  const openSyncSettings = () => {
+    syncLockBanner.show = false;
+    router.push(SETTINGS_ROUTE_PREFIX);
+  };
+
+  const dismissSyncBanner = () => {
+    syncLockBanner.dismissed = true;
+    syncLockBanner.show = false;
+  };
+
+  const refreshSyncLockBanner = async () => {
+    const inSettings = router.currentRoute.value.path.startsWith(
+      SETTINGS_ROUTE_PREFIX
+    );
+    if (
+      inSettings ||
+      syncLockBanner.dismissed ||
+      route.name === ONBOARDING_ROUTE_NAME
+    ) {
+      syncLockBanner.show = false;
+      return;
+    }
+    const configured = await encryptionIsConfigured();
+    syncLockBanner.show = configured && !isKeyLoaded();
+  };
+
+  const dismissAppEncryptionMigrationBanner = () => {
+    appEncryptionMigrationBanner.dismissed = true;
+    appEncryptionMigrationBanner.show = false;
+  };
+
+  const openAppEncryptionMigrationSettings = () => {
+    appEncryptionMigrationBanner.show = false;
+    router.push(SETTINGS_ROUTE_PREFIX);
+  };
+
+  const checkAppEncryptionMigration = (migrationStatus) => {
+    if (!migrationStatus) return;
+    const { status, error } = migrationStatus;
+    if (status === 'in_progress' || status === 'error') {
+      appEncryptionMigrationBanner.status = status;
+      appEncryptionMigrationBanner.error = error || null;
+      if (!appEncryptionMigrationBanner.dismissed) {
+        appEncryptionMigrationBanner.show = true;
+      }
+    }
+  };
 
   let removeRouteGuard = null;
   let removeBeforeRouteGuard = null;
@@ -380,5 +633,6 @@ export function useAppShell() {
     appEncryptionMigrationBanner,
     dismissAppEncryptionMigrationBanner,
     openAppEncryptionMigrationSettings,
+    showSafeAreaOverlay,
   };
 }

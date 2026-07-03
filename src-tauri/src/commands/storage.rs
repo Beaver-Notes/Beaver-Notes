@@ -215,7 +215,7 @@ pub(crate) fn storage_get(
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
             .unwrap_or(def);
         if name == DATA_STORE {
-            return decrypt_note_row_from_storage(state.inner(), &flat_key, value);
+            return Ok(decrypt_note_row_from_storage(state.inner(), &flat_key, value)?);
         }
         return Ok(value);
     }
@@ -245,7 +245,7 @@ pub(crate) fn storage_set(
 
     if let Some(flat_key) = flat_db_key(&segments) {
         let value = if name == DATA_STORE {
-            encrypt_note_row_for_storage(&app, state.inner(), &flat_key, value)?
+            encrypt_note_row_for_storage(state.inner(), &flat_key, value)?
         } else {
             value
         };
@@ -256,7 +256,7 @@ pub(crate) fn storage_set(
     // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root(pool)?;
     let value = if name == DATA_STORE {
-        encrypt_note_row_for_storage(&app, state.inner(), &key, value)?
+        encrypt_note_row_for_storage(state.inner(), &key, value)?
     } else {
         value
     };

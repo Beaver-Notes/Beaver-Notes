@@ -48,15 +48,6 @@ export const backend = {
   },
 };
 
-export const ipcRenderer = {
-  callMain(channel, payload) {
-    return backend.invoke(channel, payload);
-  },
-  on(channel, callback) {
-    return backend.listen(channel, callback);
-  },
-};
-
 export const path = {
   join: (...args) => buildPath(...args),
   dirname: (target) => dirnameSync(target),

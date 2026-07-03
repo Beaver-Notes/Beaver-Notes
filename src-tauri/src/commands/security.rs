@@ -127,17 +127,17 @@ pub(crate) async fn asset_crypto_migrate_dir(
                 if encrypt {
                     // Enabling: decrypt first (in case it was encrypted with a stale key),
                     // then re-encrypt with the current key.
-                    let plain = maybe_decrypt_asset(&app, &state_inner, path, &raw)?;
-                    let payload = maybe_encrypt_asset(&app, &state_inner, path, &plain, false)?;
+                    let plain = decrypt_asset(&app, &state_inner, path, &raw)?;
+                    let payload = encrypt_asset(&app, &state_inner, path, &plain, false)?;
                     fs::write(path, payload).map_err(to_error)
                 } else {
                     // Disabling: try to decrypt to plaintext. If decryption fails
                     // (e.g. asset was encrypted with an old, lost key), leave it
                     // encrypted and move on — the manifest is about to be removed anyway.
-                    match maybe_decrypt_asset(&app, &state_inner, path, &raw) {
+                    match decrypt_asset(&app, &state_inner, path, &raw) {
                         Ok(plain) => {
                             let payload =
-                                maybe_encrypt_asset(&app, &state_inner, path, &plain, true)?;
+                                encrypt_asset(&app, &state_inner, path, &plain, true)?;
                             fs::write(path, payload).map_err(to_error)
                         }
                         Err(e) => {
@@ -240,7 +240,7 @@ pub(crate) fn encryption_submit_password(
             create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
         write_encryption_manifest(&manifest_path, &manifest)?;
         *state.app_data_key.lock().map_err(to_error)? = Some(key);
-        crate::shared::set_app_encryption_active(state.inner(), true);
+        state.inner().app_encryption_active.store(true, std::sync::atomic::Ordering::Release);
     } else {
         return Ok(EncryptionSubmitResult {
             ok: false,
@@ -267,7 +267,7 @@ pub(crate) fn encryption_enable(
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     write_encryption_manifest(&manifest_path, &manifest)?;
     *state.app_data_key.lock().map_err(to_error)? = Some(key);
-    crate::shared::set_app_encryption_active(state.inner(), true);
+    state.inner().app_encryption_active.store(true, std::sync::atomic::Ordering::Release);
     Ok(())
 }
 
@@ -281,7 +281,7 @@ pub(crate) fn encryption_disable(
     if remove_manifest.unwrap_or(true) {
         let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
         let _ = fs::remove_file(manifest_path);
-        crate::shared::set_app_encryption_active(state.inner(), false);
+        state.inner().app_encryption_active.store(false, std::sync::atomic::Ordering::Release);
     }
     Ok(())
 }
@@ -398,7 +398,7 @@ pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool,
 
 #[tauri::command]
 pub(crate) fn safe_storage_encrypt(plain_text: String) -> Result<String, String> {
-    safe_storage_encrypt_bytes(plain_text.as_bytes())
+    safe_storage_encrypt_bytes(plain_text.as_bytes()).map_err(String::from)
 }
 
 #[tauri::command]
@@ -409,35 +409,36 @@ pub(crate) fn safe_storage_decrypt(encrypted_base64: String) -> Result<String, S
 
 #[tauri::command]
 pub(crate) fn safe_storage_store_blob(
-    app: AppHandle,
     state: State<AppState>,
     key: String,
     blob: String,
 ) -> Result<(), String> {
     allowed_blob_key(&key)?;
-    crate::shared::safe_storage_store_blob_cmd(&app, state.inner(), &key, blob.as_bytes().to_vec())
+    let s = state.inner();
+    s.secure_blobs.store_blob(s, &key, blob.as_bytes().to_vec())
 }
 
 #[tauri::command]
 pub(crate) fn safe_storage_fetch_blob(
-    app: AppHandle,
     state: State<AppState>,
     key: String,
 ) -> Result<Option<String>, String> {
     allowed_blob_key(&key)?;
-    crate::shared::safe_storage_fetch_blob_cmd(&app, state.inner(), &key)?
+    let s = state.inner();
+    s.secure_blobs
+        .fetch_blob(s, &key)?
         .map(|bytes| String::from_utf8(bytes).map_err(to_error))
         .transpose()
 }
 
 #[tauri::command]
 pub(crate) fn safe_storage_clear_blob(
-    app: AppHandle,
     state: State<AppState>,
     key: String,
 ) -> Result<(), String> {
     allowed_blob_key(&key)?;
-    crate::shared::safe_storage_clear_blob_cmd(&app, state.inner(), &key)
+    let s = state.inner();
+    s.secure_blobs.clear_blob(s, &key)
 }
 
 #[tauri::command]
@@ -493,43 +494,7 @@ pub(crate) fn is_encrypted_asset(path: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub(crate) fn encrypt_asset(
-    app: AppHandle,
-    state: State<AppState>,
-    path: String,
-) -> Result<(), String> {
-    let path = PathBuf::from(path);
-    let raw = fs::read(&path).map_err(to_error)?;
-    let key = current_app_key(state.inner())?
-        .ok_or_else(|| "App encryption is enabled but locked.".to_string())?;
-    let encrypted = maybe_encrypt_asset(&app, &state, &path, &raw, false)?;
-    if encrypted == raw {
-        let encrypted = encrypt_asset_bytes_with_key(&raw, &key)?;
-        let tmp_path = path.with_extension("enc.tmp");
-        fs::write(&tmp_path, &encrypted).map_err(to_error)?;
-        fs::rename(&tmp_path, &path).map_err(to_error)?;
-        return Ok(());
-    }
-    let tmp_path = path.with_extension("enc.tmp");
-    fs::write(&tmp_path, &encrypted).map_err(to_error)?;
-    fs::rename(&tmp_path, &path).map_err(to_error)
-}
-
-#[tauri::command]
-pub(crate) fn decrypt_asset(
-    app: AppHandle,
-    state: State<AppState>,
-    path: String,
-) -> Result<Vec<u8>, String> {
-    let path = PathBuf::from(path);
-    let raw = fs::read(&path).map_err(to_error)?;
-    let _key = current_app_key(state.inner())?
-        .ok_or_else(|| "App encryption is enabled but locked.".to_string())?;
-    maybe_decrypt_asset(&app, &state, &path, &raw)
-}
-
-#[tauri::command]
-pub(crate) async fn decrypt_asset_stream(
+pub(crate) async fn encryption_decrypt_asset_stream(
     app: AppHandle,
     state: State<'_, AppState>,
     path: String,
@@ -562,7 +527,7 @@ pub(crate) async fn decrypt_asset_stream(
         if is_encrypted_asset_v2(&raw) {
             decrypt_asset_streaming(&path_buf, &output_path, &key)?;
         } else {
-            let plain = maybe_decrypt_asset(&app, &state_inner, &path_buf, &raw)?;
+            let plain = decrypt_asset(&app, &state_inner, &path_buf, &raw)?;
             fs::write(&output_path, &plain).map_err(to_error)?;
             cache_decrypted_asset(&state_inner, &path, &plain);
         }
@@ -573,7 +538,7 @@ pub(crate) async fn decrypt_asset_stream(
 }
 
 #[tauri::command]
-pub(crate) async fn encrypt_asset_stream(
+pub(crate) async fn encryption_encrypt_asset_stream(
     _app: AppHandle,
     state: State<'_, AppState>,
     path: String,
@@ -589,7 +554,7 @@ pub(crate) async fn encrypt_asset_stream(
 }
 
 #[tauri::command]
-pub(crate) fn cache_decrypted_note(
+pub(crate) fn encryption_cache_decrypted_note(
     state: State<AppState>,
     note_id: String,
     content: Vec<u8>,
@@ -599,7 +564,7 @@ pub(crate) fn cache_decrypted_note(
 }
 
 #[tauri::command]
-pub(crate) fn get_cached_decrypted_note(
+pub(crate) fn encryption_get_cached_decrypted_note(
     state: State<AppState>,
     note_id: String,
 ) -> Option<Vec<u8>> {
@@ -607,9 +572,17 @@ pub(crate) fn get_cached_decrypted_note(
 }
 
 #[tauri::command]
-pub(crate) fn clear_decrypted_caches(state: State<AppState>) -> Result<(), String> {
+pub(crate) fn encryption_clear_decrypted_caches(state: State<AppState>) -> Result<(), String> {
     crate::shared::clear_decrypted_caches(state.inner());
     Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn decrypt_legacy_cryptojs_note(
+    ciphertext_b64: String,
+    password: String,
+) -> Result<String, String> {
+    crate::shared::decrypt_legacy_cryptojs_note(&ciphertext_b64, &password).map_err(String::from)
 }
 
 #[tauri::command]

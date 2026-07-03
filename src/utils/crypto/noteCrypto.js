@@ -13,8 +13,7 @@ import {
   deriveAesGcmKeyFromPassphrase,
   hexToBuf,
 } from './codec.js';
-import { AES } from 'crypto-es/lib/aes';
-import { Utf8 } from 'crypto-es/lib/core';
+import { decryptLegacyCryptoJSNote } from '@/lib/native/security.js';
 
 export const LEGACY_CRYPTOJS_PREFIX = 'U2FsdGVk';
 export const NOTE_CRYPTO_ERROR = 'Incorrect password';
@@ -23,15 +22,6 @@ async function _noteKey(password, saltBuf) {
   return deriveAesGcmKeyFromPassphrase(password, saltBuf, {
     iterations: PBKDF2_ITERATIONS,
   });
-}
-
-async function decryptLegacyCryptoJSNote(ciphertextB64, password) {
-  const decrypted = AES.decrypt(ciphertextB64, password);
-  const plaintext = decrypted.toString(Utf8);
-  if (!plaintext) {
-    throw new Error(NOTE_CRYPTO_ERROR);
-  }
-  return plaintext;
 }
 
 export async function encryptNoteWithPassword(plaintext, password) {

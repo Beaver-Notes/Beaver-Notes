@@ -1,4 +1,4 @@
-import { SHA256 } from 'crypto-es/lib/sha256';
+
 import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
@@ -84,10 +84,15 @@ export async function saveFile(file, id) {
 
 // ─── Image saving ────────────────────────────────────────────────────────────
 
+async function sha256Hex(input) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function createImageDestination(file, id, timestamp) {
   const appDirectory = await getAppDirectory();
   const { ext, name } = path.parse(sourceFileName(file));
-  const fileName = `${SHA256(name + timestamp).toString()}${ext}`;
+  const fileName = `${await sha256Hex(name + timestamp)}${ext}`;
   const assetsPath = path.join(appDirectory, 'notes-assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);

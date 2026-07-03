@@ -35,7 +35,7 @@ pub(crate) fn fs_copy(
         fs::create_dir_all(parent).map_err(to_error)?;
     }
     let raw = fs::read(&src_path).map_err(to_error)?;
-    let payload = maybe_encrypt_asset(&app, &state, &final_dest, &raw, false)?;
+    let payload = encrypt_asset(&app, &state, &final_dest, &raw, false)?;
     fs::write(final_dest, payload).map_err(to_error)
 }
 
@@ -54,7 +54,7 @@ fn copy_dir_recursive(
             copy_dir_recursive(app, state, &src_path, &dest_path)?;
         } else {
             let raw = fs::read(&src_path).map_err(to_error)?;
-            let payload = maybe_encrypt_asset(app, state, &dest_path, &raw, false)?;
+            let payload = encrypt_asset(app, state, &dest_path, &raw, false)?;
             fs::write(dest_path, payload).map_err(to_error)?;
         }
     }
@@ -140,7 +140,7 @@ pub(crate) fn fs_write_file(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(to_error)?;
     }
-    let payload = maybe_encrypt_asset(
+    let payload = encrypt_asset(
         &app,
         &state,
         &path,
@@ -238,7 +238,7 @@ pub(crate) fn fs_read_data(
     let plain = if skip_decryption.unwrap_or(false) {
         raw
     } else {
-        maybe_decrypt_asset(&app, &state, &actual_path, &raw)?
+        decrypt_asset(&app, &state, &actual_path, &raw)?
     };
     Ok(BASE64.encode(plain))
 }

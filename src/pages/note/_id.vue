@@ -139,11 +139,9 @@ import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useStore } from '@/store';
 import { useStorage } from '@/composable/storage';
-import { onClose } from '@/composable/onClose';
+import { addCloseHandler } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/composable/useNotePersistence';
-import { useNoteBackNavigation } from '@/composable/useNoteBackNavigation';
 import { useNoteEncryption } from '@/composable/useNoteEncryption';
-import { useEditorAutoScroll } from '@/composable/useEditorAutoScroll';
 import NoteToolbar from '@/components/note/NoteToolbar.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
@@ -197,7 +195,19 @@ export default {
       });
 
     // Navigation
-    const { showBack, goBack } = useNoteBackNavigation();
+    const showBack = computed(() => {
+      const back = router.options.history.state.back;
+      if (!back) return false;
+      if (back === '/' || back.includes('/#/?')) return false;
+      return true;
+    });
+    function goBack() {
+      const from = router.options.history.state.back;
+      if (!from) { router.push('/'); return; }
+      if (from.includes('/folder/') || from.includes('/archive/')) { router.go(-1); return; }
+      if (from.includes('/note/')) { router.go(-1); return; }
+      router.push('/');
+    }
 
     // Encryption
     const { unlockNote, unlockAppEncryption } = useNoteEncryption({
@@ -206,7 +216,22 @@ export default {
     });
 
     // Auto-scroll
-    const { autoScroll } = useEditorAutoScroll(noteEditor);
+    const autoScroll = debounce(() => {
+      if (!noteEditor.value) return;
+      const lastChild = noteEditor.value.$el.querySelector('.ProseMirror')?.lastChild;
+      if (!lastChild) return;
+      if (!(document.body.scrollHeight > (window.innerHeight || document.documentElement.clientHeight))) return;
+      const selection = window.getSelection();
+      if (!lastChild.contains(selection.anchorNode)) return;
+      const range = selection.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const lastRect = lastChild.getBoundingClientRect();
+      const lineHeight = rect.height;
+      const offset = Math.abs(rect.bottom - lastRect.bottom);
+      if (lastRect.top + lastRect.height <= window.innerHeight) return;
+      if (lineHeight === 0) lastChild.scrollIntoView();
+      else if (offset < lineHeight) lastChild.scrollIntoView();
+    }, 50);
 
     // Watch note ID for decryption and heading conversion
     watch(
@@ -333,7 +358,7 @@ export default {
       removeGlobalShortcuts();
     });
 
-    onClose(async () => {
+    addCloseHandler(async () => {
       await persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     });
 

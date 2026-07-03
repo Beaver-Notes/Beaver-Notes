@@ -48,7 +48,7 @@ const commandAliases = {
   'assetCrypto:setAppPassphrase': 'asset_crypto_set_passphrase',
   'assetCrypto:clearAppPassphrase': 'asset_crypto_clear_passphrase',
   'assetCrypto:migrateDir': 'asset_crypto_migrate_dir',
-  'crypto:clearDecryptedCaches': 'clear_decrypted_caches',
+  'crypto:clearDecryptedCaches': 'encryption_clear_decrypted_caches',
   'encryption:getState': 'encryption_get_state',
   'encryption:submitPassword': 'encryption_submit_password',
   'encryption:enable': 'encryption_enable',
@@ -60,12 +60,12 @@ const commandAliases = {
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'encryption:encryptSyncPayload': 'encryption_encrypt_sync_payload',
   'encryption:decryptSyncPayload': 'encryption_decrypt_sync_payload',
-  'encryption:encryptSyncAssetBase64': 'encryption_encrypt_sync_asset_base64',
-  'encryption:decryptSyncAssetBase64': 'encryption_decrypt_sync_payload',
-  'assetCrypto:decryptAssetStream': 'decrypt_asset_stream',
-  'assetCrypto:encryptAssetStream': 'encrypt_asset_stream',
-  'crypto:cacheDecryptedNote': 'cache_decrypted_note',
-  'crypto:getCachedDecryptedNote': 'get_cached_decrypted_note',
+
+  'assetCrypto:decryptAssetStream': 'encryption_decrypt_asset_stream',
+  'assetCrypto:encryptAssetStream': 'encryption_encrypt_asset_stream',
+  'crypto:cacheDecryptedNote': 'encryption_cache_decrypted_note',
+  'crypto:getCachedDecryptedNote': 'encryption_get_cached_decrypted_note',
+  'crypto:decryptLegacyNote': 'decrypt_legacy_cryptojs_note',
   'crypto:deriveArgon2Key': 'derive_argon2_key',
   'passwd:hash': 'passwd_hash',
   'passwd:compare': 'passwd_compare',
@@ -140,7 +140,6 @@ function normalizePayload(channel, payload) {
     case 'fs:read-json':
     case 'fs:ensureDir':
     case 'fs:pathExists':
-    case 'fs:remove':
     case 'fs:readFile':
     case 'fs:readdir':
     case 'fs:stat':
@@ -241,6 +240,11 @@ function normalizePayload(channel, payload) {
         ...withKeyVariants('note_id', payload?.noteId),
         content: payload?.content,
       };
+    case 'crypto:decryptLegacyNote':
+      return {
+        ...withKeyVariants('ciphertext_b64', payload?.ciphertextB64 ?? payload?.ciphertext_b64 ?? payload),
+        ...withKeyVariants('password', payload?.password),
+      };
     case 'encryption:encryptNotePayload':
       return withKeyVariants('plain_json', payload);
     case 'encryption:decryptNotePayload':
@@ -248,13 +252,7 @@ function normalizePayload(channel, payload) {
     case 'encryption:encryptSyncPayload':
       return withKeyVariants('plain_text', payload);
     case 'encryption:decryptSyncPayload':
-    case 'encryption:decryptSyncAssetBase64':
       return withKeyVariants('payload', payload);
-    case 'encryption:encryptSyncAssetBase64':
-      return withKeyVariants(
-        'base64_data',
-        payload?.base64Data ?? payload?.base64_data ?? payload
-      );
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':

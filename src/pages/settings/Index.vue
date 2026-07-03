@@ -716,8 +716,8 @@ import { useNoteStore } from '@/store/note';
 import { formatTime } from '@/utils/helpers/index.js';
 import { forceSyncNow } from '../../utils/sync';
 import { useFolderStore } from '../../store/folder';
-import { useTranslations } from '../../composable/useTranslations';
-import { clipboard, ipcRenderer } from '@/lib/tauri-bridge';
+import { useTranslations } from '@/composable/useTranslations';
+import { clipboard } from '@/lib/tauri-bridge';
 import { useSettingsData } from '@/composable/useSettingsData';
 import { useSettingsSecurity } from '@/composable/useSettingsSecurity';
 import { enableIndexing } from '@/lib/native/spotsearch';
@@ -774,7 +774,6 @@ export default {
     } = useImportExport({
       clipboard,
       folderStore,
-      ipcRenderer,
       isMacOS,
       noteStore,
       storage,
