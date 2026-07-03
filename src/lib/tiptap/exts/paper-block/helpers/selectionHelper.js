@@ -108,7 +108,7 @@ export default function useSelectionHelper(
     }
   };
 
-  // ── move ───────────────────────────────────────────────────────────────────
+  // move
 
   const handleSelectionMove = (e) => {
     if (isPalmTouch(e) || !state.isDrawing) return;
@@ -121,7 +121,7 @@ export default function useSelectionHelper(
     }
   };
 
-  // ── end ────────────────────────────────────────────────────────────────────
+  // end
 
   const handleSelectionEnd = () => {
     if (!state.isDrawing) return;

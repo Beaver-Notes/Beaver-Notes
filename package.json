@@ -113,7 +113,6 @@
     "@tiptap/vue-3": "^3",
     "@tiptap/y-tiptap": "3.0.3",
     "cross-env": "^7.0.3",
-    "crypto-es": "2.1.0",
     "dayjs": "^1.10.6",
     "emoji.json": "^16.0.0",
     "jszip": "^3.10.1",

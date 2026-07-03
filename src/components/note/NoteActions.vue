@@ -179,7 +179,7 @@
   <!-- Mobile -->
   <div
     ref="shellRef"
-    class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white dark:bg-neutral-900 top-0 mb-4 hidden mobile:flex"
+    class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white/90 dark:bg-neutral-900/90 top-0 mb-4 hidden mobile:flex"
     :style="shellStyle"
   >
     <div class="flex w-full items-center justify-between p-1.5">
@@ -310,7 +310,9 @@ export default {
         } else {
           dialog.prompt({
             title: t.enterPasswd || 'Enter password',
-            body: t.warning || 'Warning, if you forget your password, you will lose access to your locked notes.',
+            body:
+              t.warning ||
+              'Warning, if you forget your password, you will lose access to your locked notes.',
             icon: 'riLockLine',
             okText: t.lock || 'Lock',
             cancelText: t.cancel || 'Cancel',

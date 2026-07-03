@@ -133,7 +133,7 @@
 <script>
 import { reactive, watch, ref } from 'vue';
 import emitter from 'tiny-emitter/instance';
-import { useTranslations } from '../../composable/useTranslations';
+import { useTranslations } from '@/composable/useTranslations';
 
 const defaultOptions = {
   html: false,

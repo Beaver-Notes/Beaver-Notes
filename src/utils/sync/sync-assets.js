@@ -4,16 +4,12 @@ import {
   copyPath as copySyncPath,
   ensureDir as ensureSyncDir,
   readDir as readSyncDir,
-  readFile as readSyncFile,
   removePath as removeSyncPath,
-  writeFile as writeSyncFile,
 } from '@/lib/native/fs';
-import { isEncryptionEnabled, isKeyLoaded } from '@/utils/crypto/encryption.js';
-import { decryptAndWriteAsset, localAssetName } from './crypto.js';
+import { localAssetName } from './crypto.js';
 import {
   ASSET_TYPES,
   ASSETS_DIR,
-  ENCRYPTED_ASSET_EXT,
   STORAGE_KEY,
 } from './constants.js';
 
@@ -28,19 +24,6 @@ function isIgnoredAssetEntry(name) {
 }
 
 async function copyRemoteToLocal(remotePath, localDest) {
-  // Legacy: old sync repos used a sync-envelope format stored with .enc
-  // extension. New files are raw bytes copied via fs:copy — the FS layer
-  // transparently handles encryption on read/write via maybe_decrypt_asset
-  // / maybe_encrypt_asset, so no explicit decryption is needed.
-  if (remotePath.endsWith(ENCRYPTED_ASSET_EXT)) {
-    if (!isKeyLoaded()) return;
-    const cipher = await readSyncFile(remotePath);
-    await decryptAndWriteAsset(cipher, localDest, {
-      skipAssetEncryption: !isEncryptionEnabled(),
-    });
-    return;
-  }
-  // Fast path: single Rust-level file copy, no JS allocation or base64.
   await copySyncPath(remotePath, localDest);
 }
 

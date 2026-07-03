@@ -157,6 +157,24 @@ option {
   display: none !important; /* Chrome, Safari */
 }
 
+.safe-area-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  pointer-events: none;
+  background-color: var(--app-theme-background);
+  opacity: 0.9;
+}
+.safe-area-overlay--top {
+  top: 0;
+  height: var(--app-safe-area-top);
+}
+.safe-area-overlay--bottom {
+  bottom: 0;
+  height: var(--app-safe-area-bottom);
+}
+
 .route-stage {
   position: relative;
   isolation: isolate;
