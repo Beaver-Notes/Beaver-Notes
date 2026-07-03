@@ -20,9 +20,7 @@ import {
   getPointerCoordinates,
 } from './drawHelper.js';
 
-// ---------------------------------------------------------------------------
 // Helpers
-// ---------------------------------------------------------------------------
 
 function computeGroupBounds(lines) {
   if (lines.length === 0) return { x: 0, y: 0, width: 0, height: 0 };
@@ -31,8 +29,8 @@ function computeGroupBounds(lines) {
     (acc, line) => {
       const b = getLineBounds(line);
       return {
-        x:    Math.min(acc.x,    b.x),
-        y:    Math.min(acc.y,    b.y),
+        x: Math.min(acc.x, b.x),
+        y: Math.min(acc.y, b.y),
         maxX: Math.max(acc.maxX, b.x + b.width),
         maxY: Math.max(acc.maxY, b.y + b.height),
       };
@@ -41,9 +39,9 @@ function computeGroupBounds(lines) {
   );
 
   return {
-    x:      result.x,
-    y:      result.y,
-    width:  result.maxX - result.x,
+    x: result.x,
+    y: result.y,
+    width: result.maxX - result.x,
     height: result.maxY - result.y,
   };
 }
@@ -55,10 +53,8 @@ function pointInPolygon(px, py, polygon) {
   for (let i = 0, j = n - 1; i < n; j = i++) {
     const [xi, yi] = polygon[i];
     const [xj, yj] = polygon[j];
-    if (
-      yi > py !== yj > py &&
-      px < ((xj - xi) * (py - yi)) / (yj - yi) + xi
-    ) inside = !inside;
+    if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi)
+      inside = !inside;
   }
   return inside;
 }
@@ -71,16 +67,14 @@ function strokeIntersectsLasso(stroke, lassoPoints) {
 function strokeIntersectsRect(stroke, bounds) {
   const b = getLineBounds(stroke);
   return (
-    b.x < bounds.x + bounds.width  &&
-    b.x + b.width  > bounds.x       &&
+    b.x < bounds.x + bounds.width &&
+    b.x + b.width > bounds.x &&
     b.y < bounds.y + bounds.height &&
     b.y + b.height > bounds.y
   );
 }
 
-// ---------------------------------------------------------------------------
 // Composable
-// ---------------------------------------------------------------------------
 
 export default function useSelectionHelper(
   state,
@@ -88,7 +82,7 @@ export default function useSelectionHelper(
   isPointInsideSelection,
   handleTransformStart
 ) {
-  // ── start ──────────────────────────────────────────────────────────────────
+  // start
 
   const handleSelectionStart = (e) => {
     if (isPalmTouch(e)) return;
@@ -140,13 +134,12 @@ export default function useSelectionHelper(
         strokeIntersectsLasso(line, state.lassoPoints)
       );
       state.lassoPoints = null;
-
     } else if (state.selectionBox) {
       const sb = state.selectionBox;
       const bounds = {
-        x:      Math.min(sb.startX, sb.currentX),
-        y:      Math.min(sb.startY, sb.currentY),
-        width:  Math.abs(sb.currentX - sb.startX),
+        x: Math.min(sb.startX, sb.currentX),
+        y: Math.min(sb.startY, sb.currentY),
+        width: Math.abs(sb.currentX - sb.startX),
         height: Math.abs(sb.currentY - sb.startY),
       };
       state.selectionBox = null;
@@ -163,10 +156,10 @@ export default function useSelectionHelper(
 
     if (selectedLines.length > 0) {
       state.selectedElement = {
-        type:     'group',
-        lines:    selectedLines,
-        lineIds:  selectedLines.map((l) => l.id),
-        bounds:   computeGroupBounds(selectedLines),
+        type: 'group',
+        lines: selectedLines,
+        lineIds: selectedLines.map((l) => l.id),
+        bounds: computeGroupBounds(selectedLines),
         rotation: 0,
       };
     }

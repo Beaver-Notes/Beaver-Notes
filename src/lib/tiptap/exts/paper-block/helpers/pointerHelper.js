@@ -25,14 +25,10 @@ import {
   isStylusEraser,
   getPointerCoordinates,
   normalisePressure,
-  interpolatePoints,
   getCoalescedEvents,
-  appendStraightSegment,
 } from './drawHelper.js';
 
-// ---------------------------------------------------------------------------
-// Segment-split eraser (unchanged from original — works well)
-// ---------------------------------------------------------------------------
+// Segment-split eraser
 
 function splitStrokeByEraser(stroke, eraserX, eraserY, eraserRadius) {
   const pts = stroke.points;
@@ -99,9 +95,7 @@ function applyEraserPoint(lines, x, y, radius) {
   return changed ? next : lines;
 }
 
-// ---------------------------------------------------------------------------
 // Pointer state machine
-// ---------------------------------------------------------------------------
 
 /**
  * TouchMode (from tldraw):
@@ -123,9 +117,7 @@ const TouchMode = {
 
 const DRAG_THRESHOLD_SQ = 9; // 3px² — minimum drag distance to start drawing
 
-// ---------------------------------------------------------------------------
 // Main composable
-// ---------------------------------------------------------------------------
 
 export function usePointerHelper(context) {
   const {
@@ -143,7 +135,7 @@ export function usePointerHelper(context) {
     autoGrow,
   } = context;
 
-  // ── Internal state-machine state ─────────────────────────────────────────
+  // Internal state-machine state
   let touchMode = TouchMode.IDLE;
   let pointerOriginX = 0;
   let pointerOriginY = 0;
@@ -151,7 +143,7 @@ export function usePointerHelper(context) {
   let segmentMode = 'free'; // 'free' | 'straight'
   let straightSegmentAnchor = null; // { x, y } — where straight line started
 
-  // ── Auto-grow ───────────────────────────────────────────────────────────
+  // Auto-grow
   const AUTO_GROW_MARGIN = 40; // px from canvas bottom edge
   const AUTO_GROW_STEP = 200;
 
@@ -167,14 +159,14 @@ export function usePointerHelper(context) {
     }
   }
 
-  // ── Reset state machine ─────────────────────────────────────────────────
+  // Reset state machine
   function resetTouchMode() {
     touchMode = TouchMode.IDLE;
     segmentMode = 'free';
     straightSegmentAnchor = null;
   }
 
-  // ── pointer down ────────────────────────────────────────────────────────
+  // pointer down
 
   const handlePointerDown = (e) => {
     // Pen-mode check (from tldraw's Editor.ts dispatch)
@@ -245,7 +237,7 @@ export function usePointerHelper(context) {
     currentPointsRef.value = [[x, y, pressure]];
   };
 
-  // ── pointer move ────────────────────────────────────────────────────────
+  // pointer move
 
   const handlePointerMove = (e) => {
     if (state.isPenMode && !isPen(e)) return;
@@ -340,7 +332,7 @@ export function usePointerHelper(context) {
     }
   };
 
-  // ── pointer up ──────────────────────────────────────────────────────────
+  // pointer up
 
   const handlePointerUp = (e) => {
     if (state.isPenMode && !isPen(e)) return;
@@ -433,7 +425,7 @@ export function usePointerHelper(context) {
     }
   };
 
-  // ── pointer leave / cancel ──────────────────────────────────────────────
+  // pointer leave / cancel
 
   const handlePointerLeave = (e) => {
     if (state.isDrawing) handlePointerUp(e);
@@ -450,14 +442,14 @@ export function usePointerHelper(context) {
     resetTouchMode();
   };
 
-  // ── eraser undo snapshot helper ─────────────────────────────────────────
+  // eraser undo snapshot helper
 
   function captureUndoBeforeErase(s) {
     s.undoStack = [...s.undoStack, s.lines];
     s.redoStack = [];
   }
 
-  // ── Local helpers ───────────────────────────────────────────────────────
+  // Local helpers
 
   function isPointInsideSelectionLocal(px, py) {
     const el = state.selectedElement;
@@ -471,7 +463,7 @@ export function usePointerHelper(context) {
     );
   }
 
-  // ── Shift key tracking (set externally from keyboard events) ────────────
+  // Shift key tracking (set externally from keyboard events)
 
   function setShiftHeld(held) {
     state._shiftHeld = held;

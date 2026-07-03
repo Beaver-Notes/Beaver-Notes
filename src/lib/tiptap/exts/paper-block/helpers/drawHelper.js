@@ -1,5 +1,5 @@
 /**
- * drawHelper.js — drawing utilities facade
+ * drawHelper.js - drawing utilities facade
  *
  * Delegates rendering to freehand.js.
  * Handles:
@@ -30,9 +30,7 @@ import {
   getLineBounds,
 } from './freehand.js';
 
-// ---------------------------------------------------------------------------
 // Pen-mode / Palm-rejection (from tldraw)
-// ---------------------------------------------------------------------------
 
 /**
  * True when the input is a real pen/stylus.
@@ -73,9 +71,7 @@ export function isStylusEraser(e) {
   return e.button === 5;
 }
 
-// ---------------------------------------------------------------------------
 // Double-tap zoom fix (from tldraw's useFixSafariDoubleTapZoomPencilEvents)
-// ---------------------------------------------------------------------------
 
 /**
  * Prevent iOS double-tap-to-zoom when using Apple Pencil.
@@ -88,9 +84,7 @@ export function preventPencilDoubleTapZoom(e) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Coordinate conversion
-// ---------------------------------------------------------------------------
 
 /**
  * Convert a pointer event to SVG-local coordinates via the CTM.
@@ -111,10 +105,6 @@ export function getPointerCoordinates(event, svgElement) {
   return [local.x, local.y];
 }
 
-// ---------------------------------------------------------------------------
-// Pressure normalisation
-// ---------------------------------------------------------------------------
-
 /**
  * Return a 0–1 pressure value from a pointer event.
  * All inputs return 0.5 — pressure sensitivity disabled for consistency.
@@ -123,9 +113,7 @@ export function normalisePressure(_e) {
   return 0.5;
 }
 
-// ---------------------------------------------------------------------------
 // Point interpolation / smoothing
-// ---------------------------------------------------------------------------
 
 /**
  * Smooth raw pointer samples using Douglas–Peucker thinning +
@@ -191,9 +179,7 @@ function douglasPeucker(pts, epsilon) {
   return [pts[0], pts[pts.length - 1]];
 }
 
-// ---------------------------------------------------------------------------
 // Straight-line segment insertion (Shift+draw, from tldraw's Drawing.ts)
-// ---------------------------------------------------------------------------
 
 /**
  * Insert a straight-line segment into an existing stroke's points.
@@ -232,9 +218,7 @@ export function appendStraightSegment(
   return result;
 }
 
-// ---------------------------------------------------------------------------
 // Coalesced events helper
-// ---------------------------------------------------------------------------
 
 /**
  * Get all coalesced events from a pointermove event.
@@ -250,15 +234,11 @@ export function getCoalescedEvents(e) {
   return [e];
 }
 
-// ---------------------------------------------------------------------------
 // Re-exports from freehand.js
-// ---------------------------------------------------------------------------
 
 export { getRenderablePath, getRenderableStrokeProps, getLineBounds };
 
-// ---------------------------------------------------------------------------
 // Default tool settings
-// ---------------------------------------------------------------------------
 
 export function cloneDrawingToolDefaults() {
   return {
@@ -268,10 +248,6 @@ export function cloneDrawingToolDefaults() {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Legacy migration (one-way, run once on block load)
-// ---------------------------------------------------------------------------
-
 /**
  * Convert old stroke arrays (lines / linesV2) to the canonical v2 format.
  *
@@ -279,9 +255,7 @@ export function cloneDrawingToolDefaults() {
  *  - v1 `lines`:   `{ tool, color, size, points: [[x,y], ...] }`
  *  - v2 `linesV2`: `{ id, tool, color, size, opacity, points: [[x,y], ...] }`
  *
- * In both cases pressure is unknown, so we default to 0.5.
- * Once migrated the result is stored as the new format;
- * the legacy `lines`/`linesV2` attrs are never written again.
+ * In both cases pressure is unknown. Default to 0.5.
  */
 export function migrateStrokes(rawLines, rawLinesV2) {
   const source =
@@ -304,9 +278,7 @@ export function migrateStrokes(rawLines, rawLinesV2) {
   }));
 }
 
-// ---------------------------------------------------------------------------
 // Point transforms (used by transformHelper.js)
-// ---------------------------------------------------------------------------
 
 /**
  * Move or resize all points in a stroke from oldBounds → newBounds.

@@ -105,9 +105,7 @@ class Vec2 {
   }
 }
 
-// ============================================================================
 // Freehand options (from tldraw's getPath.ts)
-// ============================================================================
 
 const EASINGS = {
   easeOutSine: (t) => Math.sin((t * Math.PI) / 2),
@@ -168,9 +166,7 @@ export function getFreehandOptions(tool, size, { isComplete = true } = {}) {
   };
 }
 
-// ============================================================================
 // getStrokePoints (from tldraw's getStrokePoints.ts)
-// ============================================================================
 
 const MIN_PRESSURE = 0.025;
 
@@ -293,9 +289,7 @@ function makeSP(point, input, pressure, vector, distance, runningLength) {
   return { point, input, pressure, vector, distance, runningLength, radius: 1 };
 }
 
-// ============================================================================
 // setStrokePointRadii (from tldraw's setStrokePointRadii.ts)
-// ============================================================================
 
 export function setStrokePointRadii(strokePoints, options = {}) {
   const {
@@ -327,9 +321,7 @@ export function setStrokePointRadii(strokePoints, options = {}) {
   return strokePoints;
 }
 
-// ============================================================================
 // getStrokeOutlineTracks (from tldraw)
-// ============================================================================
 
 const FIXED_PI = Math.PI + 0.0001;
 
@@ -412,9 +404,7 @@ function getStrokeOutlineTracks(strokePoints, options = {}) {
   return { left: leftPts, right: rightPts };
 }
 
-// ============================================================================
 // Elbow partitioning + SVG path (from tldraw's svgInk.ts)
-// ============================================================================
 
 function partitionAtElbows(strokePoints) {
   if (strokePoints.length <= 2) return [strokePoints];
@@ -557,9 +547,7 @@ function renderPartition(pts) {
   return d;
 }
 
-// ============================================================================
 // Render props + bounds
-// ============================================================================
 
 export function getRenderableStrokeProps(stroke) {
   const isHL = stroke?.tool === 'highlighter';

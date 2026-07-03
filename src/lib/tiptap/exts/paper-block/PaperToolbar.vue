@@ -11,7 +11,7 @@
         :key="s"
         type="button"
         class="flex items-center justify-center w-8 h-8 rounded-full bg-transparent hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-        :class="{ 'bg-indigo-500/10': currentToolSize === s }"
+        :class="{ 'bg-primary/10': currentToolSize === s }"
         @pointerdown.stop.prevent="onSize(s)"
       >
         <span
@@ -102,7 +102,7 @@
             :class="[
               bgClass(bg),
               toolbarState.background === bg
-                ? '!border-indigo-500 ring-2 ring-indigo-500/20'
+                ? '!border-primary ring-2 ring-primary/20'
                 : 'hover:border-neutral-400 dark:hover:border-neutral-400',
             ]"
             @pointerdown.stop.prevent="onBg(bg)"
@@ -158,7 +158,6 @@ function toolIconSvg(tool) {
   }
   if (tool.hasSwatch) raw = recolorTip(raw, tool._color);
 
-  // Strip hardcoded inline widths/heights so CSS sizing takes absolute control
   raw = raw.replace(/\s(width|height)="[^"]*"/g, '');
   return raw;
 }

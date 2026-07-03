@@ -15,8 +15,9 @@
         ref="svgRef"
         class="w-full h-full block"
         :class="[backgroundClass]"
-        :viewBox="`0 0 ${svgWidth} ${state.height}`"
+        :viewBox="viewBoxAttr"
         style="touch-action: none; -webkit-user-modify: read-only"
+        @wheel="handleWheel"
         @pointerdown="handlePointerDown"
         @pointermove="handlePointerMove"
         @pointerup="handlePointerUp"
@@ -220,37 +221,24 @@ import { openDialog } from '@/lib/native/dialog';
 import mime from 'mime';
 import copyImage from '@/utils/assets/storage.js';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
 const DEFAULT_SVG_WIDTH = 500;
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 8000;
 
-// ---------------------------------------------------------------------------
-// Props / emits
-// ---------------------------------------------------------------------------
-
 const props = defineProps({
   node: { type: Object, required: true },
   interactive: { type: Boolean, default: true },
+  zoomEnabled: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update-attributes', 'toolbar-state']);
-
-// ---------------------------------------------------------------------------
-// Refs
-// ---------------------------------------------------------------------------
 
 const svgRef = ref(null);
 const currentPointsRef = ref([]);
 const animationFrameRef = ref(null);
 const svgWidth = ref(DEFAULT_SVG_WIDTH);
 
-// ---------------------------------------------------------------------------
 // Initial state
-// ---------------------------------------------------------------------------
 
 function loadStrokes(attrs) {
   if (Array.isArray(attrs.linesV2) && attrs.linesV2.length > 0) {
@@ -296,18 +284,30 @@ const state = reactive({
   selectionBox: null,
   lassoPoints: null,
 
-  // ── NEW: tldraw-style pen mode ──
   isPenMode: false,
-  _preEraserTool: null, // restore tool after stylus eraser
-  _shiftHeld: false, // for straight-line segments
+  _preEraserTool: null,
+  _shiftHeld: false,
 
   // Embedded images
   images: [],
+
+  // Zoom / pan (used when zoomEnabled)
+  zoom: 1,
+  viewX: 0,
+  viewY: 0,
 });
 
-// ---------------------------------------------------------------------------
+// ViewBox
+
+const viewBoxAttr = computed(() => {
+  if (!props.zoomEnabled) return `0 0 ${svgWidth.value} ${state.height}`;
+  const w = svgWidth.value;
+  const h = state.height;
+  const z = state.zoom;
+  return `${state.viewX} ${state.viewY} ${w / z} ${h / z}`;
+});
+
 // Background CSS
-// ---------------------------------------------------------------------------
 
 const backgroundClass = computed(() => {
   const base = 'bg-transparent border rounded-lg';
@@ -317,9 +317,7 @@ const backgroundClass = computed(() => {
   return base;
 });
 
-// ---------------------------------------------------------------------------
 // Rendering helpers
-// ---------------------------------------------------------------------------
 
 const pathCache = new WeakMap();
 
@@ -343,7 +341,7 @@ function strokeToolFilter(tool) {
 
 const liveToolFilter = computed(() => strokeToolFilter(state.tool));
 
-// Live preview (rendered identically to committed strokes — no taper jump)
+// Live preview
 const livePathD = computed(() => {
   const pts = state.currentStrokePoints;
   if (!pts || pts.length < 2) return null;
@@ -369,9 +367,7 @@ const liveProps = computed(() => {
 
 const eraserPos = ref(null);
 
-// ---------------------------------------------------------------------------
 // Selection transform (rotation)
-// ---------------------------------------------------------------------------
 
 const selectionTransform = computed(() => {
   const el = state.selectedElement;
@@ -381,9 +377,7 @@ const selectionTransform = computed(() => {
   return `rotate(${el.rotation}, ${cx}, ${cy})`;
 });
 
-// ---------------------------------------------------------------------------
 // Corner handles
-// ---------------------------------------------------------------------------
 
 const cornerHandles = computed(() => {
   const b = state.selectedElement?.bounds;
@@ -396,9 +390,7 @@ const cornerHandles = computed(() => {
   ];
 });
 
-// ---------------------------------------------------------------------------
 // Settings accessor
-// ---------------------------------------------------------------------------
 
 function activeSettings() {
   if (state.tool === 'highlighter') return state.highlighterSettings;
@@ -408,9 +400,7 @@ function activeSettings() {
   return state.penSettings;
 }
 
-// ---------------------------------------------------------------------------
 // Auto-grow callback (called by pointerHelper when drawing near bottom edge)
-// ---------------------------------------------------------------------------
 
 function autoGrow(amount) {
   const newH = Math.min(MAX_HEIGHT, state.height + amount);
@@ -419,9 +409,7 @@ function autoGrow(amount) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Transform / selection helpers
-// ---------------------------------------------------------------------------
 
 const { handleTransformStart, handleTransformMove, handleTransformEnd } =
   useTransformHelper(state, svgRef);
@@ -446,9 +434,7 @@ const { handleSelectionStart, handleSelectionMove, handleSelectionEnd } =
     handleTransformStart
   );
 
-// ---------------------------------------------------------------------------
 // Pointer helper (state-machine based)
-// ---------------------------------------------------------------------------
 
 const {
   handlePointerDown: _pointerDown,
@@ -473,8 +459,58 @@ const {
   autoGrow,
 });
 
+// Wheel zoom
+
+function handleWheel(e) {
+  if (!props.zoomEnabled) return;
+  e.preventDefault();
+
+  const [cx, cy] = getPointerCoordinates(e, svgRef.value);
+  const delta = -e.deltaY;
+  const factor = 1 + delta * 0.002;
+  const newZoom = Math.max(0.1, Math.min(10, state.zoom * factor));
+
+  const relX = (cx - state.viewX) / (svgWidth.value / state.zoom);
+  const relY = (cy - state.viewY) / (state.height / state.zoom);
+
+  state.viewX = cx - relX * (svgWidth.value / newZoom);
+  state.viewY = cy - relY * (state.height / newZoom);
+  state.zoom = newZoom;
+}
+
+// Middle-click pan
+
+function startPan(e) {
+  if (!props.zoomEnabled) return;
+  e.preventDefault();
+
+  const startVx = state.viewX;
+  const startVy = state.viewY;
+  const [sx, sy] = getPointerCoordinates(e, svgRef.value);
+
+  function onMove(mv) {
+    const [cx, cy] = getPointerCoordinates(mv, svgRef.value);
+    state.viewX = startVx - (cx - sx);
+    state.viewY = startVy - (cy - sy);
+  }
+
+  function onUp() {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+  }
+
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+}
+
 // Wrap events to add eraser-specific behaviour
 function handlePointerDown(e) {
+  // Middle-click pan when zoom enabled
+  if (props.zoomEnabled && e.button === 1) {
+    startPan(e);
+    return;
+  }
+
   if (state.tool === 'eraser') {
     captureUndoBeforeErase(state);
   } else {
@@ -512,9 +548,7 @@ function onTouchStart(e) {
   e.preventDefault();
 }
 
-// ---------------------------------------------------------------------------
-// Pen mode exit (from tldraw)
-// ---------------------------------------------------------------------------
+// Pen mode exit
 
 function exitPenMode() {
   state.isPenMode = false;
@@ -763,6 +797,34 @@ async function insertImage(noteId) {
   }
 }
 
+function zoomIn() {
+  const newZoom = Math.min(10, state.zoom * 1.2);
+  const w = svgWidth.value;
+  const h = state.height;
+  const cx = state.viewX + w / state.zoom / 2;
+  const cy = state.viewY + h / state.zoom / 2;
+  state.viewX = cx - w / newZoom / 2;
+  state.viewY = cy - h / newZoom / 2;
+  state.zoom = newZoom;
+}
+
+function zoomOut() {
+  const newZoom = Math.max(0.1, state.zoom / 1.2);
+  const w = svgWidth.value;
+  const h = state.height;
+  const cx = state.viewX + w / state.zoom / 2;
+  const cy = state.viewY + h / state.zoom / 2;
+  state.viewX = cx - w / newZoom / 2;
+  state.viewY = cy - h / newZoom / 2;
+  state.zoom = newZoom;
+}
+
+function resetZoom() {
+  state.zoom = 1;
+  state.viewX = 0;
+  state.viewY = 0;
+}
+
 defineExpose({
   setTool,
   setColor,
@@ -777,6 +839,9 @@ defineExpose({
   exitPenMode,
   insertImage,
   state,
+  zoomIn,
+  zoomOut,
+  resetZoom,
 });
 
 // ---------------------------------------------------------------------------

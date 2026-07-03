@@ -6,242 +6,85 @@
     :contenteditable="false"
     tabindex="0"
   >
-    <div class="drawing-shell">
-      <!-- Canvas -->
-      <DrawMode
-        ref="drawModeRef"
-        :node="node"
-        :interactive="true"
-        @update-attributes="handleUpdateAttributes"
-        @toolbar-state="handleToolbarState"
-      />
+    <div v-if="!overlayOpen" class="paper-preview-wrap" @click="openOverlay">
+      <div class="paper-preview relative cursor-pointer">
+        <DrawMode ref="drawModeRef" :node="node" :interactive="false" />
 
-      <!-- Toolbar (separate component → no scribble on buttons) -->
-      <PaperToolbar
-        :toolbar-state="toolbarState"
-        :tools="tools"
-        :paper-types="paperTypes"
-        :current-tool-color="currentToolColor"
-        :current-tool-size="currentToolSize"
-        :active-presets="activePresets"
-        @tool="setTool"
-        @color="applyPreset"
-        @color-input="onColorInput"
-        @save-preset="savePreset"
-        @size="onSize"
-        @bg="setBackground"
-        @image="insertImage"
-        @delete="deleteSelection"
-      />
+        <div
+          class="preview-overlay absolute inset-0 flex items-center justify-center"
+        >
+          <span
+            class="px-4 py-2 rounded-lg text-sm font-medium shadow-lg transition-opacity"
+            :class="
+              hasContent
+                ? 'bg-white/90 dark:bg-neutral-800/90 text-neutral-700 dark:text-neutral-300'
+                : 'bg-primary/90 text-white'
+            "
+          >
+            {{ hasContent ? 'Click to edit drawing' : 'Tap to draw' }}
+          </span>
+        </div>
+      </div>
     </div>
+
+    <PaperOverlay
+      v-if="overlayOpen"
+      :initial-attrs="overlayAttrs"
+      @close="closeOverlay"
+      @update-attributes="handleOverlayUpdate"
+    />
   </NodeViewWrapper>
 </template>
 
 <script>
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue';
-import { useTranslations } from '@/composable/useTranslations';
+import { computed, ref } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
-import {
-  setScribbleSuppressed,
-  clearScribbleSuppressed,
-} from '@/lib/native/scribble';
-import { useStore } from '@/store';
 import DrawMode from './DrawMode.vue';
-import PaperToolbar from './PaperToolbar.vue';
-
-const PRESETS_KEY = 'beaver-paper-presets';
-const DEFAULT_PRESETS = {
-  pen: ['#1a1a1a', '#e53e3e', '#3182ce', '#38a169', '#805ad5'],
-  highlighter: ['#fbbf24', '#34d399', '#60a5fa', '#f472b6', '#a78bfa'],
-};
-
-function loadPresets() {
-  try {
-    const r = localStorage.getItem(PRESETS_KEY);
-    if (r) return { ...DEFAULT_PRESETS, ...JSON.parse(r) };
-  } catch {
-    /* */
-  }
-  return { ...DEFAULT_PRESETS };
-}
-function savePresetsFn(p) {
-  try {
-    localStorage.setItem(PRESETS_KEY, JSON.stringify(p));
-  } catch {
-    /* */
-  }
-}
+import PaperOverlay from './PaperOverlay.vue';
 
 export default {
   name: 'PaperBlock',
-  components: { DrawMode, NodeViewWrapper, PaperToolbar },
+  components: { DrawMode, NodeViewWrapper, PaperOverlay },
   props: nodeViewProps,
   setup(props) {
-    const { translations } = useTranslations();
-    const store = useStore();
+    const wrapperRef = ref(null);
     const drawModeRef = ref(null);
-    const scribbleScope = `paper-${Math.random().toString(36).slice(2, 8)}`;
+    const overlayOpen = ref(false);
+    const overlayAttrs = ref(null);
 
-    const toolbarState = ref({
-      tool: 'pen',
-      penSettings: { color: '#1a1a1a', size: 4 },
-      pencilSettings: { color: '#4a4a4a', size: 3 },
-      fountainSettings: { color: '#1a2744', size: 5 },
-      highlighterSettings: { color: '#fbbf24', size: 16 },
-      eraserSettings: { size: 20 },
-      undoDepth: 0,
-      redoDepth: 0,
-      background: props.node.attrs.paperType ?? 'plain',
-      hasSelection: false,
+    const hasContent = computed(() => {
+      const lines = props.node.attrs.linesV2 ?? props.node.attrs.lines ?? [];
+      return Array.isArray(lines) && lines.length > 0;
     });
 
-    const presets = ref(loadPresets());
-
-    const tools = computed(() => [
-      {
-        id: 'pen',
-        label: 'Pen',
-        hasSwatch: true,
-        _color: toolbarState.value.penSettings?.color ?? '#1a1a1a',
-      },
-      {
-        id: 'pencil',
-        label: 'Pencil',
-        hasSwatch: true,
-        _color: toolbarState.value.pencilSettings?.color ?? '#4a4a4a',
-      },
-      {
-        id: 'fountain',
-        label: 'Fountain',
-        hasSwatch: true,
-        _color: toolbarState.value.fountainSettings?.color ?? '#1a2744',
-      },
-      {
-        id: 'highlighter',
-        label: 'Highlighter',
-        hasSwatch: true,
-        _color: toolbarState.value.highlighterSettings?.color ?? '#fbbf24',
-      },
-      { id: 'eraser', label: 'Eraser', hasSwatch: false, _color: null },
-      { id: 'lasso', label: 'Lasso', hasSwatch: false, _color: null },
-    ]);
-    const paperTypes = ['plain', 'grid', 'ruled', 'dotted'];
-
-    const activePresets = computed(() => {
-      const t = toolbarState.value.tool;
-      return presets.value[t] ?? presets.value.pen ?? DEFAULT_PRESETS.pen;
-    });
-
-    const currentToolColor = computed(() => {
-      const ts = toolbarState.value;
-      if (ts.tool === 'highlighter')
-        return ts.highlighterSettings?.color ?? '#fbbf24';
-      if (ts.tool === 'pencil') return ts.pencilSettings?.color ?? '#4a4a4a';
-      if (ts.tool === 'fountain')
-        return ts.fountainSettings?.color ?? '#1a2744';
-      return ts.penSettings?.color ?? '#1a1a1a';
-    });
-
-    const currentToolSize = computed(() => {
-      const ts = toolbarState.value;
-      if (ts.tool === 'highlighter') return ts.highlighterSettings?.size ?? 16;
-      if (ts.tool === 'eraser') return ts.eraserSettings?.size ?? 20;
-      if (ts.tool === 'pencil') return ts.pencilSettings?.size ?? 3;
-      if (ts.tool === 'fountain') return ts.fountainSettings?.size ?? 5;
-      return ts.penSettings?.size ?? 4;
-    });
-
-    function handleUpdateAttributes(u) {
-      const out = {};
-      if (Array.isArray(u.linesV2)) out.linesV2 = u.linesV2;
-      if (Array.isArray(u.lines)) out.lines = u.lines;
-      if (u.height !== undefined)
-        out.height = Math.max(100, Number(u.height) || 400);
-      if (u.paperType !== undefined) out.paperType = u.paperType;
-      props.updateAttributes(out);
-    }
-    function handleToolbarState(s) {
-      toolbarState.value = { ...toolbarState.value, ...s };
+    function openOverlay() {
+      const a = props.node.attrs;
+      overlayAttrs.value = {
+        linesV2: a.linesV2,
+        lines: a.lines,
+        height: a.height,
+        paperType: a.paperType,
+      };
+      overlayOpen.value = true;
     }
 
-    function setTool(t) {
-      drawModeRef.value?.setTool(t);
-    }
-    function setBackground(b) {
-      drawModeRef.value?.setBackground(b);
-    }
-    function deleteSelection() {
-      drawModeRef.value?.deleteSelection?.();
-    }
-    function applyPreset(c) {
-      drawModeRef.value?.setColor(c);
-    }
-    function onColorInput(c) {
-      drawModeRef.value?.setColor(c);
-    }
-    function onSize(s) {
-      drawModeRef.value?.setSize(s);
-    }
-    function insertImage() {
-      const id = store.activeNoteId;
-      if (id) drawModeRef.value?.insertImage?.(id);
+    function closeOverlay() {
+      overlayOpen.value = false;
     }
 
-    function savePreset(color) {
-      const tool = toolbarState.value.tool;
-      if (
-        tool !== 'pen' &&
-        tool !== 'pencil' &&
-        tool !== 'fountain' &&
-        tool !== 'highlighter'
-      )
-        return;
-      const list = [...(presets.value[tool] ?? DEFAULT_PRESETS[tool] ?? [])];
-      if (!list.includes(color)) {
-        list.splice(0, 1);
-        list.push(color);
-      }
-      presets.value = { ...presets.value, [tool]: list };
-      savePresetsFn(presets.value);
+    function handleOverlayUpdate(attrs) {
+      props.updateAttributes(attrs);
     }
-
-    onMounted(() => {
-      setScribbleSuppressed(scribbleScope, true);
-    });
-    onUnmounted(() => {
-      clearScribbleSuppressed(scribbleScope);
-    });
-
-    watch(
-      () => props.node.attrs.paperType,
-      (v) => {
-        toolbarState.value = {
-          ...toolbarState.value,
-          background: v ?? 'plain',
-        };
-      },
-      { immediate: true }
-    );
 
     return {
-      translations,
+      wrapperRef,
       drawModeRef,
-      tools,
-      paperTypes,
-      toolbarState,
-      currentToolColor,
-      currentToolSize,
-      activePresets,
-      handleUpdateAttributes,
-      handleToolbarState,
-      setTool,
-      setBackground,
-      deleteSelection,
-      applyPreset,
-      onColorInput,
-      onSize,
-      savePreset,
-      insertImage,
+      overlayOpen,
+      overlayAttrs,
+      hasContent,
+      openOverlay,
+      closeOverlay,
+      handleOverlayUpdate,
     };
   },
 };
@@ -251,7 +94,41 @@ export default {
 .paper-node {
   position: relative;
 }
-.drawing-shell {
+
+.paper-preview-wrap {
   position: relative;
+}
+
+.paper-preview {
+  max-height: 300px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.paper-preview:hover {
+  border-color: rgba(99, 102, 241, 0.3);
+}
+
+.preview-overlay {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+}
+
+.paper-preview:hover .preview-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.is-active .paper-preview {
+  border-color: rgba(99, 102, 241, 0.5);
 }
 </style>

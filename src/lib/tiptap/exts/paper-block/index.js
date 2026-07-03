@@ -12,13 +12,13 @@ export default Node.create({
       ...this.parent?.(),
       selectable: true,
       draggable: false,
-      allowGapCursor: true, // 👈 Important for gapcursor support
+      allowGapCursor: true,
     };
   },
 
   addAttributes() {
     return {
-      // linesV2: canonical format — [x, y, pressure] triplets per stroke
+      // linesV2: canonical format - [x, y, pressure] triplets per stroke
       linesV2: {
         default: [],
         parseHTML: (el) => {
@@ -32,7 +32,7 @@ export default Node.create({
           'data-lines-v2': JSON.stringify(attrs.linesV2 ?? []),
         }),
       },
-      // lines: kept for backward-compat HTML export / old note parsing
+      // lines: kept for backward compat HTML export / old note parsing
       lines: {
         default: [],
         parseHTML: (el) => {
@@ -47,7 +47,6 @@ export default Node.create({
         }),
       },
       height: { default: 400 },
-      // NEW: pen-mode state (not persisted, re-initialized on load)
       paperType: { default: 'plain' },
     };
   },
