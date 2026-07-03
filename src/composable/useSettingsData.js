@@ -1,6 +1,5 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { AES } from 'crypto-es/lib/aes';
-import { Utf8 } from 'crypto-es/lib/core';
+import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
@@ -17,7 +16,7 @@ import {
   writeJson,
 } from '@/lib/native/fs';
 import { useAppStore } from '@/store/app';
-import { useGlobalShortcuts } from '@/composable/useGlobalShortcuts';
+import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { markRaw } from 'vue';
 import {
   clearAssetPassphrase,
@@ -29,6 +28,37 @@ import {
   getLanguageDirection,
 } from '@/utils/onboarding/index.js';
 
+async function encryptSettings(plaintext, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    key, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+  );
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(plaintext));
+  return JSON.stringify({
+    v: 1,
+    salt: Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join(''),
+    iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
+    cipher: bufToBase64(new Uint8Array(ct)),
+  });
+}
+
+async function decryptSettings(ciphertext, password) {
+  const parsed = JSON.parse(ciphertext);
+  if (parsed?.v !== 1) throw new Error('Unsupported format');
+  const salt = hexToBuf(parsed.salt);
+  const iv = hexToBuf(parsed.iv);
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const aesKey = await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    key, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+  );
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, aesKey, base64ToBuf(parsed.cipher));
+  return new TextDecoder().decode(pt);
+}
+
 export function useSettingsData({
   dialog,
   folderStore,
@@ -37,6 +67,8 @@ export function useSettingsData({
   storage,
   translations,
 }) {
+  let _unregSettingsShortcuts;
+
   const appStore = useAppStore();
   const advancedSettings = ref(getSettingSync('advancedSettings'));
   const spellcheckEnabled = ref(getSettingSync('spellcheckEnabled'));
@@ -174,7 +206,7 @@ export function useSettingsData({
       data.sharedKey = passwordStore.sharedKey;
 
       if (state.withPassword) {
-        data = AES.encrypt(JSON.stringify(data), state.password).toString();
+        data = await encryptSettings(JSON.stringify(data), state.password);
       }
 
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
@@ -284,8 +316,7 @@ export function useSettingsData({
           placeholder: translations.value.settings.password,
           onConfirm: async (pass) => {
             try {
-              const bytes = AES.decrypt(data, pass);
-              const result = bytes.toString(Utf8);
+              const result = await decryptSettings(data, pass);
               await finishImport(JSON.parse(result));
             } catch {
               showAlert(translations.value.settings.invalidPassword);
@@ -451,10 +482,13 @@ export function useSettingsData({
     })();
   });
 
-  useGlobalShortcuts(() => ({
-    'mod+s': importData,
-    'mod+shift+e': exportData,
-  }));
+  onMounted(() => {
+    _unregSettingsShortcuts = bindGlobalShortcuts({
+      'mod+s': importData,
+      'mod+shift+e': exportData,
+    });
+  });
+  onUnmounted(() => _unregSettingsShortcuts?.());
 
   return {
     LANGUAGE_CONFIG: ONBOARDING_LANGUAGE_CONFIG,

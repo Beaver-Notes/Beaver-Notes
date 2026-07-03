@@ -1,4 +1,12 @@
 <template>
+  <div
+    v-show="showSafeAreaOverlay"
+    class="safe-area-overlay safe-area-overlay--top"
+  />
+  <div
+    v-show="showSafeAreaOverlay"
+    class="safe-area-overlay safe-area-overlay--bottom"
+  />
   <app-command-prompt />
   <div
     v-show="showMobileNavbar"
@@ -17,7 +25,7 @@
       :style="mainStyle"
     >
       <div
-        v-show="store.inReaderMode"
+        v-show="uiState.inReaderMode"
         class="fixed top-0 left-0 w-full h-full pointer-events-none"
         style="z-index: 50"
       ></div>
@@ -72,6 +80,8 @@
         />
       </div>
 
+      <undo-banner :position-style="bottomBannerStyle" />
+
       <div class="route-stage">
         <router-view v-slot="{ Component, route: viewRoute }">
           <transition :name="animateRouteChange ? 'route-stage' : undefined">
@@ -107,6 +117,7 @@
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
+import UndoBanner from './components/app/UndoBanner.vue';
 import { useAppShell } from './composable/useAppShell';
 import AppNavbar from './components/app/AppNavbar.vue';
 
@@ -114,6 +125,7 @@ export default {
   components: {
     AppSidebar,
     AppCommandPrompt,
+    UndoBanner,
     AppNavbar,
     ImportFolderPicker,
   },
