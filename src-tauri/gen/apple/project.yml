@@ -1,6 +1,6 @@
 name: beaver-notes
 options:
-  bundleIdPrefix: com.danielerolli.beaver-notes
+  bundleIdPrefix: com.beavernotes.beaver-notes
   deploymentTarget:
     iOS: 14.0
 fileGroups: [../../src]
@@ -11,7 +11,7 @@ settingGroups:
   app:
     base:
       PRODUCT_NAME: Beaver Notes
-      PRODUCT_BUNDLE_IDENTIFIER: com.danielerolli.beaver-notes
+      PRODUCT_BUNDLE_IDENTIFIER: com.beavernotes.beaver-notes
 targetTemplates:
   app:
     type: application

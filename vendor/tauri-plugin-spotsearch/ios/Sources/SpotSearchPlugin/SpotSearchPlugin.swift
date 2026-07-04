@@ -4,7 +4,7 @@ import Foundation
 import CoreSpotlight
 import os.log
 
-private let logger = OSLog(subsystem: "com.danielerolli.beaver-notes", category: "SpotSearch")
+private let logger = OSLog(subsystem: "com.beavernotes.beaver-notes", category: "SpotSearch")
 
 class EnableIndexingArgs: Decodable {
     let enabled: Bool

@@ -12,7 +12,7 @@
       "identifier": "fs:scope",
       "allow": [
         "$APPDATA/Beaver Notes/**",
-        "$APPDATA/com.danielerolli.beaver-notes/**",
+        "$APPDATA/com.beavernotes.beaver-notes/**",
         "$DOCUMENT/**",
         "$DESKTOP/**",
         "$TEMP/beaver-notes*/**"

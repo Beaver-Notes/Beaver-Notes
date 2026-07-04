@@ -15,8 +15,8 @@
  *                   tauri.conf.json is left at its current stable version
  *
  * Apple notarization note:
- *   The beta bundle ID is com.danielerolli.beaver-notes.beta, which is
- *   separate from the stable com.danielerolli.beaver-notes. Apple tracks
+ *   The beta bundle ID is com.beavernotes.beaver-notes.beta, which is
+ *   separate from the stable com.beavernotes.beaver-notes. Apple tracks
  *   notarization per (bundle-id, version), so beta and stable versions
  *   never conflict — even if they share the same base semver number.
  *   Using pre-release semver (5.0.0-beta.1) for betas is still recommended
