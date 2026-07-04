@@ -116,6 +116,7 @@ export function useNotesBrowserTouch({
 
     if (touchLongPressTriggered) {
       event.preventDefault();
+      suppressNextClick.value = false;
       resetTouchInteraction();
     }
   }

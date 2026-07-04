@@ -271,7 +271,7 @@
         <ui-popover placement="top" @click.stop>
           <template #trigger>
             <button
-              class="size-6 flex items-center justify-center text-white/60 hover:text-white transition-colors shrink-0"
+              class="size-6 flex items-center justify-center text-white/60 hover:text-white transition-colors shrink-0 mobile:hidden"
             >
               <v-remixicon name="riMoreFill" class="size-4" />
             </button>
@@ -724,7 +724,8 @@ function selectColorIcon(color) {
 function deleteFolder() {
   dialog.confirm({
     title: translations.value.card.confirmPromptFolder,
-    body: translations.value.card?.deleteAction || 'This action cannot be undone',
+    body:
+      translations.value.card?.deleteAction || 'This action cannot be undone',
     icon: 'riDeleteBin6Line',
     okVariant: 'danger',
     onConfirm: () => {

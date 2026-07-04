@@ -422,11 +422,6 @@ export function useNotesBrowser({
   onMounted(() => {
     window.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('click', handleDocumentSelectionBoundary, true);
-    document.addEventListener(
-      'touchstart',
-      handleDocumentSelectionBoundary,
-      true
-    );
 
     const sortState = JSON.parse(localStorage.getItem('sort-notes'));
     if (sortState) Object.assign(state, sortState);
@@ -502,11 +497,6 @@ export function useNotesBrowser({
     window.removeEventListener('mouseup', handleMouseUp);
     document.removeEventListener(
       'click',
-      handleDocumentSelectionBoundary,
-      true
-    );
-    document.removeEventListener(
-      'touchstart',
       handleDocumentSelectionBoundary,
       true
     );
