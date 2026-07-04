@@ -195,6 +195,54 @@ export const useNoteStore = defineStore('note', {
       await storage.delete('isLocked');
     },
 
+    async reindexInvalidFolderIds() {
+      try {
+        const folderStore = useFolderStore();
+        const updated = [];
+        const toDelete = [];
+
+        for (const noteId in this.data) {
+          const note = this.data[noteId];
+          const isEmpty =
+            (!note.title || note.title.trim() === '') &&
+            (!note.content ||
+              !note.content.content ||
+              note.content.content.length === 0);
+
+          if (isEmpty) {
+            toDelete.push(noteId);
+            continue;
+          }
+
+          if (note.folderId && !folderStore.exists(note.folderId)) {
+            this.data[noteId] = {
+              ...note,
+              folderId: null,
+              updatedAt: Date.now(),
+            };
+            updated.push(noteId);
+          }
+        }
+
+        for (const noteId of toDelete) {
+          delete this.data[noteId];
+          await storage.delete(`notes.${noteId}`);
+        }
+
+        for (const noteId of updated) {
+          await storage.set(`notes.${noteId}`, this.data[noteId]);
+        }
+
+        if (toDelete.length > 0 || updated.length > 0) {
+          console.log(
+            `Reindex: removed ${toDelete.length} empty notes, unlinked ${updated.length} notes from invalid folders`
+          );
+        }
+      } catch (error) {
+        console.error('Error during folder reindex:', error);
+      }
+    },
+
     async add(note = {}) {
       try {
         if (note.folderId) {

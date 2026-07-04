@@ -443,7 +443,7 @@ export default {
           await ipcRenderer.callMain('fs:ensureDir', folderPath);
           await ipcRenderer.callMain('fs:output-json', {
             path: path.join(folderPath, 'data.json'),
-            data: { data },
+            data: JSON.parse(JSON.stringify({ data })),
           });
 
           const notesAssetsSource = path.join(dataDir, 'notes-assets');
@@ -463,7 +463,7 @@ export default {
           await ipcRenderer.callMain('fs:ensureDir', folderPath);
           await ipcRenderer.callMain('fs:output-json', {
             path: path.join(folderPath, 'data.json'),
-            data: { data },
+            data: JSON.parse(JSON.stringify({ data })),
           });
           await ipcRenderer.callMain('fs:copy', {
             path: path.join(dataDir, 'notes-assets'),

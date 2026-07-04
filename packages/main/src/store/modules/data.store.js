@@ -25,6 +25,10 @@ const schema = {
   labels: {
     type: 'array',
   },
+  folders: {
+    type: 'object',
+    default: {},
+  },
 };
 
 const store = new Store({

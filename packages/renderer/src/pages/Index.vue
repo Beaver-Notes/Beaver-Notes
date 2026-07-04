@@ -557,10 +557,16 @@ export default {
             content.toLocaleLowerCase().includes(queryLower);
 
         if (isMatch && labelFilter) {
-          if (folderId !== null && folderId !== undefined) {
-            highlightedFolderIds.value.add(folderId);
-            bubbleHighlight(folderId);
-            return;
+          if (
+            folderId !== null &&
+            folderId !== undefined &&
+            folderStore.getById(folderId)
+          ) {
+            if (!route.query.archived) {
+              highlightedFolderIds.value.add(folderId);
+              bubbleHighlight(folderId);
+              return;
+            }
           }
 
           if (isArchived) return filteredNotes.archived.push(note);

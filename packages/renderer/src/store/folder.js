@@ -106,6 +106,10 @@ export const useFolderStore = defineStore('folder', {
         (folder) => folder.id && !state.deletedIds[folder.id]
       );
     },
+
+    exists: (state) => (id) => {
+      return !!state.data[id] && !state.deletedIds[id];
+    },
   },
 
   actions: {
@@ -201,6 +205,7 @@ export const useFolderStore = defineStore('folder', {
           moveContentsToParent = false,
           moveContentsTo = null,
           deleteContents = false,
+          _skipNoteHandling = false,
         } = options;
 
         const folderToDelete = this.data[id];
@@ -208,15 +213,32 @@ export const useFolderStore = defineStore('folder', {
           moveContentsTo ||
           (moveContentsToParent ? folderToDelete.parentId : null);
 
+        const descendantFolders = this.getDescendants(id);
+        const descendantIds = descendantFolders.map((f) => f.id);
+
         const childFolders = Object.values(this.data).filter(
           (f) => f.parentId === id
         );
         for (const childFolder of childFolders) {
           if (deleteContents) {
-            await this.delete(childFolder.id, { deleteContents: true });
+            await this.delete(childFolder.id, {
+              deleteContents: true,
+              _skipNoteHandling: true,
+            });
           } else {
             await this.update(childFolder.id, { parentId: targetFolderId });
           }
+        }
+
+        if (!_skipNoteHandling) {
+          const { useNoteStore } = await import('./note');
+          const noteStore = useNoteStore();
+          await noteStore.handleFolderDeletion({
+            deletedFolderId: id,
+            descendantIds,
+            moveContentsTo: targetFolderId,
+            deleteContents,
+          });
         }
 
         this.deletedIds = this.deletedIds || {};
@@ -310,10 +332,6 @@ export const useFolderStore = defineStore('folder', {
       }
 
       return createdFolders;
-    },
-
-    exists: (state) => (id) => {
-      return !!state.data[id] && !state.deletedIds[id];
     },
 
     async getFolderStats(folderId) {
