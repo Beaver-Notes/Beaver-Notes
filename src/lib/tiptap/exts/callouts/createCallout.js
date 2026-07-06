@@ -47,6 +47,22 @@ export function createCallout({ color, cssClass }) {
 
     addKeyboardShortcuts() {
       return {
+        Backspace: ({ editor }) => {
+          const { selection } = editor.state;
+          const { $from } = selection;
+          if ($from.parentOffset === 0 && editor.isActive(this.name)) {
+            return editor.commands.deleteNode(this.name);
+          }
+          return false;
+        },
+        Delete: ({ editor }) => {
+          const { selection } = editor.state;
+          const { $from } = selection;
+          if ($from.parentOffset === $from.parent.content.size && editor.isActive(this.name)) {
+            return editor.commands.deleteNode(this.name);
+          }
+          return false;
+        },
         'Mod-Shift-c': () => this.editor.commands.toggleCallout(),
       };
     },

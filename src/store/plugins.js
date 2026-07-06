@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import pluginManager from '@/plugins/PluginManager';
 import { CoreAccess } from '@/plugins/CoreAccess';
 import emitter from 'tiny-emitter/instance';
+import { fetch as platformFetch } from '@tauri-apps/plugin-http';
 
 export const usePluginStore = defineStore('plugins', () => {
   const installedPlugins = ref([]);
@@ -13,11 +14,11 @@ export const usePluginStore = defineStore('plugins', () => {
   const loaded = ref(false);
   const extensionsVersion = ref(0);
   const storeUrl =
-    'https://raw.githubusercontent.com/Beaver-Notes/plugin-registry/main/plugins.json';
+    'https://raw.githubusercontent.com/Beaver-Notes/beaver-notes-plugin-registry/main/plugins.json';
 
   async function fetchFromRegistry() {
     try {
-      const res = await fetch(storeUrl);
+      const res = await platformFetch(storeUrl);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (e) {
@@ -28,24 +29,24 @@ export const usePluginStore = defineStore('plugins', () => {
 
   async function installFromGitHub(repo, branch, pluginId) {
     const apiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
-    const res = await fetch(apiUrl);
-    if (!res.ok) {
-      const beaxUrl = `https://github.com/${repo}/releases/latest/download/plugin.beax`;
-      const beaxRes = await fetch(beaxUrl);
-      if (!beaxRes.ok) throw new Error(`Failed to download .beax from ${repo}`);
-      const buffer = await beaxRes.arrayBuffer();
-      return await installFromBeax(buffer, true);
+    const res = await platformFetch(apiUrl);
+    if (res.ok) {
+      const release = await res.json();
+      const asset = release.assets.find((a) => a.name.endsWith('.beax'));
+      if (asset) {
+        const downloadUrl = `https://api.github.com/repos/${repo}/releases/assets/${asset.id}`;
+        const dlRes = await platformFetch(downloadUrl, {
+          headers: { Accept: 'application/octet-stream' },
+        });
+        if (dlRes.ok) {
+          const buffer = await dlRes.arrayBuffer();
+          return await installFromBeax(buffer, true);
+        }
+      }
     }
-    const release = await res.json();
-    const asset = release.assets.find((a) => a.name.endsWith('.beax'));
-    if (!asset) {
-      const beaxUrl = `https://github.com/${repo}/releases/latest/download/plugin.beax`;
-      const beaxRes = await fetch(beaxUrl);
-      if (!beaxRes.ok) throw new Error(`No .beax asset found in ${repo}`);
-      const buffer = await beaxRes.arrayBuffer();
-      return await installFromBeax(buffer, true);
-    }
-    const beaxRes = await fetch(asset.browser_download_url);
+    const beaxUrl = `https://github.com/${repo}/releases/latest/download/plugin.beax`;
+    const beaxRes = await platformFetch(beaxUrl);
+    if (!beaxRes.ok) throw new Error(`Failed to download .beax from ${repo}`);
     const buffer = await beaxRes.arrayBuffer();
     return await installFromBeax(buffer, true);
   }

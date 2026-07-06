@@ -28,6 +28,14 @@
     "clipboard-manager:allow-write-text",
     "audio-recorder:default",
     "safe-area-insets-css:default",
-    "core:webview:default"
+    "core:webview:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://github.com/**" },
+        { "url": "https://*.github.com/**" },
+        { "url": "https://*.githubusercontent.com/**" }
+      ]
+    }
   ]
 }

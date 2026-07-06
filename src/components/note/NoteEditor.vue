@@ -25,25 +25,6 @@
         </li>
       </ul>
     </div>
-    <div
-      v-if="editorError"
-      class="mb-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-    >
-      <p class="text-sm text-red-700 dark:text-red-300">
-        Failed to load editor. A plugin extension may be broken.
-      </p>
-      <p class="mt-1 text-xs text-red-600 dark:text-red-400 font-mono">
-        {{ editorError }}
-      </p>
-      <div class="mt-2 flex gap-2">
-        <ui-button variant="primary" size="sm" @click="reloadEditor">
-          Reload Editor
-        </ui-button>
-        <ui-button variant="default" size="sm" :to="'/settings/plugins'">
-          Manage Plugins
-        </ui-button>
-      </div>
-    </div>
     <slot v-bind="{ editor }" />
     <drag-handle
       v-if="editor && showDragHandle"
@@ -73,7 +54,6 @@ import {
   nextTick,
 } from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
-import { Node } from '@tiptap/core';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
 import { useRouter } from 'vue-router';
@@ -242,85 +222,12 @@ export default {
     }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
-    function collectNodeTypes(content) {
-      const types = new Set();
-      if (!content || typeof content !== 'object') return types;
-      if (Array.isArray(content)) {
-        for (const item of content) {
-          for (const t of collectNodeTypes(item)) types.add(t);
-        }
-        return types;
-      }
-      if (content.type) types.add(content.type);
-      if (content.content) {
-        for (const t of collectNodeTypes(content.content)) types.add(t);
-      }
-      return types;
-    }
-
-    (function addCatchalls() {
-      const registered = new Set();
-      for (const ext of exts) {
-        const name = ext?.name || ext?.options?.name;
-        if (name) registered.add(name);
-        // Recursively collect from nested extensions
-        if (Array.isArray(ext?.extensions)) {
-          for (const sub of ext.extensions) {
-            if (sub?.name) registered.add(sub.name);
-          }
-        }
-      }
-
-      const raw = isEncryptedContent(props.modelValue)
-        ? null
-        : props.modelValue;
-      if (!raw || typeof raw !== 'object') return;
-
-      const contentTypes = collectNodeTypes(raw);
-      for (const t of contentTypes) {
-        if (t === 'doc' || t === 'text') continue;
-        if (registered.has(t)) continue;
-
-        exts.push(
-          Node.create({
-            name: t,
-            group: 'block',
-            atom: true,
-            parseHTML() {
-              return [{ tag: 'div' }];
-            },
-            renderHTML() {
-              return [
-                'div',
-                [
-                  'div',
-                  {
-                    class:
-                      'p-3 rounded-lg border border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800 my-1',
-                  },
-                  [
-                    'span',
-                    {
-                      class:
-                        'text-xs font-mono text-yellow-700 dark:text-yellow-300',
-                    },
-                    `Missing extension: ${t}`,
-                  ],
-                ],
-              ];
-            },
-          })
-        );
-      }
-    })();
-
     const safeContent = computed(() =>
       isEncryptedContent(props.modelValue)
         ? ''
         : sanitizeNoteContent(props.modelValue)
     );
 
-    const editorError = ref(null);
     const editor = useEditor({
       content: safeContent.value,
       autofocus: props.cursorPosition,
@@ -435,7 +342,6 @@ export default {
 
     return {
       editor,
-      editorError,
       computePositionConfig,
       showDragHandle,
       erroredActivePlugins,

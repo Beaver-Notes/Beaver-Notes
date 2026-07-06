@@ -317,6 +317,7 @@ import { usePluginStore } from '@/store/plugins';
 import { useTranslations } from '@/composable/useTranslations';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
+import { fetch as platformFetch } from '@tauri-apps/plugin-http';
 
 const store = usePluginStore();
 const { translations } = useTranslations();
@@ -412,10 +413,10 @@ async function fetchCommunity() {
 
 async function downloadFromGitHub(repo) {
   const apiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
-  const res = await fetch(apiUrl);
+  const res = await platformFetch(apiUrl);
   if (!res.ok) {
     const beaxUrl = `https://github.com/${repo}/releases/latest/download/plugin.beax`;
-    const beaxRes = await fetch(beaxUrl);
+    const beaxRes = await platformFetch(beaxUrl);
     if (!beaxRes.ok) throw new Error(`Failed to download .beax from ${repo}`);
     return await beaxRes.arrayBuffer();
   }
@@ -423,11 +424,11 @@ async function downloadFromGitHub(repo) {
   const asset = release.assets.find((a) => a.name.endsWith('.beax'));
   if (!asset) {
     const beaxUrl = `https://github.com/${repo}/releases/latest/download/plugin.beax`;
-    const beaxRes = await fetch(beaxUrl);
+    const beaxRes = await platformFetch(beaxUrl);
     if (!beaxRes.ok) throw new Error(`No .beax asset found in ${repo}`);
     return await beaxRes.arrayBuffer();
   }
-  const beaxRes = await fetch(asset.browser_download_url);
+  const beaxRes = await platformFetch(asset.browser_download_url);
   return await beaxRes.arrayBuffer();
 }
 

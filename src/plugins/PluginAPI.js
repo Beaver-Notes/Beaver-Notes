@@ -15,7 +15,7 @@ import {
 } from '@tiptap/core';
 import { VueRenderer, VueNodeViewRenderer } from '@tiptap/vue-3';
 import { NodeViewWrapper } from '@tiptap/vue-3';
-import { h, onErrorCaptured } from 'vue';
+import { h } from 'vue';
 import {
   Plugin,
   PluginKey,
@@ -497,58 +497,6 @@ function createFilesystemAPI(pluginId) {
   };
 }
 
-function safeNodeViewRenderer(pluginId, userComponent) {
-  const SafeComponent = {
-    setup(props, { slots }) {
-      let hasError = false;
-      let errorMsg = '';
-
-      onErrorCaptured((err) => {
-        hasError = true;
-        errorMsg = err instanceof Error ? err.message : String(err);
-        console.error(
-          `[PluginAPI] NodeView crash in plugin "${pluginId}":`,
-          err
-        );
-        return false;
-      });
-
-      return () => {
-        if (hasError) {
-          return h(
-            NodeViewWrapper,
-            { as: 'div', class: 'my-2' },
-            {
-              default: () =>
-                h(
-                  'div',
-                  {
-                    class:
-                      'overflow-x-auto max-w-full border border-red-200 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg',
-                  },
-                  [
-                    h(
-                      'span',
-                      {
-                        class:
-                          'text-xs text-red-600 dark:text-red-400 font-mono',
-                      },
-                      `Plugin error: ${errorMsg}`
-                    ),
-                  ]
-                ),
-            }
-          );
-        }
-
-        return h(userComponent, props, slots);
-      };
-    },
-  };
-
-  return VueNodeViewRenderer(SafeComponent);
-}
-
 function createEditorPlane(pluginId) {
   const registeredExtensions = [];
   const registeredSlashCommands = [];
@@ -560,8 +508,7 @@ function createEditorPlane(pluginId) {
       Node,
       Mark,
       VueRenderer,
-      VueNodeViewRenderer: (component) =>
-        safeNodeViewRenderer(pluginId, component),
+      VueNodeViewRenderer,
       NodeViewWrapper,
       h,
       Plugin,

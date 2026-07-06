@@ -356,6 +356,9 @@ export function useSettingsData({
 
   async function clearPath() {
     state.syncPath = '';
+    defaultPath = '';
+    autoSync.value = false;
+    await setSetting('autoSync', false);
     await setSyncPath('');
   }
 

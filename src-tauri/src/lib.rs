@@ -82,7 +82,8 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_spotsearch::init());
     }
-    builder = builder.plugin(tauri_plugin_app_icon::init());
+    builder = builder        .plugin(tauri_plugin_app_icon::init())
+        .plugin(tauri_plugin_http::init());
 
     #[cfg(target_os = "ios")]
     {
@@ -193,8 +194,8 @@ pub fn run() {
             commands::updates::get_auto_update_status,
             commands::updates::is_update_downloading,
             commands::updates::get_update_info,
-            commands::imports::import_evernote,
             commands::imports::import_apple_notes,
+            commands::imports::import_evernote,
             commands::plugins::install_plugin,
             commands::plugins::uninstall_plugin,
             commands::plugins::list_plugins,

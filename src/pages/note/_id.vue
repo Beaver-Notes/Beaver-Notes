@@ -2,8 +2,8 @@
   <div v-if="note" class="flex flex-col">
     <button
       v-if="
-        (showBack && !uiState.inReaderMode.value) ||
-        ($route.query.linked && !uiState.inReaderMode.value)
+        (showBack && !uiState.inReaderMode) ||
+        ($route.query.linked && !uiState.inReaderMode)
       "
       class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden mobile:hidden"
       :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
@@ -13,7 +13,7 @@
         name="riArrowDownLine"
         class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
       />
-      <span v-if="$route.query.linked && !uiState.inReaderMode.value">
+      <span v-if="$route.query.linked && !uiState.inReaderMode">
         {{ translations.editor.previousNote || '-' }}
       </span>
     </button>
@@ -412,7 +412,7 @@ export default {
     };
 
     watch(
-      () => uiState.showPrompt.value,
+      () => uiState.showPrompt,
       (n) => {
         if (!n) {
           focusEditor();
