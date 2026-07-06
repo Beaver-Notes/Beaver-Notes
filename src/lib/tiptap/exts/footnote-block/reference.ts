@@ -5,6 +5,27 @@ import { v4 as uuid } from 'uuid';
 const REFNUM_ATTR = 'data-reference-number';
 const REF_CLASS = 'footnote-ref';
 
+const SUPERSCRIPT_MAP = {
+  '\u2070': '0',
+  '\u00B9': '1',
+  '\u00B2': '2',
+  '\u00B3': '3',
+  '\u2074': '4',
+  '\u2075': '5',
+  '\u2076': '6',
+  '\u2077': '7',
+  '\u2078': '8',
+  '\u2079': '9',
+};
+const SUPERSCRIPT_CHARS = new RegExp(
+  `[${Object.keys(SUPERSCRIPT_MAP).join('')}]`,
+  'g'
+);
+
+function normalizeSuperscript(text) {
+  return text.replace(SUPERSCRIPT_CHARS, (ch) => SUPERSCRIPT_MAP[ch] || ch);
+}
+
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
     footnoteReference: {
@@ -96,11 +117,12 @@ const FootnoteReference = Node.create({
             if (!text) return false;
 
             const footnoteRefs = [];
-            const regex = /\[\^(\d+)\]/g;
+            const regex = /\[\^(\d+)\]|\[([\u00B9\u00B2\u00B3\u2070\u2074\u2075\u2076\u2077\u2078\u2079]+)\]/g;
             let match;
             while ((match = regex.exec(text)) !== null) {
+              const rawNumber = match[1] || match[2];
               footnoteRefs.push({
-                number: match[1],
+                number: normalizeSuperscript(rawNumber),
                 index: match.index,
                 length: match[0].length,
               });
@@ -153,6 +175,13 @@ const FootnoteReference = Node.create({
           if (match[1]) {
             chain().deleteRange({ from: start, to: end }).addFootnote().run();
           }
+        },
+      },
+      {
+        find: /\[[\u00B9\u00B2\u00B3\u2070\u2074\u2075\u2076\u2077\u2078\u2079]+\]$/,
+        type: this.type,
+        handler({ range, chain }) {
+          chain().deleteRange({ from: range.from, to: range.to }).addFootnote().run();
         },
       },
     ];
