@@ -101,11 +101,18 @@ export default {
 
     // Handle update banner actions
     const handleUpdateInstall = () => {
-      window.electron.ipcRenderer.callMain('install-update');
+      if (updateBanner.url) {
+        window.electron.ipcRenderer.callMain('open-external-url', updateBanner.url);
+      } else {
+        window.electron.ipcRenderer.callMain('install-update');
+      }
       updateBanner.show = false;
     };
 
     const handleUpdateDismiss = () => {
+      if (updateBanner.isMigration) {
+        window.electron.ipcRenderer.callMain('dismiss-migration-banner');
+      }
       updateBanner.show = false;
     };
 

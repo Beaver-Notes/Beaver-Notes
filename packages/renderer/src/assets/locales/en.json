@@ -300,6 +300,8 @@
     "updateAvailable": "A new update is available",
     "updateDescription": "An update is being installed. The app will close automatically when the update has completed.",
     "updateTitle": "Installing Update...",
+    "newVersionAvailable": "Beaver Notes has moved to a new version! Download the latest release:",
+    "downloadNow": "Download",
     "utilities": "Utilities",
     "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
     "wrongCurrentPassword": "Wrong password, please try again",

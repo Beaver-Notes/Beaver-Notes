@@ -305,6 +305,8 @@
     "updateAvailable": "Bir güncelleme mevcut",
     "updateDescription": "Bir güncelleme yükleniyor. Güncelleme tamamlandığında uygulama otomatik olarak kapanacaktır.",
     "updateTitle": "Güncelleme yükleniyor...",
+    "newVersionAvailable": "Beaver Notes yeni bir sürüme taşındı! En son sürümü indirin:",
+    "downloadNow": "İndir",
     "utilities": "Araçlar",
     "warning": "Uyarı, eğer şifrenizi unutursanız kilitli notlarınıza olan erişiminizi kaybedersiniz. Yeni şifrenizi tanımlamak da eski şifrenizi bilmenizi gerektirir.",
     "wrongCurrentPassword": "Yanlış şifre, lütfen yeniden deneyin"

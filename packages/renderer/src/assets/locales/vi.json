@@ -305,6 +305,8 @@
     "updateAvailable": "Đã có bản cập nhật mới",
     "updateDescription": "Một bản cập nhật đang được cài đặt. Ứng dụng sẽ tự động đóng khi cập nhật hoàn tất.",
     "updateTitle": "Đang cài đặt bản cập nhật...",
+    "newVersionAvailable": "Beaver Notes đã chuyển sang phiên bản mới! Tải bản phát hành mới nhất:",
+    "downloadNow": "Tải xuống",
     "utilities": "Tiện ích",
     "warning": "Cảnh báo, nếu bạn quên mật khẩu, bạn sẽ mất quyền truy cập vào các ghi chú đã khóa của mình và việc đặt mật khẩu mới sẽ yêu cầu bạn phải biết mật khẩu cũ.",
     "wrongCurrentPassword": "Mật khẩu sai, vui lòng thử lại"

@@ -305,6 +305,8 @@
     "updateAvailable": "Une mise à jour est disponible",
     "updateDescription": "Une mise à jour est en cours d'installation. L'application se fermera automatiquement une fois la mise à jour terminée.",
     "updateTitle": "Installation de la mise à jour...",
+    "newVersionAvailable": "Beaver Notes est passé à une nouvelle version ! Téléchargez la dernière version :",
+    "downloadNow": "Télécharger",
     "utilities": "Utilitaires",
     "warning": "Attention, si vous oubliez votre mot de passe, vous perdrez l'accès à vos notes verrouillées, et la création d'un nouveau mot de passe nécessitera de connaître l'ancien.",
     "wrongCurrentPassword": "Mot de passe incorrect, veuillez réessayer"

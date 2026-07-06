@@ -305,6 +305,8 @@
     "updateAvailable": "Uma nova atualização está disponível",
     "updateDescription": "Uma atualização está sendo instalada. O aplicativo será fechado automaticamente quando a atualização for concluída.",
     "updateTitle": "Instalando atualização...",
+    "newVersionAvailable": "O Beaver Notes mudou para uma nova versão! Baixe a versão mais recente:",
+    "downloadNow": "Baixar",
     "utilities": "Utilidades",
     "warning": "Atenção, se você esquecer sua senha, perderá o acesso às suas notas bloqueadas e definir uma nova senha exigirá que você saiba a antiga.",
     "wrongCurrentPassword": "Senha errada, tente novamente"

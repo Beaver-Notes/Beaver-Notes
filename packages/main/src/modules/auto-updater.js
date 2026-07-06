@@ -1,7 +1,8 @@
 import * as browserStorage from 'electron-browser-storage';
 import { autoUpdater } from 'electron-updater';
 import { ipcMain } from 'electron-better-ipc';
-import { dialog } from 'electron';
+import { dialog, shell } from 'electron';
+import https from 'node:https';
 
 const { localStorage } = browserStorage;
 
@@ -42,6 +43,8 @@ export class AutoUpdater {
         this.checkForUpdates();
       }, 3000);
     }
+
+    this.showMigrationBanner();
   }
 
   setupAppCloseHandlers() {
@@ -148,6 +151,43 @@ export class AutoUpdater {
     });
   }
 
+  async showMigrationBanner() {
+    try {
+      const dismissed = await localStorage.getItem('migrationBannerDismissed');
+      if (dismissed === 'true') return;
+    } catch (error) {
+      console.error('Error checking migration banner dismissal:', error);
+    }
+
+    const isV5Available = await this.checkV5Released();
+    if (!isV5Available) return;
+
+    const selectedLanguage = localStorage.getItem('selectedLanguage') || 'en';
+    const translations = await this.getTranslations(selectedLanguage);
+
+    const bannerData = {
+      content: translations.settings.newVersionAvailable ||
+        'Beaver Notes has moved to a new version! Download the latest release:',
+      primaryText: translations.settings.downloadNow || 'Download',
+      secondaryText: translations.settings.later || 'Later',
+      url: 'https://beavernotes.com/#/Download',
+      isMigration: true,
+    };
+
+    this.showUpdateBanner(bannerData);
+  }
+
+  checkV5Released() {
+    return new Promise((resolve) => {
+      const req = https.get(
+        'https://github.com/Beaver-Notes/Beaver-Notes/releases/tag/5.0.0',
+        (res) => resolve(res.statusCode === 200)
+      );
+      req.on('error', () => resolve(false));
+      req.setTimeout(10000, () => { req.destroy(); resolve(false); });
+    });
+  }
+
   async showUpdateBanner(bannerData) {
     const mainWindow = this.windowManager.getWindow();
     if (mainWindow && mainWindow.webContents) {
@@ -227,6 +267,20 @@ export class AutoUpdater {
         isBusy: this.isBusy,
       };
     });
+
+    ipcMain.answerRenderer('open-external-url', (url) => {
+      shell.openExternal(url);
+      return { success: true };
+    });
+
+    ipcMain.answerRenderer('dismiss-migration-banner', () => {
+      try {
+        localStorage.setItem('migrationBannerDismissed', 'true');
+        return { success: true };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    });
   }
 
   async checkForUpdates() {
@@ -284,14 +338,17 @@ export class AutoUpdater {
   async getTranslations(lang = 'en') {
     const supportedLangs = [
       'en',
+      'ar',
       'de',
       'es',
       'fr',
       'it',
       'nl',
+      'pt',
       'tr',
       'ru',
       'uk',
+      'vi',
       'zh',
     ];
     if (!supportedLangs.includes(lang)) lang = 'en';

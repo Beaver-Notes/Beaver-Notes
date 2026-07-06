@@ -305,6 +305,8 @@
     "updateAvailable": "Er is een update beschikbaar",
     "updateDescription": "Er wordt een update geïnstalleerd. De app wordt automatisch gesloten zodra de update is voltooid.",
     "updateTitle": "Update wordt geïnstalleerd...",
+    "newVersionAvailable": "Beaver Notes is verhuisd naar een nieuwe versie! Download de nieuwste release:",
+    "downloadNow": "Downloaden",
     "utilities": "Hulpprogramma's",
     "warning": "Waarschuwing, als je je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord.",
     "wrongCurrentPassword": "Verkeerd wachtwoord, probeer het opnieuw"

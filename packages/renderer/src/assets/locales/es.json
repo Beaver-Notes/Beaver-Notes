@@ -305,6 +305,8 @@
     "updateAvailable": "Hay una actualización disponible",
     "updateDescription": "Instalando actualización... la app se cerrará al finalizar.",
     "updateTitle": "Actualización en curso...",
+    "newVersionAvailable": "¡Beaver Notes se ha trasladado a una nueva versión! Descarga la última versión:",
+    "downloadNow": "Descargar",
     "utilities": "Utilidades",
     "warning": "Atención: si olvidas tu contraseña, perderás acceso a tus notas bloqueadas. Para configurar una nueva, necesitas recordar la anterior.",
     "wrongCurrentPassword": "Contraseña actual incorrecta"
