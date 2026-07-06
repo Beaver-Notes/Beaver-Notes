@@ -155,6 +155,7 @@ import {
   RiPaletteLine,
   RiMore2Fill,
   RiMoreFill,
+  RiPuzzle2Line,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -313,6 +314,7 @@ const RemixIcons = {
   riPaletteLine: RiPaletteLine,
   riMore2Fill: RiMore2Fill,
   riMoreFill: RiMoreFill,
+  riPuzzle2Line: RiPuzzle2Line,
 };
 
 const customIconPaths = {
@@ -333,6 +335,27 @@ const customIconPaths = {
     viewBox: '0 0 329 357',
   },
 };
+
+// Dynamic plugin icon registry — populated at runtime by extensions
+const pluginIcons = {};
+
+export function registerIcon(name, source) {
+  if (!name) {
+    console.warn('[v-remixicon] registerIcon requires a name');
+    return;
+  }
+  // If source is a string, it's a RemixIcon name alias (e.g. registerIcon('myIcon', 'riStarLine'))
+  if (typeof source === 'string') {
+    pluginIcons[name] = source;
+    return;
+  }
+  // Otherwise it's { d, viewBox } for a custom SVG
+  if (!source || !source.d) {
+    console.warn('[v-remixicon] registerIcon requires a RemixIcon name string or { d, viewBox? }');
+    return;
+  }
+  pluginIcons[name] = createSvgIcon(name, source.d, source.viewBox || '0 0 24 24');
+}
 
 function createSvgIcon(iconName, d, viewBox = '0 0 24 24') {
   return defineComponent({
@@ -384,10 +407,23 @@ export default {
             });
           }
 
-          const CustomIcon = CustomIcons?.[this.name];
-          if (CustomIcon) {
-            return h(CustomIcon, { size: this.size, color: this.color });
-          }
+            const CustomIcon = CustomIcons?.[this.name];
+            if (CustomIcon) {
+              return h(CustomIcon, { size: this.size, color: this.color });
+            }
+
+            const PluginIcon = pluginIcons?.[this.name];
+            if (PluginIcon) {
+              // If a string alias, resolve through RemixIcons first
+              if (typeof PluginIcon === 'string') {
+                const aliased = RemixIcons?.[PluginIcon];
+                if (aliased) {
+                  return h(markRaw(aliased), { size: String(this.size), color: this.color });
+                }
+              }
+              // Otherwise it's a Vue component from createSvgIcon
+              return h(PluginIcon, { size: this.size, color: this.color });
+            }
 
           console.warn(`[v-remixicon] Unknown icon: "${this.name}"`);
           return h('span', {

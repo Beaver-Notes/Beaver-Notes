@@ -156,6 +156,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import commands from '@/utils/ui/commands.js';
+import { usePluginStore } from '@/store/plugins';
 import { useUiState } from '@/composable/useUiState';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import dayjs from 'dayjs';
@@ -168,6 +169,7 @@ const { translations } = useTranslations();
 const noteStore = useNoteStore();
 const folderStore = useFolderStore();
 const uiState = useUiState();
+const pluginStore = usePluginStore();
 
 const listRef = ref(null);
 const itemRefs = ref([]);

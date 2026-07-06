@@ -51,6 +51,32 @@ export function useToolbarConfig() {
 
   const config = ref(mergeWithRegistry(appStore.toolbarStorage.get()));
 
+  // Bumped whenever the registry mutates so reactive computeds below re-derive.
+  const registryVersion = ref(0);
+  toolbarRegistry.subscribe(() => {
+    registryVersion.value++;
+    rebuildConfigPreservingUserChoices();
+  });
+
+  function rebuildConfigPreservingUserChoices() {
+    const current = config.value;
+    const fresh = mergeWithRegistry(appStore.toolbarStorage.get());
+
+    const next = [];
+    const seen = new Set();
+    for (const old of current) {
+      const freshItem = fresh.find((f) => f.id === old.id);
+      if (freshItem) {
+        next.push({ id: old.id, visible: old.visible });
+        seen.add(old.id);
+      }
+    }
+    for (const item of fresh) {
+      if (!seen.has(item.id)) next.push(item);
+    }
+    config.value = next;
+  }
+
   // ── Debounced persist ────────────────────────────────────────────────────────
   // Only the minimal { id, visible } shape is persisted — no metadata.
   let _flushTimer = null;
@@ -68,9 +94,10 @@ export function useToolbarConfig() {
   // ── Public API ───────────────────────────────────────────────────────────────
 
   /** All items in user order, with registry metadata attached. Used by customizer. */
-  const allItems = computed(() =>
-    config.value.map((c) => ({ ...c, meta: toolbarRegistry.get(c.id) }))
-  );
+  const allItems = computed(() => {
+    registryVersion.value;
+    return config.value.map((c) => ({ ...c, meta: toolbarRegistry.get(c.id) }));
+  });
 
   /** Visible items only, with metadata. Used by NoteMenu to render toolbar. */
   const visibleItems = computed(() => allItems.value.filter((c) => c.visible));
@@ -79,9 +106,10 @@ export function useToolbarConfig() {
     () => allItems.value.filter((c) => c.visible && !c.meta?.isDivider).length
   );
 
-  const totalCount = computed(
-    () => toolbarRegistry.all().filter((i) => !i.isDivider).length
-  );
+  const totalCount = computed(() => {
+    registryVersion.value;
+    return toolbarRegistry.all().filter((i) => !i.isDivider).length;
+  });
 
   function toggleItem(id) {
     const item = config.value.find((c) => c.id === id);

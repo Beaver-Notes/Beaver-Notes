@@ -4,6 +4,7 @@ import { useStorage } from '../composable/storage.js';
 import { trackChange } from '@/utils/sync';
 import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
 import { useUndoStore } from './undo';
+import { emitAppEvent } from '@/plugins/PluginEvents';
 
 const storage = useStorage();
 
@@ -215,6 +216,8 @@ export const useFolderStore = defineStore('folder', {
         await storage.set(`folders.${id}`, newFolder);
         await trackChange(`folders.${id}`, newFolder);
 
+        emitAppEvent('folder-created', id);
+
         return this.data[id];
       } catch (error) {
         console.error('Error adding folder:', error);
@@ -248,6 +251,8 @@ export const useFolderStore = defineStore('folder', {
 
         await storage.set(`folders.${id}`, this.data[id]);
         await trackChange(`folders.${id}`, this.data[id]);
+
+        emitAppEvent('folder-updated', id);
 
         return this.data[id];
       } catch (error) {
@@ -296,6 +301,8 @@ export const useFolderStore = defineStore('folder', {
         const snapshot = JSON.parse(JSON.stringify(folderToDelete));
         undoStore.cancelBatch();
         undoStore.push({ type: 'bulk-delete', items: [{ type: 'folder', data: snapshot }] });
+
+        emitAppEvent('folder-deleted', id);
 
         return {
           deletedFolderId: id,

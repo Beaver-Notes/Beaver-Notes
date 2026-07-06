@@ -7,6 +7,7 @@ import { backend } from './lib/tauri-bridge';
 import { getStoredZoomLevel, setStoredZoomLevel } from './composable/zoom';
 import { getSettingSync } from './composable/settings';
 import { initializeThemeHandling } from './utils/themeHandler';
+import { usePluginStore } from './store/plugins';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
@@ -57,3 +58,8 @@ const app = createApp(App);
 app.config.unwrapInjectedRef = true;
 
 app.use(router).use(createPinia()).use(compsUi).mount('#app');
+// Initialize plugin system after app is mounted
+const pluginStore = usePluginStore();
+pluginStore.init().catch((err) => {
+  console.error('[Beaver Notes] Plugin init failed:', err);
+});

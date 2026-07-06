@@ -123,6 +123,7 @@ fn pick_pool<'a>(
     match allowed_store_name(name)? {
         SETTINGS_STORE => settings_pool(app, state),
         DATA_STORE => data_pool(app, state),
+        PLUGIN_STORAGE_STORE => plugin_storage_pool(app, state),
         _ => Err(format!(
             r#"[storage] blocked access to unknown store: "{name}""#
         )),

@@ -100,10 +100,10 @@
       </div>
 
       <note-editor
-        v-if="!isLocked"
+        v-if="!isLocked && pluginStore.loaded"
         :id="$route.params.id"
         ref="noteEditor"
-        :key="$route.params.id"
+        :key="`${$route.params.id}-${pluginStore.extensionsVersion}`"
         :model-value="note.content"
         :note="note"
         :cursor-position="note.lastCursorPosition"
@@ -149,10 +149,12 @@ import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import { useAppStore } from '../../store/app';
+import { usePluginStore } from '@/store/plugins';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
+import { emitAppEvent } from '@/plugins/PluginEvents';
 
 export default {
   components: {
@@ -172,6 +174,7 @@ export default {
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const appStore = useAppStore();
+    const pluginStore = usePluginStore();
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -361,6 +364,8 @@ export default {
       if (titleDiv.value && note.value.title) {
         titleDiv.value.innerText = note.value.title;
       }
+
+      emitAppEvent('note-opened', route.params.id);
     });
 
     onUnmounted(() => {
@@ -449,6 +454,7 @@ export default {
       disallowedEnter,
       autoScroll,
       isLocked,
+      pluginStore,
     };
   },
 };

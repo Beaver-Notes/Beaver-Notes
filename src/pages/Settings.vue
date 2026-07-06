@@ -104,6 +104,11 @@ const settings = computed(() => ({
     icon: 'riPriceTag3Line',
     path: '/settings/labels',
   },
+  'Settings-Plugins': {
+    name: translations.value.plugins?.title || 'Plugins',
+    icon: 'riPuzzle2Line',
+    path: '/settings/plugins',
+  },
   'Settings-Shortcuts': {
     name: translations.value.settings.shortcuts,
     icon: 'riKeyboardLine',

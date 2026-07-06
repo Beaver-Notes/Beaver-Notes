@@ -1,0 +1,225 @@
+import JSZip from 'jszip';
+import {
+  PluginValidationError,
+  PluginLoadError as PluginLoadErr,
+} from './PluginError';
+import { createPluginAPI } from './PluginAPI';
+import { CoreAccess } from './CoreAccess';
+
+function parseBeax(arrayBuffer) {
+  return JSZip.loadAsync(arrayBuffer);
+}
+
+function readTextFile(zip, path) {
+  return zip.files[path] ? zip.files[path].async('text') : null;
+}
+
+function readBinaryFile(zip, path) {
+  return zip.files[path] ? zip.files[path].async('arraybuffer') : null;
+}
+
+export function validateManifest(manifest, pluginId) {
+  if (!manifest || typeof manifest !== 'object') {
+    throw new PluginValidationError('manifest.json is missing or invalid');
+  }
+
+  const id = manifest.id;
+  if (!id || typeof id !== 'string') {
+    throw new PluginValidationError(
+      'manifest.json must have a string "id" field'
+    );
+  }
+
+  const name = manifest.name;
+  if (!name || typeof name !== 'string') {
+    throw new PluginValidationError(
+      'manifest.json must have a string "name" field'
+    );
+  }
+
+  const version = manifest.version;
+  if (!version || typeof version !== 'string') {
+    throw new PluginValidationError(
+      'manifest.json must have a string "version" field'
+    );
+  }
+
+  const minAppVersion = manifest.minAppVersion;
+  if (minAppVersion !== undefined && typeof minAppVersion !== 'string') {
+    throw new PluginValidationError(
+      'manifest.json "minAppVersion" must be a string'
+    );
+  }
+
+  const main = manifest.main;
+  if (!main || typeof main !== 'string') {
+    throw new PluginValidationError(
+      'manifest.json must have a string "main" field'
+    );
+  }
+
+  const planes = manifest.planes;
+  if (planes !== undefined) {
+    if (!Array.isArray(planes)) {
+      throw new PluginValidationError(
+        'manifest.json "planes" must be an array'
+      );
+    }
+    for (const plane of planes) {
+      if (!['app', 'editor'].includes(plane)) {
+        throw new PluginValidationError(
+          `Unknown plane "${plane}" in manifest.json. Valid: "app", "editor"`
+        );
+      }
+    }
+  }
+
+  const permissions = manifest.permissions;
+  if (permissions !== undefined) {
+    if (!Array.isArray(permissions)) {
+      throw new PluginValidationError(
+        'manifest.json "permissions" must be an array'
+      );
+    }
+    const valid = CoreAccess.VALID_PERMISSIONS;
+    for (const perm of permissions) {
+      if (!valid.includes(perm)) {
+        throw new PluginValidationError(
+          `Unknown permission "${perm}" in manifest.json. Valid: ${valid.join(
+            ', '
+          )}`
+        );
+      }
+    }
+  }
+
+  return {
+    id,
+    name,
+    version,
+    author: manifest.author || '',
+    description: manifest.description || '',
+    icon: manifest.icon || 'riPuzzle2Line',
+    planes: planes || [],
+    permissions: permissions || [],
+    minAppVersion: minAppVersion || null,
+    isDesktopOnly: manifest.isDesktopOnly || false,
+    main: manifest.main,
+    settings: manifest.settings || null,
+    settingsFile: manifest.settingsFile || null,
+    storageSchemaVersion: manifest.storageSchemaVersion || null,
+  };
+}
+
+export async function loadBeaxFile(arrayBuffer) {
+  const zip = await parseBeax(arrayBuffer);
+
+  const manifestRaw = await readTextFile(zip, 'manifest.json');
+  if (!manifestRaw) {
+    throw new PluginValidationError('.beax file must contain manifest.json');
+  }
+
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestRaw);
+  } catch (e) {
+    throw new PluginValidationError('manifest.json is not valid JSON', e);
+  }
+
+  const validated = validateManifest(manifest);
+  const mainPath = validated.main;
+
+  const sourceCode = await readTextFile(zip, mainPath);
+  if (!sourceCode) {
+    throw new PluginValidationError(
+      `Entry file "${mainPath}" not found in .beax`
+    );
+  }
+
+  const iconBuffer =
+    validated.icon && !validated.icon.startsWith('ri')
+      ? await readBinaryFile(zip, validated.icon)
+      : null;
+
+  let settingsSource = null;
+  if (validated.settingsFile) {
+    settingsSource = await readTextFile(zip, validated.settingsFile);
+  }
+
+  return {
+    manifest: validated,
+    sourceCode,
+    settingsSource,
+    iconBuffer,
+  };
+}
+
+export function createPluginInstance(pluginId, manifest) {
+  const beaverNotes = createPluginAPI(pluginId, manifest);
+  return {
+    pluginId,
+    beaverNotes,
+    manifest,
+  };
+}
+
+async function importFromBlob(sourceCode) {
+  const blob = new Blob([sourceCode], { type: 'application/javascript' });
+  const url = URL.createObjectURL(blob);
+  try {
+    const module = await import(/* @vite-ignore */ url);
+    return module;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+export async function evaluatePlugin(beaverNotes, sourceCode) {
+  return evaluateModule(beaverNotes, sourceCode);
+}
+
+async function evaluateModule(beaverNotes, sourceCode) {
+  let module;
+  try {
+    module = await importFromBlob(sourceCode);
+  } catch (e) {
+    throw new PluginLoadErr(
+      beaverNotes.id,
+      `Failed to evaluate plugin code: ${e.message}`,
+      e
+    );
+  }
+
+  if (typeof module.setup !== 'function') {
+    throw new PluginLoadErr(
+      beaverNotes.id,
+      'Plugin must export a "setup" function'
+    );
+  }
+
+  return module;
+}
+
+export async function evaluateSettings(settingsSource, pluginId, manifest) {
+  if (!settingsSource) return null;
+
+  let module;
+  try {
+    module = await importFromBlob(settingsSource);
+  } catch (e) {
+    console.warn(
+      `[PluginLoader] Failed to load settings for "${pluginId}":`,
+      e
+    );
+    return null;
+  }
+
+  if (typeof module.settings !== 'function') {
+    console.warn(
+      `[PluginLoader] settingsFile for "${pluginId}" must export a "settings" function`
+    );
+    return null;
+  }
+
+  return module.settings;
+}
