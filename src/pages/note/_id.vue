@@ -1,11 +1,9 @@
 <template>
   <div v-if="note" class="flex flex-col">
     <template v-if="editor && !isLocked">
-      <div
-        v-if="previousNote && !uiState.inReaderMode"
-        class="no-print sticky top-4 left-4 z-10 self-start"
-      >
+      <div class="no-print sticky top-4 z-10 flex items-start px-4">
         <div
+          v-if="previousNote && !uiState.inReaderMode"
           class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
         >
           <button
@@ -23,11 +21,12 @@
             </span>
           </button>
         </div>
+        <div class="flex-1"></div>
+        <note-actions
+          v-bind="{ editor, id, note, showSearch, goBack }"
+          @toggle-search="showSearch = !showSearch"
+        />
       </div>
-      <note-actions
-        v-bind="{ editor, id, note, showSearch, goBack }"
-        @toggle-search="showSearch = !showSearch"
-      />
     </template>
 
     <div
