@@ -693,13 +693,17 @@ function createUIPlane(pluginId) {
     label.className = 'relative inline-flex items-center cursor-pointer';
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.className = 'peer sr-only';
+    input.className = 'sr-only';
     if (options.checked) input.checked = true;
     const track = document.createElement('div');
     track.className = 'plugin-switch-track';
+    if (options.checked) track.classList.add('plugin-switch-checked');
     label.append(input, track);
     if (options.onChange) {
-      input.addEventListener('change', (e) => options.onChange(e.target.checked));
+      input.addEventListener('change', (e) => {
+        track.classList.toggle('plugin-switch-checked', e.target.checked);
+        options.onChange(e.target.checked);
+      });
     }
     return label;
   }

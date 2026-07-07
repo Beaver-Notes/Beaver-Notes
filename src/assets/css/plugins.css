@@ -26,7 +26,17 @@
   }
 
   .plugin-switch-track {
-    @apply peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-neutral-700 transition-colors after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-focus:ring-1 peer-focus:ring-secondary;
+    @apply h-6 w-11 rounded-full border bg-neutral-200 dark:bg-neutral-700 transition-colors relative;
+  }
+  .plugin-switch-track::after {
+    content: '';
+    @apply absolute left-[2px] top-0.5 h-5 w-5 rounded-full border border-neutral-300 bg-white transition-transform;
+  }
+  .plugin-switch-checked.plugin-switch-track {
+    @apply bg-primary;
+  }
+  .plugin-switch-checked.plugin-switch-track::after {
+    transform: translateX(1.25rem);
   }
 
   .plugin-checkbox {

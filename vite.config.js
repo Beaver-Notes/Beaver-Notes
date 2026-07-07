@@ -33,7 +33,7 @@ export default defineConfig({
   build: {
     sourcemap: false,
     minify: 'terser',
-    target: ['es2021', 'chrome100', 'safari13'],
+    target: ['es2021', 'chrome100', 'safari14'],
     outDir: 'dist',
     chunkSizeWarningLimit: 1600,
     assetsDir: '.',
