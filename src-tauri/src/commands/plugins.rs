@@ -393,3 +393,63 @@ pub(crate) fn list_plugins(
 
     Ok(entries)
 }
+
+fn cred_keyring_account(plugin_id: &str, key: &str) -> String {
+    format!("plugin:{}:{}", plugin_id, key)
+}
+
+#[tauri::command]
+pub(crate) fn credential_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    plugin_id: String,
+    key: String,
+    value: String,
+) -> Result<(), String> {
+    let account = cred_keyring_account(&plugin_id, &key);
+    let entry = crate::shared::keyring_entry(&account)?;
+    entry.set_password(&value).map_err(|e| format!("Failed to store credential: {e}"))
+}
+
+#[tauri::command]
+pub(crate) fn credential_get(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    plugin_id: String,
+    key: String,
+) -> Result<Option<String>, String> {
+    let account = cred_keyring_account(&plugin_id, &key);
+    match crate::shared::keyring_entry(&account) {
+        Ok(entry) => match entry.get_password() {
+            Ok(value) => Ok(Some(value)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(format!("Failed to read credential: {e}")),
+        },
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub(crate) fn credential_delete(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    plugin_id: String,
+    key: String,
+) -> Result<(), String> {
+    let account = cred_keyring_account(&plugin_id, &key);
+    match crate::shared::keyring_entry(&account) {
+        Ok(entry) => entry.delete_password().map_err(|e| format!("Failed to delete credential: {e}")),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub(crate) fn credential_list(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    plugin_id: String,
+) -> Result<Vec<String>, String> {
+    Err(
+        "Listing credentials is not supported with OS keychain storage. Use individual keys.".to_string(),
+    )
+}

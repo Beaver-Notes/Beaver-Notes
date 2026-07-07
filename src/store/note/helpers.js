@@ -9,6 +9,7 @@ import {
   encryptNoteForStorage,
   stripTransientFields,
 } from '@/utils/note/serializer.js';
+import { PluginRegistry } from '@/plugins/PluginRegistry';
 import { useFolderStore } from '../folder';
 import {
   indexNoteForSpotlight,
@@ -32,7 +33,9 @@ export async function trackNoteChange(id, note) {
 }
 
 export async function saveNote(id, noteData) {
-  const toStore = await encryptNoteForStorage(stripTransientFields(noteData));
+  const stripped = stripTransientFields(noteData);
+  const content = await PluginRegistry.runSaveTransforms(stripped.content, id);
+  const toStore = await encryptNoteForStorage({ ...stripped, content });
   await storage.set(`notes.${id}`, toStore);
   syncFtsIndex(noteData);
   indexNoteForSpotlight(noteData);

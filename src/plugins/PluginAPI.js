@@ -251,6 +251,26 @@ function createAppPlane(pluginId, manifest) {
       },
     },
 
+    credentials: {
+      async set(key, value) {
+        return CoreAccess.guardAsync(pluginId, 'credentials', async () => {
+          await backend.invoke('credential_set', { pluginId, key, value });
+        });
+      },
+
+      async get(key) {
+        return CoreAccess.guardAsync(pluginId, 'credentials', async () => {
+          return backend.invoke('credential_get', { pluginId, key });
+        });
+      },
+
+      async delete(key) {
+        return CoreAccess.guardAsync(pluginId, 'credentials', async () => {
+          await backend.invoke('credential_delete', { pluginId, key });
+        });
+      },
+    },
+
     on: events.on,
     once: events.once,
     off: events.off,
@@ -605,6 +625,14 @@ function createEditorPlane(pluginId) {
         pluginId,
         item: fullItem,
       });
+    },
+
+    onSave(fn) {
+      PluginRegistry.registerSaveTransform(pluginId, fn);
+    },
+
+    onLoad(fn) {
+      PluginRegistry.registerLoadTransform(pluginId, fn);
     },
 
     _destroy() {

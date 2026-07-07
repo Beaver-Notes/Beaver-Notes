@@ -3,6 +3,8 @@ import { PluginConflictError, PluginInteropError } from './PluginError';
 const _apiRegistry = new Map();
 const _pluginNames = new Map();
 const _readyCallbacks = new Map();
+const _saveTransforms = new Map();
+const _loadTransforms = new Map();
 
 export const PluginRegistry = {
   registerAPI(pluginId, api) {
@@ -40,8 +42,52 @@ export const PluginRegistry = {
     _readyCallbacks.get(pluginId).push(callback);
   },
 
+  registerSaveTransform(pluginId, fn) {
+    if (typeof fn !== 'function') {
+      console.warn(`[PluginRegistry] Save transform for "${pluginId}" must be a function`);
+      return;
+    }
+    _saveTransforms.set(pluginId, fn);
+  },
+
+  registerLoadTransform(pluginId, fn) {
+    if (typeof fn !== 'function') {
+      console.warn(`[PluginRegistry] Load transform for "${pluginId}" must be a function`);
+      return;
+    }
+    _loadTransforms.set(pluginId, fn);
+  },
+
+  async runSaveTransforms(content, noteId) {
+    let result = content;
+    for (const [pluginId, fn] of _saveTransforms) {
+      try {
+        const transformed = await fn(result, noteId);
+        if (transformed !== undefined) result = transformed;
+      } catch (e) {
+        console.error(`[PluginRegistry] Save transform "${pluginId}" failed for note "${noteId}":`, e);
+      }
+    }
+    return result;
+  },
+
+  async runLoadTransforms(content, noteId) {
+    let result = content;
+    for (const [pluginId, fn] of _loadTransforms) {
+      try {
+        const transformed = await fn(result, noteId);
+        if (transformed !== undefined) result = transformed;
+      } catch (e) {
+        console.error(`[PluginRegistry] Load transform "${pluginId}" failed for note "${noteId}":`, e);
+      }
+    }
+    return result;
+  },
+
   clearPlugin(pluginId) {
     _apiRegistry.delete(pluginId);
     _readyCallbacks.delete(pluginId);
+    _saveTransforms.delete(pluginId);
+    _loadTransforms.delete(pluginId);
   },
 };

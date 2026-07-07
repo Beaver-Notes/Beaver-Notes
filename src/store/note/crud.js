@@ -5,6 +5,7 @@ import { readDir, removePath } from '@/lib/native/fs';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
 import { hydrateNote, stripTransientFields } from '@/utils/note/serializer.js';
 import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
+import { PluginRegistry } from '@/plugins/PluginRegistry';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
 import {
@@ -34,13 +35,25 @@ export async function retrieve() {
       await Promise.all(
         Object.keys(merged).map(async (id) => {
           merged[id] = await decryptNoteForMemory(merged[id]);
+          if (merged[id]?.content) {
+            merged[id].content = await PluginRegistry.runLoadTransforms(
+              merged[id].content, id
+            );
+          }
           merged[id] = hydrateNote(merged[id]);
         })
       );
     } else {
-      Object.keys(merged).forEach((id) => {
-        merged[id] = hydrateNote(merged[id]);
-      });
+      await Promise.all(
+        Object.keys(merged).map(async (id) => {
+          if (merged[id]?.content) {
+            merged[id].content = await PluginRegistry.runLoadTransforms(
+              merged[id].content, id
+            );
+          }
+          merged[id] = hydrateNote(merged[id]);
+        })
+      );
     }
 
     this.data = merged;

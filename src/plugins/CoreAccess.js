@@ -7,6 +7,7 @@ const VALID_PERMISSIONS = Object.freeze([
   'network',
   'app:settings',
   'plugin:interop',
+  'credentials',
 ]);
 
 const _grants = new Map();
