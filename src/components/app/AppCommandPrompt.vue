@@ -1,7 +1,7 @@
 <template>
   <Transition name="command-prompt-shell">
     <div
-      v-if="uiState.showPrompt.value"
+      v-if="uiState.showPrompt"
       class="command-prompt-shell fixed left-1/2 -translate-x-1/2 top-14 z-[60] w-full max-w-lg px-4"
       role="combobox"
       aria-haspopup="listbox"
@@ -169,7 +169,6 @@ const noteStore = useNoteStore();
 const folderStore = useFolderStore();
 const uiState = useUiState();
 
-const listRef = ref(null);
 const itemRefs = ref([]);
 const state = shallowReactive({
   query: '',
@@ -195,9 +194,12 @@ const queryTerm = computed(() =>
 
 const items = computed(() => {
   if (isCommand.value) {
-    return commands
-      .map((cmd) => ({ ...cmd, type: 'command' }))
-      .filter((c) => c.title.toLowerCase().includes(queryTerm.value));
+    const allCommands = [
+      ...commands.map((cmd) => ({ ...cmd, type: 'command' })),
+    ];
+    return allCommands.filter((c) =>
+      c.title.toLowerCase().includes(queryTerm.value)
+    );
   }
 
   const notes = noteStore.notes.map((n) => ({
@@ -242,7 +244,7 @@ const formatDate = (ts) => {
 };
 
 const clear = () => {
-  uiState.showPrompt.value = false;
+  uiState.showPrompt = false;
   state.query = '';
   state.selectedIndex = 0;
 };
@@ -300,7 +302,12 @@ const togglePrompt = (_, combo) => {
     document.activeElement?.closest('.ProseMirror')
   );
   if (combo === 'mod+k' && editorFocused) return false;
-  uiState.showPrompt.value ? clear() : (uiState.showPrompt.value = true);
+  try {
+    if (uiState.showPrompt) clear();
+    else uiState.showPrompt = true;
+  } catch (e) {
+    console.error('[togglePrompt]', e);
+  }
 };
 
 let _unregPromptShortcuts;

@@ -85,7 +85,7 @@ export function useAppShell() {
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
-    () => !uiState.inReaderMode.value && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
   );
   const showMobileNavbar = computed(
     () =>
@@ -123,7 +123,7 @@ export function useAppShell() {
   const showSafeAreaOverlay = computed(() => {
     if (!isMobileRuntime.value) return false;
     if (route.name === ONBOARDING_ROUTE_NAME) return false;
-    if (uiState.overlayCount.value > 0) return false;
+    if (uiState.overlayCount > 0) return false;
     return true;
   });
 
