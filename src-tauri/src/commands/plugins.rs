@@ -206,6 +206,49 @@ pub(crate) fn plugin_fs_delete(
     }
 }
 
+fn interop_grants_path(app: &AppHandle, state: &AppState, plugin_id: &str) -> Result<PathBuf, String> {
+    Ok(plugin_dir(app, state, plugin_id)?.join("interop-grants.json"))
+}
+
+fn read_interop_grants(path: &PathBuf) -> Result<Vec<String>, String> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    let raw = fs::read_to_string(path).map_err(to_error)?;
+    let grants: Vec<String> = serde_json::from_str(&raw).unwrap_or_default();
+    Ok(grants)
+}
+
+fn write_interop_grants(path: &PathBuf, grants: &[String]) -> Result<(), String> {
+    fs::write(path, serde_json::to_string(grants).map_err(to_error)?).map_err(to_error)
+}
+
+#[tauri::command]
+pub(crate) fn get_interop_grants(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    plugin_id: String,
+) -> Result<Vec<String>, String> {
+    let path = interop_grants_path(&app, &state, &plugin_id)?;
+    read_interop_grants(&path)
+}
+
+#[tauri::command]
+pub(crate) fn add_interop_grant(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    plugin_id: String,
+    target_plugin_id: String,
+) -> Result<(), String> {
+    let path = interop_grants_path(&app, &state, &plugin_id)?;
+    let mut grants = read_interop_grants(&path)?;
+    if !grants.contains(&target_plugin_id) {
+        grants.push(target_plugin_id);
+        write_interop_grants(&path, &grants)?;
+    }
+    Ok(())
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FsEntry {

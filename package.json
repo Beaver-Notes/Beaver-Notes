@@ -63,6 +63,7 @@
     "vite": "^5.0.11"
   },
   "dependencies": {
+    "ses": "^2.2.0",
     "@eioluseyi/tailwind-fade": "^1.1.1",
     "@floating-ui/dom": "^1.7.6",
     "@floating-ui/vue": "^1.1.11",

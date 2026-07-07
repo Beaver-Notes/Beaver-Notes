@@ -71,3 +71,12 @@ export class PluginStorageError extends Error {
     this.pluginId = pluginId;
   }
 }
+
+export class PluginInteropError extends Error {
+  constructor(pluginId, targetId, message) {
+    super(`Plugin "${pluginId}" interop error with "${targetId}": ${message}`);
+    this.name = 'PluginInteropError';
+    this.pluginId = pluginId;
+    this.targetId = targetId;
+  }
+}

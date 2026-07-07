@@ -6,6 +6,7 @@ const VALID_PERMISSIONS = Object.freeze([
   'filesystem',
   'network',
   'app:settings',
+  'plugin:interop',
 ]);
 
 const _grants = new Map();
@@ -105,5 +106,16 @@ export const CoreAccess = {
       throw new PluginPermissionError(pluginId, permission);
     }
     return fn();
+  },
+
+  guardInterop(consumerId, providerId) {
+    this.guard(consumerId, 'plugin:interop', () => {});
+    const providerDeclared = _grants.get(providerId);
+    if (!providerDeclared || !providerDeclared.has('plugin:interop')) {
+      throw new PluginPermissionError(providerId, 'plugin:interop');
+    }
+    if (!_activePlugins.has(providerId)) {
+      throw new PluginPermissionError(providerId, 'plugin:interop');
+    }
   },
 };

@@ -3,8 +3,7 @@ import {
   PluginValidationError,
   PluginLoadError as PluginLoadErr,
 } from './PluginError';
-import { createPluginAPI } from './PluginAPI';
-import { CoreAccess } from './CoreAccess';
+import { PluginSandbox } from './PluginSandbox';
 
 function parseBeax(arrayBuffer) {
   return JSZip.loadAsync(arrayBuffer);
@@ -154,34 +153,11 @@ export async function loadBeaxFile(arrayBuffer) {
   };
 }
 
-export function createPluginInstance(pluginId, manifest) {
-  const beaverNotes = createPluginAPI(pluginId, manifest);
-  return {
-    pluginId,
-    beaverNotes,
-    manifest,
-  };
-}
-
-async function importFromBlob(sourceCode) {
-  const blob = new Blob([sourceCode], { type: 'application/javascript' });
-  const url = URL.createObjectURL(blob);
-  try {
-    const module = await import(/* @vite-ignore */ url);
-    return module;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 export async function evaluatePlugin(beaverNotes, sourceCode) {
-  return evaluateModule(beaverNotes, sourceCode);
-}
-
-async function evaluateModule(beaverNotes, sourceCode) {
-  let module;
+  const sandbox = new PluginSandbox(beaverNotes.id, sourceCode, beaverNotes);
+  let exports;
   try {
-    module = await importFromBlob(sourceCode);
+    exports = sandbox.evaluate();
   } catch (e) {
     throw new PluginLoadErr(
       beaverNotes.id,
@@ -190,22 +166,23 @@ async function evaluateModule(beaverNotes, sourceCode) {
     );
   }
 
-  if (typeof module.setup !== 'function') {
+  if (typeof exports.setup !== 'function') {
     throw new PluginLoadErr(
       beaverNotes.id,
       'Plugin must export a "setup" function'
     );
   }
 
-  return module;
+  return exports;
 }
 
 export async function evaluateSettings(settingsSource, pluginId, manifest) {
   if (!settingsSource) return null;
 
-  let module;
+  const sandbox = new PluginSandbox(pluginId, settingsSource, {});
+  let exports;
   try {
-    module = await importFromBlob(settingsSource);
+    exports = sandbox.evaluate();
   } catch (e) {
     console.warn(
       `[PluginLoader] Failed to load settings for "${pluginId}":`,
@@ -214,12 +191,12 @@ export async function evaluateSettings(settingsSource, pluginId, manifest) {
     return null;
   }
 
-  if (typeof module.settings !== 'function') {
+  if (typeof exports.settings !== 'function') {
     console.warn(
       `[PluginLoader] settingsFile for "${pluginId}" must export a "settings" function`
     );
     return null;
   }
 
-  return module.settings;
+  return exports.settings;
 }

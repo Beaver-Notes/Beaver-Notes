@@ -2,6 +2,7 @@ import { CoreAccess } from './CoreAccess';
 import { createPluginStorage } from './PluginStorage';
 import { createPluginEvents, emitAppEvent } from './PluginEvents';
 import { ConflictRegistry } from './ConflictRegistry';
+import { PluginRegistry } from './PluginRegistry';
 import { toolbarRegistry } from '@/utils/ui/toolbarRegistry';
 import { registerIcon } from '@/lib/v-remixicon';
 import emitter from 'tiny-emitter/instance';
@@ -13,9 +14,6 @@ import {
   findChildren,
   posToDOMRect,
 } from '@tiptap/core';
-import { VueRenderer, VueNodeViewRenderer } from '@tiptap/vue-3';
-import { NodeViewWrapper } from '@tiptap/vue-3';
-import { h } from 'vue';
 import {
   Plugin,
   PluginKey,
@@ -33,17 +31,6 @@ import { useFolderStore } from '@/store/folder';
 import { useLabelStore } from '@/store/label';
 import { useAppStore } from '@/store/app';
 import { getSettingSync } from '@/composable/settings';
-
-import UiButton from '@/components/ui/Button.vue';
-import UiInput from '@/components/ui/Input.vue';
-import UiSelect from '@/components/ui/Select.vue';
-import UiSwitch from '@/components/ui/Switch.vue';
-import UiCheckbox from '@/components/ui/Checkbox.vue';
-import UiCard from '@/components/ui/Card.vue';
-import UiList from '@/components/ui/List.vue';
-import UiListItem from '@/components/ui/ListItem.vue';
-import UiBanner from '@/components/ui/Banner.vue';
-import UiSpinner from '@/components/ui/Spinner.vue';
 
 const NOTE_ALLOWLIST = [
   'id',
@@ -119,6 +106,62 @@ export function createPluginAPI(pluginId, manifest) {
 
     ui: createUIPlane(pluginId),
 
+    expose(api) {
+      const perms = manifest.permissions || [];
+      if (!perms.includes('plugin:interop')) {
+        console.warn(
+          `[PluginAPI] Plugin "${pluginId}" needs "plugin:interop" permission to expose APIs`
+        );
+        return;
+      }
+      PluginRegistry.registerAPI(pluginId, api);
+    },
+
+    async import(targetPluginId) {
+      try {
+        CoreAccess.guardInterop(pluginId, targetPluginId);
+      } catch (e) {
+        console.warn(
+          `[PluginAPI] Plugin "${pluginId}" cannot import "${targetPluginId}": ${e.message}`
+        );
+        return undefined;
+      }
+
+      const existing = await backend.invoke('get_interop_grants', { pluginId });
+      if (existing?.includes(targetPluginId)) {
+        return PluginRegistry.getAPI(targetPluginId);
+      }
+
+      const consumerName = manifest.name || pluginId;
+      const granted = await new Promise((resolve) => {
+        emitter.emit('show-dialog', 'confirm', {
+          title: 'Interop Request',
+          body: `"${consumerName}" wants to access the API of plugin "${targetPluginId}". Only grant this if you trust both plugins.`,
+          okText: 'Allow',
+          okVariant: 'primary',
+          cancelText: 'Deny',
+          icon: 'ri-share-line',
+          onConfirm: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+
+      if (!granted) {
+        return undefined;
+      }
+
+      await backend.invoke('add_interop_grant', {
+        pluginId,
+        targetPluginId,
+      });
+
+      return PluginRegistry.getAPI(targetPluginId);
+    },
+
+    onPluginReady(targetPluginId, callback) {
+      PluginRegistry.onPluginReady(targetPluginId, callback);
+    },
+
     onActivate(cb) {
       if (typeof cb !== 'function') return;
       lifecycleHooks.activate.push(cb);
@@ -141,6 +184,7 @@ export function createPluginAPI(pluginId, manifest) {
       if (editorPlane && editorPlane._destroy) {
         editorPlane._destroy();
       }
+      PluginRegistry.clearPlugin(pluginId);
       lifecycleHooks.activate.length = 0;
       lifecycleHooks.deactivate.length = 0;
     },
@@ -507,10 +551,6 @@ function createEditorPlane(pluginId) {
       Extension,
       Node,
       Mark,
-      VueRenderer,
-      VueNodeViewRenderer,
-      NodeViewWrapper,
-      h,
       Plugin,
       PluginKey,
       InputRule,
@@ -590,24 +630,138 @@ function createEditorPlane(pluginId) {
   };
 }
 
-const UI_COMPONENTS = {
-  Button: UiButton,
-  Input: UiInput,
-  Select: UiSelect,
-  Switch: UiSwitch,
-  Checkbox: UiCheckbox,
-  Card: UiCard,
-  List: UiList,
-  ListItem: UiListItem,
-  Banner: UiBanner,
-  Spinner: UiSpinner,
-};
-
 function createUIPlane(pluginId) {
-  return {
-    components: UI_COMPONENTS,
-    registerIcon,
+  function button(options = {}) {
+    const btn = document.createElement('button');
+    const { label, variant = 'default', icon, disabled, onClick } = options;
+    btn.className = `plugin-btn${icon ? ' plugin-btn-icon' : ''} plugin-btn-${variant}`;
+    if (disabled) {
+      btn.classList.add('plugin-btn-disabled');
+      btn.disabled = true;
+    }
+    if (icon) {
+      const ic = document.createElement('i');
+      ic.className = icon;
+      btn.appendChild(ic);
+    }
+    if (label) btn.textContent = label;
+    if (onClick) btn.addEventListener('click', onClick);
+    return btn;
+  }
 
+  function input(options = {}) {
+    const el = document.createElement('input');
+    el.className = 'plugin-input';
+    const { placeholder, value, type = 'text', onChange } = options;
+    if (placeholder) el.placeholder = placeholder;
+    if (value !== undefined) el.value = value;
+    el.type = type;
+    if (onChange) el.addEventListener('input', (e) => onChange(e.target.value));
+    return el;
+  }
+
+  function toggle(options = {}) {
+    const label = document.createElement('label');
+    label.className = 'relative inline-flex items-center cursor-pointer';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'peer sr-only';
+    if (options.checked) input.checked = true;
+    const track = document.createElement('div');
+    track.className = 'plugin-switch-track';
+    label.append(input, track);
+    if (options.onChange) {
+      input.addEventListener('change', (e) => options.onChange(e.target.checked));
+    }
+    return label;
+  }
+
+  function checkbox(options = {}) {
+    const label = document.createElement('label');
+    label.className = 'inline-flex items-center gap-2 cursor-pointer';
+    const wrapper = document.createElement('div');
+    wrapper.className = 'plugin-checkbox';
+    if (options.checked) wrapper.classList.add('plugin-checkbox-checked');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'sr-only';
+    if (options.checked) input.checked = true;
+    wrapper.appendChild(input);
+    label.appendChild(wrapper);
+    if (options.label) {
+      const span = document.createElement('span');
+      span.textContent = options.label;
+      label.appendChild(span);
+    }
+    if (options.onChange) {
+      input.addEventListener('change', (e) => {
+        wrapper.classList.toggle('plugin-checkbox-checked', e.target.checked);
+        options.onChange(e.target.checked);
+      });
+    }
+    return label;
+  }
+
+  function select(options = {}) {
+    const container = document.createElement('div');
+    container.className = 'relative';
+    const btn = document.createElement('button');
+    btn.className = 'plugin-select';
+    const { options: items, value, placeholder, onChange } = options;
+    const selected = items?.find((o) => o.value === value);
+    btn.textContent = selected?.text || placeholder || '';
+    container.appendChild(btn);
+    let open = false;
+    let dropdown = null;
+    function close() {
+      if (dropdown) { dropdown.remove(); dropdown = null; }
+      open = false;
+    }
+    btn.addEventListener('click', () => {
+      if (open) { close(); return; }
+      open = true;
+      dropdown = document.createElement('div');
+      dropdown.className = 'plugin-select-dropdown absolute';
+      dropdown.style.minWidth = `${btn.offsetWidth}px`;
+      for (const item of (items || [])) {
+        const opt = document.createElement('div');
+        opt.className = 'plugin-select-option';
+        opt.textContent = item.text;
+        if (item.value === value) opt.classList.add('bg-neutral-100', 'dark:bg-neutral-700');
+        opt.addEventListener('click', () => {
+          btn.textContent = item.text;
+          close();
+          if (onChange) onChange(item.value);
+        });
+        dropdown.appendChild(opt);
+      }
+      container.appendChild(dropdown);
+    });
+    document.addEventListener('click', (e) => {
+      if (open && !container.contains(e.target)) close();
+    }, { once: true });
+    return container;
+  }
+
+  function el(tag, options = {}) {
+    const element = document.createElement(tag);
+    if (options.class) element.className = options.class;
+    if (options.text) element.textContent = options.text;
+    if (options.attrs) {
+      for (const [k, v] of Object.entries(options.attrs)) {
+        element.setAttribute(k, v);
+      }
+    }
+    if (options.children) {
+      for (const child of options.children) {
+        if (typeof child === 'string') element.appendChild(document.createTextNode(child));
+        else element.appendChild(child);
+      }
+    }
+    return element;
+  }
+
+  return {
     dialog: {
       async alert(options = {}) {
         return new Promise((resolve) => {
@@ -640,5 +794,13 @@ function createUIPlane(pluginId) {
     notify(title, body) {
       emitter.emit('plugin:notify', { pluginId, title, body });
     },
+
+    registerIcon,
+    button,
+    input,
+    switch: toggle,
+    checkbox,
+    select,
+    el,
   };
 }

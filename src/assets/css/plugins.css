@@ -1,0 +1,63 @@
+@layer components {
+  .plugin-btn {
+    @apply h-10 relative transition focus:ring-1 ring-secondary rounded-lg py-2 px-4 inline-flex items-center justify-center gap-2;
+  }
+  .plugin-btn-icon {
+    @apply p-2;
+  }
+  .plugin-btn-default {
+    @apply bg-input;
+  }
+  .plugin-btn-primary {
+    @apply bg-primary text-white hover:bg-primary/90;
+  }
+  .plugin-btn-secondary {
+    @apply bg-secondary text-white hover:bg-secondary/90;
+  }
+  .plugin-btn-danger {
+    @apply bg-red-500 text-white hover:bg-red-500/90;
+  }
+  .plugin-btn-disabled {
+    @apply opacity-70 pointer-events-none;
+  }
+
+  .plugin-input {
+    @apply w-full rounded-lg bg-input border px-3 py-2 focus-within:ring-1 ring-secondary outline-none transition;
+  }
+
+  .plugin-switch-track {
+    @apply peer h-6 w-11 rounded-full border bg-neutral-200 dark:bg-neutral-700 transition-colors after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border after:border-neutral-300 after:bg-white after:transition-transform after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full peer-focus:ring-1 peer-focus:ring-secondary;
+  }
+
+  .plugin-checkbox {
+    @apply relative h-5 w-5 inline-block rounded-lg border bg-input;
+  }
+  .plugin-checkbox-checked {
+    @apply bg-primary border-primary;
+  }
+
+  .plugin-select {
+    @apply bg-input rounded-lg px-4 py-2 w-full text-left focus:outline-none;
+  }
+  .plugin-select-dropdown {
+    @apply bg-white dark:bg-neutral-800 border rounded-xl shadow-xl z-50 p-1.5 mt-1;
+  }
+  .plugin-select-option {
+    @apply p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors;
+  }
+
+  .plugin-card {
+    @apply bg-neutral-50 dark:bg-neutral-800 rounded-xl border p-3;
+  }
+
+  .plugin-banner {
+    @apply flex items-center gap-4 bg-neutral-50 dark:bg-neutral-800 rounded-lg py-3 px-4 shadow-md;
+  }
+  .plugin-banner-btn {
+    @apply p-1 text-sm text-primary hover:text-opacity-80 transition-colors;
+  }
+
+  .plugin-spinner {
+    @apply animate-spin inline-block text-primary;
+  }
+}

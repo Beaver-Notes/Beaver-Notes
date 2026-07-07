@@ -200,6 +200,8 @@ pub fn run() {
             commands::plugins::uninstall_plugin,
             commands::plugins::list_plugins,
             commands::plugins::set_plugin_grants,
+            commands::plugins::get_interop_grants,
+            commands::plugins::add_interop_grant,
             commands::plugins::plugin_fs_read_text,
             commands::plugins::plugin_fs_write_text,
             commands::plugins::plugin_fs_read_binary,

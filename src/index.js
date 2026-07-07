@@ -13,6 +13,7 @@ import { showNotification } from '@/lib/native/app';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
+import './assets/css/plugins.css';
 
 initializeThemeHandling();
 
