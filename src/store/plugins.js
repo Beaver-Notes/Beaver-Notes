@@ -5,6 +5,22 @@ import { CoreAccess } from '@/plugins/CoreAccess';
 import emitter from 'tiny-emitter/instance';
 import { fetch as platformFetch } from '@tauri-apps/plugin-http';
 
+function hex(buffer) {
+  return Array.from(new Uint8Array(buffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function sha256Digest(buffer) {
+  const hash = await crypto.subtle.digest('SHA-256', buffer);
+  return hex(hash);
+}
+
+const pagesUrl =
+  'https://beaver-notes.github.io/beaver-notes-plugin-registry/plugins.json';
+const rawUrl =
+  'https://raw.githubusercontent.com/Beaver-Notes/beaver-notes-plugin-registry/main/plugins.json';
+
 export const usePluginStore = defineStore('plugins', () => {
   const installedPlugins = ref([]);
   const pluginExtensions = ref([]);
@@ -13,41 +29,62 @@ export const usePluginStore = defineStore('plugins', () => {
   const pluginToolbarItems = ref([]);
   const loaded = ref(false);
   const extensionsVersion = ref(0);
-  const storeUrl =
-    'https://raw.githubusercontent.com/Beaver-Notes/beaver-notes-plugin-registry/main/plugins.json';
 
   async function fetchFromRegistry() {
-    try {
-      const res = await platformFetch(storeUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.json();
-    } catch (e) {
-      console.error('[PluginStore] Failed to fetch registry:', e);
-      return [];
+    for (const url of [pagesUrl, rawUrl]) {
+      try {
+        const res = await platformFetch(url);
+        if (res.ok) return await res.json();
+      } catch {}
     }
+    console.error('[PluginStore] Failed to fetch registry');
+    return [];
   }
 
-  async function installFromGitHub(repo, branch, pluginId) {
-    const apiUrl = `https://api.github.com/repos/${repo}/releases/latest`;
-    const res = await platformFetch(apiUrl);
-    if (res.ok) {
-      const release = await res.json();
-      const asset = release.assets.find((a) => a.name.endsWith('.beax'));
-      if (asset) {
-        const downloadUrl = `https://api.github.com/repos/${repo}/releases/assets/${asset.id}`;
-        const dlRes = await platformFetch(downloadUrl, {
-          headers: { Accept: 'application/octet-stream' },
-        });
-        if (dlRes.ok) {
-          const buffer = await dlRes.arrayBuffer();
-          return await installFromBeax(buffer, true);
-        }
-      }
+  async function installFromRegistry(pluginId) {
+    const registry = await fetchFromRegistry();
+    const entry = registry.find((p) => p.id === pluginId);
+    if (!entry) {
+      return installFromBeaxLegacy(pluginId);
     }
+
+    const url = entry.download_url;
+    if (!url) {
+      return installFromBeaxLegacy(pluginId);
+    }
+
+    const res = await platformFetch(url);
+    if (!res.ok) {
+      console.warn(`[PluginStore] download_url failed (${res.status}), trying legacy`);
+      return installFromBeaxLegacy(pluginId);
+    }
+
+    const buffer = await res.arrayBuffer();
+
+    if (entry.sha256) {
+      const hash = await sha256Digest(buffer);
+      if (hash !== entry.sha256) {
+        throw new Error(
+          `SHA-256 mismatch for ${pluginId}: expected ${entry.sha256}, got ${hash}. ` +
+            `The downloaded .beax may be corrupted or tampered with.`
+        );
+      }
+      console.log(`[PluginStore] SHA-256 verified for ${pluginId}`);
+    }
+
+    return await installFromBeax(buffer, true);
+  }
+
+  async function installFromBeaxLegacy(pluginId) {
+    const registry = await fetchFromRegistry();
+    const entry = registry.find((p) => p.id === pluginId);
+    if (!entry) throw new Error(`Plugin ${pluginId} not found in registry`);
+
+    const { repo } = entry;
     const beaxUrl = `https://github.com/${repo}/releases/latest/download/plugin.beax`;
-    const beaxRes = await platformFetch(beaxUrl);
-    if (!beaxRes.ok) throw new Error(`Failed to download .beax from ${repo}`);
-    const buffer = await beaxRes.arrayBuffer();
+    const res = await platformFetch(beaxUrl);
+    if (!res.ok) throw new Error(`Failed to download .beax from ${repo}`);
+    const buffer = await res.arrayBuffer();
     return await installFromBeax(buffer, true);
   }
 
@@ -266,6 +303,6 @@ export const usePluginStore = defineStore('plugins', () => {
     getDeclaredPermissions,
     setPluginGrants,
     fetchFromRegistry,
-    installFromGitHub,
+    installFromRegistry,
   };
 });
