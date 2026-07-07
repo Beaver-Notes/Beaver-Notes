@@ -3,7 +3,7 @@
   <div class="sm:mb-14 w-full max-w-xl space-y-6">
     <section class="space-y-2">
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div class="flex gap-3 px-4 py-3.5 flex-col items-start">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
@@ -34,7 +34,7 @@
 
     <section class="space-y-2">
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div class="flex flex-col gap-3 px-4 py-3.5">
           <div class="min-w-0">
@@ -118,7 +118,7 @@
         {{ translations.settings.behavior || 'Behavior' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div
           class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
@@ -185,7 +185,7 @@
         {{ translations.settings.editor || 'Editor' }}
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div
           class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
@@ -294,7 +294,7 @@
         Spotlight
       </p>
       <div
-        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border"
       >
         <div
           class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"

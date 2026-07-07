@@ -17,7 +17,7 @@
             class="px-4 py-2 rounded-lg text-sm font-medium shadow-lg transition-opacity"
             :class="
               hasContent
-                ? 'bg-white/90 dark:bg-neutral-800/90 text-neutral-700 dark:text-neutral-300'
+                ? 'bg-white/90 dark:bg-neutral-900/90 text-neutral-700 dark:text-neutral-300'
                 : 'bg-primary/90 text-white'
             "
           >

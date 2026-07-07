@@ -38,7 +38,7 @@
           :placeholder="
             translations.editor?.linkPlaceholder || 'Enter URL or @note'
           "
-          class="flex-1 min-w-0 px-1 py-1 rounded-lg bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 transition-shadow"
+          class="flex-1 min-w-0 px-1 py-1 rounded-lg bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 transition-shadow"
           @keydown="keydownHandler"
           @keydown.esc="cancelEditing"
           @keyup.enter="saveAndClose"

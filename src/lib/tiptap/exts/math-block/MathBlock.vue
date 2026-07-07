@@ -48,7 +48,7 @@
       </div>
 
       <div
-        class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-800/70"
+        class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-900/70"
       >
         <p class="text-sm" style="margin: 0">
           <strong>{{ translations.editor.exit }}</strong>

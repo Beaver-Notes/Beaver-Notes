@@ -104,7 +104,7 @@
         >
           <!-- Fixed-size preview frame -->
           <div
-            class="w-full h-20 bg-white dark:bg-neutral-800 rounded border mb-4 overflow-hidden relative"
+            class="w-full h-20 bg-white dark:bg-neutral-900 rounded border mb-4 overflow-hidden relative"
             :style="`--s:${opt.s}`"
           >
             <!-- Centered, scale-compensated wrapper (prevents clipping at any scale) -->

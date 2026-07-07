@@ -3,7 +3,7 @@
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <!-- ── Left Rail ── -->
       <div
-        class="flex items-center rounded-full bg-white dark:bg-neutral-800 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
+        class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
         :class="railWidthClass"
       >
         <!-- Default Navigation -->

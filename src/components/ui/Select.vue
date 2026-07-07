@@ -62,7 +62,7 @@
         <div
           v-if="isOpen"
           ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-800 border rounded-xl shadow-xl z-50 p-1.5"
+          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5"
         >
           <!-- Search Input -->
           <div v-if="search" class="mb-2">
@@ -415,7 +415,7 @@ export default {
 }
 
 .ui-select .max-h-60::-webkit-scrollbar-track {
-  @apply bg-neutral-200 dark:bg-neutral-800;
+  @apply bg-neutral-200 dark:bg-neutral-900;
 }
 
 .ui-select .max-h-60::-webkit-scrollbar-thumb {

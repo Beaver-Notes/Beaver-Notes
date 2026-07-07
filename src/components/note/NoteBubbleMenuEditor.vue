@@ -46,7 +46,7 @@
       <ui-popover>
         <template #trigger>
           <div
-            class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 overflow-hidden flex-shrink-0"
+            class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 overflow-hidden flex-shrink-0"
           >
             <button
               type="button"
@@ -137,7 +137,7 @@
               small
               :class="
                 item.isActive
-                  ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
+                  ? 'bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-white font-medium'
                   : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
               "
               class="flex items-center gap-2 cursor-pointer text-sm"
@@ -158,7 +158,7 @@
           v-tooltip.group="fmtMap[item.id].title"
           :class="
             editor.isActive(fmtMap[item.id].state)
-              ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white'
+              ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
               : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
           "
           class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
@@ -177,7 +177,7 @@
             v-tooltip.group="translations.menu.link"
             :class="
               editor.isActive('link')
-                ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white'
+                ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
                 : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
             "
             class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center"

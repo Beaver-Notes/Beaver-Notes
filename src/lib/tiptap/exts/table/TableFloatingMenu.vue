@@ -9,7 +9,7 @@
         @click.stop
       >
       <div
-        class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-1.5"
+        class="bg-white dark:bg-neutral-900 rounded-xl shadow-xl border p-1.5"
         style="max-width: 18rem; min-width: 8rem"
       >
         <ui-list>
@@ -213,7 +213,7 @@ export default {
       btn.setAttribute('aria-label', 'Table options');
 
       btn.className =
-        'absolute flex items-center justify-center w-5 h-5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 border rounded shadow-sm cursor-pointer z-10 ' +
+        'absolute flex items-center justify-center w-5 h-5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-700 border rounded shadow-sm cursor-pointer z-10 ' +
         'text-neutral-400 dark:text-neutral-500 ' +
         'pointer-events-auto opacity-85 hover:opacity-100 hover:text-primary transition-all duration-100';
       btn.style.top = `${cr.top - wr.top + 4}px`;

@@ -9,7 +9,7 @@
     >
       <!-- Top bar -->
       <div
-        class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shrink-0 z-10"
+        class="flex items-center justify-between px-4 py-2 border-b border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shrink-0 z-10"
       >
         <span
           class="text-sm font-medium text-neutral-700 dark:text-neutral-300"

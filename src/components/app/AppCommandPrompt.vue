@@ -8,7 +8,7 @@
       :aria-expanded="items.length > 0"
     >
       <div
-        class="command-prompt-panel flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 shadow-xl"
+        class="command-prompt-panel flex items-center gap-3 px-4 py-3 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 shadow-xl"
       >
         <v-remixicon
           name="riSearch2Line"

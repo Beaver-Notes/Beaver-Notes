@@ -6,7 +6,7 @@
         class="no-print sticky top-4 left-4 z-10 self-start"
       >
         <div
-          class="bg-white dark:bg-neutral-800 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
+          class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
         >
           <button
             class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300"

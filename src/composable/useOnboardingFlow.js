@@ -218,7 +218,7 @@ export function useOnboardingFlow({
     if (migrationPlatform.value !== 'electron') return '';
     if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
       return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-    return 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400';
+    return 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400';
   });
 
   const migrationWhatGetsCopied = computed(() =>

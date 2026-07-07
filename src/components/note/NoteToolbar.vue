@@ -8,7 +8,7 @@
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -712,7 +712,7 @@
             <button
               v-for="action in drawActions"
               :key="action.name"
-              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-800 dark:hover:bg-white/10"
+              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-900 dark:hover:bg-white/10"
               @click="
                 action.handler();
                 closeSub();
