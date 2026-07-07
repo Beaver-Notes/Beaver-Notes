@@ -1,5 +1,4 @@
 import { Extension } from '@tiptap/core';
-import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
 const MAX_COLUMNS = 5;
@@ -123,8 +122,6 @@ export const ColumnDropCursor = Extension.create({
             },
 
             drop: (view, event) => {
-              const editorRect = view.dom.getBoundingClientRect();
-
               const dropTarget = document.elementFromPoint(
                 event.clientX,
                 event.clientY

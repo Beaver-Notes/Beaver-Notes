@@ -58,6 +58,7 @@ function uniqueToken() {
 
 function sanitizeFileName(value, fallback = 'file') {
   const normalized = String(value || '')
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
     .trim();
   return normalized || fallback;
@@ -570,7 +571,7 @@ export async function invokeWithScopedSupport(channel, payload) {
   }
 
   if (channel === 'dialog:open' && payload?.useScopedStorage) {
-    const { useScopedStorage, ...rest } = payload;
+    const { useScopedStorage: _useScopedStorage, ...rest } = payload;
     return invokeCommand(channel, rest);
   }
 

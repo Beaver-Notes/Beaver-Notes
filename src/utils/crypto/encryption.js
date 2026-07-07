@@ -43,7 +43,7 @@ export async function exportKeyRaw() {
   try {
     _keyRaw = await encryptionExportAppKey();
     return _keyRaw;
-  } catch (e) {
+  } catch {
     return null;
   }
 }

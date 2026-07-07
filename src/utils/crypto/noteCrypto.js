@@ -2,7 +2,6 @@ import {
   ALGO_AES_GCM,
   ENVELOPE_VERSION,
   IV_LENGTH_BYTES,
-  KEY_LENGTH_256,
   PBKDF2_ITERATIONS,
   SALT_LENGTH_BYTES,
 } from './constants.js';

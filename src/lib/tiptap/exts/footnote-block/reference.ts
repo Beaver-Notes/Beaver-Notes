@@ -1,5 +1,5 @@
 import { mergeAttributes, Node } from '@tiptap/core';
-import { NodeSelection, Plugin, PluginKey } from '@tiptap/pm/state';
+import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { v4 as uuid } from 'uuid';
 
 const REFNUM_ATTR = 'data-reference-number';
@@ -112,7 +112,7 @@ const FootnoteReference = Node.create({
             return editor.commands.focusFootnote(id);
           },
 
-          handlePaste(view, event, slice) {
+          handlePaste(view, event, _slice) {
             const text = event.clipboardData?.getData('text/plain');
             if (!text) return false;
 

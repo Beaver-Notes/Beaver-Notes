@@ -11,7 +11,6 @@ import { useFolderStore } from '@/store/folder.js';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import {
-  ensureDir as ensureSyncDir,
   readDir as readSyncDir,
 } from '@/lib/native/fs';
 import {

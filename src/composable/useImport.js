@@ -22,7 +22,7 @@ function createProgressState(extra = {}) {
 }
 
 export function useImport({
-  storage,
+  storage: _storage,
   noteStore,
   folderStore,
   clipboard,

@@ -194,9 +194,7 @@ const queryTerm = computed(() =>
 
 const items = computed(() => {
   if (isCommand.value) {
-    const allCommands = [
-      ...commands.map((cmd) => ({ ...cmd, type: 'command' })),
-    ];
+    const allCommands = commands.map((cmd) => ({ ...cmd, type: 'command' }));
     return allCommands.filter((c) =>
       c.title.toLowerCase().includes(queryTerm.value)
     );

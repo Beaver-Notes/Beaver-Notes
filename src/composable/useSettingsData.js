@@ -62,7 +62,7 @@ async function decryptSettings(ciphertext, password) {
 export function useSettingsData({
   dialog,
   folderStore,
-  noteStore,
+  noteStore: _noteStore,
   passwordStore,
   storage,
   translations,
@@ -372,9 +372,7 @@ export function useSettingsData({
       okVariant: 'danger',
       onConfirm: async () => {
         try {
-          const [appDirectory] = await Promise.all([
-            getEffectiveAppDirectory().catch(() => ''),
-          ]);
+          const appDirectory = await getEffectiveAppDirectory().catch(() => '');
 
           const cleanupPaths = [
             appDirectory ? path.join(appDirectory, 'notes-assets') : '',

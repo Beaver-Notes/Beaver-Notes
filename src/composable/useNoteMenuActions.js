@@ -234,7 +234,7 @@ export function useNoteMenuActions({
     );
   }
 
-  async function shareAsZip(content, ext, sourceNoteId) {
+  async function shareAsZip(content, ext, _sourceNoteId) {
     const JSZip = (await import('jszip')).default;
     const zip = new JSZip();
     const safeName = noteTitle || 'Untitled';
@@ -452,19 +452,23 @@ export function useNoteMenuActions({
   );
 
   function setHighlightColor(color) {
-    editor.isActive('highlight', { color })
-      ? editor.commands.unsetHighlight()
-      : editor.commands.setHighlight({ color });
+    if (editor.isActive('highlight', { color })) {
+      editor.commands.unsetHighlight();
+    } else {
+      editor.commands.setHighlight({ color });
+    }
   }
 
   function setTextColor(color) {
-    editor.isActive('textStyle', { color })
-      ? editor
-          .chain()
-          .focus()
-          .updateAttributes('textStyle', { color: null })
-          .run()
-      : editor.commands.setColor(color);
+    if (editor.isActive('textStyle', { color })) {
+      editor
+        .chain()
+        .focus()
+        .updateAttributes('textStyle', { color: null })
+        .run();
+    } else {
+      editor.commands.setColor(color);
+    }
   }
 
   return {

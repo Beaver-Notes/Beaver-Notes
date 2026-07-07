@@ -33,7 +33,6 @@ import {
 import {
   decryptNoteWithPassword,
   encryptNoteWithPassword,
-  LEGACY_CRYPTOJS_PREFIX,
   NOTE_CRYPTO_ERROR,
 } from '@/utils/crypto/noteCrypto.js';
 import {
@@ -41,7 +40,6 @@ import {
   unwrapLegacyData,
 } from '@/utils/platform/legacyLock.js';
 import {
-  ALL_PLATFORMS as ALL_MIGRATION_PLATFORMS,
   ONBOARDING_IMPORT_SOURCE_MAP,
   PLATFORM_LABELS,
   PLATFORM_ICONS,

@@ -1,6 +1,4 @@
-import { EditorView } from '@tiptap/pm/view';
-
-export function findBoundaryPosition(view, event, handleWidth) {
+export function findBoundaryPosition(view, event, _handleWidth) {
   const gridDOM = event
     .composedPath()
     .find(
