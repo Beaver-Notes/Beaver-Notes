@@ -292,6 +292,15 @@ jobs:
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/beaver-notes.jks" >> "$GITHUB_ENV"
           fi
 
+      - name: Set Android build number
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        run: |
+          cat > src-tauri/gen/android/app/tauri.properties << EOF
+          tauri.android.versionName=5.0.0
+          tauri.android.versionCode=${{ github.run_number }}
+          EOF
+
       - name: Build Android beta app
         if: ${{ matrix.id == 'android' }}
         shell: bash
@@ -304,6 +313,12 @@ jobs:
           cargo tauri android build --apk --aab --config src-tauri/tauri.beta.conf.json
 
       # iOS build
+      - name: Set iOS build number
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: |
+          sed -i '' "s/CFBundleVersion: '.*'/CFBundleVersion: '${{ github.run_number }}'/" src-tauri/gen/apple/project.yml
+
       - name: Build iOS beta app
         if: ${{ matrix.id == 'ios' }}
         shell: bash
