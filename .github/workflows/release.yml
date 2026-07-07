@@ -2,7 +2,6 @@ name: Release
 
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main
@@ -24,6 +23,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.tag.outputs.tag_name }}
+      version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
     steps:
       - name: Checkout
@@ -80,15 +80,20 @@ jobs:
           echo "tauri.conf.json: $TAURI_VERSION"
           echo "Cargo.toml: $CARGO_VERSION"
 
-          # Stable releases must not carry a pre-release suffix.
-          if [[ "$PKG_VERSION" == *"-"* ]]; then
-            echo "ERROR: package.json version '$PKG_VERSION' looks like a pre-release."
-            echo "Use the beta workflow for pre-release builds."
-            exit 1
-          fi
-
           test "$PKG_VERSION" = "$TAURI_VERSION"
           test "$PKG_VERSION" = "$CARGO_VERSION"
+
+      - name: Check jurisdiction
+        id: jurisdiction
+        shell: bash
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" == *"-"* ]]; then
+            echo "version_match=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping — this is a pre-release version, use the beta workflow."
+          else
+            echo "version_match=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install dependencies
         shell: bash
@@ -102,7 +107,7 @@ jobs:
 
   desktop:
     name: Build ${{ matrix.id }}
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs: validate
     runs-on: ${{ matrix.runner }}
 
@@ -452,7 +457,7 @@ jobs:
 
   publish:
     name: Publish draft release
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
       - desktop

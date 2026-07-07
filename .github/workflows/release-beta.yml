@@ -2,7 +2,6 @@ name: Release Beta
 
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main
@@ -24,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
     steps:
       - name: Checkout
@@ -75,11 +75,16 @@ jobs:
           test "$PKG_BASE" = "$TAURI_VERSION"
           test "$PKG_BASE" = "$CARGO_VERSION"
 
-          # Beta releases must carry a pre-release suffix.
+      - name: Check jurisdiction
+        id: jurisdiction
+        shell: bash
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
           if [[ "$PKG_VERSION" != *"-"* ]]; then
-            echo "ERROR: package.json version '$PKG_VERSION' is a stable version."
-            echo "Use the stable release workflow for stable builds."
-            exit 1
+            echo "version_match=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping — this is a stable version, use the stable workflow."
+          else
+            echo "version_match=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Install dependencies
@@ -94,7 +99,7 @@ jobs:
 
   desktop:
     name: Build beta ${{ matrix.id }}
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs: validate
     runs-on: ${{ matrix.runner }}
 
@@ -432,7 +437,7 @@ jobs:
 
   publish:
     name: Publish beta prerelease
-    if: ${{ github.event_name != 'pull_request' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
       - desktop
