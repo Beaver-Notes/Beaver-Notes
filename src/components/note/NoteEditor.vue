@@ -30,9 +30,9 @@
       v-if="editor && showDragHandle"
       :editor="editor"
       :compute-position-config="computePositionConfig"
-      class="drag-handle w-auto h-auto flex items-center rounded-lg bg-input shadow-sm p-1"
+      class="drag-handle w-auto h-auto flex items-center rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 p-0.5"
     >
-      <v-remixicon name="riDraggable" class="size-5 cursor-grab" />
+      <v-remixicon name="riDraggable" class="size-6 cursor-grab" />
     </drag-handle>
     <editor-content
       v-if="editor"
@@ -254,19 +254,39 @@ export default {
       },
     });
 
-    function handleClick(view, pos, { target, altKey }) {
-      const closestAnchor = target.closest('a');
-      if (closestAnchor?.hasAttribute('tiptap-url') && altKey) {
-        if (closestAnchor.href.startsWith('note://')) {
-          const noteId = closestAnchor.href.slice(7);
-          router.push({
-            name: 'Note',
-            params: { id: noteId },
-            query: { linked: true },
-          });
-        } else {
-          window.open(closestAnchor.href, '_blank', 'noopener');
+    function handleClick(view, pos, { target }) {
+      const noteLinkEl = target.closest('a[data-link-note]');
+      if (noteLinkEl) {
+        const noteId = noteLinkEl.getAttribute('data-id');
+        if (!noteId) return true;
+        router.push({
+          name: 'Note',
+          params: { id: noteId },
+          query: { linked: true, from: props.id },
+        });
+        return true;
+      }
+
+      const externalAnchor = target.closest('a[tiptap-url]');
+      if (externalAnchor) {
+        const href =
+          externalAnchor.href || externalAnchor.getAttribute('href') || '';
+
+        // note:// URLs should navigate within the app, not open in a new tab
+        if (href.startsWith('note://')) {
+          const noteId = href.slice('note://'.length);
+          if (noteId) {
+            router.push({
+              name: 'Note',
+              params: { id: noteId },
+              query: { linked: true, from: props.id },
+            });
+          }
+          return true;
         }
+
+        window.open(href, '_blank', 'noopener');
+        return true;
       }
     }
 

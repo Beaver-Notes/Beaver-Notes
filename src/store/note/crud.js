@@ -17,7 +17,11 @@ import {
 } from './helpers';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync.js';
 import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
-import { emitAppEvent } from '@/plugins/PluginEvents';
+import {
+  rebuildLinkIndexForNote,
+  removeNoteFromLinkIndex,
+  rebuildLinkIndexFromAll,
+} from './backlinks';
 
 const _skipUndo = { value: false };
 
@@ -72,6 +76,7 @@ export async function retrieve() {
     }
 
     reindexAllNotes(this.data);
+    rebuildLinkIndexFromAll(this.data);
 
     return this.data;
   } catch (error) {
@@ -104,6 +109,7 @@ export async function add(note = {}) {
     this.data[id] = hydrateNote(newNote);
     await saveNote(id, this.data[id]);
     await trackNoteChange(id, this.data[id]);
+    rebuildLinkIndexForNote(id, this.data[id].content);
 
     emitAppEvent('note-created', id);
 
@@ -176,6 +182,7 @@ export async function persist(id) {
 
   await saveNote(id, this.data[id]);
   await trackNoteChange(id, this.data[id]);
+  rebuildLinkIndexForNote(id, this.data[id].content);
 
   emitAppEvent('note-saved', id);
 
@@ -198,6 +205,7 @@ export async function deleteNote(id) {
     }
 
     delete this.data[id];
+    removeNoteFromLinkIndex(id);
     await storage.delete(`notes.${id}`);
 
     await trackChange(`notes.${id}`, null);

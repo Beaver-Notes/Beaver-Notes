@@ -31,13 +31,13 @@
       <!-- ── Welcome ── -->
       <div
         v-if="step === 'welcome'"
-        class="ob-screen flex flex-col items-center justify-center w-full mobile:p-1"
+        class="ob-screen flex flex-col items-center justify-center gap-8 mobile:gap-0 w-full mobile:p-1"
       >
         <div
           class="mobile:flex-1 mobile:flex mobile:flex-col mobile:items-center mobile:justify-center w-full"
         >
           <div
-            class="flex flex-col items-center gap-6 text-center max-w-md w-full"
+            class="flex flex-col items-center gap-6 text-center max-w-md w-full mx-auto"
           >
             <img
               :src="logoUrl"
@@ -319,13 +319,13 @@
       <!-- ── Finish ── -->
       <div
         v-else
-        class="ob-screen flex flex-col items-center justify-center w-full mobile:p-1"
+        class="ob-screen flex flex-col items-center justify-center gap-8 mobile:gap-0 w-full mobile:p-1"
       >
         <div
           class="mobile:flex-1 mobile:flex mobile:flex-col mobile:items-center mobile:justify-center w-full"
         >
           <div
-            class="flex flex-col items-center gap-5 text-center max-w-md w-full ob-finish"
+            class="flex flex-col items-center gap-5 text-center max-w-md w-full mx-auto ob-finish"
             :class="{ 'ob-finish--in': finishIn }"
           >
             <img

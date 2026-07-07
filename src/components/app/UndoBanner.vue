@@ -6,7 +6,7 @@
       style="z-index: 51"
       :style="positionStyle"
     >
-      <div class="flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-800 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4">
+      <div class="flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4">
         <v-remixicon name="riArrowGoBackLine" class="text-lg text-primary" />
 
         <p class="flex-grow text-sm text-gray-800 dark:text-gray-100">

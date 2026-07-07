@@ -19,6 +19,29 @@
     </button>
 
     <template v-if="editor && !isLocked">
+      <div
+        v-if="previousNote && !uiState.inReaderMode"
+        class="no-print sticky top-4 left-4 z-10 self-start"
+      >
+        <div
+          class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
+        >
+          <button
+            class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300"
+            :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
+            @click="goToPrevious"
+          >
+            <v-remixicon name="riArrowLeftLine" class="flex-shrink-0" />
+            <span class="truncate max-w-[16rem]">
+              {{
+                previousNote.title ||
+                translations.editor.untitledNote ||
+                'Untitled'
+              }}
+            </span>
+          </button>
+        </div>
+      </div>
       <note-actions
         v-bind="{ editor, id, note, showSearch, goBack }"
         @toggle-search="showSearch = !showSearch"
@@ -41,9 +64,9 @@
           v-if="showSearch"
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="opacity-0 translate-y-4"
-          enter-to-class="opacity-100 translate-y-0"
+          enter-to-class="opacity-0 translate-y-0"
           leave-active-class="transition duration-150 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
+          leave-from-class="opacity-0 translate-y-0"
           leave-to-class="opacity-0 translate-y-4"
         >
           <note-search
@@ -114,6 +137,7 @@
         @init="editor = $event"
         @keyup.down="autoScroll"
       />
+      <note-backlinks v-if="!isLocked" />
     </div>
     <note-headings-progress
       v-if="editor"
@@ -148,6 +172,7 @@ import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
+import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
 import { usePluginStore } from '@/store/plugins';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
@@ -163,6 +188,7 @@ export default {
     NoteSearch,
     NoteToolbar,
     NoteHeadingsProgress,
+    NoteBacklinks,
   },
   inheritAttrs: false,
   setup() {
@@ -206,6 +232,11 @@ export default {
       if (back === '/' || back.includes('/#/?')) return false;
       return true;
     });
+    const previousNote = computed(() => {
+      const fromId = route.query.from;
+      if (!fromId) return null;
+      return noteStore.getById(fromId) || null;
+    });
     function goBack() {
       const from = router.options.history.state.back;
       if (!from) {
@@ -221,6 +252,16 @@ export default {
         return;
       }
       router.push('/');
+    }
+    function goToPrevious() {
+      if (previousNote.value) {
+        router.push({
+          name: 'Note',
+          params: { id: previousNote.value.id },
+        });
+        return;
+      }
+      goBack();
     }
 
     // Encryption
@@ -437,8 +478,10 @@ export default {
     return {
       id,
       showBack,
+      previousNote,
       titleDiv,
       goBack,
+      goToPrevious,
       noteEditor,
       note,
       translations,

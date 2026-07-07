@@ -7,7 +7,7 @@
           {{ translations.labels?.title || 'Labels' }}
         </p>
         <span
-          class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full"
+          class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-full"
         >
           {{ sortedLabels.length }} {{ translations.labels?.total || 'total' }}
         </span>
@@ -19,7 +19,7 @@
       >
         {{ translations.labels?.emptyPrefix || 'No labels yet. Type' }}
         <code
-          class="bg-neutral-100 dark:bg-neutral-800 px-1 rounded text-primary"
+          class="bg-neutral-100 dark:bg-neutral-900 px-1 rounded text-primary"
           >#label</code
         >
         {{ translations.labels?.emptySuffix || 'to start.' }}

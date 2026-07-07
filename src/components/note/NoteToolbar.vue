@@ -8,7 +8,7 @@
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -155,14 +155,90 @@
               class="tb-divider"
             />
 
-            <button
+            <ui-popover
               v-if="isItemVisible('link')"
-              v-tooltip.group="translations.menu.link"
-              :class="tbBtn(editor.isActive('link'))"
-              @click="editor.chain().focus().toggleLink({ href: '' }).run()"
+              v-model:model-value="linkPopoverOpen"
+              @show="onLinkPopoverShow"
             >
-              <v-remixicon name="riLink" />
-            </button>
+              <template #trigger>
+                <button
+                  v-tooltip.group="translations.menu.link"
+                  :class="tbBtn(editor.isActive('link') || linkPopoverOpen)"
+                >
+                  <v-remixicon name="riLink" />
+                </button>
+              </template>
+
+              <div class="min-w-[260px]">
+                <div class="flex items-center gap-2">
+                  <input
+                    ref="linkInputRef"
+                    v-model="linkInputValue"
+                    type="text"
+                    :placeholder="
+                      translations.editor?.linkPlaceholder ||
+                      'Enter URL or @note'
+                    "
+                    class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors"
+                    @keydown="onLinkInputKeydown"
+                    @keydown.esc="closeLinkInput"
+                    @keyup.enter="saveLinkInput"
+                  />
+                  <button
+                    class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
+                    :title="translations.common?.cancel || 'Cancel'"
+                    @click="closeLinkInput"
+                  >
+                    <v-remixicon name="riCloseLine" class="size-4" />
+                  </button>
+                  <button
+                    class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
+                    :title="translations.common?.save || 'Save'"
+                    :disabled="!linkInputValue.trim()"
+                    @click="saveLinkInput"
+                  >
+                    <v-remixicon name="riCheckLine" class="size-4" />
+                  </button>
+                </div>
+
+                <div
+                  v-if="
+                    linkInputValue.startsWith('@') && linkSuggestions.length > 0
+                  "
+                  class="mt-1 max-h-40 overflow-y-auto"
+                >
+                  <button
+                    v-for="(suggestion, index) in linkSuggestions"
+                    :key="suggestion.id"
+                    :class="
+                      index === selectedLinkIndex
+                        ? 'bg-neutral-100 dark:bg-neutral-700'
+                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                    "
+                    class="w-full text-left px-2 py-1.5 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 transition-colors"
+                    @click="selectLinkNote(suggestion.id)"
+                  >
+                    {{
+                      suggestion.title ||
+                      translations.editor?.untitledNote ||
+                      'Untitled Note'
+                    }}
+                  </button>
+                </div>
+                <div
+                  v-else-if="
+                    linkInputValue.startsWith('@') &&
+                    linkSuggestions.length === 0
+                  "
+                  class="mt-1 p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
+                >
+                  {{
+                    translations.editor?.noMatchingNotes ||
+                    'No matching notes found'
+                  }}
+                </div>
+              </div>
+            </ui-popover>
             <button
               v-if="isItemVisible('image')"
               v-tooltip.group="translations.menu.image"
@@ -644,7 +720,7 @@
             <button
               v-for="action in drawActions"
               :key="action.name"
-              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-800 dark:hover:bg-white/10"
+              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-900 dark:hover:bg-white/10"
               @click="
                 action.handler();
                 closeSub();
@@ -757,13 +833,14 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import { useRoute } from 'vue-router';
+import { useNoteStore } from '@/store/note';
 import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
@@ -783,6 +860,102 @@ export default {
 
     const showMobileBlockPicker = ref(false);
     const isMobile = backend.isMobileRuntime();
+
+    // ── Link input state ────────────────────────────────────────────
+    const linkInputValue = ref('');
+    const linkInputRef = ref(null);
+    const selectedLinkIndex = ref(0);
+    const linkPopoverOpen = ref(false);
+    const noteStore = useNoteStore();
+
+    const linkSuggestions = computed(() => {
+      if (!linkInputValue.value.startsWith('@')) return [];
+      const query = linkInputValue.value.substring(1).toLowerCase();
+      if (!query) return [];
+      return noteStore.notes
+        .filter(
+          (n) =>
+            n.id !== route.params.id &&
+            (n.title.toLowerCase().includes(query) ||
+              n.id.toLowerCase().includes(query))
+        )
+        .slice(0, 6);
+    });
+
+    function resolveNoteFromQuery(value) {
+      const query = value.substring(1).trim();
+      if (!query) return null;
+      return (
+        noteStore.notes.find(
+          (n) => n.title.toLowerCase() === query.toLowerCase()
+        ) || noteStore.notes.find((n) => n.id === query)
+      );
+    }
+
+    function saveLinkInput() {
+      const value = linkInputValue.value.trim();
+      if (!value || !props.editor) return;
+
+      const chain = props.editor.chain().focus();
+
+      if (value.startsWith('@')) {
+        const note = resolveNoteFromQuery(value);
+        if (note) {
+          chain.insertLinkNote(note.id).run();
+        }
+      } else {
+        chain.setLink({ href: value }).run();
+      }
+
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function closeLinkInput() {
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+      props.editor?.commands?.focus();
+    }
+
+    function selectLinkNote(id) {
+      if (!props.editor) return;
+      props.editor.chain().focus().insertLinkNote(id).run();
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function onLinkPopoverShow() {
+      // Reset input state when popover opens
+      linkInputValue.value = '';
+      selectedLinkIndex.value = 0;
+      nextTick(() => linkInputRef.value?.focus());
+    }
+
+    function onLinkInputKeydown(event) {
+      if (
+        !linkInputValue.value.startsWith('@') ||
+        linkSuggestions.value.length === 0
+      )
+        return;
+
+      const len = linkSuggestions.value.length;
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + len - 1) % len;
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + 1) % len;
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const note = linkSuggestions.value[selectedLinkIndex.value];
+        if (note) selectLinkNote(note.id);
+      }
+    }
+
+    watch(linkInputValue, (val) => {
+      if (val.startsWith('@')) selectedLinkIndex.value = 0;
+    });
 
     async function triggerFileInput() {
       const { canceled, filePaths } = await openDialog({
@@ -940,6 +1113,17 @@ export default {
       triggerImageInput,
       showMobileBlockPicker,
       isMobile,
+      // Link input
+      linkInputValue,
+      linkInputRef,
+      selectedLinkIndex,
+      linkSuggestions,
+      linkPopoverOpen,
+      onLinkPopoverShow,
+      onLinkInputKeydown,
+      closeLinkInput,
+      saveLinkInput,
+      selectLinkNote,
     };
   },
 };

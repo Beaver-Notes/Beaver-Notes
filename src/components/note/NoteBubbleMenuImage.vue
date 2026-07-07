@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-1 rounded-lg shadow-lg no-print flex items-center"
+    class="bg-white dark:bg-neutral-900 border z-20 w-fit mx-auto p-1 rounded-xl shadow-md no-print flex items-center"
   >
     <button
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"

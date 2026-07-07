@@ -63,7 +63,7 @@
               >
             </div>
             <div
-              class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-800 overflow-hidden"
+              class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
             >
               <div
                 class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
@@ -110,7 +110,7 @@
                 Portable data folder
               </span>
               <code
-                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
               >
                 {{ customLegacyPath }}
               </code>
@@ -122,7 +122,7 @@
                 Beaver Notes (Legacy)
               </span>
               <code
-                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
               >
                 {{ status.legacyDir }}
               </code>
@@ -134,7 +134,7 @@
                 New Beaver Notes
               </span>
               <code
-                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
               >
                 {{ status.appDir }}
               </code>
@@ -193,7 +193,7 @@
               </ui-button>
             </div>
             <div
-              class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+              class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
             >
               {{ migrationIssuesText }}
             </div>

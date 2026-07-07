@@ -1,6 +1,6 @@
 <template>
   <div
-    class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-800 rounded-xl mobile:rounded-b-none border mobile:border-b-0 max-h-[80dvh] flex flex-col"
+    class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-900 rounded-xl mobile:rounded-b-none border mobile:border-b-0 max-h-[80dvh] flex flex-col"
   >
     <div
       class="flex flex-col items-center gap-2 my-8 text-center shrink-0 px-6"
@@ -140,7 +140,7 @@
           </option>
         </ui-select>
       </div>
-      <div class="space-y-1 bg-neutral-50 dark:bg-neutral-800">
+      <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900">
         <div class="flex flex-row gap-3 items-center justify-between">
           <div class="min-w-0 flex-1">
             <p

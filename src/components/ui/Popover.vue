@@ -13,7 +13,7 @@
         v-if="isShow"
         ref="content"
         :style="floatingStyles"
-        class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border z-50 p-1.5"
+        class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1.5"
       >
         <slot v-bind="{ isShow }"></slot>
       </div>
@@ -48,7 +48,7 @@ export default {
       default: false,
     },
   },
-  emits: ['show', 'trigger', 'close'],
+  emits: ['show', 'trigger', 'close', 'update:modelValue'],
   setup(props, { emit }) {
     const targetEl = ref(null);
     const content = ref(null);
@@ -65,9 +65,9 @@ export default {
 
     const placement = computed(() => props.placement);
     const middleware = computed(() => [
-      offset(4),
+      offset(15),
       flip(),
-      shift({ padding: 8 }),
+      shift({ padding: 15 }),
     ]);
 
     const { floatingStyles } = useFloating(reference, content, {
@@ -82,6 +82,7 @@ export default {
       if (props.disabled) return;
       isShow.value = true;
       lockScroll();
+      emit('update:modelValue', true);
       emit('show');
       emit('trigger');
     };
@@ -89,6 +90,7 @@ export default {
     const hide = () => {
       isShow.value = false;
       unlockScroll();
+      emit('update:modelValue', false);
       emit('close');
     };
 
