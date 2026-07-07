@@ -8,9 +8,19 @@ export function extractLinkNoteTargets(content) {
   const ids = new Set();
   const walk = (node) => {
     if (!node) return;
+
     if (node.type === 'linkNote' && node.attrs?.id) {
       ids.add(node.attrs.id);
     }
+
+    if (node.marks) {
+      for (const mark of node.marks) {
+        if (mark.type === 'link' && mark.attrs?.href?.startsWith('note://')) {
+          ids.add(mark.attrs.href.slice('note://'.length));
+        }
+      }
+    }
+
     if (Array.isArray(node.content)) {
       for (const child of node.content) walk(child);
     }

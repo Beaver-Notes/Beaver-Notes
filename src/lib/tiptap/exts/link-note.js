@@ -91,14 +91,17 @@ const configure = {
             ) || noteStore.notes.find((n) => n.id === query);
           if (!note) return;
           chain()
-            .insertContentAt(range, [
+            .deleteRange(range)
+            .insertContent([
               {
-                type: 'linkNote',
-                attrs: {
-                  id: note.id,
-                  label: note.title,
-                  href: `note://${note.id}`,
-                },
+                type: 'text',
+                text: note.title,
+                marks: [
+                  {
+                    type: 'link',
+                    attrs: { href: `note://${note.id}` },
+                  },
+                ],
               },
               { type: 'text', text: ' ' },
             ])
@@ -114,10 +117,12 @@ const configure = {
           const note = noteStore.notes.find((n) => n.id === id);
           if (!note) return;
           chain()
-            .insertContentAt(range, [
+            .deleteRange(range)
+            .insertContent([
               {
-                type: 'linkNote',
-                attrs: { id: note.id, label: note.title, href },
+                type: 'text',
+                text: note.title,
+                marks: [{ type: 'link', attrs: { href } }],
               },
               { type: 'text', text: ' ' },
             ])
@@ -130,18 +135,25 @@ const configure = {
     return {
       insertLinkNote:
         (noteId) =>
-        ({ commands }) => {
+        ({ commands, state }) => {
           const noteStore = useNoteStore();
           const note = noteStore.notes.find((n) => n.id === noteId);
           if (!note) return false;
-          return commands.insertContent({
-            type: 'linkNote',
-            attrs: {
-              id: note.id,
-              label: note.title,
-              href: `note://${note.id}`,
+
+          if (!state.selection.empty) {
+            // Text is selected → apply link mark with note:// URL,
+            // preserving the selected text as-is
+            return commands.setLink({ href: `note://${note.id}` });
+          }
+
+          // No selection → insert the note title as linked text
+          return commands.insertContent([
+            {
+              type: 'text',
+              text: note.title,
+              marks: [{ type: 'link', attrs: { href: `note://${note.id}` } }],
             },
-          });
+          ]);
         },
       removeLinkNote:
         () =>
@@ -181,6 +193,29 @@ const LinkNote = Suggestion({ name: 'linkNote', props, configure }).configure({
   },
   suggestion: {
     char: '@@',
+    // Override command to insert a link mark (note://) instead of a linkNote node
+    command: ({ editor, range, props }) => {
+      const nodeAfter = editor.view.state.selection.$to.nodeAfter;
+      const overrideSpace = nodeAfter?.text?.startsWith(' ');
+
+      if (overrideSpace) {
+        range.to += 1;
+      }
+
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        .insertContent([
+          {
+            type: 'text',
+            text: props.label || props.id,
+            marks: [{ type: 'link', attrs: { href: `note://${props.id}` } }],
+          },
+          { type: 'text', text: ' ' },
+        ])
+        .run();
+    },
     items: ({ query }) => {
       const noteStore = useNoteStore();
       return noteStore.notes

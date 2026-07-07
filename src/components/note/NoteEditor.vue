@@ -5,9 +5,9 @@
       v-if="editor && showDragHandle"
       :editor="editor"
       :compute-position-config="computePositionConfig"
-      class="drag-handle w-auto h-auto flex items-center rounded-lg bg-input shadow-sm p-1"
+      class="drag-handle w-auto h-auto flex items-center rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 p-0.5"
     >
-      <v-remixicon name="riDraggable" class="size-5 cursor-grab" />
+      <v-remixicon name="riDraggable" class="size-6 cursor-grab" />
     </drag-handle>
     <editor-content
       v-if="editor"
@@ -215,23 +215,39 @@ export default {
       },
     });
 
-    function handleClick(view, pos, { target, altKey, metaKey, ctrlKey }) {
+    function handleClick(view, pos, { target }) {
       const noteLinkEl = target.closest('a[data-link-note]');
       if (noteLinkEl) {
-        if (!(altKey || metaKey || ctrlKey)) return;
         const noteId = noteLinkEl.getAttribute('data-id');
-        if (!noteId) return;
+        if (!noteId) return true;
         router.push({
           name: 'Note',
           params: { id: noteId },
           query: { linked: true, from: props.id },
         });
-        return;
+        return true;
       }
 
       const externalAnchor = target.closest('a[tiptap-url]');
-      if (externalAnchor && (altKey || metaKey || ctrlKey)) {
-        window.open(externalAnchor.href, '_blank', 'noopener');
+      if (externalAnchor) {
+        const href =
+          externalAnchor.href || externalAnchor.getAttribute('href') || '';
+
+        // note:// URLs should navigate within the app, not open in a new tab
+        if (href.startsWith('note://')) {
+          const noteId = href.slice('note://'.length);
+          if (noteId) {
+            router.push({
+              name: 'Note',
+              params: { id: noteId },
+              query: { linked: true, from: props.id },
+            });
+          }
+          return true;
+        }
+
+        window.open(href, '_blank', 'noopener');
+        return true;
       }
     }
 
