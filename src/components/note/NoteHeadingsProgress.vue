@@ -42,7 +42,7 @@
         <div
           v-if="showMenu"
           ref="popoverRef"
-          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-800 shadow-xl overflow-hidden"
+          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl overflow-hidden"
           :style="popoverStyle"
           @mouseenter="onEnter"
           @mouseleave="onLeave"

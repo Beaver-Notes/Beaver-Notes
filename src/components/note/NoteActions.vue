@@ -2,7 +2,7 @@
   <!-- Desktop -->
   <div
     ref="container"
-    class="bg-white dark:bg-neutral-800 border overflow-x-auto z-20 top-4 right-4 w-fit p-1 sticky self-end rounded-lg shadow-sm no-print max-w-content mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 top-4 right-4 w-fit p-1 sticky self-end rounded-lg shadow-sm no-print max-w-content mobile:hidden"
     :class="{
       'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
     }"
