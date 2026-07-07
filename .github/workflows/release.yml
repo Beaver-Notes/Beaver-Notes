@@ -5,6 +5,8 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  pull_request_target:
+    types: [labeled]
 
 permissions:
   contents: write
@@ -19,6 +21,7 @@ env:
 jobs:
   validate:
     name: Validate versions
+    if: ${{ github.event_name != 'pull_request_target' || github.event.label.name == 'release' }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -27,6 +30,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       # Node Setup
       - name: Setup Node
@@ -152,6 +157,8 @@ jobs:
       # Pull source
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       # Use cache on GitHub runners, skipped in local ACT runs
       - name: Setup Node with Yarn cache
