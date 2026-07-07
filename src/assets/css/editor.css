@@ -58,6 +58,10 @@
   cursor: pointer;
 }
 
+.ProseMirror a.note-link {
+  @apply text-primary cursor-pointer hover:underline;
+}
+
 [dir='rtl'] .mention {
   display: inline-block;
   margin-left: 2px;

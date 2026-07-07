@@ -20,7 +20,7 @@
       <button
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         :title="translations.editor?.removeLink || 'Remove link'"
-        @click="editor.chain().focus().unsetLink().run()"
+        @click="removeLink"
       >
         <v-remixicon name="riLinkUnlinkM" class="size-5" />
       </button>
@@ -30,9 +30,10 @@
     <div v-else class="space-y-2">
       <div class="flex items-center gap-2">
         <input
+          id="bubble-input"
           ref="inputRef"
           v-model="currentLinkVal"
-          type="url"
+          type="text"
           :placeholder="
             translations.editor?.linkPlaceholder || 'Enter URL or @note'
           "
@@ -116,6 +117,20 @@ export default {
     const originalLinkVal = ref('');
     const inputRef = ref(null);
 
+    const activeType = computed(() => {
+      if (!props.editor) return null;
+      if (props.editor.isActive('linkNote')) return 'linkNote';
+      if (props.editor.isActive('link')) return 'link';
+      return null;
+    });
+
+    const activeAttrs = computed(() => {
+      if (!props.editor) return null;
+      return activeType.value === 'linkNote'
+        ? props.editor.getAttributes('linkNote')
+        : props.editor.getAttributes('link');
+    });
+
     const notes = computed(() => {
       if (!currentLinkVal.value.startsWith('@')) return [];
 
@@ -132,16 +147,17 @@ export default {
     });
 
     const displayLink = computed(() => {
-      const href = props.editor?.getAttributes?.('link')?.href;
-      if (!href) return '';
+      const type = activeType.value;
+      const attrs = activeAttrs.value;
+      if (!type || !attrs) return '';
 
-      if (href.startsWith('note://')) {
-        const noteId = href.slice(7);
-        const note = noteStore.notes.find((n) => n.id === noteId);
-        return note?.title || noteId;
+      if (type === 'linkNote') {
+        const id = attrs.id;
+        const note = noteStore.notes.find((n) => n.id === id);
+        return note?.title || attrs.label || id || '';
       }
 
-      return href;
+      return attrs.href || '';
     });
 
     function startEditing() {
@@ -154,8 +170,8 @@ export default {
     }
 
     function cancelEditing() {
-      if (originalLinkVal.value === '') {
-        props.editor?.chain().focus().unsetLink().run();
+      if (originalLinkVal.value === '' && !activeAttrs.value) {
+        removeLink();
       } else {
         currentLinkVal.value = originalLinkVal.value;
       }
@@ -164,56 +180,81 @@ export default {
     }
 
     function saveAndClose() {
-      if (!currentLinkVal.value.trim()) {
-        cancelEditing();
+      const value = currentLinkVal.value.trim();
+      if (!value) {
+        removeLink();
+        isEditing.value = false;
+        props.editor?.commands?.focus();
         return;
       }
 
-      updateLink();
+      applyLink(value);
       isEditing.value = false;
       props.editor?.commands?.focus();
     }
 
-    function updateLink(id) {
-      let value = currentLinkVal.value.trim();
+    function resolveNoteFromInput(value) {
+      const query = value.substring(1).trim();
+      if (!query) return null;
+      return (
+        noteStore.notes.find(
+          (n) => n.title.toLowerCase() === query.toLowerCase()
+        ) || noteStore.notes.find((n) => n.id === query)
+      );
+    }
 
-      if (currentLinkVal.value.startsWith('@') || typeof id === 'string') {
-        const noteId =
-          typeof id === 'string'
-            ? id
-            : notes.value[selectedNoteIndex.value]?.id;
+    function applyLink(value) {
+      if (!props.editor) return;
+      const chain = props.editor.chain().focus();
 
-        if (!noteId) return;
-        value = `note://${noteId}`;
+      if (value.startsWith('@')) {
+        const note = resolveNoteFromInput(value);
+        if (!note) return;
+        if (activeType.value === 'link') chain.unsetLink();
+        if (activeType.value === 'linkNote') chain.removeLinkNote();
+        chain.insertLinkNote(note.id).run();
+        return;
       }
 
-      props.editor
-        ?.chain()
-        .focus()
-        .extendMarkRange('link')
-        .setLink({ href: value })
-        .run();
+      if (activeType.value === 'linkNote') chain.removeLinkNote();
+      chain.extendMarkRange('link').setLink({ href: value }).run();
     }
 
     function selectNote(id) {
-      updateLink(id);
+      if (!props.editor) return;
+      const chain = props.editor.chain().focus();
+      if (activeType.value === 'link') chain.unsetLink();
+      if (activeType.value === 'linkNote') chain.removeLinkNote();
+      chain.insertLinkNote(id).run();
       isEditing.value = false;
       props.editor?.commands?.focus();
     }
 
+    function removeLink() {
+      if (!props.editor) return;
+      if (activeType.value === 'linkNote') {
+        props.editor.chain().focus().removeLinkNote().run();
+      } else if (activeType.value === 'link') {
+        props.editor.chain().focus().unsetLink().run();
+      }
+    }
+
     function handleClick() {
-      const href = props.editor?.getAttributes?.('link')?.href;
+      const type = activeType.value;
+      const attrs = activeAttrs.value;
+      if (!type || !attrs) return;
 
-      if (!href) return;
-
-      if (href.startsWith('note://')) {
-        const noteId = href.slice(7);
+      if (type === 'linkNote' && attrs.id) {
         router.push({
-          params: { id: noteId },
-          query: { linked: true },
+          name: 'Note',
+          params: { id: attrs.id },
+          query: { linked: true, from: route.params.id },
         });
-      } else {
-        window.open(href, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (attrs.href) {
+        window.open(attrs.href, '_blank', 'noopener,noreferrer');
       }
     }
 
@@ -246,20 +287,27 @@ export default {
     });
 
     watch(
-      () => props.editor?.getAttributes?.('link')?.href,
-      (newHref) => {
-        const href = newHref ?? '';
-        currentLinkVal.value = href.replace('note://', '@');
-        originalLinkVal.value = currentLinkVal.value;
-
-        if (href === '' && !isEditing.value) {
-          isEditing.value = true;
-          nextTick(() => {
-            inputRef.value?.focus();
-          });
-        } else if (href && href !== '') {
-          isEditing.value = false;
+      activeAttrs,
+      (attrs) => {
+        const type = activeType.value;
+        if (!type || !attrs) {
+          currentLinkVal.value = '';
+          originalLinkVal.value = '';
+          if (!isEditing.value) {
+            isEditing.value = true;
+            nextTick(() => inputRef.value?.focus());
+          }
+          return;
         }
+
+        if (type === 'linkNote') {
+          const note = noteStore.notes.find((n) => n.id === attrs.id);
+          currentLinkVal.value = note ? `@${note.title}` : `@${attrs.id}`;
+        } else {
+          currentLinkVal.value = attrs.href || '';
+        }
+        originalLinkVal.value = currentLinkVal.value;
+        isEditing.value = false;
       },
       { immediate: true }
     );
@@ -276,6 +324,7 @@ export default {
       cancelEditing,
       saveAndClose,
       selectNote,
+      removeLink,
       handleClick,
       translations,
     };

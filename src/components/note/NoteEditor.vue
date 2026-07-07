@@ -20,7 +20,14 @@
 </template>
 
 <script>
-import { onMounted, onBeforeUnmount, watch, computed, ref, nextTick } from 'vue';
+import {
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  computed,
+  ref,
+  nextTick,
+} from 'vue';
 import { useEditor, EditorContent } from '@tiptap/vue-3';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
@@ -208,19 +215,23 @@ export default {
       },
     });
 
-    function handleClick(view, pos, { target, altKey }) {
-      const closestAnchor = target.closest('a');
-      if (closestAnchor?.hasAttribute('tiptap-url') && altKey) {
-        if (closestAnchor.href.startsWith('note://')) {
-          const noteId = closestAnchor.href.slice(7);
-          router.push({
-            name: 'Note',
-            params: { id: noteId },
-            query: { linked: true },
-          });
-        } else {
-          window.open(closestAnchor.href, '_blank', 'noopener');
-        }
+    function handleClick(view, pos, { target, altKey, metaKey, ctrlKey }) {
+      const noteLinkEl = target.closest('a[data-link-note]');
+      if (noteLinkEl) {
+        if (!(altKey || metaKey || ctrlKey)) return;
+        const noteId = noteLinkEl.getAttribute('data-id');
+        if (!noteId) return;
+        router.push({
+          name: 'Note',
+          params: { id: noteId },
+          query: { linked: true, from: props.id },
+        });
+        return;
+      }
+
+      const externalAnchor = target.closest('a[tiptap-url]');
+      if (externalAnchor && (altKey || metaKey || ctrlKey)) {
+        window.open(externalAnchor.href, '_blank', 'noopener');
       }
     }
 

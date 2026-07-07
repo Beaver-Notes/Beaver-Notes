@@ -41,7 +41,12 @@ export default {
       const { empty } = selection;
 
       // Always show for images and links
-      if (editor.isActive('image') || editor.isActive('link')) return true;
+      if (
+        editor.isActive('image') ||
+        editor.isActive('link') ||
+        editor.isActive('linkNote')
+      )
+        return true;
 
       // Don't show for atomic / drawing blocks
       if (
@@ -59,6 +64,7 @@ export default {
     const currentMenuComponent = computed(() => {
       if (!props.editor) return null;
       if (props.editor.isActive('image')) return 'note-bubble-menu-image';
+      if (props.editor.isActive('linkNote')) return 'note-bubble-menu-link';
       if (props.editor.isActive('link')) return 'note-bubble-menu-link';
 
       if (props.editor.state.selection.empty) return null;
@@ -77,7 +83,11 @@ export default {
     onMounted(() => {
       if (props.editor) {
         Mousetrap.bind('mod+l', () => {
-          if (props.editor.isActive('image') || props.editor.isActive('link')) {
+          if (
+            props.editor.isActive('image') ||
+            props.editor.isActive('link') ||
+            props.editor.isActive('linkNote')
+          ) {
             const input = document.getElementById('bubble-input');
             input?.focus();
           }
