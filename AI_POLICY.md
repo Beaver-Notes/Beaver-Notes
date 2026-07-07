@@ -47,7 +47,7 @@ attributing the AI tool used. Acceptable formats include:
 - `Co-authored-by: Claude <noreply@anthropic.com>`
 - `Generated-by: Claude <noreply@anthropic.com>`
 
-Many AI coding tools automatically add `Co-authored-by` trailers—this is
+Many AI coding tools automatically add `Co-authored-by` trailers, this is
 acceptable and need not be changed to `Assisted-by`.
 
 Authors **MUST** still adhere to Beaver's Developer's Certificate of Origin (DCO) requirements and sign off commits.
@@ -81,7 +81,7 @@ submitted content.
 - Content that has been substantially rewritten such that the original AI
   output is no longer recognizable
 
-When in doubt, err on the side of disclosure—transparency benefits the
+When in doubt, err on the side of disclosure, transparency benefits the
 community.
 
 ## Acceptable Uses of AI Tools
