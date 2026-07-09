@@ -15,7 +15,9 @@
       class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor, note }" />
-    <table-floating-menu v-if="editor" :editor="editor" />
+    <table-handle v-if="editor" :editor="editor" />
+    <table-selection-overlay v-if="editor" :editor="editor" />
+    <table-extend-row-column-button v-if="editor" :editor="editor" />
   </div>
 </template>
 
@@ -44,10 +46,12 @@ import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
-import TableFloatingMenu from '@/lib/tiptap/exts/table/TableFloatingMenu.vue';
+import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
+import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
+import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
 
 export default {
-  components: { EditorContent, DragHandle, NoteBubbleMenu, TableFloatingMenu },
+  components: { EditorContent, DragHandle, NoteBubbleMenu, TableHandle, TableSelectionOverlay, TableExtendRowColumnButton },
   props: {
     modelValue: { type: [String, Object], default: '' },
     id: { type: String, default: '' },
