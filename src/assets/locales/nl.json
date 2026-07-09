@@ -62,7 +62,7 @@
         "unlockToEdit": "Ontgrendel om aan te passen",
         "untitledFolder": "Map zonder titel",
         "untitledNote": "Notitie zonder titel",
-        "warning": "Waarschuwing, als je je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord.",
+        "warning": "Waarschuwing, als je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord.",
         "wrongPasswd": "Onjuist wachtwoord. Notitie kan niet worden ontgrendeld."
     },
     "commandPrompt": {
@@ -303,7 +303,7 @@
         "updateDescription": "Er wordt een update geïnstalleerd. De app wordt automatisch gesloten zodra de update is voltooid.",
         "updateTitle": "Update wordt geïnstalleerd...",
         "utilities": "Hulpprogramma's",
-        "warning": "Waarschuwing, als je je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord.",
+        "warning": "Waarschuwing, als je wachtwoord vergeet, verlies je toegang tot je vergrendelde notities, en het instellen van een nieuw wachtwoord vereist het kennen van het oude wachtwoord.",
         "wrongCurrentPassword": "Verkeerd wachtwoord, probeer het opnieuw"
     },
     "shortcuts": {
