@@ -227,8 +227,8 @@
         "find": "查找",
         "replace": "替换",
         "replaceAll": "全部替换",
-        "replacePlaceholder": "替换...",
-        "searchPlaceholder": "搜索...",
+        "replacePlaceholder": "替换…",
+        "searchPlaceholder": "搜索…",
         "useRegex": "使用正则表达式 (Alt+R)"
     },
     "settings": {
