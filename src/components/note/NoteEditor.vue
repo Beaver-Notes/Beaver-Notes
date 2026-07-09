@@ -5,9 +5,24 @@
       v-if="editor && showDragHandle"
       :editor="editor"
       :compute-position-config="computePositionConfig"
-      class="drag-handle z-0 w-auto h-auto flex items-center rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 p-0.5"
+      :on-element-drag-start="onElementDragStart"
+      :on-element-drag-end="onElementDragEnd"
+      :on-node-change="onNodeChange"
+      class="drag-handle"
+      :class="{ 'opacity-0 pointer-events-none': isDragging }"
     >
-      <v-remixicon name="riDraggable" class="size-6 cursor-grab" />
+      <div class="drag-handle-inner">
+        <button
+          class="dh-button"
+          title="Add block"
+          @click.prevent="addBlock"
+        >
+          <v-remixicon name="riAddLine" class="dh-icon" />
+        </button>
+        <div class="dh-grip">
+          <v-remixicon name="riDraggable" class="dh-icon" />
+        </div>
+      </div>
     </drag-handle>
     <editor-content
       v-if="editor"
@@ -75,9 +90,49 @@ export default {
     const showDragHandle = ref(
       typeof window !== 'undefined' ? window.innerWidth >= 768 : true
     );
+    const isDragging = ref(false);
+    const currentNodePos = ref(-1);
 
     function updateDragHandleVisibility() {
       showDragHandle.value = window.innerWidth >= 768;
+    }
+
+    function onElementDragStart() {
+      isDragging.value = true;
+    }
+
+    function onElementDragEnd() {
+      isDragging.value = false;
+      nextTick(() => {
+        if (editor.value && !editor.value.isDestroyed) {
+          editor.value.view.dom.blur();
+          editor.value.view.focus();
+        }
+      });
+    }
+
+    function onNodeChange({ pos }) {
+      currentNodePos.value = pos;
+    }
+
+    function addBlock() {
+      if (!editor.value) return;
+      const pos =
+        currentNodePos.value >= 0
+          ? currentNodePos.value
+          : editor.value.state.selection.from;
+      const node = editor.value.state.doc.nodeAt(pos);
+      if (!node) return;
+      const isEmptyParagraph =
+        node.type.name === 'paragraph' && node.childCount === 0;
+      const insertPos = isEmptyParagraph ? pos : pos + node.nodeSize;
+      editor.value
+        .chain()
+        .focus()
+        .insertContentAt(insertPos, [
+          { type: 'paragraph', content: [{ type: 'text', text: '/' }] },
+        ])
+        .run();
     }
 
     const SCROLL_ZONE = 40;
@@ -180,7 +235,16 @@ export default {
       return {
         placement: isRtl ? 'right-start' : 'left-start',
         strategy: 'absolute',
-        middleware: [offset(0), fixedGutterMiddleware],
+        middleware: [
+          offset(({ rects }) => {
+            const nodeHeight = rects.reference.height;
+            const handleHeight = rects.floating.height;
+            const crossAxis =
+              nodeHeight > 40 ? 0 : nodeHeight / 2 - handleHeight / 2;
+            return { crossAxis };
+          }),
+          fixedGutterMiddleware,
+        ],
       };
     });
 
@@ -336,6 +400,12 @@ export default {
       editor,
       computePositionConfig,
       showDragHandle,
+      isDragging,
+      currentNodePos,
+      onElementDragStart,
+      onElementDragEnd,
+      onNodeChange,
+      addBlock,
     };
   },
 };

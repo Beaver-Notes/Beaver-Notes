@@ -290,7 +290,7 @@ img.ProseMirror-selectednode {
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
   .note-editor {
     --drag-handle-gutter: 0;
   }
@@ -356,7 +356,7 @@ mark {
 }
 
 .note-editor {
-  --drag-handle-gutter: 3rem;
+  --drag-handle-gutter: clamp(3rem, 6vw, 3.5rem);
 }
 
 .note-editor__content {
@@ -517,19 +517,81 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
 }
 
 .drag-handle {
-  width: 20px;
-  height: 24px;
-  border-radius: 4px;
-  cursor: grab;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute;
   z-index: 15;
+  display: block;
+  transition-property: top;
+  transition-duration: 200ms;
+  transition-timing-function: ease-out;
 }
 
 .ProseMirror:hover .drag-handle,
 .ProseMirror .drag-handle.is-visible {
   opacity: 1;
+}
+
+.drag-handle-inner {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px;
+  border-radius: 6px;
+  background: theme('colors.neutral.50');
+  border: 1px solid theme('colors.neutral.200');
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+:root.dark .drag-handle-inner {
+  background: theme('colors.neutral.800');
+  border-color: theme('colors.neutral.600');
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.dh-button,
+.dh-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: theme('colors.neutral.500');
+  transition: color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  flex-shrink: 0;
+}
+:root.dark .dh-button,
+:root.dark .dh-grip {
+  color: theme('colors.neutral.400');
+}
+
+.dh-button:hover,
+.dh-grip:hover {
+  color: hsl(var(--twc-primary));
+  background: hsl(var(--twc-primary) / 0.08);
+}
+.dh-button:active,
+.dh-grip:active {
+  transform: scale(0.9);
+}
+.dh-grip {
+  cursor: grab;
+}
+
+.dh-icon {
+  width: 13px;
+  height: 13px;
+}
+
+.drag-handle::before {
+  content: "";
+  position: absolute;
+  left: 100%;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  pointer-events: auto;
 }
 
 /*   Table Styles */
