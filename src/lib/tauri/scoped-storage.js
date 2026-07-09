@@ -77,11 +77,12 @@ function hasDialogProperty(payload, property) {
 function buildAcceptAttribute(filters = []) {
   return filters
     .flatMap((filter) => filter?.extensions || [])
-    .map((extension) =>
-      extension.startsWith('.')
-        ? extension.toLowerCase()
-        : `.${extension.toLowerCase()}`
-    )
+    .map((entry) => {
+      if (entry.includes('/')) return entry;
+      return entry.startsWith('.')
+        ? entry.toLowerCase()
+        : `.${entry.toLowerCase()}`;
+    })
     .filter(Boolean)
     .join(',');
 }
