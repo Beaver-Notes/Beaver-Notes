@@ -88,10 +88,12 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: { editor: Object },
   setup(props) {
+    const { translations } = useTranslations();
     const headings = ref([]);
     const activeHeading = ref(null);
     const search = ref('');
@@ -384,6 +386,7 @@ export default {
     });
 
     return {
+      translations,
       headings,
       activeHeading,
       visibleHeadings,

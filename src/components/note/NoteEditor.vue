@@ -5,7 +5,7 @@
       v-if="editor && showDragHandle"
       :editor="editor"
       :compute-position-config="computePositionConfig"
-      class="drag-handle w-auto h-auto flex items-center rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 p-0.5"
+      class="drag-handle z-0 w-auto h-auto flex items-center rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 p-0.5"
     >
       <v-remixicon name="riDraggable" class="size-6 cursor-grab" />
     </drag-handle>
@@ -51,7 +51,14 @@ import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
 
 export default {
-  components: { EditorContent, DragHandle, NoteBubbleMenu, TableHandle, TableSelectionOverlay, TableExtendRowColumnButton },
+  components: {
+    EditorContent,
+    DragHandle,
+    NoteBubbleMenu,
+    TableHandle,
+    TableSelectionOverlay,
+    TableExtendRowColumnButton,
+  },
   props: {
     modelValue: { type: [String, Object], default: '' },
     id: { type: String, default: '' },

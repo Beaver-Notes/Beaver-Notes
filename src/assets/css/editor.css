@@ -524,7 +524,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 30;
+  z-index: 15;
 }
 
 .ProseMirror:hover .drag-handle,
@@ -532,11 +532,8 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   opacity: 1;
 }
 
-/* ═══════════════════════════════════════════
-   Table Styles
-   ═══════════════════════════════════════════ */
+/*   Table Styles */
 
-/* ── Wrapper ── */
 .tableWrapper {
   position: relative;
   margin: 1.5em 0;
@@ -547,7 +544,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   -webkit-overflow-scrolling: touch;
 }
 
-/* ── Table element ── */
+/*  Table element  */
 .tableWrapper table {
   min-width: 100%;
   width: auto;
@@ -556,7 +553,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   table-layout: auto;
 }
 
-/* ── Cells ── */
+/*  Cells  */
 .tableWrapper td,
 .tableWrapper th {
   min-width: 1em;
@@ -576,7 +573,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   border-color: theme('colors.neutral.700');
 }
 
-/* ── Header cells ── */
+/*  Header cells  */
 .tableWrapper th {
   background-color: theme('colors.neutral.100');
   font-weight: 600;
@@ -586,7 +583,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   background-color: rgb(82 82 82 / 0.3);
 }
 
-/* ── Rounded outer corners (per-cell so resize handles sit cleanly inside) ── */
+/*  Rounded outer corners (per-cell so resize handles sit cleanly inside)  */
 .tableWrapper tr:first-child > th:first-child,
 .tableWrapper tr:first-child > td:first-child {
   border-top-left-radius: 0.75rem;
@@ -609,7 +606,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   overflow: hidden;
 }
 
-/* ── Column resize handle ── */
+/*  Column resize handle  */
 .ProseMirror .column-resize-handle {
   position: absolute;
   top: 0;
@@ -625,7 +622,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   pointer-events: auto;
 }
 
-/* ── Selected cell highlight ── */
+/*  Selected cell highlight  */
 .ProseMirror .selectedCell:after {
   content: '';
   position: absolute;
@@ -638,25 +635,25 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   background: hsl(var(--twc-primary) / 0.08);
 }
 
-/* ── Active cell ── */
+/*  Active cell  */
 td.is-active,
 th.is-active {
   position: relative;
 }
 
-/* ── Resize cursor on body ── */
+/*  Resize cursor on body  */
 .resize-cursor {
   cursor: col-resize;
   user-select: none !important;
   -webkit-user-select: none;
 }
 
-/* ── Read-only tables ── */
+/*  Read-only tables  */
 .ProseMirror[contenteditable='false'] .tableWrapper {
   user-select: text;
 }
 
-/* ── Mobile ── */
+/*  Mobile  */
 @media (max-width: 768px) {
   .tableWrapper td,
   .tableWrapper th {
@@ -664,11 +661,9 @@ th.is-active {
   }
 }
 
-/* ═══════════════════════════════════════════
-   Enhanced Table Features
-   ═══════════════════════════════════════════ */
+/*  Enhanced Table Features  */
 
-/* ── Block container (wraps everything) ── */
+/*  Block container (wraps everything)  */
 [data-content-type='table'] {
   position: relative;
 }
@@ -677,14 +672,14 @@ th.is-active {
   margin: 0;
 }
 
-/* ── Table container ── */
+/*  Table container  */
 .table-container {
   overflow-x: auto;
   overflow-y: visible;
   scrollbar-width: thin;
 }
 
-/* ── Selection overlay container ── */
+/*  Selection overlay container  */
 .table-selection-overlay-container {
   position: absolute;
   top: 0;
@@ -695,7 +690,7 @@ th.is-active {
   z-index: 5;
 }
 
-/* ── Drop cursor decoration ── */
+/*  Drop cursor decoration  */
 .tiptap-table-dropcursor {
   position: absolute;
   background: hsl(var(--twc-primary) / 0.5);
@@ -704,18 +699,18 @@ th.is-active {
   z-index: 30;
 }
 
-/* ── Dragging source cell highlight ── */
+/*  Dragging source cell highlight  */
 .table-cell-dragging-source {
   opacity: 0.4;
 }
 
-/* ── Selection overlay ── */
+/*  Selection overlay  */
 .tiptap-table-selection-overlay {
   position: relative;
   pointer-events: auto;
 }
 
-/* ── Extend buttons (bottom-right of table) ── */
+/*  Extend buttons (bottom-right of table)  */
 .table-extend-button {
   display: flex;
   align-items: center;
@@ -749,7 +744,7 @@ th.is-active {
   height: 14px;
 }
 
-/* ── Extend button for new row (bottom) ── */
+/*  Extend button for new row (bottom)  */
 .table-extend-row {
   position: absolute;
   bottom: -24px;
@@ -757,7 +752,7 @@ th.is-active {
   transform: translateX(-50%);
 }
 
-/* ── Extend button for new column (right edge) ── */
+/*  Extend button for new column (right edge)  */
 .table-extend-column {
   position: absolute;
   right: -24px;
@@ -765,13 +760,13 @@ th.is-active {
   transform: translateY(-50%);
 }
 
-/* ── Editable cell while table controls are visible ── */
+/*  Editable cell while table controls are visible  */
 .table-container td,
 .table-container th {
   position: relative;
 }
 
-/* ── Table controls wrapper (for floating handles) ── */
+/*  Table controls wrapper (for floating handles)  */
 .table-controls {
   pointer-events: none;
 }

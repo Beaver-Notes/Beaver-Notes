@@ -5,6 +5,7 @@
     :editor="editor"
     :update-delay="100"
     :should-show="shouldShowMenuFn"
+    class="z-50"
   >
     <component
       :is="currentMenuComponent"

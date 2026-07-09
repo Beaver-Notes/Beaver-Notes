@@ -1,91 +1,89 @@
 <template>
-  <Teleport to="body">
+  <div
+    v-if="state?.show"
+    class="fixed inset-0 z-0"
+    style="pointer-events: none"
+  >
     <div
-      v-if="state?.show"
-      class="fixed inset-0 z-10"
-      style="pointer-events: none"
+      v-if="showRowHandle"
+      ref="rowFloatingRef"
+      :style="rowFloatingStyles"
+      class="table-handle-floating"
     >
-      <div
-        v-if="showRowHandle"
-        ref="rowFloatingRef"
-        :style="rowFloatingStyles"
-        class="table-handle-floating"
+      <ui-popover
+        placement="right-start"
+        :model-value="rowMenuOpen"
+        @update:model-value="onRowMenuChange"
       >
-        <ui-popover
-          placement="right-start"
-          :model-value="rowMenuOpen"
-          @update:model-value="onRowMenuChange"
-        >
-          <template #trigger>
-            <button
-              draggable="true"
-              class="thandle"
-              :class="{ dragging: isRowDragging, open: rowMenuOpen }"
-              :title="'Row ' + ((state?.rowIndex ?? 0) + 1)"
-              @click.prevent
-              @dragstart.stop="onRowDragStart"
-              @dragend.stop="onDragEnd"
-            >
-              <svg viewBox="0 0 24 24" class="thandle-icon" fill="currentColor">
-                <circle cx="9" cy="5" r="1.5" />
-                <circle cx="15" cy="5" r="1.5" />
-                <circle cx="9" cy="12" r="1.5" />
-                <circle cx="15" cy="12" r="1.5" />
-                <circle cx="9" cy="19" r="1.5" />
-                <circle cx="15" cy="19" r="1.5" />
-              </svg>
-            </button>
-          </template>
-          <TableHandleMenuContent
-            :editor="editor"
-            :state="state"
-            orientation="row"
-            @close="closeRowMenu"
-          />
-        </ui-popover>
-      </div>
-
-      <div
-        v-if="showColHandle"
-        ref="colFloatingRef"
-        :style="colFloatingStyles"
-        class="table-handle-floating"
-      >
-        <ui-popover
-          placement="bottom"
-          :model-value="colMenuOpen"
-          @update:model-value="onColMenuChange"
-        >
-          <template #trigger>
-            <button
-              draggable="true"
-              class="thandle"
-              :class="{ dragging: isColDragging, open: colMenuOpen }"
-              :title="'Col ' + ((state?.colIndex ?? 0) + 1)"
-              @click.prevent
-              @dragstart.stop="onColDragStart"
-              @dragend.stop="onDragEnd"
-            >
-              <svg viewBox="0 0 24 24" class="thandle-icon" fill="currentColor">
-                <circle cx="5" cy="9" r="1.5" />
-                <circle cx="12" cy="9" r="1.5" />
-                <circle cx="19" cy="9" r="1.5" />
-                <circle cx="5" cy="15" r="1.5" />
-                <circle cx="12" cy="15" r="1.5" />
-                <circle cx="19" cy="15" r="1.5" />
-              </svg>
-            </button>
-          </template>
-          <TableHandleMenuContent
-            :editor="editor"
-            :state="state"
-            orientation="column"
-            @close="closeColMenu"
-          />
-        </ui-popover>
-      </div>
+        <template #trigger>
+          <button
+            draggable="true"
+            class="thandle"
+            :class="{ dragging: isRowDragging, open: rowMenuOpen }"
+            :title="'Row ' + ((state?.rowIndex ?? 0) + 1)"
+            @click.prevent
+            @dragstart.stop="onRowDragStart"
+            @dragend.stop="onDragEnd"
+          >
+            <svg viewBox="0 0 24 24" class="thandle-icon" fill="currentColor">
+              <circle cx="9" cy="5" r="1.5" />
+              <circle cx="15" cy="5" r="1.5" />
+              <circle cx="9" cy="12" r="1.5" />
+              <circle cx="15" cy="12" r="1.5" />
+              <circle cx="9" cy="19" r="1.5" />
+              <circle cx="15" cy="19" r="1.5" />
+            </svg>
+          </button>
+        </template>
+        <TableHandleMenuContent
+          :editor="editor"
+          :state="state"
+          orientation="row"
+          @close="closeRowMenu"
+        />
+      </ui-popover>
     </div>
-  </Teleport>
+
+    <div
+      v-if="showColHandle"
+      ref="colFloatingRef"
+      :style="colFloatingStyles"
+      class="table-handle-floating"
+    >
+      <ui-popover
+        placement="bottom"
+        :model-value="colMenuOpen"
+        @update:model-value="onColMenuChange"
+      >
+        <template #trigger>
+          <button
+            draggable="true"
+            class="thandle"
+            :class="{ dragging: isColDragging, open: colMenuOpen }"
+            :title="'Col ' + ((state?.colIndex ?? 0) + 1)"
+            @click.prevent
+            @dragstart.stop="onColDragStart"
+            @dragend.stop="onDragEnd"
+          >
+            <svg viewBox="0 0 24 24" class="thandle-icon" fill="currentColor">
+              <circle cx="5" cy="9" r="1.5" />
+              <circle cx="12" cy="9" r="1.5" />
+              <circle cx="19" cy="9" r="1.5" />
+              <circle cx="5" cy="15" r="1.5" />
+              <circle cx="12" cy="15" r="1.5" />
+              <circle cx="19" cy="15" r="1.5" />
+            </svg>
+          </button>
+        </template>
+        <TableHandleMenuContent
+          :editor="editor"
+          :state="state"
+          orientation="column"
+          @close="closeColMenu"
+        />
+      </ui-popover>
+    </div>
+  </div>
 </template>
 
 <script>
@@ -330,8 +328,5 @@ export default {
 .thandle-icon {
   width: 14px;
   height: 14px;
-}
-.table-handle-floating {
-  z-index: 30;
 }
 </style>
