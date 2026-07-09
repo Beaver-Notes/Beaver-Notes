@@ -334,6 +334,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
 import { useRoute } from 'vue-router';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -345,6 +346,7 @@ export default {
     const menu = useNoteMenu(props);
     const route = useRoute();
     const noteStore = useNoteStore();
+    const { translations } = useTranslations();
 
     // ── Link input state ────────────────────────────────────────────
     const linkInputValue = ref('');
