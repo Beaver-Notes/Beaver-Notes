@@ -85,8 +85,8 @@
         "exit": "Drücken Sie Strg + Enter, um zu schließen",
         "linkPlaceholder": "URL oder @ eingeben, um eine Notiz zu verlinken",
         "linkShortcut": "Drücken Sie Alt + Klick, um den Link zu öffnen",
-        "mathPlaceholder": "Text hier eingeben...",
-        "mermaidPlaceholder": "Mermaid-Code hier eingeben...",
+        "mathPlaceholder": "Text hier eingeben…",
+        "mermaidPlaceholder": "Mermaid-Code hier eingeben…",
         "previousNote": "Vorherige Notizen",
         "tiptapPlaceholder": "Schreibe etwas... oder tippe \"/\" für Befehle.",
         "untitledNote": "Unbenannte Notiz"
@@ -99,7 +99,7 @@
         "descending": "Absteigend",
         "lastUpdated": "Zuletzt aktualisiert",
         "search": "+ F zum Starten der Suche",
-        "searchPlaceholder": "Suchen...",
+        "searchPlaceholder": "Suchen…",
         "selectLabel": "Label auswählen"
     },
     "folderTree": {
@@ -122,9 +122,9 @@
         "close": "Schließen",
         "folders": "Ordner",
         "home": "Startseite",
-        "newNote": "Um eine neue Notiz zu erstellen, drücken Sie Strg + N, Cmd + N oder klicken Sie auf die + Schaltfläche oben links.",
+        "newNote": "Um eine neue Notiz zu erstellen, drücken Sie Strg + N, Cmd + N oder klicken Sie auf die + Schaltfläche oben links",
         "notFound": "Keine Optionen gefunden",
-        "search": "Suche...",
+        "search": "Suche…",
         "untitledFolder": "Unbenannter Ordner"
     },
     "menu": {
@@ -227,8 +227,8 @@
         "find": "Suchen",
         "replace": "Ersetzen",
         "replaceAll": "Alle ersetzen",
-        "replacePlaceholder": "Ersetzen...",
-        "searchPlaceholder": "Suchen...",
+        "replacePlaceholder": "Ersetzen…",
+        "searchPlaceholder": "Suchen…",
         "useRegex": "Reguläre Ausdrücke verwenden (Alt+R)"
     },
     "settings": {
@@ -239,7 +239,7 @@
         "authorizedApplications": "Autorisierte Anwendungen",
         "autoSync": "Automatische Synchronisation",
         "autoUpdate": "Automatische Updates",
-        "body": "Diese Daten sind verschlüsselt. Sie müssen das Passwort eingeben, um Zugriff zu erhalten.",
+        "body": "Diese Daten sind verschlüsselt. Sie müssen das Passwort eingeben, um Zugriff zu erhalten",
         "cancel": "Abbrechen",
         "checkUpdates": "Nach Updates suchen",
         "collapsibleHeading": "Einklappbare Überschrift",
@@ -282,7 +282,7 @@
         "permissions": "Berechtigungen",
         "platform": "Plattform",
         "privacySecurity": "Datenschutz & Sicherheit",
-        "relaunch": "Die App muss neu gestartet werden, damit diese Änderung wirksam wird.",
+        "relaunch": "Die App muss neu gestartet werden, damit diese Änderung wirksam wird",
         "relaunchButton": "Neustart",
         "resetPassword": "Passwort zurücksetzen",
         "resetPasswordTitle": "Aktuelles Passwort eingeben",
@@ -301,7 +301,7 @@
         "timeFormatPlaceholder": "Zeitformat mit dayjs-Syntax eingeben (z. B. HH:mm, hh:mm A, HH:mm:ss)",
         "updateAvailable": "Update verfügbar",
         "updateDescription": "Ein Update wird installiert. Die App wird automatisch geschlossen, sobald es abgeschlossen ist.",
-        "updateTitle": "Update wird installiert...",
+        "updateTitle": "Update wird installiert…",
         "utilities": "Extras",
         "warning": "Achtung: Wenn Sie Ihr Passwort vergessen, verlieren Sie den Zugriff auf Ihre gesperrten Notizen. Um ein neues Passwort festzulegen, müssen Sie das alte kennen.",
         "wrongCurrentPassword": "Falsches Passwort, bitte erneut versuchen"
