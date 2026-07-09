@@ -51,7 +51,7 @@
             <input
               v-model="search"
               type="text"
-              placeholder="Search headings..."
+              :placeholder="translations.noteActions?.searchHeadings || 'Search headings…'"
               class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary placeholder:text-neutral-400"
             />
           </div>

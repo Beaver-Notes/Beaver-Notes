@@ -7,7 +7,7 @@
       <ui-popover>
         <template #trigger>
           <button
-            v-tooltip.group="'Turn into'"
+            v-tooltip.group="translations.toolbar?.turnInto || 'Turn into'"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300"
           >
             {{ nodeName }}
@@ -439,47 +439,48 @@ export default {
     watch(linkInputValue, (val) => {
       if (val.startsWith('@')) selectedLinkIndex.value = 0;
     });
+    const t = (key) => translations.value.toolbar?.[key] || translations.value.menu?.[key];
     const blockTypes = [
       {
         id: 'paragraph',
         icon: 'riParagraph',
-        label: 'Text',
+        label: t('paragraph') || 'Text',
         cmd: (e) => e.chain().focus().setParagraph().run(),
       },
       ...[1, 2, 3, 4, 5, 6].map((level) => ({
         id: 'heading',
         level,
         icon: `riH${level}`,
-        label: `Heading ${level}`,
+        label: (t('heading') || `Heading`).replace('{level}', level),
         cmd: (e) => e.chain().focus().toggleHeading({ level }).run(),
       })),
       {
         id: 'bulletList',
         icon: 'riListUnordered',
-        label: 'Bullet List',
+        label: t('bulletList') || 'Bullet List',
         cmd: (e) => e.chain().focus().toggleBulletList().run(),
       },
       {
         id: 'orderedList',
-        label: 'Numbered List',
+        label: t('numberedList') || 'Numbered List',
         icon: 'riListOrdered',
         cmd: (e) => e.chain().focus().toggleOrderedList().run(),
       },
       {
         id: 'taskList',
-        label: 'Task List',
+        label: t('taskList') || 'Task List',
         icon: 'riListCheck2',
         cmd: (e) => e.chain().focus().toggleTaskList().run(),
       },
       {
         id: 'blockquote',
-        label: 'Quote',
+        label: t('quote') || 'Quote',
         icon: 'riDoubleQuotesR',
         cmd: (e) => e.chain().focus().toggleBlockquote().run(),
       },
       {
         id: 'codeBlock',
-        label: 'Code Block',
+        label: t('codeBlock') || 'Code Block',
         icon: 'riCodeBoxLine',
         cmd: (e) => e.chain().focus().toggleCodeBlock().run(),
       },
@@ -489,32 +490,32 @@ export default {
       {
         id: 'left',
         icon: 'riAlignLeft',
-        label: 'Left',
+        label: t('left') || 'Left',
         cmd: (e) => e.chain().focus().setTextAlign('left').run(),
       },
       {
         id: 'center',
         icon: 'riAlignCenter',
-        label: 'Center',
+        label: t('center') || 'Center',
         cmd: (e) => e.chain().focus().setTextAlign('center').run(),
       },
       {
         id: 'right',
         icon: 'riAlignRight',
-        label: 'Right',
+        label: t('right') || 'Right',
         cmd: (e) => e.chain().focus().setTextAlign('right').run(),
       },
       {
         id: 'justify',
         icon: 'riAlignJustify',
-        label: 'Justify',
+        label: t('justify') || 'Justify',
         cmd: (e) => e.chain().focus().setTextAlign('justify').run(),
       },
     ];
 
     const nodeName = computed(() => {
       const { editor } = props;
-      if (!editor) return 'Text';
+      if (!editor) return t('text') || 'Text';
 
       const active = blockTypes.find((type) =>
         type.level
@@ -522,7 +523,7 @@ export default {
           : editor.isActive(type.id)
       );
 
-      return active ? active.label : 'Text';
+      return active ? active.label : (t('text') || 'Text');
     });
 
     const menuOptions = computed(() => {
@@ -536,13 +537,13 @@ export default {
 
     const currentAlignment = computed(() => {
       const { editor } = props;
-      if (!editor) return 'Left';
+      if (!editor) return t('left') || 'Left';
 
       const active = alignmentTypes.find((type) =>
         editor.isActive({ textAlign: type.id })
       );
 
-      return active ? active.label : 'Left';
+      return active ? active.label : (t('left') || 'Left');
     });
 
     const currentAlignmentIcon = computed(() => {

@@ -857,8 +857,9 @@ export default {
       isMacOS,
       isMobileRuntime,
       isIOSRuntime,
-      isDebugMode,
+
       toggleSpotlight,
+      isDebugMode,
       ...dataSettings,
       ...securitySettings,
     };

@@ -87,7 +87,7 @@ export function useImport({
 
   async function importObsidianHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select Obsidian Vault',
+      title: t?.settings?.selectObsidianVault || 'Select Obsidian Vault',
       properties: ['openDirectory'],
       useScopedStorage: true,
     });
@@ -109,7 +109,7 @@ export function useImport({
 
   async function importNotionHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select Notion Export',
+      title: t?.settings?.selectNotionExport || 'Select Notion Export',
       properties: ['openDirectory'],
       useScopedStorage: true,
     });
@@ -131,7 +131,7 @@ export function useImport({
 
   async function importBearHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select Bear Export',
+      title: t?.settings?.selectBearExport || 'Select Bear Export',
       properties: ['openDirectory'],
       useScopedStorage: true,
     });
@@ -154,7 +154,7 @@ export function useImport({
   async function importEvernoteHandler(options = {}) {
     const { notebookName } = options;
     const filePaths = await pickDialogPaths({
-      title: 'Select ENEX File',
+      title: t?.settings?.selectEnexFile || 'Select ENEX File',
       properties: ['openFile'],
       filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
     });
@@ -192,7 +192,7 @@ export function useImport({
 
   async function importSimplenoteHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select notes.json',
+      title: t?.settings?.selectSimplenoteExport || 'Select notes.json',
       properties: ['openFile'],
       filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
     });
@@ -206,7 +206,7 @@ export function useImport({
 
   async function importGenericMarkdownHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select Markdown Folder',
+      title: t?.settings?.selectMarkdownFolder || 'Select Markdown Folder',
       properties: ['openDirectory'],
       useScopedStorage: true,
     });
