@@ -12,6 +12,7 @@
 ![GitHub Release](https://img.shields.io/github/v/release/daniele-rolli/beaver-notes?style=flat&color=orange)
 ![GitHub Repo stars](https://img.shields.io/github/stars/daniele-rolli/beaver-notes?style=flat)
 ![GitHub forks](https://img.shields.io/github/forks/daniele-rolli/beaver-notes?style=flat)
+[![Translation status](https://translate.beavernotes.com/widget/beaver-notes/beaver-notes-translations/svg-badge.svg)](https://translate.beavernotes.com/engage/beaver-notes/)
 
 [Website](https://beavernotes.com) · [Blog](https://blog.beavernotes.com) · [Docs](https://docs.beavernotes.com) · [Downloads](https://beavernotes.com/#/Download) · [Roadmap](https://github.com/orgs/Beaver-Notes/projects/5)
 
