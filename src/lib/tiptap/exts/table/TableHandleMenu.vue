@@ -117,8 +117,15 @@
         class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
         @click="deleteRowColumn"
       >
-        <v-remixicon :name="orientation === 'row' ? 'riDeleteRow' : 'riDeleteColumn'" class="size-6 shrink-0 text-red-400" />
+        <v-remixicon name="orientation === 'row' ? 'riDeleteRow' : 'riDeleteColumn'" class="size-6 shrink-0 text-red-400" />
         <span>{{ orientation === 'row' ? (t?.menu?.deleteRow || 'Delete row') : (t?.menu?.deleteColumn || 'Delete column') }}</span>
+      </button>
+      <button
+        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10"
+        @click="deleteTable"
+      >
+        <v-remixicon name="riDeleteBin6Line" class="size-6 shrink-0 text-red-400" />
+        <span>{{ t?.menu?.deleteTable || 'Delete table' }}</span>
       </button>
     </div>
   </div>
@@ -205,6 +212,12 @@ export default {
       if (!props.editor) return;
       if (props.orientation === 'row') props.editor.chain().focus().deleteRow().run();
       else props.editor.chain().focus().deleteColumn().run();
+      close();
+    }
+
+    function deleteTable() {
+      if (!props.editor) return;
+      props.editor.chain().focus().deleteTable().run();
       close();
     }
 
@@ -326,7 +339,7 @@ export default {
       t, menuRef, isHeaderActive, currentAlign,
       colorSwatches, alignOptions,
       moveItems, addItems, sortItems,
-      add, deleteRowColumn, duplicate, move, sort, toggleHeader, close,
+      add, deleteRowColumn, deleteTable, duplicate, move, sort, toggleHeader, close,
       setBg, setAlign,
     };
   },
