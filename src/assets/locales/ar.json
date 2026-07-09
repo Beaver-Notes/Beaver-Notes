@@ -85,8 +85,8 @@
         "exit": "اضغط Ctrl + Enter للإغلاق",
         "linkPlaceholder": "رابط URL أو اكتب @ لربط ملاحظة",
         "linkShortcut": "اضغط Alt + انقر لفتح الرابط",
-        "mathPlaceholder": "اكتب هنا...",
-        "mermaidPlaceholder": "أدخل كود Mermaid هنا...",
+        "mathPlaceholder": "اكتب هنا…",
+        "mermaidPlaceholder": "أدخل كود Mermaid هنا…",
         "previousNote": "الملاحظات السابقة",
         "tiptapPlaceholder": "اكتب شيئًا... أو اكتب \"/\" للأوامر.",
         "untitledNote": "ملاحظة بدون عنوان"
@@ -124,7 +124,7 @@
         "home": "الرئيسية",
         "newNote": "لإنشاء ملاحظة جديدة، يمكنك الضغط على Ctrl + N، Cmd + N أو النقر على زر + في الأعلى يسار",
         "notFound": "لم يتم العثور على خيارات",
-        "search": "ابحث عن شيء...",
+        "search": "ابحث عن شيء…",
         "untitledFolder": "مجلد بدون عنوان"
     },
     "menu": {
@@ -227,8 +227,8 @@
         "find": "بحث",
         "replace": "استبدال",
         "replaceAll": "استبدال الكل",
-        "replacePlaceholder": "استبدل...",
-        "searchPlaceholder": "بحث...",
+        "replacePlaceholder": "استبدل…",
+        "searchPlaceholder": "بحث…",
         "useRegex": "استخدم التعبيرات النمطية (Alt+R)"
     },
     "settings": {
@@ -256,7 +256,7 @@
         "exportMessage": "تم تصدير الملاحظات في",
         "fullWidth": "توسيع الصفحة",
         "general": "عام",
-        "id": " معرف",
+        "id": "معرف",
         "import": "استيراد",
         "importData": "استيراد البيانات",
         "importFail": "فشل الاستيراد!",
@@ -301,7 +301,7 @@
         "timeFormatPlaceholder": "أدخل تنسيق الوقت باستخدام صيغة dayjs (مثال: HH:mm, hh:mm A, HH:mm:ss)",
         "updateAvailable": "تحديث جديد متاح",
         "updateDescription": "يتم تثبيت تحديث. سيغلق التطبيق تلقائيًا عند اكتمال التحديث.",
-        "updateTitle": "جارٍ تثبيت التحديث...",
+        "updateTitle": "جارٍ تثبيت التحديث…",
         "utilities": "الأدوات",
         "warning": "تحذير، إذا نسيت كلمة المرور، ستفقد الوصول إلى ملاحظاتك المقفلة، وإعداد كلمة مرور جديدة يتطلب معرفة القديمة.",
         "wrongCurrentPassword": "كلمة المرور خاطئة، يرجى المحاولة مرة أخرى"
