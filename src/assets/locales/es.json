@@ -38,8 +38,8 @@
         "content": "Sin contenido",
         "delete": "Eliminar",
         "deleteAction": "Acción de eliminar",
-        "deleteItem": "Eliminar elemento",
-        "deleteItems": "Eliminar elementos",
+        "deleteItem": "Eliminar elemento?",
+        "deleteItems": "Eliminar elementos?",
         "duplicate": "Duplicar",
         "enterPasswd": "Introduce la contraseña",
         "isLocked": "La nota está bloqueada",
@@ -49,7 +49,7 @@
         "newKey": "Nueva clave",
         "noEmojis": "No se encontraron emojis",
         "noEmojisMessage": "Prueba con otra búsqueda o categoría",
-        "noKey": "No se ha configurado una clave compartida para esta nota.",
+        "noKey": "No se ha configurado una clave compartida para esta nota",
         "passwdCorrect": "La contraseña es incorrecta.",
         "password": "Contraseña",
         "removeBookmark": "Quitar fijado",
@@ -85,8 +85,8 @@
         "exit": "Pulsa Ctrl + Enter para cerrar",
         "linkPlaceholder": "Introduce URL o @ para vincular una nota",
         "linkShortcut": "Alt + Clic para abrir enlace",
-        "mathPlaceholder": "Introduce fórmula...",
-        "mermaidPlaceholder": "Escribe el código Mermaid aquí...",
+        "mathPlaceholder": "Introduce fórmula…",
+        "mermaidPlaceholder": "Escribe el código Mermaid aquí…",
         "previousNote": "Nota anterior",
         "tiptapPlaceholder": "Escribe algo...",
         "untitledNote": "Nota sin título"
@@ -124,7 +124,7 @@
         "home": "Inicio",
         "newNote": "Para crear una nueva nota, pulsa Ctrl + N, Cmd + N o el botón + arriba a la izquierda",
         "notFound": "No se encontraron resultados",
-        "search": "Buscar algo...",
+        "search": "Buscar algo…",
         "untitledFolder": "Carpeta sin título"
     },
     "menu": {
@@ -227,8 +227,8 @@
         "find": "Buscar",
         "replace": "Reemplazar",
         "replaceAll": "Reemplazar todo",
-        "replacePlaceholder": "Reemplazar...",
-        "searchPlaceholder": "Buscar...",
+        "replacePlaceholder": "Reemplazar…",
+        "searchPlaceholder": "Buscar…",
         "useRegex": "Usar regex (Alt+R)"
     },
     "settings": {
@@ -301,7 +301,7 @@
         "timeFormatPlaceholder": "Introducir formato de hora usando sintaxis dayjs (ej.: HH:mm, hh:mm A, HH:mm:ss)",
         "updateAvailable": "Hay una actualización disponible",
         "updateDescription": "Instalando actualización... la app se cerrará al finalizar.",
-        "updateTitle": "Actualización en curso...",
+        "updateTitle": "Actualización en curso…",
         "utilities": "Utilidades",
         "warning": "Atención: si olvidas tu contraseña, perderás acceso a tus notas bloqueadas. Para configurar una nueva, necesitas recordar la anterior.",
         "wrongCurrentPassword": "Contraseña actual incorrecta"
