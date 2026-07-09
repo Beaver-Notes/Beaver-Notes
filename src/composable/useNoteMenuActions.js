@@ -68,8 +68,8 @@ export function useNoteMenuActions({
       } catch (error) {
         console.error('[PDF export]', error);
         dialog.alert({
-          title: 'Error',
-          body: error?.message || 'Failed to export PDF. Please try again.',
+          title: translations.value.settings?.alertTitle || 'Error',
+          body: error?.message || translations.value.menu?.exportError || 'Failed to export PDF. Please try again.',
         });
         try {
           await removePath(tempPath);
@@ -90,8 +90,8 @@ export function useNoteMenuActions({
     } catch (error) {
       console.error('[PDF export]', error);
       dialog.alert({
-        title: 'Error',
-        body: error?.message || 'Failed to export PDF. Please try again.',
+        title: translations.value.settings?.alertTitle || 'Error',
+        body: error?.message || translations.value.menu?.exportError || 'Failed to export PDF. Please try again.',
       });
     }
   }
@@ -402,7 +402,7 @@ export function useNoteMenuActions({
   const shareActions = computed(() => [
     {
       name: 'bea',
-      title: 'BEA',
+      title: translations.value.share?.exportNoteDialogTitle || 'BEA',
       icon: 'riFileTextFill',
       handler: isMobile
         ? () =>

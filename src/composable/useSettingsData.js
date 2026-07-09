@@ -365,9 +365,9 @@ export function useSettingsData({
     }
 
     dialog.confirm({
-      title: 'Debug reset app?',
-      body: 'This will permanently delete local notes, folders, labels, settings, cached encryption keys, and local asset files on this device, then relaunch the app into a fresh state.',
-      okText: 'Nuke app',
+      title: translations.value.settings?.debugResetApp || 'Debug reset app?',
+      body: translations.value.settings?.debugResetDescription || 'This will permanently delete local notes, folders, labels, settings, cached encryption keys, and local asset files on this device, then relaunch the app into a fresh state.',
+      okText: translations.value.settings?.debugNukeApp || 'Nuke app',
       cancelText: translations.value.dialog?.cancel || 'Cancel',
       okVariant: 'danger',
       onConfirm: async () => {

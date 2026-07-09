@@ -30,7 +30,7 @@
             ]"
           >
             <button
-              v-tooltip.group="'Insert block'"
+              v-tooltip.group="translations.toolbar?.insertBlock || 'Insert block'"
               :class="tbBtn()"
               @click="showMobileBlockPicker = true"
             >
@@ -346,7 +346,7 @@
             />
 
             <button
-              v-tooltip.group="'Customize toolbar'"
+              v-tooltip.group="translations.toolbar?.customizeToolbar || 'Customize toolbar'"
               :class="tbBtn(showCustomizer)"
               @click="showCustomizer = true"
             >

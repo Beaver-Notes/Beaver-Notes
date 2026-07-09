@@ -12,7 +12,7 @@ const PLATFORMS = [
     description: 'Bring over your data from Beaver Notes (Legacy).',
     importDescription: null,
     whatGetsCopied:
-      'Notes, folders, labels, settings, note assets, file assets, passwords, and stored sync keys all move into the new workspace.',
+      'Notes, folders, labels, settings, note assets, file assets, passwords, and stored sync keys all move into the new app.',
     icon: 'beaver',
     useLogoImg: true,
     iconBg: 'rgba(245, 158, 11, 0.12)',

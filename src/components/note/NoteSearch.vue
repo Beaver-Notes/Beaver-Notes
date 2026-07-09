@@ -59,7 +59,7 @@
 
         <!-- Replace Button -->
         <ui-button
-          v-tooltip="'Alt+Enter'"
+          v-tooltip="translations.searchReplace?.altEnter || 'Alt+Enter'"
           :disabled="!state.replaceWith"
           @click="replaceText"
         >
@@ -68,7 +68,7 @@
 
         <!-- Replace All Button -->
         <ui-button
-          v-tooltip="'Ctrl+Alt+Enter'"
+          v-tooltip="translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'"
           :disabled="!state.replaceWith"
           @click="replaceAllText"
         >

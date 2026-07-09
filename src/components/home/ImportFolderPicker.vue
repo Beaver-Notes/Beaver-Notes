@@ -60,7 +60,7 @@
       <!-- Action buttons -->
       <div class="mt-8 flex space-x-2 rtl:space-x-0">
         <ui-button class="w-6/12 rtl:ml-2" @click="cancel">
-          {{ translations.folderTree.cancel }}
+          {{ translations.dialog.cancel }}
         </ui-button>
         <ui-button class="w-6/12" variant="primary" @click="confirm">
           {{ translations.folderTree.move || 'Import' }}

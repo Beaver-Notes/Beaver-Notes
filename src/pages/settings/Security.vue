@@ -202,17 +202,17 @@ const encryptionProgressPercent = computed(() => {
 const encryptionProgressLabel = computed(() => {
   switch (encryptionProgress.value.phase) {
     case 'decrypt':
-      return 'Decrypting existing notes';
+      return translations.settings?.decryptingExistingNotes || 'Decrypting existing notes';
     case 'encrypt':
-      return 'Encrypting notes';
+      return translations.settings?.encryptingNotes || 'Encrypting notes';
     case 'plaintext':
-      return 'Saving plaintext notes';
+      return translations.settings?.savingPlaintextNotes || 'Saving plaintext notes';
     case 'assets-encrypt':
-      return 'Encrypting assets';
+      return translations.settings?.encryptingAssets || 'Encrypting assets';
     case 'assets-plaintext':
-      return 'Saving plaintext assets';
+      return translations.settings?.savingPlaintextAssets || 'Saving plaintext assets';
     default:
-      return 'Processing notes';
+      return translations.settings?.processingNotes || 'Processing notes';
   }
 });
 

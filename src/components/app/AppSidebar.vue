@@ -193,7 +193,7 @@
           </button>
         </div>
         <div v-else class="px-3 py-1.5">
-          <p class="text-xs text-neutral-400/80 italic">No recent items</p>
+          <p class="text-xs text-neutral-400/80 italic">{{ translations.tray?.noRecentItems || 'No recent items' }}</p>
         </div>
       </div>
     </transition>

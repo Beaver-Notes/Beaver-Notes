@@ -293,6 +293,15 @@ export function useAppShell() {
     secondaryText: translations.value.app?.dismiss || 'Dismiss',
   }));
 
+  const appEncryptionMigrationBannerCopy = computed(() => ({
+    content:
+      appEncryptionMigrationBanner.status === 'in_progress'
+        ? translations.value.app?.encryptionMigrationInProgress || 'App encryption migration is in progress. Please wait for it to complete.'
+        : translations.value.app?.encryptionMigrationFailed || 'App encryption migration did not complete. Please re-enable app encryption from Settings.',
+    primaryText: translations.value.app?.openSettings || 'Open Settings',
+    secondaryText: translations.value.app?.dismiss || 'Dismiss',
+  }));
+
   const handleUpdateInstall = (installUpdate) => {
     installUpdate();
     updateBanner.show = false;
@@ -631,6 +640,7 @@ export function useAppShell() {
     syncLockBannerCopy,
     updateBanner,
     appEncryptionMigrationBanner,
+    appEncryptionMigrationBannerCopy,
     dismissAppEncryptionMigrationBanner,
     openAppEncryptionMigrationSettings,
     showSafeAreaOverlay,

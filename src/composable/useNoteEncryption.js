@@ -24,7 +24,7 @@ export function useNoteEncryption({ noteId, appEncryptedLocked: _appEncryptedLoc
     dialog.prompt({
       title: translations.value.card.enterPasswd,
       okText: translations.value.card.unlock,
-      cancelText: translations.value.card.cancel,
+      cancelText: translations.value.dialog.cancel,
       placeholder: translations.value.card.password,
       onConfirm: async (enteredPassword) => {
         try {

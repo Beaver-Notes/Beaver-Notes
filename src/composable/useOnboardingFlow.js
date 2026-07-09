@@ -137,9 +137,9 @@ export function useOnboardingFlow({
   // ── Computed ───────────────────────────────────────────────────────────────
 
   const themeLabels = computed(() => ({
-    light: translations.value.appearence?.light || 'Light',
-    dark: translations.value.appearence?.dark || 'Dark',
-    system: translations.value.appearence?.system || 'System',
+    light: translations.value.appearance?.light || 'Light',
+    dark: translations.value.appearance?.dark || 'Dark',
+    system: translations.value.appearance?.system || 'System',
   }));
 
   const isDark = computed(() =>
@@ -166,12 +166,12 @@ export function useOnboardingFlow({
   const completionTitle = computed(() =>
     completionMode.value === 'migration'
       ? 'Your notes are ready'
-      : 'Your workspace is ready'
+      : 'Your app is ready'
   );
   const completionSubtitle = computed(() =>
     completionMode.value === 'migration'
       ? 'Your data has been copied into the new Beaver Notes app. Everything is ready when you open it.'
-      : 'Your defaults are already applied. Open a clean workspace and start writing.'
+      : 'Your defaults are already applied. Open a clean app and start writing.'
   );
 
   const migrationDetectionCopy = computed(() => {
@@ -179,12 +179,12 @@ export function useOnboardingFlow({
       return 'Custom folder verified — ready to import.';
     }
     if (customLegacyPath.value && !customLegacyStatus.value?.hasLegacyData) {
-      return 'The selected folder does not contain a recognisable Beaver Notes workspace.';
+      return 'The selected folder does not contain a recognisable Beaver Notes app.';
     }
     if (state.status?.hasLegacyData) {
-      return 'Found your legacy workspace and ready to import.';
+      return 'Found your legacy app data and ready to import.';
     }
-    return 'No legacy workspace detected. If you used the Windows Portable version, click "Browse…" to locate your data folder.';
+    return 'No legacy app data detected. If you used the Windows Portable version, click "Browse…" to locate your data folder.';
   });
 
   const migrationPlatformLabel = computed(
@@ -429,7 +429,7 @@ export function useOnboardingFlow({
         canceled,
         filePaths: [dir],
       } = await openDialog({
-        title: 'Locate Beaver Notes portable data folder',
+        title: translations.value.onboarding?.locatePortableData || 'Locate Beaver Notes portable data folder',
         properties: ['openDirectory'],
         useScopedStorage: true,
       });
@@ -452,7 +452,7 @@ export function useOnboardingFlow({
     state.migrating = true;
     state.migrationDone = false;
     state.migrationProgress = 0;
-    state.migrationStatus = 'Starting import…';
+    state.migrationStatus = translations.value.onboarding?.startingImport || 'Starting import…';
     state.migrationCurrent = '';
     state.migrationResult = null;
     state.migrationIssuesText = '';
@@ -488,7 +488,7 @@ export function useOnboardingFlow({
       }
       clearInterval(ticker);
       state.migrationProgress = 100;
-      state.migrationStatus = 'All done!';
+      state.migrationStatus = translations.value.onboarding?.allDone || 'All done!';
       completionMode.value = 'migration';
       state.migrationDone = true;
     } catch (e) {
@@ -528,7 +528,7 @@ export function useOnboardingFlow({
     state.migrating = true;
     state.migrationDone = false;
     state.migrationProgress = 0;
-    state.migrationStatus = 'Starting import…';
+    state.migrationStatus = translations.value.onboarding?.startingImport || 'Starting import…';
     state.migrationCurrent = '';
     state.migrationResult = null;
     state.migrationIssuesText = '';
@@ -544,7 +544,7 @@ export function useOnboardingFlow({
       if (!result) return;
 
       state.migrationProgress = 100;
-      state.migrationStatus = 'All done!';
+      state.migrationStatus = translations.value.onboarding?.allDone || 'All done!';
       state.migrationResult = result;
       state.migrationIssuesText = (result.errors || [])
         .map(
@@ -669,7 +669,7 @@ export function useOnboardingFlow({
         canceled,
         filePaths: [dir],
       } = await openDialog({
-        title: 'Choose a sync folder',
+        title: translations.value.onboarding?.chooseSyncFolder || 'Choose a sync folder',
         properties: ['openDirectory'],
         useScopedStorage: true,
       });
