@@ -1,8 +1,3 @@
-/**
- * Encapsulates all state, computed properties, and actions for the onboarding
- * wizard. Accepts the dependencies it needs (router, stores, etc.) and returns
- * everything the template requires, keeping the page component a thin shell.
- */
 import {
   computed,
   nextTick,
@@ -30,15 +25,12 @@ import {
   runOnboardingMigration,
   runOnboardingMigrationFromPath,
 } from '@/utils/onboarding/index.js';
+import { setupEncryption } from '@/utils/crypto/encryption.js';
+import { NOTE_CRYPTO_ERROR } from '@/utils/crypto/noteCrypto.js';
 import {
-  decryptNoteWithPassword,
-  encryptNoteWithPassword,
-  NOTE_CRYPTO_ERROR,
-} from '@/utils/crypto/noteCrypto.js';
-import {
-  findLegacyLockedNotes,
-  unwrapLegacyData,
-} from '@/utils/platform/legacyLock.js';
+  detectLegacyLockedNotes,
+  migrateLegacyLockedNotes,
+} from '@/utils/migration/legacyElectron.js';
 import {
   ONBOARDING_IMPORT_SOURCE_MAP,
   PLATFORM_LABELS,
@@ -49,7 +41,6 @@ import {
 import { ENTRANCE_DELAYS } from '@/utils/onboarding/index.js';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
-import { readLegacyData, writeLegacyData } from '@/lib/native/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
@@ -73,6 +64,9 @@ export function useOnboardingFlow({
   const completionMode = ref('fresh');
   const selectedMode = ref(null);
   const migrationPlatform = ref(null);
+
+  const getLegacyDir = () =>
+    customLegacyPath.value || state.status?.legacyDir;
 
   const customLegacyPath = ref(null);
   const customLegacyStatus = ref(null);
@@ -120,6 +114,42 @@ export function useOnboardingFlow({
     soundsEnabled: true,
     spotlightEnabled: false,
   });
+
+  // ── Encryption password state ───────────────────────────────────────────────
+  const encryptionPassword = ref('');
+  const encryptionConfirmPassword = ref('');
+  const encryptionPasswordError = ref('');
+  const encryptionPasswordLoading = ref(false);
+
+  async function setupEncryptionPassword() {
+    encryptionPasswordError.value = '';
+    const pw = encryptionPassword.value;
+    if (!pw) {
+      encryptionPasswordError.value = 'Please enter a password.';
+      return;
+    }
+    if (pw.length < 6) {
+      encryptionPasswordError.value = 'Password must be at least 6 characters.';
+      return;
+    }
+    if (pw !== encryptionConfirmPassword.value) {
+      encryptionPasswordError.value = 'Passwords do not match.';
+      return;
+    }
+    encryptionPasswordLoading.value = true;
+    try {
+      const result = await setupEncryption(pw);
+      if (!result.ok) {
+        encryptionPasswordError.value = result.error || 'Failed to set up encryption.';
+        return;
+      }
+      goToNextStep();
+    } catch (e) {
+      encryptionPasswordError.value = e?.message || String(e);
+    } finally {
+      encryptionPasswordLoading.value = false;
+    }
+  }
 
   // ── Static config ──────────────────────────────────────────────────────────
 
@@ -237,17 +267,15 @@ export function useOnboardingFlow({
   const activeFlow = computed(() => {
     if (selectedMode.value === 'fresh')
       return isMobileRuntime
-        ? ['welcome', 'setup', 'sync', 'finish']
-        : ['welcome', 'path', 'setup', 'sync', 'finish'];
+        ? ['welcome', 'setup', 'password', 'sync', 'finish']
+        : ['welcome', 'path', 'setup', 'password', 'sync', 'finish'];
     if (selectedMode.value === 'migration') {
-      const base = ['welcome', 'path', 'platform'];
-      if (
-        migrationPlatform.value === 'electron' &&
-        state.legacyHasLockedNotes
-      ) {
-        return [...base, 'legacyPassword', 'migration', 'finish'];
-      }
-      return [...base, 'migration', 'finish'];
+      const base = ['welcome', 'path', 'platform', 'password'];
+      const tail =
+        migrationPlatform.value === 'electron' && state.legacyHasLockedNotes
+          ? ['legacyPassword', 'migration', 'finish']
+          : ['migration', 'finish'];
+      return [...base, ...tail];
     }
     return isMobileRuntime ? ['welcome', 'setup'] : ['welcome', 'path'];
   });
@@ -264,6 +292,12 @@ export function useOnboardingFlow({
   const goToPreviousStep = () => {
     const i = activeFlow.value.indexOf(step.value);
     if (i > 0) step.value = activeFlow.value[i - 1];
+  };
+
+  const goToNextStep = () => {
+    const i = activeFlow.value.indexOf(step.value);
+    if (i >= 0 && i < activeFlow.value.length - 1)
+      step.value = activeFlow.value[i + 1];
   };
 
   const chooseMode = (mode) => {
@@ -284,9 +318,9 @@ export function useOnboardingFlow({
   const openMigrationFlow = async () => {
     selectedMode.value = 'migration';
     migrationPlatform.value = 'electron';
-    const dir = customLegacyPath.value || state.status?.legacyDir;
+    const dir = getLegacyDir();
     if (dir) {
-      const lockedInfo = await _detectLockedNotesFromDir(dir);
+      const lockedInfo = await detectLegacyLockedNotes(dir);
       state.legacyHasLockedNotes = lockedInfo.hasLocked;
       state.legacyLockedNoteCount = lockedInfo.count;
     }
@@ -296,9 +330,9 @@ export function useOnboardingFlow({
   const selectMigrationPlatform = async (platform) => {
     migrationPlatform.value = platform;
     if (platform === 'electron') {
-      const dir = customLegacyPath.value || state.status?.legacyDir;
+      const dir = getLegacyDir();
       if (dir) {
-        const lockedInfo = await _detectLockedNotesFromDir(dir);
+        const lockedInfo = await detectLegacyLockedNotes(dir);
         state.legacyHasLockedNotes = lockedInfo.hasLocked;
         state.legacyLockedNoteCount = lockedInfo.count;
       }
@@ -396,7 +430,7 @@ export function useOnboardingFlow({
     state.error = '';
     state.status = await getOnboardingMigrationStatus();
     if (state.status?.hasLegacyData && state.status?.legacyDir) {
-      const lockedInfo = await _detectLockedNotesFromDir(
+      const lockedInfo = await detectLegacyLockedNotes(
         state.status.legacyDir
       );
       state.legacyHasLockedNotes = lockedInfo.hasLocked;
@@ -410,7 +444,7 @@ export function useOnboardingFlow({
     try {
       await applyOnboardingFreshPreferences(fresh, { theme });
       if (!selectedMode.value) selectedMode.value = 'fresh';
-      setStep('sync');
+      setStep('password');
     } catch (e) {
       state.error = e?.message || String(e);
     } finally {
@@ -438,7 +472,7 @@ export function useOnboardingFlow({
       customLegacyPath.value = dir;
       customLegacyStatus.value = probed;
       if (probed?.hasLegacyData) {
-        const lockedInfo = await _detectLockedNotesFromDir(dir);
+        const lockedInfo = await detectLegacyLockedNotes(dir);
         state.legacyHasLockedNotes = lockedInfo.hasLocked;
         state.legacyLockedNoteCount = lockedInfo.count;
       }
@@ -561,76 +595,23 @@ export function useOnboardingFlow({
     }
   }
 
-  async function _detectLockedNotesFromDir(dir) {
-    try {
-      const content = await readLegacyData(dir);
-      if (!content) {
-        return { hasLocked: false, count: 0 };
-      }
-      let parsed;
-      try {
-        parsed = JSON.parse(content);
-      } catch {
-        return { hasLocked: false, count: 0 };
-      }
-      const data = unwrapLegacyData(parsed);
-      return findLegacyLockedNotes(data);
-    } catch (err) {
-      console.error('[onboarding] detection error:', err);
-      return { hasLocked: false, count: 0 };
-    }
-  }
-
   async function handleLegacyPasswordSubmit(password, passwordStore) {
     state.legacyPasswordLoading = true;
     state.legacyPasswordError = '';
     let migratedCount = 0;
 
     try {
-      const dir = customLegacyPath.value || state.status?.legacyDir;
-      const content = await readLegacyData(dir);
-      if (!content) {
+      const dir = getLegacyDir();
+      if (!dir) {
         state.legacyPasswordPrompt = false;
         return { success: true, migratedCount };
       }
 
-      let parsed;
-      try {
-        parsed = JSON.parse(content);
-      } catch {
-        state.legacyPasswordPrompt = false;
-        return { success: true, migratedCount };
-      }
-
-      const data = unwrapLegacyData(parsed);
-      const { notes: lockedNotes } = findLegacyLockedNotes(data);
-      if (!lockedNotes.length) {
-        state.legacyPasswordPrompt = false;
-        return { success: true, migratedCount };
-      }
-
-      for (const note of lockedNotes) {
-        try {
-          const ciphertext = note.content?.content?.[0];
-          if (!ciphertext) continue;
-          const { plaintext } = await decryptNoteWithPassword(
-            ciphertext,
-            password
-          );
-          const v2cipher = await encryptNoteWithPassword(plaintext, password);
-          note.content = { type: 'doc', content: [v2cipher] };
-          note.isLocked = true;
-          note.updatedAt = Date.now();
-          migratedCount += 1;
-        } catch (err) {
-          console.warn(`[onboarding] failed to migrate note ${note.id}:`, err);
-        }
-      }
-
-      if (migratedCount > 0) {
-        await writeLegacyData(dir, JSON.stringify(data, null, 2));
-      }
-      await passwordStore.setSharedKey(password);
+      migratedCount = await migrateLegacyLockedNotes(
+        dir,
+        password,
+        (pw) => passwordStore.setSharedKey(pw)
+      );
       state.legacyPasswordPrompt = false;
       state.legacyHasLockedNotes = false;
       return { success: true, migratedCount };
@@ -833,6 +814,7 @@ export function useOnboardingFlow({
     setStep,
     goToStep,
     goToPreviousStep,
+    goToNextStep,
     chooseMode,
     startFreshFlow,
     handlePrimaryContinue,
@@ -864,5 +846,12 @@ export function useOnboardingFlow({
     handleLegacyPasswordSkip,
     migrationSourceBadge,
     migrationSourceBadgeClass,
+
+    // Encryption password
+    encryptionPassword,
+    encryptionConfirmPassword,
+    encryptionPasswordError,
+    encryptionPasswordLoading,
+    setupEncryptionPassword,
   };
 }
