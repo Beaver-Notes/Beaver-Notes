@@ -1,115 +1,42 @@
-// Minimal NodeView for table nodes.
-// Renders div.tableWrapper > table > colgroup + tbody with column resizing support.
+import { TableView } from '@tiptap/pm/tables';
 
-function getColStyleDeclaration(minWidth, width) {
-  if (width) {
-    return ['width', `${Math.max(width, minWidth)}px`];
-  }
-  return ['min-width', `${minWidth}px`];
-}
+export class CustomTableView extends TableView {
+  constructor(node, cellMinWidth, containerAttributes) {
+    super(node, cellMinWidth);
 
-function updateColumns(
-  node,
-  colgroup,
-  table,
-  cellMinWidth,
-  overrideCol,
-  overrideValue
-) {
-  let totalWidth = 0;
-  let fixedWidth = true;
-  let nextDOM = colgroup.firstChild;
-  const row = node.firstChild;
+    this.containerAttributes = containerAttributes ?? {};
 
-  if (row !== null) {
-    for (let i = 0, col = 0; i < row.childCount; i += 1) {
-      const { colspan, colwidth } = row.child(i).attrs;
+    this.blockContainer = document.createElement('div');
+    this.blockContainer.setAttribute('data-content-type', 'table');
+    Object.entries(this.containerAttributes).forEach(([key, value]) => {
+      if (key !== 'class') this.blockContainer.setAttribute(key, value);
+    });
 
-      for (let j = 0; j < colspan; j += 1, col += 1) {
-        const hasWidth =
-          overrideCol === col ? overrideValue : colwidth && colwidth[j];
-        const cssWidth = hasWidth ? `${hasWidth}px` : '';
-        totalWidth += hasWidth || cellMinWidth;
-        if (!hasWidth) fixedWidth = false;
+    this.innerTableContainer = document.createElement('div');
+    this.innerTableContainer.className = 'table-container';
 
-        if (!nextDOM) {
-          const colElement = document.createElement('col');
-          const [pKey, pVal] = getColStyleDeclaration(cellMinWidth, hasWidth);
-          colElement.style.setProperty(pKey, pVal);
-          colgroup.appendChild(colElement);
-        } else {
-          if (nextDOM.style.width !== cssWidth) {
-            const [pKey, pVal] = getColStyleDeclaration(cellMinWidth, hasWidth);
-            nextDOM.style.setProperty(pKey, pVal);
-          }
-          nextDOM = nextDOM.nextSibling;
-        }
-      }
-    }
-  }
+    this.widgetsContainer = document.createElement('div');
+    this.widgetsContainer.className = 'table-controls';
+    this.widgetsContainer.style.position = 'relative';
 
-  while (nextDOM) {
-    const after = nextDOM.nextSibling;
-    nextDOM.parentNode?.removeChild(nextDOM);
-    nextDOM = after;
-  }
+    this.overlayContainer = document.createElement('div');
+    this.overlayContainer.className = 'table-selection-overlay-container';
 
-  const hasUserWidth =
-    node.attrs.style &&
-    typeof node.attrs.style === 'string' &&
-    /\bwidth\s*:/i.test(node.attrs.style);
+    const originalTable = this.dom;
+    const tableElement = originalTable.firstChild;
 
-  if (fixedWidth && !hasUserWidth) {
-    table.style.width = `${totalWidth}px`;
-    table.style.minWidth = '';
-  } else {
-    table.style.width = '';
-    table.style.minWidth = `${totalWidth}px`;
-  }
-}
+    this.innerTableContainer.appendChild(tableElement);
+    originalTable.appendChild(this.innerTableContainer);
+    originalTable.appendChild(this.widgetsContainer);
+    originalTable.appendChild(this.overlayContainer);
 
-export class CustomTableView {
-  constructor(node, cellMinWidth, view) {
-    this.node = node;
-    this.cellMinWidth = cellMinWidth;
-    this.view = view;
-
-    this.dom = document.createElement('div');
-    this.dom.className = 'tableWrapper';
-    if (node.attrs.style) {
-      this.dom.style.cssText = node.attrs.style;
-    }
-
-    this.table = this.dom.appendChild(document.createElement('table'));
-
-    this.colgroup = this.table.appendChild(document.createElement('colgroup'));
-    updateColumns(node, this.colgroup, this.table, cellMinWidth);
-
-    this.contentDOM = this.table.appendChild(document.createElement('tbody'));
-  }
-
-  update(node) {
-    if (node.type !== this.node.type) return false;
-    this.node = node;
-    updateColumns(node, this.colgroup, this.table, this.cellMinWidth);
-    return true;
+    this.blockContainer.appendChild(originalTable);
+    this.dom = this.blockContainer;
   }
 
   ignoreMutation(mutation) {
     const target = mutation.target;
-    const isInsideWrapper = this.dom.contains(target);
-    const isInsideContent = this.contentDOM.contains(target);
-    if (isInsideWrapper && !isInsideContent) {
-      if (
-        mutation.type === 'attributes' ||
-        mutation.type === 'childList' ||
-        mutation.type === 'characterData'
-      ) {
-        return true;
-      }
-    }
-    return false;
+    const isInsideTable = target.closest('.table-container');
+    return !isInsideTable || super.ignoreMutation(mutation);
   }
-
-  destroy() {}
 }

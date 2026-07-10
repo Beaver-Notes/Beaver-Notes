@@ -4,7 +4,7 @@
   >
     <div
       v-if="showSizes"
-      class="flex items-center justify-center gap-3 px-5 py-2 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-t-xl border-b-0 -mb-px"
+      class="flex items-center justify-center gap-3 px-5 py-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded-t-xl border-b-0 -mb-px"
     >
       <button
         v-for="s in sizePresets"
@@ -22,7 +22,7 @@
     </div>
 
     <div
-      class="relative flex items-center justify-center gap-1 px-4 rounded-2xl bg-white dark:bg-neutral-800 borderUndo"
+      class="relative flex items-center justify-center gap-1 px-4 rounded-2xl bg-white dark:bg-neutral-900 borderUndo"
     >
       <div class="flex items-start gap-1 h-20 overflow-hidden px-1">
         <button

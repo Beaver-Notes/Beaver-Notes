@@ -39,7 +39,12 @@ pub(crate) const SETTINGS_STORE: &str = "settings.json";
 pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
 pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beaver-notes.beaver-notes";
-pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["encryptionPassphraseBlob"];
+pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
+    "encryptionPassphraseBlob",
+    "beaverAccountSession",
+    "beaverAccountDeviceId",
+    "beaverAccountProfile",
+];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 pub(crate) const ASSET_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 pub(crate) const ASSET_CACHE_MAX_FILES: usize = 75;

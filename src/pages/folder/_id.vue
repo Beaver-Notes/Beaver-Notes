@@ -346,9 +346,11 @@ export default {
 
           if (isArchived) return filteredNotes.archived.push(noteCard);
 
-          isBookmarked
-            ? filteredNotes.bookmarked.push(noteCard)
-            : filteredNotes.all.push(noteCard);
+          if (isBookmarked) {
+            filteredNotes.bookmarked.push(noteCard);
+          } else {
+            filteredNotes.all.push(noteCard);
+          }
         }
       });
 

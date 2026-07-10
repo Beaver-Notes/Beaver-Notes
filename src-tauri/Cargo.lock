@@ -431,7 +431,7 @@ dependencies = [
 
 [[package]]
 name = "beaver-notes"
-version = "5.0.0-beta.1"
+version = "5.0.0"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -5511,9 +5511,9 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-scoped-storage"
-version = "0.1.3"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1444cb20e6402ce67333568ec0fa0ffd5ce94070ea4e47bd7542760a342100b9"
+checksum = "56ec0b5c30a0c25c0d4a4108f983a2fadf19a86102aee0fc0da32e8bef7a9652"
 dependencies = [
  "serde",
  "tauri",

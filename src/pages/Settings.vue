@@ -58,7 +58,7 @@
               :class="
                 isExactActive
                   ? 'border-primary bg-primary text-white'
-                  : 'border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+                  : 'border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
               "
             >
               <v-remixicon :name="item.icon" />
@@ -98,7 +98,11 @@ const settings = computed(() => ({
     icon: 'riShieldLine',
     path: '/settings/security',
   },
-
+  'Settings-Account': {
+    name: translations.value.settings.account,
+    icon: 'riUserLine',
+    path: '/settings/account',
+  },
   'Settings-Labels': {
     name: translations.value.labels?.title || 'Labels',
     icon: 'riPriceTag3Line',

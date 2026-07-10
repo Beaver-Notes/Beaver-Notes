@@ -350,8 +350,8 @@ async function lockNote(note) {
       dialog.prompt({
         title: translations.value.card.enterPasswd,
         okText: translations.value.card.setKey,
-        body: translations.value.card.warning,
-        cancelText: translations.value.card.cancel,
+        body: translations.value.settings.warning,
+        cancelText: translations.value.dialog.cancel,
         placeholder: translations.value.card.password,
         onConfirm: async (newKey) => {
           if (newKey) {
@@ -370,10 +370,10 @@ async function lockNote(note) {
     } else {
       dialog.prompt({
         title: translations.value.card.enterPasswd,
-        body: translations.value.card.warning,
+        body: translations.value.settings.warning,
         icon: 'riLockLine',
         okText: translations.value.card.lock,
-        cancelText: translations.value.card.cancel,
+        cancelText: translations.value.dialog.cancel,
         placeholder: translations.value.card.password,
         onConfirm: async (enteredPassword) => {
           const isValid = await passwordStore.isValidPassword(enteredPassword);
@@ -399,7 +399,7 @@ async function unlockNote(note) {
     body: translations.value.card.isLocked,
     icon: 'riLockUnlockLine',
     okText: translations.value.card.unlock,
-    cancelText: translations.value.card.cancel,
+    cancelText: translations.value.dialog.cancel,
     placeholder: translations.value.card.password,
     onConfirm: async (enteredPassword) => {
       try {
@@ -433,7 +433,7 @@ async function deleteNote(note) {
     icon: 'riDeleteBin6Line',
     okVariant: 'danger',
     okText: translations.value.card.confirm,
-    cancelText: translations.value.card.cancel,
+    cancelText: translations.value.dialog.cancel,
     onConfirm: async () => {
       await noteStore.delete(note);
     },
@@ -847,13 +847,14 @@ function mediaIcon(tone) {
 
 .note-card-preview-table-wrap {
   overflow: hidden;
-  border-radius: 0;
+  border-radius: 0.75rem;
 }
 
 .note-card-preview-table {
   width: 100%;
   table-layout: auto;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   overflow: hidden;
   background: rgba(250, 250, 250, 0.95);
 }
@@ -868,7 +869,7 @@ function mediaIcon(tone) {
 
 .note-card-preview-table-cell {
   overflow: hidden;
-  border: 2px solid rgba(228, 228, 231, 0.9);
+  border: 1px solid rgba(228, 228, 231, 0.9);
   background: transparent;
   padding: 0.42rem 0.48rem;
   color: rgb(63 63 70);

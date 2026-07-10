@@ -72,7 +72,7 @@ export default function useTransformHelper(state, svgRef) {
 
     // rotation
     if (corner === 'rotate') {
-      const { bounds } = state.selectedElement;
+      const { bounds: _bounds } = state.selectedElement;
       const cx = originalBounds.x + originalBounds.width / 2;
       const cy = originalBounds.y + originalBounds.height / 2;
 

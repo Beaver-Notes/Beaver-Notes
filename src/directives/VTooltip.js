@@ -88,7 +88,7 @@ export default {
       },
     };
   },
-  updated(el, { value, arg = 'top' }) {
+  updated(el, { value, arg: _arg = 'top' }) {
     if (el._floatingTooltip) {
       el._floatingTooltip.setContent(parseContent(value));
     }

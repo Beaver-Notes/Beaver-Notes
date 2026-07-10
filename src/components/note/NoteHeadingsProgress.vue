@@ -42,7 +42,7 @@
         <div
           v-if="showMenu"
           ref="popoverRef"
-          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-800 shadow-xl overflow-hidden"
+          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl overflow-hidden"
           :style="popoverStyle"
           @mouseenter="onEnter"
           @mouseleave="onLeave"
@@ -51,7 +51,7 @@
             <input
               v-model="search"
               type="text"
-              placeholder="Search headings..."
+              :placeholder="translations.noteActions?.searchHeadings || 'Search headings…'"
               class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary placeholder:text-neutral-400"
             />
           </div>
@@ -88,10 +88,12 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: { editor: Object },
   setup(props) {
+    const { translations } = useTranslations();
     const headings = ref([]);
     const activeHeading = ref(null);
     const search = ref('');
@@ -384,6 +386,7 @@ export default {
     });
 
     return {
+      translations,
       headings,
       activeHeading,
       visibleHeadings,

@@ -18,7 +18,7 @@
 defineProps({
   modelValue: {
     type: Boolean,
-    required: true,
+    default: false,
   },
   id: {
     type: String,

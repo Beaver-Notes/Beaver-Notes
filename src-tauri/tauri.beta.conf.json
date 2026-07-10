@@ -4,6 +4,7 @@
   "version": "5.0.0",
   "identifier": "com.beavernotes.beaver-notes",
   "build": {
+    "removeUnusedCommands": true,
     "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "node scripts/tauri-dev-server.mjs",
@@ -35,6 +36,36 @@
       "../buildResources/beta/icon.png",
       "../buildResources/beta/icon.icns",
       "../buildResources/beta/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["bea"],
+        "name": "Beaver Notes",
+        "description": "Beaver Notes File",
+        "mimeType": "application/x-beaver-notes",
+        "role": "Editor"
+      },
+      {
+        "ext": ["md", "mdx"],
+        "name": "Markdown",
+        "description": "Markdown File",
+        "mimeType": "text/markdown",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["txt"],
+        "name": "Plain Text",
+        "description": "Plain Text File",
+        "mimeType": "text/plain",
+        "role": "Viewer"
+      },
+      {
+        "ext": ["html"],
+        "name": "HTML",
+        "description": "HTML File",
+        "mimeType": "text/html",
+        "role": "Viewer"
+      }
     ],
     "macOS": {
       "entitlements": "../buildResources/entitlements.mac.plist"

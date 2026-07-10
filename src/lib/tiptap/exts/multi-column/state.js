@@ -1,4 +1,4 @@
-import { PluginKey, Transaction } from '@tiptap/pm/state';
+import { PluginKey } from '@tiptap/pm/state';
 
 export const gridResizingPluginKey = new PluginKey('gridResizingPlugin');
 

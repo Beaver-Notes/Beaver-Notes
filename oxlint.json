@@ -1,0 +1,11 @@
+{
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-unused-expressions": "warn",
+    "no-control-regex": "warn",
+    "no-async-promise-executor": "warn",
+    "unicorn/no-single-promise-in-promise-methods": "warn",
+    "unicorn/no-new-array": "warn",
+    "unicorn/no-useless-spread": "warn"
+  }
+}

@@ -1,14 +1,14 @@
 <template>
   <teleport to="body">
     <div
-      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
+      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
         store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
       "
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
@@ -30,7 +30,9 @@
             ]"
           >
             <button
-              v-tooltip.group="'Insert block'"
+              v-tooltip.group="
+                translations.toolbar?.insertBlock || 'Insert block'
+              "
               :class="tbBtn()"
               @click="showMobileBlockPicker = true"
             >
@@ -155,14 +157,90 @@
               class="tb-divider"
             />
 
-            <button
+            <ui-popover
               v-if="isItemVisible('link')"
-              v-tooltip.group="translations.menu.link"
-              :class="tbBtn(editor.isActive('link'))"
-              @click="editor.chain().focus().toggleLink({ href: '' }).run()"
+              v-model:model-value="linkPopoverOpen"
+              @show="onLinkPopoverShow"
             >
-              <v-remixicon name="riLink" />
-            </button>
+              <template #trigger>
+                <button
+                  v-tooltip.group="translations.menu.link"
+                  :class="tbBtn(editor.isActive('link') || linkPopoverOpen)"
+                >
+                  <v-remixicon name="riLink" />
+                </button>
+              </template>
+
+              <div class="min-w-[260px]">
+                <div class="flex items-center gap-2">
+                  <input
+                    ref="linkInputRef"
+                    v-model="linkInputValue"
+                    type="text"
+                    :placeholder="
+                      translations.editor?.linkPlaceholder ||
+                      'Enter URL or @note'
+                    "
+                    class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors"
+                    @keydown="onLinkInputKeydown"
+                    @keydown.esc="closeLinkInput"
+                    @keyup.enter="saveLinkInput"
+                  />
+                  <button
+                    class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
+                    :title="translations.common?.cancel || 'Cancel'"
+                    @click="closeLinkInput"
+                  >
+                    <v-remixicon name="riCloseLine" class="size-4" />
+                  </button>
+                  <button
+                    class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
+                    :title="translations.common?.save || 'Save'"
+                    :disabled="!linkInputValue.trim()"
+                    @click="saveLinkInput"
+                  >
+                    <v-remixicon name="riCheckLine" class="size-4" />
+                  </button>
+                </div>
+
+                <div
+                  v-if="
+                    linkInputValue.startsWith('@') && linkSuggestions.length > 0
+                  "
+                  class="mt-1 max-h-40 overflow-y-auto"
+                >
+                  <button
+                    v-for="(suggestion, index) in linkSuggestions"
+                    :key="suggestion.id"
+                    :class="
+                      index === selectedLinkIndex
+                        ? 'bg-neutral-100 dark:bg-neutral-700'
+                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+                    "
+                    class="w-full text-left px-2 py-1.5 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 transition-colors"
+                    @click="selectLinkNote(suggestion.id)"
+                  >
+                    {{
+                      suggestion.title ||
+                      translations.editor?.untitledNote ||
+                      'Untitled Note'
+                    }}
+                  </button>
+                </div>
+                <div
+                  v-else-if="
+                    linkInputValue.startsWith('@') &&
+                    linkSuggestions.length === 0
+                  "
+                  class="mt-1 p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
+                >
+                  {{
+                    translations.editor?.noMatchingNotes ||
+                    'No matching notes found'
+                  }}
+                </div>
+              </div>
+            </ui-popover>
             <button
               v-if="isItemVisible('image')"
               v-tooltip.group="translations.menu.image"
@@ -205,7 +283,7 @@
               v-if="isItemVisible('draw')"
               v-tooltip.group="translations.menu.draw"
               :class="tbBtn(drawActions.some((action) => action.isActive))"
-              @click="openSub('draw')"
+              @click="editor.chain().focus().insertPaper().run()"
             >
               <v-remixicon name="riBrushLine" />
             </button>
@@ -270,7 +348,9 @@
             />
 
             <button
-              v-tooltip.group="'Customize toolbar'"
+              v-tooltip.group="
+                translations.toolbar?.customizeToolbar || 'Customize toolbar'
+              "
               :class="tbBtn(showCustomizer)"
               @click="showCustomizer = true"
             >
@@ -491,26 +571,14 @@
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.image }}</span>
-            <input
-              v-model="imgUrl"
-              class="tb-input"
-              :placeholder="translations.menu.imgUrl || 'Image URL'"
-              @keyup.enter="
-                insertImage();
-                closeSub();
-              "
-            />
-            <button :class="tbBtn()" @click="triggerImageInput()">
-              <v-remixicon name="riFolderOpenLine" />
-            </button>
             <button
               :class="tbBtn()"
               @click="
-                insertImage();
+                triggerImageInput();
                 closeSub();
               "
             >
-              <v-remixicon name="riSave3Line" />
+              <v-remixicon name="riFolderOpenLine" />
             </button>
           </div>
 
@@ -526,26 +594,14 @@
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.file }}</span>
-            <input
-              v-model="fileUrl"
-              class="tb-input"
-              :placeholder="translations.menu.fileUrl || 'File URL'"
-              @keyup.enter="
-                insertFile();
-                closeSub();
-              "
-            />
-            <button :class="tbBtn()" @click="triggerFileInput()">
-              <v-remixicon name="riFolderOpenLine" />
-            </button>
             <button
               :class="tbBtn()"
               @click="
-                insertFile();
+                triggerFileInput();
                 closeSub();
               "
             >
-              <v-remixicon name="riSave3Line" />
+              <v-remixicon name="riFolderOpenLine" />
             </button>
           </div>
 
@@ -561,26 +617,14 @@
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
-            <input
-              v-model="videoUrl"
-              class="tb-input"
-              :placeholder="translations.menu.videoUrl || 'Video URL'"
-              @keyup.enter="
-                insertVideo();
-                closeSub();
-              "
-            />
-            <button :class="tbBtn()" @click="triggerVideoInput()">
-              <v-remixicon name="riFolderOpenLine" />
-            </button>
             <button
               :class="tbBtn()"
               @click="
-                insertVideo();
+                triggerVideoInput();
                 closeSub();
               "
             >
-              <v-remixicon name="riSave3Line" />
+              <v-remixicon name="riFolderOpenLine" />
             </button>
           </div>
 
@@ -617,56 +661,6 @@
               <v-remixicon name="riFile2Line" class="w-4 h-4" />{{
                 translations.menu.upload
               }}
-            </button>
-          </div>
-
-          <!-- ── DRAW SUB-PANEL ── -->
-          <div
-            :class="[
-              'tb-panel flex items-center gap-2 px-2 whitespace-nowrap h-full',
-              panelClass('draw'),
-            ]"
-          >
-            <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftLine" />
-            </button>
-            <span class="tb-divider" />
-            <span class="sub-label">{{ translations.menu.draw }}</span>
-
-            <button
-              v-for="action in drawActions"
-              :key="action.name"
-              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-800 dark:hover:bg-white/10"
-              @click="
-                action.handler();
-                closeSub();
-              "
-            >
-              <span
-                class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-white"
-              >
-                <v-remixicon :name="action.icon" />
-              </span>
-              <span class="min-w-0">
-                <span class="flex items-center gap-2">
-                  <span
-                    class="text-sm font-medium text-neutral-900 dark:text-white"
-                  >
-                    {{ action.title }}
-                  </span>
-                  <span
-                    v-if="action.isActive"
-                    class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary dark:bg-secondary/10 dark:text-secondary"
-                  >
-                    {{ translations.menu.active || 'Active' }}
-                  </span>
-                </span>
-                <span
-                  class="mt-1 block text-xs leading-4 text-neutral-500 dark:text-neutral-400"
-                >
-                  {{ action.description }}
-                </span>
-              </span>
             </button>
           </div>
 
@@ -749,13 +743,14 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import { useRoute } from 'vue-router';
+import { useNoteStore } from '@/store/note';
 import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
@@ -776,60 +771,194 @@ export default {
     const showMobileBlockPicker = ref(false);
     const isMobile = backend.isMobileRuntime();
 
+    // ── Link input state ────────────────────────────────────────────
+    const linkInputValue = ref('');
+    const linkInputRef = ref(null);
+    const selectedLinkIndex = ref(0);
+    const linkPopoverOpen = ref(false);
+    const noteStore = useNoteStore();
+
+    const linkSuggestions = computed(() => {
+      if (!linkInputValue.value.startsWith('@')) return [];
+      const query = linkInputValue.value.substring(1).toLowerCase();
+      if (!query) return [];
+      return noteStore.notes
+        .filter(
+          (n) =>
+            n.id !== route.params.id &&
+            (n.title.toLowerCase().includes(query) ||
+              n.id.toLowerCase().includes(query))
+        )
+        .slice(0, 6);
+    });
+
+    function resolveNoteFromQuery(value) {
+      const query = value.substring(1).trim();
+      if (!query) return null;
+      return (
+        noteStore.notes.find(
+          (n) => n.title.toLowerCase() === query.toLowerCase()
+        ) || noteStore.notes.find((n) => n.id === query)
+      );
+    }
+
+    function saveLinkInput() {
+      const value = linkInputValue.value.trim();
+      if (!value || !props.editor) return;
+
+      const chain = props.editor.chain().focus();
+
+      if (value.startsWith('@')) {
+        const note = resolveNoteFromQuery(value);
+        if (note) {
+          chain.insertLinkNote(note.id).run();
+        }
+      } else {
+        chain.setLink({ href: value }).run();
+      }
+
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function closeLinkInput() {
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+      props.editor?.commands?.focus();
+    }
+
+    function selectLinkNote(id) {
+      if (!props.editor) return;
+      props.editor.chain().focus().insertLinkNote(id).run();
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function onLinkPopoverShow() {
+      // Reset input state when popover opens
+      linkInputValue.value = '';
+      selectedLinkIndex.value = 0;
+      nextTick(() => linkInputRef.value?.focus());
+    }
+
+    function onLinkInputKeydown(event) {
+      if (
+        !linkInputValue.value.startsWith('@') ||
+        linkSuggestions.value.length === 0
+      )
+        return;
+
+      const len = linkSuggestions.value.length;
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + len - 1) % len;
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + 1) % len;
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const note = linkSuggestions.value[selectedLinkIndex.value];
+        if (note) selectLinkNote(note.id);
+      }
+    }
+
+    watch(linkInputValue, (val) => {
+      if (val.startsWith('@')) selectedLinkIndex.value = 0;
+    });
+
+    function getCursorPos() {
+      return props.editor?.state?.selection?.from ?? 0;
+    }
+
+    function insertAtPos(pos, nodeType, attrs) {
+      props.editor.commands.setTextSelection(pos);
+      props.editor.commands.focus();
+      const node = props.editor.state.schema.nodes[nodeType]?.create(attrs);
+      if (!node) return;
+      const tr = props.editor.state.tr.replaceSelectionWith(node);
+      if (tr) props.editor.view.dispatch(tr);
+    }
+
     async function triggerFileInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile', 'multiSelections'],
-      });
-      if (canceled || filePaths.length === 0) return;
-      for (const filePath of filePaths) {
-        const { fileName, relativePath } = await saveFile(filePath, props.id);
-        props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
+      try {
+        const pos = getCursorPos();
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+        });
+        if (canceled || filePaths.length === 0) return;
+        for (const filePath of filePaths) {
+          const { fileName, relativePath } = await saveFile(filePath, props.id);
+          insertAtPos(pos, 'fileEmbed', { src: `${relativePath}`, fileName });
+        }
+      } catch (error) {
+        console.error('triggerFileInput failed:', error);
       }
     }
 
     async function triggerAudioInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile', 'multiSelections'],
-        filters: [
-          {
-            name: 'Audio',
-            extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
-          },
-        ],
-      });
-      if (canceled || filePaths.length === 0) return;
-      for (const filePath of filePaths) {
-        const { fileName, relativePath } = await saveFile(filePath, props.id);
-        props.editor.commands.setAudio(`${relativePath}`, fileName);
+      try {
+        const pos = getCursorPos();
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+          filters: isMobile
+            ? [{ name: 'Audio', extensions: ['audio/*'] }]
+            : [
+                {
+                  name: 'Audio',
+                  extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
+                },
+              ],
+        });
+        if (canceled || filePaths.length === 0) return;
+        for (const filePath of filePaths) {
+          const { fileName, relativePath } = await saveFile(filePath, props.id);
+          insertAtPos(pos, 'Audio', { src: `${relativePath}`, fileName });
+        }
+      } catch (error) {
+        console.error('triggerAudioInput failed:', error);
       }
     }
 
     async function triggerVideoInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile', 'multiSelections'],
-        filters: [
-          {
-            name: 'Video',
-            extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'],
-          },
-        ],
-      });
-      if (canceled || filePaths.length === 0) return;
-      for (const filePath of filePaths) {
-        const { relativePath } = await saveFile(filePath, props.id);
-        props.editor.commands.setVideo(`${relativePath}`);
+      try {
+        const pos = getCursorPos();
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+          filters: isMobile
+            ? [{ name: 'Video', extensions: ['video/*'] }]
+            : [
+                {
+                  name: 'Video',
+                  extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'],
+                },
+              ],
+        });
+        if (canceled || filePaths.length === 0) return;
+        for (const filePath of filePaths) {
+          const { relativePath } = await saveFile(filePath, props.id);
+          insertAtPos(pos, 'Video', { src: `${relativePath}` });
+        }
+      } catch (error) {
+        console.error('triggerVideoInput failed:', error);
       }
     }
 
     async function triggerImageInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile'],
-        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
-      });
-      if (canceled || filePaths.length === 0) return;
-      const { fileName } = await copyImage(filePaths[0], route.params.id);
-      const imgPath = `assets://${route.params.id}/${fileName}`;
-      props.editor.chain().focus().setImage({ src: imgPath }).run();
+      try {
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile'],
+          filters: isMobile
+            ? [{ name: 'Images', extensions: ['image/*'] }]
+            : [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
+        });
+        if (canceled || filePaths.length === 0) return;
+        const { fileName } = await copyImage(filePaths[0], route.params.id);
+        const imgPath = `assets://${route.params.id}/${fileName}`;
+        props.editor.chain().focus().setImage({ src: imgPath }).run();
+      } catch (error) {
+        console.error('triggerImageInput failed:', error);
+      }
     }
 
     // ── Sub-panel morph ───────────────────────────────────────────
@@ -932,6 +1061,17 @@ export default {
       triggerImageInput,
       showMobileBlockPicker,
       isMobile,
+      // Link input
+      linkInputValue,
+      linkInputRef,
+      selectedLinkIndex,
+      linkSuggestions,
+      linkPopoverOpen,
+      onLinkPopoverShow,
+      onLinkInputKeydown,
+      closeLinkInput,
+      saveLinkInput,
+      selectLinkNote,
     };
   },
 };

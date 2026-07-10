@@ -37,6 +37,7 @@ import {
   addLabel,
   removeLabel,
 } from './note/crud';
+import { getBacklinks, getBacklinkCount } from './note/backlinks';
 
 export const useNoteStore = defineStore('note', {
   state: () => ({
@@ -55,6 +56,8 @@ export const useNoteStore = defineStore('note', {
     getFolderContents,
     searchNotes,
     getNotesWithPath,
+    getBacklinks,
+    getBacklinkCount,
   },
 
   actions: {

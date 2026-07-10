@@ -95,7 +95,7 @@
                 :key="color"
                 class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 :class="{
-                  'ring-2 ring-primary ring-inset bg-neutral-100 dark:bg-neutral-800':
+                  'ring-2 ring-primary ring-inset bg-neutral-100 dark:bg-neutral-900':
                     folder.color === color ||
                     (!folder.color && color === '#6366f1'),
                 }"
@@ -132,7 +132,7 @@
                   :key="category.name"
                   :class="{
                     'bg-primary text-white': selectedCategory === category.name,
-                    'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
+                    'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                       selectedCategory !== category.name,
                   }"
                   class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-all duration-200"
@@ -334,7 +334,7 @@
         <input
           ref="mobileRenameInput"
           v-model="newName"
-          class="w-full bg-neutral-100 dark:bg-neutral-800 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-neutral-400"
+          class="w-full bg-neutral-100 dark:bg-neutral-900 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-neutral-400"
           :placeholder="translations.card.untitledFolder"
           @keydown.enter.prevent="showCustomizeModal = false"
         />
@@ -390,7 +390,7 @@
             :key="category.name"
             :class="{
               'bg-primary text-white': selectedCategory === category.name,
-              'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
+              'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                 selectedCategory !== category.name,
             }"
             class="flex items-center gap-2 p-2.5 rounded-full text-xs font-medium transition-all duration-200"

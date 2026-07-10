@@ -41,7 +41,7 @@ export const liftEmptyBlock = (state, dispatch) => {
   return true;
 };
 
-const splitListItem = (listItem) => (state, dispatch) => {
+const splitListItem = (_listItem) => (state, dispatch) => {
   const { $from, $to } = state.selection;
   const node = $from.node($from.depth);
   const onTaskItem = node.type.name === 'taskItem';

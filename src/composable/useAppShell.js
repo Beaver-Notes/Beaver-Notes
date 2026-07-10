@@ -85,7 +85,7 @@ export function useAppShell() {
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
-    () => !uiState.inReaderMode.value && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
   );
   const showMobileNavbar = computed(
     () =>
@@ -123,7 +123,7 @@ export function useAppShell() {
   const showSafeAreaOverlay = computed(() => {
     if (!isMobileRuntime.value) return false;
     if (route.name === ONBOARDING_ROUTE_NAME) return false;
-    if (uiState.overlayCount.value > 0) return false;
+    if (uiState.overlayCount > 0) return false;
     return true;
   });
 
@@ -177,7 +177,7 @@ export function useAppShell() {
       if (typeof document === 'undefined' || !isMobileRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-keyboard-inset-bottom',
-        visible ? '0px' : 'var(--app-safe-area-bottom)'
+        visible ? '8px' : 'var(--app-safe-area-bottom)'
       );
     },
     { immediate: true }
@@ -289,6 +289,17 @@ export function useAppShell() {
     content:
       translations.value.app?.syncLockContent ||
       'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
+    primaryText: translations.value.app?.openSettings || 'Open Settings',
+    secondaryText: translations.value.app?.dismiss || 'Dismiss',
+  }));
+
+  const appEncryptionMigrationBannerCopy = computed(() => ({
+    content:
+      appEncryptionMigrationBanner.status === 'in_progress'
+        ? translations.value.app?.encryptionMigrationInProgress ||
+          'App encryption migration is in progress. Please wait for it to complete.'
+        : translations.value.app?.encryptionMigrationFailed ||
+          'App encryption migration did not complete. Please re-enable app encryption from Settings.',
     primaryText: translations.value.app?.openSettings || 'Open Settings',
     secondaryText: translations.value.app?.dismiss || 'Dismiss',
   }));
@@ -631,6 +642,7 @@ export function useAppShell() {
     syncLockBannerCopy,
     updateBanner,
     appEncryptionMigrationBanner,
+    appEncryptionMigrationBannerCopy,
     dismissAppEncryptionMigrationBanner,
     openAppEncryptionMigrationSettings,
     showSafeAreaOverlay,
