@@ -1,8 +1,11 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        atomic::AtomicBool,
+        Arc, Mutex, OnceLock,
+    },
     time::{Duration, SystemTime},
 };
 
@@ -31,22 +34,18 @@ pub(crate) use crypto::*;
 mod error;
 pub(crate) use error::*;
 
-mod state;
-pub(crate) use state::*;
-
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const SETTINGS_STORE: &str = "settings.json";
 pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
-pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beavernotes.beaver-notes";
-pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["encryptionPassphraseBlob"];
+pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beaver-notes.beaver-notes";
+pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
+    "encryptionPassphraseBlob",
+    "beaverAccountSession",
+    "beaverAccountDeviceId",
+    "beaverAccountProfile",
+];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
-/// Consecutive failed passphrase attempts before the app-encryption unlock is
-/// rate-limited (lockout), and the base lockout duration. Each further failure
-/// while locked extends the lockout by `LOCKOUT_BASE_SECS`, capped at `LOCKOUT_MAX_SECS`.
-pub(crate) const LOCKOUT_THRESHOLD: u32 = 5;
-pub(crate) const LOCKOUT_BASE_SECS: u64 = 30;
-pub(crate) const LOCKOUT_MAX_SECS: u64 = 300;
 pub(crate) const ASSET_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 pub(crate) const ASSET_CACHE_MAX_FILES: usize = 75;
 pub(crate) const SYNC_PASSWORD_CHECK: &str = "BeaverNotes-sync-manifest-v3";
@@ -76,10 +75,6 @@ pub(crate) struct FileStat {
 pub(crate) struct FailureResult {
     pub(crate) fail_count: u32,
     pub(crate) warn: bool,
-    /// True when the unlock is currently rate-limited (lockout active).
-    pub(crate) locked: bool,
-    /// Seconds remaining in the current lockout (0 when not locked).
-    pub(crate) lockout_seconds: u64,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -162,7 +157,7 @@ pub(crate) struct SaveDialogResult {
     pub(crate) file_path: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BannerData {
     pub(crate) content: String,
@@ -204,47 +199,40 @@ pub(crate) struct UpdaterState {
 }
 
 pub(crate) struct DbState {
-    pub(crate) data: Mutex<Option<DbPool>>,
-    pub(crate) settings: Mutex<Option<DbPool>>,
+    pub(crate) data: OnceLock<DbPool>,
+    pub(crate) settings: OnceLock<DbPool>,
 }
 
 impl DbState {
     pub(crate) fn new() -> Self {
         Self {
-            data: Mutex::new(None),
-            settings: Mutex::new(None),
+            data: OnceLock::new(),
+            settings: OnceLock::new(),
         }
     }
 }
 
-/// Snapshot of the app-encryption session. Lives behind a single `RwLock` in
-/// `AppState` so the items-key ring, current key id, cached KEK, loaded data
-/// key, and active flag are always mutated/observed atomically (no TOCTOU).
-#[derive(Default, Debug)]
-pub(crate) struct CryptoSession {
-    /// Items data key (decrypted). Present only while the app is unlocked.
-    pub(crate) app_data_key: Option<[u8; 32]>,
-    /// Ring of items keys (current + previous), keyed by items-key id. Enables
-    /// lazy rotation: old data stays decryptable after a new items key is created.
-    pub(crate) items_keys: HashMap<String, [u8; 32]>,
-    /// ID of the current items key (empty when locked / unconfigured).
-    pub(crate) current_items_key_id: String,
-    /// Cached KEK derived from the passphrase; enables key rotation without
-    /// re-prompting. Present only while unlocked.
-    pub(crate) master_key_cache: Option<[u8; 32]>,
-    /// Whether app encryption is enabled (a manifest exists).
-    pub(crate) active: bool,
-}
-
 pub(crate) struct AppState {
     pub(crate) db: DbState,
-    pub(crate) ui: UiState,
-    pub(crate) security: SecurityState,
-    pub(crate) crypto: CryptoState,
-    pub(crate) cache: CacheState,
-    pub(crate) files: FileState,
+    pub(crate) zoom_level: Mutex<f64>,
+    pub(crate) reduced_motion: Mutex<bool>,
+    pub(crate) high_contrast: Mutex<bool>,
+    pub(crate) failure_count: Mutex<u32>,
+    pub(crate) granted_paths: Arc<Mutex<HashSet<PathBuf>>>,
+    pub(crate) transient_passphrase: Mutex<String>,
+    pub(crate) asset_key_cache: Mutex<Option<[u8; 32]>>,
+    pub(crate) app_data_key: Mutex<Option<[u8; 32]>>,
+    pub(crate) app_encryption_active: AtomicBool,
+    pub(crate) decrypted_notes_cache: Mutex<ByteLruCache>,
+    pub(crate) decrypted_assets_cache: Mutex<ByteLruCache>,
     pub(crate) updater: Arc<Mutex<UpdaterState>>,
-    pub(crate) settings_cache: RwLock<HashMap<String, Option<String>>>,
+    pub(crate) pending_open_files: Arc<Mutex<Vec<String>>>,
+    pub(crate) external_open_files: Arc<Mutex<HashMap<PathBuf, PathBuf>>>,
+    pub(crate) asset_cache_dir: PathBuf,
+    pub(crate) external_open_dir: PathBuf,
+    pub(crate) portable_storage_dir: Option<PathBuf>,
+    pub(crate) secure_blobs: SecureBlobCache,
+    pub(crate) master_key_cache: Mutex<Option<[u8; 32]>>,
 }
 
 impl AppState {
@@ -255,32 +243,34 @@ impl AppState {
     ) -> Self {
         Self {
             db: DbState::new(),
-            ui: UiState::new(),
-            security: SecurityState::new(),
-            crypto: CryptoState::new(),
-            cache: CacheState::new(),
-            files: FileState::new(cache_dir, external_open_dir, portable_storage_dir),
+            zoom_level: Mutex::new(1.0),
+            reduced_motion: Mutex::new(false),
+            high_contrast: Mutex::new(false),
+            failure_count: Mutex::new(0),
+            granted_paths: Arc::new(Mutex::new(HashSet::new())),
+            transient_passphrase: Mutex::new(String::new()),
+            asset_key_cache: Mutex::new(None),
+            app_data_key: Mutex::new(None),
+            app_encryption_active: AtomicBool::new(false),
+            decrypted_notes_cache: Mutex::new(ByteLruCache::new(NOTE_CACHE_BYTES)),
+            decrypted_assets_cache: Mutex::new(ByteLruCache::new(ASSET_CACHE_BYTES)),
             updater: Arc::new(Mutex::new(UpdaterState {
                 auto_update_enabled: true,
                 ..Default::default()
             })),
-            settings_cache: RwLock::new(HashMap::new()),
+            pending_open_files: Arc::new(Mutex::new(Vec::new())),
+            external_open_files: Arc::new(Mutex::new(HashMap::new())),
+            asset_cache_dir: cache_dir,
+            external_open_dir,
+            portable_storage_dir,
+            secure_blobs: SecureBlobCache::new(),
+            master_key_cache: Mutex::new(None),
         }
     }
 }
 
-pub(crate) fn app_storage_dir(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
-    if let Ok(override_dir) = std::env::var("BEAVER_NOTES_DATA_DIR") {
-        let p = PathBuf::from(override_dir);
-        if !p.exists() {
-            fs::create_dir_all(&p).map_err(|e| AppError::Other(format!("Failed to create data dir: {e}")))?;
-        }
-        return Ok(p);
-    }
-    if let Some(ref portable_dir) = state.files.portable_storage_dir {
-        return Ok(portable_dir.clone());
-    }
-    app.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
+pub(crate) fn app_storage_dir(app: &AppHandle, _state: &AppState) -> Result<PathBuf, String> {
+    app.path().app_data_dir().map_err(to_error)
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -295,39 +285,25 @@ pub(crate) enum InstallationSource {
 
 pub(crate) fn current_installation_source() -> InstallationSource {
     #[cfg(mobile)]
-    {
-        InstallationSource::AppStore
-    }
+    { InstallationSource::AppStore }
 
     #[cfg(all(not(mobile), target_os = "macos"))]
     {
-        let is_brew = std::env::current_exe()
-            .ok()
+        let is_brew = std::env::current_exe().ok()
             .and_then(|p| std::fs::canonicalize(&p).ok())
             .is_some_and(|p| p.to_string_lossy().to_lowercase().contains("/cellar/"));
-        if is_brew {
-            InstallationSource::Brew
-        } else {
-            InstallationSource::Standalone
-        }
+        if is_brew { InstallationSource::Brew } else { InstallationSource::Standalone }
     }
 
     #[cfg(all(not(mobile), target_os = "windows"))]
     {
-        let is_scoop = std::env::current_exe()
-            .ok()
+        let is_scoop = std::env::current_exe().ok()
             .is_some_and(|p| p.to_string_lossy().to_lowercase().contains("scoop"));
-        if is_scoop {
-            InstallationSource::Scoop
-        } else {
-            InstallationSource::Standalone
-        }
+        if is_scoop { InstallationSource::Scoop } else { InstallationSource::Standalone }
     }
 
     #[cfg(not(any(mobile, target_os = "macos", target_os = "windows")))]
-    {
-        InstallationSource::LinuxPackage
-    }
+    { InstallationSource::LinuxPackage }
 }
 
 pub(crate) fn to_error<E: std::fmt::Display>(error: E) -> String {
@@ -499,281 +475,80 @@ pub(crate) fn now_millis() -> u128 {
         .as_millis()
 }
 
-pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, AppError> {
+pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, String> {
     match name {
         "data" => Ok(DATA_STORE),
         "settings" => Ok(SETTINGS_STORE),
-        _ => Err(AppError::Other(format!(
+        _ => Err(format!(
             r#"[storage] blocked access to unknown store: "{name}""#
-        ))),
+        )),
     }
 }
 
-/// Return an owned clone of the active workspace data pool (cheap Arc clone).
-/// Lazily initializes from the active workspace on first call.
-pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, AppError> {
-    {
-        let guard = state.db.data.lock()?;
-        if let Some(pool) = guard.as_ref() {
-            return Ok(pool.clone());
-        }
+pub(crate) fn get_or_init_pool<'a>(
+    app: &AppHandle,
+    state: &AppState,
+    lock: &'a OnceLock<DbPool>,
+    filename: &str,
+) -> Result<&'a DbPool, String> {
+    if let Some(pool) = lock.get() {
+        return Ok(pool);
     }
-    let workspace_id = read_active_workspace_from_json(app, state)?;
-    let path = workspace_data_path(app, state, &workspace_id)?;
+    let path = app_storage_dir(app, state)?.join(filename);
     let pool = crate::db::open_pool(&path)?;
-    let mut guard = state.db.data.lock()?;
-    if guard.is_some() {
-        return Ok(guard.as_ref().unwrap().clone());
-    }
-    *guard = Some(pool.clone());
-    Ok(pool)
+    Ok(lock.get_or_init(|| pool))
 }
 
-/// Swap the active data pool to a different workspace's database.
-pub(crate) fn swap_data_pool(
+pub(crate) fn data_pool<'a>(app: &AppHandle, state: &'a AppState) -> Result<&'a DbPool, String> {
+    get_or_init_pool(app, state, &state.db.data, "data.db")
+}
+
+pub(crate) fn settings_pool<'a>(
     app: &AppHandle,
-    state: &AppState,
-    workspace_id: &str,
-) -> Result<(), AppError> {
-    let path = workspace_data_path(app, state, workspace_id)?;
-    let pool = crate::db::open_pool(&path)?;
-    let mut guard = state.db.data.lock()?;
-    *guard = Some(pool);
-    Ok(())
-}
-
-/// Return an owned clone of the active workspace settings pool.
-/// Lazily initializes from the active workspace on first call.
-pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, AppError> {
-    {
-        let guard = state.db.settings.lock()?;
-        if let Some(pool) = guard.as_ref() {
-            return Ok(pool.clone());
-        }
-    }
-    let workspace_id = read_active_workspace_from_json(app, state)?;
-    let path = workspace_settings_path(app, state, &workspace_id)?;
-    let pool = crate::db::open_pool(&path)?;
-    let mut guard = state.db.settings.lock()?;
-    if guard.is_some() {
-        return Ok(guard.as_ref().unwrap().clone());
-    }
-    *guard = Some(pool.clone());
-    Ok(pool)
-}
-
-/// Swap the active settings pool to a different workspace's database.
-pub(crate) fn swap_settings_pool(
-    app: &AppHandle,
-    state: &AppState,
-    workspace_id: &str,
-) -> Result<(), AppError> {
-    let path = workspace_settings_path(app, state, workspace_id)?;
-    let pool = crate::db::open_pool(&path)?;
-    let mut guard = state.db.settings.lock()?;
-    *guard = Some(pool);
-    Ok(())
-}
-
-// ─── Workspace helpers ────────────────────────────────────────────────────────
-
-pub(crate) const DEFAULT_WORKSPACE_ID: &str = "default";
-pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
-pub(crate) const WORKSPACES_DIR: &str = "workspaces";
-pub(crate) const WORKSPACES_JSON: &str = "workspaces.json";
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct WorkspaceInfo {
-    pub(crate) id: String,
-    pub(crate) name: String,
-    pub(crate) created_at: String,
-}
-
-/// Internal shape of workspaces.json
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WorkspacesJson {
-    #[serde(default = "default_workspace_id")]
-    active_workspace: String,
-    #[serde(default)]
-    workspaces: Vec<WorkspaceInfo>,
-}
-
-fn default_workspace_id() -> String {
-    DEFAULT_WORKSPACE_ID.to_string()
-}
-
-/// Path to the workspaces.json registry file at the app root.
-pub(crate) fn workspaces_json_path(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
-    Ok(app_storage_dir(app, state)?.join(WORKSPACES_JSON))
-}
-
-/// Root directory for workspace data (app_data_dir/workspaces).
-pub(crate) fn workspace_root(app: &AppHandle, state: &AppState) -> Result<PathBuf, AppError> {
-    Ok(app_storage_dir(app, state)?.join(WORKSPACES_DIR))
-}
-
-/// Path to a specific workspace's data.db.
-pub(crate) fn workspace_data_path(
-    app: &AppHandle,
-    state: &AppState,
-    workspace_id: &str,
-) -> Result<PathBuf, AppError> {
-    Ok(workspace_root(app, state)?
-        .join(workspace_id)
-        .join("data.db"))
-}
-
-/// Path to a specific workspace's settings.db.
-pub(crate) fn workspace_settings_path(
-    app: &AppHandle,
-    state: &AppState,
-    workspace_id: &str,
-) -> Result<PathBuf, AppError> {
-    Ok(workspace_root(app, state)?
-        .join(workspace_id)
-        .join("settings.db"))
-}
-
-// ─── Workspace registry (workspaces.json) ─────────────────────────────────────
-
-fn read_workspaces_json(app: &AppHandle, state: &AppState) -> Result<WorkspacesJson, AppError> {
-    let path = workspaces_json_path(app, state)?;
-    if !path.exists() {
-        return Ok(WorkspacesJson {
-            active_workspace: default_workspace_id(),
-            workspaces: vec![],
-        });
-    }
-    let text = fs::read_to_string(&path)?;
-    let data: WorkspacesJson = serde_json::from_str(&text)?;
-    Ok(data)
-}
-
-fn write_workspaces_json(
-    app: &AppHandle,
-    state: &AppState,
-    data: &WorkspacesJson,
-) -> Result<(), AppError> {
-    let path = workspaces_json_path(app, state)?;
-    let json = serde_json::to_string_pretty(data)?;
-    fs::write(&path, format!("{json}\n"))?;
-    Ok(())
-}
-
-/// Read the active workspace ID from workspaces.json.
-pub(crate) fn current_workspace_id(app: &AppHandle, state: &AppState) -> Result<String, AppError> {
-    let data = read_workspaces_json(app, state)?;
-    Ok(data.active_workspace)
-}
-
-/// Read the workspace registry from workspaces.json.
-pub(crate) fn load_workspace_registry(
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<Vec<WorkspaceInfo>, AppError> {
-    let data = read_workspaces_json(app, state)?;
-    Ok(data.workspaces)
-}
-
-/// Save the workspace registry to workspaces.json.
-pub(crate) fn save_workspace_registry(
-    app: &AppHandle,
-    state: &AppState,
-    list: &[WorkspaceInfo],
-) -> Result<(), AppError> {
-    let mut data = read_workspaces_json(app, state)?;
-    data.workspaces = list.to_vec();
-    write_workspaces_json(app, state, &data)
-}
-
-/// Save the active workspace ID to workspaces.json.
-pub(crate) fn save_active_workspace_id(
-    app: &AppHandle,
-    state: &AppState,
-    id: &str,
-) -> Result<(), AppError> {
-    let mut data = read_workspaces_json(app, state)?;
-    data.active_workspace = id.to_string();
-    write_workspaces_json(app, state, &data)
-}
-
-/// Read the active workspace ID directly from workspaces.json (no pool needed).
-pub(crate) fn read_active_workspace_from_json(
-    app: &AppHandle,
-    state: &AppState,
-) -> Result<String, AppError> {
-    current_workspace_id(app, state)
+    state: &'a AppState,
+) -> Result<&'a DbPool, String> {
+    get_or_init_pool(app, state, &state.db.settings, "settings.db")
 }
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {
     let pool = settings_pool(app, state).ok()?;
-    let raw = crate::db::db_get(&pool, key).ok()??;
+    let raw = crate::db::db_get(pool, key).ok()??;
     serde_json::from_str(&raw).ok()
-}
-
-fn cache_key_for(settings_key: &str) -> &str {
-    match settings_key {
-        "defaultPath" => "defaultPath",
-        "default-path" => "defaultPath",
-        _ => settings_key,
-    }
-}
-
-pub(crate) fn get_cached_settings_value(
-    app: &AppHandle,
-    state: &AppState,
-    key: &str,
-) -> Option<String> {
-    let ck = cache_key_for(key).to_string();
-    if let Some(cached) = state.settings_cache.read().ok()?.get(&ck).cloned() {
-        return cached;
-    }
-    let value = get_settings_value(app, state, key)?;
-    let s = value.as_str()?.to_string();
-    let mut cache = state.settings_cache.write().ok()?;
-    cache.insert(ck, Some(s.clone()));
-    Some(s)
-}
-
-pub(crate) fn invalidate_settings_cache(state: &AppState) {
-    if let Ok(mut cache) = state.settings_cache.write() {
-        cache.clear();
-    }
 }
 
 pub(crate) fn app_encryption_manifest_path(
     app: &AppHandle,
     state: &AppState,
-) -> Result<PathBuf, AppError> {
+) -> Result<PathBuf, String> {
     Ok(app_storage_dir(app, state)?.join("app-crypto/manifest.v2.json"))
 }
+
+
 
 pub(crate) fn path_for_name(
     app: &AppHandle,
     state: &AppState,
     name: &str,
-) -> Result<PathBuf, AppError> {
+) -> Result<PathBuf, String> {
     match name {
         "userData" => app_storage_dir(app, state),
-        "appData" => app.path().data_dir().map_err(|e| AppError::Other(e.to_string())),
+        "appData" => app.path().data_dir().map_err(to_error),
         "desktop" => {
             #[cfg(desktop)]
             {
-                app.path().desktop_dir().map_err(|e| AppError::Other(e.to_string()))
+                app.path().desktop_dir().map_err(to_error)
             }
             #[cfg(not(desktop))]
             {
                 app.path()
                     .document_dir()
                     .or_else(|_| app.path().app_data_dir())
-                    .map_err(|e| AppError::Other(e.to_string()))
+                    .map_err(to_error)
             }
         }
-        "documents" => app.path().document_dir().map_err(|e| AppError::Other(e.to_string())),
-        "temp" => app.path().temp_dir().map_err(|e| AppError::Other(e.to_string())),
-        _ => Err(AppError::Other(format!("Unsupported path name: {name}"))),
+        "documents" => app.path().document_dir().map_err(to_error),
+        "temp" => app.path().temp_dir().map_err(to_error),
+        _ => Err(format!("Unsupported path name: {name}")),
     }
 }
 
@@ -795,10 +570,10 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
     app: &AppHandle,
     url: &str,
     scheme: &str,
-) -> Result<PathBuf, AppError> {
+) -> Result<PathBuf, String> {
     let prefix = format!("{scheme}://");
     if !url.starts_with(&prefix) {
-        return Err(AppError::Other(format!("Invalid {scheme} protocol URL: {url}")));
+        return Err(format!("Invalid {scheme} protocol URL: {url}"));
     }
 
     let relative = url[prefix.len()..]
@@ -809,16 +584,16 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         .next()
         .unwrap_or_default()
         .trim();
-    let decoded = urlencoding::decode(relative).map_err(|e| AppError::Other(e.to_string()))?.to_string();
+    let decoded = urlencoding::decode(relative).map_err(to_error)?.to_string();
 
     // Strict: decoded asset paths must be relative (no absolute paths / prefixes).
     if Path::new(&decoded).is_absolute() {
-        return Err(AppError::Other(format!("Asset path must be relative: {url}")));
+        return Err(format!("Asset path must be relative: {url}"));
     }
     #[cfg(target_os = "windows")]
     {
         if decoded.starts_with("\\\\") {
-            return Err(AppError::Other(format!("Asset path must be relative: {url}")));
+            return Err(format!("Asset path must be relative: {url}"));
         }
     }
 
@@ -826,19 +601,19 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         "assets" => "notes-assets",
         "file-assets" => "file-assets",
         _ => {
-            return Err(AppError::Other(format!("Unsupported asset scheme: {scheme}")));
+            return Err(format!("Unsupported asset scheme: {scheme}"));
         }
     };
     let state = app.state::<AppState>();
     let base = app_storage_dir(app, state.inner())?.join(root_name);
     let resolved = base.join(decoded);
     if !is_path_inside(&base, &resolved) {
-        return Err(AppError::Other(format!("Asset path escapes base directory: {url}")));
+        return Err(format!("Asset path escapes base directory: {url}"));
     }
     Ok(resolved)
 }
 
-pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<PathBuf, AppError> {
+pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<PathBuf, String> {
     if uri.starts_with("assets://") {
         return resolve_asset_path_from_protocol_url(app, uri, "assets");
     }
@@ -848,12 +623,12 @@ pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<
     Ok(PathBuf::from(uri))
 }
 
-pub(crate) fn keyring_entry(account: &str) -> Result<Entry, AppError> {
-    Entry::new(SAFE_STORAGE_SERVICE, account).map_err(|e| AppError::Other(e.to_string()))
+pub(crate) fn keyring_entry(account: &str) -> Result<Entry, String> {
+    Entry::new(SAFE_STORAGE_SERVICE, account).map_err(to_error)
 }
 
 pub(crate) fn grant_trusted_path(state: &AppState, path: &Path) {
-    if let Ok(mut granted) = state.security.granted_paths.lock() {
+    if let Ok(mut granted) = state.granted_paths.lock() {
         granted.insert(path.to_path_buf());
     }
 }
@@ -869,7 +644,7 @@ pub(crate) fn grant_dialog_paths(state: &AppState, paths: &[PathBuf]) {
 
 pub(crate) fn sync_roots_from_settings(app: &AppHandle, state: &AppState) {
     for key in ["syncPath", "defaultPath", "default-path"] {
-        if let Some(value) = get_cached_settings_value(app, state, key) {
+        if let Some(Value::String(value)) = get_settings_value(app, state, key) {
             if !value.trim().is_empty() {
                 grant_trusted_path(state, Path::new(&value));
             }
@@ -882,20 +657,20 @@ pub(crate) fn assert_path_access(
     state: &AppState,
     input: &Path,
     operation: &str,
-) -> Result<(), AppError> {
+) -> Result<(), String> {
     let mut allowed_roots = vec![
         app_storage_dir(app, state)?,
-        app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?,
+        app.path().temp_dir().map_err(to_error)?,
     ];
 
     for key in ["syncPath", "defaultPath", "default-path"] {
-        if let Some(value) = get_cached_settings_value(app, state, key) {
+        if let Some(Value::String(value)) = get_settings_value(app, state, key) {
             if !value.trim().is_empty() {
                 allowed_roots.push(PathBuf::from(value));
             }
         }
     }
-    if let Ok(granted) = state.security.granted_paths.lock() {
+    if let Ok(granted) = state.granted_paths.lock() {
         allowed_roots.extend(granted.iter().cloned());
     }
 
@@ -903,10 +678,10 @@ pub(crate) fn assert_path_access(
         return Ok(());
     }
 
-    Err(AppError::Other(format!(
+    Err(format!(
         r#"[fs-access] Blocked {operation}: "{path}". Re-select the folder/file from a system dialog to grant access."#,
         path = input.display()
-    )))
+    ))
 }
 
 pub(crate) fn to_file_stat(metadata: fs::Metadata) -> FileStat {
@@ -984,26 +759,27 @@ fn prune_asset_cache_dir(asset_cache_dir: &Path) {
 }
 
 pub(crate) fn clear_asset_cache(state: &AppState) {
-    let _ = fs::remove_dir_all(&state.files.asset_cache_dir);
+    let _ = fs::remove_dir_all(&state.asset_cache_dir);
 }
 
 pub(crate) fn clear_external_open_dir(state: &AppState) {
-    let _ = fs::remove_dir_all(&state.files.external_open_dir);
+    let _ = fs::remove_dir_all(&state.external_open_dir);
 }
 
 pub(crate) fn decrypted_cache_path(
     asset_cache_dir: &Path,
     source: &Path,
     metadata: &fs::Metadata,
-) -> Result<PathBuf, AppError> {
-    fs::create_dir_all(asset_cache_dir)?;
+) -> Result<PathBuf, String> {
+    fs::create_dir_all(asset_cache_dir).map_err(to_error)?;
     let cache_key = format!(
         "{}:{}:{}",
         source.display(),
         metadata
-            .modified()?
+            .modified()
+            .map_err(to_error)?
             .duration_since(SystemTime::UNIX_EPOCH)
-            .map_err(|e| AppError::Other(e.to_string()))?
+            .map_err(to_error)?
             .as_millis(),
         metadata.len()
     );
@@ -1026,13 +802,13 @@ pub(crate) fn cached_or_decrypted_asset(
     asset_cache_dir: &Path,
     transient_passphrase: Option<&str>,
     path: &Path,
-) -> Result<PathBuf, AppError> {
-    let raw = fs::read(path)?;
+) -> Result<PathBuf, String> {
+    let raw = fs::read(path).map_err(to_error)?;
     if !is_encrypted_asset_buffer(&raw) {
         return Ok(path.to_path_buf());
     }
 
-    let metadata = fs::metadata(path)?;
+    let metadata = fs::metadata(path).map_err(to_error)?;
     let cache_path = decrypted_cache_path(asset_cache_dir, path, &metadata)?;
     if cache_path.exists() {
         return Ok(cache_path);
@@ -1043,7 +819,7 @@ pub(crate) fn cached_or_decrypted_asset(
         // before the main app key has been restored into state)
         let manifest_path = app_encryption_manifest_path(app, app_state.inner())?;
         let manifest = load_encryption_manifest(&manifest_path)?
-            .ok_or_else(|| AppError::Other("App encryption manifest is missing.".into()))?;
+            .ok_or_else(|| "App encryption manifest is missing.".to_string())?;
         unlock_key_from_manifest(
             &manifest,
             passphrase,
@@ -1052,11 +828,11 @@ pub(crate) fn cached_or_decrypted_asset(
         )?
     } else {
         current_app_key(app_state.inner())?.ok_or_else(|| {
-            AppError::Other("App encryption is locked. Unlock before opening encrypted assets.".into())
+            "App encryption is locked. Unlock before opening encrypted assets.".to_string()
         })?
     };
     let plain = decrypt_asset_bytes_with_key(&raw, &key)?;
-    fs::write(&cache_path, plain)?;
+    fs::write(&cache_path, plain).map_err(to_error)?;
     prune_asset_cache_dir(asset_cache_dir);
     Ok(cache_path)
 }

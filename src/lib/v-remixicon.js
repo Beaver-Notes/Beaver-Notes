@@ -157,6 +157,16 @@ import {
   RiPaletteLine,
   RiMore2Fill,
   RiMoreFill,
+  RiUserLine,
+  RiLogoutBoxRLine,
+  RiExternalLinkLine,
+  RiCloudLine,
+  RiComputerLine,
+  RiFingerprintLine,
+  RiFolderLine,
+  RiQrCodeLine,
+  RiShieldStarLine,
+  RiCheckLine,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -317,6 +327,16 @@ const RemixIcons = {
   riPaletteLine: RiPaletteLine,
   riMore2Fill: RiMore2Fill,
   riMoreFill: RiMoreFill,
+  riUserLine: RiUserLine,
+  riLogoutBoxRLine: RiLogoutBoxRLine,
+  riExternalLinkLine: RiExternalLinkLine,
+  riCloudLine: RiCloudLine,
+  riComputerLine: RiComputerLine,
+  riFingerprintLine: RiFingerprintLine,
+  riFolderLine: RiFolderLine,
+  riQrCodeLine: RiQrCodeLine,
+  riShieldStarLine: RiShieldStarLine,
+  riCheckLine: RiCheckLine,
 };
 
 const customIconPaths = {
