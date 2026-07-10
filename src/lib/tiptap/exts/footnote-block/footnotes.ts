@@ -48,7 +48,7 @@ const Footnotes = OrderedList.extend({
             to: end - 1,
           });
           return true;
-        } catch (e) {
+        } catch {
           return false;
         }
       },

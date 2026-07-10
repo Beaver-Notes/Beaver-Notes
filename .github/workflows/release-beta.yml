@@ -3,8 +3,8 @@ name: Release Beta
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v*-beta.*'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
     steps:
       - name: Checkout
@@ -74,8 +75,31 @@ jobs:
           test "$PKG_BASE" = "$TAURI_VERSION"
           test "$PKG_BASE" = "$CARGO_VERSION"
 
+      - name: Check jurisdiction
+        id: jurisdiction
+        shell: bash
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" != *"-"* ]]; then
+            echo "version_match=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping — this is a stable version, use the stable workflow."
+          else
+            echo "version_match=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Run lint
+        shell: bash
+        run: |
+          yarn lint
+
   desktop:
     name: Build beta ${{ matrix.id }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs: validate
     runs-on: ${{ matrix.runner }}
 
@@ -292,6 +316,15 @@ jobs:
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/beaver-notes.jks" >> "$GITHUB_ENV"
           fi
 
+      - name: Set Android build number
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        run: |
+          cat > src-tauri/gen/android/app/tauri.properties << EOF
+          tauri.android.versionName=5.0.0
+          tauri.android.versionCode=${{ github.run_number }}
+          EOF
+
       - name: Build Android beta app
         if: ${{ matrix.id == 'android' }}
         shell: bash
@@ -304,6 +337,12 @@ jobs:
           cargo tauri android build --apk --aab --config src-tauri/tauri.beta.conf.json
 
       # iOS build
+      - name: Set iOS build number
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: |
+          sed -i '' "s/CFBundleVersion: '.*'/CFBundleVersion: '${{ github.run_number }}'/" src-tauri/gen/apple/project.yml
+
       - name: Build iOS beta app
         if: ${{ matrix.id == 'ios' }}
         shell: bash
@@ -312,8 +351,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           cargo tauri ios build --config src-tauri/tauri.beta.conf.json
@@ -398,6 +437,7 @@ jobs:
 
   publish:
     name: Publish beta prerelease
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
       - desktop

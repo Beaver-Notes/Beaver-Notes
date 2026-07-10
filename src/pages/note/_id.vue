@@ -19,15 +19,13 @@
     </button>
 
     <template v-if="editor && !isLocked">
-      <div
-        v-if="previousNote && !uiState.inReaderMode"
-        class="no-print sticky top-4 left-4 z-10 self-start"
-      >
+      <div class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4">
         <div
+          v-if="previousNote && !uiState.inReaderMode"
           class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
         >
           <button
-            class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300"
+            class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300 mobile:hidden"
             :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
             @click="goToPrevious"
           >
@@ -41,11 +39,12 @@
             </span>
           </button>
         </div>
+        <div class="flex-1"></div>
+        <note-actions
+          v-bind="{ editor, id, note, showSearch, goBack }"
+          @toggle-search="showSearch = !showSearch"
+        />
       </div>
-      <note-actions
-        v-bind="{ editor, id, note, showSearch, goBack }"
-        @toggle-search="showSearch = !showSearch"
-      />
     </template>
 
     <div

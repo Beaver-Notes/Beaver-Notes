@@ -122,7 +122,7 @@ export function useNoteMenuState({
     dialog.confirm({
       title: translations.value.card.confirmPrompt,
       okText: translations.value.card.confirm,
-      cancelText: translations.value.card.cancel,
+      cancelText: translations.value.dialog.cancel,
       onConfirm: async () => {
         await noteStore.delete(noteId);
         router.push('/');

@@ -68,8 +68,8 @@ export function useNoteMenuActions({
       } catch (error) {
         console.error('[PDF export]', error);
         dialog.alert({
-          title: 'Error',
-          body: error?.message || 'Failed to export PDF. Please try again.',
+          title: translations.value.settings?.alertTitle || 'Error',
+          body: error?.message || translations.value.menu?.exportError || 'Failed to export PDF. Please try again.',
         });
         try {
           await removePath(tempPath);
@@ -90,8 +90,8 @@ export function useNoteMenuActions({
     } catch (error) {
       console.error('[PDF export]', error);
       dialog.alert({
-        title: 'Error',
-        body: error?.message || 'Failed to export PDF. Please try again.',
+        title: translations.value.settings?.alertTitle || 'Error',
+        body: error?.message || translations.value.menu?.exportError || 'Failed to export PDF. Please try again.',
       });
     }
   }
@@ -234,7 +234,7 @@ export function useNoteMenuActions({
     );
   }
 
-  async function shareAsZip(content, ext, sourceNoteId) {
+  async function shareAsZip(content, ext, _sourceNoteId) {
     const JSZip = (await import('jszip')).default;
     const zip = new JSZip();
     const safeName = noteTitle || 'Untitled';
@@ -402,7 +402,7 @@ export function useNoteMenuActions({
   const shareActions = computed(() => [
     {
       name: 'bea',
-      title: 'BEA',
+      title: translations.value.share?.exportNoteDialogTitle || 'BEA',
       icon: 'riFileTextFill',
       handler: isMobile
         ? () =>
@@ -452,19 +452,23 @@ export function useNoteMenuActions({
   );
 
   function setHighlightColor(color) {
-    editor.isActive('highlight', { color })
-      ? editor.commands.unsetHighlight()
-      : editor.commands.setHighlight({ color });
+    if (editor.isActive('highlight', { color })) {
+      editor.commands.unsetHighlight();
+    } else {
+      editor.commands.setHighlight({ color });
+    }
   }
 
   function setTextColor(color) {
-    editor.isActive('textStyle', { color })
-      ? editor
-          .chain()
-          .focus()
-          .updateAttributes('textStyle', { color: null })
-          .run()
-      : editor.commands.setColor(color);
+    if (editor.isActive('textStyle', { color })) {
+      editor
+        .chain()
+        .focus()
+        .updateAttributes('textStyle', { color: null })
+        .run();
+    } else {
+      editor.commands.setColor(color);
+    }
   }
 
   return {

@@ -31,9 +31,11 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted } from 'vue';
 import { backend } from '@/lib/tauri-bridge';
-import { openFileExternal } from '@/lib/native/app';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { openFileExternal, getAppDirectory } from '@/lib/native/app';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
+import { shareFileViaNative } from '@/lib/native/share';
 
 export default {
   components: {
@@ -57,9 +59,16 @@ export default {
       return bytes;
     }
 
-    function openDocument() {
+    async function openDocument() {
       const src = encodeURI(normalizeSrc(props.node.attrs.src));
-      openFileExternal(src);
+      if (isMobileRuntime()) {
+        const appDir = await getAppDirectory();
+        const [, noteId, ...rest] = src.replace('file-assets://', '').split('/');
+        const filePath = `${appDir}/file-assets/${noteId}/${rest.join('/')}`;
+        await shareFileViaNative(filePath);
+      } else {
+        openFileExternal(src);
+      }
     }
 
     function refreshFileEmbed() {

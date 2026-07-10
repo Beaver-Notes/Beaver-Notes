@@ -295,7 +295,7 @@ export function setStrokePointRadii(strokePoints, options = {}) {
   const {
     size = 16,
     thinning = 0.5,
-    simulatePressure = false,
+    simulatePressure: _simulatePressure = false,
     easing = (t) => t,
     start = {},
     end = {},

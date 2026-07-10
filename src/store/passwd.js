@@ -16,7 +16,7 @@ import {
 } from '@/lib/native/security';
 import { useStorage } from '@/composable/storage';
 
-const storage = useStorage();
+const _storage = useStorage();
 
 async function _getPasswordFilePath() {
   const appDirectory = await getAppDirectory();

@@ -154,7 +154,7 @@ export function getSettingSync(key) {
 }
 
 export async function getSetting(key) {
-  const { defaultValue } = getSettingDef(key);
+  const { defaultValue: _defaultValue } = getSettingDef(key);
   const value = await settingsStorage.get(key, null);
   if (value == null) {
     const fallback = getSettingSync(key);

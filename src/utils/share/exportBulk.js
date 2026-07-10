@@ -1,7 +1,6 @@
 import dayjs from '@/lib/dayjs';
 import { useStorage } from '@/composable/storage';
 import { useFolderStore } from '@/store/folder';
-import { useNoteStore } from '@/store/note';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readData } from '@/lib/native/fs';
@@ -25,7 +24,7 @@ import {
   buildFrontmatter,
 } from '@/utils/markdown';
 
-const INVALID_FILE_CHARS = /[\/\\:*?"<>|]/g;
+const INVALID_FILE_CHARS = /[/\\:*?"<>|]/g;
 
 const A4_CSS_W = 794;
 const PAGE_MARGIN_PX = 48;
@@ -625,7 +624,6 @@ export function buildFolderTree(folders) {
 
 export async function exportAllMarkdown(onProgress) {
   const storage = useStorage();
-  const noteStore = useNoteStore();
   const folderStore = useFolderStore();
   const allNotes = await storage.store();
   const notesArray = Array.isArray(allNotes)
@@ -672,7 +670,6 @@ export async function exportAllMarkdown(onProgress) {
 
 export async function exportAllHTML(onProgress) {
   const storage = useStorage();
-  const noteStore = useNoteStore();
   const folderStore = useFolderStore();
   const allNotes = await storage.store();
   const notesArray = Array.isArray(allNotes)
@@ -932,7 +929,7 @@ export function sanitizeClone(clone) {
   return clone;
 }
 
-export async function inlineImages(clone, noteId) {
+export async function inlineImages(clone, _noteId) {
   const images = Array.from(clone.querySelectorAll('img[src]'));
   if (!images.length) return;
 

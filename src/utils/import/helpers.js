@@ -381,7 +381,7 @@ export function resolveRelativeFileValue(value, noteId, resources = []) {
 export function sanitizeFilename(name) {
   return (
     String(name || '')
-      .replace(/[\/\\:*?"<>|]/g, '-')
+      .replace(/[/\\:*?"<>|]/g, '-')
       .trim() || 'Untitled'
   );
 }

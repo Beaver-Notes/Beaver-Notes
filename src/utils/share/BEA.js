@@ -23,13 +23,6 @@ function getShareTranslations() {
   }
 }
 
-function interpolate(template, params = {}) {
-  let out = template;
-  for (const [key, value] of Object.entries(params))
-    out = out.split(`{${key}}`).join(String(value));
-  return out;
-}
-
 async function encodeAssets(sourcePath) {
   const assets = {};
   try {
@@ -132,7 +125,7 @@ export async function importBEA(filePath, router, store, folderId = null) {
 }
 
 async function processImportedNote(noteData, router, folderId = null) {
-  const storage = useStorage();
+  const _storage = useStorage();
   const noteStore = useNoteStore();
   const labelStore = useLabelStore();
   try {

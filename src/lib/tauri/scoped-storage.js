@@ -58,6 +58,7 @@ function uniqueToken() {
 
 function sanitizeFileName(value, fallback = 'file') {
   const normalized = String(value || '')
+    // eslint-disable-next-line no-control-regex
     .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
     .trim();
   return normalized || fallback;
@@ -76,11 +77,12 @@ function hasDialogProperty(payload, property) {
 function buildAcceptAttribute(filters = []) {
   return filters
     .flatMap((filter) => filter?.extensions || [])
-    .map((extension) =>
-      extension.startsWith('.')
-        ? extension.toLowerCase()
-        : `.${extension.toLowerCase()}`
-    )
+    .map((entry) => {
+      if (entry.includes('/')) return entry;
+      return entry.startsWith('.')
+        ? entry.toLowerCase()
+        : `.${entry.toLowerCase()}`;
+    })
     .filter(Boolean)
     .join(',');
 }
@@ -570,7 +572,7 @@ export async function invokeWithScopedSupport(channel, payload) {
   }
 
   if (channel === 'dialog:open' && payload?.useScopedStorage) {
-    const { useScopedStorage, ...rest } = payload;
+    const { useScopedStorage: _useScopedStorage, ...rest } = payload;
     return invokeCommand(channel, rest);
   }
 

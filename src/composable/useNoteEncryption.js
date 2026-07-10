@@ -14,7 +14,7 @@ import { decryptNoteForMemory } from '@/utils/note/serializer.js';
  * Composable that handles per-note password locking and app-level
  * encryption unlocking flows.
  */
-export function useNoteEncryption({ noteId, appEncryptedLocked }) {
+export function useNoteEncryption({ noteId, appEncryptedLocked: _appEncryptedLocked }) {
   const dialog = useDialog();
   const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
@@ -24,7 +24,7 @@ export function useNoteEncryption({ noteId, appEncryptedLocked }) {
     dialog.prompt({
       title: translations.value.card.enterPasswd,
       okText: translations.value.card.unlock,
-      cancelText: translations.value.card.cancel,
+      cancelText: translations.value.dialog.cancel,
       placeholder: translations.value.card.password,
       onConfirm: async (enteredPassword) => {
         try {

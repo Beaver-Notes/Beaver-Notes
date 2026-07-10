@@ -2,7 +2,7 @@
   <!-- Desktop -->
   <div
     ref="container"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 top-4 right-4 w-fit p-1 sticky self-end rounded-lg shadow-sm no-print max-w-content mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-lg shadow-sm no-print max-w-content mobile:hidden"
     :class="{
       'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
     }"
@@ -10,7 +10,7 @@
   >
     <div class="w-full h-full flex items-center justify-between">
       <button
-        v-tooltip.group="'Undo'"
+        v-tooltip.group="translations.noteActions?.undo || 'Undo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="editor.chain().focus().undo().run()"
       >
@@ -18,7 +18,7 @@
       </button>
 
       <button
-        v-tooltip.group="'Redo'"
+        v-tooltip.group="translations.noteActions?.redo || 'Redo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="editor.chain().focus().redo().run()"
       >
@@ -62,7 +62,7 @@
       </button>
 
       <button
-        v-tooltip.group="'Search'"
+        v-tooltip.group="translations.noteActions?.search || 'Search'"
         :class="{ 'is-active': showSearch }"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="$emit('toggle-search')"
@@ -73,7 +73,7 @@
       <ui-popover>
         <template #trigger>
           <button
-            v-tooltip.group="'Note actions'"
+            v-tooltip.group="translations.noteActions?.noteActions || 'Note actions'"
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riEqualizer3Line" />
@@ -91,7 +91,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isBookmarked ? 'Remove bookmark' : 'Bookmark' }}
+            {{ note.isBookmarked ? translations.noteActions?.removeBookmark || 'Remove bookmark' : translations.noteActions?.bookmark || 'Bookmark' }}
           </span>
         </button>
 
@@ -106,7 +106,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isArchived ? 'Unarchive' : 'Archive' }}
+            {{ note.isArchived ? (translations.noteActions?.unarchive || 'Unarchive') : (translations.noteActions?.archive || 'Archive') }}
           </span>
         </button>
 
@@ -118,7 +118,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            Lock note
+            {{ translations.noteActions?.lockNote || 'Lock note' }}
           </span>
         </button>
 
@@ -133,7 +133,7 @@
           <span
             class="block text-sm font-medium text-red-600 dark:text-red-400"
           >
-            Delete
+            {{ translations.noteActions?.delete || 'Delete' }}
           </span>
         </button>
 
@@ -147,7 +147,7 @@
             <span
               class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
             >
-              Full width
+              {{ translations.noteActions?.fullWidth || 'Full width' }}
             </span>
           </div>
           <ui-switch
@@ -169,7 +169,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ copyState === 1 ? 'Copied!' : 'Copy content' }}
+            {{ copyState === 1 ? (translations.noteActions?.copied || 'Copied!') : (translations.noteActions?.copyContent || 'Copy content') }}
           </span>
         </button>
       </ui-popover>

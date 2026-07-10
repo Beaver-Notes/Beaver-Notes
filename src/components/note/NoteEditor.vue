@@ -30,9 +30,24 @@
       v-if="editor && showDragHandle"
       :editor="editor"
       :compute-position-config="computePositionConfig"
-      class="drag-handle w-auto h-auto flex items-center rounded-lg shadow-sm hover:bg-neutral-100 dark:hover:bg-neutral-800 p-0.5"
+      :on-element-drag-start="onElementDragStart"
+      :on-element-drag-end="onElementDragEnd"
+      :on-node-change="onNodeChange"
+      class="drag-handle"
+      :class="{ 'opacity-0 pointer-events-none': isDragging }"
     >
-      <v-remixicon name="riDraggable" class="size-6 cursor-grab" />
+      <div class="drag-handle-inner">
+        <button
+          class="dh-button"
+          title="Add block"
+          @click.prevent="addBlock"
+        >
+          <v-remixicon name="riAddLine" class="dh-icon" />
+        </button>
+        <div class="dh-grip">
+          <v-remixicon name="riDraggable" class="dh-icon" />
+        </div>
+      </div>
     </drag-handle>
     <editor-content
       v-if="editor"
@@ -40,7 +55,9 @@
       class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
     <note-bubble-menu v-if="editor" v-bind="{ editor, note }" />
-    <table-floating-menu v-if="editor" :editor="editor" />
+    <table-handle v-if="editor" :editor="editor" />
+    <table-selection-overlay v-if="editor" :editor="editor" />
+    <table-extend-row-column-button v-if="editor" :editor="editor" />
   </div>
 </template>
 
@@ -70,10 +87,19 @@ import { useAppStore } from '../../store/app';
 import { usePluginStore } from '@/store/plugins';
 import { offset } from '@floating-ui/dom';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
-import TableFloatingMenu from '@/lib/tiptap/exts/table/TableFloatingMenu.vue';
+import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
+import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
+import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
 
 export default {
-  components: { EditorContent, DragHandle, NoteBubbleMenu, TableFloatingMenu },
+  components: {
+    EditorContent,
+    DragHandle,
+    NoteBubbleMenu,
+    TableHandle,
+    TableSelectionOverlay,
+    TableExtendRowColumnButton,
+  },
   props: {
     modelValue: { type: [String, Object], default: '' },
     id: { type: String, default: '' },
@@ -91,9 +117,49 @@ export default {
     const showDragHandle = ref(
       typeof window !== 'undefined' ? window.innerWidth >= 768 : true
     );
+    const isDragging = ref(false);
+    const currentNodePos = ref(-1);
 
     function updateDragHandleVisibility() {
       showDragHandle.value = window.innerWidth >= 768;
+    }
+
+    function onElementDragStart() {
+      isDragging.value = true;
+    }
+
+    function onElementDragEnd() {
+      isDragging.value = false;
+      nextTick(() => {
+        if (editor.value && !editor.value.isDestroyed) {
+          editor.value.view.dom.blur();
+          editor.value.view.focus();
+        }
+      });
+    }
+
+    function onNodeChange({ pos }) {
+      currentNodePos.value = pos;
+    }
+
+    function addBlock() {
+      if (!editor.value) return;
+      const pos =
+        currentNodePos.value >= 0
+          ? currentNodePos.value
+          : editor.value.state.selection.from;
+      const node = editor.value.state.doc.nodeAt(pos);
+      if (!node) return;
+      const isEmptyParagraph =
+        node.type.name === 'paragraph' && node.childCount === 0;
+      const insertPos = isEmptyParagraph ? pos : pos + node.nodeSize;
+      editor.value
+        .chain()
+        .focus()
+        .insertContentAt(insertPos, [
+          { type: 'paragraph', content: [{ type: 'text', text: '/' }] },
+        ])
+        .run();
     }
 
     const SCROLL_ZONE = 40;
@@ -196,7 +262,16 @@ export default {
       return {
         placement: isRtl ? 'right-start' : 'left-start',
         strategy: 'absolute',
-        middleware: [offset(0), fixedGutterMiddleware],
+        middleware: [
+          offset(({ rects }) => {
+            const nodeHeight = rects.reference.height;
+            const handleHeight = rects.floating.height;
+            const crossAxis =
+              nodeHeight > 40 ? 0 : nodeHeight / 2 - handleHeight / 2;
+            return { crossAxis };
+          }),
+          fixedGutterMiddleware,
+        ],
       };
     });
 
@@ -365,6 +440,12 @@ export default {
       computePositionConfig,
       showDragHandle,
       erroredActivePlugins,
+      isDragging,
+      currentNodePos,
+      onElementDragStart,
+      onElementDragEnd,
+      onNodeChange,
+      addBlock,
     };
   },
 };

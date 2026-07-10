@@ -37,10 +37,7 @@ import {
 } from './exts/callouts';
 import { LiteralTab } from './exts/literal-tab';
 import Image from './exts/image';
-import { CustomTable as Table } from './exts/table/index.js';
-import TableCell from '@tiptap/extension-table-cell';
-import TableHeader from '@tiptap/extension-table-header';
-import TableRow from '@tiptap/extension-table-row';
+import { TableKit, TableHandleExtension } from './exts/table/index.js';
 import {
   Column,
   ColumnContainer,
@@ -109,12 +106,16 @@ const extensions = [
   FootnoteReference,
   Footnote,
   TaskList,
-  Table.configure({
-    resizable: true,
+  TableKit.configure({
+    table: {
+      resizable: true,
+      cellMinWidth: 80,
+      handleWidth: 5,
+      cellHeight: 44,
+      lastColumnResizable: true,
+    },
   }),
-  TableRow,
-  TableHeader,
-  TableCell,
+  TableHandleExtension,
   TaskItem.configure({
     nested: true,
   }),

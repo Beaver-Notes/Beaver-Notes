@@ -3,8 +3,8 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -23,6 +23,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.tag.outputs.tag_name }}
+      version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
     steps:
       - name: Checkout
@@ -79,18 +80,34 @@ jobs:
           echo "tauri.conf.json: $TAURI_VERSION"
           echo "Cargo.toml: $CARGO_VERSION"
 
-          # Stable releases must not carry a pre-release suffix.
-          if [[ "$PKG_VERSION" == *"-"* ]]; then
-            echo "ERROR: package.json version '$PKG_VERSION' looks like a pre-release."
-            echo "Use the beta workflow for pre-release builds."
-            exit 1
-          fi
-
           test "$PKG_VERSION" = "$TAURI_VERSION"
           test "$PKG_VERSION" = "$CARGO_VERSION"
 
+      - name: Check jurisdiction
+        id: jurisdiction
+        shell: bash
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" == *"-"* ]]; then
+            echo "version_match=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping — this is a pre-release version, use the beta workflow."
+          else
+            echo "version_match=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Run lint
+        shell: bash
+        run: |
+          yarn lint
+
   desktop:
     name: Build ${{ matrix.id }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs: validate
     runs-on: ${{ matrix.runner }}
 
@@ -348,8 +365,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           cargo tauri ios build
@@ -440,6 +457,7 @@ jobs:
 
   publish:
     name: Publish draft release
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
       - desktop

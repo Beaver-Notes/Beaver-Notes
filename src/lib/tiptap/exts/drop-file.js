@@ -4,7 +4,7 @@ import { useStore } from '@/store';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { insertImages } from './image';
 
-async function processDropFiles(view, editor, event, files, id) {
+async function processDropFiles(view, editor, event, files, _id) {
   try {
     for (const file of files) {
       const mimeType = file.type;

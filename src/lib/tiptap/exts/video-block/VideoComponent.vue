@@ -151,7 +151,7 @@ export default {
 
     const togglePlay = () => {
       if (!videoPlayer.value) return;
-      isPlaying.value ? videoPlayer.value.pause() : videoPlayer.value.play();
+      if (isPlaying.value) { videoPlayer.value.pause(); } else { videoPlayer.value.play(); }
       isPlaying.value = !isPlaying.value;
     };
 

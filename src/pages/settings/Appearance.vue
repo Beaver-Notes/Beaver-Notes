@@ -3,7 +3,7 @@
   <div class="general space-y-8 mb-14 w-full max-w-xl">
     <!-- App theme -->
     <section>
-      <p class="mb-2">{{ translations.appearence.appTheme || '-' }}</p>
+      <p class="mb-2">{{ translations.appearance.appTheme || '-' }}</p>
       <div
         class="flex ltr:space-x-4 text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
       >
@@ -18,14 +18,14 @@
         >
           <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
           <p class="capitalize text-center text-sm">
-            {{ translations.appearence[item.name] || item.name }}
+            {{ translations.appearance[item.name] || item.name }}
           </p>
         </button>
       </div>
     </section>
     <!-- Accent Color -->
     <section>
-      <p class="mb-2">{{ translations.appearence.colorScheme || '-' }}</p>
+      <p class="mb-2">{{ translations.appearance.colorScheme || '-' }}</p>
       <div class="w-full items-center justify-center flex gap-4">
         <button
           class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
@@ -66,7 +66,7 @@
     </section>
     <!-- Interface size -->
     <section>
-      <p class="mb-2">{{ translations.appearence.interfaceSize || '-' }}</p>
+      <p class="mb-2">{{ translations.appearance.interfaceSize || '-' }}</p>
 
       <div class="grid grid-cols-4 gap-4">
         <button
@@ -74,22 +74,22 @@
             {
               s: 1.2,
               key: '1.2',
-              label: translations.appearence.large || 'Large',
+              label: translations.appearance.large || 'Large',
             },
             {
               s: 1.1,
               key: '1.1',
-              label: translations.appearence.medium || 'Medium',
+              label: translations.appearance.medium || 'Medium',
             },
             {
               s: 1.0,
               key: '1.0',
-              label: translations.appearence.default || 'Default',
+              label: translations.appearance.default || 'Default',
             },
             {
               s: 0.9,
               key: '0.9',
-              label: translations.appearence.moreSpace || 'More Space',
+              label: translations.appearance.moreSpace || 'More Space',
             },
           ]"
           :key="opt.key"
@@ -126,7 +126,7 @@
     </section>
     <!-- Font -->
     <section>
-      <p class="mb-2">{{ translations.appearence.selectFont || '-' }}</p>
+      <p class="mb-2">{{ translations.appearance.selectFont || '-' }}</p>
       <div class="flex gap-2 items-center">
         <ui-select
           v-model="state.selectedFont"
@@ -159,7 +159,7 @@
     </section>
     <!-- Code Font Section -->
     <section>
-      <p class="mb-2">{{ translations.appearence.selectCodeFont || '-' }}</p>
+      <p class="mb-2">{{ translations.appearance.selectCodeFont || '-' }}</p>
       <div class="flex items-center gap-2">
         <ui-select
           id="codeFontSelect"
@@ -182,14 +182,14 @@
     </section>
 
     <section>
-      <p class="mb-2">{{ translations.appearence.interfaceOptions || '-' }}</p>
+      <p class="mb-2">{{ translations.appearance.interfaceOptions || '-' }}</p>
       <div>
         <div class="space-y-1">
           <!-- Clear Text - OLED -->
           <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
-                {{ translations.appearence.clearFont || '-' }}
+                {{ translations.appearance.clearFont || '-' }}
               </span>
             </div>
             <ui-switch v-model="ClearFontChecked" @change="toggleClearFont" />
@@ -198,7 +198,7 @@
           <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
-                {{ translations.appearence.menuBarVisibility || '-' }}
+                {{ translations.appearance.menuBarVisibility || '-' }}
               </span>
             </div>
             <ui-switch
@@ -211,7 +211,7 @@
     </section>
     <!-- App Icon -->
     <section v-if="isMobileRuntime && iconsSupported">
-      <p class="mb-2">{{ translations.appearence.appIcon || 'App Icon' }}</p>
+      <p class="mb-2">{{ translations.appearance.appIcon || 'App Icon' }}</p>
       <div class="grid grid-cols-4 gap-3">
         <button
           v-for="icon in alternateIcons"

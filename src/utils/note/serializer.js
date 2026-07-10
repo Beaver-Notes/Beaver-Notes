@@ -77,7 +77,7 @@ export function extractTextFromContent(content) {
  */
 export function stripTransientFields(note) {
   if (!note || typeof note !== 'object') return note;
-  const { cardPreview, searchText, ...persistedNote } = note;
+  const { cardPreview: _cardPreview, searchText: _searchText, ...persistedNote } = note;
   return persistedNote;
 }
 
@@ -125,20 +125,20 @@ export async function decryptNoteForMemory(note) {
  */
 export async function batchDecryptNotesForMemory(notes, options = {}) {
   const { onProgress, batchSize = 5, signal } = options;
-  const results = new Array(notes.length);
+  const results = Array.from({ length: notes.length });
   let processed = 0;
 
   for (let i = 0; i < notes.length; i += batchSize) {
     if (signal?.aborted) break;
 
     const batch = notes.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
+    const _batchResults = await Promise.all(
       batch.map(async (note, idx) => {
         const noteIndex = i + idx;
         try {
           const decrypted = await decryptNoteForMemory(note);
           results[noteIndex] = hydrateNote(decrypted);
-        } catch (e) {
+        } catch {
           results[noteIndex] = hydrateNote({ ...note, decryptionError: true });
         }
         processed++;

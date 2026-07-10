@@ -1,6 +1,5 @@
 import { indexNote, removeNoteFromIndex } from '@/lib/native/search';
 import {
-  isEncryptionEnabled,
   isEncryptedContent,
 } from '@/utils/crypto/encryption.js';
 import { useStorage } from '@/composable/storage.js';

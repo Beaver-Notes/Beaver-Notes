@@ -233,7 +233,7 @@ const layoutResult = computed(() => {
 
   const colW = Math.floor((width - gap * (cols - 1)) / cols);
   const remainder = width - gap * (cols - 1) - colW * cols;
-  const colH = new Array(cols).fill(0);
+  const colH = Array.from({ length: cols }).fill(0);
   const items = [];
 
   for (const [index, note] of props.notes.entries()) {
@@ -335,7 +335,7 @@ function scheduleMeasure() {
       if (el && updateCardHeight(note.id, el)) changed = true;
     }
     const ids = new Set(props.notes.map((n) => n.id));
-    for (const id of [...cardHeights.keys()]) {
+    for (const id of cardHeights.keys()) {
       if (!ids.has(id)) {
         const el = cardElements.get(id);
         if (el && cardRO) cardRO.unobserve(el);

@@ -12,6 +12,7 @@
     "core:webview:allow-print",
     "scoped-storage:default",
     "fs:default",
+    "opener:default",
     "sharesheet:allow-share-file",
     "sharesheet:allow-share-text",
     {

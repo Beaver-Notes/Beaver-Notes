@@ -3,7 +3,7 @@ import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
-import { hydrateNote, stripTransientFields } from '@/utils/note/serializer.js';
+import { hydrateNote } from '@/utils/note/serializer.js';
 import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
 import { PluginRegistry } from '@/plugins/PluginRegistry';
 import { useFolderStore } from '../folder';

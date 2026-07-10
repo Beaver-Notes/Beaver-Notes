@@ -1,6 +1,6 @@
 [package]
 name = "beaver-notes"
-version = "5.0.0-beta.1"
+version = "5.0.0"
 description = "Beaver Notes"
 authors = ["Daniele Rolli"]
 license = "MIT"
@@ -18,7 +18,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-fs = "2"
-tauri-plugin-scoped-storage = "0.1.3"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -60,6 +59,7 @@ tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
 tauri-plugin-http = { version = "2", features = ["rustls-tls"] }
 ureq = { version = "2", features = ["tls"] }
+tauri-plugin-scoped-storage = "=1.5.0"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

@@ -82,6 +82,6 @@ export function getBacklinks(state) {
   };
 }
 
-export function getBacklinkCount(state) {
+export function getBacklinkCount(_state) {
   return (noteId) => linkIndex[noteId]?.size ?? 0;
 }

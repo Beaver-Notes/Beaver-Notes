@@ -322,7 +322,7 @@ export function useNotesBrowser({
       icon: 'riDeleteBin6Line',
       okVariant: 'danger',
       okText: translations.value.card.delete,
-      cancelText: translations.value.card.cancel,
+      cancelText: translations.value.dialog.cancel,
       onConfirm: async () => {
         undoStack.startBatch();
         for (const item of items) {
@@ -453,7 +453,7 @@ export function useNotesBrowser({
           icon: 'riDeleteBin6Line',
           okVariant: 'danger',
           okText: translations.value.card.confirm,
-          cancelText: translations.value.card.cancel,
+          cancelText: translations.value.dialog.cancel,
           onConfirm: async () => {
             await noteStore.delete(noteId);
           },
