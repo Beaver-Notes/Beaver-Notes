@@ -3,13 +3,15 @@ import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
-import {
-  getMigrationStatus,
-  probeMigrationPath,
-  runMigration,
-  runMigrationFromPath,
-} from '@/lib/native/app';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
+
+// Re-export the legacy/Electron migration helpers under stable onboarding names.
+export {
+  getLegacyMigrationStatus as getOnboardingMigrationStatus,
+  probeLegacyPath as probeCustomMigrationPath,
+  runLegacyMigration as runOnboardingMigration,
+  runLegacyMigrationFromPath as runOnboardingMigrationFromPath,
+} from '@/utils/migration/legacyElectron';
 
 // ─── Animation timing constants ──────────────────────────────────────────────
 
@@ -159,40 +161,6 @@ export async function applyOnboardingSyncPreferences(preferences) {
 
 export async function markOnboardingCompleted(settingsStorage) {
   await settingsStorage.set('onboardingCompleted', true);
-}
-
-export async function getOnboardingMigrationStatus() {
-  if (backend.isMobileRuntime?.()) {
-    return {
-      legacyDir: null,
-      appDir: null,
-      hasLegacyData: false,
-      alreadyMigrated: false,
-      targetHasData: false,
-    };
-  }
-  return getMigrationStatus();
-}
-
-export async function runOnboardingMigration() {
-  if (backend.isMobileRuntime?.()) {
-    throw new Error('Legacy migration is only available on desktop.');
-  }
-  await runMigration();
-}
-
-export async function probeCustomMigrationPath(path) {
-  if (backend.isMobileRuntime?.()) {
-    return { hasLegacyData: false };
-  }
-  return probeMigrationPath(path);
-}
-
-export async function runOnboardingMigrationFromPath(path) {
-  if (backend.isMobileRuntime?.()) {
-    throw new Error('Legacy migration is only available on desktop.');
-  }
-  await runMigrationFromPath(path);
 }
 
 export async function openOnboardingWorkspace({ store, noteStore, router }) {

@@ -237,6 +237,37 @@
         </onboarding-setup-step>
       </div>
 
+      <!-- ── Encryption password ── -->
+      <div
+        v-else-if="step === 'password'"
+        class="ob-screen flex flex-col items-center justify-center w-full pt-8 pb-8"
+      >
+        <onboarding-password-step
+          v-model="encryptionPassword"
+          :confirm-value="encryptionConfirmPassword"
+          :error="encryptionPasswordError"
+          :loading="encryptionPasswordLoading"
+          @update:confirm-value="encryptionConfirmPassword = $event"
+        >
+          <template #back>
+            <ui-button @click="goToPreviousStep">
+              <v-remixicon name="riArrowLeftLine" /> Back
+            </ui-button>
+          </template>
+          <template #next>
+            <ui-button
+              variant="primary"
+              :loading="encryptionPasswordLoading"
+              @click="setupEncryptionPassword"
+            >
+              <template v-if="!encryptionPasswordLoading">
+                Continue <v-remixicon name="riArrowRightLine" />
+              </template>
+            </ui-button>
+          </template>
+        </onboarding-password-step>
+      </div>
+
       <!-- ── Sync ── -->
       <OnboardingSyncStep
         v-else-if="step === 'sync'"
@@ -302,7 +333,7 @@
         @copy-issues="copyMigrationIssues"
         @browse-portable="browseForPortableData"
         @back="curtainNavigate('platform')"
-        @continue="curtainNavigate('finish')"
+        @continue="goToNextStep"
       />
 
       <!-- ── Legacy Password ── -->
@@ -410,6 +441,7 @@ import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
 import OnboardingSetupStep from '@/components/onboarding/OnboardingSetupStep.vue';
 import OnboardingPlatformStep from '@/components/onboarding/OnboardingPlatformStep.vue';
 import OnboardingSyncStep from '@/components/onboarding/OnboardingSyncStep.vue';
+import OnboardingPasswordStep from '@/components/onboarding/OnboardingPasswordStep.vue';
 import OnboardingMigrationStep from '@/components/onboarding/OnboardingMigrationStep.vue';
 import OnboardingLegacyPasswordStep from '@/components/onboarding/OnboardingLegacyPasswordStep.vue';
 
@@ -433,6 +465,7 @@ export default {
     OnboardingSyncStep,
     OnboardingMigrationStep,
     OnboardingLegacyPasswordStep,
+    OnboardingPasswordStep,
   },
 
   setup() {

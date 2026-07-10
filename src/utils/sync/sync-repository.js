@@ -62,7 +62,7 @@ export async function listRemoteCommits(commitsDir, cursors, decryptJSON) {
     let commit;
     try {
       const raw = await readSyncFile(path.join(commitsDir, file));
-      commit = await decryptJSON(raw);
+      commit = await decryptJSON(raw, file.replace(/\.json$/, ''));
     } catch (err) {
       console.warn(
         '[sync-repository] listRemoteCommits: decryptJSON failed:',
@@ -137,7 +137,7 @@ export async function writeCommit({
     ],
   };
 
-  const commitStr = await encryptJSON(commit);
+  const commitStr = await encryptJSON(commit, commit.id);
   await writeSyncFile(path.join(commitsDir, `${commit.id}.json`), commitStr);
 
   cursors[deviceId] = clock;
@@ -218,7 +218,7 @@ export async function applySnapshotIfNeeded({
 
   let snapshot;
   try {
-    snapshot = await decryptJSON(raw);
+    snapshot = await decryptJSON(raw, 'snapshot');
   } catch (err) {
     console.warn(
       '[sync-repository] applySnapshotIfNeeded: decryptJSON failed:',
@@ -307,7 +307,7 @@ export async function writeGenesisState({
     data,
   };
 
-  const encrypted = await encryptJSON(genesis);
+  const encrypted = await encryptJSON(genesis, 'genesis');
   await writeSyncFile(genesisPath, encrypted);
   return true;
 }
@@ -325,16 +325,29 @@ export async function applyGenesisIfNeeded({
   const exists = await syncPathExists(genesisPath).catch(() => false);
   if (!exists) return false;
 
+  let raw;
+  try {
+    raw = await readSyncFile(genesisPath);
+  } catch {
+    console.warn('[sync-repository] Failed to read genesis file');
+    return false;
+  }
+
   let genesis;
   try {
-    const raw = await readSyncFile(genesisPath);
-    genesis = await decryptJSON(raw);
+    genesis = await decryptJSON(raw, 'genesis');
   } catch (err) {
+    if (err?.code === 'DECRYPT_FAILED' || err?.code === 'KEY_LOCKED') {
+      console.warn('[sync-repository] Failed to decrypt genesis:', err.message);
+      return 'encrypted';
+    }
     console.warn('[sync-repository] Failed to read genesis:', err);
     return false;
   }
 
-  if (!genesis?.genesis || !genesis?.data) return false;
+  if (!genesis?.genesis || !genesis?.data) {
+    return false;
+  }
 
   const writes = [];
 
@@ -406,7 +419,7 @@ export async function compactSync({
       },
     };
 
-    const snapshotStr = await encryptJSON(snapshot);
+    const snapshotStr = await encryptJSON(snapshot, 'snapshot');
     await writeSyncFile(snapshotPath, snapshotStr);
 
     // Update genesis alongside the snapshot so newly joining devices
@@ -419,7 +432,7 @@ export async function compactSync({
       deviceId,
       data: snapshot.data,
     };
-    await writeSyncFile(genesisPath, await encryptJSON(genesisPayload));
+    await writeSyncFile(genesisPath, await encryptJSON(genesisPayload, 'genesis'));
 
     const files = await readSyncDir(commitsDir).catch(() => []);
     for (const file of files.filter((entry) =>

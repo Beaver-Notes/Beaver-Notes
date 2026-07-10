@@ -1,5 +1,5 @@
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, Theme};
+use tauri::{AppHandle, Emitter, Manager, State, Theme};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::shared::*;
@@ -23,11 +23,10 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
 }
 
 #[tauri::command]
-pub(crate) fn app_directory(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
-    Ok(app_storage_dir(&app, state.inner())?.to_string_lossy().to_string())
+pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+    Ok(app_storage_dir(&app, state.inner())?
+        .to_string_lossy()
+        .to_string())
 }
 
 #[tauri::command]
@@ -181,9 +180,15 @@ pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, String> {
 }
 
 #[tauri::command]
-pub(crate) fn set_reduced_motion(app: AppHandle, state: State<AppState>, enabled: bool) -> Result<(), String> {
+pub(crate) fn set_reduced_motion(
+    app: AppHandle,
+    state: State<AppState>,
+    enabled: bool,
+) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        window.emit("reduced-motion-changed", json!({ "enabled": enabled })).map_err(to_error)?;
+        window
+            .emit("reduced-motion-changed", json!({ "enabled": enabled }))
+            .map_err(to_error)?;
     }
     *state.reduced_motion.lock().map_err(to_error)? = enabled;
     Ok(())
@@ -195,9 +200,15 @@ pub(crate) fn get_reduced_motion(state: State<AppState>) -> Result<bool, String>
 }
 
 #[tauri::command]
-pub(crate) fn set_high_contrast(app: AppHandle, state: State<AppState>, enabled: bool) -> Result<(), String> {
+pub(crate) fn set_high_contrast(
+    app: AppHandle,
+    state: State<AppState>,
+    enabled: bool,
+) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        window.emit("high-contrast-changed", json!({ "enabled": enabled })).map_err(to_error)?;
+        window
+            .emit("high-contrast-changed", json!({ "enabled": enabled }))
+            .map_err(to_error)?;
     }
     *state.high_contrast.lock().map_err(to_error)? = enabled;
     Ok(())
@@ -260,7 +271,9 @@ pub(crate) fn helper_get_path(
     state: State<'_, AppState>,
     name: String,
 ) -> Result<String, String> {
-    Ok(path_for_name(&app, state.inner(), &name)?.to_string_lossy().to_string())
+    Ok(path_for_name(&app, state.inner(), &name)?
+        .to_string_lossy()
+        .to_string())
 }
 
 #[tauri::command]

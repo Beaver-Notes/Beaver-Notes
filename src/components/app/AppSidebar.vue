@@ -175,10 +175,21 @@
               item.type === 'folder' ? openFolder(item.id) : openNote(item.id)
             "
           >
+            <span
+              v-if="item.type === 'folder' && item.icon"
+              size="14"
+              class="select-none flex-shrink-0"
+            >
+              {{ item.icon }}
+            </span>
             <v-remixicon
+              v-if="!(item.type === 'folder' && item.icon)"
               :name="item.type === 'folder' ? 'riFolder5Fill' : 'riArticleLine'"
               size="14"
               class="text-neutral-400 shrink-0 transition-transform duration-200 group-hover:scale-105"
+              :style="{
+                color: item.type === 'folder' ? item.color : undefined,
+              }"
             />
             <span
               class="text-sm truncate flex-1 min-w-0 text-neutral-600 dark:text-neutral-400"
@@ -193,7 +204,9 @@
           </button>
         </div>
         <div v-else class="px-3 py-1.5">
-          <p class="text-xs text-neutral-400/80 italic">{{ translations.tray?.noRecentItems || 'No recent items' }}</p>
+          <p class="text-xs text-neutral-400/80 italic">
+            {{ translations.tray?.noRecentItems || 'No recent items' }}
+          </p>
         </div>
       </div>
     </transition>
@@ -512,7 +525,8 @@ export default {
     onMounted(() => {
       _unregSidebarShortcuts = bindGlobalShortcuts(
         createShortcutMap({
-          'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
+          'mod+shift+l': () =>
+            theme.setTheme(theme.isDark() ? 'light' : 'dark'),
           'mod+shift+y': () => manualSync(),
         })
       );

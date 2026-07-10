@@ -8,6 +8,10 @@
     class="safe-area-overlay safe-area-overlay--bottom"
   />
   <app-command-prompt />
+  <app-encryption-gate
+    v-if="appEncryptionGate.show"
+    @unlocked="appEncryptionGate.show = false"
+  />
   <div
     v-show="showMobileNavbar"
     class="fixed inset-x-0 z-40 flex justify-center px-4 no-print mobile:block hidden"
@@ -114,6 +118,7 @@ import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
+import AppEncryptionGate from './components/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
 import AppNavbar from './components/app/AppNavbar.vue';
 
@@ -124,6 +129,7 @@ export default {
     UndoBanner,
     AppNavbar,
     ImportFolderPicker,
+    AppEncryptionGate,
   },
   setup() {
     return useAppShell();

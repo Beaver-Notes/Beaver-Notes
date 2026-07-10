@@ -1,7 +1,7 @@
 use std::{
     fs::{self, File},
     io::{BufReader, BufWriter, Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -13,11 +13,15 @@ use argon2::{
     password_hash::{PasswordHasher, SaltString},
     Argon2, Params, Version,
 };
+use chacha20poly1305::{
+    aead::{generic_array::GenericArray, Payload},
+    XChaCha20Poly1305,
+};
 
-use aes::Aes256;
-use cbc::Decryptor;
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
+use aes::Aes256;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use cbc::Decryptor;
 use hmac::Hmac;
 use keyring::Entry;
 use pbkdf2::pbkdf2_hmac;
@@ -26,7 +30,9 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use tauri::AppHandle;
 
-use super::{AppState, SAFE_STORAGE_SERVICE, AppError};
+use super::{
+    app_encryption_manifest_path, get_settings_value, AppError, AppState, SAFE_STORAGE_SERVICE,
+};
 
 pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA2";
@@ -35,17 +41,33 @@ pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 16 * 1024;
 pub(crate) const ARGON2_ITERATIONS: u32 = 2;
 pub(crate) const ARGON2_PARALLELISM: u32 = 2;
-pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 3;
-pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v3";
+pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 4;
+pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v4";
 pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
 pub(crate) const STREAM_CHUNK_SIZE: usize = 256 * 1024;
+pub(crate) const SYNC_ROOT_DIR: &str = "BeaverNotesSync";
+pub(crate) const PROTOCOL_VERSION: u8 = 4;
+pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
+/// AAD binding for note-content encryption. Fixed domain string: it proves the
+/// ciphertext is genuine note content (and not forged/moved across contexts).
+pub(crate) const NOTE_AAD: &str = "beaver-notes:note-content:v1";
 
-pub(crate) static KEYRING_AVAILABLE: AtomicBool =
-    AtomicBool::new(!cfg!(target_os = "android"));
+pub(crate) static KEYRING_AVAILABLE: AtomicBool = AtomicBool::new(!cfg!(target_os = "android"));
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WrappedKeyEnvelope {
+    pub(crate) nonce: String,
+    pub(crate) cipher: String,
+}
+
+/// A previously-active items key that has been rotated out. The key bytes are
+/// wrapped (encrypted) with the master KEK so they can be unwrapped into the
+/// in-memory ring at unlock time for decrypting old notes.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PreviousWrappedKey {
+    pub(crate) id: String,
     pub(crate) nonce: String,
     pub(crate) cipher: String,
 }
@@ -69,6 +91,14 @@ pub(crate) struct EncryptionManifest {
     pub(crate) argon2_parallelism: Option<u32>,
     pub(crate) password_check: WrappedKeyEnvelope,
     pub(crate) wrapped_key: WrappedKeyEnvelope,
+    /// Current items-key ID so newly-encrypted notes carry a `kid` reference.
+    #[serde(default)]
+    pub(crate) current_key_id: String,
+    /// Ring of previously-active items keys (wrapped with the KEK) so they can
+    /// be loaded at unlock time and used to decrypt notes written before the
+    /// most recent rotation.
+    #[serde(default)]
+    pub(crate) previous_keys: Vec<PreviousWrappedKey>,
 }
 
 const MASTER_KEY_FILE: &str = "master.key";
@@ -83,7 +113,12 @@ pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         Version::V0x13,
-        Params::new(ARGON2_MEMORY_KIB, ARGON2_ITERATIONS, ARGON2_PARALLELISM, Some(32))?,
+        Params::new(
+            ARGON2_MEMORY_KIB,
+            ARGON2_ITERATIONS,
+            ARGON2_PARALLELISM,
+            Some(32),
+        )?,
     );
     let salt_string = SaltString::encode_b64(salt)?;
     let hash = argon2.hash_password(passphrase.as_bytes(), &salt_string)?;
@@ -94,7 +129,7 @@ pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 
     Ok(key)
 }
 
-fn derive_kek_from_manifest(
+pub(crate) fn derive_kek_from_manifest(
     manifest: &EncryptionManifest,
     passphrase: &str,
 ) -> Result<[u8; 32], AppError> {
@@ -141,8 +176,7 @@ pub(crate) fn encrypt_bytes_with_key(
 ) -> Result<WrappedKeyEnvelope, AppError> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce = random_nonce();
-    let encrypted = cipher
-        .encrypt(Nonce::from_slice(&nonce), plain)?;
+    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), plain)?;
     Ok(WrappedKeyEnvelope {
         nonce: hex::encode(nonce),
         cipher: BASE64.encode(encrypted),
@@ -161,7 +195,209 @@ pub(crate) fn decrypt_bytes_with_key(
         .map_err(|_| AppError::WrongPassword)
 }
 
-pub(crate) fn load_encryption_manifest(path: &Path) -> Result<Option<EncryptionManifest>, AppError> {
+pub(crate) fn xnonce() -> [u8; 24] {
+    let mut nonce = [0_u8; 24];
+    rand::thread_rng().fill_bytes(&mut nonce);
+    nonce
+}
+
+/// AEAD envelope used for all JSON payloads (sync commits, genesis, snapshot).
+/// XChaCha20-Poly1305 with a 24-byte nonce and AAD binding the ciphertext to its
+/// identity (commit id / snapshot / genesis marker).
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SyncEnvelope {
+    pub(crate) v: u8,
+    pub(crate) iv: String,
+    pub(crate) enc: String,
+}
+
+pub(crate) fn aead_encrypt_json(
+    key: &[u8; 32],
+    value: &serde_json::Value,
+    aad: &str,
+) -> Result<SyncEnvelope, AppError> {
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| AppError::Crypto("Invalid sync key length".into()))?;
+    let nonce_arr = xnonce();
+    let nonce = GenericArray::from(nonce_arr);
+    let plaintext = serde_json::to_vec(value)?;
+    let ciphertext = cipher
+        .encrypt(
+            &nonce,
+            Payload {
+                msg: &plaintext,
+                aad: aad.as_bytes(),
+            },
+        )
+        .map_err(|_| AppError::Crypto("AEAD encryption failed".into()))?;
+    Ok(SyncEnvelope {
+        v: PROTOCOL_VERSION,
+        iv: hex::encode(nonce_arr),
+        enc: BASE64.encode(ciphertext),
+    })
+}
+
+pub(crate) fn aead_decrypt_json(
+    key: &[u8; 32],
+    envelope: &SyncEnvelope,
+    aad: &str,
+) -> Result<serde_json::Value, AppError> {
+    if envelope.v != PROTOCOL_VERSION {
+        return Err(AppError::Crypto(format!(
+            "Unsupported envelope version: {}",
+            envelope.v
+        )));
+    }
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| AppError::Crypto("Invalid sync key length".into()))?;
+    let nonce_arr: [u8; 24] = hex::decode(envelope.iv.trim())?
+        .try_into()
+        .map_err(|_| AppError::Crypto("Invalid nonce length".into()))?;
+    let nonce = GenericArray::from(nonce_arr);
+    let ciphertext = BASE64.decode(envelope.enc.trim())?;
+    let plaintext = cipher
+        .decrypt(
+            &nonce,
+            Payload {
+                msg: &ciphertext,
+                aad: aad.as_bytes(),
+            },
+        )
+        .map_err(|_| AppError::WrongPassword)?;
+    Ok(serde_json::from_slice(&plaintext)?)
+}
+
+// ── Shared key params (Standard Notes-style items key distribution) ──────────
+//
+// The items key is random and wrapped by the master key. To let a second device
+// derive the SAME master key (and thus unwrap the SAME items key) we publish the
+// public KDF parameters (salt) plus the wrapped items key in the sync folder.
+// This file is public: only a device with the correct passphrase can unwrap the
+// items key.
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct KeyParams {
+    pub(crate) version: u8,
+    pub(crate) kdf: String,
+    pub(crate) salt_hex: String,
+    pub(crate) argon2_memory_kib: u32,
+    pub(crate) argon2_iterations: u32,
+    pub(crate) argon2_parallelism: u32,
+    pub(crate) wrapped_items_key: WrappedKeyEnvelope,
+}
+
+pub(crate) fn sync_key_params_path(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Option<PathBuf>, AppError> {
+    let sync_path =
+        get_settings_value(app, state, "syncPath").and_then(|v| v.as_str().map(|s| s.to_string()));
+    let Some(sync_path) = sync_path else {
+        return Ok(None);
+    };
+    Ok(Some(
+        PathBuf::from(sync_path)
+            .join(SYNC_ROOT_DIR)
+            .join(SYNC_KEY_PARAMS_FILE),
+    ))
+}
+
+pub(crate) fn publish_key_params(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
+    let Some(path) = sync_key_params_path(app, state)? else {
+        return Ok(());
+    };
+    let manifest_path = app_encryption_manifest_path(app, state)?;
+    let manifest = load_encryption_manifest(&manifest_path)?
+        .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
+    if manifest.version < 3 {
+        return Err(AppError::Crypto(
+            "Encryption manifest is too old to share keys".into(),
+        ));
+    }
+    let params = KeyParams {
+        version: PROTOCOL_VERSION,
+        kdf: "argon2id".to_string(),
+        salt_hex: manifest
+            .argon2_salt_hex
+            .clone()
+            .unwrap_or(manifest.salt_hex),
+        argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
+        argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
+        argon2_parallelism: manifest.argon2_parallelism.unwrap_or(ARGON2_PARALLELISM),
+        wrapped_items_key: manifest.wrapped_key.clone(),
+    };
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    fs::write(&path, serde_json::to_string_pretty(&params)?)?;
+    Ok(())
+}
+
+pub(crate) fn read_key_params(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Option<KeyParams>, AppError> {
+    let Some(path) = sync_key_params_path(app, state)? else {
+        return Ok(None);
+    };
+    if !path.exists() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(path)?;
+    Ok(Some(serde_json::from_str(&raw)?))
+}
+
+/// Adopt shared key params: derive the same items key every other device uses
+/// from the passphrase + the published (public) salt, update the in-memory key,
+/// and rewrite the local manifest so future local unlocks stay consistent.
+pub(crate) fn adopt_key_params(
+    app: &AppHandle,
+    state: &AppState,
+    params: &KeyParams,
+    passphrase: &str,
+) -> Result<(), AppError> {
+    let salt = hex::decode(params.salt_hex.trim())?;
+    let kek = derive_kek_argon2id(passphrase, &salt)?;
+    let items_key = decrypt_bytes_with_key(&kek, &params.wrapped_items_key)
+        .map_err(|_| AppError::WrongPassword)?;
+    if items_key.len() != 32 {
+        return Err(AppError::Crypto(
+            "Adopted items key has invalid length".into(),
+        ));
+    }
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&items_key[..32]);
+
+    {
+        let mut s = state.crypto.write().map_err(AppError::from)?;
+        s.app_data_key = Some(key);
+        s.current_items_key_id = params.wrapped_items_key.nonce[..8].to_string();
+    }
+
+    let key_id = generate_key_id();
+    let manifest = EncryptionManifest {
+        version: ENCRYPTION_MANIFEST_VERSION,
+        scope: APP_ENCRYPTION_SCOPE.to_string(),
+        kdf_iterations: params.argon2_iterations,
+        salt_hex: params.salt_hex.clone(),
+        argon2_salt_hex: Some(params.salt_hex.clone()),
+        argon2_memory_kib: Some(params.argon2_memory_kib),
+        argon2_iterations: Some(params.argon2_iterations),
+        argon2_parallelism: Some(params.argon2_parallelism),
+        password_check: encrypt_bytes_with_key(&key, APP_PASSWORD_CHECK.as_bytes())?,
+        wrapped_key: params.wrapped_items_key.clone(),
+        current_key_id: key_id.clone(),
+        previous_keys: Vec::new(),
+    };
+    write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
+    Ok(())
+}
+
+pub(crate) fn load_encryption_manifest(
+    path: &Path,
+) -> Result<Option<EncryptionManifest>, AppError> {
     if !path.exists() {
         return Ok(None);
     }
@@ -190,6 +426,7 @@ pub(crate) fn create_encryption_manifest(
     let salt = random_key();
     let kek = derive_kek_argon2id(passphrase, &salt)?;
     let data_key = random_key();
+    let key_id = generate_key_id();
     let manifest = EncryptionManifest {
         version: ENCRYPTION_MANIFEST_VERSION,
         scope: scope.to_string(),
@@ -199,8 +436,10 @@ pub(crate) fn create_encryption_manifest(
         argon2_memory_kib: Some(ARGON2_MEMORY_KIB),
         argon2_iterations: Some(ARGON2_ITERATIONS),
         argon2_parallelism: Some(ARGON2_PARALLELISM),
-        password_check: encrypt_bytes_with_key(&kek, password_check.as_bytes())?,
+        password_check: encrypt_bytes_with_key(&data_key, password_check.as_bytes())?,
         wrapped_key: encrypt_bytes_with_key(&kek, &data_key)?,
+        current_key_id: key_id,
+        previous_keys: Vec::new(),
     };
     Ok((manifest, data_key))
 }
@@ -218,12 +457,20 @@ pub(crate) fn unlock_key_from_manifest(
         )));
     }
     let kek = derive_kek_from_manifest(manifest, passphrase)?;
-    let check = decrypt_bytes_with_key(&kek, &manifest.password_check)?;
-    if check != password_check.as_bytes() {
-        return Err(AppError::WrongPassword);
+    let raw_key =
+        decrypt_bytes_with_key(&kek, &manifest.wrapped_key).map_err(|_| AppError::WrongPassword)?;
+    if raw_key.len() != 32 {
+        return Err(AppError::Crypto("Wrapped key is corrupted.".into()));
     }
-    let key = decrypt_bytes_with_key(&kek, &manifest.wrapped_key)
-        .map_err(|_| AppError::Crypto("Encryption key is corrupted — re-enter your password.".into()))?;
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&raw_key[..32]);
+    if !manifest.password_check.nonce.is_empty() {
+        let check = decrypt_bytes_with_key(&key, &manifest.password_check)
+            .or_else(|_| decrypt_bytes_with_key(&kek, &manifest.password_check))?;
+        if check != password_check.as_bytes() {
+            return Err(AppError::WrongPassword);
+        }
+    }
     if key.len() != 32 {
         return Err(AppError::Crypto("Wrapped key is corrupted.".into()));
     }
@@ -233,24 +480,131 @@ pub(crate) fn unlock_key_from_manifest(
 }
 
 pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
-    Ok(*state.app_data_key.lock().map_err(AppError::from)?)
+    Ok(state.crypto.read().map_err(AppError::from)?.app_data_key)
+}
+
+/// Generate a random hex key ID (16 hex chars = 8 bytes).
+pub(crate) fn generate_key_id() -> String {
+    let mut buf = [0u8; 8];
+    rand::thread_rng().fill_bytes(&mut buf);
+    hex::encode(buf)
+}
+
+/// Look up an encryption key by its ID. Returns `None` when the key is locked.
+pub(crate) fn key_for_id(state: &AppState, kid: &str) -> Result<Option<[u8; 32]>, AppError> {
+    let s = state.crypto.read().map_err(AppError::from)?;
+    if kid.is_empty() || kid == s.current_items_key_id {
+        // Fast path: current key, or legacy note without a kid.
+        return Ok(s.app_data_key);
+    }
+    Ok(s.items_keys.get(kid).copied())
+}
+
+/// Unwrap all `previous_keys` from the manifest and load them into the
+/// in-memory `items_keys` ring. Also caches the KEK in `master_key_cache`
+/// for future rotation without re-prompting.
+pub(crate) fn populate_key_ring(
+    state: &AppState,
+    manifest: &EncryptionManifest,
+    kek: &[u8; 32],
+) -> Result<(), AppError> {
+    let mut s = state.crypto.write().map_err(AppError::from)?;
+    for prev in &manifest.previous_keys {
+        let envelope = WrappedKeyEnvelope {
+            nonce: prev.nonce.clone(),
+            cipher: prev.cipher.clone(),
+        };
+        let key_bytes = decrypt_bytes_with_key(kek, &envelope)?;
+        let mut key = [0u8; 32];
+        key.copy_from_slice(&key_bytes[..32]);
+        s.items_keys.insert(prev.id.clone(), key);
+    }
+    if !manifest.current_key_id.is_empty() {
+        s.current_items_key_id = manifest.current_key_id.clone();
+    }
+    s.master_key_cache = Some(*kek);
+    Ok(())
+}
+
+/// Rotate the current items key: wrap the old key and store it in the manifest's
+/// `previous_keys` list, generate a fresh random items key, wrap it with the KEK
+/// (which must be cached in `master_key_cache`), and persist the updated manifest.
+/// Old notes encrypted with the previous key remain decryptable via `items_keys`
+/// and `key_for_id`.
+pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
+    // 1. KEK + current key must be present (app must be unlocked). Copy them out
+    //    so we can release the lock before doing disk I/O / crypto.
+    let (kek, current_key_id, current_key) = {
+        let s = state.crypto.read().map_err(AppError::from)?;
+        let kek = s
+            .master_key_cache
+            .ok_or_else(|| {
+                AppError::Other("Master key not cached. Cannot rotate without passphrase.".into())
+            })?;
+        if s.current_items_key_id.is_empty() {
+            return Err(AppError::Other(
+                "No current key ID set — cannot rotate.".into(),
+            ));
+        }
+        let current_key = s
+            .app_data_key
+            .ok_or_else(|| AppError::Other("App encryption is locked".into()))?;
+        (kek, s.current_items_key_id.clone(), current_key)
+    };
+
+    // 2. Load the on-disk manifest.
+    let manifest_path = app_encryption_manifest_path(app, state)?;
+    let mut manifest = load_encryption_manifest(&manifest_path)?
+        .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
+
+    // 3. Wrap the outgoing key with the KEK and push it into the manifest's
+    //    previous-keys list (persistent storage).
+    let wrapped_old = encrypt_bytes_with_key(&kek, &current_key)?;
+    manifest.previous_keys.push(PreviousWrappedKey {
+        id: current_key_id.clone(),
+        nonce: wrapped_old.nonce,
+        cipher: wrapped_old.cipher,
+    });
+
+    // 4. Keep the old key in the in-memory ring so it can be looked up during
+    //    this session without needing to unwrap it from the manifest.
+    state
+        .crypto
+        .write()
+        .map_err(AppError::from)?
+        .items_keys
+        .insert(current_key_id, current_key);
+
+    // 5. Generate a new key and key ID.
+    let new_key = random_key();
+    let new_key_id = generate_key_id();
+
+    // 6. Wrap the new key with the KEK.
+    let wrapped_new = encrypt_bytes_with_key(&kek, &new_key)?;
+
+    // 7. Update manifest.
+    manifest.wrapped_key = wrapped_new;
+    manifest.current_key_id = new_key_id.clone();
+
+    // 8. Update in-memory state.
+    {
+        let mut s = state.crypto.write().map_err(AppError::from)?;
+        s.app_data_key = Some(new_key);
+        s.current_items_key_id = new_key_id;
+    }
+
+    // 9. Persist the updated manifest.
+    write_encryption_manifest(&manifest_path, &manifest)?;
+
+    Ok(())
 }
 
 pub(crate) fn note_content_is_native_encrypted(value: &serde_json::Value) -> bool {
     matches!(
         value,
         serde_json::Value::Object(map)
-            if map.get("ae").and_then(serde_json::Value::as_u64) == Some(2)
-                && map.get("nonce").and_then(serde_json::Value::as_str).is_some()
-                && map.get("cipher").and_then(serde_json::Value::as_str).is_some()
-    )
-}
-
-pub(crate) fn note_content_is_legacy_encrypted(value: &serde_json::Value) -> bool {
-    matches!(
-        value,
-        serde_json::Value::Object(map)
-            if map.get("ae").and_then(serde_json::Value::as_u64) == Some(1)
+            if (map.get("ae").and_then(serde_json::Value::as_u64) == Some(2)
+                || map.get("ae").and_then(serde_json::Value::as_u64) == Some(3))
                 && map.get("iv").and_then(serde_json::Value::as_str).is_some()
                 && map.get("cipher").and_then(serde_json::Value::as_str).is_some()
     )
@@ -264,19 +618,30 @@ pub(crate) fn encrypt_note_content_for_storage(
     state: &AppState,
     content: &serde_json::Value,
 ) -> Result<serde_json::Value, AppError> {
-    if note_content_is_native_encrypted(content) || note_content_is_legacy_encrypted(content) {
+    if note_content_is_native_encrypted(content) {
         return Ok(content.clone());
     }
     let key = current_app_key(state)?.ok_or_else(|| {
-        AppError::Other("App encryption key is locked. Unlock app encryption before writing notes.".into())
+        AppError::Other(
+            "App encryption key is locked. Unlock app encryption before writing notes.".into(),
+        )
     })?;
-    let plain = serde_json::to_vec(content)?;
-    let envelope = encrypt_bytes_with_key(&key, &plain)?;
-    Ok(serde_json::json!({
-        "ae": 2,
-        "nonce": envelope.nonce,
-        "cipher": envelope.cipher,
-    }))
+    let key_id = state
+        .crypto
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
+    let envelope = aead_encrypt_json(&key, content, NOTE_AAD)?;
+    let mut result = serde_json::json!({
+        "ae": 3,
+        "iv": envelope.iv,
+        "cipher": envelope.enc,
+    });
+    if !key_id.is_empty() {
+        result["kid"] = serde_json::Value::String(key_id);
+    }
+    Ok(result)
 }
 
 pub(crate) fn decrypt_native_note_content(
@@ -286,13 +651,39 @@ pub(crate) fn decrypt_native_note_content(
     if !note_content_is_native_encrypted(content) {
         return Ok(Some(content.clone()));
     }
-    let key = match current_app_key(state)? {
+    // Determine which items key to use: `kid` in the envelope lets us pick
+    // the correct key from the ring after rotation; absent `kid` (legacy)
+    // falls back to the current key.
+    let kid = content
+        .get("kid")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
+    let key = match key_for_id(state, kid)? {
         Some(key) => key,
         None => return Ok(None),
     };
+    let ae = content.get("ae").and_then(serde_json::Value::as_u64);
+    if ae == Some(3) {
+        let envelope = SyncEnvelope {
+            v: PROTOCOL_VERSION,
+            iv: content
+                .get("iv")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError::Crypto("Encrypted note iv missing.".into()))?
+                .to_string(),
+            enc: content
+                .get("cipher")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| AppError::Crypto("Encrypted note cipher missing.".into()))?
+                .to_string(),
+        };
+        let value = aead_decrypt_json(&key, &envelope, NOTE_AAD)?;
+        return Ok(Some(value));
+    }
+    // Legacy ae:2 (AES-GCM) note content.
     let envelope = WrappedKeyEnvelope {
         nonce: content
-            .get("nonce")
+            .get("iv")
             .and_then(serde_json::Value::as_str)
             .ok_or_else(|| AppError::Crypto("Encrypted note nonce missing.".into()))?
             .to_string(),
@@ -316,7 +707,7 @@ pub(crate) fn encrypt_note_row_for_storage(
     if !note_row_needs_encryption(key, &value) {
         return Ok(value);
     }
-    if !state.app_encryption_active.load(Ordering::Acquire) {
+    if !state.crypto.read().map_err(AppError::from)?.active {
         return Ok(value);
     }
     let mut note = match value {
@@ -393,7 +784,9 @@ pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
         let raw = fs::read_to_string(&key_path)?;
         let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
         if key_bytes.len() != 32 {
-            return Err(AppError::Crypto("Invalid file-based master key length".into()));
+            return Err(AppError::Crypto(
+                "Invalid file-based master key length".into(),
+            ));
         }
         return Ok(key_bytes);
     }
@@ -423,8 +816,7 @@ pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppErro
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
     let mut iv = [0_u8; 12];
     rand::thread_rng().fill_bytes(&mut iv);
-    let encrypted = cipher
-        .encrypt(Nonce::from_slice(&iv), bytes)?;
+    let encrypted = cipher.encrypt(Nonce::from_slice(&iv), bytes)?;
     let mut payload = iv.to_vec();
     payload.extend_from_slice(&encrypted);
     Ok(BASE64.encode(payload))
@@ -447,7 +839,9 @@ pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
     if super::ALLOWED_BLOB_KEYS.contains(&key) {
         Ok(())
     } else {
-        Err(AppError::Other(format!("[safeStorage] Unsupported blob key: {key}")))
+        Err(AppError::Other(format!(
+            "[safeStorage] Unsupported blob key: {key}"
+        )))
     }
 }
 
@@ -457,8 +851,7 @@ pub(crate) fn encrypt_asset_bytes_with_key(
 ) -> Result<Vec<u8>, AppError> {
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let iv = random_nonce();
-    let encrypted = cipher
-        .encrypt(Nonce::from_slice(&iv), plain)?;
+    let encrypted = cipher.encrypt(Nonce::from_slice(&iv), plain)?;
     let (ciphertext, tag) = encrypted.split_at(encrypted.len().saturating_sub(16));
     let mut output = Vec::with_capacity(4 + 12 + 16 + ciphertext.len());
     output.extend_from_slice(ASSET_MAGIC);
@@ -517,12 +910,10 @@ pub(crate) fn encrypt_asset_streaming(
 
         let nonce = derive_chunk_nonce(&nonce_seed, chunk_index, key);
 
-        let encrypted = cipher
-            .encrypt(Nonce::from_slice(&nonce), chunk)?;
+        let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), chunk)?;
 
         let (ciphertext, tag) = encrypted.split_at(encrypted.len().saturating_sub(16));
-        writer
-            .write_all(&(encrypted.len() as u32).to_le_bytes())?;
+        writer.write_all(&(encrypted.len() as u32).to_le_bytes())?;
         writer.write_all(ciphertext)?;
         writer.write_all(tag)?;
 
@@ -589,9 +980,9 @@ pub(crate) fn decrypt_asset_streaming(
         }
 
         let mut chunk_buf = vec![0u8; chunk_len];
-        reader
-            .read_exact(&mut chunk_buf)
-            .map_err(|e| AppError::Crypto(format!("Failed to read chunk {}: {}", chunk_index, e)))?;
+        reader.read_exact(&mut chunk_buf).map_err(|e| {
+            AppError::Crypto(format!("Failed to read chunk {}: {}", chunk_index, e))
+        })?;
 
         let nonce = if is_v3 {
             derive_chunk_nonce(&nonce_seed, chunk_index, key)
@@ -607,7 +998,9 @@ pub(crate) fn decrypt_asset_streaming(
 
         let decrypted = cipher
             .decrypt(Nonce::from_slice(&nonce), chunk_buf.as_slice())
-            .map_err(|_| AppError::Crypto(format!("Decryption failed for chunk {}", chunk_index)))?;
+            .map_err(|_| {
+                AppError::Crypto(format!("Decryption failed for chunk {}", chunk_index))
+            })?;
 
         writer.write_all(&decrypted)?;
         chunk_index += 1;
@@ -640,8 +1033,9 @@ pub(crate) fn encrypt_asset(
     if !manifest_path.exists() {
         return Ok(input.to_vec());
     }
-    let key = current_app_key(state)?
-        .ok_or(AppError::Other("App encryption is enabled but locked. Unlock before writing assets.".into()))?;
+    let key = current_app_key(state)?.ok_or(AppError::Other(
+        "App encryption is enabled but locked. Unlock before writing assets.".into(),
+    ))?;
     encrypt_asset_bytes_with_key(input, &key)
 }
 
@@ -654,8 +1048,7 @@ pub(crate) fn decrypt_asset(
     if !super::is_local_asset_path(app, target_path) || !is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let key = current_app_key(state)?
-        .ok_or(AppError::EncryptionLocked)?;
+    let key = current_app_key(state)?.ok_or(AppError::EncryptionLocked)?;
     decrypt_asset_bytes_with_key(input, &key)
 }
 
@@ -679,10 +1072,7 @@ pub(crate) fn decrypt_legacy_cryptojs_note(
     ciphertext_b64: &str,
     password: &str,
 ) -> Result<String, AppError> {
-    let raw = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        ciphertext_b64,
-    )?;
+    let raw = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, ciphertext_b64)?;
     if raw.len() < 16 || &raw[..8] != b"Salted__" {
         return Err(AppError::Crypto("Not a valid CryptoJS ciphertext".into()));
     }

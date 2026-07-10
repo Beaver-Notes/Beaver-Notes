@@ -168,7 +168,6 @@
 
       <!-- CTA -->
       <ui-button variant="primary" @click="handleCreate">
-        <v-remixicon name="riAddFill" size="24" />
         <span>{{
           translations.emptyState?.createCta || 'Create Your First Note'
         }}</span>
@@ -242,8 +241,8 @@ onMounted(() => {
   setTimeout(() => (chipsVisible.value = true), 400);
 });
 
-const emit = defineEmits(['create']);
-const handleCreate = () => emit('create');
+const emit = defineEmits(['new-note']);
+const handleCreate = () => emit('new-note');
 </script>
 
 <style scoped>

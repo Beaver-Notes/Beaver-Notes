@@ -7,11 +7,7 @@ import { useUndoStore } from './undo';
 
 const storage = useStorage();
 
-// ─── Children index helpers ───────────────────────────────────────────────────
-//
-// Instead of scanning Object.values(state.data) on every getter call we keep a
-// Map<parentId | null, Set<id>> that is updated on every mutation.
-// All "find children of X" queries go from O(N) to O(1).
+// Children index helpers
 
 function buildChildIndex(data) {
   const index = new Map();

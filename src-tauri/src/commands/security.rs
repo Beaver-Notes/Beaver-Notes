@@ -1,8 +1,8 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, time::{Duration, SystemTime}};
 
 use bcrypt::{hash, verify, DEFAULT_COST};
 use serde::Serialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::shared::*;
@@ -39,30 +39,6 @@ pub(crate) struct EncryptionSubmitResult {
     pub(crate) ok: bool,
     pub(crate) error: Option<String>,
     pub(crate) state: EncryptionStateResult,
-}
-
-fn note_envelope_json(cipher: WrappedKeyEnvelope) -> Value {
-    json!({
-        "ae": 2,
-        "nonce": cipher.nonce,
-        "cipher": cipher.cipher,
-    })
-}
-
-fn parse_wrapped_envelope(value: &Value) -> Option<WrappedKeyEnvelope> {
-    Some(WrappedKeyEnvelope {
-        nonce: value.get("nonce")?.as_str()?.to_string(),
-        cipher: value.get("cipher")?.as_str()?.to_string(),
-    })
-}
-
-fn sync_envelope_json(cipher: WrappedKeyEnvelope) -> Result<String, String> {
-    serde_json::to_string(&json!({
-        "v": 3,
-        "nonce": cipher.nonce,
-        "cipher": cipher.cipher,
-    }))
-    .map_err(to_error)
 }
 
 fn sync_scope_path(sync_path: &str) -> PathBuf {
@@ -136,8 +112,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
                     // encrypted and move on — the manifest is about to be removed anyway.
                     match decrypt_asset(&app, &state_inner, path, &raw) {
                         Ok(plain) => {
-                            let payload =
-                                encrypt_asset(&app, &state_inner, path, &plain, true)?;
+                            let payload = encrypt_asset(&app, &state_inner, path, &plain, true)?;
                             fs::write(path, payload).map_err(to_error)
                         }
                         Err(e) => {
@@ -224,6 +199,8 @@ pub(crate) fn encryption_submit_password(
 ) -> Result<EncryptionSubmitResult, String> {
     let create_if_missing = create_if_missing.unwrap_or(true);
 
+    assert_not_locked(state.inner())?;
+
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     if manifest_path.exists() {
         let manifest = load_encryption_manifest(&manifest_path)?
@@ -234,13 +211,22 @@ pub(crate) fn encryption_submit_password(
             APP_ENCRYPTION_SCOPE,
             APP_PASSWORD_CHECK,
         )?;
-        *state.app_data_key.lock().map_err(to_error)? = Some(key);
+        // Populate items-key ring and cache the KEK for future rotations.
+        let kek = derive_kek_from_manifest(&manifest, &password).map_err(|e| e.to_string())?;
+        populate_key_ring(state.inner(), &manifest, &kek).map_err(|e| e.to_string())?;
+        let mut s = state.crypto.write().map_err(to_error)?;
+        s.app_data_key = Some(key);
+        s.active = true;
     } else if create_if_missing {
         let (manifest, key) =
             create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
         write_encryption_manifest(&manifest_path, &manifest)?;
-        *state.app_data_key.lock().map_err(to_error)? = Some(key);
-        state.inner().app_encryption_active.store(true, std::sync::atomic::Ordering::Release);
+        // Store the initial key ID and cache the KEK.
+        let kek = derive_kek_from_manifest(&manifest, &password).map_err(|e| e.to_string())?;
+        populate_key_ring(state.inner(), &manifest, &kek).map_err(|e| e.to_string())?;
+        let mut s = state.crypto.write().map_err(to_error)?;
+        s.app_data_key = Some(key);
+        s.active = true;
     } else {
         return Ok(EncryptionSubmitResult {
             ok: false,
@@ -249,6 +235,11 @@ pub(crate) fn encryption_submit_password(
         });
     }
 
+    {
+        let mut f = state.failure_count.lock().map_err(to_error)?;
+        *f = 0;
+        *state.lockout_until.lock().map_err(to_error)? = None;
+    }
     Ok(EncryptionSubmitResult {
         ok: true,
         error: None,
@@ -266,8 +257,12 @@ pub(crate) fn encryption_enable(
         create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     write_encryption_manifest(&manifest_path, &manifest)?;
-    *state.app_data_key.lock().map_err(to_error)? = Some(key);
-    state.inner().app_encryption_active.store(true, std::sync::atomic::Ordering::Release);
+    // Cache the KEK and populate the key ring so rotation works later.
+    let kek = derive_kek_from_manifest(&manifest, &password).map_err(|e| e.to_string())?;
+    populate_key_ring(state.inner(), &manifest, &kek).map_err(|e| e.to_string())?;
+    let mut s = state.crypto.write().map_err(to_error)?;
+    s.app_data_key = Some(key);
+    s.active = true;
     Ok(())
 }
 
@@ -277,12 +272,12 @@ pub(crate) fn encryption_disable(
     state: State<AppState>,
     remove_manifest: Option<bool>,
 ) -> Result<(), String> {
-    *state.app_data_key.lock().map_err(to_error)? = None;
     if remove_manifest.unwrap_or(true) {
         let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
         let _ = fs::remove_file(manifest_path);
-        state.inner().app_encryption_active.store(false, std::sync::atomic::Ordering::Release);
     }
+    let mut s = state.crypto.write().map_err(to_error)?;
+    *s = CryptoSession::default();
     Ok(())
 }
 
@@ -292,6 +287,7 @@ pub(crate) fn encryption_unlock(
     state: State<AppState>,
     password: String,
 ) -> Result<(), String> {
+    assert_not_locked(state.inner())?;
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     let manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| "Encryption is not enabled.".to_string())?;
@@ -301,13 +297,24 @@ pub(crate) fn encryption_unlock(
         APP_ENCRYPTION_SCOPE,
         APP_PASSWORD_CHECK,
     )?;
-    *state.app_data_key.lock().map_err(to_error)? = Some(key);
+    // Populate items-key ring and cache the KEK for future rotations.
+    let kek = derive_kek_from_manifest(&manifest, &password).map_err(|e| e.to_string())?;
+    populate_key_ring(state.inner(), &manifest, &kek).map_err(|e| e.to_string())?;
+    let mut s = state.crypto.write().map_err(to_error)?;
+    s.app_data_key = Some(key);
+    s.active = true;
+    {
+        let mut f = state.failure_count.lock().map_err(to_error)?;
+        *f = 0;
+        *state.lockout_until.lock().map_err(to_error)? = None;
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), String> {
-    *state.app_data_key.lock().map_err(to_error)? = None;
+    let mut s = state.crypto.write().map_err(to_error)?;
+    *s = CryptoSession::default();
     Ok(())
 }
 
@@ -318,8 +325,23 @@ pub(crate) fn encryption_encrypt_note_payload(
 ) -> Result<Value, String> {
     let key = current_app_key(state.inner())?
         .ok_or_else(|| "App encryption is enabled but locked.".to_string())?;
-    let envelope = encrypt_bytes_with_key(&key, plain_json.as_bytes())?;
-    Ok(note_envelope_json(envelope))
+    let key_id = state
+        .crypto
+        .read()
+        .map_err(to_error)?
+        .current_items_key_id
+        .clone();
+    let value: Value = serde_json::from_str(&plain_json).map_err(to_error)?;
+    let envelope = aead_encrypt_json(&key, &value, NOTE_AAD)?;
+    let mut result = serde_json::json!({
+        "ae": 3,
+        "iv": envelope.iv,
+        "cipher": envelope.enc,
+    });
+    if !key_id.is_empty() {
+        result["kid"] = Value::String(key_id);
+    }
+    Ok(result)
 }
 
 #[tauri::command]
@@ -327,64 +349,136 @@ pub(crate) fn encryption_decrypt_note_payload(
     state: State<AppState>,
     payload: Value,
 ) -> Result<Option<String>, String> {
-    if payload.get("ae").and_then(Value::as_u64) != Some(2) {
+    if payload.get("ae").and_then(Value::as_u64) != Some(3) {
         return serde_json::to_string(&payload).map(Some).map_err(to_error);
     }
-    let key = match current_app_key(state.inner())? {
+    // Look up the correct items key by `kid` (absent → current key).
+    let kid = payload
+        .get("kid")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let key = match key_for_id(state.inner(), &kid).map_err(|e| e.to_string())? {
         Some(key) => key,
         None => return Ok(None),
     };
-    let envelope = parse_wrapped_envelope(&payload)
-        .ok_or_else(|| "Invalid encrypted note payload.".to_string())?;
-    let plain = decrypt_bytes_with_key(&key, &envelope)?;
-    String::from_utf8(plain).map(Some).map_err(to_error)
+    let envelope = SyncEnvelope {
+        v: PROTOCOL_VERSION,
+        iv: payload
+            .get("iv")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Encrypted note iv missing.".to_string())?
+            .to_string(),
+        enc: payload
+            .get("cipher")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "Encrypted note cipher missing.".to_string())?
+            .to_string(),
+    };
+    let value = aead_decrypt_json(&key, &envelope, NOTE_AAD)
+        .map_err(|_| "Failed to decrypt note content.".to_string())?;
+    serde_json::to_string(&value).map(Some).map_err(to_error)
 }
 
+/// Encrypt a sync payload (commit / snapshot / genesis) with the items key using
+/// XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
+/// stem) so it cannot be swapped between sync entries.
 #[tauri::command]
-pub(crate) fn encryption_export_app_key(state: State<AppState>) -> Result<Option<Vec<u8>>, String> {
-    Ok(current_app_key(state.inner())?.map(|k| k.to_vec()))
-}
-
-#[tauri::command]
-pub(crate) fn encryption_encrypt_sync_payload(
+pub(crate) fn sync_encrypt_payload(
+    _app: AppHandle,
     state: State<AppState>,
-    plain_text: String,
+    json: String,
+    aad: String,
 ) -> Result<String, String> {
     let key = current_app_key(state.inner())?
         .ok_or_else(|| "Encryption is enabled but locked.".to_string())?;
-    sync_envelope_json(encrypt_bytes_with_key(&key, plain_text.as_bytes())?)
+    let value: Value = serde_json::from_str(&json).map_err(to_error)?;
+    let envelope = aead_encrypt_json(&key, &value, &aad)?;
+    serde_json::to_string(&envelope).map_err(to_error)
 }
 
+/// Decrypt a sync payload. Returns `DECRYPT_FAILED` on authentication failure
+/// (wrong passphrase or tampered AAD) and `KEY_LOCKED` when the key is absent.
 #[tauri::command]
-pub(crate) fn encryption_decrypt_sync_payload(
+pub(crate) fn sync_decrypt_payload(
+    _app: AppHandle,
     state: State<AppState>,
-    payload: String,
-) -> Result<Option<String>, String> {
-    let parsed = match serde_json::from_str::<Value>(&payload) {
-        Ok(parsed) => parsed,
-        Err(_) => return Ok(Some(payload)),
-    };
-    if parsed.get("v").and_then(Value::as_u64) != Some(3) {
-        return Ok(Some(payload));
+    enc: String,
+    aad: String,
+) -> Result<String, String> {
+    let envelope: SyncEnvelope = serde_json::from_str(&enc).map_err(to_error)?;
+    if envelope.v != PROTOCOL_VERSION {
+        return Err(format!("Unsupported envelope version: {}", envelope.v));
     }
     let key = match current_app_key(state.inner())? {
         Some(key) => key,
-        None => return Ok(None),
+        None => return Err("KEY_LOCKED".to_string()),
     };
-    let envelope = parse_wrapped_envelope(&parsed)
-        .ok_or_else(|| "Invalid encrypted sync payload.".to_string())?;
-    let plain = decrypt_bytes_with_key(&key, &envelope)?;
-    String::from_utf8(plain).map(Some).map_err(to_error)
+    match aead_decrypt_json(&key, &envelope, &aad) {
+        Ok(value) => serde_json::to_string(&value).map_err(to_error),
+        Err(_) => Err("DECRYPT_FAILED".to_string()),
+    }
 }
 
 #[tauri::command]
-pub(crate) fn encryption_encrypt_sync_asset_base64(
+pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
+    state
+        .crypto
+        .read()
+        .map(|s| s.active && s.app_data_key.is_some())
+        .unwrap_or(false)
+}
+
+/// Rotate the items key: archive the current key, generate a fresh one, and
+/// persist the updated manifest. Old notes remain decryptable because the
+/// archived key stays in the in-memory `items_keys` ring (loaded from the
+/// manifest's `previous_keys` on unlock).
+///
+/// Requires that the app is unlocked (the KEK is cached in `master_key_cache`).
+#[tauri::command]
+pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+    rotate_items_key(&app, state.inner()).map_err(|e| e.to_string())
+}
+
+/// Keep the local manifest and the shared `keyParams.json` in the sync folder
+/// consistent so every device derives the same items key. `passphrase` is needed
+/// to adopt a remote items key on a joining device (it is never written out).
+#[tauri::command]
+pub(crate) fn encryption_reconcile_key_params(
+    app: AppHandle,
     state: State<AppState>,
-    base64_data: String,
-) -> Result<String, String> {
-    let key = current_app_key(state.inner())?
-        .ok_or_else(|| "Encryption is enabled but locked.".to_string())?;
-    sync_envelope_json(encrypt_bytes_with_key(&key, base64_data.as_bytes())?)
+    passphrase: Option<String>,
+) -> Result<(), String> {
+    if !state.crypto.read().map_err(to_error)?.active {
+        return Ok(());
+    }
+    let params = read_key_params(&app, state.inner()).map_err(to_error)?;
+    match params {
+        Some(params) => {
+            let already_adopted = app_encryption_manifest_path(&app, state.inner())
+                .ok()
+                .and_then(|p| load_encryption_manifest(&p).ok().flatten())
+                .map_or(false, |m| {
+                    m.wrapped_key.nonce == params.wrapped_items_key.nonce
+                        && m.wrapped_key.cipher == params.wrapped_items_key.cipher
+                });
+            if !already_adopted {
+                match passphrase {
+                    Some(pw) => {
+                        adopt_key_params(&app, state.inner(), &params, &pw).map_err(to_error)?
+                    }
+                    None => {
+                        // Cannot adopt without the passphrase yet; a later sync
+                        // (which supplies it from secure storage) will retry.
+                    }
+                }
+            }
+        }
+        None => {
+            publish_key_params(&app, state.inner()).map_err(to_error)?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -432,10 +526,7 @@ pub(crate) fn safe_storage_fetch_blob(
 }
 
 #[tauri::command]
-pub(crate) fn safe_storage_clear_blob(
-    state: State<AppState>,
-    key: String,
-) -> Result<(), String> {
+pub(crate) fn safe_storage_clear_blob(state: State<AppState>, key: String) -> Result<(), String> {
     allowed_blob_key(&key)?;
     let s = state.inner();
     s.secure_blobs.clear_blob(s, &key)
@@ -475,16 +566,65 @@ pub(crate) fn passwd_compare(password: String, hash: String) -> Result<bool, Str
 pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureResult, String> {
     let mut failures = state.failure_count.lock().map_err(to_error)?;
     *failures += 1;
+    let mut lockout_guard = state.lockout_until.lock().map_err(to_error)?;
+    let now = SystemTime::now();
+    let already_locked = lockout_guard
+        .map(|until| until > now)
+        .unwrap_or(false);
+
+    if *failures >= LOCKOUT_THRESHOLD {
+        // Set or extend the lockout; never start a new lockout in the past.
+        let extra = if already_locked {
+            LOCKOUT_BASE_SECS
+        } else {
+            LOCKOUT_BASE_SECS
+        };
+        let base = lockout_guard.unwrap_or(now);
+        let new_until = (if base > now { base } else { now }) + Duration::from_secs(extra);
+        let capped = now + Duration::from_secs(LOCKOUT_MAX_SECS);
+        *lockout_guard = Some(new_until.min(capped));
+    }
+
+    let remaining = lockout_guard
+        .map(|until| until.duration_since(now).map(|d| d.as_secs()).unwrap_or(0))
+        .unwrap_or(0);
     Ok(FailureResult {
         fail_count: *failures,
         warn: *failures >= WARN_THRESHOLD,
+        locked: remaining > 0,
+        lockout_seconds: remaining,
     })
 }
 
 #[tauri::command]
 pub(crate) fn passwd_reset_failures(state: State<AppState>) -> Result<(), String> {
     *state.failure_count.lock().map_err(to_error)? = 0;
+    *state.lockout_until.lock().map_err(to_error)? = None;
     Ok(())
+}
+
+/// Returns `Err` with a lockout message when unlock attempts are currently
+/// rate-limited, clearing an expired lockout so a fresh attempt can proceed.
+fn assert_not_locked(state: &AppState) -> Result<(), String> {
+    let mut lockout_guard = state.lockout_until.lock().map_err(to_error)?;
+    match *lockout_guard {
+        Some(until) if until > SystemTime::now() => {
+            let secs = until
+                .duration_since(SystemTime::now())
+                .map(|d| d.as_secs())
+                .unwrap_or(0);
+            Err(format!(
+                "Too many incorrect attempts. Try again in {} second(s).",
+                secs
+            ))
+        }
+        Some(_) => {
+            // Expired — clear and allow the attempt.
+            *lockout_guard = None;
+            Ok(())
+        }
+        None => Ok(()),
+    }
 }
 
 #[tauri::command]

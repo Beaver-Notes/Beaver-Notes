@@ -284,6 +284,11 @@ export function useAppShell() {
     status: null,
     error: null,
   });
+  // Full-screen gate shown on launch when encryption is configured but the key
+  // is not loaded (and could not be auto-restored). Forces unlock before use.
+  const appEncryptionGate = reactive({
+    show: false,
+  });
 
   const syncLockBannerCopy = computed(() => ({
     content:
@@ -337,6 +342,7 @@ export function useAppShell() {
     }
     const configured = await encryptionIsConfigured();
     syncLockBanner.show = configured && !isKeyLoaded();
+    await refreshEncryptionGate();
   };
 
   const dismissAppEncryptionMigrationBanner = () => {
@@ -385,6 +391,16 @@ export function useAppShell() {
   const restoreEncryptionKeys = async () => {
     await getSyncPath();
     await tryRestoreKeyFromSafeStorage();
+    await refreshEncryptionGate();
+  };
+
+  const refreshEncryptionGate = async () => {
+    if (route.name === ONBOARDING_ROUTE_NAME) {
+      appEncryptionGate.show = false;
+      return;
+    }
+    const configured = await encryptionIsConfigured();
+    appEncryptionGate.show = configured && !isKeyLoaded();
   };
 
   const hasExistingWorkspaceData = async () => {
@@ -640,6 +656,8 @@ export function useAppShell() {
     store,
     syncLockBanner,
     syncLockBannerCopy,
+    appEncryptionGate,
+    refreshEncryptionGate,
     updateBanner,
     appEncryptionMigrationBanner,
     appEncryptionMigrationBannerCopy,

@@ -3,6 +3,7 @@ import {
   decryptJSON,
   ensureSyncKeyReadyForWrite,
 } from './crypto.js';
+import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 import { getSyncPath } from './path.js';
 import { getSettingSync } from '@/composable/settings';
 import { useStorage } from '@/composable/storage';
@@ -177,6 +178,22 @@ async function _sync(force = false) {
   const syncPath = await getSyncPath();
   if (!syncPath) return;
 
+  // Keep the shared items key (keyParams.json) in sync so every device derives
+  // the same items key. Safe to run every cycle; cheap when already consistent.
+  // The stored passphrase lets a joining device adopt the shared items key.
+  let syncPassphrase = null;
+  try {
+    const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
+    syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
+  } catch {
+    syncPassphrase = null;
+  }
+  try {
+    await reconcileSyncKeyParams(syncPassphrase || undefined);
+  } catch (e) {
+    console.warn('[sync] key-params reconcile failed:', e);
+  }
+
   state.syncing = true;
 
   try {
@@ -188,15 +205,30 @@ async function _sync(force = false) {
     // First device: write the genesis snapshot so subsequent devices have
     // a consistent starting point. Subsequent devices: apply genesis as
     // the authoritative baseline before processing any commits.
+    let genesisApplied = false;
     const hasGenesis = await genesisExists(syncDir);
     if (!hasGenesis) {
       await writeGenesisState({ syncDir, encryptJSON });
     } else {
-      await applyGenesisIfNeeded({
+      const result = await applyGenesisIfNeeded({
         syncDir,
         decryptJSON,
         saveCursors: _saveCursors,
       });
+      if (result === 'encrypted') {
+        console.warn(
+          '[sync] Genesis is encrypted — set up encryption with the same password to sync.'
+        );
+        try {
+          emit('sync:error', {
+            message:
+              'The sync data is encrypted. Go to Security settings and enter the same encryption password used on your other device.',
+            code: 'GENESIS_ENCRYPTED',
+          });
+        } catch {}
+      } else {
+        genesisApplied = result;
+      }
     }
 
     const snapshotApplied = await applySnapshotIfNeeded({
@@ -256,7 +288,7 @@ async function _sync(force = false) {
       });
     }
 
-    if (remoteCommits.length > 0 || snapshotApplied) {
+    if (remoteCommits.length > 0 || snapshotApplied || genesisApplied) {
       await Promise.all([
         useNoteStore().retrieve(),
         useFolderStore().retrieve(),

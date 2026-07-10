@@ -55,11 +55,12 @@ const commandAliases = {
   'encryption:disable': 'encryption_disable',
   'encryption:unlock': 'encryption_unlock',
   'encryption:lock': 'encryption_lock',
-  'encryption:exportAppKey': 'encryption_export_app_key',
   'encryption:encryptNotePayload': 'encryption_encrypt_note_payload',
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
-  'encryption:encryptSyncPayload': 'encryption_encrypt_sync_payload',
-  'encryption:decryptSyncPayload': 'encryption_decrypt_sync_payload',
+  'sync:encryptPayload': 'sync_encrypt_payload',
+  'sync:decryptPayload': 'sync_decrypt_payload',
+  'sync:keyReady': 'sync_key_ready',
+  'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
 
   'assetCrypto:decryptAssetStream': 'encryption_decrypt_asset_stream',
   'assetCrypto:encryptAssetStream': 'encryption_encrypt_asset_stream',
@@ -253,10 +254,20 @@ function normalizePayload(channel, payload) {
       return withKeyVariants('plain_json', payload);
     case 'encryption:decryptNotePayload':
       return withKeyVariants('payload', payload);
-    case 'encryption:encryptSyncPayload':
-      return withKeyVariants('plain_text', payload);
-    case 'encryption:decryptSyncPayload':
-      return withKeyVariants('payload', payload);
+    case 'sync:encryptPayload':
+      return {
+        ...withKeyVariants('json', payload?.json),
+        ...withKeyVariants('aad', payload?.aad),
+      };
+    case 'sync:decryptPayload':
+      return {
+        ...withKeyVariants('enc', payload?.enc),
+        ...withKeyVariants('aad', payload?.aad),
+      };
+    case 'sync:keyReady':
+      return {};
+    case 'encryption:reconcileKeyParams':
+      return withKeyVariants('passphrase', payload?.passphrase);
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':

@@ -6,7 +6,7 @@ import {
   encryptNotePayload,
   decryptNotePayload,
   clearDecryptedCaches,
-  encryptionExportAppKey,
+  reconcileSyncKeyParams,
 } from '@/lib/native/security.js';
 import {
   clearSecureBlob,
@@ -19,7 +19,6 @@ const state = {
   loaded: false,
 };
 let _restoreInFlight = null;
-let _keyRaw = null;
 const BLOB_KEY = 'encryptionPassphraseBlob';
 
 async function refreshState() {
@@ -35,17 +34,6 @@ export function isEncryptionEnabled() {
 
 export function isKeyLoaded() {
   return state.loaded;
-}
-
-export async function exportKeyRaw() {
-  if (!state.loaded) return null;
-  if (_keyRaw) return _keyRaw;
-  try {
-    _keyRaw = await encryptionExportAppKey();
-    return _keyRaw;
-  } catch {
-    return null;
-  }
 }
 
 export async function ensureKeyReadyForWrite() {
@@ -74,6 +62,8 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
+    // Publish the shared items key (keyParams.json) so other devices can adopt it.
+    reconcileSyncKeyParams().catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -87,16 +77,15 @@ export async function verifyPassphrase(passphrase) {
   }
 
   try {
-    const result = await submitEncryptionPassword(passphrase, null, false);
+    const result = await submitEncryptionPassword(passphrase, false);
     if (!result?.ok) {
       return { ok: false, error: result?.error || 'Wrong passphrase.' };
     }
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    if (result?.state?.unlocked) {
-      await exportKeyRaw();
-    }
+    // Adopt the shared items key if another device already published it.
+    reconcileSyncKeyParams(passphrase).catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] verify failed:', err);
@@ -115,9 +104,6 @@ export async function tryRestoreKeyFromSafeStorage() {
 async function _doRestoreKey() {
   const next = await refreshState();
   if (!next?.enabled || next?.unlocked) {
-    if (next?.unlocked) {
-      await exportKeyRaw();
-    }
     return !!next?.unlocked;
   }
 
@@ -185,7 +171,7 @@ export async function decryptContent(contentVal) {
 
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
-  return contentVal.ae === 1 || contentVal.ae === 2;
+  return contentVal.ae === 1 || contentVal.ae === 2 || contentVal.ae === 3;
 }
 
 export async function lockEncryptionKey() {

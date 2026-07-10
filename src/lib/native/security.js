@@ -70,10 +70,6 @@ export function lockEncryption() {
   return backend.invoke('encryption:lock');
 }
 
-export function encryptionExportAppKey() {
-  return backend.invoke('encryption:exportAppKey');
-}
-
 export function encryptNotePayload(plainJson) {
   return backend.invoke('encryption:encryptNotePayload', plainJson);
 }
@@ -82,12 +78,20 @@ export function decryptNotePayload(payload) {
   return backend.invoke('encryption:decryptNotePayload', payload);
 }
 
-export function encryptSyncPayload(plainText) {
-  return backend.invoke('encryption:encryptSyncPayload', plainText);
+export function syncEncryptPayload(json, aad) {
+  return backend.invoke('sync:encryptPayload', { json, aad });
 }
 
-export function decryptSyncPayload(payload) {
-  return backend.invoke('encryption:decryptSyncPayload', payload);
+export function syncDecryptPayload(enc, aad) {
+  return backend.invoke('sync:decryptPayload', { enc, aad });
+}
+
+export function syncKeyReady() {
+  return backend.invoke('sync:keyReady');
+}
+
+export function reconcileSyncKeyParams(passphrase) {
+  return backend.invoke('encryption:reconcileKeyParams', { passphrase });
 }
 
 export function decryptAssetStream(path) {
