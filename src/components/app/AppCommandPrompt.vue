@@ -156,6 +156,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import commands from '@/utils/ui/commands.js';
+import { usePluginStore } from '@/store/plugins';
 import { useUiState } from '@/composable/useUiState';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import dayjs from 'dayjs';
@@ -168,6 +169,7 @@ const { translations } = useTranslations();
 const noteStore = useNoteStore();
 const folderStore = useFolderStore();
 const uiState = useUiState();
+const pluginStore = usePluginStore();
 
 const itemRefs = ref([]);
 const state = shallowReactive({
@@ -194,7 +196,15 @@ const queryTerm = computed(() =>
 
 const items = computed(() => {
   if (isCommand.value) {
-    const allCommands = commands.map((cmd) => ({ ...cmd, type: 'command' }));
+    const allCommands = [
+      ...commands.map((cmd) => ({ ...cmd, type: 'command' })),
+      ...pluginStore.pluginAppCommands.map((cmd) => ({
+        ...cmd,
+        type: 'command',
+        title: cmd.title || cmd.id,
+        icon: cmd.icon || 'riPuzzle2Line',
+      })),
+    ];
     return allCommands.filter((c) =>
       c.title.toLowerCase().includes(queryTerm.value)
     );

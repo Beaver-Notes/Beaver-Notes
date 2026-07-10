@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { getSettingSync, setSetting } from '../composable/settings';
+import { emitAppEvent } from '@/plugins/PluginEvents';
 
 export const useAppStore = defineStore('appStore', () => {
   const setting = ref({
@@ -18,6 +19,7 @@ export const useAppStore = defineStore('appStore', () => {
     setSettingStorage: async (key, value) => {
       await setSetting(key, value);
       setting.value[key] = value;
+      emitAppEvent('settings-changed', { key, value });
     },
     toolbarStorage: {
       get: () => getSettingSync('toolbarConfig'),

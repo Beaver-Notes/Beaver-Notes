@@ -102,6 +102,17 @@ const commandAliases = {
   'app-icon:change': 'change',
   'app-icon:reset': 'reset',
   'pdf:render': 'render_pdf',
+  'plugin:install': 'install_plugin',
+  'plugin:uninstall': 'uninstall_plugin',
+  'plugin:list': 'list_plugins',
+  'plugin:set-grants': 'set_plugin_grants',
+  'plugin:fs_read_text': 'plugin_fs_read_text',
+  'plugin:fs_write_text': 'plugin_fs_write_text',
+  'plugin:fs_read_binary': 'plugin_fs_read_binary',
+  'plugin:fs_write_binary': 'plugin_fs_write_binary',
+  'plugin:fs_delete': 'plugin_fs_delete',
+  'plugin:fs_list': 'plugin_fs_list',
+  'plugin:fs_exists': 'plugin_fs_exists',
 };
 
 function withKeyVariants(key, value) {

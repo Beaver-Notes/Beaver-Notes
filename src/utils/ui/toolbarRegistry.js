@@ -24,6 +24,17 @@
 /** @typedef {{ id: string, label: string, icon: string|null, group: string, isDivider?: boolean, component?: object }} ToolbarItemMeta */
 
 const _items = [];
+const _listeners = new Set();
+
+function notify() {
+  for (const cb of _listeners) {
+    try {
+      cb();
+    } catch (e) {
+      console.error('[toolbarRegistry] listener error:', e);
+    }
+  }
+}
 
 export const toolbarRegistry = {
   /**
@@ -40,6 +51,7 @@ export const toolbarRegistry = {
       return;
     }
     _items.push(item);
+    notify();
   },
 
   /** Return a shallow copy of all registered items (built-ins + plugins). */
@@ -55,6 +67,25 @@ export const toolbarRegistry = {
   /** Get metadata for one item (used by the customizer). */
   get(id) {
     return _items.find((i) => i.id === id) ?? null;
+  },
+
+  /** Remove a plugin-registered item by id. Leaves built-ins alone. */
+  unregister(id) {
+    const idx = _items.findIndex((i) => i.id === id);
+    if (idx !== -1) {
+      _items.splice(idx, 1);
+      notify();
+    }
+  },
+
+  /**
+   * Subscribe to registry mutations. Returns an unsubscribe function.
+   * Use this in computeds/refs that need to re-derive when items
+   * are added or removed after the consumer was created.
+   */
+  subscribe(cb) {
+    _listeners.add(cb);
+    return () => _listeners.delete(cb);
   },
 };
 

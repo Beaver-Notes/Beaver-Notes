@@ -10,6 +10,8 @@ import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
 import SettingsSecurity from './pages/settings/Security.vue';
+import SettingsPlugins from './pages/settings/Plugins.vue';
+import PluginDetail from './pages/settings/PluginDetail.vue';
 
 const routes = [
   {
@@ -66,6 +68,16 @@ const routes = [
         path: 'security',
         name: 'Settings-Security',
         component: SettingsSecurity,
+      },
+      {
+        path: 'plugins',
+        name: 'Settings-Plugins',
+        component: SettingsPlugins,
+      },
+      {
+        path: 'plugins/:pluginId',
+        name: 'Settings-Plugins-Detail',
+        component: PluginDetail,
       },
     ],
   },

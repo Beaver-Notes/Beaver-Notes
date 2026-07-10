@@ -64,6 +64,7 @@
     "vite": "^5.0.11"
   },
   "dependencies": {
+    "ses": "^2.2.0",
     "@eioluseyi/tailwind-fade": "^1.1.1",
     "@floating-ui/dom": "^1.7.6",
     "@floating-ui/vue": "^1.1.11",
@@ -74,6 +75,7 @@
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-clipboard-manager": "^2",
     "@tauri-apps/plugin-haptics": "~2",
+    "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-notification": "^2",
     "@tiptap/core": "^3",
     "@tiptap/extension-bubble-menu": "^3",

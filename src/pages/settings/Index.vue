@@ -69,6 +69,7 @@
           </div>
         </div>
         <div
+          v-if="hasSyncFolder"
           class="flex gap-3 px-4 py-3.5 flex-row items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">

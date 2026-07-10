@@ -82,7 +82,8 @@ pub fn run() {
     {
         builder = builder.plugin(tauri_plugin_spotsearch::init());
     }
-    builder = builder.plugin(tauri_plugin_app_icon::init());
+    builder = builder        .plugin(tauri_plugin_app_icon::init())
+        .plugin(tauri_plugin_http::init());
 
     #[cfg(target_os = "ios")]
     {
@@ -193,8 +194,24 @@ pub fn run() {
             commands::updates::get_auto_update_status,
             commands::updates::is_update_downloading,
             commands::updates::get_update_info,
-            commands::imports::import_evernote,
             commands::imports::import_apple_notes,
+            commands::imports::import_evernote,
+            commands::plugins::install_plugin,
+            commands::plugins::uninstall_plugin,
+            commands::plugins::list_plugins,
+            commands::plugins::set_plugin_grants,
+            commands::plugins::get_interop_grants,
+            commands::plugins::add_interop_grant,
+            commands::plugins::plugin_fs_read_text,
+            commands::plugins::plugin_fs_write_text,
+            commands::plugins::plugin_fs_read_binary,
+            commands::plugins::plugin_fs_write_binary,
+            commands::plugins::plugin_fs_delete,
+            commands::plugins::plugin_fs_list,
+            commands::plugins::plugin_fs_exists,
+            commands::plugins::credential_set,
+            commands::plugins::credential_get,
+            commands::plugins::credential_delete,
             commands::search::search_notes,
             commands::search::search_index_note,
             commands::search::search_remove_note,

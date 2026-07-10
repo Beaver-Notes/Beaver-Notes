@@ -57,6 +57,8 @@ urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
+tauri-plugin-http = { version = "2", features = ["rustls-tls"] }
+ureq = { version = "2", features = ["tls"] }
 tauri-plugin-scoped-storage = "=1.5.0"
 
 

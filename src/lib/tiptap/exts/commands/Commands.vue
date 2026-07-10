@@ -57,6 +57,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/composable/editorImage';
 import { saveFile } from '@/utils/assets/storage.js';
 import { openDialog } from '@/lib/native/dialog';
+import { usePluginStore } from '@/store/plugins';
 
 export default {
   props: {
@@ -85,6 +86,7 @@ export default {
     const instance = getCurrentInstance();
     const editorImage = useEditorImage(props.editor);
     const selectedIndex = ref(0);
+    const pluginStore = usePluginStore();
 
     const { translations } = useTranslations();
 
@@ -210,7 +212,7 @@ export default {
       'heading6Description',
     ];
 
-    const items = ref([
+    const builtInItems = [
       {
         icon: 'riParagraph',
         name: 'paragraph',
@@ -398,6 +400,16 @@ export default {
         description: 'columnsDescription',
         action: () => props.editor.chain().focus().insertMultiColumn(2).run(),
       },
+    ];
+
+    const items = computed(() => [
+      ...builtInItems,
+      ...pluginStore.pluginSlashCommands.map((cmd) => ({
+        icon: cmd.icon || 'riPuzzle2Line',
+        name: cmd.name,
+        description: cmd.description || cmd.name,
+        action: (editor) => cmd.action(editor),
+      })),
     ]);
 
     function scrollToSelected() {

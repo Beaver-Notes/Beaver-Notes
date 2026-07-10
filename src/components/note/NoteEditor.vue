@@ -1,5 +1,30 @@
 <template>
   <div class="note-editor mb-64">
+    <div
+      v-if="erroredActivePlugins.length"
+      class="mb-3 p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800"
+    >
+      <p class="text-sm text-yellow-800 dark:text-yellow-200">
+        {{
+          erroredActivePlugins.length === 1
+            ? 'A plugin failed to load and was disabled:'
+            : `${erroredActivePlugins.length} plugins failed to load and were disabled:`
+        }}
+      </p>
+      <ul
+        class="mt-1 text-xs text-yellow-700 dark:text-yellow-300 list-disc list-inside"
+      >
+        <li v-for="p in erroredActivePlugins" :key="p.id">
+          <router-link
+            :to="`/settings/plugins/${p.id}`"
+            class="underline hover:no-underline"
+          >
+            {{ p.manifest?.name || p.id }}
+          </router-link>
+          — {{ p.error }}
+        </li>
+      </ul>
+    </div>
     <slot v-bind="{ editor }" />
     <drag-handle
       v-if="editor && showDragHandle"
@@ -59,6 +84,7 @@ import {
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
+import { usePluginStore } from '@/store/plugins';
 import { offset } from '@floating-ui/dom';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
@@ -84,6 +110,7 @@ export default {
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
+    const pluginStore = usePluginStore();
 
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
@@ -248,12 +275,24 @@ export default {
       };
     });
 
+    const erroredActivePlugins = computed(() =>
+      pluginStore.installedPlugins.filter((p) => p.state === 'error')
+    );
+
+    const safePluginExtensions = computed(() => {
+      const erroredIds = new Set(erroredActivePlugins.value.map((p) => p.id));
+      return pluginStore.pluginExtensions.filter(
+        (ext) => !erroredIds.has(ext._pluginId)
+      );
+    });
+
     const exts = [
       ...extensions,
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
+      ...safePluginExtensions.value,
     ];
-    if (typeof window === 'undefined' || window.innerWidth >= 768) {
+    if (typeof window !== 'undefined') {
       exts.push(Commands);
     }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
@@ -400,6 +439,7 @@ export default {
       editor,
       computePositionConfig,
       showDragHandle,
+      erroredActivePlugins,
       isDragging,
       currentNodePos,
       onElementDragStart,

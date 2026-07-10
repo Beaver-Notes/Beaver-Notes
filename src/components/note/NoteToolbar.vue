@@ -363,6 +363,14 @@
                 v-if="item.meta?.component"
                 :editor="editor"
               />
+              <button
+                v-else-if="item.meta?.command"
+                v-tooltip.group="item.meta.label"
+                :class="tbBtn()"
+                @click="item.meta.command(editor)"
+              >
+                <v-remixicon v-if="item.meta.icon" :name="item.meta.icon" />
+              </button>
             </template>
           </div>
 

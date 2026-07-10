@@ -1,5 +1,23 @@
 <template>
   <div v-if="note" class="flex flex-col">
+    <button
+      v-if="
+        (showBack && !uiState.inReaderMode) ||
+        ($route.query.linked && !uiState.inReaderMode)
+      "
+      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden mobile:hidden"
+      :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
+      @click="goBack"
+    >
+      <v-remixicon
+        name="riArrowDownLine"
+        class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
+      />
+      <span v-if="$route.query.linked && !uiState.inReaderMode">
+        {{ translations.editor.previousNote || '-' }}
+      </span>
+    </button>
+
     <template v-if="editor && !isLocked">
       <div class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4">
         <div
@@ -104,10 +122,10 @@
       </div>
 
       <note-editor
-        v-if="!isLocked"
+        v-if="!isLocked && pluginStore.loaded"
         :id="$route.params.id"
         ref="noteEditor"
-        :key="$route.params.id"
+        :key="`${$route.params.id}-${pluginStore.extensionsVersion}`"
         :model-value="note.content"
         :note="note"
         :cursor-position="note.lastCursorPosition"
@@ -155,10 +173,12 @@ import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
+import { usePluginStore } from '@/store/plugins';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
+import { emitAppEvent } from '@/plugins/PluginEvents';
 
 export default {
   components: {
@@ -179,6 +199,7 @@ export default {
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const appStore = useAppStore();
+    const pluginStore = usePluginStore();
 
     const editor = shallowRef(null);
     const noteEditor = ref();
@@ -383,6 +404,8 @@ export default {
       if (titleDiv.value && note.value.title) {
         titleDiv.value.innerText = note.value.title;
       }
+
+      emitAppEvent('note-opened', route.params.id);
     });
 
     onUnmounted(() => {
@@ -429,7 +452,7 @@ export default {
     };
 
     watch(
-      () => uiState.showPrompt.value,
+      () => uiState.showPrompt,
       (n) => {
         if (!n) {
           focusEditor();
@@ -473,6 +496,7 @@ export default {
       disallowedEnter,
       autoScroll,
       isLocked,
+      pluginStore,
     };
   },
 };

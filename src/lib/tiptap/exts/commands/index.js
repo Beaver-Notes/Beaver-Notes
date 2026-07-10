@@ -25,7 +25,7 @@ export default Extension.create({
         char: this.options.suggestion.char,
         command: ({ editor, range, props }) => {
           editor.chain().focus().deleteRange(range).run();
-          props.action();
+          props.action(editor);
         },
         render: () => {
           let component;
@@ -42,7 +42,7 @@ export default Extension.create({
                   range: props.range,
                   command: ({ editor, range, props }) => {
                     editor.chain().focus().deleteRange(range).run();
-                    props.action();
+                    props.action(editor);
                   },
                 },
                 editor: props.editor,
@@ -78,7 +78,7 @@ export default Extension.create({
                 range: props.range,
                 command: ({ editor, range, props }) => {
                   editor.chain().focus().deleteRange(range).run();
-                  props.action();
+                  props.action(editor);
                 },
               });
 

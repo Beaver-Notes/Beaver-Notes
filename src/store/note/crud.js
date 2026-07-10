@@ -5,6 +5,7 @@ import { readDir, removePath } from '@/lib/native/fs';
 import { trackChange, trackDeletedAssets } from '@/utils/sync';
 import { hydrateNote } from '@/utils/note/serializer.js';
 import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
+import { PluginRegistry } from '@/plugins/PluginRegistry';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
 import {
@@ -38,13 +39,25 @@ export async function retrieve() {
       await Promise.all(
         Object.keys(merged).map(async (id) => {
           merged[id] = await decryptNoteForMemory(merged[id]);
+          if (merged[id]?.content) {
+            merged[id].content = await PluginRegistry.runLoadTransforms(
+              merged[id].content, id
+            );
+          }
           merged[id] = hydrateNote(merged[id]);
         })
       );
     } else {
-      Object.keys(merged).forEach((id) => {
-        merged[id] = hydrateNote(merged[id]);
-      });
+      await Promise.all(
+        Object.keys(merged).map(async (id) => {
+          if (merged[id]?.content) {
+            merged[id].content = await PluginRegistry.runLoadTransforms(
+              merged[id].content, id
+            );
+          }
+          merged[id] = hydrateNote(merged[id]);
+        })
+      );
     }
 
     this.data = merged;
@@ -97,6 +110,8 @@ export async function add(note = {}) {
     await saveNote(id, this.data[id]);
     await trackNoteChange(id, this.data[id]);
     rebuildLinkIndexForNote(id, this.data[id].content);
+
+    emitAppEvent('note-created', id);
 
     return this.data[id];
   } catch (error) {
@@ -169,6 +184,8 @@ export async function persist(id) {
   await trackNoteChange(id, this.data[id]);
   rebuildLinkIndexForNote(id, this.data[id].content);
 
+  emitAppEvent('note-saved', id);
+
   return this.data[id];
 }
 
@@ -223,6 +240,8 @@ export async function deleteNote(id) {
         items: [{ type: 'note', data: snapshot }],
       });
     }
+
+    emitAppEvent('note-deleted', id);
 
     return id;
   } catch (error) {

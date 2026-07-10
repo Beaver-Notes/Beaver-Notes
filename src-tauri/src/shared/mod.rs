@@ -38,6 +38,7 @@ pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const SETTINGS_STORE: &str = "settings.json";
 pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
+pub(crate) const PLUGIN_STORAGE_STORE: &str = "plugin-storage.json";
 pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beaver-notes.beaver-notes";
 pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["encryptionPassphraseBlob"];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
@@ -196,6 +197,7 @@ pub(crate) struct UpdaterState {
 pub(crate) struct DbState {
     pub(crate) data: OnceLock<DbPool>,
     pub(crate) settings: OnceLock<DbPool>,
+    pub(crate) plugin_storage: OnceLock<DbPool>,
 }
 
 impl DbState {
@@ -203,6 +205,7 @@ impl DbState {
         Self {
             data: OnceLock::new(),
             settings: OnceLock::new(),
+            plugin_storage: OnceLock::new(),
         }
     }
 }
@@ -347,7 +350,7 @@ fn normalize_path_lexical(path: &Path) -> PathBuf {
     normalized
 }
 
-fn is_path_inside(root: &Path, candidate: &Path) -> bool {
+pub(crate) fn is_path_inside(root: &Path, candidate: &Path) -> bool {
     // Strict mode: only absolute paths participate in access checks.
     if !root.is_absolute() || !candidate.is_absolute() {
         return false;
@@ -474,6 +477,7 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, String> {
     match name {
         "data" => Ok(DATA_STORE),
         "settings" => Ok(SETTINGS_STORE),
+        "plugin-storage" => Ok(PLUGIN_STORAGE_STORE),
         _ => Err(format!(
             r#"[storage] blocked access to unknown store: "{name}""#
         )),
@@ -503,6 +507,13 @@ pub(crate) fn settings_pool<'a>(
     state: &'a AppState,
 ) -> Result<&'a DbPool, String> {
     get_or_init_pool(app, state, &state.db.settings, "settings.db")
+}
+
+pub(crate) fn plugin_storage_pool<'a>(
+    app: &AppHandle,
+    state: &'a AppState,
+) -> Result<&'a DbPool, String> {
+    get_or_init_pool(app, state, &state.db.plugin_storage, "plugin-storage.db")
 }
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {
