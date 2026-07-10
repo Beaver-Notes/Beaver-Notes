@@ -10,6 +10,7 @@ import SettingsShortcuts from './pages/settings/Shortcuts.vue';
 import SettingsAbout from './pages/settings/About.vue';
 import SettingsLabels from './pages/settings/Labels.vue';
 import SettingsSecurity from './pages/settings/Security.vue';
+import SettingsAccount from './pages/settings/Account.vue';
 
 const routes = [
   {
@@ -46,6 +47,11 @@ const routes = [
         path: 'appearance',
         name: 'Settings-Appearance',
         component: SettingsAppearance,
+      },
+      {
+        path: 'account',
+        name: 'Settings-Account',
+        component: SettingsAccount,
       },
       {
         path: 'shortcuts',

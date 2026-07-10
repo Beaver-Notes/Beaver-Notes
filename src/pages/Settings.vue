@@ -98,7 +98,11 @@ const settings = computed(() => ({
     icon: 'riShieldLine',
     path: '/settings/security',
   },
-
+  'Settings-Account': {
+    name: translations.value.settings.account,
+    icon: 'riUserLine',
+    path: '/settings/account',
+  },
   'Settings-Labels': {
     name: translations.value.labels?.title || 'Labels',
     icon: 'riPriceTag3Line',

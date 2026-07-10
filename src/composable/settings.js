@@ -122,6 +122,16 @@ const settingDefs = {
     defaultValue: false,
     parse: (value) => value === true || value === 'true',
   },
+  beaverAccountServerUrl: {
+    legacyKey: 'beaverAccountServerUrl',
+    defaultValue: 'https://api.beavernotes.com',
+    parse: String,
+  },
+  syncTransport: {
+    legacyKey: 'syncTransport',
+    defaultValue: 'folder',
+    parse: String,
+  },
 };
 
 function getSettingDef(key) {
