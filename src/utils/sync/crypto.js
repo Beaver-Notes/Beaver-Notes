@@ -1,37 +1,73 @@
 import {
-  decryptSyncPayload,
-  encryptSyncPayload,
-} from '@/lib/native/security.js';
-import {
   isEncryptionEnabled,
   isKeyLoaded,
+  exportKeyRaw,
 } from '@/utils/crypto/encryption.js';
+import {
+  clearSyncCryptoKey,
+  gcmDecryptStr,
+  gcmEncryptStr,
+  initSyncCryptoKey,
+  isSyncKeyLoaded,
+} from './sync-crypto-codec.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
-export async function ensureSyncKeyReadyForWrite() {
+let initPromise = null;
+
+async function ensureSyncKey() {
+  if (isSyncKeyLoaded()) return true;
   if (!isEncryptionEnabled()) return false;
-  if (isKeyLoaded()) return true;
-  throw new Error(
+  if (!isKeyLoaded()) throw new Error(
     'Encryption is enabled but the key is locked. Unlock encryption before syncing.'
   );
+
+  if (!initPromise) {
+    initPromise = (async () => {
+      const raw = await exportKeyRaw();
+      if (!raw) throw new Error('Failed to export app encryption key');
+      await initSyncCryptoKey(raw);
+    })();
+  }
+  await initPromise;
+  return true;
+}
+
+export async function ensureSyncKeyReadyForWrite() {
+  return ensureSyncKey();
 }
 
 export async function encryptJSON(obj) {
-  await ensureSyncKeyReadyForWrite();
-  if (!isKeyLoaded()) return JSON.stringify(obj);
-  return encryptSyncPayload(JSON.stringify(obj));
+  const ready = await ensureSyncKey();
+  if (!ready) return JSON.stringify(obj);
+  return gcmEncryptStr(JSON.stringify(obj));
 }
 
 export async function decryptJSON(raw) {
   if (!raw) return null;
+  if (typeof raw !== 'string') return raw;
+
   try {
-    const plain = await decryptSyncPayload(raw);
-    if (plain === null) return null;
-    return JSON.parse(plain);
-  } catch (err) {
-    console.error('[syncCrypto] decryptJSON failed — key may be wrong:', err);
-    throw err;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.v === 4) {
+      try {
+        await ensureSyncKey();
+        if (!isSyncKeyLoaded()) return null;
+        const plain = await gcmDecryptStr(raw);
+        return JSON.parse(plain);
+      } catch (err) {
+        console.error('[syncCrypto] decryptJSON failed:', err);
+        return null;
+      }
+    }
+    return parsed;
+  } catch {
+    return raw;
   }
+}
+
+export function clearSyncKey() {
+  clearSyncCryptoKey();
+  initPromise = null;
 }
 
 export function syncAssetName(localFilename) {

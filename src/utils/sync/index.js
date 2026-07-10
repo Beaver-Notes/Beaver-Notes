@@ -14,14 +14,17 @@ import {
   readDir as readSyncDir,
 } from '@/lib/native/fs';
 import {
+  applyGenesisIfNeeded,
   applySnapshotIfNeeded,
   compactSync,
   ensureCommitsDir,
   flushPendingChanges,
   flushPendingChangesIfReady,
+  genesisExists,
   listRemoteCommits,
   queuePendingChange,
   writeCommit,
+  writeGenesisState,
 } from './sync-repository.js';
 import { applyRemoteOp } from './sync-apply.js';
 import { syncAssets } from './sync-assets.js';
@@ -45,6 +48,61 @@ const storage = useStorage();
 // a re-run is needed; when the current run finishes it starts one more.
 
 const state = { syncing: false, pending: false };
+
+// ─── Coalescing writer ───────────────────────────────────────────────────────
+//
+// Rapid successive changes (e.g. typing) are coalesced into a single commit
+// cycle. The latest value for each key is kept; after a quiet period the
+// accumulated changes are flushed as individual commits.
+//
+//  COALESCE_MS  —  idle time before flushing (reset on each new change)
+//  MAX_WAIT_MS  —  maximum time before a flush is forced regardless of activity
+
+const COALESCE_MS = 1500;
+const MAX_WAIT_MS = 5000;
+
+let coalesced = new Map();
+let coalesceTimer = null;
+let coalesceMaxTimer = null;
+
+function _coalesceFlush() {
+  coalesceTimer = null;
+  coalesceMaxTimer = null;
+
+  if (coalesced.size === 0) return;
+
+  const batch = coalesced;
+  coalesced = new Map();
+
+  _flushCoalesced(batch).catch((err) =>
+    console.error('[sync] Coalesced flush failed:', err)
+  );
+}
+
+async function _flushCoalesced(batch) {
+  try {
+    await ensureSyncKeyReadyForWrite();
+    await _flushPendingChanges();
+
+    for (const [key, data] of batch) {
+      await _writeCommit(key, data);
+    }
+
+    enqueueSync();
+  } catch (error) {
+    for (const [key, data] of batch) {
+      try {
+        await queuePendingChange(key, data);
+      } catch {
+        // individual queue failures are non-fatal
+      }
+    }
+    console.warn(
+      '[sync] Coalesced changes queued locally — encryption may be locked.',
+      error
+    );
+  }
+}
 
 function enqueueSync(force = false) {
   if (state.syncing) {
@@ -73,21 +131,13 @@ export async function trackChange(key, data) {
   const syncPath = await getSyncPath();
   if (!syncPath) return;
 
-  try {
-    await ensureSyncKeyReadyForWrite();
-    await _flushPendingChanges();
-    await _writeCommit(key, data);
-    enqueueSync();
-  } catch (error) {
-    try {
-      await queuePendingChange(key, data);
-      console.warn(
-        '[sync] Commit queued locally because sync encryption is locked or temporarily unavailable. It will be written after unlock.',
-        error
-      );
-    } catch (queueError) {
-      console.error('[sync] Failed to queue pending commit:', queueError);
-    }
+  coalesced.set(key, data);
+
+  if (coalesceTimer) clearTimeout(coalesceTimer);
+  coalesceTimer = setTimeout(_coalesceFlush, COALESCE_MS);
+
+  if (!coalesceMaxTimer) {
+    coalesceMaxTimer = setTimeout(_coalesceFlush, MAX_WAIT_MS);
   }
 }
 
@@ -121,6 +171,21 @@ async function _sync(force = false) {
     const syncDir = path.join(syncPath, SYNC_ROOT_DIR);
     const commitsDir = await ensureCommitsDir(syncPath);
     await _flushPendingChangesIfReady();
+
+    // ── Genesis (initial state propagation) ─────────────────────────────
+    // First device: write the genesis snapshot so subsequent devices have
+    // a consistent starting point. Subsequent devices: apply genesis as
+    // the authoritative baseline before processing any commits.
+    const hasGenesis = await genesisExists(syncDir);
+    if (!hasGenesis) {
+      await writeGenesisState({ syncDir, encryptJSON });
+    } else {
+      await applyGenesisIfNeeded({
+        syncDir,
+        decryptJSON,
+        saveCursors: _saveCursors,
+      });
+    }
 
     const snapshotApplied = await applySnapshotIfNeeded({
       syncDir,

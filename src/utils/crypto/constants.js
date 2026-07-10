@@ -6,6 +6,7 @@
  */
 
 export const ALGO_AES_GCM = 'AES-GCM';
+export const ALGO_HKDF = 'HKDF';
 export const ALGO_PBKDF2 = 'PBKDF2';
 export const HASH_SHA_256 = 'SHA-256';
 export const KEY_LENGTH_256 = 256;

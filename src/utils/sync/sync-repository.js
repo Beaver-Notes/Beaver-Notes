@@ -13,6 +13,7 @@ import {
   COMMIT_FILE_EXT,
   COMMITS_DIR,
   COMPACT_LOCK_FILE,
+  GENESIS_FILE,
   OpType,
   SNAPSHOT_FILE,
   STORAGE_KEY,
@@ -275,6 +276,90 @@ export async function applySnapshotIfNeeded({
   return true;
 }
 
+export async function genesisExists(syncDir) {
+  const genesisPath = path.join(syncDir, GENESIS_FILE);
+  return syncPathExists(genesisPath).catch(() => false);
+}
+
+export async function writeGenesisState({
+  syncDir,
+  encryptJSON,
+}) {
+  const genesisPath = path.join(syncDir, GENESIS_FILE);
+  const exists = await syncPathExists(genesisPath).catch(() => false);
+  if (exists) return false;
+
+  const data = {
+    notes: await storage.get('notes', {}),
+    folders: await storage.get('folders', {}),
+    labels: await storage.get('labels', []),
+    deletedIds: await storage.get('deletedIds', {}),
+    deletedFolderIds: await storage.get('deletedFolderIds', {}),
+    deletedAssets: await storage.get('deletedAssets', {}),
+    labelColors: await storage.get('labelColors', {}),
+  };
+
+  const genesis = {
+    genesis: true,
+    v: 1,
+    ts: Date.now(),
+    deviceId,
+    data,
+  };
+
+  const encrypted = await encryptJSON(genesis);
+  await writeSyncFile(genesisPath, encrypted);
+  return true;
+}
+
+export async function applyGenesisIfNeeded({
+  syncDir,
+  decryptJSON,
+  saveCursors,
+}) {
+  const cursors = await storage.get(STORAGE_KEY.SYNC_CURSORS, {}, 'settings');
+  const hasSyncHistory = Object.keys(cursors).length > 0;
+  if (hasSyncHistory) return false;
+
+  const genesisPath = path.join(syncDir, GENESIS_FILE);
+  const exists = await syncPathExists(genesisPath).catch(() => false);
+  if (!exists) return false;
+
+  let genesis;
+  try {
+    const raw = await readSyncFile(genesisPath);
+    genesis = await decryptJSON(raw);
+  } catch (err) {
+    console.warn('[sync-repository] Failed to read genesis:', err);
+    return false;
+  }
+
+  if (!genesis?.genesis || !genesis?.data) return false;
+
+  const writes = [];
+
+  for (const [id, note] of Object.entries(genesis.data.notes ?? {})) {
+    writes.push(storage.set(`notes.${id}`, { ...note, _vector: {} }));
+  }
+  for (const [id, folder] of Object.entries(genesis.data.folders ?? {})) {
+    writes.push(storage.set(`folders.${id}`, { ...folder, _vector: {} }));
+  }
+  writes.push(storage.set('labels', genesis.data.labels ?? []));
+  writes.push(storage.set('deletedIds', genesis.data.deletedIds ?? {}));
+  writes.push(storage.set('deletedFolderIds', genesis.data.deletedFolderIds ?? {}));
+  writes.push(storage.set('deletedAssets', genesis.data.deletedAssets ?? {}));
+  writes.push(storage.set('labelColors', genesis.data.labelColors ?? {}));
+
+  await Promise.all(writes);
+
+  const genesisCursors = {};
+  genesisCursors[genesis.deviceId] = 0;
+  await saveCursors(genesisCursors);
+
+  console.log('[sync] Genesis applied — state initialised from genesis');
+  return true;
+}
+
 export async function compactSync({
   syncDir,
   commitsDir,
@@ -323,6 +408,18 @@ export async function compactSync({
 
     const snapshotStr = await encryptJSON(snapshot);
     await writeSyncFile(snapshotPath, snapshotStr);
+
+    // Update genesis alongside the snapshot so newly joining devices
+    // always start from the latest compacted state, not the very first one.
+    const genesisPath = path.join(syncDir, GENESIS_FILE);
+    const genesisPayload = {
+      genesis: true,
+      v: 1,
+      ts: snapshotTs,
+      deviceId,
+      data: snapshot.data,
+    };
+    await writeSyncFile(genesisPath, await encryptJSON(genesisPayload));
 
     const files = await readSyncDir(commitsDir).catch(() => []);
     for (const file of files.filter((entry) =>

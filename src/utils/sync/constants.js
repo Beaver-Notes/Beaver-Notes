@@ -12,6 +12,7 @@ export const COMMITS_DIR = 'commits';
 export const CRYPTO_DIR = 'crypto';
 export const ASSETS_DIR = 'assets';
 export const SNAPSHOT_FILE = 'snapshot.json';
+export const GENESIS_FILE = 'genesis.json';
 export const COMPACT_LOCK_FILE = 'compact.lock';
 
 // ─── Extensions ──────────────────────────────────────────────────────────────
