@@ -198,7 +198,11 @@ fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), String
 }
 
 #[cfg(desktop)]
-fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<bool, String> {
+fn import_json_file_into_pool(
+    state: &AppState,
+    path: &Path,
+    pool: &crate::db::DbPool,
+) -> Result<bool, String> {
     if !path.exists() {
         return Ok(false);
     }
@@ -207,16 +211,27 @@ fn import_json_file_into_pool(path: &Path, pool: &crate::db::DbPool) -> Result<b
     let Some(map) = json.as_object() else {
         return Ok(false);
     };
+    let encrypt = state.crypto.read().map_err(to_error)?.active;
     for (key, value) in map {
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Some(items) = value.as_object() {
                 for (id, item) in items {
                     let flat_key = format!("{}.{}", key, id);
                     if !crate::db::db_has(pool, &flat_key)? {
+                        let row = if encrypt {
+                            crate::shared::encrypt_note_row_for_storage(
+                                state,
+                                &flat_key,
+                                item.clone(),
+                            )
+                            .map_err(to_error)?
+                        } else {
+                            item.clone()
+                        };
                         crate::db::db_set(
                             pool,
                             &flat_key,
-                            &serde_json::to_string(item).map_err(to_error)?,
+                            &serde_json::to_string(&row).map_err(to_error)?,
                         )?;
                     }
                 }
@@ -355,7 +370,7 @@ fn run_migration_core(
     let data_pool = data_pool(app, state)?;
     for legacy_name in LEGACY_DATA_FILES {
         let old = old_dir.join(legacy_name);
-        if import_json_file_into_pool(&old, data_pool)? {
+        if import_json_file_into_pool(state, &old, data_pool)? {
             merged_store_files.push((*legacy_name).to_string());
         }
     }
@@ -368,7 +383,7 @@ fn run_migration_core(
 
     let settings_pool = settings_pool(app, state)?;
     let old_settings = old_dir.join(SETTINGS_STORE);
-    if import_json_file_into_pool(&old_settings, settings_pool)? {
+    if import_json_file_into_pool(state, &old_settings, settings_pool)? {
         merged_store_files.push(SETTINGS_STORE.to_string());
     }
 
@@ -626,7 +641,8 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
     if let Ok(manifest_path) = app_encryption_manifest_path(app.handle(), state.inner()) {
-        state.inner().app_encryption_active.store(manifest_path.exists(), std::sync::atomic::Ordering::Release);
+        let mut s = state.inner().crypto.write().map_err(|e| e.to_string())?;
+        s.active = manifest_path.exists();
     }
     Ok(())
 }

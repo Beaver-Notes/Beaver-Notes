@@ -2,10 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::{
-        atomic::AtomicBool,
-        Arc, Mutex, OnceLock,
-    },
+    sync::{Arc, Mutex, OnceLock, RwLock},
     time::{Duration, SystemTime},
 };
 
@@ -38,9 +35,15 @@ pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const SETTINGS_STORE: &str = "settings.json";
 pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
-pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beaver-notes.beaver-notes";
+pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beavernotes.beaver-notes";
 pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["encryptionPassphraseBlob"];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
+/// Consecutive failed passphrase attempts before the app-encryption unlock is
+/// rate-limited (lockout), and the base lockout duration. Each further failure
+/// while locked extends the lockout by `LOCKOUT_BASE_SECS`, capped at `LOCKOUT_MAX_SECS`.
+pub(crate) const LOCKOUT_THRESHOLD: u32 = 5;
+pub(crate) const LOCKOUT_BASE_SECS: u64 = 30;
+pub(crate) const LOCKOUT_MAX_SECS: u64 = 300;
 pub(crate) const ASSET_CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 pub(crate) const ASSET_CACHE_MAX_FILES: usize = 75;
 pub(crate) const SYNC_PASSWORD_CHECK: &str = "BeaverNotes-sync-manifest-v3";
@@ -70,6 +73,10 @@ pub(crate) struct FileStat {
 pub(crate) struct FailureResult {
     pub(crate) fail_count: u32,
     pub(crate) warn: bool,
+    /// True when the unlock is currently rate-limited (lockout active).
+    pub(crate) locked: bool,
+    /// Seconds remaining in the current lockout (0 when not locked).
+    pub(crate) lockout_seconds: u64,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -207,17 +214,38 @@ impl DbState {
     }
 }
 
+/// Snapshot of the app-encryption session. Lives behind a single `RwLock` in
+/// `AppState` so the items-key ring, current key id, cached KEK, loaded data
+/// key, and active flag are always mutated/observed atomically (no TOCTOU).
+#[derive(Default, Debug)]
+pub(crate) struct CryptoSession {
+    /// Items data key (decrypted). Present only while the app is unlocked.
+    pub(crate) app_data_key: Option<[u8; 32]>,
+    /// Ring of items keys (current + previous), keyed by items-key id. Enables
+    /// lazy rotation: old data stays decryptable after a new items key is created.
+    pub(crate) items_keys: HashMap<String, [u8; 32]>,
+    /// ID of the current items key (empty when locked / unconfigured).
+    pub(crate) current_items_key_id: String,
+    /// Cached KEK derived from the passphrase; enables key rotation without
+    /// re-prompting. Present only while unlocked.
+    pub(crate) master_key_cache: Option<[u8; 32]>,
+    /// Whether app encryption is enabled (a manifest exists).
+    pub(crate) active: bool,
+}
+
 pub(crate) struct AppState {
     pub(crate) db: DbState,
     pub(crate) zoom_level: Mutex<f64>,
     pub(crate) reduced_motion: Mutex<bool>,
     pub(crate) high_contrast: Mutex<bool>,
     pub(crate) failure_count: Mutex<u32>,
+    /// When set, app-encryption unlock is rate-limited until this instant.
+    pub(crate) lockout_until: Mutex<Option<SystemTime>>,
     pub(crate) granted_paths: Arc<Mutex<HashSet<PathBuf>>>,
     pub(crate) transient_passphrase: Mutex<String>,
     pub(crate) asset_key_cache: Mutex<Option<[u8; 32]>>,
-    pub(crate) app_data_key: Mutex<Option<[u8; 32]>>,
-    pub(crate) app_encryption_active: AtomicBool,
+    /// All app-encryption session state, behind one lock (see `CryptoSession`).
+    pub(crate) crypto: RwLock<CryptoSession>,
     pub(crate) decrypted_notes_cache: Mutex<ByteLruCache>,
     pub(crate) decrypted_assets_cache: Mutex<ByteLruCache>,
     pub(crate) updater: Arc<Mutex<UpdaterState>>,
@@ -227,7 +255,6 @@ pub(crate) struct AppState {
     pub(crate) external_open_dir: PathBuf,
     pub(crate) portable_storage_dir: Option<PathBuf>,
     pub(crate) secure_blobs: SecureBlobCache,
-    pub(crate) master_key_cache: Mutex<Option<[u8; 32]>>,
 }
 
 impl AppState {
@@ -242,11 +269,11 @@ impl AppState {
             reduced_motion: Mutex::new(false),
             high_contrast: Mutex::new(false),
             failure_count: Mutex::new(0),
+            lockout_until: Mutex::new(None),
             granted_paths: Arc::new(Mutex::new(HashSet::new())),
             transient_passphrase: Mutex::new(String::new()),
             asset_key_cache: Mutex::new(None),
-            app_data_key: Mutex::new(None),
-            app_encryption_active: AtomicBool::new(false),
+            crypto: RwLock::new(CryptoSession::default()),
             decrypted_notes_cache: Mutex::new(ByteLruCache::new(NOTE_CACHE_BYTES)),
             decrypted_assets_cache: Mutex::new(ByteLruCache::new(ASSET_CACHE_BYTES)),
             updater: Arc::new(Mutex::new(UpdaterState {
@@ -259,7 +286,6 @@ impl AppState {
             external_open_dir,
             portable_storage_dir,
             secure_blobs: SecureBlobCache::new(),
-            master_key_cache: Mutex::new(None),
         }
     }
 }
@@ -280,25 +306,39 @@ pub(crate) enum InstallationSource {
 
 pub(crate) fn current_installation_source() -> InstallationSource {
     #[cfg(mobile)]
-    { InstallationSource::AppStore }
+    {
+        InstallationSource::AppStore
+    }
 
     #[cfg(all(not(mobile), target_os = "macos"))]
     {
-        let is_brew = std::env::current_exe().ok()
+        let is_brew = std::env::current_exe()
+            .ok()
             .and_then(|p| std::fs::canonicalize(&p).ok())
             .is_some_and(|p| p.to_string_lossy().to_lowercase().contains("/cellar/"));
-        if is_brew { InstallationSource::Brew } else { InstallationSource::Standalone }
+        if is_brew {
+            InstallationSource::Brew
+        } else {
+            InstallationSource::Standalone
+        }
     }
 
     #[cfg(all(not(mobile), target_os = "windows"))]
     {
-        let is_scoop = std::env::current_exe().ok()
+        let is_scoop = std::env::current_exe()
+            .ok()
             .is_some_and(|p| p.to_string_lossy().to_lowercase().contains("scoop"));
-        if is_scoop { InstallationSource::Scoop } else { InstallationSource::Standalone }
+        if is_scoop {
+            InstallationSource::Scoop
+        } else {
+            InstallationSource::Standalone
+        }
     }
 
     #[cfg(not(any(mobile, target_os = "macos", target_os = "windows")))]
-    { InstallationSource::LinuxPackage }
+    {
+        InstallationSource::LinuxPackage
+    }
 }
 
 pub(crate) fn to_error<E: std::fmt::Display>(error: E) -> String {
@@ -517,8 +557,6 @@ pub(crate) fn app_encryption_manifest_path(
 ) -> Result<PathBuf, String> {
     Ok(app_storage_dir(app, state)?.join("app-crypto/manifest.v2.json"))
 }
-
-
 
 pub(crate) fn path_for_name(
     app: &AppHandle,
