@@ -21,10 +21,14 @@ let syncKey = null;
 export async function initSyncCryptoKey(appKeyBytes) {
   if (syncKey) return syncKey;
 
+  const raw = appKeyBytes instanceof Uint8Array
+    ? appKeyBytes
+    : new Uint8Array(appKeyBytes);
+
   const hkdfKey = await crypto.subtle.importKey(
     'raw',
-    appKeyBytes,
-    { name: ALGO_HKDF },
+    raw,
+    ALGO_HKDF,
     false,
     ['deriveKey']
   );

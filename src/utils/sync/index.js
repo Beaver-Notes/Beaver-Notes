@@ -104,12 +104,19 @@ async function _flushCoalesced(batch) {
   }
 }
 
+let syncResolve = null;
+let syncReject = null;
+
 function enqueueSync(force = false) {
   if (state.syncing) {
     state.pending = true;
-    return;
+    return new Promise(() => {}); // never settles — chained call ignored
   }
-  _runSync(force);
+  return new Promise((resolve, reject) => {
+    syncResolve = resolve;
+    syncReject = reject;
+    _runSync(force);
+  });
 }
 
 async function _runSync(force = false) {
@@ -117,7 +124,12 @@ async function _runSync(force = false) {
   state.pending = false;
   try {
     await _sync(force);
+    syncResolve?.();
+  } catch (err) {
+    syncReject?.(err);
   } finally {
+    syncResolve = null;
+    syncReject = null;
     state.syncing = false;
     if (state.pending) {
       state.pending = false;
