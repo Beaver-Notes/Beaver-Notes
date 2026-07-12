@@ -88,7 +88,7 @@
             autofocus
             :placeholder="state.options.placeholder"
             :label="state.options.label"
-            :password="true"
+            :password="state.options.password"
             class="w-full"
           ></ui-input>
           <div v-if="isEmpty" class="text-sm text-red-500 mt-2">

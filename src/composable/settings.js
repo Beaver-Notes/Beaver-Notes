@@ -154,13 +154,12 @@ export function getSettingSync(key) {
 }
 
 export async function getSetting(key) {
-  const { defaultValue: _defaultValue } = getSettingDef(key);
+  const { defaultValue } = getSettingDef(key);
   const value = await settingsStorage.get(key, null);
   if (value == null) {
-    const fallback = getSettingSync(key);
-    await settingsStorage.set(key, fallback);
-    mirrorToLocalStorage(key, fallback);
-    return fallback;
+    await settingsStorage.set(key, defaultValue);
+    mirrorToLocalStorage(key, defaultValue);
+    return defaultValue;
   }
   mirrorToLocalStorage(key, value);
   return value;
