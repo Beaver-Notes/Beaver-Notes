@@ -112,7 +112,7 @@
     "@tiptap/starter-kit": "^3",
     "@tiptap/suggestion": "^3",
     "@tiptap/vue-3": "^3",
-    "@tiptap/y-tiptap": "3.0.3",
+    "@tiptap/y-tiptap": "^3.0.3",
     "cross-env": "^7.0.3",
     "dayjs": "^1.10.6",
     "emoji.json": "^16.0.0",
@@ -139,7 +139,7 @@
     "vue": "^3.4.6",
     "vue-router": "^4.0.11",
     "y-protocols": "^1.0.7",
-    "yjs": "13.5.38"
+    "yjs": "^13.6.31"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
