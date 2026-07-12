@@ -97,7 +97,7 @@ export function useSettingsData({
   const syncProgress = ref(null);
   let unlistenSyncProgress = null;
 
-  let defaultPath = '';
+  const defaultPath = ref('');
 
   const collapsibleHeading = computed({
     get() {
@@ -345,16 +345,16 @@ export function useSettingsData({
       });
 
       if (canceled) return;
-      defaultPath = await setSyncPath(dir);
-      state.syncPath = defaultPath;
+      defaultPath.value = await setSyncPath(dir);
+      state.syncPath = defaultPath.value;
       forceSyncNow().catch(() => {});
-      window.location.reload();
     } catch (error) {
       console.error(error);
     }
   }
 
   async function clearPath() {
+    defaultPath.value = '';
     state.syncPath = '';
     await setSyncPath('');
   }
@@ -403,7 +403,7 @@ export function useSettingsData({
   }
 
   const handleAutoSyncChange = () => {
-    if (!defaultPath || defaultPath.trim() === '') {
+    if (!defaultPath.value || defaultPath.value.trim() === '') {
       autoSync.value = false;
       showAlert(translations.value.settings.emptyPathWarn);
       return;
@@ -475,8 +475,8 @@ export function useSettingsData({
 
   onMounted(() => {
     void (async () => {
-      defaultPath = await getSyncPath();
-      state.syncPath = defaultPath;
+      defaultPath.value = await getSyncPath();
+      state.syncPath = defaultPath.value;
     })();
   });
 

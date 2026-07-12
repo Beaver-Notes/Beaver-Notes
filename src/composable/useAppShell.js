@@ -43,6 +43,7 @@ import {
   writeStoresFromWorkspace,
   backfillNotePreviews,
 } from './useWorkspaceYjs';
+import { forceSyncNow } from '@/utils/sync';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -476,6 +477,12 @@ export function useAppShell() {
       if (lastNoteEdit && route.name !== ONBOARDING_ROUTE_NAME) {
         router.push(`/note/${lastNoteEdit}`);
       }
+    }
+
+    // Trigger an initial sync so a new client pulling from an existing sync
+    // folder gets all remote data (workspace meta + note content + assets).
+    if (getSettingSync('autoSync')) {
+      forceSyncNow().catch(() => {});
     }
   };
 

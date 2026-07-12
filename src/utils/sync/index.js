@@ -1,3 +1,4 @@
+import * as Y from 'yjs';
 import {
   encryptJSON,
   decryptJSON,
@@ -12,14 +13,23 @@ import { syncAssets } from './sync-assets.js';
 import {
   listRemoteYjsUpdates,
   compactWorkspaceYjs,
+  writeYjsSnapshot,
 } from './sync-yjs.js';
 import { emit } from '@tauri-apps/api/event';
 import { applyRemote } from '@/composable/useNoteYjs';
-import { appendUpdate } from '@/lib/native/yjs.js';
-import { STORAGE_KEY, SYNC_ROOT_DIR } from './constants.js';
+import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
+import { STORAGE_KEY, SYNC_ROOT_DIR, YJS_UPDATE_EXT } from './constants.js';
 import { syncDeletedAssets } from '@/composable/useWorkspaceYjs';
-import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import {
+  getWorkspaceDoc,
+  META_DOC_ID,
+} from '@/composable/meta-yjs-doc.js';
+import {
+  yMapToObj,
+  toUint8Array,
+  applyUpdatesToDoc,
+} from '@/utils/yjs-helpers.js';
+import { readDir as readSyncDir } from '@/lib/native/fs';
 
 const storage = useStorage();
 
@@ -81,6 +91,60 @@ export async function trackDeletedAssets(assetType, noteId, fileNames) {
   syncDeletedAssets(deletedAssets);
 }
 
+/**
+ * Write a full snapshot of the workspace doc and every note doc into the
+ * shared commits/ directory.  Called once the first time sync runs and
+ * the commits directory is empty, so new devices joining the sync group
+ * get all data in one pass.
+ */
+async function writeInitialSnapshots(commitsDir) {
+  const workspaceDoc = getWorkspaceDoc();
+
+  // 1. Workspace metadata snapshot
+  const wsState = Y.encodeStateAsUpdate(workspaceDoc);
+  await writeYjsSnapshot(commitsDir, META_DOC_ID, wsState, encryptJSON);
+
+  // 2. Per-note content snapshots
+  const notesMap = workspaceDoc.getMap('notes');
+  const noteIds = Array.from(notesMap.keys()).filter(
+    (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+  );
+
+  await Promise.all(
+    noteIds.map(async (noteId) => {
+      const doc = new Y.Doc();
+      try {
+        let loaded = false;
+        try {
+          const snapshot = await getSnapshot(noteId);
+          if (snapshot && snapshot.length > 0) {
+            Y.applyUpdate(doc, toUint8Array(snapshot));
+            loaded = true;
+          }
+        } catch {
+          // snapshot unavailable — fall back to updates
+        }
+        if (!loaded) {
+          try {
+            const updates = await getUpdates(noteId);
+            applyUpdatesToDoc(doc, updates);
+          } catch {
+            // no updates either — skip this note
+          }
+        }
+        const state = Y.encodeStateAsUpdate(doc);
+        if (state.byteLength > 0) {
+          await writeYjsSnapshot(commitsDir, noteId, state, encryptJSON);
+        }
+      } catch (err) {
+        console.warn(`[sync] initial snapshot failed for ${noteId}:`, err);
+      } finally {
+        doc.destroy();
+      }
+    })
+  );
+}
+
 async function _sync(force = false) {
   if (state.syncing && !force) return;
 
@@ -122,6 +186,21 @@ async function _sync(force = false) {
         }
       }
     );
+
+    // ── Seed commits dir on first sync ───────────────────────────────────
+    // When the commits directory has no Yjs files yet this is the first
+    // device seeding the sync group.  Write full snapshots of the workspace
+    // doc and every note so downstream devices can pull everything in one
+    // pass instead of waiting for incremental mutations.
+    try {
+      const files = await readSyncDir(commitsDir).catch(() => []);
+      const hasYjsFiles = files.some((f) => f.endsWith(YJS_UPDATE_EXT));
+      if (!hasYjsFiles) {
+        await writeInitialSnapshots(commitsDir);
+      }
+    } catch {
+      // seeding is best-effort
+    }
 
     // ── Yjs sync (per-note content + workspace metadata) ─────────────────
     const remoteYjsUpdates = await listRemoteYjsUpdates(

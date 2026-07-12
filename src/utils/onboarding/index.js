@@ -1,9 +1,10 @@
-import { DEFAULT_UI_FONT_STACK, setSetting } from '@/composable/settings';
+import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/composable/settings';
 import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
+import { forceSyncNow } from '@/utils/sync';
 
 // Re-export the legacy/Electron migration helpers under stable onboarding names.
 export {
@@ -191,4 +192,10 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
   );
 
   await router.replace(latestNote ? `/note/${latestNote.id}` : '/');
+
+  // Trigger an initial sync so a new client pulling from an existing sync
+  // folder gets all remote data (workspace meta + note content + assets).
+  if (getSettingSync('autoSync')) {
+    forceSyncNow().catch(() => {});
+  }
 }
