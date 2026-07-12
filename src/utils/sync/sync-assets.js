@@ -1,4 +1,3 @@
-import { useStorage } from '@/composable/storage';
 import { path } from '@/lib/tauri-bridge';
 import {
   copyPath as copySyncPath,
@@ -10,14 +9,14 @@ import { localAssetName } from './crypto.js';
 import {
   ASSET_TYPES,
   ASSETS_DIR,
-  STORAGE_KEY,
 } from './constants.js';
+import { syncDeletedAssets } from '@/composable/useWorkspaceYjs';
+import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
+import { yMapToObj } from '@/utils/yjs-helpers.js';
 
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
-
-const storage = useStorage();
 
 function isIgnoredAssetEntry(name) {
   return !name || name.startsWith('.') || name === 'Thumbs.db';
@@ -34,10 +33,9 @@ async function copyLocalToRemote(localPath, remoteDest) {
 export async function syncAssets(
   localDir,
   syncDir,
-  onDeletedAssetsChanged,
   onProgress
 ) {
-  const deletedAssets = await storage.get(STORAGE_KEY.DELETED_ASSETS, {});
+  const deletedAssets = yMapToObj(getWorkspaceDoc().getMap('deletedAssets'));
   let deletedAssetsDirty = false;
 
   const ops = [];
@@ -180,7 +178,6 @@ export async function syncAssets(
   }
 
   if (deletedAssetsDirty) {
-    await storage.set(STORAGE_KEY.DELETED_ASSETS, deletedAssets);
-    await onDeletedAssetsChanged(deletedAssets);
+    syncDeletedAssets(deletedAssets);
   }
 }
