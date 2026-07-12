@@ -13,14 +13,12 @@ import { readDir as readSyncDir } from '@/lib/native/fs';
 import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
 import { getSyncPath } from '@/utils/sync/path.js';
 import { getSettingSync } from '@/composable/settings';
-import { useStorage } from '@/composable/storage';
 import { writeYjsUpdate, writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
 import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
 import { registerActiveDoc } from '@/composable/useNoteYjs.js';
 import {
   getDeviceId,
-  yMapToObj,
   objToYMap,
 } from '@/utils/yjs-helpers.js';
 import {
@@ -30,8 +28,6 @@ import {
 
 // Re-export store hydration so consumers keep a single import path
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-yjs-store.js';
-
-const storage = useStorage();
 
 const NOTE_META_FIELDS = [
   'id',
@@ -172,15 +168,22 @@ export function syncLabel(name) {
   if (typeof name !== 'string' || !name) return;
   const arr = getWorkspaceDoc().getArray('labels');
   transactWorkspace(() => {
-    if (!arr.toArray().includes(name)) arr.push([name]);
+    for (let i = 0; i < arr.length; i++) {
+      if (arr.get(i) === name) return;
+    }
+    arr.push([name]);
   });
 }
 
 export function removeLabel(name) {
   const arr = getWorkspaceDoc().getArray('labels');
   transactWorkspace(() => {
-    const idx = arr.toArray().indexOf(name);
-    if (idx !== -1) arr.delete(idx, 1);
+    for (let i = 0; i < arr.length; i++) {
+      if (arr.get(i) === name) {
+        arr.delete(i, 1);
+        return;
+      }
+    }
   });
 }
 

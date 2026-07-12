@@ -433,28 +433,14 @@ watch(columnCount, () => {
   scheduleMeasure();
 });
 
+let _prevNoteIds = new Set();
+
 watch(
-  () =>
-    props.notes
-      .map(
-        (n) =>
-          `${n.id}:${n.updatedAt ?? ''}:${n.title ?? ''}:${
-            n.labels?.length ?? 0
-          }:${n.isLocked}:${n.isConflict}`
-      )
-      .join('|'),
-  async (newVal, oldVal) => {
-    const oldIds = oldVal
-      ? new Set(
-          oldVal
-            .split('|')
-            .map((s) => s.split(':')[0])
-            .filter(Boolean)
-        )
-      : new Set();
+  () => props.notes.map((n) => n.id).join(','),
+  async () => {
     const newIds = new Set(props.notes.map((n) => n.id));
 
-    for (const id of oldIds) {
+    for (const id of _prevNoteIds) {
       if (!newIds.has(id) && !leavingItems.has(id)) {
         leavingItems.set(id, { timestamp: Date.now() });
         setTimeout(() => leavingItems.delete(id), CARD_LEAVE_CLEANUP_MS);
@@ -462,11 +448,13 @@ watch(
     }
 
     for (const id of newIds) {
-      if (!oldIds.has(id) && !enteringItems.has(id)) {
+      if (!_prevNoteIds.has(id) && !enteringItems.has(id)) {
         enteringItems.set(id, { timestamp: Date.now() });
         setTimeout(() => enteringItems.delete(id), CARD_ENTER_CLEANUP_MS);
       }
     }
+
+    _prevNoteIds = newIds;
 
     await nextTick();
     scheduleMeasure();

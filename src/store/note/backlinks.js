@@ -3,6 +3,11 @@
 
 export const linkIndex = {};
 
+// Forward index: sourceNoteId -> Set<targetNoteId>.
+// Used by rebuildLinkIndexForNote to find old outgoing targets in O(1)
+// instead of scanning the entire reverse index.
+const outgoingIndex = {};
+
 export function extractLinkNoteTargets(content) {
   if (!content) return [];
   const ids = new Set();
@@ -39,34 +44,37 @@ export function rebuildLinkIndexForNote(noteId, content) {
   if (!noteId) return;
 
   const newTargets = new Set(extractLinkNoteTargets(content));
-  const oldTargets = new Set();
-
-  for (const [target, sources] of Object.entries(linkIndex)) {
-    if (sources.has(noteId)) oldTargets.add(target);
-  }
+  const oldTargets = outgoingIndex[noteId] || new Set();
 
   for (const target of oldTargets) {
     if (!newTargets.has(target)) {
-      linkIndex[target].delete(noteId);
-      if (linkIndex[target].size === 0) delete linkIndex[target];
+      linkIndex[target]?.delete(noteId);
+      if (linkIndex[target]?.size === 0) delete linkIndex[target];
     }
   }
 
   for (const target of newTargets) {
     getSources(target).add(noteId);
   }
+
+  outgoingIndex[noteId] = newTargets;
 }
 
 export function removeNoteFromLinkIndex(noteId) {
   if (!noteId) return;
-  for (const [target, sources] of Object.entries(linkIndex)) {
-    sources.delete(noteId);
-    if (sources.size === 0) delete linkIndex[target];
+  const targets = outgoingIndex[noteId];
+  if (targets) {
+    for (const target of targets) {
+      linkIndex[target]?.delete(noteId);
+      if (linkIndex[target]?.size === 0) delete linkIndex[target];
+    }
+    delete outgoingIndex[noteId];
   }
 }
 
 export function rebuildLinkIndexFromAll(notesData) {
   for (const key of Object.keys(linkIndex)) delete linkIndex[key];
+  for (const key of Object.keys(outgoingIndex)) delete outgoingIndex[key];
   if (!notesData) return;
   for (const note of Object.values(notesData)) {
     if (note?.id) rebuildLinkIndexForNote(note.id, note.content);

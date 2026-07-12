@@ -272,9 +272,9 @@ export async function handleFolderDeletion(deletionResult) {
     const { deletedFolderId, descendantIds, moveContentsTo, deleteContents } =
       deletionResult;
 
-    const affectedFolderIds = [deletedFolderId, ...descendantIds];
+    const affectedFolderIds = new Set([deletedFolderId, ...descendantIds]);
     const affectedNotes = Object.values(this.data).filter((note) =>
-      affectedFolderIds.includes(note.folderId)
+      affectedFolderIds.has(note.folderId)
     );
 
     _skipUndo.value = true;

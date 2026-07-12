@@ -101,21 +101,24 @@ export function useNotesBrowser({
     cancelTouchDrag,
   });
 
-  const selectedNotes = computed(() =>
-    Array.from(selectedItems.value)
-      .map(parseItemId)
-      .filter(({ type, id }) => type === 'note' && id)
-      .map(({ id }) => noteStore.getById(id))
-      .filter(Boolean)
-  );
+  const _selectedParsed = computed(() => {
+    const notes = [];
+    const folders = [];
+    for (const key of selectedItems.value) {
+      const { type, id } = parseItemId(key);
+      if (type === 'note' && id) {
+        const note = noteStore.getById(id);
+        if (note) notes.push(note);
+      } else if (type === 'folder' && id) {
+        const folder = folderStore.getById(id);
+        if (folder) folders.push(folder);
+      }
+    }
+    return { notes, folders };
+  });
 
-  const selectedFolders = computed(() =>
-    Array.from(selectedItems.value)
-      .map(parseItemId)
-      .filter(({ type, id }) => type === 'folder' && id)
-      .map(({ id }) => folderStore.getById(id))
-      .filter(Boolean)
-  );
+  const selectedNotes = computed(() => _selectedParsed.value.notes);
+  const selectedFolders = computed(() => _selectedParsed.value.folders);
 
   const moveMode = computed(() => {
     if (selectedNotes.value.length > 0 && selectedFolders.value.length > 0) {

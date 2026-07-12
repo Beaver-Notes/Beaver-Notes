@@ -301,6 +301,7 @@ export const useFolderStore = defineStore('folder', {
         if (!this.data[id]) throw new Error('Folder not found');
 
         const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
+        const allIdsSet = new Set(allIds);
 
         const undoStore = useUndoStore();
         undoStore.startBatch();
@@ -313,7 +314,7 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToArchive = Object.values(noteStore.data).filter(
-          (note) => note.id && allIds.includes(note.folderId)
+          (note) => note.id && allIdsSet.has(note.folderId)
         );
         const undoNotes = notesToArchive.map((n) => ({ id: n.id, prev: false }));
         for (const note of notesToArchive) {
@@ -335,6 +336,7 @@ export const useFolderStore = defineStore('folder', {
         if (!this.data[id]) throw new Error('Folder not found');
 
         const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
+        const allIdsSet = new Set(allIds);
 
         const undoStore = useUndoStore();
         undoStore.startBatch();
@@ -347,7 +349,7 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToUnarchive = Object.values(noteStore.data).filter(
-          (note) => note.id && allIds.includes(note.folderId)
+          (note) => note.id && allIdsSet.has(note.folderId)
         );
         const undoNotes = notesToUnarchive.map((n) => ({ id: n.id, prev: true }));
         for (const note of notesToUnarchive) {

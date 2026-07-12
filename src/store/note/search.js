@@ -1,5 +1,4 @@
 import { searchNotesFts } from '@/lib/native/search';
-import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useFolderStore } from '../folder';
 
 // ─── Simple getters (kept together for discoverability) ──────────────────────
@@ -20,10 +19,13 @@ export function getByFolder(state) {
 }
 
 export function getNotesCountByFolder(state) {
-  return (folderId = null) =>
-    Object.values(state.data).filter(
-      (note) => note.folderId === folderId && note.id
-    ).length;
+  return (folderId = null) => {
+    let count = 0;
+    for (const note of Object.values(state.data)) {
+      if (note.id && note.folderId === folderId) count++;
+    }
+    return count;
+  };
 }
 
 // ─── Search-related getters ──────────────────────────────────────────────────
@@ -55,9 +57,7 @@ export function searchNotes(state) {
       if (!note.id) return false;
       return (
         note.title.toLowerCase().includes(searchTerm) ||
-        (note.searchText ?? extractTextFromContent(note.content))
-          .toLowerCase()
-          .includes(searchTerm)
+        (note.searchText || '').toLowerCase().includes(searchTerm)
       );
     });
   };

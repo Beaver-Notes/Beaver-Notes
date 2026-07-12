@@ -581,8 +581,13 @@ export function useAppShell() {
 
   onFileOpened(async (path) => {
     await router.isReady();
-    while (!retrieved.value)
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    if (!retrieved.value) {
+      await new Promise((resolve) => {
+        const unwatch = watch(retrieved, (val) => {
+          if (val) { unwatch(); resolve(); }
+        }, { immediate: true });
+      });
+    }
 
     const ext = path.split('.').pop().toLowerCase();
 

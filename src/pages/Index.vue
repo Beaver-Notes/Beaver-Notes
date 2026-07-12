@@ -178,7 +178,6 @@ import FolderTree from '../components/home/FolderTree.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
-import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
@@ -250,50 +249,68 @@ export default {
 
       highlightedFolderIds.value.clear();
 
-      notes.forEach((note) => {
-        const { title, isArchived, isBookmarked, labels = [], folderId } = note;
-
-        const normalizedTitle =
-          title && title.trim() !== ''
-            ? title
-            : translations.value.card?.untitledNote || '';
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
+        const { title, isArchived, isBookmarked, labels, folderId } = note;
 
         const labelFilter = state.activeLabel
           ? labels.includes(state.activeLabel)
           : true;
 
-        const matchesQuery =
-          queryLower === ''
-            ? true
-            : isLabelQuery
-            ? labels.some((label) =>
-                label.toLocaleLowerCase().includes(labelQuery)
-              )
-            : labels.some((label) =>
-                label.toLocaleLowerCase().includes(queryLower)
-              ) ||
-              normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
-              (note.searchText ?? extractTextFromContent(note.content))
-                .toLowerCase()
-                .includes(queryLower);
+        if (!labelFilter) continue;
 
-        if (matchesQuery && labelFilter) {
-          if (folderId !== null && folderId !== undefined) {
-            highlightedFolderIds.value.add(folderId);
-            bubbleHighlight(folderId);
-            return;
-          }
+        if (queryLower !== '') {
+          let matchesQuery = false;
 
-          const noteCard = { ...note, content: note.content };
-
-          if (isArchived) return filteredNotes.archived.push(noteCard);
-          if (isBookmarked) {
-            filteredNotes.bookmarked.push(noteCard);
+          if (isLabelQuery) {
+            for (let j = 0; j < labels.length; j++) {
+              if (labels[j].toLocaleLowerCase().includes(labelQuery)) {
+                matchesQuery = true;
+                break;
+              }
+            }
           } else {
-            filteredNotes.all.push(noteCard);
+            const normalizedTitle =
+              title && title.trim() !== ''
+                ? title
+                : translations.value.card?.untitledNote || '';
+
+            if (
+              normalizedTitle.toLocaleLowerCase().includes(queryLower)
+            ) {
+              matchesQuery = true;
+            } else {
+              const searchText = note.searchText || '';
+              if (searchText.toLowerCase().includes(queryLower)) {
+                matchesQuery = true;
+              } else {
+                for (let j = 0; j < labels.length; j++) {
+                  if (labels[j].toLocaleLowerCase().includes(queryLower)) {
+                    matchesQuery = true;
+                    break;
+                  }
+                }
+              }
+            }
           }
+
+          if (!matchesQuery) continue;
         }
-      });
+
+        if (folderId !== null && folderId !== undefined) {
+          highlightedFolderIds.value.add(folderId);
+          bubbleHighlight(folderId);
+          continue;
+        }
+
+        if (isArchived) {
+          filteredNotes.archived.push(note);
+        } else if (isBookmarked) {
+          filteredNotes.bookmarked.push(note);
+        } else {
+          filteredNotes.all.push(note);
+        }
+      }
 
       return filteredNotes;
     }

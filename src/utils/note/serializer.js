@@ -93,6 +93,13 @@ export function hydrateNote(note) {
 
   const persisted = stripTransientFields(note);
   const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
+
+  // Fast path: if the note already has both a cardPreview and a searchText,
+  // return immediately without any content traversal.
+  if (!hidden && persisted.cardPreview && persisted.searchText) {
+    return { ...persisted, cardPreview: persisted.cardPreview, searchText: persisted.searchText };
+  }
+
   const previewText = hidden
     ? ''
     : (persisted.preview ||

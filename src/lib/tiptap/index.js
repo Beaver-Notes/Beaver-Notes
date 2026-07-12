@@ -174,8 +174,25 @@ function createBaseExtensions({ yjs = false } = {}) {
 }
 
 const extensions = createBaseExtensions();
+const yjsExtensions = createBaseExtensions({ yjs: true });
 
-export { extensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
+export { extensions, yjsExtensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
+
+let _prewarmed = false;
+export function prewarmEditor() {
+  if (_prewarmed || typeof document === 'undefined') return;
+  _prewarmed = true;
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-9999px;top:-9999px;visibility:hidden';
+  document.body.appendChild(host);
+  try {
+    const e = new Editor({ extensions: yjsExtensions, content: '' });
+    e.destroy();
+  } catch {
+    //non-critical
+  }
+  host.remove();
+}
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

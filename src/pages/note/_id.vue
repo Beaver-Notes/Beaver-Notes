@@ -109,7 +109,6 @@
         v-if="!isLocked && yjsReady"
         :id="$route.params.id"
         ref="noteEditor"
-        :key="$route.params.id"
         :ydoc="ydoc"
         :note="note"
         :cursor-position="note.lastCursorPosition"
@@ -123,7 +122,7 @@
       <note-backlinks v-if="!isLocked" />
     </div>
     <note-headings-progress
-      v-if="editor"
+      v-if="editorReady"
       :editor="editor"
       class="mobile:hidden ipad:hidden"
     />
@@ -184,6 +183,7 @@ export default {
     const appStore = useAppStore();
 
     const editor = shallowRef(null);
+    const editorReady = shallowRef(false);
     const noteEditor = ref();
     const showSearch = shallowRef(false);
     const titleDiv = ref(null);
@@ -375,6 +375,16 @@ export default {
 
     watch(editor, (ed) => {
       if (!ed) return;
+
+      // Defer non-critical child components (headings progress) to idle
+      if (!editorReady.value) {
+        if (typeof requestIdleCallback === 'function') {
+          requestIdleCallback(() => { editorReady.value = true; }, { timeout: 200 });
+        } else {
+          nextTick(() => { editorReady.value = true; });
+        }
+      }
+
       const dom = ed.view.dom;
       let isFirstFocus = true;
 
@@ -487,6 +497,7 @@ export default {
       unlockAppEncryption,
       appEncryptedLocked,
       editor,
+      editorReady,
       showSearch,
       handleTitleInput,
       handleContentUpdate,

@@ -3,6 +3,7 @@
     data-testid="note-card"
     class="hover:ring-1 hover:ring-primary/20 hover:shadow-md hover:shadow-neutral-200/60 dark:hover:shadow-neutral-900 group note-card flex flex-col cursor-pointer"
     padding="p-0"
+    @mouseenter="onHover"
     @click="openNote($event, note.id)"
   >
     <!-- Conflict banner -->
@@ -260,13 +261,13 @@ import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { getSettingSync } from '@/composable/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import FolderTree from './FolderTree.vue';
 import { useLabelStore } from '@/store/label';
 import { useSounds } from '@/composable/useSounds';
+import { preloadSnapshot } from '@/composable/useNoteYjs.js';
 
 const props = defineProps({
   note: {
@@ -441,11 +442,12 @@ async function deleteNote(note) {
   });
 }
 
-const selectedLanguage = getSettingSync('selectedLanguage');
-dayjs.locale(selectedLanguage);
-
 function formatDate(date) {
   return dayjs(date).fromNow();
+}
+
+function onHover() {
+  if (props.note?.id) preloadSnapshot(props.note.id);
 }
 
 function openNote(event, noteId) {

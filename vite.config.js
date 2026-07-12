@@ -40,7 +40,7 @@ export default defineConfig({
     terserOptions: {
       ecma: 2020,
       compress: {
-        passes: 2,
+        passes: 1,
         pure_funcs: ['console.log', 'console.debug', 'console.info'],
         drop_debugger: true,
         pure_getters: true,

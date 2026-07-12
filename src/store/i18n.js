@@ -13,12 +13,20 @@ const dayjsLocales = import.meta.glob('../../node_modules/dayjs/locale/*.js');
 export const useI18nStore = defineStore('i18n', () => {
   const lang = ref(getSettingSync('selectedLanguage'));
 
+  let _cachedLang = null;
+  let _cachedMessages = null;
+
   const messages = computed(() => {
+    if (lang.value === _cachedLang && _cachedMessages) return _cachedMessages;
     const fallback = localeFiles[`/src/assets/locales/en.json`]?.default ?? {};
     const selected =
-      localeFiles[`/src/assets/locales/${lang.value}.json`]?.default ??
-      fallback;
-    return { ...fallback, ...selected };
+      lang.value === 'en'
+        ? fallback
+        : localeFiles[`/src/assets/locales/${lang.value}.json`]?.default ??
+          fallback;
+    _cachedLang = lang.value;
+    _cachedMessages = lang.value === 'en' ? fallback : { ...fallback, ...selected };
+    return _cachedMessages;
   });
 
   async function setLanguage(newLang) {

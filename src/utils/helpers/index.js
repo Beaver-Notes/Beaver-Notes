@@ -20,15 +20,23 @@ export function debounce(callback, time = 200) {
 export function sortArray({ data, key, order = 'asc' }) {
   if (!Array.isArray(data)) return console.error(`Data must be an array`);
 
-  const sortedData = [...data].sort((a, b) => {
+  const sortedData = data.slice().sort((a, b) => {
+    const varA = a[key];
+    const varB = b[key];
+
+    if (varA == null && varB == null) return 0;
+    if (varA == null) return 1;
+    if (varB == null) return -1;
+
     let comparison = 0;
-    const varA = typeof a[key] === 'string' ? a[key].toUpperCase() : a[key];
-    const varB = typeof b[key] === 'string' ? b[key].toUpperCase() : b[key];
+    if (typeof varA === 'string') {
+      comparison = varA.localeCompare(varB);
+    } else {
+      if (varA > varB) comparison = 1;
+      else if (varA < varB) comparison = -1;
+    }
 
-    if (varA > varB) comparison = 1;
-    else if (varA < varB) comparison = -1;
-
-    return order === 'desc' ? comparison * -1 : comparison;
+    return order === 'desc' ? -comparison : comparison;
   });
 
   return sortedData;
@@ -140,7 +148,9 @@ export function pruneExpiredIds(deletedIds) {
 
 export function collectExpiredIds(deletedIds, days = 30) {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-  return Object.entries(deletedIds || {})
-    .filter(([, timestamp]) => timestamp < cutoff)
-    .map(([id]) => id);
+  const result = [];
+  for (const [id, timestamp] of Object.entries(deletedIds || {})) {
+    if (timestamp < cutoff) result.push(id);
+  }
+  return result;
 }

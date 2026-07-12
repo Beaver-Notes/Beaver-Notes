@@ -29,10 +29,10 @@
       :editor="editor"
       class="note-editor__content prose prose-stone dark:text-neutral-100 max-w-none print:cursor-none"
     />
-    <note-bubble-menu v-if="editor" v-bind="{ editor, note }" />
-    <table-handle v-if="editor" :editor="editor" />
-    <table-selection-overlay v-if="editor" :editor="editor" />
-    <table-extend-row-column-button v-if="editor" :editor="editor" />
+    <note-bubble-menu v-if="editorReady" v-bind="{ editor, note }" />
+    <table-handle v-if="editorReady" :editor="editor" />
+    <table-selection-overlay v-if="editorReady" :editor="editor" />
+    <table-extend-row-column-button v-if="editorReady" :editor="editor" />
   </div>
 </template>
 
@@ -43,15 +43,17 @@ import {
   watch,
   computed,
   ref,
+  shallowRef,
   nextTick,
 } from 'vue';
-import { useEditor, EditorContent } from '@tiptap/vue-3';
+import { Editor } from '@tiptap/core';
+import { EditorContent } from '@tiptap/vue-3';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
 import { useRouter } from 'vue-router';
 import {
   extensions,
-  createBaseExtensions,
+  yjsExtensions,
   CollapseHeading,
   heading,
   dropFile,
@@ -88,7 +90,6 @@ export default {
     const router = useRouter();
     const appStore = useAppStore();
 
-    const isYjs = !!props.ydoc;
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
     const showDragHandle = ref(
@@ -96,6 +97,11 @@ export default {
     );
     const isDragging = ref(false);
     const currentNodePos = ref(-1);
+    const editorReady = ref(false);
+    const editor = shallowRef(null);
+
+    let hasUserEdited = false;
+    let pendingProgrammaticUpdates = 0;
 
     function updateDragHandleVisibility() {
       showDragHandle.value = window.innerWidth >= 768;
@@ -191,24 +197,6 @@ export default {
       onDragEnd();
     }
 
-    onMounted(() => {
-      window.addEventListener('resize', updateDragHandleVisibility);
-      window.addEventListener('dragover', onDragOver);
-      window.addEventListener('dragend', onDragEnd);
-      window.addEventListener('drop', onDrop);
-    });
-
-    onBeforeUnmount(() => {
-      window.removeEventListener('resize', updateDragHandleVisibility);
-      window.removeEventListener('dragover', onDragOver);
-      window.removeEventListener('dragend', onDragEnd);
-      window.removeEventListener('drop', onDrop);
-      if (dragScrollRafId) {
-        cancelAnimationFrame(dragScrollRafId);
-        dragScrollRafId = null;
-      }
-    });
-
     const fixedGutterMiddleware = {
       name: 'fixedGutter',
       fn({ elements }) {
@@ -252,63 +240,6 @@ export default {
       };
     });
 
-    const exts = [
-      ...(isYjs && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
-      dropFile.configure({ id: props.id }),
-      NodeRangeSelection,
-    ];
-    if (typeof window === 'undefined' || window.innerWidth >= 768) {
-      exts.push(Commands);
-    }
-    exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
-
-    if (isYjs && props.ydoc) {
-      exts.push(
-        Collaboration.configure({
-          document: props.ydoc,
-          field: 'content',
-        })
-      );
-    }
-
-    const safeContent = computed(() => {
-      if (isYjs) return '';
-      return isEncryptedContent(props.modelValue)
-        ? ''
-        : sanitizeNoteContent(props.modelValue);
-    });
-
-    const hasUserEdited = ref(false);
-    let pendingProgrammaticUpdates = 0;
-
-    const editorTimerLabel = `[perf] editor ${props.id}`;
-    console.time(editorTimerLabel);
-    const editor = useEditor({
-      content: isYjs ? undefined : safeContent.value,
-      autofocus: props.cursorPosition,
-      extensions: exts,
-      editorProps: {
-        handleClick,
-        handleDOMEvents: {
-          drop: (view) => {
-            const scrollY = window.scrollY;
-            const origDispatch = view.dispatch.bind(view);
-            view.dispatch = function (tr) {
-              origDispatch(tr);
-              window.scrollTo(0, scrollY);
-            };
-            setTimeout(() => {
-              view.dispatch = origDispatch;
-            }, 0);
-            return false;
-          },
-        },
-        attributes: {
-          'data-testid': 'note-body-editor',
-        },
-      },
-    });
-
     function handleClick(view, pos, { target }) {
       const noteLinkEl = target.closest('a[data-link-note]');
       if (noteLinkEl) {
@@ -344,17 +275,85 @@ export default {
       }
     }
 
-    onMounted(() => {
-      if (!editor.value) return;
-      emit('init', editor.value);
-      console.timeEnd(editorTimerLabel);
+    const safeContent = computed(() => {
+      if (props.ydoc) return '';
+      return isEncryptedContent(props.modelValue)
+        ? ''
+        : sanitizeNoteContent(props.modelValue);
+    });
+
+    function buildExtensions() {
+      const isYjs = !!props.ydoc;
+      const exts = [
+        ...(isYjs ? yjsExtensions : extensions),
+        dropFile.configure({ id: props.id }),
+        NodeRangeSelection,
+      ];
+      if (typeof window === 'undefined' || window.innerWidth >= 768) {
+        exts.push(Commands);
+      }
+      exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
+
+      if (isYjs && props.ydoc) {
+        exts.push(
+          Collaboration.configure({
+            document: props.ydoc,
+            field: 'content',
+          })
+        );
+      }
+      return exts;
+    }
+
+    function createEditor() {
+      const isYjs = !!props.ydoc;
+      const exts = buildExtensions();
+      const timerLabel = `[perf] editor ${props.id}`;
+      console.time(timerLabel);
+
+      const newEditor = new Editor({
+        content: isYjs ? undefined : safeContent.value,
+        autofocus: props.cursorPosition,
+        extensions: exts,
+        editorProps: {
+          handleClick,
+          handleDOMEvents: {
+            drop: (view) => {
+              const scrollY = window.scrollY;
+              const origDispatch = view.dispatch.bind(view);
+              view.dispatch = function (tr) {
+                origDispatch(tr);
+                window.scrollTo(0, scrollY);
+              };
+              setTimeout(() => {
+                view.dispatch = origDispatch;
+              }, 0);
+              return false;
+            },
+          },
+          attributes: {
+            'data-testid': 'note-body-editor',
+          },
+        },
+      });
+
+      editor.value = newEditor;
+      emit('init', newEditor);
+      console.timeEnd(timerLabel);
+
+      editorReady.value = false;
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(() => { editorReady.value = true; }, { timeout: 200 });
+      } else {
+        nextTick(() => { editorReady.value = true; });
+      }
 
       if (!isYjs && safeContent.value) {
-        editor.value.commands.setContent(safeContent.value);
+        newEditor.commands.setContent(safeContent.value);
       }
 
       if (props.cursorPosition) {
-        const { state, view } = editor.value;
+        const { state, view } = newEditor;
         const pos = Math.min(props.cursorPosition, state.doc.content.size);
         const tr = state.tr.setSelection(
           state.selection.constructor.near(state.doc.resolve(pos))
@@ -362,7 +361,7 @@ export default {
         view.dispatch(tr);
       }
 
-      editor.value.on('update', () => {
+      newEditor.on('update', () => {
         if (isYjs) {
           emit('update', null);
           return;
@@ -371,63 +370,75 @@ export default {
           pendingProgrammaticUpdates--;
           return;
         }
-        hasUserEdited.value = true;
-        const data = editor.value.getJSON();
+        hasUserEdited = true;
+        const data = newEditor.getJSON();
         emit('update', data);
         emit('update:modelValue', data);
       });
+    }
+
+    function destroyEditor() {
+      const instance = editor.value;
+      if (!instance) return;
+      editor.value = null;
+      editorReady.value = false;
+      try {
+        instance.destroy();
+      } catch {
+        //do nothing
+      }
+    }
+
+    function swapEditor() {
+      hasUserEdited = false;
+      pendingProgrammaticUpdates = 0;
+      destroyEditor();
+      nextTick(() => createEditor());
+    }
+
+    onMounted(() => {
+      window.addEventListener('resize', updateDragHandleVisibility);
+      window.addEventListener('dragover', onDragOver);
+      window.addEventListener('dragend', onDragEnd);
+      window.addEventListener('drop', onDrop);
+
+      createEditor();
     });
 
-    if (!isYjs) {
+    onBeforeUnmount(() => {
+      window.removeEventListener('resize', updateDragHandleVisibility);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragend', onDragEnd);
+      window.removeEventListener('drop', onDrop);
+      if (dragScrollRafId) {
+        cancelAnimationFrame(dragScrollRafId);
+        dragScrollRafId = null;
+      }
+      destroyEditor();
+    });
+
+    watch(
+      () => [props.id, props.ydoc],
+      ([newId, newYdoc], [oldId]) => {
+        if (newId !== oldId) {
+          swapEditor();
+        }
+      }
+    );
+
+    if (!props.ydoc) {
       watch(safeContent, (val) => {
         if (!editor.value || !val) return;
-        if (!hasUserEdited.value) {
+        if (!hasUserEdited) {
           pendingProgrammaticUpdates++;
           editor.value.commands.setContent(val);
         }
       });
     }
 
-    function destroyEditor({ defer = false } = {}) {
-      const instance = editor.value;
-      if (!instance) return;
-
-      editor.value = null;
-
-      const teardown = () => {
-        try {
-          instance.destroy();
-        } catch {
-          //do nothing
-        }
-      };
-
-      if (defer) {
-        if (typeof window !== 'undefined' && window.requestIdleCallback) {
-          window.requestIdleCallback(teardown, { timeout: 250 });
-          return;
-        }
-
-        setTimeout(teardown, 0);
-        return;
-      }
-
-      teardown();
-    }
-
-    onBeforeUnmount(() => {
-      destroyEditor({ defer: true });
-    });
-
-    watch(
-      () => props.id,
-      () => {
-        destroyEditor();
-      }
-    );
-
     return {
       editor,
+      editorReady,
       computePositionConfig,
       showDragHandle,
       isDragging,

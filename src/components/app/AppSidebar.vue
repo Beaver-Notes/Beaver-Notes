@@ -462,44 +462,42 @@ export default {
       router.push(`/folder/${folderId}`);
     }
 
-    // Optimized Reactive loop layer
-    const recentNotes = computed(() => {
-      return Object.values(noteStore.data)
-        .filter((note) => note.id && !note.isArchived)
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 5)
-        .map((note) => ({
-          id: note.id,
-          updatedAt: note.updatedAt,
-          title: note.title || 'Untitled',
-          type: 'note',
-        }));
-    });
-
-    const recentFolders = computed(() => {
-      return Object.values(folderStore.data)
-        .filter(
-          (folder) =>
-            folder.id &&
-            !folderStore.deletedIds[folder.id] &&
-            !folder.isArchived
-        )
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 5)
-        .map((folder) => ({
-          id: folder.id,
-          updatedAt: folder.updatedAt,
-          title: folder.name || 'Untitled',
-          type: 'folder',
-          icon: folder.icon || '',
-          color: folder.color || '',
-        }));
-    });
-
     const recentItems = computed(() => {
-      return [...recentNotes.value, ...recentFolders.value]
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 8);
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const items = [];
+
+      for (const note of Object.values(noteStore.data)) {
+        if (note.id && !note.isArchived && note.updatedAt > cutoff) {
+          items.push({
+            id: note.id,
+            updatedAt: note.updatedAt,
+            title: note.title || 'Untitled',
+            type: 'note',
+          });
+        }
+      }
+
+      for (const folder of Object.values(folderStore.data)) {
+        if (
+          folder.id &&
+          !folderStore.deletedIds[folder.id] &&
+          !folder.isArchived &&
+          folder.updatedAt > cutoff
+        ) {
+          items.push({
+            id: folder.id,
+            updatedAt: folder.updatedAt,
+            title: folder.name || 'Untitled',
+            type: 'folder',
+            icon: folder.icon || '',
+            color: folder.color || '',
+          });
+        }
+      }
+
+      items.sort((a, b) => b.updatedAt - a.updatedAt);
+      if (items.length > 8) items.length = 8;
+      return items;
     });
 
     function formatRelativeTime(timestamp) {

@@ -20,6 +20,36 @@ import {
 
 const activeDocs = new Map();
 
+const snapshotCache = new Map();
+const inflightSnapshots = new Map();
+
+export function preloadSnapshot(noteId) {
+  if (!noteId || snapshotCache.has(noteId) || inflightSnapshots.has(noteId)) {
+    return inflightSnapshots.get(noteId) || Promise.resolve();
+  }
+  const p = getSnapshot(noteId)
+    .then((snap) => {
+      if (snap && snap.length > 0) {
+        snapshotCache.set(noteId, snap);
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      inflightSnapshots.delete(noteId);
+    });
+  inflightSnapshots.set(noteId, p);
+  return p;
+}
+
+function consumeSnapshot(noteId) {
+  if (snapshotCache.has(noteId)) {
+    const snap = snapshotCache.get(noteId);
+    snapshotCache.delete(noteId);
+    return snap;
+  }
+  return null;
+}
+
 export function registerActiveDoc(noteId, doc) {
   activeDocs.set(noteId, doc);
 }
@@ -50,9 +80,16 @@ async function seedFromTipJson(ydoc, contentJson) {
  */
 async function loadStateIntoDoc(newDoc, noteId) {
   try {
-    console.time(`[perf] ${noteId} getSnapshot`);
-    const snapshot = await getSnapshot(noteId);
-    console.timeEnd(`[perf] ${noteId} getSnapshot`);
+    const cached = consumeSnapshot(noteId);
+    let snapshot;
+    if (cached) {
+      console.log(`[perf] ${noteId} snapshot cache hit`);
+      snapshot = cached;
+    } else {
+      console.time(`[perf] ${noteId} getSnapshot`);
+      snapshot = await getSnapshot(noteId);
+      console.timeEnd(`[perf] ${noteId} getSnapshot`);
+    }
     if (snapshot && snapshot.length > 0) {
       console.time(`[perf] ${noteId} applySnapshot`);
       Y.applyUpdate(newDoc, toUint8Array(snapshot));
@@ -119,19 +156,21 @@ export function useNoteYjs() {
   async function load(noteId, initialContent) {
     const label = `[perf] load ${noteId}`;
     console.time(label);
+
+    // Fire-and-forget: compact previous doc in background
     if (currentDoc && currentNoteId) {
-      console.time(`${label} compactPrev`);
+      const prevDoc = currentDoc;
+      const prevId = currentNoteId;
       try {
-        const snapshot = Y.encodeStateAsUpdate(currentDoc);
+        const snapshot = Y.encodeStateAsUpdate(prevDoc);
         if (snapshot.byteLength > 0) {
-          await compactUpdates(currentNoteId, snapshot);
+          compactUpdates(prevId, snapshot).catch(() => {});
         }
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
-      currentDoc.destroy();
-      console.timeEnd(`${label} compactPrev`);
+      activeDocs.delete(prevId);
+      prevDoc.destroy();
     }
 
     currentNoteId = noteId;
