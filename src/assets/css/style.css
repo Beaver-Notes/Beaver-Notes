@@ -261,3 +261,8 @@ option {
     transform: none;
   }
 }
+
+/* Workspace feature gate — hidden until launch */
+.workspace-feature-gated {
+  display: none !important;
+}

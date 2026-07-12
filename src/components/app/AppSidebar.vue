@@ -310,6 +310,8 @@
           </span>
         </transition>
       </router-link>
+
+      <WorkspaceSwitcher :expanded="expanded" />
     </div>
   </aside>
 </template>
@@ -325,8 +327,10 @@ import { forceSyncNow } from '@/utils/sync';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSounds } from '@/composable/useSounds';
+import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
 
 export default {
+  components: { WorkspaceSwitcher },
   setup() {
     const { play } = useSounds();
     const router = useRouter();
