@@ -166,7 +166,20 @@ export async function markOnboardingCompleted(settingsStorage) {
 export async function openOnboardingWorkspace({ store, noteStore, router }) {
   await getSyncPath();
 
+  // Initialize the workspace Y.Doc — same sequence as useAppShell's
+  // initializeWorkspace so Pinia gets hydrated from Yjs.
+  const { loadWorkspaceDoc, observeWorkspace } = await import('@/composable/useWorkspaceYjs.js');
+  const { writeStoresFromWorkspace } = await import('@/composable/meta-yjs-store.js');
+
+  await loadWorkspaceDoc();
+  observeWorkspace(writeStoresFromWorkspace);
+  await writeStoresFromWorkspace();
+
   await store.retrieve();
+
+  // One-time batch migration: move existing note content from KV → Yjs
+  const { migrateNotesContent } = await import('./yjs-migration.js');
+  await migrateNotesContent();
 
   if (backend.isMobileRuntime?.()) {
     await router.replace('/');

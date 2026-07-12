@@ -2,19 +2,11 @@ import { indexNote, removeNoteFromIndex } from '@/lib/native/search';
 import {
   isEncryptedContent,
 } from '@/utils/crypto/encryption.js';
-import { useStorage } from '@/composable/storage.js';
-import { trackChange } from '@/utils/sync';
-import {
-  encryptNoteForStorage,
-  stripTransientFields,
-} from '@/utils/note/serializer.js';
 import { useFolderStore } from '../folder';
 import {
   indexNoteForSpotlight,
   deleteNoteFromSpotlight,
 } from '@/utils/platform/spotlightSync.js';
-
-export const storage = useStorage();
 
 /**
  * Silently sync a note into the FTS index after it is written to storage.
@@ -26,13 +18,7 @@ export function syncFtsIndex(note) {
   indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
 }
 
-export async function trackNoteChange(id, note) {
-  await trackChange(`notes.${id}`, stripTransientFields(note));
-}
-
 export async function saveNote(id, noteData) {
-  const toStore = await encryptNoteForStorage(stripTransientFields(noteData));
-  await storage.set(`notes.${id}`, toStore);
   syncFtsIndex(noteData);
   indexNoteForSpotlight(noteData);
 }

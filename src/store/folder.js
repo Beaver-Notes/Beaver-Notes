@@ -1,11 +1,14 @@
 import { nanoid } from 'nanoid';
 import { defineStore } from 'pinia';
-import { useStorage } from '../composable/storage.js';
-import { trackChange } from '@/utils/sync';
-import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
-import { useUndoStore } from './undo';
 
-const storage = useStorage();
+import { useUndoStore } from './undo';
+import {
+  syncFolder,
+  removeFolder,
+  syncDeletedFolderIds,
+} from '@/composable/useWorkspaceYjs';
+
+import { collectExpiredIds } from '@/utils/helpers/index.js';
 
 // Children index helpers
 
@@ -162,16 +165,8 @@ export const useFolderStore = defineStore('folder', {
 
     async retrieve() {
       try {
-        const localStorageData = (await storage.get('folders', {})) || {};
-        this.data = { ...this.data, ...localStorageData };
-
-        const deletedIds = (await storage.get('deletedFolderIds', {})) || {};
-        // Prune stale entries on every load — keeps the object from growing forever
-        if (pruneExpiredIds(deletedIds)) {
-          await storage.set('deletedFolderIds', deletedIds);
-        }
-        this.deletedIds = deletedIds;
-
+        // Data is already populated from the Yjs workspace doc via
+        // writeStoresFromWorkspace().  No KV reads needed.
         this._rebuildIndex();
         return this.data;
       } catch (error) {
@@ -207,9 +202,7 @@ export const useFolderStore = defineStore('folder', {
         this.data[id] = newFolder;
         indexAdd(this._index, newFolder);
 
-        // Surgical write: save only the new folder row, not the entire folders object
-        await storage.set(`folders.${id}`, newFolder);
-        await trackChange(`folders.${id}`, newFolder);
+        syncFolder(newFolder);
 
         return this.data[id];
       } catch (error) {
@@ -242,8 +235,7 @@ export const useFolderStore = defineStore('folder', {
           useUndoStore().push({ type: 'move', notes: [], folders: [{ id, prevParentId: oldParentId }] });
         }
 
-        await storage.set(`folders.${id}`, this.data[id]);
-        await trackChange(`folders.${id}`, this.data[id]);
+        syncFolder(this.data[id]);
 
         return this.data[id];
       } catch (error) {
@@ -284,10 +276,8 @@ export const useFolderStore = defineStore('folder', {
         this.deletedIds[id] = Date.now();
         delete this.data[id];
 
-        await storage.delete(`folders.${id}`);
-        await storage.set('deletedFolderIds', this.deletedIds);
-        await trackChange(`folders.${id}`, null);
-        await trackChange('deletedFolderIds', this.deletedIds);
+        removeFolder(id);
+        syncDeletedFolderIds(this.deletedIds);
 
         const snapshot = JSON.parse(JSON.stringify(folderToDelete));
         undoStore.cancelBatch();
@@ -402,8 +392,7 @@ export const useFolderStore = defineStore('folder', {
     cleanupDeletedIds(days = 30) {
       const toDelete = collectExpiredIds(this.deletedIds, days);
       for (const id of toDelete) delete this.deletedIds[id];
-      storage.set('deletedFolderIds', this.deletedIds);
-      trackChange('deletedFolderIds', this.deletedIds);
+      syncDeletedFolderIds(this.deletedIds);
       return toDelete;
     },
 

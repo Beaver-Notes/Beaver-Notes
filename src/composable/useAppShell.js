@@ -37,6 +37,12 @@ import {
   isKeyLoaded,
 } from '@/utils/crypto/encryption.js';
 import { useSoundActions } from './useSoundActions';
+import {
+  loadWorkspaceDoc,
+  observeWorkspace,
+  writeStoresFromWorkspace,
+  backfillNotePreviews,
+} from './useWorkspaceYjs';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -442,9 +448,28 @@ export function useAppShell() {
       checkAppEncryptionMigration(migrationStatus);
     }
 
+    // Load the unified workspace Y.Doc first — it is the single source of
+    // truth for all note/folder/label metadata.  On first run after legacy
+    // migration the doc may still be empty, so seed it from the KV stores
+    // before wiring observers.
+    await loadWorkspaceDoc();
+    observeWorkspace(writeStoresFromWorkspace);
+    await writeStoresFromWorkspace();
+
+    // Post-process (FTS index, link index, lock migration, etc.) — the stores
+    // are now populated from Yjs, so retrieve() must NOT read from KV.
     await store.retrieve();
+
     retrieved.value = true;
     await refreshSyncLockBanner();
+
+    // One-time deferred backfill of card previews for notes that predate the
+    // persisted `cardPreview` (so their cards aren't blank on launch).
+    if (!(await settingsStorage.get('preview_backfill_done', false))) {
+      backfillNotePreviews()
+        .then(() => settingsStorage.set('preview_backfill_done', true))
+        .catch((err) => console.warn('[app] preview backfill failed:', err));
+    }
 
     if (appStore.setting.openLastEdited) {
       const lastNoteEdit = localStorage.getItem('lastNoteEdit');

@@ -4,7 +4,7 @@ import {
   decryptNoteForMemory,
   stripTransientFields,
 } from '@/utils/note/serializer.js';
-import { saveNote, storage } from './helpers';
+import { saveNote } from './helpers';
 
 export async function decryptAllNotesForAppEncryption(options = {}) {
   const { onProgress } = options;
@@ -79,7 +79,7 @@ export async function persistAllNotesPlaintext(options = {}) {
 
   for (const [id, note] of entries) {
     try {
-      await storage.set(`notes.${id}`, stripTransientFields(note));
+      await saveNote(id, note);
     } catch (error) {
       failures.push(id);
       console.error(`[note] failed to persist plaintext note ${id}:`, error);

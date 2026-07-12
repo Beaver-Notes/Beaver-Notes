@@ -429,7 +429,8 @@ async function deleteNote(note) {
   const noteStore = useNoteStore();
   dialog.confirm({
     title: translations.value.card.confirmPrompt,
-    body: translations.value.card?.deleteAction || 'This action cannot be undone',
+    body:
+      translations.value.card?.deleteAction || 'This action cannot be undone',
     icon: 'riDeleteBin6Line',
     okVariant: 'danger',
     okText: translations.value.card.confirm,
@@ -902,7 +903,7 @@ function mediaIcon(tone) {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border-radius: 999px;
+  border-radius: 20%;
   border: 2px solid #ccc;
   background: transparent;
   margin-top: 0.1rem;

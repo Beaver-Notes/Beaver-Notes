@@ -1,13 +1,11 @@
 import { defineStore } from 'pinia';
-import { useStorage } from '../composable/storage';
 import { useNoteStore } from './note';
-import { trackChange } from '@/utils/sync';
 
-const storage = useStorage();
-
-async function loadColors() {
-  return storage.get('labelColors', {});
-}
+import {
+  syncLabel,
+  removeLabel,
+  syncLabelColor,
+} from '@/composable/useWorkspaceYjs';
 
 export const useLabelStore = defineStore('label', {
   state: () => ({
@@ -22,27 +20,9 @@ export const useLabelStore = defineStore('label', {
 
   actions: {
     async retrieve() {
-      const [labels, colors] = await Promise.all([
-        storage.get('labels', []),
-        loadColors(),
-      ]);
-
-      // Prune color entries for labels that no longer exist
-      const labelSet = new Set(labels);
-      let colorsDirty = false;
-      for (const name of Object.keys(colors)) {
-        if (!labelSet.has(name)) {
-          delete colors[name];
-          colorsDirty = true;
-        }
-      }
-      if (colorsDirty) {
-        await storage.set('labelColors', colors);
-      }
-
-      this.data = labels;
-      this.colors = colors;
-      return labels;
+      // Data is already populated from the Yjs workspace doc via
+      // writeStoresFromWorkspace().  No KV reads needed.
+      return this.data;
     },
 
     add(name) {
@@ -57,7 +37,8 @@ export const useLabelStore = defineStore('label', {
 
         this.data.push(validName);
 
-        storage.set('labels', this.data).then(() => resolve(validName));
+        syncLabel(validName);
+        resolve(validName);
       });
     },
 
@@ -82,10 +63,9 @@ export const useLabelStore = defineStore('label', {
         // Clean up color entry if one existed
         if (this.colors[id]) {
           delete this.colors[id];
-          await storage.set('labelColors', this.colors);
         }
 
-        await storage.set('labels', this.data);
+        removeLabel(id);
 
         return id;
       } catch (error) {
@@ -102,8 +82,7 @@ export const useLabelStore = defineStore('label', {
         delete this.colors[name];
       }
 
-      await storage.set('labelColors', this.colors);
-      await trackChange('labelColors', this.colors);
+      syncLabelColor(name, color);
 
       return color;
     },

@@ -135,7 +135,7 @@ img.ProseMirror-selectednode {
         -webkit-appearance: none;
         width: 18px;
         height: 18px;
-        border-radius: 50%; /* Full circle */
+        border-radius: 20%;
         border: 2px solid #ccc;
         cursor: pointer;
         display: flex;

@@ -9,7 +9,7 @@ import {
   reconcileFootnotes,
   uncollapseHeadings,
 } from '@/utils/note/contentUtils.js';
-import { saveNote, trackNoteChange, storage } from './helpers';
+import { saveNote } from './helpers';
 
 export async function lockNote(id, password) {
   if (!password) {
@@ -33,7 +33,6 @@ export async function lockNote(id, password) {
     });
 
     await saveNote(id, this.data[id]);
-    await trackNoteChange(id, this.data[id]);
   } catch (error) {
     console.error('Error locking note:', error);
     throw error;
@@ -65,7 +64,6 @@ export async function unlockNote(id, password) {
         updatedAt: Date.now(),
       });
       await saveNote(id, this.data[id]);
-      await trackNoteChange(id, this.data[id]);
       return;
     }
 
@@ -111,7 +109,6 @@ export async function unlockNote(id, password) {
     });
 
     await saveNote(id, this.data[id]);
-    await trackNoteChange(id, this.data[id]);
   } catch (error) {
     console.error('Error unlocking note:', error);
     throw error;
@@ -120,15 +117,18 @@ export async function unlockNote(id, password) {
 
 export function convertNote(id) {
   const note = this.data[id];
+  if (!note || note.isLocked) return;
+  const content = note.content;
+  if (!content || typeof content === 'string' || !Array.isArray(content.content)) {
+    return;
+  }
   const footnotes = [];
-  note.content.content = uncollapseHeadings(
-    note.content.content ?? [],
-    footnotes
-  );
+  const newContent = uncollapseHeadings(content.content, footnotes);
+  note.content = { ...content, content: newContent };
   if (footnotes.length > 0) {
     reconcileFootnotes(note, footnotes);
   }
-  this.data[id] = hydrateNote(note);
+  this.data[id] = hydrateNote({ ...note });
 }
 
 // Kept for backward-compatibility with any callers that reference the store method directly.
@@ -136,35 +136,7 @@ export function uncollapseHeading(contents, footnotes) {
   return uncollapseHeadings(contents, footnotes);
 }
 
+// Legacy migration — no longer needed; lock state lives in Yjs note metadata.
 export async function migrateLockData() {
-  const lockStatusData = await storage.get('lockStatus', {});
-  const isLockedData = await storage.get('isLocked', {});
-
-  const hasLegacyData =
-    Object.keys(lockStatusData).length > 0 ||
-    Object.keys(isLockedData).length > 0;
-
-  if (!hasLegacyData) return;
-
-  let hasChanges = false;
-
-  for (const noteId in this.data) {
-    const wasLocked =
-      lockStatusData[noteId] === 'locked' || isLockedData[noteId] === true;
-
-    if (wasLocked && !this.data[noteId].isLocked) {
-      this.data[noteId] = hydrateNote({ ...this.data[noteId], isLocked: true });
-      hasChanges = true;
-    }
-  }
-
-  if (hasChanges) {
-    for (const noteId in this.data) {
-      await saveNote(noteId, this.data[noteId]);
-    }
-    await this.retrieve();
-  }
-
-  await storage.delete('lockStatus');
-  await storage.delete('isLocked');
+  // no-op
 }

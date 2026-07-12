@@ -2,25 +2,30 @@ import { nanoid } from 'nanoid';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
-import { trackChange, trackDeletedAssets } from '@/utils/sync';
+import { trackDeletedAssets } from '@/utils/sync';
+import { deleteUpdates } from '@/lib/native/yjs.js';
 import { hydrateNote } from '@/utils/note/serializer.js';
-import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
+import { buildNotePreview } from '@/utils/note/cardPreview.js';
+import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
 import {
   saveNote,
-  trackNoteChange,
   resolveFolderId,
-  storage,
   removeNoteFromFts,
 } from './helpers';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync.js';
-import { pruneExpiredIds, collectExpiredIds } from '@/utils/helpers/index.js';
+import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
   rebuildLinkIndexFromAll,
 } from './backlinks';
+import {
+  syncNoteMeta,
+  removeNoteMeta,
+  syncDeletedNoteIds,
+} from '@/composable/useWorkspaceYjs';
 
 const _skipUndo = { value: false };
 
@@ -28,39 +33,8 @@ const _skipUndo = { value: false };
 
 export async function retrieve() {
   try {
-    const localStorageData = await storage.get('notes', {});
-    const merged = { ...localStorageData, ...this.data };
-
-    if (isEncryptionEnabled()) {
-      const { decryptNoteForMemory } = await import(
-        '@/utils/note/serializer.js'
-      );
-      await Promise.all(
-        Object.keys(merged).map(async (id) => {
-          merged[id] = await decryptNoteForMemory(merged[id]);
-          merged[id] = hydrateNote(merged[id]);
-        })
-      );
-    } else {
-      Object.keys(merged).forEach((id) => {
-        merged[id] = hydrateNote(merged[id]);
-      });
-    }
-
-    this.data = merged;
-
-    // Load and prune stale deleted-note IDs on every launch
-    const deletedIds = await storage.get('deletedIds', {});
-    if (pruneExpiredIds(deletedIds)) {
-      await storage.set('deletedIds', deletedIds);
-    }
-    this.deletedIds = deletedIds;
-
-    const migrationCompleted = await storage.get('migration_completed', false);
-    if (!migrationCompleted) {
-      await this.migrateLockData();
-      await storage.set('migration_completed', true);
-    }
+    // Data is already populated from the Yjs workspace doc via
+    // writeStoresFromWorkspace().  No KV reads needed.
 
     reindexAllNotes(this.data);
     rebuildLinkIndexFromAll(this.data);
@@ -95,8 +69,8 @@ export async function add(note = {}) {
 
     this.data[id] = hydrateNote(newNote);
     await saveNote(id, this.data[id]);
-    await trackNoteChange(id, this.data[id]);
     rebuildLinkIndexForNote(id, this.data[id].content);
+    syncNoteMeta(this.data[id]);
 
     return this.data[id];
   } catch (error) {
@@ -119,6 +93,7 @@ export async function update(id, data = {}) {
 
     this.patchLocal(id, data);
     await this.persist(id);
+    syncNoteMeta(this.data[id]);
 
     if (
       prevBm !== undefined &&
@@ -165,11 +140,26 @@ export function patchLocal(id, data = {}) {
 export async function persist(id) {
   if (!this.data[id]) return null;
 
-  await saveNote(id, this.data[id]);
-  await trackNoteChange(id, this.data[id]);
-  rebuildLinkIndexForNote(id, this.data[id].content);
+  const note = this.data[id];
+  // Rebuild the structured card preview from content (styled blocks) so it
+  // survives a reload, and keep a flat `preview` string as a cross-device
+  // fallback. Content lives in the per-note Y.Doc; `searchText` is stripped
+  // before persist so it is no longer the source of truth.
+  if (!note.isLocked && !isEncryptedContent(note.content)) {
+    const { cardPreview, preview } = buildNotePreview({
+      content: note.content,
+      preview: note.preview,
+      searchText: note.searchText,
+    });
+    note.preview = preview;
+    note.cardPreview = cardPreview;
+  }
 
-  return this.data[id];
+  await saveNote(id, note);
+  rebuildLinkIndexForNote(id, note.content);
+  syncNoteMeta(note);
+
+  return note;
 }
 
 export async function deleteNote(id) {
@@ -189,12 +179,14 @@ export async function deleteNote(id) {
 
     delete this.data[id];
     removeNoteFromLinkIndex(id);
-    await storage.delete(`notes.${id}`);
 
-    await trackChange(`notes.${id}`, null);
-    await trackChange('deletedIds', this.deletedIds);
+    // Clean up Yjs document updates
+    deleteUpdates(id).catch(() => {});
+
     removeNoteFromFts(id);
-    await storage.set('deletedIds', this.deletedIds);
+
+    removeNoteMeta(id);
+    syncDeletedNoteIds(this.deletedIds);
 
     this.cleanupDeletedIds(30);
 
@@ -238,8 +230,7 @@ export async function cleanupDeletedIds(days = 30) {
     delete this.deletedIds[id];
   }
 
-  await storage.set('deletedIds', this.deletedIds);
-  await trackChange('deletedIds', this.deletedIds);
+  syncDeletedNoteIds(this.deletedIds);
 
   return toDelete;
 }
@@ -345,7 +336,7 @@ export async function addLabel(id, labelId) {
     });
 
     await saveNote(id, this.data[id]);
-    await trackNoteChange(id, this.data[id]);
+    syncNoteMeta(this.data[id]);
 
     return labelId;
   } catch (error) {
@@ -373,7 +364,7 @@ export async function removeLabel(id, labelId) {
     });
 
     await saveNote(id, this.data[id]);
-    await trackNoteChange(id, this.data[id]);
+    syncNoteMeta(this.data[id]);
 
     return labelId;
   } catch (error) {

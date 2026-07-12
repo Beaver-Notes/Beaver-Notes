@@ -6,7 +6,7 @@ import { useFolderStore } from './folder';
 import { useStorage } from '@/composable/storage';
 import { rebuildSearchIndex } from '@/lib/native/search';
 
-const storage = useStorage();
+const settingsStorage = useStorage('settings');
 
 // Version bump this whenever the FTS schema or indexing logic changes so that
 // existing users automatically get a full index rebuild on next launch.
@@ -51,11 +51,11 @@ export const useStore = defineStore('main', {
     },
 
     async _ensureFtsIndex() {
-      const storedVersion = await storage.get('fts_index_version', 0);
+      const storedVersion = await settingsStorage.get('fts_index_version', 0);
       if (storedVersion >= FTS_INDEX_VERSION) return;
 
       await rebuildSearchIndex();
-      await storage.set('fts_index_version', FTS_INDEX_VERSION);
+      await settingsStorage.set('fts_index_version', FTS_INDEX_VERSION);
     },
   },
 });
