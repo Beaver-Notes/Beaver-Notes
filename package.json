@@ -4,7 +4,7 @@
   "private": true,
   "version": "5.0.0-beta.1",
   "author": "Daniele Rolli",
-  "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
+  "description": "Open-source notes that live where you choose: your device, your server, or ours.",
   "license": "MIT",
   "engines": {
     "node": ">=v18.0.0"
