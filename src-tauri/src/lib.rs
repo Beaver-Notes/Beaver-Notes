@@ -201,6 +201,17 @@ pub fn run() {
             commands::search::search_remove_note,
             commands::search::search_rebuild_index,
             commands::pdf::render_pdf,
+            commands::yjs::yjs_append,
+            commands::yjs::yjs_get_updates,
+            commands::yjs::yjs_get_snapshot,
+            commands::yjs::yjs_compact,
+            commands::yjs::yjs_delete,
+            commands::workspace::workspace_list,
+            commands::workspace::workspace_get_active,
+            commands::workspace::workspace_create,
+            commands::workspace::workspace_switch,
+            commands::workspace::workspace_rename,
+            commands::workspace::workspace_delete,
         ])
         .setup(|app| {
             bootstrap::setup_app(app)?;

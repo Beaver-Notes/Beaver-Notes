@@ -22,7 +22,7 @@ pub(crate) fn search_notes(
     limit: Option<usize>,
 ) -> Result<SearchResult, String> {
     let pool = data_pool(&app, &state)?;
-    let ids = crate::db::fts_search(pool, &query, limit.unwrap_or(200))?;
+    let ids = crate::db::fts_search(&pool, &query, limit.unwrap_or(200))?;
     Ok(SearchResult { ids })
 }
 
@@ -39,7 +39,7 @@ pub(crate) fn search_index_note(
     body: String,
 ) -> Result<(), String> {
     let pool = data_pool(&app, &state)?;
-    crate::db::fts_upsert(pool, &id, &title, &body)
+    crate::db::fts_upsert(&pool, &id, &title, &body)
 }
 
 /// Remove a note from the FTS index. Call when a note is deleted.
@@ -50,7 +50,7 @@ pub(crate) fn search_remove_note(
     id: String,
 ) -> Result<(), String> {
     let pool = data_pool(&app, &state)?;
-    crate::db::fts_delete(pool, &id)
+    crate::db::fts_delete(&pool, &id)
 }
 
 /// Rebuild the entire FTS index from the KV store.
@@ -62,5 +62,5 @@ pub(crate) fn search_rebuild_index(
     state: State<'_, AppState>,
 ) -> Result<usize, String> {
     let pool = data_pool(&app, &state)?;
-    crate::db::fts_rebuild(pool)
+    crate::db::fts_rebuild(&pool)
 }

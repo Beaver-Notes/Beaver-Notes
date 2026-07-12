@@ -103,6 +103,17 @@ const commandAliases = {
   'app-icon:change': 'change',
   'app-icon:reset': 'reset',
   'pdf:render': 'render_pdf',
+  'yjs:append': 'yjs_append',
+  'yjs:getUpdates': 'yjs_get_updates',
+  'yjs:getSnapshot': 'yjs_get_snapshot',
+  'yjs:compact': 'yjs_compact',
+  'yjs:delete': 'yjs_delete',
+  'workspace:list': 'workspace_list',
+  'workspace:getActive': 'workspace_get_active',
+  'workspace:create': 'workspace_create',
+  'workspace:switch': 'workspace_switch',
+  'workspace:rename': 'workspace_rename',
+  'workspace:delete': 'workspace_delete',
 };
 
 function withKeyVariants(key, value) {
@@ -300,6 +311,41 @@ function normalizePayload(channel, payload) {
       return withKeyVariants('id', payload?.id);
     case 'search:rebuildIndex':
       return {};
+    case 'yjs:append':
+      return {
+        ...withKeyVariants('noteId', payload?.noteId),
+        ...withKeyVariants('update', normalizeBinaryData(payload?.update)),
+        ...withKeyVariants('device', payload?.device ?? ''),
+      };
+    case 'yjs:getUpdates':
+      return withKeyVariants('noteId', payload);
+    case 'yjs:getSnapshot':
+      return withKeyVariants('noteId', payload);
+    case 'yjs:compact':
+      return {
+        ...withKeyVariants('noteId', payload?.noteId),
+        ...withKeyVariants('snapshot', normalizeBinaryData(payload?.snapshot)),
+      };
+    case 'yjs:delete':
+      return withKeyVariants('noteId', payload);
+    case 'workspace:list':
+      return {};
+    case 'workspace:getActive':
+      return {};
+    case 'workspace:create':
+      return {
+        name: payload?.name ?? payload,
+        copySettings: payload?.copySettings ?? false,
+      };
+    case 'workspace:switch':
+      return withKeyVariants('id', payload?.id ?? payload);
+    case 'workspace:rename':
+      return {
+        ...withKeyVariants('id', payload?.id),
+        ...withKeyVariants('name', payload?.name),
+      };
+    case 'workspace:delete':
+      return withKeyVariants('id', payload?.id ?? payload);
     default:
       return payload ?? {};
   }

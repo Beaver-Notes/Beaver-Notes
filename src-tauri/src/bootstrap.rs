@@ -65,7 +65,7 @@ pub(crate) fn focus_main_window(app: &AppHandle) {
 #[cfg(desktop)]
 fn load_window_state(app: &AppHandle, state: &AppState) -> Option<WindowStateSnapshot> {
     let pool = settings_pool(app, state).ok()?;
-    let raw = crate::db::db_get(pool, WINDOW_STATE_KEY).ok()??;
+    let raw = crate::db::db_get(&pool, WINDOW_STATE_KEY).ok()??;
     serde_json::from_str(&raw).ok()
 }
 
@@ -87,7 +87,7 @@ fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), String> {
 
     let pool = settings_pool(app, state)?;
     let serialized = serde_json::to_string(&json!(snapshot)).map_err(to_error)?;
-    crate::db::db_set(pool, WINDOW_STATE_KEY, &serialized)
+    crate::db::db_set(&pool, WINDOW_STATE_KEY, &serialized)
 }
 
 #[cfg(desktop)]
@@ -370,7 +370,7 @@ fn run_migration_core(
     let data_pool = data_pool(app, state)?;
     for legacy_name in LEGACY_DATA_FILES {
         let old = old_dir.join(legacy_name);
-        if import_json_file_into_pool(state, &old, data_pool)? {
+        if import_json_file_into_pool(state, &old, &data_pool)? {
             merged_store_files.push((*legacy_name).to_string());
         }
     }
@@ -383,7 +383,7 @@ fn run_migration_core(
 
     let settings_pool = settings_pool(app, state)?;
     let old_settings = old_dir.join(SETTINGS_STORE);
-    if import_json_file_into_pool(state, &old_settings, settings_pool)? {
+    if import_json_file_into_pool(state, &old_settings, &settings_pool)? {
         merged_store_files.push(SETTINGS_STORE.to_string());
     }
 
@@ -396,11 +396,11 @@ fn run_migration_core(
         ("advanced-settings", "advancedSettings"),
     ];
     for (old_key, new_key) in SETTINGS_KEY_REMAP {
-        if crate::db::db_has(settings_pool, new_key)? {
+        if crate::db::db_has(&settings_pool, new_key)? {
             continue; // canonical key already present – don't overwrite
         }
-        if let Some(value) = crate::db::db_get(settings_pool, old_key)? {
-            crate::db::db_set(settings_pool, new_key, &value)?;
+        if let Some(value) = crate::db::db_get(&settings_pool, old_key)? {
+            crate::db::db_set(&settings_pool, new_key, &value)?;
         }
     }
 
@@ -571,8 +571,108 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
         })
 }
 
+/// Migrate flat data.db and settings.db into the workspaces layout.
+/// Moves `data.db` → `workspaces/default/data.db` and
+/// `settings.db` → `workspaces/default/settings.db`.
+/// Creates `workspaces.json` at the app root with the default workspace.
+fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), String> {
+    let app_dir = crate::shared::app_storage_dir(app, state)?;
+    let ws_root = app_dir.join(crate::shared::WORKSPACES_DIR);
+    let marker = app_dir.join(".workspace-migrated");
+
+    // Already migrated — just ensure default workspace is registered
+    if marker.exists() || ws_root.exists() {
+        ensure_default_workspace_in_registry(app, state)?;
+        return Ok(());
+    }
+
+    let old_data_db = app_dir.join("data.db");
+    let old_settings_db = app_dir.join("settings.db");
+    let default_ws_dir = ws_root.join(crate::shared::DEFAULT_WORKSPACE_ID);
+
+    fs::create_dir_all(&default_ws_dir).map_err(to_error)?;
+
+    // Move existing data.db into the default workspace
+    if old_data_db.exists() {
+        fs::rename(&old_data_db, default_ws_dir.join("data.db")).map_err(to_error)?;
+    }
+
+    // Move existing settings.db into the default workspace
+    if old_settings_db.exists() {
+        fs::rename(&old_settings_db, default_ws_dir.join("settings.db")).map_err(to_error)?;
+    }
+
+    // Create workspaces.json with the default workspace
+    let now = chrono::Utc::now().to_rfc3339();
+    let default_ws = crate::shared::WorkspaceInfo {
+        id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
+        name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
+        created_at: now,
+    };
+    let registry_json = serde_json::json!({
+        "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
+        "workspaces": [default_ws],
+    });
+    let json_path = crate::shared::workspaces_json_path(app, state)?;
+    let pretty = serde_json::to_string_pretty(&registry_json).map_err(to_error)?;
+    fs::write(&json_path, format!("{pretty}\n")).map_err(to_error)?;
+
+    fs::write(&marker, b"ok").map_err(to_error)?;
+    Ok(())
+}
+
+/// Ensure the default workspace entry exists in workspaces.json.
+fn ensure_default_workspace_in_registry(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<(), String> {
+    let json_path = crate::shared::workspaces_json_path(app, state)?;
+    let has_json = json_path.exists();
+
+    if !has_json {
+        // No workspaces.json yet — create one with default
+        let now = chrono::Utc::now().to_rfc3339();
+        let default_ws = crate::shared::WorkspaceInfo {
+            id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
+            name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
+            created_at: now,
+        };
+        let registry_json = serde_json::json!({
+            "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
+            "workspaces": [default_ws],
+        });
+        let pretty = serde_json::to_string_pretty(&registry_json).map_err(to_error)?;
+        fs::write(&json_path, format!("{pretty}\n")).map_err(to_error)?;
+        return Ok(());
+    }
+
+    // Check if default workspace is registered
+    let registry = crate::shared::load_workspace_registry(app, state)?;
+    if !registry.iter().any(|w| w.id == crate::shared::DEFAULT_WORKSPACE_ID) {
+        let now = chrono::Utc::now().to_rfc3339();
+        let default_ws = crate::shared::WorkspaceInfo {
+            id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
+            name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
+            created_at: now,
+        };
+        let mut new_registry = registry;
+        new_registry.push(default_ws);
+        crate::shared::save_workspace_registry(app, state, &new_registry)?;
+        crate::shared::save_active_workspace_id(
+            app,
+            state,
+            crate::shared::DEFAULT_WORKSPACE_ID,
+        )?;
+    }
+    Ok(())
+}
+
 pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     let state = app.state::<AppState>();
+
+    // ── Workspace migration (must run BEFORE any settings_pool call) ──────
+    migrate_to_workspace_layout(app.handle(), state.inner())?;
+
     sync_roots_from_settings(app.handle(), state.inner());
     grant_trusted_path(
         &state,
@@ -580,6 +680,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     );
     grant_trusted_path(&state, &app.path().temp_dir().map_err(to_error)?);
     fs::create_dir_all(&state.asset_cache_dir).map_err(to_error)?;
+
     *state.updater.lock().map_err(to_error)? = UpdaterState {
         auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle())
             .unwrap_or(true),

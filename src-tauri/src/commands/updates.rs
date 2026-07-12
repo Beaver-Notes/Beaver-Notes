@@ -71,7 +71,7 @@ fn emit_update_progress(
 pub(crate) fn load_auto_update_enabled(app: &AppHandle) -> Result<bool, String> {
     let state = app.state::<AppState>();
     let pool = settings_pool(app, state.inner())?;
-    Ok(crate::db::db_get(pool, "autoUpdateEnabled")?
+    Ok(crate::db::db_get(&pool, "autoUpdateEnabled")?
         .and_then(|raw| serde_json::from_str::<Value>(&raw).ok())
         .and_then(|value| value.as_bool())
         .unwrap_or(true))
@@ -81,7 +81,7 @@ fn save_auto_update_enabled(app: &AppHandle, enabled: bool) -> Result<(), String
     let state = app.state::<AppState>();
     let pool = settings_pool(app, state.inner())?;
     let serialized = serde_json::to_string(&json!(enabled)).map_err(to_error)?;
-    crate::db::db_set(pool, "autoUpdateEnabled", &serialized)
+    crate::db::db_set(&pool, "autoUpdateEnabled", &serialized)
 }
 
 #[tauri::command]

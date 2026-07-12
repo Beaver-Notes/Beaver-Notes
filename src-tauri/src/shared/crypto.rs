@@ -1010,6 +1010,53 @@ pub(crate) fn decrypt_asset_streaming(
     Ok(())
 }
 
+// ── Yjs blob encryption ─────────────────────────────────────────────────────
+//
+// Yjs binary updates and snapshots stored in SQLite are encrypted at rest when
+// app encryption is enabled.  A 4-byte magic prefix (`BNY1`) distinguishes
+// encrypted blobs from legacy unencrypted ones so reads are backwards-compatible.
+
+pub(crate) const YJS_MAGIC: &[u8; 4] = b"BNY1";
+
+/// Encrypt a raw Yjs binary blob for at-rest storage in SQLite.
+/// Returns `BNY1 || nonce(12) || ciphertext`.
+pub(crate) fn encrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
+    if data.is_empty() {
+        return Ok(data.to_vec());
+    }
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let nonce = random_nonce();
+    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), data)?;
+    let mut output = Vec::with_capacity(4 + 12 + encrypted.len());
+    output.extend_from_slice(YJS_MAGIC);
+    output.extend_from_slice(&nonce);
+    output.extend_from_slice(&encrypted);
+    Ok(output)
+}
+
+/// Decrypt a Yjs blob previously encrypted with `encrypt_yjs_blob`.
+/// Legacy unencrypted blobs (no `BNY1` prefix) are returned as-is so
+/// existing databases continue to work without a migration pass.
+pub(crate) fn decrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
+    if data.len() < 4 + 12 {
+        return Ok(data.to_vec());
+    }
+    if &data[..4] != YJS_MAGIC {
+        return Ok(data.to_vec());
+    }
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+    let nonce = &data[4..16];
+    let ciphertext = &data[16..];
+    cipher
+        .decrypt(Nonce::from_slice(nonce), ciphertext)
+        .map_err(|_| AppError::Crypto("Yjs blob decryption failed".into()))
+}
+
+/// Check whether a Yjs blob is encrypted (has the `BNY1` magic prefix).
+pub(crate) fn is_encrypted_yjs_blob(data: &[u8]) -> bool {
+    data.len() >= 4 && &data[..4] == YJS_MAGIC
+}
+
 pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
     (buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3))
         || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"

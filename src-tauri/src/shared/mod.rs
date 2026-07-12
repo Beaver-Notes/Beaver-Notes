@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, OnceLock, RwLock},
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, SystemTime},
 };
 
@@ -201,15 +201,15 @@ pub(crate) struct UpdaterState {
 }
 
 pub(crate) struct DbState {
-    pub(crate) data: OnceLock<DbPool>,
-    pub(crate) settings: OnceLock<DbPool>,
+    pub(crate) data: Mutex<Option<DbPool>>,
+    pub(crate) settings: Mutex<Option<DbPool>>,
 }
 
 impl DbState {
     pub(crate) fn new() -> Self {
         Self {
-            data: OnceLock::new(),
-            settings: OnceLock::new(),
+            data: Mutex::new(None),
+            settings: Mutex::new(None),
         }
     }
 }
@@ -520,34 +520,206 @@ pub(crate) fn allowed_store_name(name: &str) -> Result<&'static str, String> {
     }
 }
 
-pub(crate) fn get_or_init_pool<'a>(
+/// Return an owned clone of the active workspace data pool (cheap Arc clone).
+/// Lazily initializes from the active workspace on first call.
+pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, String> {
+    {
+        let guard = state.db.data.lock().map_err(to_error)?;
+        if let Some(pool) = guard.as_ref() {
+            return Ok(pool.clone());
+        }
+    }
+    let workspace_id = read_active_workspace_from_json(app, state)?;
+    let path = workspace_data_path(app, state, &workspace_id)?;
+    let pool = crate::db::open_pool(&path)?;
+    let mut guard = state.db.data.lock().map_err(to_error)?;
+    if guard.is_some() {
+        return Ok(guard.as_ref().unwrap().clone());
+    }
+    *guard = Some(pool.clone());
+    Ok(pool)
+}
+
+/// Swap the active data pool to a different workspace's database.
+pub(crate) fn swap_data_pool(
     app: &AppHandle,
     state: &AppState,
-    lock: &'a OnceLock<DbPool>,
-    filename: &str,
-) -> Result<&'a DbPool, String> {
-    if let Some(pool) = lock.get() {
-        return Ok(pool);
-    }
-    let path = app_storage_dir(app, state)?.join(filename);
+    workspace_id: &str,
+) -> Result<(), String> {
+    let path = workspace_data_path(app, state, workspace_id)?;
     let pool = crate::db::open_pool(&path)?;
-    Ok(lock.get_or_init(|| pool))
+    let mut guard = state.db.data.lock().map_err(to_error)?;
+    *guard = Some(pool);
+    Ok(())
 }
 
-pub(crate) fn data_pool<'a>(app: &AppHandle, state: &'a AppState) -> Result<&'a DbPool, String> {
-    get_or_init_pool(app, state, &state.db.data, "data.db")
+/// Return an owned clone of the active workspace settings pool.
+/// Lazily initializes from the active workspace on first call.
+pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, String> {
+    {
+        let guard = state.db.settings.lock().map_err(to_error)?;
+        if let Some(pool) = guard.as_ref() {
+            return Ok(pool.clone());
+        }
+    }
+    let workspace_id = read_active_workspace_from_json(app, state)?;
+    let path = workspace_settings_path(app, state, &workspace_id)?;
+    let pool = crate::db::open_pool(&path)?;
+    let mut guard = state.db.settings.lock().map_err(to_error)?;
+    if guard.is_some() {
+        return Ok(guard.as_ref().unwrap().clone());
+    }
+    *guard = Some(pool.clone());
+    Ok(pool)
 }
 
-pub(crate) fn settings_pool<'a>(
+/// Swap the active settings pool to a different workspace's database.
+pub(crate) fn swap_settings_pool(
     app: &AppHandle,
-    state: &'a AppState,
-) -> Result<&'a DbPool, String> {
-    get_or_init_pool(app, state, &state.db.settings, "settings.db")
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<(), String> {
+    let path = workspace_settings_path(app, state, workspace_id)?;
+    let pool = crate::db::open_pool(&path)?;
+    let mut guard = state.db.settings.lock().map_err(to_error)?;
+    *guard = Some(pool);
+    Ok(())
+}
+
+// ─── Workspace helpers ────────────────────────────────────────────────────────
+
+pub(crate) const DEFAULT_WORKSPACE_ID: &str = "default";
+pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
+pub(crate) const WORKSPACES_DIR: &str = "workspaces";
+pub(crate) const WORKSPACES_JSON: &str = "workspaces.json";
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct WorkspaceInfo {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) created_at: String,
+}
+
+/// Internal shape of workspaces.json
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspacesJson {
+    #[serde(default = "default_workspace_id")]
+    active_workspace: String,
+    #[serde(default)]
+    workspaces: Vec<WorkspaceInfo>,
+}
+
+fn default_workspace_id() -> String {
+    DEFAULT_WORKSPACE_ID.to_string()
+}
+
+/// Path to the workspaces.json registry file at the app root.
+pub(crate) fn workspaces_json_path(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
+    Ok(app_storage_dir(app, state)?.join(WORKSPACES_JSON))
+}
+
+/// Root directory for workspace data (app_data_dir/workspaces).
+pub(crate) fn workspace_root(app: &AppHandle, state: &AppState) -> Result<PathBuf, String> {
+    Ok(app_storage_dir(app, state)?.join(WORKSPACES_DIR))
+}
+
+/// Path to a specific workspace's data.db.
+pub(crate) fn workspace_data_path(
+    app: &AppHandle,
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<PathBuf, String> {
+    Ok(workspace_root(app, state)?
+        .join(workspace_id)
+        .join("data.db"))
+}
+
+/// Path to a specific workspace's settings.db.
+pub(crate) fn workspace_settings_path(
+    app: &AppHandle,
+    state: &AppState,
+    workspace_id: &str,
+) -> Result<PathBuf, String> {
+    Ok(workspace_root(app, state)?
+        .join(workspace_id)
+        .join("settings.db"))
+}
+
+// ─── Workspace registry (workspaces.json) ─────────────────────────────────────
+
+fn read_workspaces_json(app: &AppHandle, state: &AppState) -> Result<WorkspacesJson, String> {
+    let path = workspaces_json_path(app, state)?;
+    if !path.exists() {
+        return Ok(WorkspacesJson {
+            active_workspace: default_workspace_id(),
+            workspaces: vec![],
+        });
+    }
+    let text = fs::read_to_string(&path).map_err(to_error)?;
+    let data: WorkspacesJson = serde_json::from_str(&text).map_err(to_error)?;
+    Ok(data)
+}
+
+fn write_workspaces_json(
+    app: &AppHandle,
+    state: &AppState,
+    data: &WorkspacesJson,
+) -> Result<(), String> {
+    let path = workspaces_json_path(app, state)?;
+    let json = serde_json::to_string_pretty(data).map_err(to_error)?;
+    fs::write(&path, format!("{json}\n")).map_err(to_error)
+}
+
+/// Read the active workspace ID from workspaces.json.
+pub(crate) fn current_workspace_id(app: &AppHandle, state: &AppState) -> Result<String, String> {
+    let data = read_workspaces_json(app, state)?;
+    Ok(data.active_workspace)
+}
+
+/// Read the workspace registry from workspaces.json.
+pub(crate) fn load_workspace_registry(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<Vec<WorkspaceInfo>, String> {
+    let data = read_workspaces_json(app, state)?;
+    Ok(data.workspaces)
+}
+
+/// Save the workspace registry to workspaces.json.
+pub(crate) fn save_workspace_registry(
+    app: &AppHandle,
+    state: &AppState,
+    list: &[WorkspaceInfo],
+) -> Result<(), String> {
+    let mut data = read_workspaces_json(app, state)?;
+    data.workspaces = list.to_vec();
+    write_workspaces_json(app, state, &data)
+}
+
+/// Save the active workspace ID to workspaces.json.
+pub(crate) fn save_active_workspace_id(
+    app: &AppHandle,
+    state: &AppState,
+    id: &str,
+) -> Result<(), String> {
+    let mut data = read_workspaces_json(app, state)?;
+    data.active_workspace = id.to_string();
+    write_workspaces_json(app, state, &data)
+}
+
+/// Read the active workspace ID directly from workspaces.json (no pool needed).
+pub(crate) fn read_active_workspace_from_json(
+    app: &AppHandle,
+    state: &AppState,
+) -> Result<String, String> {
+    current_workspace_id(app, state)
 }
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {
     let pool = settings_pool(app, state).ok()?;
-    let raw = crate::db::db_get(pool, key).ok()??;
+    let raw = crate::db::db_get(&pool, key).ok()??;
     serde_json::from_str(&raw).ok()
 }
 
