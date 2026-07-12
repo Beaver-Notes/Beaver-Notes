@@ -339,3 +339,42 @@ export function buildCardPreview(content) {
 
   return preview;
 }
+
+/**
+ * Build a structured cardPreview and flat preview text for a note.
+ * Handles the fallback chain: structured content -> flat text -> empty.
+ *
+ * @param {Object} opts
+ * @param {*}       opts.content     - TipTap JSON content (or null)
+ * @param {string}  [opts.preview]   - Flat preview text (cross-device fallback)
+ * @param {string}  [opts.searchText] - Legacy search text
+ * @param {boolean} [opts.hidden]    - true when note is locked/encrypted
+ * @returns {{ cardPreview: Object, preview: string }}
+ */
+export function buildNotePreview({
+  content,
+  preview: previewText,
+  searchText,
+  hidden,
+}) {
+  if (hidden) {
+    return { cardPreview: EMPTY_CARD_PREVIEW, preview: '' };
+  }
+
+  const text = previewText || searchText || '';
+
+  let cardPreview;
+  if (content) {
+    cardPreview = buildCardPreview(content);
+    // Bare top-level text (no paragraph wrapper) yields no blocks
+    if (!cardPreview.blocks || !cardPreview.blocks.length) {
+      cardPreview = buildCardPreview(text);
+    }
+  } else if (text) {
+    cardPreview = buildCardPreview(text);
+  } else {
+    cardPreview = EMPTY_CARD_PREVIEW;
+  }
+
+  return { cardPreview, preview: text };
+}

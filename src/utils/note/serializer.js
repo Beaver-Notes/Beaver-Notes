@@ -77,7 +77,10 @@ export function extractTextFromContent(content) {
  */
 export function stripTransientFields(note) {
   if (!note || typeof note !== 'object') return note;
-  const { cardPreview: _cardPreview, searchText: _searchText, ...persistedNote } = note;
+  // `cardPreview` is now persisted (it is rebuilt from structured content and
+  // would otherwise be lost after the Yjs migration moved content out of KV).
+  // `searchText` remains a deprecated transient field.
+  const { searchText: _searchText, ...persistedNote } = note;
   return persistedNote;
 }
 
@@ -90,13 +93,30 @@ export function hydrateNote(note) {
 
   const persisted = stripTransientFields(note);
   const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
+  const previewText = hidden
+    ? ''
+    : (persisted.preview ||
+      persisted.searchText ||
+      extractTextFromContent(persisted.content) ||
+      '');
+
+  // Prefer a persisted structured `cardPreview` (styled blocks). Rebuild it
+  // from structured content when available, otherwise fall back to a flat
+  // preview (legacy `searchText` / cross-device `preview`).
+  let cardPreview = persisted.cardPreview;
+  if (!hidden && !cardPreview) {
+    if (persisted.content) {
+      cardPreview = buildCardPreview(persisted.content);
+    } else if (previewText) {
+      cardPreview = buildCardPreview(previewText);
+    }
+  }
+  if (!cardPreview) cardPreview = EMPTY_CARD_PREVIEW;
 
   return {
     ...persisted,
-    cardPreview: hidden
-      ? EMPTY_CARD_PREVIEW
-      : buildCardPreview(persisted.content),
-    searchText: hidden ? '' : extractTextFromContent(persisted.content),
+    cardPreview,
+    searchText: previewText,
   };
 }
 
