@@ -51,6 +51,7 @@ import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
 import { useRouter } from 'vue-router';
 import {
   extensions,
+  createBaseExtensions,
   CollapseHeading,
   heading,
   dropFile,
@@ -60,6 +61,7 @@ import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
+import Collaboration from '@tiptap/extension-collaboration';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
@@ -79,12 +81,14 @@ export default {
     id: { type: String, default: '' },
     cursorPosition: { type: Number, default: 0 },
     note: { type: Object, default: () => ({}) },
+    ydoc: { type: Object, default: null },
   },
   emits: ['init', 'update', 'update:modelValue'],
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
 
+    const isYjs = !!props.ydoc;
     const isRtl = document.documentElement.getAttribute('dir') === 'rtl';
 
     const showDragHandle = ref(
@@ -249,7 +253,7 @@ export default {
     });
 
     const exts = [
-      ...extensions,
+      ...(isYjs && props.ydoc ? createBaseExtensions({ yjs: true }) : extensions),
       dropFile.configure({ id: props.id }),
       NodeRangeSelection,
     ];
@@ -258,14 +262,29 @@ export default {
     }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
-    const safeContent = computed(() =>
-      isEncryptedContent(props.modelValue)
-        ? ''
-        : sanitizeNoteContent(props.modelValue)
-    );
+    if (isYjs && props.ydoc) {
+      exts.push(
+        Collaboration.configure({
+          document: props.ydoc,
+          field: 'content',
+        })
+      );
+    }
 
+    const safeContent = computed(() => {
+      if (isYjs) return '';
+      return isEncryptedContent(props.modelValue)
+        ? ''
+        : sanitizeNoteContent(props.modelValue);
+    });
+
+    const hasUserEdited = ref(false);
+    let pendingProgrammaticUpdates = 0;
+
+    const editorTimerLabel = `[perf] editor ${props.id}`;
+    console.time(editorTimerLabel);
     const editor = useEditor({
-      content: safeContent.value,
+      content: isYjs ? undefined : safeContent.value,
       autofocus: props.cursorPosition,
       extensions: exts,
       editorProps: {
@@ -308,7 +327,6 @@ export default {
         const href =
           externalAnchor.href || externalAnchor.getAttribute('href') || '';
 
-        // note:// URLs should navigate within the app, not open in a new tab
         if (href.startsWith('note://')) {
           const noteId = href.slice('note://'.length);
           if (noteId) {
@@ -329,8 +347,9 @@ export default {
     onMounted(() => {
       if (!editor.value) return;
       emit('init', editor.value);
+      console.timeEnd(editorTimerLabel);
 
-      if (safeContent.value) {
+      if (!isYjs && safeContent.value) {
         editor.value.commands.setContent(safeContent.value);
       }
 
@@ -344,19 +363,30 @@ export default {
       }
 
       editor.value.on('update', () => {
+        if (isYjs) {
+          emit('update', null);
+          return;
+        }
+        if (pendingProgrammaticUpdates > 0) {
+          pendingProgrammaticUpdates--;
+          return;
+        }
+        hasUserEdited.value = true;
         const data = editor.value.getJSON();
         emit('update', data);
         emit('update:modelValue', data);
       });
     });
 
-    watch(safeContent, (val) => {
-      if (!editor.value || !val) return;
-      const isEmpty = editor.value.isEmpty;
-      if (isEmpty) {
-        editor.value.commands.setContent(val);
-      }
-    });
+    if (!isYjs) {
+      watch(safeContent, (val) => {
+        if (!editor.value || !val) return;
+        if (!hasUserEdited.value) {
+          pendingProgrammaticUpdates++;
+          editor.value.commands.setContent(val);
+        }
+      });
+    }
 
     function destroyEditor({ defer = false } = {}) {
       const instance = editor.value;

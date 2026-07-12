@@ -1,7 +1,9 @@
 <template>
   <div v-if="note" class="flex flex-col">
     <template v-if="editor && !isLocked">
-      <div class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4">
+      <div
+        class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4"
+      >
         <div
           v-if="previousNote && !uiState.inReaderMode"
           class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
@@ -104,11 +106,11 @@
       </div>
 
       <note-editor
-        v-if="!isLocked"
+        v-if="!isLocked && yjsReady"
         :id="$route.params.id"
         ref="noteEditor"
         :key="$route.params.id"
-        :model-value="note.content"
+        :ydoc="ydoc"
         :note="note"
         :cursor-position="note.lastCursorPosition"
         @update="
@@ -159,6 +161,7 @@ import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
+import { useNoteYjs } from '@/composable/useNoteYjs';
 
 export default {
   components: {
@@ -194,6 +197,13 @@ export default {
       () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
     );
     const { translations } = useTranslations();
+
+    // Yjs document management for note content
+    const {
+      doc: ydoc,
+      ready: yjsReady,
+      load: yjsLoad,
+    } = useNoteYjs();
 
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
@@ -285,7 +295,9 @@ export default {
           }
         }
         if (!appStore.setting.collapsibleHeading && !isLocked.value) {
+          console.time(`[perf] convertNote ${n}`);
           noteStore.convertNote(n);
+          console.timeEnd(`[perf] convertNote ${n}`);
         }
       },
       { immediate: true }
@@ -297,6 +309,7 @@ export default {
     }, 150);
 
     function handleContentUpdate(content) {
+      if (ydoc.value) return; // Yjs manages content persistence
       return updateNote(id.value, { content });
     }
 
@@ -326,6 +339,14 @@ export default {
             store.activeNoteId = data.id;
             localStorage.setItem('lastNoteEdit', noteId);
           }
+        });
+
+        const seedContent = noteStore.getById(noteId)?.content;
+        console.time(`[perf] yjsLoad ${noteId}`);
+        yjsLoad(noteId, seedContent).catch((err) => {
+          console.error('[yjs] Failed to load note:', err);
+        }).finally(() => {
+          console.timeEnd(`[perf] yjsLoad ${noteId}`);
         });
       },
       { immediate: true }
@@ -473,6 +494,8 @@ export default {
       disallowedEnter,
       autoScroll,
       isLocked,
+      yjsReady,
+      ydoc,
     };
   },
 };
