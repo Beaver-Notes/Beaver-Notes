@@ -105,6 +105,29 @@ jobs:
         run: |
           yarn lint
 
+      - name: Audit npm dependencies
+        shell: bash
+        run: |
+          yarn audit --audit-level=high
+
+      - name: Run knip (dead code detection)
+        shell: bash
+        run: |
+          yarn knip --no-progress
+
+      # Rust audit — catches RUSTSEC advisories
+      - name: Install cargo-audit
+        shell: bash
+        run: |
+          if ! command -v cargo-audit &>/dev/null; then
+            cargo install cargo-audit
+          fi
+
+      - name: Audit Rust dependencies
+        shell: bash
+        run: |
+          cd src-tauri && cargo audit
+
   desktop:
     name: Build ${{ matrix.id }}
     if: ${{ needs.validate.outputs.version_match == 'true' }}
