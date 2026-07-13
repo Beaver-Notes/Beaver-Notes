@@ -11,6 +11,53 @@ use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob};
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
+/// Schema version — increment when tables/indexes change.
+/// Must stay in sync with `SCHEMA_VERSION` in the migration function below.
+const SCHEMA_VERSION: i64 = 1;
+
+/// DDL for every schema version. Each entry runs all statements from version N
+/// to N+1. Add new migrations here and bump `SCHEMA_VERSION` above.
+fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), String> {
+    // Version 0 → 1: baseline tables (runs for both fresh and existing DBs).
+    if from < 1 {
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS kv (
+              key   TEXT PRIMARY KEY NOT NULL,
+              value TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS note_content (
+              id         INTEGER PRIMARY KEY AUTOINCREMENT,
+              note_id    TEXT NOT NULL,
+              data       BLOB NOT NULL,
+              device     TEXT NOT NULL DEFAULT '',
+              created_at INTEGER NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_note_content_note_id
+              ON note_content(note_id);
+            CREATE TABLE IF NOT EXISTS yjs_snapshots (
+              note_id    TEXT PRIMARY KEY NOT NULL,
+              data       BLOB NOT NULL,
+              updated_at INTEGER NOT NULL
+            );
+            CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+              id    UNINDEXED,
+              title,
+              body,
+              tokenize = 'unicode61 remove_diacritics 1'
+            );",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    // Future migrations go here, e.g.:
+    // if from < 2 {
+    //     conn.execute_batch("ALTER TABLE kv ADD COLUMN created_at INTEGER; ...")
+    //         .map_err(|e| e.to_string())?;
+    // }
+
+    Ok(())
+}
+
 pub(crate) fn open_pool(path: &Path) -> Result<DbPool, String> {
     std::fs::create_dir_all(path.parent().unwrap_or(path)).map_err(|e| e.to_string())?;
     let manager = SqliteConnectionManager::file(path).with_flags(
@@ -24,34 +71,20 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, String> {
     conn.execute_batch(
         "PRAGMA journal_mode=WAL;
         PRAGMA case_sensitive_like = OFF;
-        PRAGMA synchronous=NORMAL;
-        CREATE TABLE IF NOT EXISTS kv (
-          key   TEXT PRIMARY KEY NOT NULL,
-          value TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS note_content (
-          id         INTEGER PRIMARY KEY AUTOINCREMENT,
-          note_id    TEXT NOT NULL,
-          data       BLOB NOT NULL,
-          device     TEXT NOT NULL DEFAULT '',
-          created_at INTEGER NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_note_content_note_id
-          ON note_content(note_id);
-        CREATE TABLE IF NOT EXISTS yjs_snapshots (
-          note_id    TEXT PRIMARY KEY NOT NULL,
-          data       BLOB NOT NULL,
-          updated_at INTEGER NOT NULL
-        );
-        -- FTS5 index: one row per note. title and body are tokenised; id is stored verbatim.
-        CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-          id    UNINDEXED,
-          title,
-          body,
-          tokenize = 'unicode61 remove_diacritics 1'
-        );",
+        PRAGMA synchronous=NORMAL;",
     )
     .map_err(|e| e.to_string())?;
+
+    // Run schema migration
+    let current: i64 = conn
+        .query_row("PRAGMA user_version", [], |row| row.get(0))
+        .unwrap_or(0);
+    if current < SCHEMA_VERSION {
+        migrate(&conn, current).map_err(|e| format!("migration v{current}→{SCHEMA_VERSION}: {e}"))?;
+        conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
+            .map_err(|e| e.to_string())?;
+    }
+
     Ok(pool)
 }
 
