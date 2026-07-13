@@ -2,7 +2,6 @@ import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import {
   hydrateNote,
   decryptNoteForMemory,
-  stripTransientFields,
 } from '@/utils/note/serializer.js';
 import { saveNote } from './helpers';
 

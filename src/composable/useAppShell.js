@@ -590,9 +590,16 @@ export function useAppShell() {
     await router.isReady();
     if (!retrieved.value) {
       await new Promise((resolve) => {
-        const unwatch = watch(retrieved, (val) => {
-          if (val) { unwatch(); resolve(); }
-        }, { immediate: true });
+        const unwatch = watch(
+          retrieved,
+          (val) => {
+            if (val) {
+              unwatch();
+              resolve();
+            }
+          },
+          { immediate: true }
+        );
       });
     }
 

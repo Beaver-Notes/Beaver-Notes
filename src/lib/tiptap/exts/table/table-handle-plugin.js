@@ -19,7 +19,7 @@ import { createTableDragImage } from './create-image.js';
 
 export const tableHandlePluginKey = new PluginKey('tableHandlePlugin');
 
-const EMPTY_STATE = {
+const _EMPTY_STATE = {
   show: false,
   showAddOrRemoveRowsButton: false,
   showAddOrRemoveColumnsButton: false,
@@ -583,7 +583,7 @@ export function TableHandlePlugin(editor, emitUpdate) {
   });
 }
 
-const tableDragStart = (orientation, event, editor, view) => {
+const tableDragStart = (orientation, event, editor, _view) => {
   if (!tableHandleView?.state) return;
 
   const { state } = tableHandleView;

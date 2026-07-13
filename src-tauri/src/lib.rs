@@ -84,6 +84,11 @@ pub fn run() {
     }
     builder = builder.plugin(tauri_plugin_app_icon::init());
 
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+    }
+
     #[cfg(target_os = "ios")]
     {
         builder = builder.plugin(tauri_plugin_swipe_back_ios::init());
@@ -169,12 +174,10 @@ pub fn run() {
             commands::security::sync_decrypt_payload,
             commands::security::sync_key_ready,
             commands::security::encryption_reconcile_key_params,
-            commands::security::encryption_rotate_key,
             commands::security::passwd_hash,
             commands::security::passwd_compare,
             commands::security::passwd_record_failure,
             commands::security::passwd_reset_failures,
-            commands::security::is_encrypted_asset,
             commands::security::encryption_decrypt_asset_stream,
             commands::security::encryption_encrypt_asset_stream,
             commands::security::encryption_cache_decrypted_note,
