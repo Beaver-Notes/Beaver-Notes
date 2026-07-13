@@ -37,6 +37,7 @@ Thumbs.db
 test-results/
 playwright-report/
 coverage/
+screenshots/
 *.log
 *.orig
 .env.development

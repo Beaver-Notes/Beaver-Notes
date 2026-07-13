@@ -66,6 +66,9 @@ tauri-plugin-scoped-storage = "=1.5.0"
 font-kit = "0.14"
 tauri-plugin-spotsearch = "0.2.1"
 
+[target.'cfg(debug_assertions)'.dependencies]
+tauri-plugin-webdriver-automation = { git = "https://github.com/danielraffel/tauri-webdriver" }
+
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-haptics = "2"
 tauri-plugin-sharesheet = { path = "../vendor/tauri-plugin-sharesheet" }
