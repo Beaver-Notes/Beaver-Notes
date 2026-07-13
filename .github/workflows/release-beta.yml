@@ -97,6 +97,11 @@ jobs:
         run: |
           yarn lint
 
+      - name: Audit npm dependencies
+        shell: bash
+        run: |
+          yarn audit --audit-level=high
+
   desktop:
     name: Build beta ${{ matrix.id }}
     if: ${{ needs.validate.outputs.version_match == 'true' }}
