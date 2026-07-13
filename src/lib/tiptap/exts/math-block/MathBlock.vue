@@ -70,6 +70,7 @@ import { ref, onMounted, nextTick } from 'vue';
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useTranslations } from '@/composable/useTranslations';
 import katex from 'katex';
+import { debounce } from '@/utils/helpers/index.js';
 
 export default {
   components: { NodeViewWrapper },
@@ -102,13 +103,6 @@ export default {
       });
     };
 
-    const debounce = (func, delay) => {
-      let timer;
-      return (...args) => {
-        clearTimeout(timer);
-        timer = setTimeout(() => func(...args), delay);
-      };
-    };
     const debouncedRenderContent = debounce(renderContent, 300);
 
     // Update content or macros

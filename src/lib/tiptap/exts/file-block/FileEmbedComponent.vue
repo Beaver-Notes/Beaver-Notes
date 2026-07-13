@@ -36,6 +36,7 @@ import { openFileExternal, getAppDirectory } from '@/lib/native/app';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
 import { shareFileViaNative } from '@/lib/native/share';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 export default {
   components: {
@@ -50,14 +51,7 @@ export default {
       return base;
     }
 
-    function base64ToUint8Array(base64) {
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes;
-    }
+
 
     async function openDocument() {
       const src = encodeURI(normalizeSrc(props.node.attrs.src));

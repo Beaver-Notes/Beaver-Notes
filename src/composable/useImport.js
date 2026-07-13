@@ -10,16 +10,7 @@ import {
 import { openDialog } from '@/lib/native/dialog';
 import { getAppDirectory } from '@/lib/native/app';
 import { importAppleNotes, importEvernote } from '@/lib/native/imports';
-
-function createProgressState(extra = {}) {
-  return shallowReactive({
-    running: false,
-    done: 0,
-    total: 0,
-    result: null,
-    ...extra,
-  });
-}
+import { createProgressState } from '@/utils/helpers/index.js';
 
 export function useImport({
   storage: _storage,

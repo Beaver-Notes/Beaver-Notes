@@ -1,6 +1,7 @@
 import { backend } from '@/lib/tauri-bridge';
 import { path } from '@/lib/tauri-bridge';
 import { readData, readDir, writeFile } from '@/lib/native/fs';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 export function isEncryptionAvailable() {
   return backend.invoke('safeStorage:isEncryptionAvailable');
@@ -138,14 +139,7 @@ export function resetPasswordFailures() {
   return backend.invoke('passwd:resetFailures');
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+
 
 function isIgnoredAssetEntry(name) {
   return !name || name.startsWith('.') || name === 'Thumbs.db';

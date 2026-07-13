@@ -1,5 +1,7 @@
 // ─── General-purpose helpers ─────────────────────────────────────────────────
 
+import { shallowReactive } from 'vue';
+
 export function debounce(callback, time = 200) {
   let interval;
 
@@ -153,4 +155,14 @@ export function collectExpiredIds(deletedIds, days = 30) {
     if (timestamp < cutoff) result.push(id);
   }
   return result;
+}
+
+export function createProgressState(extra = {}) {
+  return shallowReactive({
+    running: false,
+    done: 0,
+    total: 0,
+    result: null,
+    ...extra,
+  });
 }

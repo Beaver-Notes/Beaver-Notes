@@ -64,6 +64,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 function normalizeSrc(src) {
   return String(src || '').split('?')[0];
@@ -73,16 +74,7 @@ function isLocalAsset(src) {
   return src.startsWith('assets://') || src.startsWith('file-assets://');
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
 
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
-}
 
 function getFileName(src) {
   const normalizedSrc = normalizeSrc(src);

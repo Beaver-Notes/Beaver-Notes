@@ -94,14 +94,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import { useLabelStore } from '@/store/label';
-
-function debounce(fn, delay) {
-  let timer;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), delay);
-  };
-}
+import { debounce } from '@/utils/helpers/index.js';
 
 export default {
   props: {
