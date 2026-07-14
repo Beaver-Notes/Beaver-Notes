@@ -44,7 +44,9 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), String> {
               title,
               body,
               tokenize = 'unicode61 remove_diacritics 1'
-            );",
+            );
+            CREATE INDEX IF NOT EXISTS idx_kv_notes_prefix
+              ON kv(key) WHERE key LIKE 'notes.%';",
         )
         .map_err(|e| e.to_string())?;
     }
@@ -327,11 +329,11 @@ pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
 // ─── Yjs note-content helpers ─────────────────────────────────────────────────
 
 /// Append a Yjs binary update for a note. The raw update is kept (append-only
-/// so every peer's version is preserved) and is also folded into the cached
-/// merged snapshot, so reads stay O(1) regardless of edit history.
+/// so every peer's version is preserved). The cached snapshot is invalidated so
+/// `yjs_get_snapshot` rebuilds it lazily; `yjs_compact` refreshes it eagerly on
+/// note switch.
 ///
-/// When `key` is `Some`, the stored blob is encrypted at rest. The fold
-/// operation works on decrypted data so the CRDT merge stays correct.
+/// When `key` is `Some`, the stored blob is encrypted at rest.
 pub(crate) fn yjs_append(
     pool: &DbPool,
     note_id: &str,
@@ -350,8 +352,15 @@ pub(crate) fn yjs_append(
         rusqlite::params![note_id, stored, device, chrono::Utc::now().timestamp_millis()],
     )
     .map_err(|e| e.to_string())?;
-    // Fold the *raw* (unencrypted) blob into the cached snapshot.
-    let _ = fold_snapshot(pool, note_id, blob, key);
+    // Invalidate the cached snapshot so yjs_get_snapshot rebuilds it lazily
+    // from the full update log.  This avoids the O(document-size) fold that
+    // previously ran on every keystroke.  The snapshot is refreshed eagerly
+    // by yjs_compact (called on note switch / unmount).
+    conn.execute(
+        "DELETE FROM yjs_snapshots WHERE note_id = ?1",
+        rusqlite::params![note_id],
+    )
+    .map_err(|e| e.to_string())?;
     Ok(())
 }
 

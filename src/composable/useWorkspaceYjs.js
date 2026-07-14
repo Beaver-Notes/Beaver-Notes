@@ -154,14 +154,34 @@ export function removeFolder(id) {
   });
 }
 
-export function syncDeletedFolderIds(deletedIds) {
-  const map = getWorkspaceDoc().getMap('deletedFolderIds');
+// ── Tombstone map helpers ───────────────────────────────────────────────────
+
+/**
+ * Diff a Yjs Map against a desired plain-object state, applying only the
+ * minimal set/delete operations.  Previous code did `map.clear()` +
+ * re-insert every entry — O(n) mutations + O(n) delete events even when
+ * only one key changed.  This is O(m) where m = number of changed keys.
+ */
+function syncTombstoneMap(mapName, desired) {
+  const map = getWorkspaceDoc().getMap(mapName);
   transactWorkspace(() => {
-    map.clear();
-    for (const [id, ts] of Object.entries(deletedIds || {})) {
-      map.set(id, ts);
+    const toDelete = [];
+    for (const [key] of map.entries()) {
+      if (!(key in desired)) {
+        toDelete.push(key);
+      }
+    }
+    for (const key of toDelete) {
+      map.delete(key);
+    }
+    for (const [key, value] of Object.entries(desired)) {
+      map.set(key, value);
     }
   });
+}
+
+export function syncDeletedFolderIds(deletedIds) {
+  syncTombstoneMap('deletedFolderIds', deletedIds || {});
 }
 
 export function syncLabel(name) {
@@ -220,21 +240,9 @@ export function removeNoteMeta(id) {
 }
 
 export function syncDeletedNoteIds(deletedIds) {
-  const map = getWorkspaceDoc().getMap('deletedNoteIds');
-  transactWorkspace(() => {
-    map.clear();
-    for (const [id, ts] of Object.entries(deletedIds || {})) {
-      map.set(id, ts);
-    }
-  });
+  syncTombstoneMap('deletedNoteIds', deletedIds || {});
 }
 
 export function syncDeletedAssets(deletedAssets) {
-  const map = getWorkspaceDoc().getMap('deletedAssets');
-  transactWorkspace(() => {
-    map.clear();
-    for (const [key, ts] of Object.entries(deletedAssets || {})) {
-      map.set(key, ts);
-    }
-  });
+  syncTombstoneMap('deletedAssets', deletedAssets || {});
 }

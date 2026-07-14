@@ -248,19 +248,24 @@ export async function moveToFolder(noteIds, folderId) {
     }
 
     const undoNotes = [];
-    const results = [];
+    const updatePromises = [];
     for (const noteId of noteIds) {
       if (this.data[noteId]) {
         undoNotes.push({
           id: noteId,
           prevFolderId: this.data[noteId].folderId,
         });
-        results.push(await this.update(noteId, { folderId: targetFolderId }));
+        this.patchLocal(noteId, { folderId: targetFolderId });
+        updatePromises.push(
+          this.persist(noteId).then(() => syncNoteMeta(this.data[noteId]))
+        );
       }
     }
 
+    await Promise.all(updatePromises);
+
     useUndoStore().push({ type: 'move', notes: undoNotes, folders: [] });
-    return results;
+    return undoNotes.map((n) => this.data[n.id]);
   } catch (error) {
     console.error('Error moving multiple notes to folder:', error);
     throw error;
@@ -278,12 +283,16 @@ export async function handleFolderDeletion(deletionResult) {
     );
 
     _skipUndo.value = true;
-    for (const note of affectedNotes) {
-      if (deleteContents) {
+    if (deleteContents) {
+      for (const note of affectedNotes) {
         await this.delete(note.id);
-      } else {
-        await this.update(note.id, { folderId: moveContentsTo });
       }
+    } else {
+      const updatePromises = affectedNotes.map((note) => {
+        this.patchLocal(note.id, { folderId: moveContentsTo });
+        return this.persist(note.id).then(() => syncNoteMeta(this.data[note.id]));
+      });
+      await Promise.all(updatePromises);
     }
     _skipUndo.value = false;
 

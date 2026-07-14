@@ -50,16 +50,9 @@ async function seedFromTipJson(ydoc, contentJson) {
  */
 async function loadStateIntoDoc(newDoc, noteId) {
   try {
-    console.time(`[perf] ${noteId} getSnapshot`);
     const snapshot = await getSnapshot(noteId);
-    console.timeEnd(`[perf] ${noteId} getSnapshot`);
     if (snapshot && snapshot.length > 0) {
-      console.time(`[perf] ${noteId} applySnapshot`);
       Y.applyUpdate(newDoc, toUint8Array(snapshot));
-      console.timeEnd(`[perf] ${noteId} applySnapshot`);
-      console.log(
-        `[perf] ${noteId} loaded from snapshot (${snapshot.length} bytes)`
-      );
       return;
     }
   } catch (err) {
@@ -67,14 +60,8 @@ async function loadStateIntoDoc(newDoc, noteId) {
   }
 
   try {
-    console.time(`[perf] ${noteId} getUpdates`);
     const updates = await getUpdates(noteId);
-    console.timeEnd(`[perf] ${noteId} getUpdates`);
-    const count = updates?.length || 0;
-    console.log(`[perf] ${noteId} replaying ${count} updates`);
-    console.time(`[perf] ${noteId} applyUpdates`);
     applyUpdatesToDoc(newDoc, updates);
-    console.timeEnd(`[perf] ${noteId} applyUpdates`);
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
   }
@@ -103,6 +90,8 @@ async function persistUpdate(noteId, update) {
   }
 }
 
+const FLUSH_DELAY_MS = 300;
+
 /**
  * Composable that manages Yjs documents across note switches on the page.
  *
@@ -116,11 +105,37 @@ export function useNoteYjs() {
   let currentNoteId = null;
   let currentDoc = null;
 
+  // ── Debounced Yjs update persistence ──────────────────────────────────────
+  // Individual Y.Doc updates (one per keystroke) are buffered and merged into
+  // a single Yjs update every FLUSH_DELAY_MS.  This avoids an IPC round-trip
+  // and a full snapshot rebuild on every character typed.
+  let pendingUpdates = [];
+  let flushTimer = null;
+
+  function scheduleFlush() {
+    if (flushTimer) clearTimeout(flushTimer);
+    flushTimer = setTimeout(() => {
+      flushTimer = null;
+      flushPendingUpdates();
+    }, FLUSH_DELAY_MS);
+  }
+
+  async function flushPendingUpdates() {
+    if (pendingUpdates.length === 0) return;
+    const updates = pendingUpdates.splice(0);
+    const merged = Y.mergeUpdates(updates);
+    await persistUpdate(currentNoteId, merged);
+  }
+
   async function load(noteId, initialContent) {
-    const label = `[perf] load ${noteId}`;
-    console.time(label);
+    // Flush any pending updates for the *previous* note before switching.
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    await flushPendingUpdates();
+
     if (currentDoc && currentNoteId) {
-      console.time(`${label} compactPrev`);
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
         if (snapshot.byteLength > 0) {
@@ -131,7 +146,6 @@ export function useNoteYjs() {
       }
       activeDocs.delete(currentNoteId);
       currentDoc.destroy();
-      console.timeEnd(`${label} compactPrev`);
     }
 
     currentNoteId = noteId;
@@ -143,7 +157,6 @@ export function useNoteYjs() {
     // Handles fresh notes and notes with stale/corrupted snapshots.
     const frag = newDoc.getXmlFragment('content');
     if (frag.length === 0 && initialContent) {
-      console.time(`${label} seed`);
       try {
         await seedFromTipJson(newDoc, initialContent);
         const snapshot = Y.encodeStateAsUpdate(newDoc);
@@ -151,22 +164,28 @@ export function useNoteYjs() {
       } catch (e) {
         console.error('[yjs] seeding also failed:', e);
       }
-      console.timeEnd(`${label} seed`);
     }
 
     newDoc.on('update', (update, origin) => {
       if (origin === 'load' || origin === 'sync') return;
-      persistUpdate(currentNoteId, update);
+      pendingUpdates.push(update);
+      scheduleFlush();
     });
 
     currentDoc = newDoc;
     activeDocs.set(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
-    console.timeEnd(label);
   }
 
   onUnmounted(async () => {
+    // Flush buffered updates before compacting.
+    if (flushTimer) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    await flushPendingUpdates();
+
     if (currentDoc && currentNoteId) {
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
