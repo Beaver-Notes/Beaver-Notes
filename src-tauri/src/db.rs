@@ -306,8 +306,13 @@ pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
                 .get("title")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let content = value.get("content").unwrap_or(&Value::Null);
-            let body = extract_text(content);
+            let body = if let Some(content) = value.get("content") {
+                extract_text(content)
+            } else if let Some(text) = value.get("searchText").and_then(Value::as_str) {
+                text.to_owned()
+            } else {
+                String::new()
+            };
 
             stmt.execute(params![id, title, body])
                 .map_err(|e| e.to_string())?;
@@ -369,16 +374,27 @@ pub(crate) fn yjs_get_updates(
             Ok((id, blob))
         })
         .map_err(|e| e.to_string())?;
-    rows.map(|r| {
-        r.map(|(id, blob)| {
-            let decrypted = match key {
-                Some(k) => decrypt_yjs_blob(&k, &blob).unwrap_or(blob),
-                None => blob,
-            };
-            (id, decrypted)
-        })
+    rows.filter_map(|r| {
+        let (id, blob) = match r {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!("[yjs_get_updates] skipping corrupt row: {e}");
+                return None;
+            }
+        };
+        let decrypted = match key {
+            Some(k) => match decrypt_yjs_blob(&k, &blob) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("[yjs_get_updates] skipping undecryptable row {id}: {e}");
+                    return None;
+                }
+            },
+            None => blob,
+        };
+        Some(Ok((id, decrypted)))
     })
-    .collect::<Result<Vec<_>, _>>()
+    .collect::<Result<Vec<(i64, Vec<u8>)>, String>>()
     .map_err(|e| e.to_string())
 }
 
