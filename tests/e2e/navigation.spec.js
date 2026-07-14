@@ -1,13 +1,9 @@
 import { browser, expect } from '@wdio/globals';
+import { navigateToSettings, navigateToNotes, navigateToArchive } from './helpers.js';
 
 describe('Navigation', () => {
   it('should navigate to Settings page', async () => {
-    const settingsLink = await $('a[href="#/settings"]');
-    await settingsLink.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.includes('#/settings');
-    });
+    await navigateToSettings();
     const url = await browser.getUrl();
     expect(url).toContain('#/settings');
   });
@@ -18,31 +14,18 @@ describe('Navigation', () => {
   });
 
   it('should navigate back to Notes via sidebar', async () => {
-    const notesBtn = await $('[data-testid="nav-notes-button"]');
-    await notesBtn.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.endsWith('#/') || url.endsWith('#');
-    });
+    await navigateToNotes();
     const heading = await $('h1.text-4xl');
     await expect(heading).toBeExisting();
   });
 
   it('should navigate to Archive', async () => {
-    const archiveBtn = await $('[data-testid="nav-archive-button"]');
-    await archiveBtn.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.includes('archived=true');
-    });
+    await navigateToArchive();
   });
 
   it('should navigate back to Notes from Archive', async () => {
-    const notesBtn = await $('[data-testid="nav-notes-button"]');
-    await notesBtn.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return !url.includes('archived=true');
-    });
+    await navigateToNotes();
+    const url = await browser.getUrl();
+    expect(url).not.toContain('archived=true');
   });
 });

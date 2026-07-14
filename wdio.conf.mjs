@@ -1,6 +1,8 @@
 import { resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { createConnection } from 'node:net';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 
 const ROOT = import.meta.dirname;
 const DEBUG_BINARY = resolve(ROOT, 'src-tauri', 'target', 'debug', 'beaver-notes');
@@ -12,6 +14,7 @@ const VITE_PORT = 5173;
 
 let tauriWdProcess = null;
 let viteProcess = null;
+let testTmpDir = null;
 
 function isPortOpen(port, host = '127.0.0.1') {
   return new Promise((resolve) => {
@@ -122,11 +125,15 @@ export const config = {
     console.log(`\n  Beaver Notes E2E Test Suite`);
     console.log(`  Binary: ${DEBUG_BINARY}\n`);
 
+    testTmpDir = await mkdtemp(resolve(tmpdir(), 'beaver-e2e-'));
+    process.env.BEAVER_NOTES_DATA_DIR = testTmpDir;
+    console.log(`  [setup] Test data dir: ${testTmpDir}\n`);
+
     viteProcess = await ensureDevServer();
     tauriWdProcess = await startTauriWd();
   },
 
-  onComplete: function () {
+  onComplete: async function () {
     if (tauriWdProcess) {
       console.log('\n  [cleanup] Stopping tauri-wd...');
       tauriWdProcess.kill('SIGTERM');
@@ -134,6 +141,11 @@ export const config = {
     if (viteProcess) {
       console.log('  [cleanup] Stopping Vite dev server...');
       viteProcess.kill('SIGTERM');
+    }
+    if (testTmpDir) {
+      console.log(`  [cleanup] Removing test data dir: ${testTmpDir}`);
+      delete process.env.BEAVER_NOTES_DATA_DIR;
+      await rm(testTmpDir, { recursive: true, force: true }).catch(() => {});
     }
   },
 

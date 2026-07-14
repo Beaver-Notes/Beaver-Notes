@@ -1,4 +1,5 @@
 import { browser, expect } from '@wdio/globals';
+import { navigateToNotes } from './helpers.js';
 
 describe('Search', () => {
   const searchTerm = `searchable-${Date.now()}`;
@@ -19,12 +20,7 @@ describe('Search', () => {
     await editor.click();
     await browser.keys(`This note contains the unique search term: ${searchTerm}`);
 
-    const notesBtn = await $('[data-testid="nav-notes-button"]');
-    await notesBtn.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.endsWith('#/') || url.endsWith('#');
-    });
+    await navigateToNotes();
   });
 
   it('should find the note via search', async () => {
@@ -99,8 +95,7 @@ describe('Search', () => {
           break;
         }
       }
-      const notesBtn = await $('[data-testid="nav-notes-button"]');
-      if (await notesBtn.isExisting()) await notesBtn.click();
+      await navigateToNotes();
     } catch {
       // cleanup best-effort
     }

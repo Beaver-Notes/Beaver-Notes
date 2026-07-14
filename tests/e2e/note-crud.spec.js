@@ -1,27 +1,13 @@
 import { browser, expect } from '@wdio/globals';
+import { navigateToNotes, deleteCurrentNote, createNote } from './helpers.js';
 
 describe('Note CRUD', () => {
   const noteTitle = 'E2E Test Note ' + Date.now();
   const updatedTitle = 'Updated E2E Note ' + Date.now();
 
   it('should create a new note', async () => {
-    const notesBtn = await $('[data-testid="nav-notes-button"]');
-    if (await notesBtn.isExisting()) {
-      await notesBtn.click();
-      await browser.waitUntil(async () => {
-        const url = await browser.getUrl();
-        return url.endsWith('#/') || url.endsWith('#');
-      });
-    }
-
-    const addBtn = await $('[data-testid="add-note-button"]');
-    await addBtn.click();
-
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.includes('#/note/');
-    });
-    await browser.pause(500);
+    await navigateToNotes();
+    await createNote();
 
     const titleInput = await $('[data-testid="note-title-input"]');
     await expect(titleInput).toBeExisting();
@@ -107,28 +93,6 @@ describe('Note CRUD', () => {
   });
 
   it('should delete the note via the actions menu', async () => {
-    const moreBtn = await $('button[aria-label="More"]');
-    if (await moreBtn.isExisting()) {
-      await moreBtn.click();
-      await browser.pause(300);
-
-      await browser.execute(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const btn = btns.find(b => b.textContent.includes('Delete'));
-        if (btn) btn.click();
-      });
-
-      await browser.pause(300);
-      await browser.execute(() => {
-        const btns = Array.from(document.querySelectorAll('button'));
-        const btn = btns.find(b => b.textContent.includes('Confirm'));
-        if (btn) btn.click();
-      });
-
-      await browser.waitUntil(async () => {
-        const url = await browser.getUrl();
-        return url.endsWith('#/') || url.endsWith('#');
-      });
-    }
+    await deleteCurrentNote();
   });
 });

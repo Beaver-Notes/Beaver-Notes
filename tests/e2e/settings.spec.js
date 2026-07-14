@@ -1,13 +1,9 @@
 import { browser, expect } from '@wdio/globals';
+import { navigateToSettings, navigateToNotes } from './helpers.js';
 
 describe('Settings', () => {
   it('should navigate to Settings', async () => {
-    const settingsLink = await $('a[href="#/settings"]');
-    await settingsLink.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.includes('#/settings');
-    });
+    await navigateToSettings();
   });
 
   it('should display General settings by default', async () => {
@@ -61,11 +57,6 @@ describe('Settings', () => {
   });
 
   it('should navigate back to home', async () => {
-    const notesBtn = await $('[data-testid="nav-notes-button"]');
-    await notesBtn.click();
-    await browser.waitUntil(async () => {
-      const url = await browser.getUrl();
-      return url.endsWith('#/') || url.endsWith('#');
-    });
+    await navigateToNotes();
   });
 });
