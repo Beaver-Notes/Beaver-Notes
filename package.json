@@ -32,8 +32,6 @@
     "test:e2e": "bash scripts/run-e2e.sh",
     "test:e2e:install": "cargo install tauri-webdriver-automation || true",
     "lint": "oxlint --vue-plugin --max-warnings 0",
-    "generate:commands": "node scripts/generate-commands.mjs",
-    "validate:commands": "node scripts/generate-commands.mjs --check",
     "tran-util": "node scripts/translationUtil.js",
     "tran-update": "node scripts/updateTranslations.js",
     "version:bump": "node scripts/bump-version.mjs",
