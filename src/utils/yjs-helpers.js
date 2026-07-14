@@ -1,5 +1,7 @@
 import * as Y from 'yjs';
 import { getSyncDeviceId } from '@/utils/sync/sync-repository.js';
+import { yjsExtensions, CollapseHeading, heading } from '@/lib/tiptap';
+import { useAppStore } from '@/store/app';
 
 let cachedSchema = null;
 
@@ -62,9 +64,17 @@ export function toUint8Array(data) {
 export async function ensureSchema() {
   if (cachedSchema) return cachedSchema;
   const { Editor } = await import('@tiptap/core');
-  const { extensions, heading } = await import('@/lib/tiptap');
+  // Seed Y.Docs from the SAME extension set the live Yjs editor uses
+  // (yjsExtensions + the heading variant selected by settings), so the
+  // schema matches what ySyncPlugin expects. Using the non-Yjs `extensions`
+  // with the plain `heading` node previously produced mismatched/empty
+  // content when collapsible headings were enabled.
+  const appStore = useAppStore();
+  const headingExt = appStore.setting?.collapsibleHeading
+    ? CollapseHeading
+    : heading;
   const editor = new Editor({
-    extensions: [...extensions, heading],
+    extensions: [...yjsExtensions, headingExt],
     element: document.createElement('div'),
   });
   cachedSchema = editor.schema;
