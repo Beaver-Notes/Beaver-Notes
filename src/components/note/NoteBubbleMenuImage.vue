@@ -231,6 +231,7 @@ export default {
     });
 
     onUnmounted(() => {
+      if (!props.editor) return;
       props.editor.off('selectionUpdate', syncLayout);
       props.editor.off('transaction', syncLayout);
     });
