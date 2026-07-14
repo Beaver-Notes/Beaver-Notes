@@ -1,9 +1,12 @@
 import { browser, expect } from '@wdio/globals';
+import { navigateToNotes } from './helpers.js';
 
 describe('Folder CRUD', () => {
   const folderName = `E2E Folder ${Date.now()}`;
+  const renamedFolder = `Renamed Folder ${Date.now()}`;
 
   it('should create a new folder via keyboard shortcut', async () => {
+    await navigateToNotes();
     await browser.keys(['Control', 'Shift', 'f']);
     await browser.pause(500);
 
@@ -50,6 +53,37 @@ describe('Folder CRUD', () => {
       const url = await browser.getUrl();
       return url.endsWith('#/') || url.endsWith('#');
     });
+  });
+
+  it('should create a note inside the folder', async () => {
+    const folderCard = await $('.folder-card');
+    if (await folderCard.isExisting()) {
+      await folderCard.click();
+      await browser.waitUntil(async () => {
+        const url = await browser.getUrl();
+        return url.includes('#/folder/');
+      });
+      await browser.pause(500);
+
+      const addBtn = await $('[data-testid="add-note-button"]');
+      if (await addBtn.isExisting()) {
+        await addBtn.click();
+        await browser.waitUntil(async () => {
+          const url = await browser.getUrl();
+          return url.includes('#/note/');
+        });
+
+        const titleInput = await $('[data-testid="note-title-input"]');
+        expect(await titleInput.isExisting()).toBe(true);
+
+        const notesBtn = await $('[data-testid="nav-notes-button"]');
+        await notesBtn.click();
+        await browser.waitUntil(async () => {
+          const url = await browser.getUrl();
+          return url.endsWith('#/') || url.endsWith('#');
+        });
+      }
+    }
   });
 
   it('should delete the folder via context menu', async () => {

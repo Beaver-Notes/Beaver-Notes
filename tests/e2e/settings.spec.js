@@ -20,6 +20,18 @@ describe('Settings', () => {
     });
   });
 
+  it('should show theme options in Appearance', async () => {
+    await browser.pause(500);
+    const hasThemeOptions = await browser.execute(() => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      return btns.filter(b => {
+        const text = b.textContent.toLowerCase();
+        return text.includes('light') || text.includes('dark') || text.includes('system');
+      }).length >= 2;
+    });
+    expect(hasThemeOptions).toBe(true);
+  });
+
   it('should navigate to Shortcuts settings', async () => {
     const shortcutsLink = await $('a[href="#/settings/shortcuts"]');
     await shortcutsLink.click();
@@ -27,6 +39,15 @@ describe('Settings', () => {
       const url = await browser.getUrl();
       return url.includes('shortcuts');
     });
+  });
+
+  it('should display shortcut entries', async () => {
+    await browser.pause(500);
+    const hasShortcuts = await browser.execute(() => {
+      const kbd = Array.from(document.querySelectorAll('kbd, [class*="shortcut"], [class*="key"]'));
+      return kbd.length > 0;
+    });
+    expect(hasShortcuts).toBe(true);
   });
 
   it('should navigate to Labels settings', async () => {
@@ -54,6 +75,15 @@ describe('Settings', () => {
       const url = await browser.getUrl();
       return url.includes('about');
     });
+  });
+
+  it('should display version info in About', async () => {
+    await browser.pause(500);
+    const hasVersion = await browser.execute(() => {
+      const els = Array.from(document.querySelectorAll('*'));
+      return els.some(el => /\d+\.\d+\.\d+/.test(el.textContent) && el.offsetParent !== null);
+    });
+    expect(hasVersion).toBe(true);
   });
 
   it('should navigate back to home', async () => {
