@@ -249,11 +249,6 @@
           :loading="encryptionPasswordLoading"
           @update:confirm-value="encryptionConfirmPassword = $event"
         >
-          <template #back>
-            <ui-button @click="goToPreviousStep">
-              <v-remixicon name="riArrowLeftLine" /> Back
-            </ui-button>
-          </template>
           <template #next>
             <ui-button
               variant="primary"

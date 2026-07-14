@@ -268,17 +268,11 @@ pub(crate) fn encryption_enable(
 
 #[tauri::command]
 pub(crate) fn encryption_disable(
-    app: AppHandle,
-    state: State<AppState>,
-    remove_manifest: Option<bool>,
+    _app: AppHandle,
+    _state: State<AppState>,
+    _remove_manifest: Option<bool>,
 ) -> Result<(), String> {
-    if remove_manifest.unwrap_or(true) {
-        let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
-        let _ = fs::remove_file(manifest_path);
-    }
-    let mut s = state.crypto.write().map_err(to_error)?;
-    *s = CryptoSession::default();
-    Ok(())
+    Err("Encryption cannot be disabled. It is a core storage feature.".to_string())
 }
 
 #[tauri::command]

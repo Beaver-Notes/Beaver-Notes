@@ -19,14 +19,18 @@
           'Your notes are encrypted. Enter your encryption passphrase to unlock the app.'
         }}
       </p>
+      <p class="mt-1 text-xs text-neutral-400 dark:text-neutral-500">
+        Encryption is always active — your notes and assets are protected at
+        rest.
+      </p>
 
       <ui-input
-        type="password"
         v-model="password"
+        type="password"
         :placeholder="translations.settings?.password || 'Passphrase'"
         class="mt-4 w-full"
-        @keyup.enter="unlock"
         :disabled="busy"
+        @keyup.enter="unlock"
       />
       <p
         v-if="error"

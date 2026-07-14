@@ -1,8 +1,5 @@
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
-import {
-  hydrateNote,
-  decryptNoteForMemory,
-} from '@/utils/note/serializer.js';
+import { hydrateNote, decryptNoteForMemory } from '@/utils/note/serializer.js';
 import { saveNote } from './helpers';
 
 export async function decryptAllNotesForAppEncryption(options = {}) {
@@ -66,29 +63,5 @@ export async function persistAllNotesForAppEncryption(options = {}) {
     throw new Error(
       `Failed to encrypt ${failures.length} note(s). Please retry after unlocking encryption key.`
     );
-  }
-}
-
-export async function persistAllNotesPlaintext(options = {}) {
-  const { onProgress } = options;
-  const entries = Object.entries(this.data).filter(([id]) => !!id);
-  const total = entries.length;
-  let processed = 0;
-  const failures = [];
-
-  for (const [id, note] of entries) {
-    try {
-      await saveNote(id, note);
-    } catch (error) {
-      failures.push(id);
-      console.error(`[note] failed to persist plaintext note ${id}:`, error);
-    } finally {
-      processed += 1;
-      onProgress?.({ phase: 'plaintext', processed, total, id });
-    }
-  }
-
-  if (failures.length > 0) {
-    throw new Error(`Failed to write ${failures.length} note(s) in plaintext.`);
   }
 }

@@ -9,13 +9,13 @@
         <h2
           class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
         >
-          Protect your notes
+          Secure your vault
         </h2>
         <p class="text-neutral-600 dark:text-neutral-400">
-          Set an encryption password to protect your notes and keep them private,
-          even in the sync folder. The passphrase is saved in your device secure
-          storage, so the app unlocks automatically on launch. Use the same
-          password on every device to share encrypted data.
+          Encryption is built into Beaver Notes. Set a passphrase to protect
+          every note and asset on this device. The passphrase is saved in your
+          device's secure storage so the app unlocks automatically on launch.
+          Use the same passphrase on every device to share encrypted data.
         </p>
       </div>
 
@@ -40,10 +40,7 @@
         </p>
       </div>
 
-      <div
-        class="mt-5 flex mobile:flex-col-reverse justify-between gap-4 shrink-0"
-      >
-        <slot name="back" />
+      <div class="mt-5 flex mobile:flex-col-reverse justify-end gap-4 shrink-0">
         <slot name="next" />
       </div>
     </ui-card>

@@ -1,5 +1,4 @@
 import {
-  disableEncryptionState,
   getEncryptionState,
   lockEncryption,
   submitEncryptionPassword,
@@ -9,7 +8,6 @@ import {
   reconcileSyncKeyParams,
 } from '@/lib/native/security.js';
 import {
-  clearSecureBlob,
   loadSecureBlob,
   persistSecureBlobInBackground,
 } from './safeStorageBlob.js';
@@ -38,11 +36,15 @@ export function isKeyLoaded() {
 
 export async function ensureKeyReadyForWrite() {
   const next = await refreshState();
-  if (!next?.enabled) return false;
+  if (!next?.enabled) {
+    throw new Error(
+      'Encryption is not configured. Complete onboarding to set up encryption.'
+    );
+  }
   if (next?.unlocked) return true;
 
   throw new Error(
-    'Encryption key is locked. Unlock encryption in Settings before editing notes.'
+    'Encryption key is locked. Unlock the app before editing notes.'
   );
 }
 
@@ -62,7 +64,6 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    // Publish the shared items key (keyParams.json) so other devices can adopt it.
     reconcileSyncKeyParams().catch(() => {});
     return { ok: true };
   } catch (err) {
@@ -84,7 +85,6 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    // Adopt the shared items key if another device already published it.
     reconcileSyncKeyParams(passphrase).catch(() => {});
     return { ok: true };
   } catch (err) {
@@ -132,16 +132,6 @@ export async function encryptionIsConfigured() {
   return !!next?.enabled;
 }
 
-export async function disableEncryption(beforeKeyCleared) {
-  if (typeof beforeKeyCleared === 'function') {
-    await beforeKeyCleared();
-  }
-  await disableEncryptionState(true);
-  await clearSecureBlob(BLOB_KEY);
-  await clearDecryptedCaches();
-  await refreshState();
-}
-
 export async function encryptContent(contentObj) {
   const plaintext = JSON.stringify(contentObj);
   const envelope = await encryptNotePayload(plaintext);
@@ -181,8 +171,7 @@ export async function lockEncryptionKey() {
   try {
     const { clearSyncKey } = await import('@/utils/sync/crypto.js');
     clearSyncKey();
-  } catch {
-  }
+  } catch {}
 }
 
 // Re-exports for sync/crypto.js

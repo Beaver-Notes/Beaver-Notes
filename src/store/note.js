@@ -21,7 +21,6 @@ import {
 import {
   decryptAllNotesForAppEncryption,
   persistAllNotesForAppEncryption,
-  persistAllNotesPlaintext,
 } from './note/encryption';
 import {
   retrieve,
@@ -70,7 +69,6 @@ export const useNoteStore = defineStore('note', {
     // App-encryption bulk operations
     decryptAllNotesForAppEncryption,
     persistAllNotesForAppEncryption,
-    persistAllNotesPlaintext,
 
     // Migration
     migrateLockData,

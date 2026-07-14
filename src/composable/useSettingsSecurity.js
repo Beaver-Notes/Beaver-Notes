@@ -1,66 +1,24 @@
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import {
-  migrateAssetEncryption,
-  onAssetMigrationProgress,
-} from '@/lib/native/security';
-import { useStorage } from '@/composable/storage.js';
-import {
-  isEncryptionEnabled,
   isKeyLoaded,
   setupEncryption,
-  disableEncryption,
-  encryptionIsConfigured,
   verifyPassphrase,
+  lockEncryptionKey,
 } from '@/utils/crypto/encryption.js';
 
 export function useSettingsSecurity({
   dialog,
-  noteStore,
+  _noteStore,
   passwordStore,
   translations,
   showDialogAlert,
 }) {
-  const settingsStorage = useStorage('settings');
-  const encryptionEnabled = ref(isEncryptionEnabled());
   const keyLoaded = ref(isKeyLoaded());
   const encryptionBusy = ref(false);
-  const unlockBusy = ref(false);
-  const encryptionProgress = ref({
-    phase: '',
-    processed: 0,
-    total: 0,
-  });
   const encryptionError = ref('');
-  const passphraseInput = ref('');
   const passwordInput = ref('');
   const securityError = ref('');
   const hasPassword = ref(!!passwordStore.sharedKey);
-
-  const encryptionProgressPercent = computed(() => {
-    const total = encryptionProgress.value.total || 0;
-    if (!total) return 0;
-    return Math.min(
-      100,
-      Math.floor((encryptionProgress.value.processed / total) * 100)
-    );
-  });
-
-  const encryptionProgressLabel = computed(() => {
-    switch (encryptionProgress.value.phase) {
-      case 'decrypt':
-        return 'Decrypting existing notes';
-      case 'encrypt':
-        return 'Encrypting notes';
-      case 'plaintext':
-        return 'Saving plaintext notes';
-      case 'assets-encrypt':
-        return 'Encrypting assets';
-      case 'assets-plaintext':
-        return 'Saving plaintext assets';
-      default:
-        return 'Processing notes';
-    }
-  });
 
   async function resetPasswordDialog() {
     dialog.prompt({
@@ -131,183 +89,106 @@ export function useSettingsSecurity({
     keyLoaded.value = isKeyLoaded();
   }
 
-  function updateEncryptionProgress(progress) {
-    encryptionProgress.value = {
-      phase: progress.phase,
-      processed: progress.processed,
-      total: progress.total,
-    };
-  }
-
-  async function migrateAssetsForEncryption({ encryptAtRest }) {
-    const phase = encryptAtRest ? 'assets-encrypt' : 'assets-plaintext';
-    updateEncryptionProgress({
-      phase,
-      processed: 0,
-      total: 0,
-    });
-
-    let total = 0;
-    const unlisten = await onAssetMigrationProgress((event) => {
-      const payload = event?.payload ?? event;
-      if (payload) {
-        total = payload.total || total;
-        updateEncryptionProgress({
-          phase,
-          processed: payload.processed || 0,
-          total,
-        });
-      }
-    });
-
-    try {
-      const result = await migrateAssetEncryption(encryptAtRest);
-      updateEncryptionProgress({
-        phase,
-        processed: result.processed,
-        total: result.total,
-      });
-
-      if (result.failedPaths.length > 0) {
-        throw new Error(
-          `Failed to migrate ${result.failedPaths.length} asset file(s) during encryption update.`
-        );
-      }
-    } finally {
-      if (typeof unlisten === 'function') unlisten();
-    }
-  }
-
-  async function runEncryptionMigration({ encryptAtRest }) {
-    encryptionBusy.value = true;
-    encryptionProgress.value = {
-      phase: 'decrypt',
-      processed: 0,
-      total: 0,
-    };
-
-    const startedAt = Date.now();
-    try {
-      await settingsStorage.set('app_encryption_migration', {
-        status: 'in_progress',
-        mode: encryptAtRest ? 'encrypt' : 'decrypt',
-        startedAt,
-        updatedAt: startedAt,
-      });
-
-      await noteStore.decryptAllNotesForAppEncryption({
-        onProgress: updateEncryptionProgress,
-      });
-
-      if (encryptAtRest) {
-        await noteStore.persistAllNotesForAppEncryption({
-          onProgress: updateEncryptionProgress,
-        });
-      } else {
-        await noteStore.persistAllNotesPlaintext({
-          onProgress: updateEncryptionProgress,
-        });
-      }
-
-      await migrateAssetsForEncryption({ encryptAtRest });
-      await settingsStorage.set('app_encryption_migration', {
-        status: 'done',
-        mode: encryptAtRest ? 'encrypt' : 'decrypt',
-        startedAt,
-        updatedAt: Date.now(),
-      });
-    } catch (error) {
-      await settingsStorage.set('app_encryption_migration', {
-        status: 'error',
-        mode: encryptAtRest ? 'encrypt' : 'decrypt',
-        startedAt,
-        updatedAt: Date.now(),
-        error: error?.message || String(error),
-      });
-      throw error;
-    } finally {
-      encryptionBusy.value = false;
-    }
-  }
-
-  async function toggleEncryption(enabled) {
+  async function changeEncryptionPassphrase() {
     if (encryptionBusy.value) return;
     encryptionError.value = '';
-    const shouldEnable =
-      typeof enabled === 'boolean' ? enabled : encryptionEnabled.value;
-    encryptionEnabled.value = shouldEnable;
 
-    if (shouldEnable) {
-      try {
-        const alreadySetUp = await encryptionIsConfigured();
-        if (!alreadySetUp) {
-          refreshKeyLoaded();
-          return;
+    dialog.prompt({
+      title:
+        translations.value.settings.changePassphrase ||
+        'Change Encryption Passphrase',
+      body:
+        translations.value.settings.changePassphraseDesc ||
+        'Enter your current passphrase to change it. The underlying encryption key will be re-wrapped — your notes are not re-encrypted.',
+      icon: 'riLockLine',
+      okText: translations.value.settings.next || 'Next',
+      cancelText: translations.value.settings.cancel || 'Cancel',
+      placeholder:
+        translations.value.settings.currentPassphrase || 'Current passphrase',
+      onConfirm: async (currentPass) => {
+        if (!currentPass) return;
+
+        try {
+          const result = await verifyPassphrase(currentPass);
+          if (!result.ok) {
+            encryptionError.value = result.error || 'Incorrect passphrase.';
+            return;
+          }
+
+          dialog.prompt({
+            title:
+              translations.value.settings.enterNewPassphrase ||
+              'Enter New Passphrase',
+            body:
+              translations.value.settings.newPassphraseDesc ||
+              'Choose a new passphrase. This will re-wrap your encryption key.',
+            icon: 'riLockLine',
+            okText: translations.value.settings.setPassword || 'Set passphrase',
+            cancelText: translations.value.settings.cancel || 'Cancel',
+            placeholder:
+              translations.value.settings.newPassphrase || 'New passphrase',
+            onConfirm: async (newPass) => {
+              if (!newPass) return;
+              if (newPass.length < 6) {
+                encryptionError.value =
+                  'Passphrase must be at least 6 characters.';
+                return;
+              }
+
+              dialog.prompt({
+                title:
+                  translations.value.settings.confirmPassphrase ||
+                  'Confirm Passphrase',
+                icon: 'riLockLine',
+                okText:
+                  translations.value.settings.setPassword || 'Set passphrase',
+                cancelText: translations.value.settings.cancel || 'Cancel',
+                placeholder:
+                  translations.value.settings.confirmPassphrasePlaceholder ||
+                  'Confirm passphrase',
+                onConfirm: async (confirmPass) => {
+                  if (newPass !== confirmPass) {
+                    encryptionError.value = 'Passphrases do not match.';
+                    return;
+                  }
+
+                  try {
+                    encryptionBusy.value = true;
+                    const setupResult = await setupEncryption(newPass);
+                    if (!setupResult.ok) {
+                      encryptionError.value =
+                        setupResult.error || 'Failed to change passphrase.';
+                      return;
+                    }
+                    encryptionError.value = '';
+                    dialog.alert({
+                      title:
+                        translations.value.settings.passphraseChanged ||
+                        'Passphrase Changed',
+                      body:
+                        translations.value.settings.passphraseChangedDesc ||
+                        'Your encryption passphrase has been updated.',
+                      okText: translations.value.dialog?.close || 'Close',
+                    });
+                  } catch (e) {
+                    encryptionError.value = String(e);
+                  } finally {
+                    encryptionBusy.value = false;
+                  }
+                },
+              });
+            },
+          });
+        } catch (e) {
+          encryptionError.value = String(e);
         }
-        refreshKeyLoaded();
-      } catch (error) {
-        encryptionEnabled.value = isEncryptionEnabled();
-        refreshKeyLoaded();
-        encryptionError.value = error?.message || String(error);
-      }
-      return;
-    }
-
-    try {
-      if (!keyLoaded.value) {
-        encryptionEnabled.value = true;
-        encryptionError.value =
-          'Unlock encryption before disabling so notes can be saved in plain form.';
-        return;
-      }
-      await runEncryptionMigration({ encryptAtRest: false });
-      await disableEncryption();
-      refreshKeyLoaded();
-      encryptionEnabled.value = false;
-      passphraseInput.value = '';
-    } catch (error) {
-      encryptionEnabled.value = true;
-      refreshKeyLoaded();
-      encryptionError.value = error?.message || String(error);
-    }
+      },
+    });
   }
 
-  async function confirmEncryption() {
-    if (encryptionBusy.value || unlockBusy.value) return;
-    encryptionError.value = '';
-    const pass = passphraseInput.value;
-    if (!pass) return;
-
-    try {
-      unlockBusy.value = true;
-      const alreadySetUp = await encryptionIsConfigured();
-      let result;
-
-      if (alreadySetUp) {
-        result = await verifyPassphrase(pass);
-        if (!result.ok) {
-          encryptionError.value = result.error;
-          return;
-        }
-        await runEncryptionMigration({ encryptAtRest: true });
-      } else {
-        result = await setupEncryption(pass);
-        if (!result.ok) {
-          encryptionError.value = result.error;
-          return;
-        }
-        await runEncryptionMigration({ encryptAtRest: true });
-      }
-
-      refreshKeyLoaded();
-      passphraseInput.value = '';
-      encryptionEnabled.value = true;
-    } catch (error) {
-      refreshKeyLoaded();
-      encryptionError.value = String(error);
-    } finally {
-      unlockBusy.value = false;
-    }
+  function lockNow() {
+    lockEncryptionKey();
+    keyLoaded.value = false;
   }
 
   onMounted(() => {
@@ -315,23 +196,17 @@ export function useSettingsSecurity({
   });
 
   return {
-    encryptionEnabled,
     keyLoaded,
     encryptionBusy,
-    unlockBusy,
-    encryptionProgress,
-    encryptionProgressPercent,
-    encryptionProgressLabel,
     encryptionError,
-    passphraseInput,
     passwordInput,
     securityError,
     hasPassword,
     resetPasswordDialog,
     setGlobalPassword,
     changePasswordDialog,
-    toggleEncryption,
-    confirmEncryption,
+    changeEncryptionPassphrase,
+    lockNow,
     refreshKeyLoaded,
   };
 }
