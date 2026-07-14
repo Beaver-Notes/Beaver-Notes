@@ -23,7 +23,7 @@ const WINDOW_STATE_KEY: &str = "windowStateMain";
 const LEGACY_DATA_FILES: &[&str] = &["config.json", "data.json"];
 
 #[cfg(desktop)]
-const COLLECTION_NAMESPACES: &[&str] = &["notes", "notes-content", "folders"];
+const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
     grant_trusted_path(state, Path::new(&path));

@@ -132,15 +132,7 @@ export default {
     AppEncryptionGate,
   },
   setup() {
-    const shell = useAppShell();
-    const schedule =
-      typeof requestIdleCallback === 'function'
-        ? requestIdleCallback
-        : (cb) => setTimeout(cb, 0);
-    schedule(() => {
-      import('@/lib/tiptap/index.js').then((m) => m.prewarmEditor());
-    });
-    return shell;
+    return useAppShell();
   },
 };
 </script>

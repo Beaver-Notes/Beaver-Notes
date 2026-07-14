@@ -137,14 +137,14 @@ fn pick_pool(
 //
 // A key is "flat-addressable" when it has exactly one level (e.g. "deletedIds")
 // or when its top-level prefix is a known note-like namespace ("notes",
-// "notes-content") with a single sub-key — both of which are already stored as
+// "folders") with a single sub-key — both of which are already stored as
 // flat rows by flatten_store_value / the note store.
 
 /// Collection namespaces whose entries are stored as individual flat rows
 /// (e.g. "notes.abc123") rather than a single JSON blob under the bare key.
 /// Requests for the bare key (e.g. `storage_get("notes")`) must fall through
 /// to `load_store_root` so they see all the individual rows reassembled.
-const COLLECTION_NAMESPACES: &[&str] = &["notes", "notes-content", "folders"];
+const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
 fn flat_db_key(segments: &[&str]) -> Option<String> {
     match segments {
@@ -153,8 +153,8 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
         // Collection-namespace bare keys ("notes", "folders", …) must fall
         // through to load_store_root so the caller gets the full assembled object.
         [key] if !COLLECTION_NAMESPACES.contains(key) => Some((*key).to_string()),
-        // "notes.<id>", "notes-content.<id>", "folders.<id>" → flat rows
-        ["notes", id] | ["notes-content", id] | ["folders", id] => {
+        // "notes.<id>", "folders.<id>" → flat rows
+        ["notes", id] | ["folders", id] => {
             Some(format!("{}.{}", segments[0], id))
         }
         _ => None,

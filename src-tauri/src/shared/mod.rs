@@ -291,6 +291,13 @@ impl AppState {
 }
 
 pub(crate) fn app_storage_dir(app: &AppHandle, _state: &AppState) -> Result<PathBuf, String> {
+    if let Ok(override_dir) = std::env::var("BEAVER_NOTES_DATA_DIR") {
+        let p = PathBuf::from(override_dir);
+        if !p.exists() {
+            fs::create_dir_all(&p).map_err(|e| format!("Failed to create data dir: {e}"))?;
+        }
+        return Ok(p);
+    }
     app.path().app_data_dir().map_err(to_error)
 }
 

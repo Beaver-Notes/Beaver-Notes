@@ -346,17 +346,11 @@ export default {
         removeEditorUpdate = null;
       }
       if (props.editor) {
-        let buildTimer = null;
         const onUpdate = () => {
-          if (buildTimer) return;
-          buildTimer = setTimeout(() => {
-            buildTimer = null;
-            build();
-          }, 150);
+          requestAnimationFrame(build);
         };
         props.editor.on('update', onUpdate);
         removeEditorUpdate = () => {
-          clearTimeout(buildTimer);
           props.editor.off('update', onUpdate);
         };
       }
