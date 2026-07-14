@@ -6,7 +6,7 @@
 import * as Y from 'yjs';
 import { getSnapshot } from '@/lib/native/yjs.js';
 import { useStorage } from '@/composable/storage';
-import { buildNotePreview } from '@/utils/note/cardPreview.js';
+import { buildNotePreview, EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { yXmlFragmentToProsemirrorJSON } from '@tiptap/y-tiptap';
@@ -18,8 +18,6 @@ import { yMapToObj } from '@/utils/yjs-helpers.js';
 import { getWorkspaceDoc } from './meta-yjs-doc.js';
 
 const storage = useStorage();
-
-const EMPTY_CARD_PREVIEW = { text: '', blocks: [] };
 
 /**
  * Push workspace-doc changes into the Pinia stores (one-way: doc -> store).
