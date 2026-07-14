@@ -73,20 +73,8 @@ body {
   @apply border-neutral-750;
 }
 
-button,
-input,
-textarea,
-select {
-  &:focus {
-    outline: none;
-  }
-}
-
-*,
-a,
-button {
-  cursor: default;
-  user-select: none;
+* {
+  cursor: auto;
 }
 
 option {

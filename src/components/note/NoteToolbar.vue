@@ -33,6 +33,7 @@
               v-tooltip.group="
                 translations.toolbar?.insertBlock || 'Insert block'
               "
+              :aria-label="translations.toolbar?.insertBlock || 'Insert block'"
               :class="tbBtn()"
               @click="showMobileBlockPicker = true"
             >
@@ -44,6 +45,7 @@
             <button
               v-if="isItemVisible('paragraph')"
               v-tooltip.group="translations.menu.paragraph"
+              :aria-label="translations.menu.paragraph"
               :class="tbBtn(editor.isActive('paragraph'))"
               @click="openSub('paragraph')"
             >
@@ -53,6 +55,7 @@
             <button
               v-if="isItemVisible('headings')"
               v-tooltip.group="translations.menu.headings"
+              :aria-label="translations.menu.headings"
               :class="tbBtn(editor.isActive('heading'))"
               @click="openSub('headings')"
             >
@@ -62,6 +65,7 @@
             <button
               v-if="isItemVisible('fontSize')"
               v-tooltip.group="translations.menu.fontSize"
+              :aria-label="translations.menu.fontSize"
               :class="tbBtn()"
               @click="openSub('fontSize')"
             >
@@ -80,6 +84,7 @@
               v-for="item in visibleInlineFormatItems"
               :key="item.id"
               v-tooltip.group="fmtMap[item.fmt]?.title"
+              :aria-label="fmtMap[item.fmt]?.title"
               :class="tbBtn(editor.isActive(fmtMap[item.fmt]?.state))"
               @click="fmtMap[item.fmt]?.run()"
             >
@@ -89,6 +94,7 @@
             <button
               v-if="isItemVisible('color')"
               v-tooltip.group="translations.menu.highlight"
+              :aria-label="translations.menu.highlight"
               :class="
                 tbBtn(
                   editor.isActive('textStyle') || editor.isActive('highlight')
@@ -110,6 +116,7 @@
             <button
               v-if="!isTableActive && isItemVisible('lists')"
               v-tooltip.group="translations.menu.lists"
+              :aria-label="translations.menu.lists"
               :class="
                 tbBtn(
                   editor.isActive('orderedList') ||
@@ -125,6 +132,7 @@
             <button
               v-if="!isTableActive && isItemVisible('blockquote')"
               v-tooltip.group="translations.menu.blockQuote"
+              :aria-label="translations.menu.blockQuote"
               :class="tbBtn(editor.isActive('blockquote'))"
               @click="editor.chain().focus().toggleBlockquote().run()"
             >
@@ -134,6 +142,7 @@
             <button
               v-if="!isTableActive && isItemVisible('codeBlock')"
               v-tooltip.group="translations.menu.codeBlock"
+              :aria-label="translations.menu.codeBlock"
               :class="tbBtn(editor.isActive('codeBlock'))"
               @click="editor.chain().focus().toggleCodeBlock().run()"
             >
@@ -145,6 +154,7 @@
                 v-for="t in tableActions"
                 :key="t.name"
                 v-tooltip.group="t.label"
+                :aria-label="t.label"
                 :class="tbBtn()"
                 @click="t.run()"
               >
@@ -165,6 +175,7 @@
               <template #trigger>
                 <button
                   v-tooltip.group="translations.menu.link"
+                  :aria-label="translations.menu.link"
                   :class="tbBtn(editor.isActive('link') || linkPopoverOpen)"
                 >
                   <v-remixicon name="riLink" />
@@ -189,6 +200,7 @@
                   <button
                     class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
                     :title="translations.common?.cancel || 'Cancel'"
+                    :aria-label="translations.common?.cancel || 'Cancel'"
                     @click="closeLinkInput"
                   >
                     <v-remixicon name="riCloseLine" class="size-4" />
@@ -196,6 +208,7 @@
                   <button
                     class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
                     :title="translations.common?.save || 'Save'"
+                    :aria-label="translations.common?.save || 'Save'"
                     :disabled="!linkInputValue.trim()"
                     @click="saveLinkInput"
                   >
@@ -244,6 +257,7 @@
             <button
               v-if="isItemVisible('image')"
               v-tooltip.group="translations.menu.image"
+              :aria-label="translations.menu.image"
               :class="tbBtn()"
               @click="isMobile ? triggerImageInput() : openSub('image')"
             >
@@ -252,6 +266,7 @@
             <button
               v-if="isItemVisible('file')"
               v-tooltip.group="translations.menu.file"
+              :aria-label="translations.menu.file"
               :class="tbBtn()"
               @click="isMobile ? triggerFileInput() : openSub('file')"
             >
@@ -260,6 +275,7 @@
             <button
               v-if="isItemVisible('video')"
               v-tooltip.group="translations.menu.video"
+              :aria-label="translations.menu.video"
               :class="tbBtn()"
               @click="isMobile ? triggerVideoInput() : openSub('video')"
             >
@@ -268,6 +284,7 @@
             <button
               v-if="isItemVisible('table')"
               v-tooltip.group="translations.menu.table"
+              :aria-label="translations.menu.table"
               :class="tbBtn()"
               @click="
                 editor
@@ -282,6 +299,7 @@
             <button
               v-if="isItemVisible('draw')"
               v-tooltip.group="translations.menu.draw"
+              :aria-label="translations.menu.draw"
               :class="tbBtn(drawActions.some((action) => action.isActive))"
               @click="editor.chain().focus().insertPaper().run()"
             >
@@ -299,6 +317,7 @@
                 <button
                   :class="tbBtn()"
                   class="!text-red-500"
+                  aria-label="Stop recording"
                   @click="toggleRecording"
                 >
                   <v-remixicon name="riStopCircleLine" />
@@ -307,7 +326,7 @@
                   class="min-w-10 px-1 text-xs font-semibold tabular-nums text-red-500"
                   >{{ formattedTime }}</span
                 >
-                <button :class="tbBtn()" @click="pauseResume">
+                <button :class="tbBtn()" :aria-label="isPaused ? 'Play recording' : 'Pause recording'" @click="pauseResume">
                   <v-remixicon
                     :name="isPaused ? 'riPlayFill' : 'riPauseFill'"
                   />
@@ -317,6 +336,7 @@
                 <button
                   v-if="isItemVisible('audio')"
                   v-tooltip.group="translations.menu.record"
+                  :aria-label="translations.menu.record"
                   :class="tbBtn()"
                   @click="openSub('audio')"
                 >
@@ -336,6 +356,7 @@
             <button
               v-if="isItemVisible('delete')"
               v-tooltip.group="translations.menu.delete"
+              :aria-label="translations.menu.delete"
               :class="[tbBtn(), 'hover:!text-red-500 hover:!bg-red-500/10']"
               @click="deleteNode"
             >
@@ -351,6 +372,7 @@
               v-tooltip.group="
                 translations.toolbar?.customizeToolbar || 'Customize toolbar'
               "
+              :aria-label="translations.toolbar?.customizeToolbar || 'Customize toolbar'"
               :class="tbBtn(showCustomizer)"
               @click="showCustomizer = true"
             >
@@ -373,13 +395,14 @@
               panelClass('headings'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.headings }}</span>
             <button
               :class="tbChip(editor.isActive('paragraph'))"
+              aria-label="Body"
               @click="
                 editor.chain().focus().setParagraph().run();
                 closeSub();
@@ -391,6 +414,7 @@
               v-for="h in [1, 2, 3, 4]"
               :key="h"
               :class="tbChip(editor.isActive('heading', { level: h }))"
+              :aria-label="'Heading ' + h"
               @click="
                 editor.chain().focus().toggleHeading({ level: h }).run();
                 closeSub();
@@ -407,7 +431,7 @@
               panelClass('fontSize'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -417,6 +441,7 @@
             >
               <button
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
+                aria-label="Decrease font size"
                 @click="
                   fontSize = Math.max(1, fontSize - 1);
                   updateFontSize();
@@ -433,6 +458,7 @@
               />
               <button
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
+                aria-label="Increase font size"
                 @click="
                   fontSize += 1;
                   updateFontSize();
@@ -446,6 +472,7 @@
               v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
               :key="size"
               :class="tbChip()"
+              :aria-label="'Font size ' + size + 'pt'"
               @click="
                 editor
                   .chain()
@@ -460,6 +487,7 @@
             </button>
             <button
               :class="[tbChip(), 'opacity-60 !text-xs']"
+              aria-label="Default font size"
               @click="
                 editor.chain().focus().unsetFontSize().run();
                 fontSize = null;
@@ -477,13 +505,14 @@
               panelClass('color'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.textColor }}</span>
             <button
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
+              aria-label="Remove text color"
               @click="
                 editor.chain().focus().unsetColor().run();
                 closeSub();
@@ -496,6 +525,7 @@
               :key="'tc-' + c"
               class="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
               :style="{ background: c + '33' }"
+              :aria-label="'Text color ' + c"
               @click="
                 setTextColor(c);
                 closeSub();
@@ -513,6 +543,7 @@
             }}</span>
             <button
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
+              aria-label="Remove highlight"
               @click="
                 editor.commands.unsetHighlight();
                 closeSub();
@@ -521,12 +552,13 @@
               ∅
             </button>
             <button
-              v-for="c in highlighterColors"
+              v-for="(c, i) in highlighterColors"
               :key="'hl-' + c"
               :class="[
                 'h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 active:scale-95 transition-transform',
                 c,
               ]"
+              :aria-label="'Highlight color ' + (i + 1)"
               @click="
                 setHighlightColor(c);
                 closeSub();
@@ -541,7 +573,7 @@
               panelClass('lists'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -566,13 +598,14 @@
               panelClass('image'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.image }}</span>
             <button
               :class="tbBtn()"
+              aria-label="Upload image"
               @click="
                 triggerImageInput();
                 closeSub();
@@ -589,13 +622,14 @@
               panelClass('file'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.file }}</span>
             <button
               :class="tbBtn()"
+              aria-label="Upload file"
               @click="
                 triggerFileInput();
                 closeSub();
@@ -612,13 +646,14 @@
               panelClass('video'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
             <button
               :class="tbBtn()"
+              aria-label="Upload video"
               @click="
                 triggerVideoInput();
                 closeSub();
@@ -635,7 +670,7 @@
               panelClass('audio'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -671,13 +706,14 @@
               panelClass('paragraph'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">Align</span>
             <button
               :class="tbBtn()"
+              aria-label="Align left"
               @click="
                 editor.chain().focus().setTextAlign('left').run();
                 closeSub();
@@ -687,6 +723,7 @@
             </button>
             <button
               :class="tbBtn()"
+              aria-label="Align center"
               @click="
                 editor.chain().focus().setTextAlign('center').run();
                 closeSub();
@@ -696,6 +733,7 @@
             </button>
             <button
               :class="tbBtn()"
+              aria-label="Align right"
               @click="
                 editor.chain().focus().setTextAlign('right').run();
                 closeSub();
@@ -705,6 +743,7 @@
             </button>
             <button
               :class="tbBtn()"
+              aria-label="Align justify"
               @click="
                 editor.chain().focus().setTextAlign('justify').run();
                 closeSub();

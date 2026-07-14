@@ -44,6 +44,7 @@
     "*.{js,ts,vue}": "eslint --cache --fix"
   },
   "devDependencies": {
+    "@axe-core/webdriverio": "^4.12.1",
     "@babel/eslint-parser": "^7.28.6",
     "@benrbray/prosemirror-math": "^0.2.2",
     "@tailwindcss/typography": "^0.5.19",
@@ -122,6 +123,7 @@
     "cross-env": "^7.0.3",
     "dayjs": "^1.10.6",
     "emoji.json": "^16.0.0",
+    "focus-trap": "^8.2.2",
     "jszip": "^3.10.1",
     "katex": "^0.13.0",
     "marked": "^13.0.2",

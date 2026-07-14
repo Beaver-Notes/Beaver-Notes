@@ -12,6 +12,15 @@
     v-if="appEncryptionGate.show"
     @unlocked="appEncryptionGate.show = false"
   />
+
+  <a
+    href="#app-main"
+    class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] focus:bg-primary focus:text-white focus:px-4 focus:py-2 focus:rounded-lg focus:shadow-lg focus:outline-none"
+    @click.prevent="skipToMain"
+  >
+    Skip to content
+  </a>
+
   <div
     v-show="showMobileNavbar"
     class="fixed inset-x-0 z-40 flex justify-center px-4 no-print mobile:block hidden"
@@ -21,12 +30,15 @@
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
-    <app-sidebar v-show="showSidebar" class="mobile:hidden shrink-0" />
+    <app-sidebar v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
     <main
+      id="app-main"
+      ref="mainRef"
       v-if="retrieved"
       data-testid="app-main"
       class="flex-1 min-w-0 overflow-y-auto mobile:pl-0 print:p-2"
       :style="mainStyle"
+      tabindex="-1"
     >
       <div
         v-show="uiState.inReaderMode"
@@ -111,9 +123,12 @@
     @confirm="handleImportConfirm"
     @cancel="handleImportCancel"
   />
+
+  <div id="a11y-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
 </template>
 
 <script>
+import { ref } from 'vue';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
@@ -132,7 +147,17 @@ export default {
     AppEncryptionGate,
   },
   setup() {
-    return useAppShell();
+    const shell = useAppShell();
+    const mainRef = ref(null);
+
+    function skipToMain() {
+      const main = document.getElementById('app-main');
+      if (main) {
+        main.focus();
+      }
+    }
+
+    return { ...shell, mainRef, skipToMain };
   },
 };
 </script>

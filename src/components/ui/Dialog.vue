@@ -91,7 +91,7 @@
             :password="state.options.password"
             class="w-full"
           ></ui-input>
-          <div v-if="isEmpty" class="text-sm text-red-500 mt-2">
+          <div v-if="isEmpty" id="dialog-error" class="text-sm text-red-500 mt-2" role="alert">
             {{ translations.dialog.inputEmpty }}
           </div>
           <div v-if="state.type === 'auth'" class="w-full flex flex-wrap gap-2">

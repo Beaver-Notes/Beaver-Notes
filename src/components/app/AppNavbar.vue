@@ -1,5 +1,5 @@
 <template>
-  <nav class="w-full" data-selection-keep>
+  <nav class="w-full" role="navigation" aria-label="Main navigation" data-selection-keep>
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <!-- ── Left Rail ── -->
       <div
@@ -23,6 +23,7 @@
             v-tooltip:right="
               `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
             "
+            :aria-label="nav.name"
             :data-testid="getNavTestId(nav.path)"
             class="relative z-10 flex h-12 w-16 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[var(--ease-snappy)] active:scale-[0.97]"
             :class="{
@@ -41,6 +42,7 @@
         >
           <button
             v-tooltip:right="translations.sidebar.newFolder || 'New Folder'"
+            :aria-label="translations.sidebar.newFolder || 'New Folder'"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addFolderAndClose"
           >
@@ -48,6 +50,7 @@
           </button>
           <button
             v-tooltip:right="translations.sidebar.addNotes || 'New Note'"
+            :aria-label="translations.sidebar.addNotes || 'New Note'"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addNoteAndClose"
           >
@@ -72,6 +75,11 @@
                   ? translations.card.lock || 'Lock'
                   : translations.card.unlock || 'Unlock'
               "
+              :aria-label="
+                selectionBar.shouldLock
+                  ? translations.card.lock || 'Lock'
+                  : translations.card.unlock || 'Unlock'
+              "
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200"
               @click="selectionBar.toggleLock()"
             >
@@ -85,6 +93,11 @@
             <button
               v-if="selectionBar.hasSelectedNotes"
               v-tooltip:right="
+                selectionBar.shouldBookmark
+                  ? translations.card.bookmark || 'Bookmark'
+                  : translations.card.removeBookmark || 'Unbookmark'
+              "
+              :aria-label="
                 selectionBar.shouldBookmark
                   ? translations.card.bookmark || 'Bookmark'
                   : translations.card.removeBookmark || 'Unbookmark'
@@ -112,6 +125,11 @@
                   ? translations.card.archive || 'Archive'
                   : translations.card.unarchive || 'Unarchive'
               "
+              :aria-label="
+                selectionBar.shouldArchive
+                  ? translations.card.archive || 'Archive'
+                  : translations.card.unarchive || 'Unarchive'
+              "
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
               @click="selectionBar.toggleArchive()"
             >
@@ -126,6 +144,7 @@
             </button>
             <button
               v-tooltip:right="translations.card.moveToFolder || 'Move'"
+              :aria-label="translations.card.moveToFolder || 'Move'"
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
               @click="handleMoveSelection"
             >
@@ -133,6 +152,7 @@
             </button>
             <button
               v-tooltip:right="translations.card.delete || 'Delete'"
+              :aria-label="translations.card.delete || 'Delete'"
               class="flex h-12 w-12 items-center justify-center rounded-full text-red-500 hover:bg-red-500/10 transition-colors duration-200"
               @click="handleDeleteSelection"
             >
@@ -140,6 +160,7 @@
             </button>
             <button
               v-tooltip:right="translations.index.close || 'Close'"
+              :aria-label="translations.index.close || 'Close'"
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
               @click="handleClearSelection"
             >
@@ -153,6 +174,11 @@
       <div v-if="!selectionBar.hasSelection" class="relative flex-shrink-0">
         <button
           v-tooltip:right="
+            showAddMenu
+              ? translations.index.close || 'Close'
+              : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+          "
+          :aria-label="
             showAddMenu
               ? translations.index.close || 'Close'
               : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'

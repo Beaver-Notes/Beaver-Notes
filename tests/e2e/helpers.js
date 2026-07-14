@@ -101,13 +101,12 @@ export async function createNote() {
 
 export async function createNoteWithTitle(title) {
   await createNote();
-  await browser.execute(() => {
-    const el = document.querySelector('[data-testid="note-title-input"]');
-    if (el) el.focus();
-  });
-  await browser.pause(200);
   await browser.execute((text) => {
-    document.execCommand('insertText', false, text);
+    const el = document.querySelector('[data-testid="note-title-input"]');
+    if (el) {
+      el.value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }, title);
   await browser.pause(500);
 }
@@ -133,7 +132,7 @@ export async function getEditorHTML() {
 }
 
 export async function getTitleText() {
-  return browser.execute(() => document.querySelector('[data-testid="note-title-input"]')?.textContent || '');
+  return browser.execute(() => document.querySelector('[data-testid="note-title-input"]')?.value || '');
 }
 
 export async function selectAllInTitle() {
@@ -141,20 +140,19 @@ export async function selectAllInTitle() {
     const el = document.querySelector('[data-testid="note-title-input"]');
     if (el) {
       el.focus();
-      const range = document.createRange();
-      range.selectNodeContents(el);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
+      el.select();
     }
   });
   await browser.pause(100);
 }
 
 export async function replaceTitleText(newTitle) {
-  await selectAllInTitle();
   await browser.execute((text) => {
-    document.execCommand('insertText', false, text);
+    const el = document.querySelector('[data-testid="note-title-input"]');
+    if (el) {
+      el.value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
   }, newTitle);
   await browser.pause(500);
 }

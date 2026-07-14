@@ -91,7 +91,7 @@ export function useNotePersistence({
     });
 
     const currentContent = editor?.getJSON();
-    const currentTitle = titleDiv?.innerText ?? '';
+    const currentTitle = titleDiv?.value ?? titleDiv?.innerText ?? '';
     const currentCursorPosition = editor?.state?.selection?.to;
 
     return {

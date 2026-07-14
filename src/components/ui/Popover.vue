@@ -128,12 +128,21 @@ export default {
       }
     };
 
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape' && isShow.value) {
+        hide();
+        targetEl.value?.focus();
+      }
+    };
+
     onMounted(() => {
       document.addEventListener('click', handleClickOutside, true);
+      document.addEventListener('keydown', handleKeydown, true);
     });
 
     onUnmounted(() => {
       document.removeEventListener('click', handleClickOutside, true);
+      document.removeEventListener('keydown', handleKeydown, true);
       if (isShow.value) {
         unlockScroll();
       }

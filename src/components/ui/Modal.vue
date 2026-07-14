@@ -16,6 +16,7 @@
           <ui-card
             v-else
             ref="modalContent"
+            role="document"
             :class="[
               'modal-ui__content w-full shadow-lg mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm',
               contentClass,
@@ -40,6 +41,9 @@
                   class="cursor-pointer shrink-0 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
                   name="riCloseLine"
                   size="20"
+                  role="button"
+                  aria-label="Close"
+                  tabindex="0"
                   @click="closeModal"
                 ></v-remixicon>
               </div>
@@ -55,8 +59,9 @@
   </div>
 </template>
 <script>
-import { computed, ref, watch, onUnmounted } from 'vue';
+import { computed, ref, watch, onUnmounted, nextTick } from 'vue';
 import { useUiState } from '@/composable/useUiState';
+import { useFocusTrap } from '@/composable/useFocusTrap';
 
 export default {
   props: {
@@ -82,6 +87,9 @@ export default {
     const uiState = useUiState();
     const show = ref(false);
     const modalContent = ref(null);
+    const previouslyFocused = ref(null);
+    const trapRef = ref(null);
+    const { activate, deactivate } = useFocusTrap(trapRef);
     const dragOffsetY = ref(0);
     const isDragging = ref(false);
     const touchStartY = ref(0);
@@ -109,6 +117,10 @@ export default {
       emit('update:modelValue', false);
 
       toggleBodyOverflow(false);
+      deactivate();
+      if (previouslyFocused.value && previouslyFocused.value.focus) {
+        previouslyFocused.value.focus();
+      }
     }
     function keyupHandler({ code }) {
       if (code === 'Escape') closeModal();
@@ -126,8 +138,13 @@ export default {
 
     watch(show, (value) => {
       if (value) {
+        previouslyFocused.value = document.activeElement;
         window.addEventListener('keyup', keyupHandler);
         uiState.openOverlay();
+        nextTick(() => {
+          trapRef.value = modalContent.value?.$el || modalContent.value;
+          activate();
+        });
       } else {
         window.removeEventListener('keyup', keyupHandler);
         uiState.closeOverlay();
@@ -255,6 +272,7 @@ export default {
       handleTouchMove,
       handleTouchEnd,
       handleTouchCancel,
+      trapRef,
     };
   },
 };

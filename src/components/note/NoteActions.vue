@@ -11,6 +11,7 @@
     <div class="w-full h-full flex items-center justify-between">
       <button
         v-tooltip.group="translations.noteActions?.undo || 'Undo'"
+        :aria-label="translations.noteActions?.undo || 'Undo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="editor.chain().focus().undo().run()"
       >
@@ -19,6 +20,7 @@
 
       <button
         v-tooltip.group="translations.noteActions?.redo || 'Redo'"
+        :aria-label="translations.noteActions?.redo || 'Redo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="editor.chain().focus().redo().run()"
       >
@@ -31,6 +33,7 @@
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.share"
+            :aria-label="translations.menu.share"
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riShare2Line" />
@@ -54,6 +57,7 @@
 
       <button
         v-tooltip.group="translations.menu.readerMode"
+        :aria-label="translations.menu.readerMode"
         :class="{ 'is-active': store.inReaderMode }"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="toggleReaderMode"
@@ -63,6 +67,7 @@
 
       <button
         v-tooltip.group="translations.noteActions?.search || 'Search'"
+        :aria-label="translations.noteActions?.search || 'Search'"
         :class="{ 'is-active': showSearch }"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="$emit('toggle-search')"
@@ -74,6 +79,7 @@
         <template #trigger>
           <button
             v-tooltip.group="translations.noteActions?.noteActions || 'Note actions'"
+            :aria-label="translations.noteActions?.noteActions || 'Note actions'"
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riEqualizer3Line" />
@@ -184,6 +190,7 @@
   >
     <div class="flex w-full items-center justify-between p-1.5">
       <button
+        aria-label="Back"
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
         @click="goBack"
       >
@@ -192,12 +199,14 @@
 
       <div class="flex items-center gap-1">
         <button
+          :aria-label="translations.menu.share"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
           @click="showShareDialog = true"
         >
           <v-remixicon name="riShare2Line" />
         </button>
         <button
+          :aria-label="translations.menu.readerMode"
           class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
           :class="
             store.inReaderMode
@@ -209,6 +218,7 @@
           <v-remixicon name="riArticleLine" />
         </button>
         <button
+          :aria-label="translations.noteActions?.search || 'Search'"
           class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
           :class="
             showSearch

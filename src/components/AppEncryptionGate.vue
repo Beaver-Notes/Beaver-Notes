@@ -1,6 +1,10 @@
 <template>
   <div
+    ref="trapRef"
     class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    :aria-describedby="error ? 'encryption-gate-error' : undefined"
   >
     <div
       class="w-full max-w-sm mx-4 rounded-xl bg-white dark:bg-neutral-900 p-6 shadow-2xl"
@@ -25,6 +29,7 @@
       </p>
 
       <ui-input
+        ref="passwordInput"
         v-model="password"
         type="password"
         :placeholder="translations.settings?.password || 'Passphrase'"
@@ -34,7 +39,9 @@
       />
       <p
         v-if="error"
+        id="encryption-gate-error"
         class="mt-2 text-xs text-red-500 dark:text-red-400 text-center"
+        role="alert"
       >
         {{ error }}
       </p>
@@ -53,9 +60,10 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, onMounted, nextTick } from 'vue';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useTranslations } from '@/composable/useTranslations';
+import { useFocusTrap } from '@/composable/useFocusTrap';
 
 export default {
   emits: ['unlocked'],
@@ -64,6 +72,8 @@ export default {
     const password = ref('');
     const error = ref('');
     const busy = ref(false);
+    const trapRef = ref(null);
+    const { activate, deactivate } = useFocusTrap(trapRef);
 
     async function unlock() {
       if (!password.value || busy.value) return;
@@ -73,6 +83,7 @@ export default {
         const res = await verifyPassphrase(password.value);
         if (res.ok) {
           password.value = '';
+          deactivate();
           emit('unlocked');
         } else {
           error.value = res.error || 'Incorrect passphrase.';
@@ -84,7 +95,11 @@ export default {
       }
     }
 
-    return { password, error, busy, unlock, translations };
+    onMounted(() => {
+      nextTick(() => activate());
+    });
+
+    return { password, error, busy, unlock, translations, trapRef };
   },
 };
 </script>

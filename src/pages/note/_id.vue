@@ -60,16 +60,16 @@
         </transition>
         <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
       </template>
-      <div
+      <textarea
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
-        contenteditable="true"
-        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
+        rows="1"
+        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder resize-none overflow-hidden leading-tight"
         :placeholder="translations.editor.untitledNote"
         @input="handleTitleInput"
         @keydown="disallowedEnter"
-      ></div>
+      ></textarea>
       <div v-else class="flex flex-col items-center justify-center h-screen">
         <v-remixicon
           class="w-24 h-auto text-gray-600 dark:text-white"
@@ -305,7 +305,7 @@ export default {
 
     // Title / content handlers
     const handleTitleInput = debounce((event) => {
-      return updateNote(id.value, { title: event.target.innerText });
+      return updateNote(id.value, { title: event.target.value });
     }, 150);
 
     function handleContentUpdate(content) {
@@ -402,7 +402,8 @@ export default {
       window.addEventListener('beforeunload', handleBeforeUnload);
 
       if (titleDiv.value && note.value.title) {
-        titleDiv.value.innerText = note.value.title;
+        titleDiv.value.value = note.value.title;
+        autoResizeTitle();
       }
     });
 
@@ -449,6 +450,13 @@ export default {
       }
     };
 
+    function autoResizeTitle() {
+      const el = titleDiv.value;
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
     watch(
       () => uiState.showPrompt.value,
       (n) => {
@@ -465,9 +473,10 @@ export default {
         await nextTick();
         if (!titleDiv.value) return;
         const stored = newNote.title || '';
-        if (titleDiv.value.innerText !== stored) {
-          titleDiv.value.innerText = stored;
+        if (titleDiv.value.value !== stored) {
+          titleDiv.value.value = stored;
         }
+        autoResizeTitle();
       },
       { immediate: true }
     );
@@ -492,6 +501,7 @@ export default {
       handleContentUpdate,
       closeSearch,
       disallowedEnter,
+      autoResizeTitle,
       autoScroll,
       isLocked,
       yjsReady,
@@ -502,9 +512,13 @@ export default {
 </script>
 
 <style scoped>
-.title-placeholder:empty::before {
-  content: attr(placeholder);
-  color: #a1a1aa;
+.title-placeholder::placeholder {
+  color: #71717a;
+}
+
+.title-placeholder {
+  field-sizing: content;
+  max-height: 8em;
 }
 
 .editor {

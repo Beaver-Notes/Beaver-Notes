@@ -147,6 +147,7 @@
 
       <button
         v-if="note.isLocked"
+        :aria-label="translations.card.unlock || 'Unlock'"
         class="hover:text-neutral-600 dark:text-[color:var(--selected-dark-text)] h-full transition"
         @click.stop="unlockNote(note.id)"
       >
@@ -173,6 +174,7 @@
             ? translations.card.removeBookmark
             : translations.card.bookmark
         "
+        :aria-label="note.isBookmarked ? (translations.card.removeBookmark || 'Remove bookmark') : (translations.card.bookmark || 'Bookmark')"
         class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
         :class="[note.isBookmarked ? 'text-primary' : 'hover:text-neutral-900']"
         @click.stop="toggleBookmark(note)"
@@ -190,6 +192,7 @@
               ? translations.card.unarchive
               : translations.card.archive
           "
+          :aria-label="note.isArchived ? (translations.card.unarchive || 'Unarchive') : (translations.card.archive || 'Archive')"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
           @click.stop="toggleArchive(note)"
         >
@@ -202,6 +205,7 @@
         <button
           v-if="!note.isLocked"
           v-tooltip.group="translations.card.lock"
+          :aria-label="translations.card.lock || 'Lock'"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
           @click.stop="lockNote(note.id)"
         >
@@ -211,6 +215,7 @@
         <button
           v-if="note.isLocked"
           v-tooltip.group="translations.card.unlock"
+          :aria-label="translations.card.unlock || 'Unlock'"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
           @click.stop="unlockNote(note.id)"
         >
@@ -222,6 +227,7 @@
 
         <button
           v-tooltip.group="translations.card.moveToFolder"
+          :aria-label="translations.card.moveToFolder || 'Move to folder'"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
           @click.stop="showMoveModal = true"
         >
@@ -230,6 +236,7 @@
 
         <button
           v-tooltip.group="translations.card.delete"
+          :aria-label="translations.card.delete || 'Delete'"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-red-500/5 hover:text-red-500 invisible group-hover:visible"
           @click.stop="deleteNote(note.id)"
         >
@@ -561,7 +568,7 @@ function mediaIcon(tone) {
   display: block;
   margin: 0.5em 0;
   overflow: hidden;
-  color: rgb(82 82 91);
+  color: rgb(68 68 73);
   line-height: 1.5;
   text-wrap: pretty;
   white-space: pre-wrap;
@@ -605,7 +612,7 @@ function mediaIcon(tone) {
 .note-card-preview-block.is-task,
 .note-card-preview-block.is-quote,
 .note-card-preview-block.is-callout {
-  color: rgb(82 82 91);
+  color: rgb(68 68 73);
 }
 
 .dark .note-card-preview-block.is-paragraph,
@@ -651,7 +658,7 @@ function mediaIcon(tone) {
   border-left: 4px solid rgb(212 212 216);
   margin: 0.5em 0;
   padding: 0.25rem 0.25rem 0.25rem 0.9rem;
-  color: rgb(82 82 91);
+  color: rgb(68 68 73);
 }
 
 .dark .note-card-preview-block.is-quote,

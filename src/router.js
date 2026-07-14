@@ -12,6 +12,21 @@ const SettingsAbout = () => import('./pages/settings/About.vue');
 const SettingsLabels = () => import('./pages/settings/Labels.vue');
 const SettingsSecurity = () => import('./pages/settings/Security.vue');
 
+const APP_NAME = 'Beaver Notes';
+
+const routeTitles = {
+  Home: APP_NAME,
+  Note: 'Note',
+  Folder: 'Folder',
+  Settings: `Settings — ${APP_NAME}`,
+  'Settings-Appearance': `Appearance — ${APP_NAME}`,
+  'Settings-Shortcuts': `Shortcuts — ${APP_NAME}`,
+  'Settings-About': `About — ${APP_NAME}`,
+  'Settings-Labels': `Labels — ${APP_NAME}`,
+  'Settings-Security': `Security — ${APP_NAME}`,
+  Onboarding: `Welcome — ${APP_NAME}`,
+};
+
 const routes = [
   {
     path: '/',
@@ -88,7 +103,7 @@ const routes = [
   },
 ];
 
-export default createRouter({
+const router = createRouter({
   routes,
   history: createWebHashHistory(),
   scrollBehavior(to, from, savedPosition) {
@@ -101,3 +116,18 @@ export default createRouter({
     return undefined;
   },
 });
+
+router.afterEach((to) => {
+  const title = routeTitles[to.name] || APP_NAME;
+  document.title = title;
+
+  // Focus main content area after navigation for screen readers
+  requestAnimationFrame(() => {
+    const main = document.getElementById('app-main');
+    if (main && !main.contains(document.activeElement)) {
+      main.focus({ preventScroll: true });
+    }
+  });
+});
+
+export default router;

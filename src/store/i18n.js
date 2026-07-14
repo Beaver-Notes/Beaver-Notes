@@ -32,6 +32,7 @@ export const useI18nStore = defineStore('i18n', () => {
   async function setLanguage(newLang) {
     lang.value = newLang;
     await setSetting('selectedLanguage', newLang);
+    document.documentElement.setAttribute('lang', newLang);
     if (newLang !== 'en') {
       try {
         await dayjsLocales[`../../node_modules/dayjs/locale/${newLang}.js`]?.();
