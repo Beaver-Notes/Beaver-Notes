@@ -105,6 +105,11 @@ jobs:
         run: |
           yarn lint
 
+      - name: Validate IPC command map
+        shell: bash
+        run: |
+          yarn validate:commands
+
       - name: Audit npm dependencies
         shell: bash
         run: |
@@ -127,6 +132,11 @@ jobs:
         shell: bash
         run: |
           cd src-tauri && cargo audit
+
+      - name: Run Rust tests
+        shell: bash
+        run: |
+          cd src-tauri && cargo test
 
   desktop:
     name: Build ${{ matrix.id }}
