@@ -113,7 +113,7 @@
               <div class="mt-2 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
                 <div
                   class="app-encryption-progress-bar h-1.5 rounded bg-primary dark:bg-primary/80"
-                  :style="{ width: `${encryptionProgressPercent}%` }"
+                  :style="{ transform: `scaleX(${encryptionProgressPercent / 100})` }"
                 />
               </div>
             </div>
@@ -465,7 +465,9 @@ onMounted(async () => {
 
 <style scoped>
 .app-encryption-progress-bar {
-  transition: width 200ms ease;
+  width: 100%;
+  transform-origin: left;
+  transition: transform 200ms var(--ease-standard);
 }
 
 .setting-fade-enter-active,

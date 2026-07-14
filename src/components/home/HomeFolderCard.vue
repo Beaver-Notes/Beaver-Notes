@@ -70,7 +70,7 @@
           <ui-popover placement="bottom" @click.stop>
             <template #trigger>
               <button
-                class="flex items-center justify-center text-white transition-transform hover:scale-110 active:scale-95"
+                class="flex items-center justify-center text-white transition-transform folder-emoji active:scale-95"
               >
                 <span
                   v-if="folder.icon"
@@ -747,24 +747,26 @@ const { translations } = useTranslations();
 
 <style scoped>
 .folder-card {
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.25s var(--ease-spring);
 }
-.folder-card:hover {
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .folder-card:hover {
+    transform: translateY(-1px);
+  }
 }
 .folder-card:active {
   transform: translateY(0) scale(0.99);
 }
 
 .folder-card .folder-card__body {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.35s var(--ease-spring);
 }
 
 .folder-card .folder-card__sheet--front {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.35s var(--ease-spring) 30ms;
 }
 .folder-card .folder-card__sheet--rear {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s var(--ease-spring) 60ms;
 }
 
 .folder-card.is-drag-over .folder-card__body {
@@ -775,5 +777,10 @@ const { translations } = useTranslations();
 }
 .folder-card.is-drag-over .folder-card__sheet--rear {
   transform: translateY(-8px) !important;
+}
+@media (hover: hover) and (pointer: fine) {
+  .folder-emoji:hover {
+    transform: scale(1.1);
+  }
 }
 </style>

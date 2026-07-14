@@ -19,7 +19,7 @@
               if (el) setPillRef(i, el);
             }
           "
-          class="flex-shrink-0 rounded-full cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          class="flex-shrink-0 rounded-full cursor-pointer transition-[width,height,background-color,box-shadow] duration-300 ease-[var(--ease-snappy)]"
           :class="
             item === activeHeading
               ? 'w-3 h-1.5 bg-primary ring-2 ring-white/60 dark:ring-neutral-900/60'
@@ -32,10 +32,10 @@
 
     <Teleport to="body">
       <Transition
-        enter-active-class="transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        enter-active-class="transition duration-300 ease-[var(--ease-snappy)]"
         enter-from-class="opacity-0 scale-95"
         enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        leave-active-class="transition duration-200 ease-[var(--ease-snappy)]"
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
@@ -43,6 +43,7 @@
           v-if="showMenu"
           ref="popoverRef"
           class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl overflow-hidden"
+          style="transform-origin: right center"
           :style="popoverStyle"
           @mouseenter="onEnter"
           @mouseleave="onLeave"

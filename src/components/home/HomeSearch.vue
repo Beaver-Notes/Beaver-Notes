@@ -64,7 +64,7 @@
         :class="[
           label === entry.name
             ? 'ring-1 ring-inset'
-            : 'opacity-60 hover:opacity-100 hover:scale-110',
+            : 'opacity-60 hover:opacity-100 label-chip',
           i === activeSuggestionIndex ? 'opacity-100 ring-1 ring-inset' : '',
         ]"
         :style="
@@ -201,5 +201,10 @@ export default {
 <style>
 .btn-group .ui-select__content {
   @apply rounded-l-none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .label-chip:hover {
+    transform: scale(1.1);
+  }
 }
 </style>

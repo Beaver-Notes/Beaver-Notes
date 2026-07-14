@@ -4,7 +4,7 @@
     :is="tag"
     v-bind="$attrs"
     class="bg-neutral-50 dark:bg-neutral-900 transform rounded-xl transition-transform ui-card overflow-hidden border"
-    :class="[padding, { 'hover:shadow-xl hover:-translate-y-1': hover }]"
+    :class="[padding, { 'ui-card-hoverable': hover }]"
   >
     <slot></slot>
   </component>
@@ -27,3 +27,12 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+@media (hover: hover) and (pointer: fine) {
+  .ui-card-hoverable:hover {
+    transform: translateY(-0.25rem);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+  }
+}
+</style>

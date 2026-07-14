@@ -186,7 +186,7 @@ export default {
   background: theme('colors.white');
   color: theme('colors.neutral.400');
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: color 0.1s ease;
   pointer-events: auto;
   font-size: 0;
 }

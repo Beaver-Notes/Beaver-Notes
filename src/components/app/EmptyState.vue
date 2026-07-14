@@ -248,36 +248,36 @@ const handleCreate = () => emit('new-note');
 <style scoped>
 /* Mascot float */
 .mascot-float {
-  animation: mascotFloat 5s ease-in-out infinite;
+  animation: mascotFloat 5s ease infinite;
 }
 
 /* Ground shadow synced to float */
 .mascot-shadow {
-  animation: shadowPulse 5s ease-in-out infinite;
+  animation: shadowPulse 5s ease infinite;
 }
 
 /* Waving arm */
 .animate-wave {
-  animation: wave 2s ease-in-out infinite;
+  animation: wave 2s ease infinite;
 }
 
 /* Chip positions + floats */
 .chip-1 {
   top: 12px;
   right: 24px;
-  animation: chipFloat1 4s ease-in-out infinite;
+  animation: chipFloat1 4s ease infinite;
   transition-delay: 0s;
 }
 .chip-2 {
   top: 48px;
   left: 12px;
-  animation: chipFloat2 4.5s ease-in-out infinite;
+  animation: chipFloat2 4.5s ease infinite;
   transition-delay: 0.25s;
 }
 .chip-3 {
   bottom: 40px;
   right: 8px;
-  animation: chipFloat3 3.8s ease-in-out infinite;
+  animation: chipFloat3 3.8s ease infinite;
   transition-delay: 0.5s;
 }
 
@@ -342,5 +342,22 @@ const handleCreate = () => emit('new-note');
   50% {
     transform: translate(-4px, -8px);
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-float,
+  .mascot-shadow,
+  .animate-wave,
+  .chip-1,
+  .chip-2,
+  .chip-3 {
+    animation: none;
+  }
+  .mascot-float {
+    animation: mascotFloatReduced 5s ease infinite;
+  }
+}
+@keyframes mascotFloatReduced {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 </style>

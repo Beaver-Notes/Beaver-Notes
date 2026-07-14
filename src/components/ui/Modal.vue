@@ -87,6 +87,7 @@ export default {
     const touchStartY = ref(0);
     const touchCurrentY = ref(0);
     const touchStartedOnScrollable = ref(false);
+    const touchStartTime = ref(0);
     const SWIPE_CLOSE_THRESHOLD = 96;
 
     function toggleBodyOverflow(value) {
@@ -175,6 +176,7 @@ export default {
       touchStartY.value = 0;
       touchCurrentY.value = 0;
       touchStartedOnScrollable.value = false;
+      touchStartTime.value = 0;
     }
 
     function handleTouchStart(event) {
@@ -185,6 +187,7 @@ export default {
 
       touchStartY.value = touch.clientY;
       touchCurrentY.value = touch.clientY;
+      touchStartTime.value = performance.now();
       touchStartedOnScrollable.value = Boolean(
         getScrollableParent(event.target)?.scrollTop > 0
       );
@@ -216,12 +219,26 @@ export default {
         return;
       }
 
-      if (dragOffsetY.value >= SWIPE_CLOSE_THRESHOLD) {
+      const elapsed = performance.now() - touchStartTime.value;
+      const velocity = Math.abs(dragOffsetY.value) / Math.max(elapsed, 1);
+
+      if (dragOffsetY.value >= SWIPE_CLOSE_THRESHOLD || velocity > 0.11) {
         closeModal();
         return;
       }
 
-      resetDrag();
+      const el = modalContent.value;
+      if (el) {
+        el.style.transition = 'transform 300ms var(--ease-spring), opacity 300ms var(--ease-standard)';
+        el.style.transform = 'translate3d(0, 0, 0)';
+        el.style.opacity = '1';
+        el.addEventListener('transitionend', () => {
+          el.style.transition = '';
+          resetDrag();
+        }, { once: true });
+      } else {
+        resetDrag();
+      }
     }
 
     function handleTouchCancel() {

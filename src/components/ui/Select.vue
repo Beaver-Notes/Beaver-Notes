@@ -52,10 +52,10 @@
 
       <!-- Dropdown Menu -->
       <Transition
-        enter-active-class="transition duration-200 ease-out"
+        enter-active-class="transition duration-200 ease-[var(--ease-standard)]"
         enter-from-class="opacity-0 scale-95"
         enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-150 ease-in"
+        leave-active-class="transition duration-150 ease-out"
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
@@ -63,6 +63,7 @@
           v-if="isOpen"
           ref="dropdown"
           class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5"
+          style="transform-origin: top"
         >
           <!-- Search Input -->
           <div v-if="search" class="mb-2">

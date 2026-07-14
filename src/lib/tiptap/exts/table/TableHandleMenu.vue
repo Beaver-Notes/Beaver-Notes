@@ -15,7 +15,7 @@
         <button
           v-for="swatch in colorSwatches"
           :key="swatch"
-          class="w-6 h-6 rounded-lg border border-neutral-200 dark:border-neutral-600 cursor-pointer transition-transform hover:scale-105 active:scale-95"
+          class="w-6 h-6 rounded-lg border border-neutral-200 dark:border-neutral-600 cursor-pointer transition-transform color-swatch active:scale-95"
           :style="{ backgroundColor: swatch + '22' }"
           :title="swatch"
           @click="setBg(swatch + '22')"
@@ -345,3 +345,10 @@ export default {
   },
 };
 </script>
+<style scoped>
+@media (hover: hover) and (pointer: fine) {
+  .color-swatch:hover {
+    transform: scale(1.05);
+  }
+}
+</style>

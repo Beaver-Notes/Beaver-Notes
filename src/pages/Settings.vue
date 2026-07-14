@@ -156,8 +156,7 @@ onUnmounted(() => {
 
 <style scoped>
 .settings-mobile-header {
-  transition: padding-top 180ms ease, box-shadow 180ms ease,
-    background-color 180ms ease;
+  transition: box-shadow 180ms ease, background-color 180ms ease;
   @apply border-y border-neutral-200 shadow-sm dark:border-neutral-800 dark:bg-neutral-900;
 }
 </style>

@@ -53,7 +53,7 @@
             v-for="(preset, i) in activePresets.slice(0, 3)"
             :key="'c1-' + i"
             type="button"
-            class="w-5 h-5 rounded-full border-2 border-transparent hover:scale-110 transition-transform shrink-0 touch-manipulation shadow-sm"
+            class="w-5 h-5 rounded-full border-2 border-transparent color-swatch transition-transform shrink-0 touch-manipulation shadow-sm"
             :class="{
               '!border-neutral-800 dark:!border-white scale-105':
                 preset === currentToolColor,
@@ -66,7 +66,7 @@
             v-for="(preset, i) in activePresets.slice(3, 5)"
             :key="'c2-' + i"
             type="button"
-            class="w-5 h-5 rounded-full border-2 border-transparent hover:scale-110 transition-transform shrink-0 touch-manipulation shadow-sm"
+            class="w-5 h-5 rounded-full border-2 border-transparent color-swatch transition-transform shrink-0 touch-manipulation shadow-sm"
             :class="{
               '!border-neutral-800 dark:!border-white scale-105':
                 preset === currentToolColor,
@@ -268,5 +268,10 @@ export default {
   width: 28px;
   height: auto;
   display: block;
+}
+@media (hover: hover) and (pointer: fine) {
+  .color-swatch:hover {
+    transform: scale(1.1);
+  }
 }
 </style>

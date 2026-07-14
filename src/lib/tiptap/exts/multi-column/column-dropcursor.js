@@ -28,7 +28,6 @@ export const ColumnDropCursor = Extension.create({
             pointerEvents: 'none',
             zIndex: '1000',
             width: '4px',
-            transition: 'top 0.1s ease, left 0.05s ease, height 0.1s ease',
           });
           view.dom.parentElement?.appendChild(cursorEl);
 

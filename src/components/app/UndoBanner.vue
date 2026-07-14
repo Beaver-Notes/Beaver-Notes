@@ -99,7 +99,7 @@ export default {
 <style scoped>
 .undo-banner-enter-active,
 .undo-banner-leave-active {
-  transition: all 0.3s ease;
+  transition: opacity 0.2s var(--ease-standard), transform 0.2s var(--ease-standard);
 }
 .undo-banner-enter-from,
 .undo-banner-leave-to {

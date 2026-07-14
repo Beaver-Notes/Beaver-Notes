@@ -1,6 +1,6 @@
 <template>
   <div
-    class="relative flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200 group"
+    class="relative flex items-center p-1.5 rounded-lg cursor-pointer transition-colors duration-200 group"
     :class="{
       'font-medium': isSelected,
       'hover:bg-neutral-100 dark:hover:bg-neutral-800':

@@ -427,7 +427,6 @@ input[type='number'] {
 }
 
 .editor-actions-mobile-shell {
-  transition: padding-top 180ms ease, box-shadow 180ms ease,
-    background-color 180ms ease;
+  transition: box-shadow 180ms ease, background-color 180ms ease;
 }
 </style>

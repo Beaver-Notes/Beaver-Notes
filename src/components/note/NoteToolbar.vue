@@ -1027,7 +1027,7 @@ export default {
         'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
         'hover:text-neutral-800 dark:hover:text-white',
         'active:scale-[0.88] active:bg-black/[0.08] dark:active:bg-white/[0.10]',
-        'transition-all duration-150 select-none touch-manipulation',
+        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
         active ? 'is-active' : '',
       ];
     }
@@ -1040,7 +1040,7 @@ export default {
         'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
         'hover:text-neutral-800 dark:hover:text-white',
         'active:scale-[0.93] active:bg-black/[0.08]',
-        'transition-all duration-150 select-none touch-manipulation',
+        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
         active ? 'is-active' : '',
       ];
     }
@@ -1093,8 +1093,8 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 200ms var(--ease-standard),
+    transform 200ms var(--ease-standard);
   will-change: opacity, transform;
   -webkit-overflow-scrolling: touch;
 }
@@ -1113,8 +1113,8 @@ export default {
 .panel-exit {
   @apply absolute inset-0 opacity-0 pointer-events-none;
   transform: translateX(-16px);
-  transition: opacity 160ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 160ms var(--ease-standard),
+    transform 160ms var(--ease-standard);
 }
 
 /* Active: in normal flow so its width drives the pill size */
@@ -1136,7 +1136,7 @@ export default {
          hover:bg-black/5 dark:hover:bg-white/10
          hover:text-neutral-800 dark:hover:text-white
          active:scale-90
-         transition-all duration-150 select-none touch-manipulation;
+         transition-[transform,background-color] duration-150 select-none touch-manipulation;
 }
 
 /* ── Divider ────────────────────────────────────────────────────────────── */
