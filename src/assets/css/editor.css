@@ -14,8 +14,8 @@
 
 .ProseMirror pre,
 .ProseMirror .inline-code {
-  @apply border  bg-neutral-50 dark:bg-neutral-900 rounded-lg text-neutral-700 dark:text-neutral-200 pt-6 !important;
-  font-family: 'Helvetica', 'Arial', sans-serif;
+  @apply border bg-neutral-50 dark:bg-neutral-900 rounded-lg text-neutral-700 dark:text-neutral-200 pt-6;
+  font-family: var(--selected-font-code);
   tab-size: 2;
   font-variant-ligatures: normal;
 }
@@ -25,7 +25,7 @@
   scroll-margin-top: calc(var(--app-safe-area-top) + 1.5rem);
 }
 .ProseMirror a {
-  @apply text-primary dark:text-primary !important;
+  @apply text-primary dark:text-primary;
 }
 .ProseMirror blockquote {
   @apply dark:border-neutral-700 dark:text-neutral-100;
@@ -77,7 +77,7 @@
   @apply dark:bg-neutral-600;
 }
 .math-node .math-src {
-  @apply dark:text-purple-400 text-purple-500 !important;
+  @apply dark:text-purple-400 text-purple-500;
 }
 img.ProseMirror-selectednode {
   @apply ring-1 ring-primary transition;
@@ -141,8 +141,8 @@ img.ProseMirror-selectednode {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: background-color 0.2s ease, border-color 0.2s ease,
-          box-shadow 0.2s ease;
+        transition: background-color 0.2s var(--ease-standard), border-color 0.2s var(--ease-standard),
+          box-shadow 0.2s var(--ease-standard);
         margin: 0;
         position: relative;
       }
@@ -178,7 +178,7 @@ img.ProseMirror-selectednode {
     }
   }
   .inline-code {
-    @apply p-0.5 px-1 !important;
+    @apply p-0.5 px-1;
   }
   p.is-editor-empty:first-child::before {
     content: attr(data-placeholder);
@@ -227,7 +227,7 @@ img.ProseMirror-selectednode {
     margin-bottom: 0 !important;
     max-width: 100%;
     box-sizing: border-box;
-    transition: box-shadow 180ms ease, transform 180ms ease;
+    transition: box-shadow 180ms var(--ease-standard), transform 180ms var(--ease-standard);
     vertical-align: top;
   }
   .bn-image-frame img {
@@ -260,8 +260,8 @@ img.ProseMirror-selectednode {
     opacity: 0;
     pointer-events: none;
     transform: translateY(-50%) scale(0.92);
-    transition: opacity 180ms ease, transform 180ms ease,
-      background-color 180ms ease;
+    transition: opacity 180ms var(--ease-standard), transform 180ms var(--ease-standard),
+      background-color 180ms var(--ease-standard);
     z-index: 2;
     touch-action: none;
   }
@@ -392,7 +392,7 @@ div[data-type='column'] {
   margin: 0 -4px;
   padding: 0 4px;
   background-color: transparent;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.2s var(--ease-standard);
 }
 
 div[data-type='column'] > :not(div.grid-resize-handle):nth-child(1),
@@ -422,7 +422,7 @@ div[data-type='column'] .grid-resize-handle .resize-bar {
   height: 100%;
   border-radius: 3px;
   pointer-events: none;
-  transition: background 0.2s ease;
+  transition: background 0.2s var(--ease-standard);
   @apply bg-primary/10;
 }
 
@@ -444,7 +444,7 @@ div[data-type='column'] .grid-resize-handle .add-button {
   cursor: pointer;
   opacity: 0;
   z-index: 6;
-  transition: opacity 0.15s ease, background 0.15s ease;
+  transition: opacity 0.15s var(--ease-standard), background 0.15s var(--ease-standard);
   @apply bg-primary/10;
 }
 
@@ -558,7 +558,7 @@ body:has(.hide-native-dropcursor) .prosemirror-dropcursor-block {
   border: none;
   background: transparent;
   color: theme('colors.neutral.500');
-  transition: color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  transition: color 0.15s var(--ease-standard), background 0.15s var(--ease-standard), transform 0.12s var(--ease-standard);
   flex-shrink: 0;
 }
 :root.dark .dh-button,
@@ -784,7 +784,7 @@ th.is-active {
   background: theme('colors.white');
   color: theme('colors.neutral.400');
   cursor: pointer;
-  transition: color 0.1s ease;
+  transition: color 0.1s var(--ease-standard);
   pointer-events: auto;
   z-index: 5;
 }

@@ -84,6 +84,15 @@ body {
   @apply border-neutral-750;
 }
 
+button,
+input,
+textarea,
+select {
+  &:focus {
+    outline: none;
+  }
+}
+
 * {
   cursor: auto;
 }
