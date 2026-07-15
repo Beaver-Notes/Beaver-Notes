@@ -513,7 +513,7 @@ export default {
 
 <style scoped>
 .title-placeholder::placeholder {
-  color: #71717a;
+  color: var(--text-muted);
 }
 
 .title-placeholder {

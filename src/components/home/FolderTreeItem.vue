@@ -10,12 +10,12 @@
     :style="{
       paddingLeft: level * 16 + 12 + 'px',
       backgroundColor: isSelected
-        ? `${folder.color || '#6B7280'}1A`
+        ? `${folder.color || '#6366f1'}1A`
         : 'transparent',
       boxShadow: isSelected
-        ? `inset 0 0 0 1px ${folder.color || '#6B7280'}4D`
+        ? `inset 0 0 0 1px ${folder.color || '#6366f1'}4D`
         : 'none',
-      color: isSelected ? folder.color || '#6B7280' : 'inherit',
+      color: isSelected ? folder.color || '#6366f1' : 'inherit',
     }"
     @click="!isDisabled && $emit('select', folder.id)"
   >
@@ -33,7 +33,7 @@
       <v-remixicon
         :name="isExpanded ? 'riArrowDownSLine' : 'riArrowRightSLine'"
         class="w-4 h-4"
-        :style="{ color: isSelected ? folder.color || '#6B7280' : '#9CA3AF' }"
+        :style="{ color: isSelected ? folder.color || '#6366f1' : '#9CA3AF' }"
       />
     </button>
     <div v-else class="w-5 mr-1"></div>
@@ -44,7 +44,7 @@
         v-else
         :name="isExpanded ? 'riFolderOpenFill' : 'riFolder5Fill'"
         class="w-5 h-5"
-        :style="{ color: isSelected ? 'inherit' : folder.color || '#6B7280' }"
+        :style="{ color: isSelected ? 'inherit' : folder.color || '#6366f1' }"
       />
     </div>
 

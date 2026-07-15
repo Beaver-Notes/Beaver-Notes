@@ -1,7 +1,7 @@
 <template>
   <NodeViewWrapper>
     <div
-      class="bg-neutral-100 dark:bg-[#353333] rounded-lg flex flex-col w-full"
+      class="bg-neutral-100 dark:bg-neutral-800 rounded-lg flex flex-col w-full"
     >
       <!-- Video Container -->
       <div class="relative w-full">

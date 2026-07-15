@@ -39,11 +39,22 @@
   --app-mobile-floating-offset: calc(
     var(--app-mobile-content-offset) + 0.75rem
   );
-  @apply dark:text-[color:var(--selected-dark-text)];
+  --text-dark: theme('colors.neutral.900');
+  --text-muted: theme('colors.neutral.500');
+  --bg-code: theme('colors.neutral.50');
+  --bg-code-dark: theme('colors.neutral.900');
+  --border-input: theme('colors.neutral.300');
+  --scrollbar-thumb: #d8d9d9;
 }
 
 :root.dark {
   --app-theme-background: theme('colors.neutral.900');
+  --text-dark: white;
+  --text-muted: theme('colors.neutral.400');
+  --bg-code: theme('colors.neutral.900');
+  --bg-code-dark: theme('colors.neutral.800');
+  --border-input: theme('colors.neutral.600');
+  --scrollbar-thumb: #424546;
 }
 
 html,
@@ -61,7 +72,7 @@ body {
   position: relative;
   font-family: var(--selected-font);
   min-height: 100dvh;
-  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
+  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--text-dark)];
 }
 
 #app {
@@ -98,7 +109,7 @@ option {
   height: 10px;
 }
 .custom-scrollbar ::-webkit-scrollbar-thumb {
-  @apply bg-[#d8d9d9] dark:bg-[#424546];
+  background: var(--scrollbar-thumb);
   border-radius: 8px;
 }
 .custom-scrollbar ::-webkit-scrollbar-thumb:hover {
@@ -110,13 +121,7 @@ option {
 
 .custom-scrollbar * {
   scrollbar-width: thin;
-  scrollbar-color: #d8d9d9 transparent;
-}
-
-@media (prefers-color-scheme: dark) {
-  .custom-scrollbar * {
-    scrollbar-color: #424546 transparent;
-  }
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .text-overflow {

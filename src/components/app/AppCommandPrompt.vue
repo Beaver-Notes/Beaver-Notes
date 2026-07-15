@@ -83,7 +83,7 @@
                   :class="getIconClass(item)"
                   :style="
                     item.type === 'folder'
-                      ? { color: item.color || '#6B7280' }
+                      ? { color: item.color || '#6366f1' }
                       : {}
                   "
                 />

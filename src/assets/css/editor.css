@@ -36,7 +36,7 @@
 .ProseMirror h4,
 .ProseMirror h5,
 .ProseMirror h6 {
-  @apply dark:text-[color:var(--selected-dark-text)];
+  @apply dark:text-[color:var(--text-dark)];
   margin-top: 1em !important;
   margin-bottom: 1em !important;
 }
@@ -44,7 +44,7 @@
 .ProseMirror p {
   margin-top: 0.5em !important;
   margin-bottom: 0.5em !important;
-  @apply dark:text-[color:var(--selected-dark-text)];
+  @apply dark:text-[color:var(--text-dark)];
 }
 .ProseMirror li {
   margin-top: 0.25em !important;
@@ -54,7 +54,7 @@
   color: inherit !important;
   margin-top: 0 !important;
   margin-bottom: 0 !important;
-  @apply dark:text-[color:var(--selected-dark-text)];
+  @apply dark:text-[color:var(--text-dark)];
 }
 .ProseMirror .mention {
   @apply py-0.5 px-1 rounded-md bg-primary text-primary bg-opacity-10 dark:text-primary hover:underline;
@@ -93,13 +93,13 @@ img.ProseMirror-selectednode {
     outline: none;
   }
   li::marker {
-    @apply dark:text-[color:var(--selected-dark-text)];
+    @apply dark:text-[color:var(--text-dark)];
   }
   li[data-checked='false'] {
-    @apply dark:text-[color:var(--selected-dark-text)];
+    @apply dark:text-[color:var(--text-dark)];
   }
   li[data-checked='true'] {
-    @apply text-neutral-500 line-through dark:text-[color:var(--selected-dark-text)];
+    @apply text-neutral-500 line-through dark:text-[color:var(--text-dark)];
   }
   ul li {
     @apply pr-[1.25em] rtl:pr-[1.25em] !important;
@@ -136,7 +136,7 @@ img.ProseMirror-selectednode {
         width: 18px;
         height: 18px;
         border-radius: 20%;
-        border: 2px solid #ccc;
+        border: 2px solid var(--border-input);
         cursor: pointer;
         display: flex;
         align-items: center;
@@ -326,7 +326,7 @@ img.ProseMirror-selectednode {
   }
 
   pre {
-    background: #0d0d0d;
+    background: var(--bg-code-dark);
     color: #fff;
     font-family: var(--selected-font-code);
     padding: 0.75rem 1rem;
