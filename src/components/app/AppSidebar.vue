@@ -155,7 +155,7 @@
       </button>
     </nav>
 
-    <transition name="fade-fast">
+    <ExpandTransition>
       <div
         v-show="expanded"
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
@@ -209,7 +209,7 @@
           </p>
         </div>
       </div>
-    </transition>
+    </ExpandTransition>
 
     <div v-if="!expanded" class="flex-grow" />
 

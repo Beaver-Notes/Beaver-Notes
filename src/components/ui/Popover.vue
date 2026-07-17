@@ -9,14 +9,16 @@
       <slot name="trigger" v-bind="{ isShow }"></slot>
     </div>
     <Teleport to="body">
-      <div
-        v-if="isShow"
-        ref="content"
-        :style="floatingStyles"
-        class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1.5"
-      >
-        <slot v-bind="{ isShow }"></slot>
-      </div>
+      <Transition name="ui-popover">
+        <div
+          v-show="isShow"
+          ref="content"
+          :style="floatingStyles"
+          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1.5"
+        >
+          <slot v-bind="{ isShow }"></slot>
+        </div>
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -158,3 +160,29 @@ export default {
   },
 };
 </script>
+<style>
+.ui-popover-enter-active {
+  transition: opacity var(--motion-fast) var(--ease-snappy),
+    transform var(--motion-fast) var(--ease-snappy);
+}
+.ui-popover-leave-active {
+  transition: opacity var(--motion-fast) var(--ease-exit),
+    transform var(--motion-fast) var(--ease-exit);
+}
+.ui-popover-enter-from,
+.ui-popover-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.ui-popover-enter-to,
+.ui-popover-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-popover-enter-active,
+  .ui-popover-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+</style>

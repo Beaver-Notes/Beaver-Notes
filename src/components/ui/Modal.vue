@@ -97,6 +97,8 @@ export default {
     const touchStartedOnScrollable = ref(false);
     const touchStartTime = ref(0);
     const SWIPE_CLOSE_THRESHOLD = 96;
+    const prefersReducedMotion = () =>
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
     function toggleBodyOverflow(value) {
       if (value) {
@@ -246,7 +248,8 @@ export default {
 
       const el = modalContent.value;
       if (el) {
-        el.style.transition = 'transform 300ms var(--ease-spring), opacity 300ms var(--ease-standard)';
+        const dur = prefersReducedMotion() ? '0.01ms' : '300ms';
+        el.style.transition = `transform ${dur} var(--ease-spring), opacity ${dur} var(--ease-standard)`;
         el.style.transform = 'translate3d(0, 0, 0)';
         el.style.opacity = '1';
         el.addEventListener('transitionend', () => {
