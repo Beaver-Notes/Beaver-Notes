@@ -43,13 +43,19 @@ const storage = useStorage();
 
 const state = { syncing: false, pending: false };
 
+// When multiple callers enqueue a sync while one is already running, they all
+// await the same pending run's outcome instead of a promise that never settles.
 let syncResolve = null;
 let syncReject = null;
+let pendingWaiters = [];
 
 function enqueueSync(force = false) {
   if (state.syncing) {
     state.pending = true;
-    return new Promise(() => {}); // never settles — chained call ignored
+    // Return a promise that resolves/rejects with the coalesced run's result.
+    return new Promise((resolve, reject) => {
+      pendingWaiters.push({ resolve, reject });
+    });
   }
   return new Promise((resolve, reject) => {
     syncResolve = resolve;
@@ -61,15 +67,28 @@ function enqueueSync(force = false) {
 async function _runSync(force = false) {
   state.syncing = true;
   state.pending = false;
+  let outcome;
   try {
     await _sync(force);
-    syncResolve?.();
+    outcome = { ok: true };
   } catch (err) {
-    syncReject?.(err);
+    outcome = { ok: false, err };
   } finally {
+    // Resolve the primary caller.
+    if (outcome.ok) syncResolve?.();
+    else syncReject?.(outcome.err);
     syncResolve = null;
     syncReject = null;
     state.syncing = false;
+
+    // Any callers that coalesced into this run get the same outcome.
+    const waiters = pendingWaiters;
+    pendingWaiters = [];
+    for (const { resolve, reject } of waiters) {
+      if (outcome.ok) resolve();
+      else reject(outcome.err);
+    }
+
     if (state.pending) {
       state.pending = false;
       _runSync(false);

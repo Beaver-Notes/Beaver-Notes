@@ -44,52 +44,58 @@ function unsanitizeFromFilename(str) {
     .replace(/__PIPE__/g, '|');
 }
 
+// `~~` is a delimiter that cannot appear in any component: it is filesystem-legal
+// on macOS / Windows / Linux and is never produced by sanitizeForFilename.  This
+// lets us split filenames positionally without ambiguity (deviceId is a UUID
+// containing dashes, which broke the old dash-delimited parser).
+const FILENAME_SEP = '~~';
+
 function yjsFileName(noteId, ts) {
-  return `${sanitizeForFilename(noteId)}-${deviceId}-${ts}${YJS_UPDATE_EXT}`;
+  return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
+}
+
+function yjsSnapshotFileName(docId, ts) {
+  return `${sanitizeForFilename(docId)}${FILENAME_SEP}snapshot${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
 }
 
 /**
  * Parse a sync filename back into { docId, isSnapshot, device, ts }.
  *
- * Filename formats:
- *   update:  {noteId}-{deviceId}-{ts}.yjs.json
- *   snapshot: {docId}-snapshot-{deviceId}-{ts}.yjs.json
+ * Filename formats (segments separated by FILENAME_SEP = "~~"):
+ *   update:   {noteId}~~{deviceId}~~{ts}.yjs.json
+ *   snapshot: {docId}~~snapshot~~{deviceId}~~{ts}.yjs.json
  *
- * Because noteId / docId may contain `-`, we parse from the right:
- *   1. Strip  .yjs.json
- *   2. Pop the timestamp (last dash-segment that is purely numeric)
- *   3. Pop the device id (the UUID segment right before it)
- *   4. For snapshots, pop the literal "snapshot"
- *   5. Everything left is the doc id (unsanitize it)
+ * Because noteId / docId / deviceId may themselves contain dashes, we use an
+ * unambiguous delimiter and split positionally from the right.
  */
 function parseSyncFilename(file) {
   if (!file.endsWith(YJS_UPDATE_EXT)) return null;
 
-  // 1. strip extension
+  // Strip extension
   const base = file.slice(0, -YJS_UPDATE_EXT.length);
 
-  // Split into segments. We'll pop from the right.
-  const parts = base.split('-');
+  const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
 
-  // 2. Timestamp is the last purely-numeric segment
+  // 1. Timestamp is the final segment
   const ts = Number(parts[parts.length - 1]);
   if (!Number.isFinite(ts)) return null;
   parts.pop();
 
-  // 3. Device id should be the UUID right before the timestamp
+  // 2. Device id is the segment right before the timestamp
   const device = parts[parts.length - 1];
   parts.pop();
 
-  // 4. Check for "snapshot" marker
+  // 3. Optional "snapshot" marker before the device id
   let isSnapshot = false;
   if (parts.length > 0 && parts[parts.length - 1] === 'snapshot') {
     isSnapshot = true;
     parts.pop();
   }
 
-  // 5. Everything remaining is the doc id
-  const docId = unsanitizeFromFilename(parts.join('-'));
+  // 4. Everything remaining is the doc id
+  const docId = unsanitizeFromFilename(parts.join(FILENAME_SEP));
+  if (!docId) return null;
 
   return { docId, isSnapshot, device, ts };
 }
@@ -124,7 +130,7 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON) {
     update: Array.from(state),
   };
   const encrypted = await encryptJSON(payload, `${docId}-snapshot-${ts}`);
-  const fileName = `${sanitizeForFilename(docId)}-snapshot-${deviceId}-${ts}${YJS_UPDATE_EXT}`;
+  const fileName = yjsSnapshotFileName(docId, ts);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
@@ -143,11 +149,19 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
   const updates = [];
 
   for (const file of files.filter((f) => f.endsWith(YJS_UPDATE_EXT))) {
+    const parsed = parseSyncFilename(file);
+    if (!parsed) continue;
+
+    // Cheap, pre-decrypt filtering using filename metadata:
+    // skip our own files and anything already covered by the cursor.
+    if (parsed.device === deviceId) continue;
+
+    const cursorKey = `yjs-${parsed.device}`;
+    const seenUpTo = cursors[cursorKey] ?? 0;
+    if (parsed.ts <= seenUpTo) continue;
+
     let payload;
     try {
-      const parsed = parseSyncFilename(file);
-      if (!parsed) continue;
-
       const raw = await readSyncFile(path.join(commitsDir, file));
 
       // Reconstruct the AAD used at encryption time
@@ -160,11 +174,6 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
       continue;
     }
     if (!payload?.device || !payload?.noteId || !payload?.update) continue;
-    if (payload.device === deviceId) continue;
-
-    const cursorKey = `yjs-${payload.device}`;
-    const seenUpTo = cursors[cursorKey] ?? 0;
-    if (payload.ts <= seenUpTo) continue;
 
     updates.push({
       device: payload.device,
@@ -183,9 +192,12 @@ const WORKSPACE_COMPACTION_THRESHOLD = 50;
 
 /**
  * Compact all workspace .yjs.json files (incremental + old snapshots) into a
- * single full-state snapshot file.  Called from the sync loop when the number
- * of workspace files exceeds the threshold so that a new device only needs to
- * read + decrypt one file instead of potentially thousands.
+ * single full-state snapshot file per docId.  Called from the sync loop when
+ * the number of files for a given docId exceeds the threshold so that a new
+ * device only needs to read + decrypt one file per doc instead of potentially
+ * thousands.  Both the workspace meta doc and every per-note doc are compacted
+ * this way — previously only `meta` files were merged, leaving every note's
+ * incremental updates as permanent files that accumulated forever.
  */
 export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) {
   let files;
@@ -195,38 +207,42 @@ export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) 
     return;
   }
 
-  const workspaceFiles = files.filter(
-    (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta')
-  );
+  // Group files by their docId (parsed from the unambiguous filename).
+  const groups = new Map();
+  for (const file of files) {
+    if (!file.endsWith(YJS_UPDATE_EXT)) continue;
+    const parsed = parseSyncFilename(file);
+    if (!parsed) continue;
+    if (!groups.has(parsed.docId)) groups.set(parsed.docId, []);
+    groups.get(parsed.docId).push({ file, parsed });
+  }
 
-  if (workspaceFiles.length < WORKSPACE_COMPACTION_THRESHOLD) return;
+  for (const [docId, entries] of groups) {
+    if (entries.length < WORKSPACE_COMPACTION_THRESHOLD) continue;
 
-  const doc = new Y.Doc();
-
-  for (const file of workspaceFiles) {
-    try {
-      const parsed = parseSyncFilename(file);
-      if (!parsed) continue;
-
-      const raw = await readSyncFile(path.join(commitsDir, file));
-      const aadSuffix = parsed.isSnapshot
-        ? `${parsed.docId}-snapshot-${parsed.ts}`
-        : `${parsed.docId}-${parsed.ts}`;
-      const payload = await decryptJSON(raw, aadSuffix);
-      if (payload?.update) {
-        Y.applyUpdate(doc, new Uint8Array(payload.update));
+    const doc = new Y.Doc();
+    for (const { file, parsed } of entries) {
+      try {
+        const raw = await readSyncFile(path.join(commitsDir, file));
+        const aadSuffix = parsed.isSnapshot
+          ? `${parsed.docId}-snapshot-${parsed.ts}`
+          : `${parsed.docId}-${parsed.ts}`;
+        const payload = await decryptJSON(raw, aadSuffix);
+        if (payload?.update) {
+          Y.applyUpdate(doc, new Uint8Array(payload.update));
+        }
+      } catch {
+        // skip corrupt / undecryptable files
       }
-    } catch {
-      // skip corrupt / undecryptable files
     }
+
+    const state = Y.encodeStateAsUpdate(doc);
+    await writeYjsSnapshot(commitsDir, docId, state, encryptJSON);
+
+    for (const { file } of entries) {
+      await removeSyncPath(path.join(commitsDir, file)).catch(() => {});
+    }
+
+    doc.destroy();
   }
-
-  const state = Y.encodeStateAsUpdate(doc);
-  await writeYjsSnapshot(commitsDir, 'meta', state, encryptJSON);
-
-  for (const file of workspaceFiles) {
-    await removeSyncPath(path.join(commitsDir, file)).catch(() => {});
-  }
-
-  doc.destroy();
 }
