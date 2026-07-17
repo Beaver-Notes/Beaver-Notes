@@ -2,13 +2,13 @@
 
 ## Overview
 
-This policy outlines the guidelines for conbutions that involve the use of AI (artificial intelligence) tools, including LLMs (large language models), code generation, and other AI-assisted tools. This document will evelove as AI technology and its regulation evolve.
+This policy outlines the guidelines for contributions that involve the use of AI (artificial intelligence) tools, including LLMs (large language models), code generation, and other AI-assisted tools. This document will evolve as AI technology and its regulation evolve.
 
-## Motvies 
+## Motives
 
-AI tools are powerful assistants that can help contributors become more productive, when configured and used corrently. They also serve as a learning tool for new contributors who may not have the expertise to contribute without AI assistance.
+AI tools are powerful assistants that can help contributors become more productive, when configured and used correctly. They also serve as a learning tool for new contributors who may not have the expertise to contribute without AI assistance.
 
-This policy aims at encoraging the use of AI tools within the Beaver Notes project to boost productivity and efficiency while maintaining transparency and accountability. This allows the community to learn and refine our policies and practices accordingly in order to maximise the value of these tools.
+This policy aims at encouraging the use of AI tools within the Beaver Notes project to boost productivity and efficiency while maintaining transparency and accountability. This allows the community to learn and refine our policies and practices accordingly in order to maximise the value of these tools.
 
 ## Contributors Accountability
 
