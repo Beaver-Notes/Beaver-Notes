@@ -1,19 +1,6 @@
 <template>
   <div
-    :class="{
-      'is-drag-over': isDragOver,
-      'folder-card': true,
-      relative: true,
-      group: true,
-      'cursor-pointer': true,
-      'w-full': true,
-    }"
-    style="
-      aspect-ratio: 6/5;
-      min-height: 130px;
-      max-height: 180px;
-      perspective: 1000px;
-    "
+    class="is-drag-over folder-card relative group cursor-pointer w-full min-h-[130px] max-h-[180px] [perspective:1000px] [aspect-ratio:6/5]"
     @click="handleCardClick($event, folder.id)"
   >
     <div
@@ -25,8 +12,7 @@
     ></div>
 
     <div
-      class="absolute top-[20%] left-0 z-0 w-full rounded-xl rounded-tl-none transition-colors"
-      style="height: 80%"
+      class="absolute top-[20%] left-0 z-0 w-full h-[80%] rounded-xl rounded-tl-none transition-colors"
       :style="{
         backgroundColor: folder.color || DEFAULT_FOLDER_COLOR,
         filter: 'saturate(0.8)',
@@ -35,8 +21,7 @@
 
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3"
-      style="top: 15%; left: 14%; width: 72%; height: 58%"
+      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 top-[15%] left-[14%] w-[72%] h-[58%]"
     >
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
@@ -45,8 +30,7 @@
 
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4"
-      style="top: 23%; left: 21%; width: 72%; height: 64%"
+      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 top-[23%] left-[21%] w-[72%] h-[64%]"
     >
       <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
@@ -55,8 +39,7 @@
     </div>
 
     <div
-      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col rounded-xl px-3 pb-2.5 pt-3 text-neutral-800"
-      style="height: 65%"
+      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col rounded-xl px-3 pb-2.5 pt-3 text-neutral-800 h-[65%]"
       :style="{
         background: `linear-gradient(to bottom, ${
           folder.color || lightenHex(DEFAULT_FOLDER_COLOR, 0.18)

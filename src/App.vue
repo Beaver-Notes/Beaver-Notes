@@ -42,14 +42,12 @@
     >
       <div
         v-show="uiState.inReaderMode"
-        class="fixed top-0 left-0 w-full h-full pointer-events-none"
-        style="z-index: 50"
+        class="fixed top-0 left-0 w-full h-full pointer-events-none z-50"
       ></div>
 
       <div
         v-show="updateBanner.show"
-        class="flex fixed bottom-0 mx-auto align-center items-center w-full"
-        style="z-index: 50"
+        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
       >
         <ui-banner
           :content="updateBanner.content"
@@ -62,8 +60,7 @@
 
       <div
         v-show="syncLockBanner.show"
-        class="flex fixed bottom-0 mx-auto align-center items-center w-full"
-        style="z-index: 50"
+        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
         :class="updateBanner.show ? 'mb-16' : ''"
         :style="bottomBannerStyle"
       >
@@ -78,8 +75,7 @@
 
       <div
         v-show="appEncryptionMigrationBanner.show"
-        class="flex fixed bottom-0 mx-auto align-center items-center w-full"
-        style="z-index: 50"
+        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
         :class="updateBanner.show || syncLockBanner.show ? 'mb-16' : ''"
         :style="bottomBannerStyle"
       >

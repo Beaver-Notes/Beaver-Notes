@@ -15,8 +15,7 @@
 
       <!-- Tile grid -->
       <div
-        class="grid grid-cols-3 sm:grid-cols-4 gap-2 overflow-y-auto no-scrollbar"
-        style="max-height: 50vh"
+        class="grid grid-cols-3 sm:grid-cols-4 gap-2 overflow-y-auto no-scrollbar max-h-[50vh]"
       >
         <button
           v-for="(item, index) in filteredItems"

@@ -20,8 +20,7 @@
 
         <div>
           <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[160px]"
-            style="max-height: 20rem"
+            class="overflow-y-auto no-scrollbar min-w-[160px] max-h-80"
           >
             <ui-list-item
               v-for="item in menuOptions"
@@ -128,8 +127,7 @@
 
         <div>
           <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[140px]"
-            style="max-height: 20rem"
+            class="overflow-y-auto no-scrollbar min-w-[140px] max-h-80"
           >
             <ui-list-item
               v-for="item in alignmentOptions"

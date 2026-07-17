@@ -12,11 +12,8 @@
       >
         <div
           ref="container"
-          class="relative h-full overflow-x-auto overflow-y-hidden scrollbar-hide scroll-smooth"
-          style="
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior-x: contain;
-          "
+          class="relative h-full overflow-x-auto overflow-y-hidden scrollbar-hide scroll-smooth overscroll-x-contain"
+          style="-webkit-overflow-scrolling: touch"
           @wheel.passive="changeWheelDirection"
         >
           <!-- All panels live inside the scroll track so the pill width

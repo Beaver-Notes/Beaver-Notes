@@ -1,10 +1,9 @@
 <!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
-    class="bg-white dark:bg-neutral-900 rounded-xl shadow-xl border p-1.5"
-    style="max-width: 18rem; min-width: 8rem"
+    class="bg-white dark:bg-neutral-900 rounded-xl shadow-xl border p-1.5 max-w-[18rem] min-w-[8rem]"
   >
-    <ui-list class="overflow-y-auto no-scrollbar" style="max-height: 20rem">
+    <ui-list class="overflow-y-auto no-scrollbar max-h-80">
       <ui-list-item
         v-for="(item, index) in filteredItems"
         small

@@ -55,7 +55,6 @@
     <div
       v-if="visibleLabels.length"
       class="flex items-center gap-1.5 mt-2 overflow-x-auto scrollbar-none mb-6"
-      style="scrollbar-width: none"
     >
       <button
         v-for="(entry, i) in visibleLabels"

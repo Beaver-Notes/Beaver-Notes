@@ -1,6 +1,6 @@
 <template>
   <Teleport to="body">
-    <div v-if="isVisible && selectionRect" ref="floatingRef" :style="overlayStyle" style="pointer-events:none; z-index:40">
+    <div v-if="isVisible && selectionRect" ref="floatingRef" :style="overlayStyle" class="pointer-events-none z-[40]">
       <div
         :style="{
           width: selectionRect.width + 'px',

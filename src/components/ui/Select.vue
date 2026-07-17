@@ -62,8 +62,7 @@
         <div
           v-if="isOpen"
           ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5"
-          style="transform-origin: top"
+          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5 origin-top"
           role="listbox"
           :aria-activedescendant="focusedIndex >= 0 ? `${selectId}-option-${focusedIndex}` : undefined"
         >

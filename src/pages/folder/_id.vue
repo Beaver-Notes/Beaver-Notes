@@ -127,7 +127,7 @@
                   'transform scale-[1.02] transition-transform duration-200':
                     selectedItems.has(`folder-${childFolder.id}`),
                 }"
-                style="contain: layout style"
+                class="[contain:layout_style]"
                 draggable="true"
                 @dragstart="handleFolderDragStart($event, childFolder.id)"
                 @dragend="handleDragEnd"

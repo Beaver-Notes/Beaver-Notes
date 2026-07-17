@@ -18,7 +18,7 @@
         'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col',
         isEditing ? 'rounded-b-lg' : ' rounded-lg',
       ]"
-      style="margin-top: 0; padding: 0"
+      class="bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col mt-0 p-0"
     >
       <!-- Growable content area -->
       <div class="flex mb-2 p-2 flex-grow">
@@ -29,8 +29,7 @@
           :value="node.attrs.content"
           type="textarea"
           :placeholder="translations.editor.mathPlaceholder || '-'"
-          class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32"
-          style="direction: ltr"
+          class="bg-transparent ml-2 pl-2 flex-1 resize-y min-h-32 ltr"
           @input="updateContent($event, 'content', true)"
           @keydown="handleKeydown"
         />
@@ -50,7 +49,7 @@
       <div
         class="flex p-2 border-t rounded-b-lg items-center justify-between bg-neutral-100 dark:bg-neutral-900/70"
       >
-        <p class="text-sm" style="margin: 0">
+        <p class="text-sm m-0">
           <strong>{{ translations.editor.exit }}</strong>
         </p>
         <v-remixicon

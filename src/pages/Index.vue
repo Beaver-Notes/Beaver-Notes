@@ -73,7 +73,7 @@
                     selectedItems.has(`folder-${folder.id}`),
                 }"
                 draggable="true"
-                style="contain: layout style"
+                class="[contain:layout_style]"
                 @dragstart="handleFolderDragStart($event, folder.id)"
                 @dragend="handleDragEnd"
                 @dragover="handleDragOver($event, folder.id)"
@@ -140,8 +140,7 @@
         v-if="
           noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
         "
-        class="flex items-center justify-center"
-        style="min-height: calc(100vh - 250px)"
+        class="flex items-center justify-center min-h-[calc(100vh-250px)]"
       />
 
       <folder-tree

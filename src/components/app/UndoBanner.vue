@@ -2,8 +2,7 @@
   <transition name="undo-banner">
     <div
       v-show="visible"
-      class="flex fixed bottom-0 mx-auto items-center w-full mobile:flex hidden"
-      style="z-index: 51"
+      class="flex fixed bottom-0 mx-auto items-center w-full mobile:flex hidden z-[51]"
       :style="positionStyle"
     >
       <div class="flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4">

@@ -14,10 +14,9 @@
     <div
       v-if="isEditing"
       :class="[
-        'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col',
+        'bg-neutral-50 dark:bg-neutral-900 transition border flex flex-col mt-0 p-0',
         isEditing ? 'rounded-b-lg' : ' rounded-lg',
       ]"
-      style="margin-top: 0; padding: 0"
     >
       <div class="flex mb-2 p-2 flex-grow">
         <textarea

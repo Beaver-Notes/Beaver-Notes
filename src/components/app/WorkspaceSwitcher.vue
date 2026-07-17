@@ -55,7 +55,7 @@
           </button>
         </template>
 
-        <div style="min-width: 200px">
+        <div class="min-w-[200px]">
           <button
             v-for="ws in workspaces"
             :key="ws.id"

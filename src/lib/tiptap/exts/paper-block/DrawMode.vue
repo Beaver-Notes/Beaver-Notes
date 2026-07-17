@@ -13,10 +13,10 @@
     >
       <svg
         ref="svgRef"
-        class="w-full h-full block"
+        class="w-full h-full block touch-none"
         :class="[backgroundClass]"
         :viewBox="viewBoxAttr"
-        style="touch-action: none; -webkit-user-modify: read-only"
+        style="-webkit-user-modify: read-only"
         @wheel="handleWheel"
         @pointerdown="handlePointerDown"
         @pointermove="handlePointerMove"
@@ -108,7 +108,7 @@
           :y="img.y"
           :width="img.width"
           :height="img.height"
-          style="pointer-events: none"
+          class="pointer-events-none"
         />
 
         <!-- Lasso outline -->
@@ -177,7 +177,7 @@
               fill="white"
               stroke="rgba(99,102,241,0.9)"
               stroke-width="1.5"
-              style="cursor: grab"
+              class="cursor-grab"
               @pointerdown.stop="(e) => handleTransformStart(e, 'rotate')"
             />
           </g>

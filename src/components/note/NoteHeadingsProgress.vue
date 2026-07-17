@@ -8,8 +8,7 @@
     >
       <div
         ref="railRef"
-        class="w-8 relative flex flex-col items-end gap-1.5 overflow-hidden py-1.5"
-        style="max-height: 100px"
+        class="w-8 relative flex flex-col items-end gap-1.5 overflow-hidden py-1.5 max-h-[100px]"
       >
         <button
           v-for="(item, i) in visibleHeadings"
@@ -42,8 +41,7 @@
         <div
           v-if="showMenu"
           ref="popoverRef"
-          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl overflow-hidden"
-          style="transform-origin: right center"
+          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl overflow-hidden origin-right"
           :style="popoverStyle"
           @mouseenter="onEnter"
           @mouseleave="onLeave"

@@ -84,9 +84,8 @@
             'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
               isSelected(item.note.id),
           }"
-          class="w-full"
+          class="w-full [contain:layout_style]"
           draggable="true"
-          style="contain: layout style"
           @dragstart="
             $emit('dragstart', { event: $event, noteId: item.note.id })
           "
