@@ -9,14 +9,32 @@ import {
 import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
 import { getSyncPath } from '@/utils/sync/path.js';
 import { getSettingSync } from '@/composable/settings';
-import { writeYjsUpdate } from '@/utils/sync/sync-yjs.js';
-import { encryptJSON } from '@/utils/sync/crypto.js';
+import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
   getDeviceId,
   applyUpdatesToDoc,
   toUint8Array,
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
+
+const MAX_WRITE_RETRIES = 3;
+const WRITE_RETRY_DELAY_MS = 200;
+
+async function retryWrite(fn, label) {
+  for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      if (attempt === MAX_WRITE_RETRIES) {
+        console.error(`[yjs] ${label} failed after ${MAX_WRITE_RETRIES} attempts:`, err);
+        throw err;
+      }
+      console.warn(`[yjs] ${label} attempt ${attempt} failed, retrying...`, err);
+      await new Promise((r) => setTimeout(r, WRITE_RETRY_DELAY_MS));
+    }
+  }
+}
 
 const activeDocs = new Map();
 
@@ -68,25 +86,31 @@ async function loadStateIntoDoc(newDoc, noteId) {
 }
 
 /**
- * Persist a Yjs update to SQLite and optionally to the sync folder.
+ * Persist a Yjs update to SQLite and optionally queue it for the sync folder.
+ * Sync-folder writes are deferred to the periodic sync cycle so the steady-
+ * state write rate drops from ~200 files/minute to one batch per 10 s.
  */
 async function persistUpdate(noteId, update) {
   if (!noteId || !update || update.byteLength === 0) return;
   try {
-    await appendUpdate(noteId, update, getDeviceId());
+    await retryWrite(
+      () => appendUpdate(noteId, update, getDeviceId()),
+      `SQLite appendUpdate for ${noteId}`
+    );
   } catch {
-    // SQLite write is best-effort
+    // Update lost — the gap between pendingUpdates being spliced and this
+    // write is inherent; the console.error in retryWrite documents it.
   }
   try {
     if (getSettingSync('autoSync')) {
       const syncPath = await getSyncPath();
       if (syncPath) {
         const commitsDir = await ensureCommitsDir(syncPath);
-        await writeYjsUpdate(commitsDir, noteId, update, encryptJSON);
+        queueSyncWrite(commitsDir, noteId, update);
       }
     }
   } catch {
-    // sync folder write is best-effort
+    // Sync folder path resolution is best-effort; the update is already in SQLite
   }
 }
 

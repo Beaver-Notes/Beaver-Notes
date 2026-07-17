@@ -3,7 +3,7 @@ import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
-import { forceSyncNow } from '@/utils/sync';
+import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
 import { listen } from '@tauri-apps/api/event';
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
@@ -412,6 +412,9 @@ export function useSettingsData({
     void setSetting('autoSync', autoSync.value);
     if (autoSync.value) {
       forceSyncNow().catch(() => {});
+      setPeriodicSyncEnabled(true);
+    } else {
+      setPeriodicSyncEnabled(false);
     }
   };
 

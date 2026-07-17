@@ -13,8 +13,9 @@ import { readDir as readSyncDir } from '@/lib/native/fs';
 import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
 import { getSyncPath } from '@/utils/sync/path.js';
 import { getSettingSync } from '@/composable/settings';
-import { writeYjsUpdate, writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
+import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
+import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
 import { registerActiveDoc } from '@/composable/useNoteYjs.js';
 import {
@@ -49,12 +50,34 @@ let snapshotWritten = false;
 
 // ── Persistence ──────────────────────────────────────────────────────────────
 
+const MAX_WRITE_RETRIES = 3;
+const WRITE_RETRY_DELAY_MS = 200;
+
+async function retryWrite(fn, label) {
+  for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
+    try {
+      await fn();
+      return;
+    } catch (err) {
+      if (attempt === MAX_WRITE_RETRIES) {
+        console.error(`[meta-yjs] ${label} failed after ${MAX_WRITE_RETRIES} attempts:`, err);
+        throw err;
+      }
+      console.warn(`[meta-yjs] ${label} attempt ${attempt} failed, retrying...`, err);
+      await new Promise((r) => setTimeout(r, WRITE_RETRY_DELAY_MS));
+    }
+  }
+}
+
 async function persistWorkspace(update) {
   if (!update || update.byteLength === 0) return;
   try {
-    await appendUpdate(META_DOC_ID, update, getDeviceId());
+    await retryWrite(
+      () => appendUpdate(META_DOC_ID, update, getDeviceId()),
+      `SQLite appendUpdate for meta`
+    );
   } catch {
-    // SQLite write is best-effort
+    // Update lost despite retries — console.error in retryWrite documents it
   }
   try {
     if (getSettingSync('autoSync')) {
@@ -74,11 +97,11 @@ async function persistWorkspace(update) {
           snapshotWritten = true;
         }
 
-        await writeYjsUpdate(commitsDir, META_DOC_ID, update, encryptJSON);
+        queueSyncWrite(commitsDir, META_DOC_ID, update);
       }
     }
   } catch {
-    // sync folder write is best-effort
+    // Sync folder write failure is non-fatal — the update is already in SQLite
   }
 }
 
@@ -155,6 +178,22 @@ export function removeFolder(id) {
 }
 
 // ── Tombstone map helpers ───────────────────────────────────────────────────
+
+/**
+ * Merge a partial set of entries into a Yjs Map, only touching keys that
+ * changed.  Unlike syncTombstoneMap below, this does NOT delete keys that
+ * are absent from the incoming object.  Used by the asset-sync loop so
+ * that remote deletions added after the local snapshot are preserved.
+ */
+export function mergeIntoMap(mapName, entries) {
+  if (!entries || typeof entries !== 'object') return;
+  const map = getWorkspaceDoc().getMap(mapName);
+  transactWorkspace(() => {
+    for (const [key, value] of Object.entries(entries)) {
+      map.set(key, value);
+    }
+  });
+}
 
 /**
  * Diff a Yjs Map against a desired plain-object state, applying only the

@@ -43,7 +43,7 @@ import {
   writeStoresFromWorkspace,
   backfillNotePreviews,
 } from './useWorkspaceYjs';
-import { forceSyncNow } from '@/utils/sync';
+import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -482,7 +482,9 @@ export function useAppShell() {
     // Trigger an initial sync so a new client pulling from an existing sync
     // folder gets all remote data (workspace meta + note content + assets).
     if (getSettingSync('autoSync')) {
-      forceSyncNow().catch(() => {});
+      forceSyncNow().catch((err) => console.warn('[sync] initial sync failed:', err));
+      setPeriodicSyncEnabled(true);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
     }
   };
 
@@ -574,9 +576,19 @@ export function useAppShell() {
     });
   });
 
+  function handleVisibilityChange() {
+    // Pause the periodic pull while the app is backgrounded; resume when it
+    // returns to the foreground (only if autoSync is still enabled).
+    setPeriodicSyncEnabled(
+      !document.hidden && Boolean(getSettingSync('autoSync'))
+    );
+  }
+
   onUnmounted(() => {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    setPeriodicSyncEnabled(false);
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())

@@ -19,29 +19,49 @@ const deviceId = getSyncDeviceId();
  * so the original noteId can be recovered when reading files back.
  */
 function sanitizeForFilename(str) {
-  return str
-    .replace(/\//g, '__SLASH__')
-    .replace(/\\/g, '__BSLASH__')
-    .replace(/:/g, '__COLON__')
-    .replace(/\*/g, '__STAR__')
-    .replace(/\?/g, '__QMARK__')
-    .replace(/"/g, '__QUOTE__')
-    .replace(/</g, '__LT__')
-    .replace(/>/g, '__GT__')
-    .replace(/\|/g, '__PIPE__');
+  let s = str;
+  const SANITIZE_MAP = [
+    ['\x00', '__NULL__'],
+    ['\n', '__NEWLINE__'],
+    ['\r', '__CR__'],
+    ['\t', '__TAB__'],
+    ['/', '__SLASH__'],
+    ['\\', '__BSLASH__'],
+    [':', '__COLON__'],
+    ['*', '__STAR__'],
+    ['?', '__QMARK__'],
+    ['"', '__QUOTE__'],
+    ['<', '__LT__'],
+    ['>', '__GT__'],
+    ['|', '__PIPE__'],
+  ];
+  for (const [ch, replacement] of SANITIZE_MAP) {
+    s = s.replaceAll(ch, replacement);
+  }
+  return s;
 }
 
 function unsanitizeFromFilename(str) {
-  return str
-    .replace(/__SLASH__/g, '/')
-    .replace(/__BSLASH__/g, '\\')
-    .replace(/__COLON__/g, ':')
-    .replace(/__STAR__/g, '*')
-    .replace(/__QMARK__/g, '?')
-    .replace(/__QUOTE__/g, '"')
-    .replace(/__LT__/g, '<')
-    .replace(/__GT__/g, '>')
-    .replace(/__PIPE__/g, '|');
+  let s = str;
+  const UNSANITIZE_MAP = [
+    ['__NULL__', '\x00'],
+    ['__NEWLINE__', '\n'],
+    ['__CR__', '\r'],
+    ['__TAB__', '\t'],
+    ['__SLASH__', '/'],
+    ['__BSLASH__', '\\'],
+    ['__COLON__', ':'],
+    ['__STAR__', '*'],
+    ['__QMARK__', '?'],
+    ['__QUOTE__', '"'],
+    ['__LT__', '<'],
+    ['__GT__', '>'],
+    ['__PIPE__', '|'],
+  ];
+  for (const [pattern, result] of UNSANITIZE_MAP) {
+    s = s.replaceAll(pattern, result);
+  }
+  return s;
 }
 
 // `~~` is a delimiter that cannot appear in any component: it is filesystem-legal
@@ -50,8 +70,9 @@ function unsanitizeFromFilename(str) {
 // containing dashes, which broke the old dash-delimited parser).
 const FILENAME_SEP = '~~';
 
-function yjsFileName(noteId, ts) {
-  return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${YJS_UPDATE_EXT}`;
+function yjsFileName(noteId, ts, seq) {
+  const seqPart = seq != null ? `${FILENAME_SEP}${seq}` : '';
+  return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${seqPart}${YJS_UPDATE_EXT}`;
 }
 
 function yjsSnapshotFileName(docId, ts) {
@@ -59,11 +80,12 @@ function yjsSnapshotFileName(docId, ts) {
 }
 
 /**
- * Parse a sync filename back into { docId, isSnapshot, device, ts }.
+ * Parse a sync filename back into { docId, isSnapshot, device, ts, seq }.
  *
  * Filename formats (segments separated by FILENAME_SEP = "~~"):
- *   update:   {noteId}~~{deviceId}~~{ts}.yjs.json
- *   snapshot: {docId}~~snapshot~~{deviceId}~~{ts}.yjs.json
+ *   update:        {noteId}~~{deviceId}~~{ts}.yjs.json
+ *   update+seq:    {noteId}~~{deviceId}~~{ts}~~{seq}.yjs.json
+ *   snapshot:      {docId}~~snapshot~~{deviceId}~~{ts}.yjs.json
  *
  * Because noteId / docId / deviceId may themselves contain dashes, we use an
  * unambiguous delimiter and split positionally from the right.
@@ -77,12 +99,29 @@ function parseSyncFilename(file) {
   const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
 
-  // 1. Timestamp is the final segment
-  const ts = Number(parts[parts.length - 1]);
-  if (!Number.isFinite(ts)) return null;
+  // 1. Timestamp is the final numeric segment.  If the segment before it is also
+  //    numeric (0-999), treat that as an optional sequence disambiguator.  The
+  //    two-numeric pattern uniquely identifies a seq (snapshot files never carry
+  //    a seq and device IDs are UUIDs, not 0-999 numbers).
+  const last = parts[parts.length - 1];
+  const secondLast = parts.length >= 2 ? parts[parts.length - 2] : null;
+  const tsCandidate = Number(last);
+  if (!Number.isFinite(tsCandidate)) return null;
+
+  let seq;
+  let ts = tsCandidate;
   parts.pop();
 
-  // 2. Device id is the segment right before the timestamp
+  if (secondLast != null) {
+    const seqCandidate = Number(secondLast);
+    if (Number.isInteger(seqCandidate) && seqCandidate >= 0 && seqCandidate <= 999) {
+      seq = seqCandidate;
+      parts.pop();
+    }
+  }
+
+  // 2. Device id is the segment right before the timestamp (or seq)
+  if (parts.length === 0) return null;
   const device = parts[parts.length - 1];
   parts.pop();
 
@@ -97,22 +136,32 @@ function parseSyncFilename(file) {
   const docId = unsanitizeFromFilename(parts.join(FILENAME_SEP));
   if (!docId) return null;
 
-  return { docId, isSnapshot, device, ts };
+  return { docId, isSnapshot, device, ts, seq };
 }
 
 /**
  * Write a single Yjs update to the shared commits/ directory.
+ * Uses a monotonic counter to avoid filename collisions when multiple
+ * flushes land in the same millisecond.
  */
+let _writeSeq = 0;
+function _nextWriteSeq() {
+  _writeSeq = (_writeSeq + 1) % 1000;
+  return _writeSeq;
+}
+
 export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON) {
   const ts = Date.now();
+  const seq = _nextWriteSeq();
   const payload = {
     device: deviceId,
     ts,
+    seq,
     noteId,
     update: Array.from(update),
   };
   const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
-  const fileName = yjsFileName(noteId, ts);
+  const fileName = yjsFileName(noteId, ts, seq);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
@@ -157,8 +206,11 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
     if (parsed.device === deviceId) continue;
 
     const cursorKey = `yjs-${parsed.device}`;
-    const seenUpTo = cursors[cursorKey] ?? 0;
-    if (parsed.ts <= seenUpTo) continue;
+    const seen = cursors[cursorKey];
+    const seenTs = seen?.ts ?? 0;
+    const seenSeq = seen?.seq ?? 0;
+    if (parsed.ts < seenTs) continue;
+    if (parsed.ts === seenTs && (parsed.seq ?? 0) <= seenSeq) continue;
 
     let payload;
     try {
@@ -178,12 +230,15 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
     updates.push({
       device: payload.device,
       ts: payload.ts,
+      seq: parsed.seq ?? payload.seq ?? 0,
       noteId: payload.noteId,
       update: new Uint8Array(payload.update),
     });
   }
 
-  return updates.sort((a, b) => a.ts - b.ts);
+  // Sort by (ts, seq) so that cursor advance is monotonic per device:
+  // a file with the same ts but higher seq is always processed later.
+  return updates.sort((a, b) => a.ts - b.ts || a.seq - b.seq);
 }
 
 // ─── Workspace compaction ───────────────────────────────────────────────────

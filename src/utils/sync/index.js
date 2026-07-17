@@ -29,9 +29,15 @@ import {
   toUint8Array,
   applyUpdatesToDoc,
 } from '@/utils/yjs-helpers.js';
-import { readDir as readSyncDir } from '@/lib/native/fs';
+import {
+  readDir as readSyncDir,
+  writeFile as writeSyncFile,
+} from '@/lib/native/fs';
 
 const storage = useStorage();
+
+import { flushPendingSyncWrites } from './pending-writes.js';
+export { queueSyncWrite } from './pending-writes.js';
 
 // ─── Sync-queue mutex ────────────────────────────────────────────────────────
 //
@@ -100,6 +106,48 @@ export function forceSyncNow() {
   return enqueueSync(true);
 }
 
+// ─── Periodic pull ──────────────────────────────────────────────────────────
+//
+// Sync was previously pull-only-on-demand: forceSyncNow() ran only at app
+// launch, on manual button click, or when toggling autoSync. Two devices open
+// at once therefore wouldn't converge until someone clicked "sync" or
+// restarted. While the app is foregrounded we now run a debounced periodic
+// pull so peers converge automatically. The timer is paused when the tab is
+// hidden (background) and when autoSync is off, and only one timer can be live.
+
+let periodicTimer = null;
+let periodicEnabled = false;
+
+const SYNC_INTERVAL_MS = 10000;
+
+function _schedulePeriodicSync() {
+  if (!periodicEnabled || periodicTimer !== null) return;
+  periodicTimer = setInterval(() => {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    forceSyncNow().catch(() => {});
+  }, SYNC_INTERVAL_MS);
+}
+
+function _stopPeriodicSync() {
+  if (periodicTimer !== null) {
+    clearInterval(periodicTimer);
+    periodicTimer = null;
+  }
+}
+
+/**
+ * Enable or disable the foreground periodic sync loop.  Safe to call whenever
+ * the autoSync setting changes or the app shell mounts/unmounts.
+ */
+export function setPeriodicSyncEnabled(enabled) {
+  periodicEnabled = Boolean(enabled);
+  if (periodicEnabled) {
+    _schedulePeriodicSync();
+  } else {
+    _stopPeriodicSync();
+  }
+}
+
 export async function trackDeletedAssets(assetType, noteId, fileNames) {
   if (!fileNames?.length) return;
   const deletedAssets = yMapToObj(getWorkspaceDoc().getMap('deletedAssets'));
@@ -164,8 +212,10 @@ async function writeInitialSnapshots(commitsDir) {
   );
 }
 
-async function _sync(force = false) {
-  if (state.syncing && !force) return;
+async function _sync(_force = false) {
+  // Note: state.syncing is managed by _runSync — do NOT touch it here.
+  // The `force` parameter is passed through from enqueueSync(true) but
+  // _sync itself always runs; the mutex protection happens in the caller.
 
   const syncPath = await getSyncPath();
   if (!syncPath) return;
@@ -184,8 +234,6 @@ async function _sync(force = false) {
   } catch (e) {
     console.warn('[sync] key-params reconcile failed:', e);
   }
-
-  state.syncing = true;
 
   try {
     const syncDir = path.join(syncPath, SYNC_ROOT_DIR);
@@ -207,19 +255,41 @@ async function _sync(force = false) {
     );
 
     // ── Seed commits dir on first sync ───────────────────────────────────
-    // When the commits directory has no Yjs files yet this is the first
-    // device seeding the sync group.  Write full snapshots of the workspace
-    // doc and every note so downstream devices can pull everything in one
-    // pass instead of waiting for incremental mutations.
+    // Use an atomic marker file (`._seeded`) to pick a single device that
+    // writes the initial snapshots.  Without this marker concurrent devices
+    // see an empty directory and both seed, or one sees partial writes from
+    // the other and skips — either way data may be missed.
     try {
-      const files = await readSyncDir(commitsDir).catch(() => []);
-      const hasYjsFiles = files.some((f) => f.endsWith(YJS_UPDATE_EXT));
-      if (!hasYjsFiles) {
-        await writeInitialSnapshots(commitsDir);
+      const markerPath = path.join(commitsDir, '._seeded');
+      const markerExists = await readSyncDir(commitsDir).then(
+        (files) => files.some((f) => f === '._seeded'),
+        () => false
+      );
+      if (!markerExists) {
+        // Attempt to write the marker before seeding.  If the write fails
+        // (e.g. another device wrote it first on a network FS) we skip.
+        const wroteMarker = await writeSyncFile(markerPath, '').then(
+          () => true,
+          () => false
+        );
+        if (wroteMarker) {
+          const hasYjsFiles = await readSyncDir(commitsDir).then(
+            (files) => files.some((f) => f.endsWith(YJS_UPDATE_EXT)),
+            () => false
+          );
+          if (!hasYjsFiles) {
+            await writeInitialSnapshots(commitsDir);
+          }
+        }
       }
     } catch {
       // seeding is best-effort
     }
+
+    // ── Flush any pending local sync writes before pulling remote ─────────
+    // This ensures our latest edits are visible to peers before we check
+    // what they have sent us, reducing round-trip latency.
+    await flushPendingSyncWrites();
 
     // ── Yjs sync (per-note content + workspace metadata) ─────────────────
     const remoteYjsUpdates = await listRemoteYjsUpdates(
@@ -227,13 +297,22 @@ async function _sync(force = false) {
       cursors,
       decryptJSON
     ).catch(() => []);
+    let cursorsChanged = false;
     for (const upd of remoteYjsUpdates) {
       applyRemote(upd.noteId, upd.update);
       await appendUpdate(upd.noteId, upd.update, upd.device);
       const cursorKey = `yjs-${upd.device}`;
-      cursors[cursorKey] = Math.max(cursors[cursorKey] ?? 0, upd.ts);
+      const prev = cursors[cursorKey];
+      const prevTs = prev?.ts ?? 0;
+      const prevSeq = prev?.seq ?? 0;
+      if (upd.ts > prevTs || (upd.ts === prevTs && (upd.seq ?? 0) > prevSeq)) {
+        cursors[cursorKey] = { ts: upd.ts, seq: upd.seq ?? 0 };
+        cursorsChanged = true;
+      }
     }
-    if (remoteYjsUpdates.length > 0) {
+    // Persist after every update so a crash mid-loop loses at most one update
+    // (which Yjs will re-apply idempotently next cycle).
+    if (cursorsChanged) {
       await _saveCursors(cursors);
     }
 
@@ -248,8 +327,6 @@ async function _sync(force = false) {
     try {
       emit('sync:error', { message: err?.message || 'Sync failed' });
     } catch {}
-  } finally {
-    state.syncing = false;
   }
 }
 
