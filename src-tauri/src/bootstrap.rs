@@ -31,7 +31,7 @@ pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: S
         .emit_to(MAIN_WINDOW_LABEL, "file-opened", path.clone())
         .is_err()
     {
-        if let Ok(mut pending) = state.pending_open_files.lock() {
+        if let Ok(mut pending) = state.files.pending_open_files.lock() {
             pending.push(path);
         }
     }
@@ -213,7 +213,7 @@ fn import_json_file_into_pool(
     let Some(map) = json.as_object() else {
         return Ok(false);
     };
-    let encrypt = state.crypto.read()?.active;
+    let encrypt = state.crypto.session.read()?.active;
     for (key, value) in map {
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Some(items) = value.as_object() {
@@ -294,7 +294,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), App
         };
 
         let has_existing = state
-            .secure_blobs
+            .cache.secure_blobs
             .fetch_blob(state.inner(), key)
             .ok()
             .flatten()
@@ -312,7 +312,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), App
         }
 
         let _ = state
-            .secure_blobs
+            .cache.secure_blobs
             .store_blob(state.inner(), key, blob.as_bytes().to_vec());
         let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(|e| AppError::Other(e.to_string())));
     }
@@ -500,12 +500,12 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
             let (asset_cache_dir, transient_passphrase) = {
                 let state = app.state::<AppState>();
                 let transient_passphrase = state
-                    .transient_passphrase
+                    .security.transient_passphrase
                     .lock()
                     .ok()
                     .map(|value| value.clone())
                     .filter(|value| !value.is_empty());
-                (state.asset_cache_dir.clone(), transient_passphrase)
+                (state.files.asset_cache_dir.clone(), transient_passphrase)
             };
             std::thread::spawn(move || {
                 let response = match cached_or_decrypted_asset(
@@ -545,12 +545,12 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
             let (asset_cache_dir, transient_passphrase) = {
                 let state = app.state::<AppState>();
                 let transient_passphrase = state
-                    .transient_passphrase
+                    .security.transient_passphrase
                     .lock()
                     .ok()
                     .map(|value| value.clone())
                     .filter(|value| !value.is_empty());
-                (state.asset_cache_dir.clone(), transient_passphrase)
+                (state.files.asset_cache_dir.clone(), transient_passphrase)
             };
             std::thread::spawn(move || {
                 let response = match cached_or_decrypted_asset(
@@ -680,7 +680,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
         &crate::shared::app_storage_dir(app.handle(), state.inner())?,
     );
     grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
-    fs::create_dir_all(&state.asset_cache_dir)?;
+    fs::create_dir_all(&state.files.asset_cache_dir)?;
 
     *state.updater.lock().map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
         auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle())
@@ -743,7 +743,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
     if let Ok(manifest_path) = app_encryption_manifest_path(app.handle(), state.inner()) {
-        let mut s = state.inner().crypto.write()?;
+        let mut s = state.inner().crypto.session.write()?;
         s.active = manifest_path.exists();
     }
     Ok(())

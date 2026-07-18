@@ -371,7 +371,7 @@ pub(crate) fn adopt_key_params(
     key.copy_from_slice(&items_key[..32]);
 
     {
-        let mut s = state.crypto.write().map_err(AppError::from)?;
+        let mut s = state.crypto.session.write().map_err(AppError::from)?;
         s.app_data_key = Some(key);
         s.current_items_key_id = params.wrapped_items_key.nonce[..8].to_string();
     }
@@ -480,7 +480,7 @@ pub(crate) fn unlock_key_from_manifest(
 }
 
 pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
-    Ok(state.crypto.read().map_err(AppError::from)?.app_data_key)
+    Ok(state.crypto.session.read().map_err(AppError::from)?.app_data_key)
 }
 
 /// Generate a random hex key ID (16 hex chars = 8 bytes).
@@ -492,7 +492,7 @@ pub(crate) fn generate_key_id() -> String {
 
 /// Look up an encryption key by its ID. Returns `None` when the key is locked.
 pub(crate) fn key_for_id(state: &AppState, kid: &str) -> Result<Option<[u8; 32]>, AppError> {
-    let s = state.crypto.read().map_err(AppError::from)?;
+    let s = state.crypto.session.read().map_err(AppError::from)?;
     if kid.is_empty() || kid == s.current_items_key_id {
         // Fast path: current key, or legacy note without a kid.
         return Ok(s.app_data_key);
@@ -508,7 +508,7 @@ pub(crate) fn populate_key_ring(
     manifest: &EncryptionManifest,
     kek: &[u8; 32],
 ) -> Result<(), AppError> {
-    let mut s = state.crypto.write().map_err(AppError::from)?;
+    let mut s = state.crypto.session.write().map_err(AppError::from)?;
     for prev in &manifest.previous_keys {
         let envelope = WrappedKeyEnvelope {
             nonce: prev.nonce.clone(),
@@ -535,7 +535,7 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
     // 1. KEK + current key must be present (app must be unlocked). Copy them out
     //    so we can release the lock before doing disk I/O / crypto.
     let (kek, current_key_id, current_key) = {
-        let s = state.crypto.read().map_err(AppError::from)?;
+        let s = state.crypto.session.read().map_err(AppError::from)?;
         let kek = s
             .master_key_cache
             .ok_or_else(|| {
@@ -569,7 +569,7 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
     // 4. Keep the old key in the in-memory ring so it can be looked up during
     //    this session without needing to unwrap it from the manifest.
     state
-        .crypto
+        .crypto.session
         .write()
         .map_err(AppError::from)?
         .items_keys
@@ -588,7 +588,7 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
 
     // 8. Update in-memory state.
     {
-        let mut s = state.crypto.write().map_err(AppError::from)?;
+        let mut s = state.crypto.session.write().map_err(AppError::from)?;
         s.app_data_key = Some(new_key);
         s.current_items_key_id = new_key_id;
     }
@@ -627,7 +627,7 @@ pub(crate) fn encrypt_note_content_for_storage(
         )
     })?;
     let key_id = state
-        .crypto
+        .crypto.session
         .read()
         .map_err(AppError::from)?
         .current_items_key_id
@@ -707,7 +707,7 @@ pub(crate) fn encrypt_note_row_for_storage(
     if !note_row_needs_encryption(key, &value) {
         return Ok(value);
     }
-    if !state.crypto.read().map_err(AppError::from)?.active {
+    if !state.crypto.session.read().map_err(AppError::from)?.active {
         return Ok(value);
     }
     let mut note = match value {

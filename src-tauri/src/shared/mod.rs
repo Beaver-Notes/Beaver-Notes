@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex, RwLock},
@@ -30,6 +30,9 @@ pub(crate) use crypto::*;
 
 mod error;
 pub(crate) use error::*;
+
+mod state;
+pub(crate) use state::*;
 
 pub(crate) const MAIN_WINDOW_LABEL: &str = "main";
 pub(crate) const SETTINGS_STORE: &str = "settings.json";
@@ -235,26 +238,12 @@ pub(crate) struct CryptoSession {
 
 pub(crate) struct AppState {
     pub(crate) db: DbState,
-    pub(crate) zoom_level: Mutex<f64>,
-    pub(crate) reduced_motion: Mutex<bool>,
-    pub(crate) high_contrast: Mutex<bool>,
-    pub(crate) failure_count: Mutex<u32>,
-    /// When set, app-encryption unlock is rate-limited until this instant.
-    pub(crate) lockout_until: Mutex<Option<SystemTime>>,
-    pub(crate) granted_paths: Arc<Mutex<HashSet<PathBuf>>>,
-    pub(crate) transient_passphrase: Mutex<String>,
-    pub(crate) asset_key_cache: Mutex<Option<[u8; 32]>>,
-    /// All app-encryption session state, behind one lock (see `CryptoSession`).
-    pub(crate) crypto: RwLock<CryptoSession>,
-    pub(crate) decrypted_notes_cache: Mutex<ByteLruCache>,
-    pub(crate) decrypted_assets_cache: Mutex<ByteLruCache>,
+    pub(crate) ui: UiState,
+    pub(crate) security: SecurityState,
+    pub(crate) crypto: CryptoState,
+    pub(crate) cache: CacheState,
+    pub(crate) files: FileState,
     pub(crate) updater: Arc<Mutex<UpdaterState>>,
-    pub(crate) pending_open_files: Arc<Mutex<Vec<String>>>,
-    pub(crate) external_open_files: Arc<Mutex<HashMap<PathBuf, PathBuf>>>,
-    pub(crate) asset_cache_dir: PathBuf,
-    pub(crate) external_open_dir: PathBuf,
-    pub(crate) portable_storage_dir: Option<PathBuf>,
-    pub(crate) secure_blobs: SecureBlobCache,
 }
 
 impl AppState {
@@ -265,27 +254,15 @@ impl AppState {
     ) -> Self {
         Self {
             db: DbState::new(),
-            zoom_level: Mutex::new(1.0),
-            reduced_motion: Mutex::new(false),
-            high_contrast: Mutex::new(false),
-            failure_count: Mutex::new(0),
-            lockout_until: Mutex::new(None),
-            granted_paths: Arc::new(Mutex::new(HashSet::new())),
-            transient_passphrase: Mutex::new(String::new()),
-            asset_key_cache: Mutex::new(None),
-            crypto: RwLock::new(CryptoSession::default()),
-            decrypted_notes_cache: Mutex::new(ByteLruCache::new(NOTE_CACHE_BYTES)),
-            decrypted_assets_cache: Mutex::new(ByteLruCache::new(ASSET_CACHE_BYTES)),
+            ui: UiState::new(),
+            security: SecurityState::new(),
+            crypto: CryptoState::new(),
+            cache: CacheState::new(),
+            files: FileState::new(cache_dir, external_open_dir, portable_storage_dir),
             updater: Arc::new(Mutex::new(UpdaterState {
                 auto_update_enabled: true,
                 ..Default::default()
             })),
-            pending_open_files: Arc::new(Mutex::new(Vec::new())),
-            external_open_files: Arc::new(Mutex::new(HashMap::new())),
-            asset_cache_dir: cache_dir,
-            external_open_dir,
-            portable_storage_dir,
-            secure_blobs: SecureBlobCache::new(),
         }
     }
 }
@@ -841,7 +818,7 @@ pub(crate) fn keyring_entry(account: &str) -> Result<Entry, AppError> {
 }
 
 pub(crate) fn grant_trusted_path(state: &AppState, path: &Path) {
-    if let Ok(mut granted) = state.granted_paths.lock() {
+    if let Ok(mut granted) = state.security.granted_paths.lock() {
         granted.insert(path.to_path_buf());
     }
 }
@@ -883,7 +860,7 @@ pub(crate) fn assert_path_access(
             }
         }
     }
-    if let Ok(granted) = state.granted_paths.lock() {
+    if let Ok(granted) = state.security.granted_paths.lock() {
         allowed_roots.extend(granted.iter().cloned());
     }
 
@@ -972,11 +949,11 @@ fn prune_asset_cache_dir(asset_cache_dir: &Path) {
 }
 
 pub(crate) fn clear_asset_cache(state: &AppState) {
-    let _ = fs::remove_dir_all(&state.asset_cache_dir);
+    let _ = fs::remove_dir_all(&state.files.asset_cache_dir);
 }
 
 pub(crate) fn clear_external_open_dir(state: &AppState) {
-    let _ = fs::remove_dir_all(&state.external_open_dir);
+    let _ = fs::remove_dir_all(&state.files.external_open_dir);
 }
 
 pub(crate) fn decrypted_cache_path(

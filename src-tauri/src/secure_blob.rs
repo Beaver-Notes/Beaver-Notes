@@ -106,7 +106,7 @@ impl SecureBlobCache {
     }
 
     fn storage_dir(state: &AppState) -> Result<PathBuf, AppError> {
-        if let Some(ref dir) = state.portable_storage_dir {
+        if let Some(ref dir) = state.files.portable_storage_dir {
             return Ok(dir.clone());
         }
         Ok(dirs::data_local_dir()

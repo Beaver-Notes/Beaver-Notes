@@ -170,13 +170,13 @@ pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Re
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window.set_zoom(level).map_err(|e| AppError::Other(e.to_string()))?;
     }
-    *state.zoom_level.lock()? = level;
+    *state.ui.zoom_level.lock()? = level;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, AppError> {
-    Ok(*state.zoom_level.lock()?)
+    Ok(*state.ui.zoom_level.lock()?)
 }
 
 #[tauri::command]
@@ -190,13 +190,13 @@ pub(crate) fn set_reduced_motion(
             .emit("reduced-motion-changed", json!({ "enabled": enabled }))
             .map_err(|e| AppError::Other(e.to_string()))?;
     }
-    *state.reduced_motion.lock()? = enabled;
+    *state.ui.reduced_motion.lock()? = enabled;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn get_reduced_motion(state: State<AppState>) -> Result<bool, AppError> {
-    Ok(*state.reduced_motion.lock()?)
+    Ok(*state.ui.reduced_motion.lock()?)
 }
 
 #[tauri::command]
@@ -210,13 +210,13 @@ pub(crate) fn set_high_contrast(
             .emit("high-contrast-changed", json!({ "enabled": enabled }))
             .map_err(|e| AppError::Other(e.to_string()))?;
     }
-    *state.high_contrast.lock()? = enabled;
+    *state.ui.high_contrast.lock()? = enabled;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn get_high_contrast(state: State<AppState>) -> Result<bool, AppError> {
-    Ok(*state.high_contrast.lock()?)
+    Ok(*state.ui.high_contrast.lock()?)
 }
 
 #[tauri::command]
@@ -249,7 +249,7 @@ pub(crate) fn app_ready(app: AppHandle, state: State<AppState>) -> Result<(), Ap
             .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
-    let queued = state.pending_open_files.lock()?.clone();
+    let queued = state.files.pending_open_files.lock()?.clone();
     for file_path in queued {
         app.emit_to(MAIN_WINDOW_LABEL, "file-opened", file_path)
             .map_err(|e| AppError::Other(e.to_string()))?;

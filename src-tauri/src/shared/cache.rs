@@ -50,13 +50,13 @@ impl ByteLruCache {
 }
 
 pub(crate) fn cache_decrypted_note(state: &AppState, note_id: &str, content: &[u8]) {
-    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_notes_cache.lock() {
         cache.put(note_id.to_string(), content.to_vec());
     }
 }
 
 pub(crate) fn get_cached_decrypted_note(state: &AppState, note_id: &str) -> Option<Vec<u8>> {
-    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_notes_cache.lock() {
         cache.get(note_id).cloned()
     } else {
         None
@@ -64,13 +64,13 @@ pub(crate) fn get_cached_decrypted_note(state: &AppState, note_id: &str) -> Opti
 }
 
 pub(crate) fn cache_decrypted_asset(state: &AppState, asset_path: &str, content: &[u8]) {
-    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_assets_cache.lock() {
         cache.put(asset_path.to_string(), content.to_vec());
     }
 }
 
 pub(crate) fn get_cached_decrypted_asset(state: &AppState, asset_path: &str) -> Option<Vec<u8>> {
-    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_assets_cache.lock() {
         cache.get(asset_path).cloned()
     } else {
         None
@@ -78,10 +78,10 @@ pub(crate) fn get_cached_decrypted_asset(state: &AppState, asset_path: &str) -> 
 }
 
 pub(crate) fn clear_decrypted_caches(state: &AppState) {
-    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_notes_cache.lock() {
         cache.clear();
     }
-    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_assets_cache.lock() {
         cache.clear();
     }
 }

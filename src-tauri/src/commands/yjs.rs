@@ -6,7 +6,7 @@ use crate::shared::*;
 /// Returns `None` when encryption is not configured or is locked (blobs stored
 /// in plaintext in that case).
 fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
-  let session = state.crypto.read()?;
+  let session = state.crypto.session.read()?;
   if !session.active {
     return Ok(None);
   }

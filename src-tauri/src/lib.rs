@@ -233,7 +233,7 @@ pub fn run() {
     app.run(|app, event| match event {
         RunEvent::Exit => {
             let state = app.state::<AppState>();
-            if let Ok(open_files) = state.external_open_files.lock() {
+            if let Ok(open_files) = state.files.external_open_files.lock() {
                 for (original, temp) in open_files.iter() {
                     let _ = crate::commands::external::sync_external_temp_file(app, original, temp);
                 }

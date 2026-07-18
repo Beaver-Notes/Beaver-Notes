@@ -50,6 +50,7 @@ fn temp_file_signature(path: &Path) -> Option<(u128, u64)> {
 
 fn tracked_temp_file(app: &AppHandle, original_path: &Path) -> Option<PathBuf> {
     app.state::<AppState>()
+        .files
         .external_open_files
         .lock()
         .ok()
@@ -57,7 +58,7 @@ fn tracked_temp_file(app: &AppHandle, original_path: &Path) -> Option<PathBuf> {
 }
 
 fn track_temp_file(app: &AppHandle, original_path: &Path, temp_file: &Path) {
-    if let Ok(mut files) = app.state::<AppState>().external_open_files.lock() {
+    if let Ok(mut files) = app.state::<AppState>().files.external_open_files.lock() {
         files.insert(original_path.to_path_buf(), temp_file.to_path_buf());
     }
 }
@@ -126,7 +127,7 @@ pub(crate) fn open_file_external(
         }
     }
 
-    let temp_dir = state.external_open_dir.clone();
+    let temp_dir = state.files.external_open_dir.clone();
     fs::create_dir_all(&temp_dir)?;
     let ext = full_path
         .extension()

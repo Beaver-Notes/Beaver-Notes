@@ -215,7 +215,7 @@ pub(crate) fn encryption_submit_password(
         // Populate items-key ring and cache the KEK for future rotations.
         let kek = derive_kek_from_manifest(&manifest, &password)?;
         populate_key_ring(state.inner(), &manifest, &kek)?;
-        let mut s = state.crypto.write()?;
+        let mut s = state.crypto.session.write()?;
         s.app_data_key = Some(key);
         s.active = true;
     } else if create_if_missing {
@@ -225,7 +225,7 @@ pub(crate) fn encryption_submit_password(
         // Store the initial key ID and cache the KEK.
         let kek = derive_kek_from_manifest(&manifest, &password)?;
         populate_key_ring(state.inner(), &manifest, &kek)?;
-        let mut s = state.crypto.write()?;
+        let mut s = state.crypto.session.write()?;
         s.app_data_key = Some(key);
         s.active = true;
     } else {
@@ -237,9 +237,9 @@ pub(crate) fn encryption_submit_password(
     }
 
     {
-        let mut f = state.failure_count.lock()?;
+        let mut f = state.security.failure_count.lock()?;
         *f = 0;
-        *state.lockout_until.lock()? = None;
+        *state.security.lockout_until.lock()? = None;
     }
     Ok(EncryptionSubmitResult {
         ok: true,
@@ -261,7 +261,7 @@ pub(crate) fn encryption_enable(
     // Cache the KEK and populate the key ring so rotation works later.
     let kek = derive_kek_from_manifest(&manifest, &password)?;
     populate_key_ring(state.inner(), &manifest, &kek)?;
-    let mut s = state.crypto.write()?;
+    let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
     s.active = true;
     Ok(())
@@ -295,20 +295,20 @@ pub(crate) fn encryption_unlock(
     // Populate items-key ring and cache the KEK for future rotations.
     let kek = derive_kek_from_manifest(&manifest, &password)?;
     populate_key_ring(state.inner(), &manifest, &kek)?;
-    let mut s = state.crypto.write()?;
+    let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
     s.active = true;
     {
-        let mut f = state.failure_count.lock()?;
+        let mut f = state.security.failure_count.lock()?;
         *f = 0;
-        *state.lockout_until.lock()? = None;
+        *state.security.lockout_until.lock()? = None;
     }
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), AppError> {
-    let mut s = state.crypto.write()?;
+    let mut s = state.crypto.session.write()?;
     *s = CryptoSession::default();
     Ok(())
 }
@@ -322,6 +322,7 @@ pub(crate) fn encryption_encrypt_note_payload(
         .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
     let key_id = state
         .crypto
+        .session
         .read()?
         .current_items_key_id
         .clone();
@@ -418,6 +419,7 @@ pub(crate) fn sync_decrypt_payload(
 pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
     state
         .crypto
+        .session
         .read()
         .map(|s| s.active && s.app_data_key.is_some())
         .unwrap_or(false)
@@ -444,7 +446,7 @@ pub(crate) fn encryption_reconcile_key_params(
     state: State<AppState>,
     passphrase: Option<String>,
 ) -> Result<(), AppError> {
-    if !state.crypto.read()?.active {
+    if !state.crypto.session.read()?.active {
         return Ok(());
     }
     let params = read_key_params(&app, state.inner())?;
@@ -504,7 +506,7 @@ pub(crate) fn safe_storage_store_blob(
 ) -> Result<(), AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
-    s.secure_blobs.store_blob(s, &key, blob.as_bytes().to_vec())
+    s.cache.secure_blobs.store_blob(s, &key, blob.as_bytes().to_vec())
 }
 
 #[tauri::command]
@@ -514,7 +516,7 @@ pub(crate) fn safe_storage_fetch_blob(
 ) -> Result<Option<String>, AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
-    s.secure_blobs
+    s.cache.secure_blobs
         .fetch_blob(s, &key)?
         .map(|bytes| String::from_utf8(bytes).map_err(|e| AppError::Other(e.to_string())))
         .transpose()
@@ -524,7 +526,7 @@ pub(crate) fn safe_storage_fetch_blob(
 pub(crate) fn safe_storage_clear_blob(state: State<AppState>, key: String) -> Result<(), AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
-    s.secure_blobs.clear_blob(s, &key)
+    s.cache.secure_blobs.clear_blob(s, &key)
 }
 
 #[tauri::command]
@@ -532,15 +534,15 @@ pub(crate) fn asset_crypto_set_passphrase(
     state: State<AppState>,
     passphrase: String,
 ) -> Result<(), AppError> {
-    *state.transient_passphrase.lock()? = passphrase;
-    *state.asset_key_cache.lock()? = None;
+    *state.security.transient_passphrase.lock()? = passphrase;
+    *state.crypto.asset_key_cache.lock()? = None;
     Ok(())
 }
 
 #[tauri::command]
 pub(crate) fn asset_crypto_clear_passphrase(state: State<AppState>) -> Result<(), AppError> {
-    state.transient_passphrase.lock()?.clear();
-    *state.asset_key_cache.lock()? = None;
+    state.security.transient_passphrase.lock()?.clear();
+    *state.crypto.asset_key_cache.lock()? = None;
     Ok(())
 }
 
@@ -559,9 +561,9 @@ pub(crate) fn passwd_compare(password: String, hash: String) -> Result<bool, App
 
 #[tauri::command]
 pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureResult, AppError> {
-    let mut failures = state.failure_count.lock()?;
+    let mut failures = state.security.failure_count.lock()?;
     *failures += 1;
-    let mut lockout_guard = state.lockout_until.lock()?;
+    let mut lockout_guard = state.security.lockout_until.lock()?;
     let now = SystemTime::now();
     let already_locked = lockout_guard
         .map(|until| until > now)
@@ -593,15 +595,15 @@ pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureRes
 
 #[tauri::command]
 pub(crate) fn passwd_reset_failures(state: State<AppState>) -> Result<(), AppError> {
-    *state.failure_count.lock()? = 0;
-    *state.lockout_until.lock()? = None;
+    *state.security.failure_count.lock()? = 0;
+    *state.security.lockout_until.lock()? = None;
     Ok(())
 }
 
 /// Returns `Err` with a lockout message when unlock attempts are currently
 /// rate-limited, clearing an expired lockout so a fresh attempt can proceed.
 fn assert_not_locked(state: &AppState) -> Result<(), AppError> {
-    let mut lockout_guard = state.lockout_until.lock()?;
+    let mut lockout_guard = state.security.lockout_until.lock()?;
     match *lockout_guard {
         Some(until) if until > SystemTime::now() => {
             let secs = until
@@ -640,7 +642,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     if let Some(cached) = get_cached_decrypted_asset(&state_inner, &path) {
         let metadata = fs::metadata(&path_buf)?;
         let cache_path = crate::shared::decrypted_cache_path(
-            &state_inner.asset_cache_dir,
+            &state_inner.files.asset_cache_dir,
             &path_buf,
             &metadata,
         )?;
@@ -655,7 +657,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     if is_encrypted_asset_v2(&raw) || is_encrypted_asset_buffer(&raw) {
         let metadata = fs::metadata(&path_buf)?;
         let output_path = crate::shared::decrypted_cache_path(
-            &state_inner.asset_cache_dir,
+            &state_inner.files.asset_cache_dir,
             &path_buf,
             &metadata,
         )?;
