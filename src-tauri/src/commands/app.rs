@@ -36,7 +36,7 @@ pub(crate) fn migration_status(
 ) -> Result<LegacyMigrationStatus, AppError> {
     #[cfg(desktop)]
     {
-        get_legacy_migration_status(&app, state.inner()).map_err(AppError::Other)
+        get_legacy_migration_status(&app, state.inner())
     }
 
     #[cfg(not(desktop))]
@@ -53,7 +53,7 @@ pub(crate) fn migration_run(
 ) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        run_legacy_store_data_migration(&app, state.inner()).map_err(AppError::Other)
+        run_legacy_store_data_migration(&app, state.inner())
     }
 
     #[cfg(not(desktop))]
@@ -71,7 +71,7 @@ pub(crate) fn migration_probe_path(
 ) -> Result<LegacyMigrationStatus, AppError> {
     #[cfg(desktop)]
     {
-        get_legacy_migration_status_for_custom_path(&app, state.inner(), &path).map_err(AppError::Other)
+        get_legacy_migration_status_for_custom_path(&app, state.inner(), &path)
     }
 
     #[cfg(not(desktop))]
@@ -89,7 +89,7 @@ pub(crate) fn migration_run_with_path(
 ) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        run_legacy_store_data_migration_from_path(&app, state.inner(), &path).map_err(AppError::Other)
+        run_legacy_store_data_migration_from_path(&app, state.inner(), &path)
     }
 
     #[cfg(not(desktop))]

@@ -7,7 +7,7 @@ use serde_json::{Map, Value};
 use yrs::updates::decoder::Decode;
 use yrs::{ReadTxn, Transact};
 
-use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob};
+use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, AppError};
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
@@ -17,7 +17,7 @@ const SCHEMA_VERSION: i64 = 1;
 
 /// DDL for every schema version. Each entry runs all statements from version N
 /// to N+1. Add new migrations here and bump `SCHEMA_VERSION` above.
-fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), String> {
+fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
     // Version 0 → 1: baseline tables (runs for both fresh and existing DBs).
     if from < 1 {
         conn.execute_batch(
@@ -48,7 +48,7 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), String> {
             CREATE INDEX IF NOT EXISTS idx_kv_notes_prefix
               ON kv(key) WHERE key LIKE 'notes.%';",
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
     // Future migrations go here, e.g.:
@@ -60,31 +60,31 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) fn open_pool(path: &Path) -> Result<DbPool, String> {
-    std::fs::create_dir_all(path.parent().unwrap_or(path)).map_err(|e| e.to_string())?;
+pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
+    std::fs::create_dir_all(path.parent().unwrap_or(path))?;
     let manager = SqliteConnectionManager::file(path).with_flags(
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
     );
     let pool = Pool::builder()
         .max_size(4)
         .build(manager)
-        .map_err(|e| e.to_string())?;
-    let conn = pool.get().map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute_batch(
         "PRAGMA journal_mode=WAL;
         PRAGMA case_sensitive_like = OFF;
         PRAGMA synchronous=NORMAL;",
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
 
     // Run schema migration
     let current: i64 = conn
         .query_row("PRAGMA user_version", [], |row| row.get(0))
         .unwrap_or(0);
     if current < SCHEMA_VERSION {
-        migrate(&conn, current).map_err(|e| format!("migration v{current}→{SCHEMA_VERSION}: {e}"))?;
+        migrate(&conn, current).map_err(|e| AppError::Other(format!("migration v{current}→{SCHEMA_VERSION}: {e}")))?;
         conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
     Ok(pool)
@@ -92,56 +92,56 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, String> {
 
 // ─── Basic KV operations ─────────────────────────────────────────────────────
 
-pub(crate) fn db_get(pool: &DbPool, key: &str) -> Result<Option<String>, String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn db_get(pool: &DbPool, key: &str) -> Result<Option<String>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| {
         row.get(0)
     })
     .optional()
-    .map_err(|e| e.to_string())
+    .map_err(|e| AppError::Other(e.to_string()))
 }
 
-pub(crate) fn db_set(pool: &DbPool, key: &str, value: &str) -> Result<(), String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn db_set(pool: &DbPool, key: &str, value: &str) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "INSERT OR REPLACE INTO kv (key, value) VALUES (?1, ?2)",
         params![key, value],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
-pub(crate) fn db_has(pool: &DbPool, key: &str) -> Result<bool, String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn db_has(pool: &DbPool, key: &str) -> Result<bool, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let count: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM kv WHERE key = ?1",
             params![key],
             |row| row.get(0),
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(count > 0)
 }
 
-pub(crate) fn db_delete(pool: &DbPool, key: &str) -> Result<(), String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn db_delete(pool: &DbPool, key: &str) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute("DELETE FROM kv WHERE key = ?1", params![key])
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
-pub(crate) fn db_clear(pool: &DbPool) -> Result<(), String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute("DELETE FROM kv", [])
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
-pub(crate) fn db_all(pool: &DbPool) -> Result<Map<String, Value>, String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn db_all(pool: &DbPool) -> Result<Map<String, Value>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare("SELECT key, value FROM kv")
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let rows = stmt
         .query_map([], |row| {
             let key: String = row.get(0)?;
@@ -149,58 +149,58 @@ pub(crate) fn db_all(pool: &DbPool) -> Result<Map<String, Value>, String> {
             let value = serde_json::from_str(&raw).unwrap_or(Value::String(raw));
             Ok((key, value))
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     let mut map = Map::new();
     for row in rows {
-        let (key, value) = row.map_err(|e| e.to_string())?;
+        let (key, value) = row.map_err(|e| AppError::Other(e.to_string()))?;
         map.insert(key, value);
     }
     Ok(map)
 }
 
-pub(crate) fn db_replace_all(pool: &DbPool, data: Map<String, Value>) -> Result<(), String> {
-    let mut conn = pool.get().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+pub(crate) fn db_replace_all(pool: &DbPool, data: Map<String, Value>) -> Result<(), AppError> {
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute("DELETE FROM kv", [])
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     {
         let mut stmt = tx
             .prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?1, ?2)")
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
         for (key, value) in data {
-            let serialized = serde_json::to_string(&value).map_err(|e| e.to_string())?;
+            let serialized = serde_json::to_string(&value)?;
             stmt.execute(params![key, serialized])
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
 
-    tx.commit().map_err(|e| e.to_string())
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))
 }
 
 // ─── FTS5 helpers ─────────────────────────────────────────────────────────────
 
 /// Upsert a note into the FTS index. `body` should be a pre-extracted plain-text
 /// string (no JSON, no markup). Call this every time a note is saved.
-pub(crate) fn fts_upsert(pool: &DbPool, id: &str, title: &str, body: &str) -> Result<(), String> {
-    let mut conn = pool.get().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+pub(crate) fn fts_upsert(pool: &DbPool, id: &str, title: &str, body: &str) -> Result<(), AppError> {
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute("DELETE FROM notes_fts WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute(
         "INSERT INTO notes_fts (id, title, body) VALUES (?1, ?2, ?3)",
         params![id, title, body],
     )
-    .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))
 }
 
 /// Remove a note from the FTS index. Call this when a note is deleted.
-pub(crate) fn fts_delete(pool: &DbPool, id: &str) -> Result<(), String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn fts_delete(pool: &DbPool, id: &str) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute("DELETE FROM notes_fts WHERE id = ?1", params![id])
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
@@ -208,7 +208,7 @@ pub(crate) fn fts_delete(pool: &DbPool, id: &str) -> Result<(), String> {
 /// query. Uses FTS5's MATCH operator with a prefix search on the last token so
 /// partial words (e.g. "rustac" matching "rustacean") work while the user types.
 /// Returns at most `limit` results (default 200).
-pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec<String>, String> {
+pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec<String>, AppError> {
     if query.trim().is_empty() {
         return Ok(vec![]);
     }
@@ -236,19 +236,19 @@ pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec
         q
     };
 
-    let conn = pool.get().map_err(|e| e.to_string())?;
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare(
             "SELECT id FROM notes_fts WHERE notes_fts MATCH ?1
              ORDER BY rank LIMIT ?2",
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     let ids = stmt
         .query_map(params![fts_query, limit as i64], |row| row.get(0))
-        .map_err(|e| e.to_string())?
+        .map_err(|e| AppError::Other(e.to_string()))?
         .collect::<Result<Vec<String>, _>>()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     Ok(ids)
 }
@@ -256,7 +256,7 @@ pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec
 /// Rebuild the entire FTS index from the current KV store. Called once on first
 /// launch after the table is created, and available as a Tauri command for
 /// maintenance / after a bulk import.
-pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
+pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, AppError> {
     fn extract_text(value: &Value) -> String {
         let mut parts = Vec::new();
         fn visit(node: &Value, parts: &mut Vec<String>) {
@@ -273,10 +273,10 @@ pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
         parts.join(" ")
     }
 
-    let conn = pool.get().map_err(|e| e.to_string())?;
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt_sel = conn
         .prepare("SELECT key, value FROM kv WHERE key LIKE 'notes.%'")
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let note_rows: Vec<(String, Value)> = stmt_sel
         .query_map([], |row| {
             let key: String = row.get(0)?;
@@ -284,21 +284,21 @@ pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
             let value = serde_json::from_str(&raw).unwrap_or(Value::String(raw));
             Ok((key, value))
         })
-        .map_err(|e| e.to_string())?
+        .map_err(|e| AppError::Other(e.to_string()))?
         .filter_map(|r| r.ok())
         .collect();
     drop(stmt_sel);
 
     let mut count = 0;
-    let mut conn = pool.get().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute("DELETE FROM notes_fts", [])
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     {
         let mut stmt = tx
             .prepare("INSERT INTO notes_fts (id, title, body) VALUES (?1, ?2, ?3)")
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
 
         for (key, value) in &note_rows {
             let Some(id) = key.strip_prefix("notes.") else {
@@ -317,12 +317,12 @@ pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, String> {
             };
 
             stmt.execute(params![id, title, body])
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| AppError::Other(e.to_string()))?;
             count += 1;
         }
     }
 
-    tx.commit().map_err(|e| e.to_string())?;
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
     Ok(count)
 }
 
@@ -340,18 +340,18 @@ pub(crate) fn yjs_append(
     blob: &[u8],
     device: &str,
     key: Option<[u8; 32]>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     // Encrypt the blob for storage (no-op when key is None).
     let stored = match key {
-        Some(k) => encrypt_yjs_blob(&k, blob).map_err(|e| e.to_string())?,
+        Some(k) => encrypt_yjs_blob(&k, blob)?,
         None => blob.to_vec(),
     };
-    let conn = pool.get().map_err(|e| e.to_string())?;
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "INSERT INTO note_content (note_id, data, device, created_at) VALUES (?1, ?2, ?3, ?4)",
         rusqlite::params![note_id, stored, device, chrono::Utc::now().timestamp_millis()],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     // Invalidate the cached snapshot so yjs_get_snapshot rebuilds it lazily
     // from the full update log.  This avoids the O(document-size) fold that
     // previously ran on every keystroke.  The snapshot is refreshed eagerly
@@ -360,7 +360,7 @@ pub(crate) fn yjs_append(
         "DELETE FROM yjs_snapshots WHERE note_id = ?1",
         rusqlite::params![note_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
@@ -371,18 +371,18 @@ pub(crate) fn yjs_get_updates(
     pool: &DbPool,
     note_id: &str,
     key: Option<[u8; 32]>,
-) -> Result<Vec<(i64, Vec<u8>)>, String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+) -> Result<Vec<(i64, Vec<u8>)>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare("SELECT id, data FROM note_content WHERE note_id = ?1 ORDER BY id ASC")
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let rows = stmt
         .query_map(rusqlite::params![note_id], |row| {
             let id: i64 = row.get(0)?;
             let blob: Vec<u8> = row.get(1)?;
             Ok((id, blob))
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     rows.filter_map(|r| {
         let (id, blob) = match r {
             Ok(v) => v,
@@ -403,8 +403,7 @@ pub(crate) fn yjs_get_updates(
         };
         Some(Ok((id, decrypted)))
     })
-    .collect::<Result<Vec<(i64, Vec<u8>)>, String>>()
-    .map_err(|e| e.to_string())
+    .collect()
 }
 
 /// Return a single merged Yjs state snapshot for a note, computed with the
@@ -415,11 +414,11 @@ pub(crate) fn yjs_get_snapshot(
     pool: &DbPool,
     note_id: &str,
     key: Option<[u8; 32]>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, AppError> {
     if let Some(cached) = read_snapshot(pool, note_id)? {
         if !cached.is_empty() {
             return match key {
-                Some(k) => decrypt_yjs_blob(&k, &cached).map_err(|e| e.to_string()),
+                Some(k) => Ok(decrypt_yjs_blob(&k, &cached)?),
                 None => Ok(cached),
             };
         }
@@ -432,8 +431,8 @@ pub(crate) fn yjs_get_snapshot(
     {
         let mut txn = doc.transact_mut();
         for (_, blob) in rows {
-            let update = yrs::Update::decode_v1(&blob).map_err(|e| e.to_string())?;
-            txn.apply_update(update).map_err(|e| e.to_string())?;
+            let update = yrs::Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
+            txn.apply_update(update).map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
     let snapshot = doc
@@ -452,56 +451,56 @@ pub(crate) fn yjs_compact(
     note_id: &str,
     snapshot: &[u8],
     key: Option<[u8; 32]>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     // Encrypt the snapshot for storage.
     let stored = match key {
-        Some(k) => encrypt_yjs_blob(&k, snapshot).map_err(|e| e.to_string())?,
+        Some(k) => encrypt_yjs_blob(&k, snapshot)?,
         None => snapshot.to_vec(),
     };
-    let mut conn = pool.get().map_err(|e| e.to_string())?;
-    let tx = conn.transaction().map_err(|e| e.to_string())?;
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute(
         "DELETE FROM note_content WHERE note_id = ?1",
         rusqlite::params![note_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     tx.execute(
         "INSERT INTO note_content (note_id, data, device, created_at) VALUES (?1, ?2, '', ?3)",
         rusqlite::params![note_id, stored, chrono::Utc::now().timestamp_millis()],
     )
-    .map_err(|e| e.to_string())?;
-    tx.commit().map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
     write_snapshot(pool, note_id, snapshot, key)?;
     Ok(())
 }
 
 /// Delete all Yjs updates for a note. Called when the note itself is deleted.
-pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "DELETE FROM note_content WHERE note_id = ?1",
         rusqlite::params![note_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "DELETE FROM yjs_snapshots WHERE note_id = ?1",
         rusqlite::params![note_id],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
 // ─── Yjs snapshot cache helpers (yrs-backed) ───────────────────────────────────
 
-fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<Vec<u8>>, String> {
-    let conn = pool.get().map_err(|e| e.to_string())?;
+fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<Vec<u8>>, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare("SELECT data FROM yjs_snapshots WHERE note_id = ?1")
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let row = stmt
         .query_row(rusqlite::params![note_id], |r| r.get::<_, Vec<u8>>(0))
         .optional()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(row)
 }
 
@@ -510,18 +509,18 @@ fn write_snapshot(
     note_id: &str,
     data: &[u8],
     key: Option<[u8; 32]>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let stored = match key {
-        Some(k) => encrypt_yjs_blob(&k, data).map_err(|e| e.to_string())?,
+        Some(k) => encrypt_yjs_blob(&k, data)?,
         None => data.to_vec(),
     };
-    let conn = pool.get().map_err(|e| e.to_string())?;
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "INSERT INTO yjs_snapshots (note_id, data, updated_at) VALUES (?1, ?2, ?3)
          ON CONFLICT(note_id) DO UPDATE SET data = ?2, updated_at = ?3",
         rusqlite::params![note_id, stored, chrono::Utc::now().timestamp_millis()],
     )
-    .map_err(|e| e.to_string())?;
+    .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
 }
 
@@ -535,7 +534,7 @@ fn fold_snapshot(
     note_id: &str,
     blob: &[u8],
     key: Option<[u8; 32]>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let Some(existing_encrypted) = read_snapshot(pool, note_id)? else {
         return Ok(());
     };
@@ -544,16 +543,16 @@ fn fold_snapshot(
     }
     // Decrypt the existing snapshot so the CRDT merge sees raw Yjs data.
     let existing = match key {
-        Some(k) => decrypt_yjs_blob(&k, &existing_encrypted).map_err(|e| e.to_string())?,
+        Some(k) => decrypt_yjs_blob(&k, &existing_encrypted)?,
         None => existing_encrypted,
     };
     let doc = yrs::Doc::new();
     doc.transact_mut()
-        .apply_update(yrs::Update::decode_v1(&existing).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+        .apply_update(yrs::Update::decode_v1(&existing).map_err(|e| AppError::Other(e.to_string()))?)
+        .map_err(|e| AppError::Other(e.to_string()))?;
     doc.transact_mut()
-        .apply_update(yrs::Update::decode_v1(blob).map_err(|e| e.to_string())?)
-        .map_err(|e| e.to_string())?;
+        .apply_update(yrs::Update::decode_v1(blob).map_err(|e| AppError::Other(e.to_string()))?)
+        .map_err(|e| AppError::Other(e.to_string()))?;
     let snapshot = doc
         .transact_mut()
         .encode_state_as_update_v1(&yrs::StateVector::default());

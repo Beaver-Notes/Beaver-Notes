@@ -38,6 +38,8 @@ impl AppError {
     }
 }
 
+impl std::error::Error for AppError {}
+
 impl serde::Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         use serde::ser::SerializeStruct;

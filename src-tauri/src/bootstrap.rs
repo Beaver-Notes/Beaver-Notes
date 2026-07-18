@@ -70,28 +70,29 @@ fn load_window_state(app: &AppHandle, state: &AppState) -> Option<WindowStateSna
 }
 
 #[cfg(desktop)]
-fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), String> {
+fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) else {
         return Ok(());
     };
 
-    let position = window.outer_position().map_err(to_error)?;
-    let size = window.outer_size().map_err(to_error)?;
+    let position = window.outer_position().map_err(|e| AppError::Other(e.to_string()))?;
+    let size = window.outer_size().map_err(|e| AppError::Other(e.to_string()))?;
     let snapshot = WindowStateSnapshot {
         x: position.x,
         y: position.y,
         width: size.width,
         height: size.height,
-        maximized: window.is_maximized().map_err(to_error)?,
+        maximized: window.is_maximized().map_err(|e| AppError::Other(e.to_string()))?,
     };
 
     let pool = settings_pool(app, state)?;
-    let serialized = serde_json::to_string(&json!(snapshot)).map_err(to_error)?;
-    crate::db::db_set(&pool, WINDOW_STATE_KEY, &serialized)
+    let serialized = serde_json::to_string(&json!(snapshot))?;
+    crate::db::db_set(&pool, WINDOW_STATE_KEY, &serialized)?;
+    Ok(())
 }
 
 #[cfg(desktop)]
-fn restore_window_state(app: &AppHandle, state: &AppState) -> Result<(), String> {
+fn restore_window_state(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let Some(snapshot) = load_window_state(app, state) else {
         return Ok(());
     };
@@ -102,11 +103,11 @@ fn restore_window_state(app: &AppHandle, state: &AppState) -> Result<(), String>
     if snapshot.width > 0 && snapshot.height > 0 {
         window
             .set_size(PhysicalSize::new(snapshot.width, snapshot.height))
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
     window
         .set_position(PhysicalPosition::new(snapshot.x, snapshot.y))
-        .map_err(to_error)?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
     if snapshot.maximized {
         let _ = window.maximize();
     }
@@ -175,26 +176,27 @@ fn merge_json_preserving_target(target: &mut serde_json::Value, source: serde_js
 }
 
 #[cfg(desktop)]
-fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), String> {
+fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), AppError> {
     if !source_path.exists() {
         return Ok(());
     }
 
     if !target_path.exists() {
-        fs::copy(source_path, target_path).map_err(to_error)?;
+        fs::copy(source_path, target_path)?;
         return Ok(());
     }
 
-    let source_text = fs::read_to_string(source_path).map_err(to_error)?;
-    let target_text = fs::read_to_string(target_path).map_err(to_error)?;
-    let source_json = serde_json::from_str::<serde_json::Value>(&source_text).map_err(to_error)?;
+    let source_text = fs::read_to_string(source_path)?;
+    let target_text = fs::read_to_string(target_path)?;
+    let source_json = serde_json::from_str::<serde_json::Value>(&source_text)?;
     let mut target_json =
-        serde_json::from_str::<serde_json::Value>(&target_text).map_err(to_error)?;
+        serde_json::from_str::<serde_json::Value>(&target_text)?;
 
     merge_json_preserving_target(&mut target_json, source_json);
 
-    let serialized = serde_json::to_string_pretty(&target_json).map_err(to_error)?;
-    fs::write(target_path, format!("{serialized}\n")).map_err(to_error)
+    let serialized = serde_json::to_string_pretty(&target_json)?;
+    fs::write(target_path, format!("{serialized}\n"))?;
+    Ok(())
 }
 
 #[cfg(desktop)]
@@ -202,16 +204,16 @@ fn import_json_file_into_pool(
     state: &AppState,
     path: &Path,
     pool: &crate::db::DbPool,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     if !path.exists() {
         return Ok(false);
     }
-    let text = fs::read_to_string(path).map_err(to_error)?;
-    let json: serde_json::Value = serde_json::from_str(&text).map_err(to_error)?;
+    let text = fs::read_to_string(path)?;
+    let json: serde_json::Value = serde_json::from_str(&text)?;
     let Some(map) = json.as_object() else {
         return Ok(false);
     };
-    let encrypt = state.crypto.read().map_err(to_error)?.active;
+    let encrypt = state.crypto.read()?.active;
     for (key, value) in map {
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Some(items) = value.as_object() {
@@ -223,15 +225,14 @@ fn import_json_file_into_pool(
                                 state,
                                 &flat_key,
                                 item.clone(),
-                            )
-                            .map_err(to_error)?
+                            )?
                         } else {
                             item.clone()
                         };
                         crate::db::db_set(
                             pool,
                             &flat_key,
-                            &serde_json::to_string(&row).map_err(to_error)?,
+                            &serde_json::to_string(&row)?,
                         )?;
                     }
                 }
@@ -239,25 +240,25 @@ fn import_json_file_into_pool(
             }
         }
         if !crate::db::db_has(pool, key)? {
-            crate::db::db_set(pool, key, &serde_json::to_string(value).map_err(to_error)?)?;
+            crate::db::db_set(pool, key, &serde_json::to_string(value)?)?;
         }
     }
     Ok(true)
 }
 
 #[cfg(desktop)]
-fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), String> {
-    fs::create_dir_all(target).map_err(to_error)?;
+fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), AppError> {
+    fs::create_dir_all(target)?;
 
-    for entry in fs::read_dir(source).map_err(to_error)? {
-        let entry = entry.map_err(to_error)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
         let source_path = entry.path();
         let target_path = target.join(entry.file_name());
 
         if source_path.is_dir() {
             copy_directory_missing(&source_path, &target_path)?;
         } else if !target_path.exists() {
-            fs::copy(&source_path, &target_path).map_err(to_error)?;
+            fs::copy(&source_path, &target_path)?;
         }
     }
 
@@ -265,13 +266,13 @@ fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), String> {
 }
 
 #[cfg(desktop)]
-fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), String> {
+fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), AppError> {
     if !auth_path.exists() {
         return Ok(());
     }
 
-    let auth_text = fs::read_to_string(auth_path).map_err(to_error)?;
-    let auth_json = serde_json::from_str::<serde_json::Value>(&auth_text).map_err(to_error)?;
+    let auth_text = fs::read_to_string(auth_path)?;
+    let auth_json = serde_json::from_str::<serde_json::Value>(&auth_text)?;
     let Some(auth_map) = auth_json.as_object() else {
         return Ok(());
     };
@@ -313,7 +314,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), Str
         let _ = state
             .secure_blobs
             .store_blob(state.inner(), key, blob.as_bytes().to_vec());
-        let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(to_error));
+        let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(|e| AppError::Other(e.to_string())));
     }
 
     Ok(())
@@ -336,7 +337,7 @@ pub(crate) fn dir_has_any_legacy_content(path: &Path) -> bool {
 pub(crate) fn get_legacy_migration_status(
     app: &AppHandle,
     state: &AppState,
-) -> Result<LegacyMigrationStatus, String> {
+) -> Result<LegacyMigrationStatus, AppError> {
     let app_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = app_dir.join(".legacy-store-migrated");
     let legacy_dir = legacy_store_dir(app);
@@ -360,11 +361,11 @@ fn run_migration_core(
     app: &AppHandle,
     state: &AppState,
     old_dir: PathBuf,
-) -> Result<LegacyMigrationResult, String> {
+) -> Result<LegacyMigrationResult, AppError> {
     let new_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
-    fs::create_dir_all(&new_dir).map_err(to_error)?;
+    fs::create_dir_all(&new_dir)?;
 
     let mut merged_store_files = Vec::new();
     let data_pool = data_pool(app, state)?;
@@ -419,7 +420,7 @@ fn run_migration_core(
     // Do not remove or mutate the legacy Electron directory here.
     // let _ = fs::remove_dir_all(&old_dir);
 
-    fs::write(&marker, b"ok").map_err(to_error)?;
+    fs::write(&marker, b"ok")?;
 
     Ok(LegacyMigrationResult {
         legacy_dir: Some(old_dir.to_string_lossy().to_string()),
@@ -434,10 +435,10 @@ fn run_migration_core(
 pub(crate) fn run_legacy_store_data_migration(
     app: &AppHandle,
     state: &AppState,
-) -> Result<LegacyMigrationResult, String> {
+) -> Result<LegacyMigrationResult, AppError> {
     let old_dir = legacy_store_dir(app)
         .filter(|dir| dir.exists() && dir_has_any_legacy_content(dir))
-        .ok_or_else(|| "No legacy Electron data found".to_string())?;
+        .ok_or_else(|| AppError::Other("No legacy Electron data found".into()))?;
     run_migration_core(app, state, old_dir)
 }
 
@@ -446,7 +447,7 @@ pub(crate) fn get_legacy_migration_status_for_custom_path(
     app: &AppHandle,
     state: &AppState,
     path: &str,
-) -> Result<LegacyMigrationStatus, String> {
+) -> Result<LegacyMigrationStatus, AppError> {
     let legacy_path = PathBuf::from(path);
     let app_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = app_dir.join(".legacy-store-migrated");
@@ -466,13 +467,13 @@ pub(crate) fn run_legacy_store_data_migration_from_path(
     app: &AppHandle,
     state: &AppState,
     path: &str,
-) -> Result<LegacyMigrationResult, String> {
+) -> Result<LegacyMigrationResult, AppError> {
     let old_dir = PathBuf::from(path);
     if !old_dir.exists() || !dir_has_any_legacy_content(&old_dir) {
-        return Err(format!(
+        return Err(AppError::Other(format!(
             "No recognisable Beaver Notes data found at: {}",
             path
-        ));
+        )));
     }
     run_migration_core(app, state, old_dir)
 }
@@ -515,7 +516,7 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
                 )
                 .and_then(|resolved| {
                     fs::read(&resolved)
-                        .map_err(to_error)
+                        .map_err(|e| AppError::Other(e.to_string()))
                         .map(|bytes| (resolved, bytes))
                 }) {
                     Ok((resolved, bytes)) => protocol_response(StatusCode::OK, &resolved, bytes),
@@ -560,7 +561,7 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
                 )
                 .and_then(|resolved| {
                     fs::read(&resolved)
-                        .map_err(to_error)
+                        .map_err(|e| AppError::Other(e.to_string()))
                         .map(|bytes| (resolved, bytes))
                 }) {
                     Ok((resolved, bytes)) => protocol_response(StatusCode::OK, &resolved, bytes),
@@ -575,7 +576,7 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
 /// Moves `data.db` → `workspaces/default/data.db` and
 /// `settings.db` → `workspaces/default/settings.db`.
 /// Creates `workspaces.json` at the app root with the default workspace.
-fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), String> {
+fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
     let app_dir = crate::shared::app_storage_dir(app, state)?;
     let ws_root = app_dir.join(crate::shared::WORKSPACES_DIR);
     let marker = app_dir.join(".workspace-migrated");
@@ -590,16 +591,16 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
     let old_settings_db = app_dir.join("settings.db");
     let default_ws_dir = ws_root.join(crate::shared::DEFAULT_WORKSPACE_ID);
 
-    fs::create_dir_all(&default_ws_dir).map_err(to_error)?;
+    fs::create_dir_all(&default_ws_dir)?;
 
     // Move existing data.db into the default workspace
     if old_data_db.exists() {
-        fs::rename(&old_data_db, default_ws_dir.join("data.db")).map_err(to_error)?;
+        fs::rename(&old_data_db, default_ws_dir.join("data.db"))?;
     }
 
     // Move existing settings.db into the default workspace
     if old_settings_db.exists() {
-        fs::rename(&old_settings_db, default_ws_dir.join("settings.db")).map_err(to_error)?;
+        fs::rename(&old_settings_db, default_ws_dir.join("settings.db"))?;
     }
 
     // Create workspaces.json with the default workspace
@@ -614,10 +615,10 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
         "workspaces": [default_ws],
     });
     let json_path = crate::shared::workspaces_json_path(app, state)?;
-    let pretty = serde_json::to_string_pretty(&registry_json).map_err(to_error)?;
-    fs::write(&json_path, format!("{pretty}\n")).map_err(to_error)?;
+    let pretty = serde_json::to_string_pretty(&registry_json)?;
+    fs::write(&json_path, format!("{pretty}\n"))?;
 
-    fs::write(&marker, b"ok").map_err(to_error)?;
+    fs::write(&marker, b"ok")?;
     Ok(())
 }
 
@@ -625,7 +626,7 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
 fn ensure_default_workspace_in_registry(
     app: &AppHandle,
     state: &AppState,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let json_path = crate::shared::workspaces_json_path(app, state)?;
     let has_json = json_path.exists();
 
@@ -641,8 +642,8 @@ fn ensure_default_workspace_in_registry(
             "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
             "workspaces": [default_ws],
         });
-        let pretty = serde_json::to_string_pretty(&registry_json).map_err(to_error)?;
-        fs::write(&json_path, format!("{pretty}\n")).map_err(to_error)?;
+        let pretty = serde_json::to_string_pretty(&registry_json)?;
+        fs::write(&json_path, format!("{pretty}\n"))?;
         return Ok(());
     }
 
@@ -667,7 +668,7 @@ fn ensure_default_workspace_in_registry(
     Ok(())
 }
 
-pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
+pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     let state = app.state::<AppState>();
 
     // ── Workspace migration (must run BEFORE any settings_pool call) ──────
@@ -678,10 +679,10 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
         &state,
         &crate::shared::app_storage_dir(app.handle(), state.inner())?,
     );
-    grant_trusted_path(&state, &app.path().temp_dir().map_err(to_error)?);
-    fs::create_dir_all(&state.asset_cache_dir).map_err(to_error)?;
+    grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
+    fs::create_dir_all(&state.asset_cache_dir)?;
 
-    *state.updater.lock().map_err(to_error)? = UpdaterState {
+    *state.updater.lock().map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
         auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle())
             .unwrap_or(true),
         current_version: Some(app.package_info().version.to_string()),
@@ -690,7 +691,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     #[cfg(desktop)]
     {
         let menu = menu::build_app_menu(app.handle())?;
-        app.set_menu(menu).map_err(to_error)?;
+        app.set_menu(menu).map_err(|e| AppError::Other(e.to_string()))?;
         if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
             restore_window_state(app.handle(), state.inner())?;
             let app_handle = app.handle().clone();
@@ -742,7 +743,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), String> {
     }
     bootstrap_file_open_from_argv(app.handle(), state.inner());
     if let Ok(manifest_path) = app_encryption_manifest_path(app.handle(), state.inner()) {
-        let mut s = state.inner().crypto.write().map_err(|e| e.to_string())?;
+        let mut s = state.inner().crypto.write()?;
         s.active = manifest_path.exists();
     }
     Ok(())

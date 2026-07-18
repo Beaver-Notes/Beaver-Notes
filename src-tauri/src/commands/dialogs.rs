@@ -83,7 +83,7 @@ pub(crate) async fn dialog_open(
 pub(crate) async fn dialog_message(
     app: AppHandle,
     props: MessageDialogOptions,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let kind = match props.kind.as_deref() {
             Some("warning") => MessageDialogKind::Warning,
@@ -114,7 +114,7 @@ pub(crate) async fn dialog_save(
     app: AppHandle,
     state: State<'_, AppState>,
     props: SaveDialogOptions,
-) -> Result<SaveDialogResult, String> {
+) -> Result<SaveDialogResult, AppError> {
     let app_clone = app.clone();
     let window = app.get_webview_window(MAIN_WINDOW_LABEL);
     let props_clone = props.clone();
@@ -172,7 +172,7 @@ pub(crate) async fn dialog_save(
 }
 
 #[tauri::command]
-pub(crate) fn get_system_fonts() -> Result<Vec<String>, String> {
+pub(crate) fn get_system_fonts() -> Result<Vec<String>, AppError> {
     #[cfg(target_os = "android")]
     {
         return Ok(Vec::new());
