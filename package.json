@@ -43,7 +43,7 @@
     "pre-commit": "yarn lint-staged"
   },
   "lint-staged": {
-    "*.{js,ts,vue}": "eslint --cache --fix"
+    "*.{js,ts,vue}": "oxlint --fix"
   },
   "devDependencies": {
     "@axe-core/webdriverio": "^4.12.1",
@@ -132,7 +132,7 @@
     "emoji.json": "^16.0.0",
     "focus-trap": "^8.2.2",
     "jszip": "^3.10.1",
-    "katex": "^0.13.0",
+    "katex": "^0.16.22",
     "marked": "^13.0.2",
     "mermaid": "^11.6.0",
     "mime": "^4.1.0",
