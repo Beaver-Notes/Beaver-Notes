@@ -5,8 +5,8 @@ use crate::shared::*;
 /// Extract the current app encryption key, if encryption is active and unlocked.
 /// Returns `None` when encryption is not configured or is locked (blobs stored
 /// in plaintext in that case).
-fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, String> {
-  let session = state.crypto.read().map_err(to_error)?;
+fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
+  let session = state.crypto.read()?;
   if !session.active {
     return Ok(None);
   }
@@ -23,10 +23,11 @@ pub(crate) fn yjs_append(
   update: Vec<u8>,
   device: String,
   state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  crate::db::yjs_append(&pool, &note_id, &update, &device, key)
+  crate::db::yjs_append(&pool, &note_id, &update, &device, key)?;
+  Ok(())
 }
 
 /// Return a cached merged Yjs state snapshot for a note when it is fresh
@@ -37,10 +38,11 @@ pub(crate) fn yjs_get_snapshot(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
-) -> Result<Vec<u8>, String> {
+) -> Result<Vec<u8>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  crate::db::yjs_get_snapshot(&pool, &note_id, key)
+  let result = crate::db::yjs_get_snapshot(&pool, &note_id, key)?;
+  Ok(result)
 }
 
 /// Return every stored Yjs update for a note, oldest first.
@@ -50,7 +52,7 @@ pub(crate) fn yjs_get_updates(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
-) -> Result<Vec<Vec<u8>>, String> {
+) -> Result<Vec<Vec<u8>>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
   let rows = crate::db::yjs_get_updates(&pool, &note_id, key)?;
@@ -65,10 +67,11 @@ pub(crate) fn yjs_compact(
   note_id: String,
   snapshot: Vec<u8>,
   state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  crate::db::yjs_compact(&pool, &note_id, &snapshot, key)
+  crate::db::yjs_compact(&pool, &note_id, &snapshot, key)?;
+  Ok(())
 }
 
 /// Delete every Yjs update for a note.  Called when the note itself is deleted.
@@ -77,7 +80,8 @@ pub(crate) fn yjs_delete(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
   let pool = data_pool(&app, &state)?;
-  crate::db::yjs_delete(&pool, &note_id)
+  crate::db::yjs_delete(&pool, &note_id)?;
+  Ok(())
 }

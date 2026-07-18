@@ -159,7 +159,7 @@ pub(crate) struct SaveDialogResult {
     pub(crate) file_path: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BannerData {
     pub(crate) content: String,

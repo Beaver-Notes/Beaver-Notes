@@ -268,7 +268,7 @@ fn replace_en_media(mut value: String, resources: &[ImportResourcePayload]) -> S
     value
 }
 
-fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayload>, String> {
+fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayload>, AppError> {
     extract_tag_blocks(note_block, "resource")
         .into_iter()
         .map(|resource_block| {
@@ -276,7 +276,7 @@ fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayloa
             let mime = decode_xml_entities(
                 &extract_tag_value(&resource_block, "mime").unwrap_or_default(),
             );
-            let bytes = BASE64.decode(data.as_bytes()).map_err(to_error)?;
+            let bytes = BASE64.decode(data.as_bytes())?;
             let hash = format!("{:x}", md5::compute(&bytes));
             let file_name = extract_tag_value(&resource_block, "file-name")
                 .map(|value| decode_xml_entities(&value))
@@ -296,7 +296,7 @@ fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayloa
 fn parse_evernote_note(
     note_block: &str,
     notebook_name: Option<String>,
-) -> Result<ImportNotePayload, String> {
+) -> Result<ImportNotePayload, AppError> {
     let title = extract_tag_value(note_block, "title")
         .map(|value| decode_xml_entities(&value))
         .filter(|value| !value.is_empty())
@@ -330,11 +330,11 @@ fn parse_evernote_note(
     })
 }
 
-fn parse_apple_note_block(block: &str) -> Result<ImportNotePayload, String> {
+fn parse_apple_note_block(block: &str) -> Result<ImportNotePayload, AppError> {
     let body_marker = "BODY:\n";
     let body_index = block
         .find(body_marker)
-        .ok_or_else(|| "Missing BODY section".to_string())?;
+        .ok_or_else(|| AppError::Other("Missing BODY section".into()))?;
     let meta = &block[..body_index];
     let body = &block[body_index + body_marker.len()..];
 
@@ -366,7 +366,7 @@ pub(crate) async fn import_evernote(
     app: AppHandle,
     enex_path: String,
     notebook_name: Option<String>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let app_handle = app.clone();
     std::thread::spawn(move || {
         let raw = match fs::read(&enex_path) {
@@ -421,7 +421,7 @@ pub(crate) async fn import_evernote(
                         .unwrap_or_else(|| "Untitled".to_string());
                     errors.push(ImportErrorPayload {
                         title: title.clone(),
-                        reason: error,
+                        reason: error.to_string(),
                     });
                     let _ = app_handle.emit_to(
                         MAIN_WINDOW_LABEL,
@@ -454,7 +454,7 @@ pub(crate) async fn import_evernote(
 
 #[tauri::command]
 #[cfg(target_os = "macos")]
-pub(crate) async fn import_apple_notes(app: AppHandle) -> Result<(), String> {
+pub(crate) async fn import_apple_notes(app: AppHandle) -> Result<(), AppError> {
     let app_handle = app.clone();
     std::thread::spawn(move || {
         let script = r#"
@@ -553,7 +553,7 @@ return output
                 Err(error) => {
                     errors.push(ImportErrorPayload {
                         title: "Untitled".into(),
-                        reason: error.clone(),
+                        reason: error.to_string(),
                     });
                     let _ = app_handle.emit_to(
                         MAIN_WINDOW_LABEL,
@@ -586,6 +586,6 @@ return output
 
 #[tauri::command]
 #[cfg(not(target_os = "macos"))]
-pub(crate) async fn import_apple_notes(_app: AppHandle) -> Result<(), String> {
-    Err("Apple Notes import is only available on macOS".into())
+pub(crate) async fn import_apple_notes(_app: AppHandle) -> Result<(), AppError> {
+    Err(AppError::Other("Apple Notes import is only available on macOS".into()))
 }

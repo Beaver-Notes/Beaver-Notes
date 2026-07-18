@@ -111,7 +111,7 @@ fn flatten_store_value(root: Value) -> Map<String, Value> {
     output
 }
 
-fn load_store_root(pool: &crate::db::DbPool) -> Result<Value, String> {
+fn load_store_root(pool: &crate::db::DbPool) -> Result<Value, AppError> {
     Ok(nested_store_value(crate::db::db_all(pool)?))
 }
 
@@ -119,13 +119,13 @@ fn pick_pool(
     name: &str,
     app: &AppHandle,
     state: &AppState,
-) -> Result<crate::db::DbPool, String> {
+) -> Result<crate::db::DbPool, AppError> {
     match allowed_store_name(name)? {
-        SETTINGS_STORE => settings_pool(app, state),
-        DATA_STORE => data_pool(app, state),
-        _ => Err(format!(
+        SETTINGS_STORE => Ok(settings_pool(app, state)?),
+        DATA_STORE => Ok(data_pool(app, state)?),
+        _ => Err(AppError::Other(format!(
             r#"[storage] blocked access to unknown store: "{name}""#
-        )),
+        ))),
     }
 }
 
@@ -172,7 +172,7 @@ pub(crate) fn storage_get_store(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
-) -> Result<Value, String> {
+) -> Result<Value, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let root = load_store_root(&pool)?;
     Ok(root)
@@ -185,7 +185,7 @@ pub(crate) fn storage_replace(
     name: String,
     data: Value,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let flattened = flatten_store_value(data);
     crate::db::db_replace_all(&pool, flattened)?;
@@ -202,7 +202,7 @@ pub(crate) fn storage_get(
     key: String,
     def: Value,
     state: State<'_, AppState>,
-) -> Result<Value, String> {
+) -> Result<Value, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -233,7 +233,7 @@ pub(crate) fn storage_set(
     key: String,
     value: Value,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -241,8 +241,9 @@ pub(crate) fn storage_set(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let serialized = serde_json::to_string(&value).map_err(to_error)?;
-        return crate::db::db_set(&pool, &flat_key, &serialized);
+        let serialized = serde_json::to_string(&value)?;
+        crate::db::db_set(&pool, &flat_key, &serialized)?;
+        return Ok(());
     }
 
     // Fallback: multi-level key — load, mutate, rewrite
@@ -261,7 +262,7 @@ pub(crate) fn storage_delete(
     name: String,
     key: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -269,7 +270,8 @@ pub(crate) fn storage_delete(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        return crate::db::db_delete(&pool, &flat_key);
+        crate::db::db_delete(&pool, &flat_key)?;
+        return Ok(());
     }
 
     // Fallback: multi-level key — load, mutate, rewrite
@@ -287,7 +289,7 @@ pub(crate) fn storage_has(
     name: String,
     key: String,
     state: State<'_, AppState>,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -295,7 +297,7 @@ pub(crate) fn storage_has(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        return crate::db::db_has(&pool, &flat_key);
+        return Ok(crate::db::db_has(&pool, &flat_key)?);
     }
 
     // Fallback: multi-level key
@@ -308,7 +310,7 @@ pub(crate) fn storage_clear(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     crate::db::db_clear(&pool)?;
     Ok(())

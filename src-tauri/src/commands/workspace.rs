@@ -7,8 +7,8 @@ use crate::shared::*;
 pub(crate) fn workspace_list(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<Vec<WorkspaceInfo>, String> {
-    load_workspace_registry(&app, &state)
+) -> Result<Vec<WorkspaceInfo>, AppError> {
+    Ok(load_workspace_registry(&app, &state)?)
 }
 
 /// Return the currently active workspace.
@@ -16,7 +16,7 @@ pub(crate) fn workspace_list(
 pub(crate) fn workspace_get_active(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<WorkspaceInfo, String> {
+) -> Result<WorkspaceInfo, AppError> {
     let id = current_workspace_id(&app, &state)?;
     let registry = load_workspace_registry(&app, &state)?;
     let ws = registry
@@ -37,12 +37,12 @@ pub(crate) fn workspace_create(
     state: State<'_, AppState>,
     name: String,
     copy_settings: Option<bool>,
-) -> Result<WorkspaceInfo, String> {
+) -> Result<WorkspaceInfo, AppError> {
     let slug = slugify(&name);
     let id = unique_id(&app, &state, &slug)?;
 
     let ws_dir = workspace_root(&app, &state)?.join(&id);
-    std::fs::create_dir_all(&ws_dir).map_err(to_error)?;
+    std::fs::create_dir_all(&ws_dir)?;
 
     // Create the data.db for the new workspace
     let data_path = ws_dir.join("data.db");
@@ -86,14 +86,14 @@ pub(crate) fn workspace_switch(
     app: AppHandle,
     state: State<'_, AppState>,
     id: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let registry = load_workspace_registry(&app, &state)?;
     if !registry.iter().any(|w| w.id == id) {
-        return Err(format!("Workspace not found: {id}"));
+        return Err(AppError::Other(format!("Workspace not found: {id}")));
     }
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     if !ws_dir.exists() {
-        return Err(format!("Workspace directory missing: {id}"));
+        return Err(AppError::Other(format!("Workspace directory missing: {id}")));
     }
     save_active_workspace_id(&app, &state, &id)?;
     swap_data_pool(&app, &state, &id)?;
@@ -108,12 +108,12 @@ pub(crate) fn workspace_rename(
     state: State<'_, AppState>,
     id: String,
     name: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let mut registry = load_workspace_registry(&app, &state)?;
     let ws = registry
         .iter_mut()
         .find(|w| w.id == id)
-        .ok_or_else(|| format!("Workspace not found: {id}"))?;
+        .ok_or_else(|| AppError::Other(format!("Workspace not found: {id}")))?;
     ws.name = name;
     save_workspace_registry(&app, &state, &registry)?;
     Ok(())
@@ -126,18 +126,18 @@ pub(crate) fn workspace_delete(
     app: AppHandle,
     state: State<'_, AppState>,
     id: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if id == DEFAULT_WORKSPACE_ID {
-        return Err("Cannot delete the default workspace".to_string());
+        return Err(AppError::Other("Cannot delete the default workspace".into()));
     }
     let active_id = current_workspace_id(&app, &state)?;
     if id == active_id {
-        return Err("Cannot delete the currently active workspace".to_string());
+        return Err(AppError::Other("Cannot delete the currently active workspace".into()));
     }
 
     let ws_dir = workspace_root(&app, &state)?.join(&id);
     if ws_dir.exists() {
-        std::fs::remove_dir_all(&ws_dir).map_err(to_error)?;
+        std::fs::remove_dir_all(&ws_dir)?;
     }
 
     let mut registry = load_workspace_registry(&app, &state)?;
@@ -180,7 +180,7 @@ fn slugify(name: &str) -> String {
     }
 }
 
-fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, String> {
+fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, AppError> {
     let registry = load_workspace_registry(app, state)?;
     let existing: Vec<&str> = registry.iter().map(|w| w.id.as_str()).collect();
     if !existing.contains(&slug) {
@@ -192,5 +192,5 @@ fn unique_id(app: &AppHandle, state: &AppState, slug: &str) -> Result<String, St
             return Ok(candidate);
         }
     }
-    Err("Too many workspaces with similar names".to_string())
+    Err(AppError::Other("Too many workspaces with similar names".into()))
 }

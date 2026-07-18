@@ -500,7 +500,7 @@ pub(crate) fn safe_storage_store_blob(
     state: State<AppState>,
     key: String,
     blob: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
     s.secure_blobs.store_blob(s, &key, blob.as_bytes().to_vec())
@@ -510,17 +510,17 @@ pub(crate) fn safe_storage_store_blob(
 pub(crate) fn safe_storage_fetch_blob(
     state: State<AppState>,
     key: String,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
     s.secure_blobs
         .fetch_blob(s, &key)?
-        .map(|bytes| String::from_utf8(bytes).map_err(to_error))
+        .map(|bytes| String::from_utf8(bytes).map_err(|e| AppError::Other(e.to_string())))
         .transpose()
 }
 
 #[tauri::command]
-pub(crate) fn safe_storage_clear_blob(state: State<AppState>, key: String) -> Result<(), String> {
+pub(crate) fn safe_storage_clear_blob(state: State<AppState>, key: String) -> Result<(), AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
     s.secure_blobs.clear_blob(s, &key)
