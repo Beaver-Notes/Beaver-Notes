@@ -6,10 +6,16 @@
  * helper tolerates that and simply returns `false` rather than throwing.
  */
 
-export function isError(err, kind) {
+interface AppError {
+  kind: string;
+  message?: string;
+}
+
+export function isError(err: unknown, kind: string): boolean {
   if (err == null || typeof err !== 'object') return false;
-  if (typeof err.kind !== 'string') return false;
-  return err.kind === kind;
+  const candidate = err as AppError;
+  if (typeof candidate.kind !== 'string') return false;
+  return candidate.kind === kind;
 }
 
 /**
@@ -19,9 +25,12 @@ export function isError(err, kind) {
  * keep working while command rejections transition from strings to structured
  * errors.
  */
-export function errorMessage(err) {
-  if (err != null && typeof err === 'object' && typeof err.message === 'string') {
-    return err.message;
+export function errorMessage(err: unknown): string {
+  if (err != null && typeof err === 'object') {
+    const candidate = err as AppError;
+    if (typeof candidate.message === 'string') {
+      return candidate.message;
+    }
   }
   return String(err);
 }

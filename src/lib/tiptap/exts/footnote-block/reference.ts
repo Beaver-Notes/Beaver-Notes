@@ -22,8 +22,8 @@ const SUPERSCRIPT_CHARS = new RegExp(
   'g'
 );
 
-function normalizeSuperscript(text) {
-  return text.replace(SUPERSCRIPT_CHARS, (ch) => SUPERSCRIPT_MAP[ch] || ch);
+function normalizeSuperscript(text: string): string {
+  return text.replace(SUPERSCRIPT_CHARS, (ch: string) => SUPERSCRIPT_MAP[ch as keyof typeof SUPERSCRIPT_MAP] || ch);
 }
 
 declare module '@tiptap/core' {
@@ -168,6 +168,7 @@ const FootnoteReference = Node.create({
       {
         find: /\[\^(\d+)\]$/,
         type: this.type,
+        undoable: false,
         handler({ range, match, chain }) {
           const start = range.from;
           const end = range.to;
@@ -180,6 +181,7 @@ const FootnoteReference = Node.create({
       {
         find: /\[[\u00B9\u00B2\u00B3\u2070\u2074\u2075\u2076\u2077\u2078\u2079]+\]$/,
         type: this.type,
+        undoable: false,
         handler({ range, chain }) {
           chain().deleteRange({ from: range.from, to: range.to }).addFootnote().run();
         },

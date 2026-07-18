@@ -116,7 +116,14 @@ const commandAliases = {
   'workspace:delete': 'workspace_delete',
 };
 
-function withKeyVariants(key, value) {
+type Channel = keyof typeof commandAliases;
+
+type Payload = Record<string, unknown> | undefined;
+
+function withKeyVariants(
+  key: string,
+  value: unknown
+): Record<string, unknown> {
   if (key.includes('_')) {
     const camel = key.replace(/_([a-z])/g, (_, char) => char.toUpperCase());
     return { [key]: value, [camel]: value };
@@ -126,7 +133,7 @@ function withKeyVariants(key, value) {
   return { [key]: value, [snake]: value };
 }
 
-function normalizeBinaryData(data) {
+function normalizeBinaryData(data: unknown): number[] {
   if (data == null) return [];
   if (typeof data === 'string') return Array.from(textEncoder.encode(data));
   if (data instanceof ArrayBuffer) return Array.from(new Uint8Array(data));
@@ -139,7 +146,7 @@ function normalizeBinaryData(data) {
   return Array.from(textEncoder.encode(String(data)));
 }
 
-function normalizePayload(channel, payload) {
+function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {
   switch (channel) {
     case 'app:spellcheck':
       return withKeyVariants('enabled', payload);
@@ -156,7 +163,6 @@ function normalizePayload(channel, payload) {
     case 'fs:readdir':
     case 'fs:stat':
     case 'fs:unlink':
-    case 'fs:remove':
     case 'fs:readData':
       return {
         ...withKeyVariants('path', payload?.path ?? payload),
@@ -293,7 +299,7 @@ function normalizePayload(channel, payload) {
     case 'helper:get-path':
       return withKeyVariants('name', payload);
     case 'show-edit-context-menu':
-      return payload;
+      return payload ?? {};
     case 'search:notes':
       return {
         ...withKeyVariants('query', payload?.query),
@@ -351,10 +357,13 @@ function normalizePayload(channel, payload) {
   }
 }
 
-function mapCommand(channel) {
+function mapCommand(channel: Channel): string {
   return commandAliases[channel] || channel.replace(/[:-]/g, '_');
 }
 
-export function invokeCommand(channel, payload) {
-  return invoke(mapCommand(channel), normalizePayload(channel, payload));
+export async function invokeCommand<T = unknown>(
+  channel: Channel,
+  payload?: Record<string, unknown>
+): Promise<T> {
+  return invoke<T>(mapCommand(channel), normalizePayload(channel, payload));
 }
