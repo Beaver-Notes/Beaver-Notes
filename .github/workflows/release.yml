@@ -105,6 +105,11 @@ jobs:
         run: |
           yarn lint
 
+      - name: Run unit tests
+        run: yarn test
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
       - name: Validate IPC command map
         shell: bash
         run: |
