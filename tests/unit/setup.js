@@ -88,11 +88,16 @@ vi.mock('@tiptap/y-tiptap', () => ({
 // ── The commands module (per task brief) ─────────────────────────────────────
 
 vi.mock('@/lib/tauri/commands', () => ({
-  invokeCommand: vi.fn(async () => null),
+  invokeCommand: vi.fn(async (channel) => {
+    throw new Error('invokeCommand called without a test stub: ' + channel);
+  }),
 }));
 import { invokeCommand } from '@/lib/tauri/commands';
 
 beforeEach(() => {
   setActivePinia(createPinia());
   vi.mocked(invokeCommand).mockReset();
+  vi.mocked(invokeCommand).mockImplementation(async (channel) => {
+    throw new Error('invokeCommand called without a test stub: ' + channel);
+  });
 });

@@ -1,5 +1,6 @@
 // tests/unit/store/i18n.spec.js
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { invokeCommand } from '@/lib/tauri/commands';
 import { useI18nStore } from '@/store/i18n';
 
 describe('i18n store', () => {
@@ -10,6 +11,7 @@ describe('i18n store', () => {
 
   it('switches language and reflects it in state', async () => {
     const store = useI18nStore();
+    vi.mocked(invokeCommand).mockResolvedValueOnce(undefined);
     await store.setLanguage('en');
     expect(store.lang).toBe('en');
     expect(document.documentElement.getAttribute('lang')).toBe('en');

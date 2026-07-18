@@ -1,5 +1,5 @@
 // tests/unit/store/app.spec.js
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { invokeCommand } from '@/lib/tauri/commands';
 import { useAppStore } from '@/store/app';
 
@@ -12,6 +12,7 @@ describe('app store', () => {
 
   it('persists a setting and updates in-memory state', async () => {
     const store = useAppStore();
+    vi.mocked(invokeCommand).mockResolvedValueOnce(undefined);
     await store.setSettingStorage('soundsEnabled', false);
     expect(store.setting.soundsEnabled).toBe(false);
     // setting flows through the storage wrapper -> backend.invoke
