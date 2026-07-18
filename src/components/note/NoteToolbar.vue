@@ -100,6 +100,7 @@
             />
 
             <toolbar-insert
+              ref="toolbarInsertRef"
               :editor="editor"
               :translations="translations"
               :is-item-visible="isItemVisible"
@@ -115,7 +116,6 @@
               :tb-btn="tbBtn"
               :open-sub="openSub"
               :link-input-value="linkInputValue"
-              :link-input-ref="linkInputRef"
               :selected-link-index="selectedLinkIndex"
               :link-suggestions="linkSuggestions"
               :link-popover-open="linkPopoverOpen"
@@ -584,9 +584,10 @@ export default {
     const showMobileBlockPicker = ref(false);
     const isMobile = backend.isMobileRuntime();
 
+    const toolbarInsertRef = ref(null);
+
     // ── Link input state ────────────────────────────────────────────
     const linkInputValue = ref('');
-    const linkInputRef = ref(null);
     const selectedLinkIndex = ref(0);
     const linkPopoverOpen = ref(false);
     const noteStore = useNoteStore();
@@ -651,7 +652,7 @@ export default {
       // Reset input state when popover opens
       linkInputValue.value = '';
       selectedLinkIndex.value = 0;
-      nextTick(() => linkInputRef.value?.focus());
+      nextTick(() => toolbarInsertRef.value?.linkInputRef?.focus());
     }
 
     function onLinkInputKeydown(event) {
@@ -876,7 +877,7 @@ export default {
       isMobile,
       // Link input
       linkInputValue,
-      linkInputRef,
+      toolbarInsertRef,
       selectedLinkIndex,
       linkSuggestions,
       linkPopoverOpen,

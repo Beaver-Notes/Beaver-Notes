@@ -177,7 +177,10 @@
 </template>
 
 <script>
+import { ref } from 'vue';
+
 export default {
+  expose: ['linkInputRef'],
   emits: ['update:linkInputValue', 'update:linkPopoverOpen'],
   props: {
     editor: { type: Object, default: () => ({}) },
@@ -196,7 +199,6 @@ export default {
     openSub: { type: Function, required: true },
     // Link input
     linkInputValue: { type: String, default: '' },
-    linkInputRef: { type: Object, default: null },
     selectedLinkIndex: { type: Number, default: 0 },
     linkSuggestions: { type: Array, default: () => [] },
     linkPopoverOpen: { type: Boolean, default: false },
@@ -208,6 +210,10 @@ export default {
     triggerImageInput: { type: Function, required: true },
     triggerFileInput: { type: Function, required: true },
     triggerVideoInput: { type: Function, required: true },
+  },
+  setup() {
+    const linkInputRef = ref(null);
+    return { linkInputRef };
   },
 };
 </script>
