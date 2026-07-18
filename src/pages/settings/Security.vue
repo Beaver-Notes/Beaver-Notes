@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="mb-14 w-full max-w-xl space-y-6">
     <ui-card class="general space-y-8 mb-14 w-full max-w-xl">

@@ -260,7 +260,6 @@
 </template>
 
 <script setup>
-/* eslint-disable no-undef */
 import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';

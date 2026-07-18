@@ -12,7 +12,6 @@ export const useClipboard = () => {
       timer = null;
     }, 2000);
   };
-  // eslint-disable-next-line no-undef
   onUnmounted(() => {
     if (timer) clearTimeout(timer);
   });

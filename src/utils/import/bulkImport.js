@@ -287,7 +287,6 @@ export function startRustImport(source, onProgress) {
     let completionErrors = [];
     let processing = Promise.resolve();
 
-    // eslint-disable-next-line no-async-promise-executor
     (async () => {
     const unlistenProgress = await onImportProgress(async (_, payload) => {
       if (payload.source !== source) return;

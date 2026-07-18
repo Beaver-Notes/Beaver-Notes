@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general mb-14 w-full max-w-2xl">
     <section>

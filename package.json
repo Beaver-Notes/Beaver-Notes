@@ -48,7 +48,6 @@
   },
   "devDependencies": {
     "@axe-core/webdriverio": "^4.12.1",
-    "@babel/eslint-parser": "^7.28.6",
     "@benrbray/prosemirror-math": "^0.2.2",
     "@pinia/testing": "^2.0.1",
     "@tailwindcss/typography": "^0.5.19",
@@ -60,10 +59,6 @@
     "@wdio/mocha-framework": "^9.29.1",
     "@wdio/spec-reporter": "^9.29.1",
     "autoprefixer": "^10.3.1",
-    "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-prettier-vue": "^4.0.0",
-    "eslint-plugin-vue": "^9.18.1",
     "happy-dom": "^20.10.6",
     "knip": "^5.83.1",
     "lint-staged": "^11.1.2",

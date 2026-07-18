@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="modal-ui">
     <div v-if="$slots.activator" class="modal-ui__activator">

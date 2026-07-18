@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <ui-modal :model-value="state.show" content-class="max-w-md" persist>
     <!-- Alert -->

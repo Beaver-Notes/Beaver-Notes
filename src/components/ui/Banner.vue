@@ -29,7 +29,6 @@
 
 <script>
 export default {
-  // eslint-disable-next-line vue/multi-word-component-names
   name: 'Banner',
   props: {
     content: { type: String, required: true },

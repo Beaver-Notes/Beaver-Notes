@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="inline-block input-ui w-full">
     <label class="relative w-full">

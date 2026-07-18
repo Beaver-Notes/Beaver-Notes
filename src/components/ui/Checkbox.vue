@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <label class="checkbox-ui inline-flex items-center">
     <div

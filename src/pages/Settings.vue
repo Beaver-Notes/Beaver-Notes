@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
     class="container py-6 mobile:px-4 mobile:pb-[calc(var(--app-mobile-content-offset)+1.5rem)]"

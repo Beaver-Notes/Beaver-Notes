@@ -1,7 +1,6 @@
 <script>
 import { h, Transition, TransitionGroup } from 'vue';
 
-/* eslint-disable */
 export default {
   props: {
     group: Boolean,

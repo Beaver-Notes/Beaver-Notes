@@ -58,8 +58,7 @@ function uniqueToken() {
 
 function sanitizeFileName(value, fallback = 'file') {
   const normalized = String(value || '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
     .trim();
   return normalized || fallback;
 }

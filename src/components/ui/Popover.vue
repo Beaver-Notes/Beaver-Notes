@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="ui-popover inline-block" :class="{ hidden: to }">
     <div

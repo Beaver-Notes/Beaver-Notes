@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="sm:mb-14 w-full max-w-xl space-y-6">
     <section class="space-y-2">

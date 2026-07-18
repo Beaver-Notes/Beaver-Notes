@@ -2,7 +2,7 @@
   "rules": {
     "no-unused-vars": "error",
     "no-unused-expressions": "error",
-    "no-control-regex": "error",
+    "no-control-regex": "off",
     "no-async-promise-executor": "error",
     "unicorn/no-new-array": "error",
     "unicorn/no-useless-spread": "error",

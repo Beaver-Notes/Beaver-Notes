@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div :class="{ 'inline-block': !block }" class="ui-select">
     <label

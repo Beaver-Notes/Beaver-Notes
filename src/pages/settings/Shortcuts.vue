@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general space-y-8 mb-14 w-full max-w-xl">
     <div v-for="shortcut in shortcuts" :key="shortcut.title">

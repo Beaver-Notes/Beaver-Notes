@@ -84,8 +84,7 @@ export function base64ToUint8Array(base64) {
  */
 export function sanitizeFileName(name, fallback = 'Untitled') {
   const sanitized = String(name || '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[<>:"\\|?*\u0000-\u001F]/g, '-')
+    .replace(/[<>:"\\|?*\x00-\x1F]/g, '-')
     .trim();
   return sanitized || fallback;
 }

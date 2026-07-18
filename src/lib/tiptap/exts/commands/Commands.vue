@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
     class="bg-white dark:bg-neutral-900 rounded-xl shadow-xl border p-1.5 max-w-[18rem] min-w-[8rem]"
