@@ -15,7 +15,7 @@ use crate::shared::path_for_name;
 use crate::menu::build_context_menu;
 
 #[tauri::command]
-pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
+pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
     Ok(AppInfo {
         name: app.package_info().name.clone(),
         version: app.package_info().version.to_string(),
@@ -23,7 +23,7 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, String> {
 }
 
 #[tauri::command]
-pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Result<String, String> {
+pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Result<String, AppError> {
     Ok(app_storage_dir(&app, state.inner())?
         .to_string_lossy()
         .to_string())
@@ -33,10 +33,10 @@ pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Resul
 pub(crate) fn migration_status(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<LegacyMigrationStatus, String> {
+) -> Result<LegacyMigrationStatus, AppError> {
     #[cfg(desktop)]
     {
-        get_legacy_migration_status(&app, state.inner())
+        get_legacy_migration_status(&app, state.inner()).map_err(AppError::Other)
     }
 
     #[cfg(not(desktop))]
@@ -50,16 +50,16 @@ pub(crate) fn migration_status(
 pub(crate) fn migration_run(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<LegacyMigrationResult, String> {
+) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        run_legacy_store_data_migration(&app, state.inner())
+        run_legacy_store_data_migration(&app, state.inner()).map_err(AppError::Other)
     }
 
     #[cfg(not(desktop))]
     {
         let _ = (app, state);
-        Err("Legacy migration is only available on desktop".into())
+        Err(AppError::Other("Legacy migration is only available on desktop".into()))
     }
 }
 
@@ -68,10 +68,10 @@ pub(crate) fn migration_probe_path(
     app: AppHandle,
     state: State<'_, AppState>,
     path: String,
-) -> Result<LegacyMigrationStatus, String> {
+) -> Result<LegacyMigrationStatus, AppError> {
     #[cfg(desktop)]
     {
-        get_legacy_migration_status_for_custom_path(&app, state.inner(), &path)
+        get_legacy_migration_status_for_custom_path(&app, state.inner(), &path).map_err(AppError::Other)
     }
 
     #[cfg(not(desktop))]
@@ -86,28 +86,28 @@ pub(crate) fn migration_run_with_path(
     app: AppHandle,
     state: State<'_, AppState>,
     path: String,
-) -> Result<LegacyMigrationResult, String> {
+) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        run_legacy_store_data_migration_from_path(&app, state.inner(), &path)
+        run_legacy_store_data_migration_from_path(&app, state.inner(), &path).map_err(AppError::Other)
     }
 
     #[cfg(not(desktop))]
     {
         let _ = (app, state, path);
-        Err("Legacy migration is only available on desktop".into())
+        Err(AppError::Other("Legacy migration is only available on desktop".into()))
     }
 }
 
 #[tauri::command]
-pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, String> {
+pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, AppError> {
     #[cfg(desktop)]
     {
         let base = std::path::Path::new(&dir);
         for name in ["data.json", "config.json"] {
             let p = base.join(name);
             if p.exists() {
-                let content = std::fs::read_to_string(&p).map_err(to_error)?;
+                let content = std::fs::read_to_string(&p)?;
                 return Ok(Some(content));
             }
         }
@@ -122,19 +122,19 @@ pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, 
 }
 
 #[tauri::command]
-pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Result<(), String> {
+pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Result<(), AppError> {
     #[cfg(desktop)]
     {
         let base = std::path::Path::new(&dir);
         for name in ["data.json", "config.json"] {
             let p = base.join(name);
             if p.exists() {
-                std::fs::write(&p, content).map_err(to_error)?;
+                std::fs::write(&p, content)?;
                 return Ok(());
             }
         }
         let p = base.join("data.json");
-        std::fs::write(&p, content).map_err(to_error)?;
+        std::fs::write(&p, content)?;
         Ok(())
     }
 
@@ -146,37 +146,37 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
 }
 
 #[tauri::command]
-pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), String> {
+pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), AppError> {
     app.notification()
         .builder()
         .title(title)
         .body(body)
         .show()
-        .map_err(to_error)
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[tauri::command]
-pub(crate) fn set_spellcheck(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub(crate) fn set_spellcheck(app: AppHandle, enabled: bool) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window
             .emit("spellcheck-changed", json!({ "enabled": enabled }))
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Result<(), String> {
+pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        window.set_zoom(level).map_err(to_error)?;
+        window.set_zoom(level).map_err(|e| AppError::Other(e.to_string()))?;
     }
-    *state.zoom_level.lock().map_err(to_error)? = level;
+    *state.zoom_level.lock()? = level;
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, String> {
-    Ok(*state.zoom_level.lock().map_err(to_error)?)
+pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, AppError> {
+    Ok(*state.zoom_level.lock()?)
 }
 
 #[tauri::command]
@@ -184,19 +184,19 @@ pub(crate) fn set_reduced_motion(
     app: AppHandle,
     state: State<AppState>,
     enabled: bool,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window
             .emit("reduced-motion-changed", json!({ "enabled": enabled }))
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
-    *state.reduced_motion.lock().map_err(to_error)? = enabled;
+    *state.reduced_motion.lock()? = enabled;
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn get_reduced_motion(state: State<AppState>) -> Result<bool, String> {
-    Ok(*state.reduced_motion.lock().map_err(to_error)?)
+pub(crate) fn get_reduced_motion(state: State<AppState>) -> Result<bool, AppError> {
+    Ok(*state.reduced_motion.lock()?)
 }
 
 #[tauri::command]
@@ -204,29 +204,29 @@ pub(crate) fn set_high_contrast(
     app: AppHandle,
     state: State<AppState>,
     enabled: bool,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window
             .emit("high-contrast-changed", json!({ "enabled": enabled }))
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
-    *state.high_contrast.lock().map_err(to_error)? = enabled;
+    *state.high_contrast.lock()? = enabled;
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn get_high_contrast(state: State<AppState>) -> Result<bool, String> {
-    Ok(*state.high_contrast.lock().map_err(to_error)?)
+pub(crate) fn get_high_contrast(state: State<AppState>) -> Result<bool, AppError> {
+    Ok(*state.high_contrast.lock()?)
 }
 
 #[tauri::command]
-pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<(), String> {
+pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<(), AppError> {
     #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         if visible {
-            window.show_menu().map_err(to_error)?;
+            window.show_menu().map_err(|e| AppError::Other(e.to_string()))?;
         } else {
-            window.hide_menu().map_err(to_error)?;
+            window.hide_menu().map_err(|e| AppError::Other(e.to_string()))?;
         }
     }
 
@@ -237,29 +237,29 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
 }
 
 #[tauri::command]
-pub(crate) fn app_ready(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+pub(crate) fn app_ready(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
     if let Some(banner) = state
         .updater
         .lock()
-        .map_err(to_error)?
+        .map_err(|e| AppError::Other(e.to_string()))?
         .pending_banner_data
         .clone()
     {
         app.emit_to(MAIN_WINDOW_LABEL, "update-banner", banner)
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
-    let queued = state.pending_open_files.lock().map_err(to_error)?.clone();
+    let queued = state.pending_open_files.lock()?.clone();
     for file_path in queued {
         app.emit_to(MAIN_WINDOW_LABEL, "file-opened", file_path)
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
     }
 
     Ok(())
 }
 
 #[tauri::command]
-pub(crate) fn helper_relaunch(app: AppHandle) -> Result<(), String> {
+pub(crate) fn helper_relaunch(app: AppHandle) -> Result<(), AppError> {
     app.restart();
     #[allow(unreachable_code)]
     Ok(())
@@ -270,14 +270,14 @@ pub(crate) fn helper_get_path(
     app: AppHandle,
     state: State<'_, AppState>,
     name: String,
-) -> Result<String, String> {
+) -> Result<String, AppError> {
     Ok(path_for_name(&app, state.inner(), &name)?
         .to_string_lossy()
         .to_string())
 }
 
 #[tauri::command]
-pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, String> {
+pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, AppError> {
     let theme = app
         .get_webview_window(MAIN_WINDOW_LABEL)
         .and_then(|window| window.theme().ok())
@@ -286,12 +286,12 @@ pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(), String> {
+pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(), AppError> {
     #[cfg(desktop)]
     {
         let window = app
             .get_webview_window(MAIN_WINDOW_LABEL)
-            .ok_or_else(|| "Main window not found".to_string())?;
+            .ok_or_else(|| AppError::Other("Main window not found".into()))?;
         let menu = build_context_menu(&app)?;
 
         #[cfg(target_os = "linux")]
@@ -301,8 +301,8 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
             // window GdkWindow origin (includes CSD decorations).
             // We compute window-relative physical pixels by subtracting
             // the window's outer position from the screen cursor position.
-            let window_pos = window.outer_position().map_err(|e| e.to_string())?;
-            let dpr = window.scale_factor().map_err(|e| e.to_string())?;
+            let window_pos = window.outer_position().map_err(|e| AppError::Other(e.to_string()))?;
+            let dpr = window.scale_factor().map_err(|e| AppError::Other(e.to_string()))?;
 
             // screenX/Y are CSS pixels → multiply by DPR → subtract window origin in physical px
             let phys_x = (x * dpr) - window_pos.x as f64;
@@ -310,13 +310,13 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
 
             return window
                 .popup_menu_at(&menu, PhysicalPosition::new(phys_x as i32, phys_y as i32))
-                .map_err(to_error);
+                .map_err(|e| AppError::Other(e.to_string()));
         }
 
         #[cfg(not(target_os = "linux"))]
         return window
             .popup_menu_at(&menu, tauri::LogicalPosition::new(x, y))
-            .map_err(to_error);
+            .map_err(|e| AppError::Other(e.to_string()));
     }
 
     #[cfg(not(desktop))]

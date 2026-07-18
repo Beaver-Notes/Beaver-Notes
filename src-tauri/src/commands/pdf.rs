@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use tauri::AppHandle;
+use crate::shared::AppError;
 
 #[cfg(target_os = "macos")]
 use std::sync::mpsc;
@@ -71,14 +72,14 @@ pub(crate) async fn render_pdf(
     app: AppHandle,
     html: String,
     output_path: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     render_native(app, html, output_path).await
 }
 
 // macOS
 
 #[cfg(target_os = "macos")]
-async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
     render_pdf_native(app, html, output_path).await
 }
 
@@ -87,7 +88,7 @@ async fn render_pdf_native(
     app: AppHandle,
     html: String,
     output_path: String,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let html_path = write_html_to_temp(&html)?;
     let url = format!("file://{}", html_path.display());
     eprintln!(
@@ -102,7 +103,7 @@ async fn render_pdf_native(
     let builder = WebviewWindowBuilder::new(
         &app,
         &next_pdf_window_label(),
-        WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {e}"))?),
+        WebviewUrl::External(url.parse().map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?),
     )
     .title("Beaver Notes – PDF Render")
     .visible(false)
@@ -119,7 +120,7 @@ async fn render_pdf_native(
 
     let window = builder
         .build()
-        .map_err(|e| format!("Failed to create PDF render window: {e}"))?;
+        .map_err(|e| AppError::Other(format!("Failed to create PDF render window: {e}")))?;
 
     tokio::spawn(async move {
         if load_rx.recv().is_ok() {
@@ -130,7 +131,7 @@ async fn render_pdf_native(
     if page_rx.await.is_err() {
         let _ = window.destroy();
         let _ = std::fs::remove_file(&html_path);
-        return Err("PDF render window signaled an error while loading".to_string());
+        return Err(AppError::Other("PDF render window signaled an error while loading".into()));
     }
 
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
@@ -150,9 +151,9 @@ async fn render_pdf_native(
                 eprintln!("Failed to start PDF print: {e}");
             }
         })
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
-    pdf_rx.await.map_err(|e| e.to_string())??;
+    pdf_rx.await.map_err(|e| AppError::Other(e.to_string()))??;
 
     let _ = window.destroy();
     let _ = std::fs::remove_file(&html_path);
@@ -162,14 +163,14 @@ async fn render_pdf_native(
 }
 
 #[cfg(target_os = "macos")]
-fn write_html_to_temp(html: &str) -> Result<PathBuf, String> {
+fn write_html_to_temp(html: &str) -> Result<PathBuf, AppError> {
     let mut path = std::env::temp_dir();
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     path.push(format!("beaver-pdf-{}-{}.html", std::process::id(), nanos));
-    std::fs::write(&path, html).map_err(|e| format!("Failed to write temp HTML: {e}"))?;
+    std::fs::write(&path, html)?;
     Ok(path)
 }
 
@@ -178,7 +179,7 @@ fn run_print_page_pdf(
     webview_ptr: *mut std::ffi::c_void,
     output_path: &str,
     tx: std::sync::mpsc::Sender<Result<(), String>>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     use objc2::rc::Retained;
     use objc2::MainThreadMarker;
     use objc2_app_kit::{NSPaperOrientation, NSPrintInfo, NSPrintJobSavingURL, NSPrintSaveJob};
@@ -187,9 +188,9 @@ fn run_print_page_pdf(
     use objc2_web_kit::WKWebView;
 
     let _mtm =
-        MainThreadMarker::new().ok_or_else(|| "Must be called from the main thread".to_string())?;
+        MainThreadMarker::new().ok_or_else(|| AppError::Other("Must be called from the main thread".into()))?;
     let webview: Retained<WKWebView> = unsafe { Retained::retain(webview_ptr as *mut WKWebView) }
-        .ok_or_else(|| "Invalid WKWebView pointer".to_string())?;
+        .ok_or_else(|| AppError::Other("Invalid WKWebView pointer".into()))?;
 
     let print_info = NSPrintInfo::new();
     print_info.setPaperSize(CGSize {
@@ -222,7 +223,7 @@ fn run_print_page_pdf(
 
     let window = webview
         .window()
-        .ok_or_else(|| "WKWebView has no window".to_string())?;
+        .ok_or_else(|| AppError::Other("WKWebView has no window".into()))?;
     unsafe {
         print_op.runOperationModalForWindow_delegate_didRunSelector_contextInfo(
             &window,
@@ -240,7 +241,7 @@ fn run_print_page_pdf(
 // iOS
 
 #[cfg(target_os = "ios")]
-async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
     use tauri_plugin_pdf_render::{PdfRenderExt, RenderRequest, WriteScopedRequest};
 
     let html_path = write_export_html_to_temp(&html)?;
@@ -261,15 +262,15 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || app_clone.pdf_render().render(request))
         .await
-        .map_err(|e| format!("PDF render task join error: {e}"))?
-        .map_err(|e| format!("iOS PDF render failed: {e}"))?;
+        .map_err(|e| AppError::Other(format!("PDF render task join error: {e}")))?
+        .map_err(|e| AppError::Other(format!("iOS PDF render failed: {e}")))?;
 
     let _ = std::fs::remove_file(&html_path);
 
     let pdf_bytes =
-        std::fs::read(&render_output).map_err(|e| format!("Failed to read iOS PDF: {e}"))?;
+        std::fs::read(&render_output).map_err(|e| AppError::Other(format!("Failed to read iOS PDF: {e}")))?;
 
-    std::fs::write(&render_output, &pdf_bytes).map_err(|e| format!("Failed to write PDF: {e}"))?;
+    std::fs::write(&render_output, &pdf_bytes).map_err(|e| AppError::Other(format!("Failed to write PDF: {e}")))?;
 
     if scoped_info.is_some() {
         let app_clone = app.clone();
@@ -282,8 +283,8 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
             })
         })
         .await
-        .map_err(|e| format!("PDF scoped write join error: {e}"))?
-        .map_err(|e| format!("Failed to copy PDF to scoped storage: {e}"))?;
+        .map_err(|e| AppError::Other(format!("PDF scoped write join error: {e}")))?
+        .map_err(|e| AppError::Other(format!("Failed to copy PDF to scoped storage: {e}")))?;
         let _ = std::fs::remove_file(&render_output);
     }
 
@@ -293,7 +294,7 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
 // Android
 
 #[cfg(target_os = "android")]
-async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
     use tauri_plugin_pdf_render::{PdfRenderExt, RenderRequest, WriteScopedRequest};
 
     let html_path = write_export_html_to_temp(&html)?;
@@ -314,15 +315,15 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     let app_clone = app.clone();
     tokio::task::spawn_blocking(move || app_clone.pdf_render().render(request))
         .await
-        .map_err(|e| format!("PDF render task join error: {e}"))?
-        .map_err(|e| format!("Android PDF render failed: {e}"))?;
+        .map_err(|e| AppError::Other(format!("PDF render task join error: {e}")))?
+        .map_err(|e| AppError::Other(format!("Android PDF render failed: {e}")))?;
 
     let _ = std::fs::remove_file(&html_path);
 
     let pdf_bytes =
-        std::fs::read(&render_output).map_err(|e| format!("Failed to read Android PDF: {e}"))?;
+        std::fs::read(&render_output).map_err(|e| AppError::Other(format!("Failed to read Android PDF: {e}")))?;
 
-    std::fs::write(&render_output, &pdf_bytes).map_err(|e| format!("Failed to write PDF: {e}"))?;
+    std::fs::write(&render_output, &pdf_bytes).map_err(|e| AppError::Other(format!("Failed to write PDF: {e}")))?;
 
     if scoped_info.is_some() {
         let app_clone = app.clone();
@@ -335,8 +336,8 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
             })
         })
         .await
-        .map_err(|e| format!("PDF scoped write join error: {e}"))?
-        .map_err(|e| format!("Failed to copy PDF to scoped storage: {e}"))?;
+        .map_err(|e| AppError::Other(format!("PDF scoped write join error: {e}")))?
+        .map_err(|e| AppError::Other(format!("Failed to copy PDF to scoped storage: {e}")))?;
         let _ = std::fs::remove_file(&render_output);
     }
 
@@ -352,7 +353,7 @@ const A4_CSS_W: i32 = 794;
 const A4_CSS_H: i32 = 1123;
 
 #[cfg(target_os = "windows")]
-async fn render_native(_app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+async fn render_native(_app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
     use std::sync::mpsc as smpsc;
     use std::time::Duration;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
@@ -611,17 +612,18 @@ async fn render_native(_app: AppHandle, html: String, output_path: String) -> Re
 
     let pdf_bytes = result_rx
         .recv()
-        .map_err(|e| format!("Windows render channel closed: {e}"))??;
+        .map_err(|e| AppError::Other(format!("Windows render channel closed: {e}")))??;
 
     let _ = std::fs::remove_file(&html_path);
     eprintln!("[pdf] Writing PDF to {}", output_path);
-    std::fs::write(&output_path, &pdf_bytes).map_err(|e| format!("Failed to write PDF: {e}"))
+    std::fs::write(&output_path, &pdf_bytes)?;
+    Ok(())
 }
 
 // Linux
 
 #[cfg(target_os = "linux")]
-async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), String> {
+async fn render_native(app: AppHandle, html: String, output_path: String) -> Result<(), AppError> {
     // Force only the file print backend so GTK doesn't require CUPS
     // to have a printer configured. Set before any GTK init.
     std::env::set_var("GTK_PRINT_BACKENDS", "file");
@@ -640,7 +642,7 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     let builder = WebviewWindowBuilder::new(
         &app,
         &label,
-        WebviewUrl::External(url.parse().map_err(|e| format!("Invalid URL: {e}"))?),
+        WebviewUrl::External(url.parse().map_err(|e| AppError::Other(format!("Invalid URL: {e}")))?),
     )
     .title("Beaver Notes – PDF Render")
     .visible(false)
@@ -656,11 +658,11 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
 
     let window = builder
         .build()
-        .map_err(|e| format!("Failed to create PDF render window: {e}"))?;
+        .map_err(|e| AppError::Other(format!("Failed to create PDF render window: {e}")))?;
 
     loaded_rx
         .recv()
-        .map_err(|_| "PDF render window load channel closed".to_string())?;
+        .map_err(|_| AppError::Other("PDF render window load channel closed".into()))?;
 
     std::thread::sleep(std::time::Duration::from_millis(150));
 
@@ -711,17 +713,18 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
             });
             print_op.print();
         })
-        .map_err(|e| format!("with_webview failed: {e}"))?;
+        .map_err(|e| AppError::Other(format!("with_webview failed: {e}")))?;
 
     let pdf_bytes = result_rx
         .recv()
-        .map_err(|e| format!("Linux render channel closed: {e}"))??;
+        .map_err(|e| AppError::Other(format!("Linux render channel closed: {e}")))??;
 
     let _ = window.destroy();
     let _ = std::fs::remove_file(&pdf_stage);
     let _ = std::fs::remove_file(&html_path);
 
-    std::fs::write(&output_path_clone, &pdf_bytes).map_err(|e| format!("Failed to write PDF: {e}"))
+    std::fs::write(&output_path_clone, &pdf_bytes)?;
+    Ok(())
 }
 
 // ── Shared helpers ─────────────────────────────────────────────────
@@ -732,14 +735,14 @@ async fn render_native(app: AppHandle, html: String, output_path: String) -> Res
     target_os = "linux",
     target_os = "android"
 ))]
-fn write_export_html_to_temp(html: &str) -> Result<PathBuf, String> {
+fn write_export_html_to_temp(html: &str) -> Result<PathBuf, AppError> {
     let mut path = std::env::temp_dir();
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     path.push(format!("beaver-pdf-{}-{}.html", std::process::id(), nanos));
-    std::fs::write(&path, html).map_err(|e| format!("Failed to write temp HTML: {e}"))?;
+    std::fs::write(&path, html)?;
     Ok(path)
 }
 
@@ -769,6 +772,6 @@ fn scoped_temp_output_path() -> String {
     target_os = "linux",
     target_os = "android"
 )))]
-async fn render_native(_app: AppHandle, _html: String, _output_path: String) -> Result<(), String> {
-    Err("Native PDF rendering is not implemented for this platform".to_string())
+async fn render_native(_app: AppHandle, _html: String, _output_path: String) -> Result<(), AppError> {
+    Err(AppError::Other("Native PDF rendering is not implemented for this platform".into()))
 }

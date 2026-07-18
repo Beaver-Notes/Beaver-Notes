@@ -14,6 +14,7 @@ import {
   writeExportFile,
 } from '@/lib/native/exports';
 import { sanitizeNoteContent } from '@/utils/note/contentSecurity.js';
+import { errorMessage } from '@/lib/tauri/errors';
 
 function getShareTranslations() {
   try {
@@ -120,7 +121,7 @@ export async function importBEA(filePath, router, store, folderId = null) {
     return true;
   } catch (error) {
     console.error('Error importing note:', error);
-    return { success: false, message: error.message };
+    return { success: false, message: errorMessage(error) };
   }
 }
 
