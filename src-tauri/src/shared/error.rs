@@ -25,9 +25,26 @@ impl fmt::Display for AppError {
     }
 }
 
+impl AppError {
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            AppError::Io(_) => "Io",
+            AppError::Crypto(_) => "Crypto",
+            AppError::Serialization(_) => "Serialization",
+            AppError::WrongPassword => "WrongPassword",
+            AppError::EncryptionLocked => "EncryptionLocked",
+            AppError::Other(_) => "Other",
+        }
+    }
+}
+
 impl serde::Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.to_string())
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("AppError", 2)?;
+        state.serialize_field("kind", self.kind())?;
+        state.serialize_field("message", &self.to_string())?;
+        state.end()
     }
 }
 
@@ -145,9 +162,35 @@ mod tests {
     }
 
     #[test]
-    fn serialize_emits_plain_display_string() {
+    fn serialize_emits_structured_kind_and_message() {
         let value = serde_json::to_value(AppError::WrongPassword).unwrap();
-        assert_eq!(value, serde_json::Value::String("Wrong password.".to_string()));
+        assert_eq!(
+            value,
+            serde_json::json!({ "kind": "WrongPassword", "message": "Wrong password." })
+        );
+    }
+
+    #[test]
+    fn serialize_io_carries_kind_and_inner_message() {
+        let err = AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "missing file",
+        ));
+        let value = serde_json::to_value(err).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({ "kind": "Io", "message": "missing file" })
+        );
+    }
+
+    #[test]
+    fn kind_discriminator_matches_variant_name() {
+        assert_eq!(AppError::WrongPassword.kind(), "WrongPassword");
+        assert_eq!(AppError::EncryptionLocked.kind(), "EncryptionLocked");
+        assert_eq!(AppError::Io(std::io::Error::new(std::io::ErrorKind::Other, "x")).kind(), "Io");
+        assert_eq!(AppError::Crypto("x".into()).kind(), "Crypto");
+        assert_eq!(AppError::Serialization("x".into()).kind(), "Serialization");
+        assert_eq!(AppError::Other("x".into()).kind(), "Other");
     }
 }
 
