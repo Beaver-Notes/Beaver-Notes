@@ -39,112 +39,47 @@
 
             <span class="tb-divider" />
 
-            <button
-              v-if="isItemVisible('paragraph')"
-              v-tooltip.group="translations.menu.paragraph"
-              :aria-label="translations.menu.paragraph"
-              :class="tbBtn(editor.isActive('paragraph'))"
-              @click="openSub('paragraph')"
-            >
-              <v-remixicon name="riParagraph" />
-            </button>
-
-            <button
-              v-if="isItemVisible('headings')"
-              v-tooltip.group="translations.menu.headings"
-              :aria-label="translations.menu.headings"
-              :class="tbBtn(editor.isActive('heading'))"
-              @click="openSub('headings')"
-            >
-              <v-remixicon name="riHeading" />
-            </button>
-
-            <button
-              v-if="isItemVisible('fontSize')"
-              v-tooltip.group="translations.menu.fontSize"
-              :aria-label="translations.menu.fontSize"
-              :class="tbBtn()"
-              @click="openSub('fontSize')"
-            >
-              <span
-                class="pointer-events-none text-xs font-semibold leading-none"
-                >{{ fontSize || 'Aa' }}</span
-              >
-            </button>
+            <toolbar-overflow
+              section="text"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+              :font-size="fontSize"
+            />
 
             <span
               v-if="hasTextControls && hasFormattingControls"
               class="tb-divider"
             />
 
-            <button
-              v-for="item in visibleInlineFormatItems"
-              :key="item.id"
-              v-tooltip.group="fmtMap[item.fmt]?.title"
-              :aria-label="fmtMap[item.fmt]?.title"
-              :class="tbBtn(editor.isActive(fmtMap[item.fmt]?.state))"
-              @click="fmtMap[item.fmt]?.run()"
-            >
-              <v-remixicon :name="fmtMap[item.fmt]?.icon" />
-            </button>
-
-            <button
-              v-if="isItemVisible('color')"
-              v-tooltip.group="translations.menu.highlight"
-              :aria-label="translations.menu.highlight"
-              :class="
-                tbBtn(
-                  editor.isActive('textStyle') || editor.isActive('highlight')
-                )
-              "
-              @click="openSub('color')"
-            >
-              <v-remixicon
-                name="riFontColor"
-                :style="{ color: currentTextColor }"
-              />
-            </button>
+            <toolbar-formatting
+              :editor="editor"
+              :translations="translations"
+              :fmt-map="fmtMap"
+              :visible-inline-format-items="visibleInlineFormatItems"
+              :is-item-visible="isItemVisible"
+              :current-text-color="currentTextColor"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+            />
 
             <span
               v-if="hasFormattingControls && hasBlockControls"
               class="tb-divider"
             />
 
-            <button
-              v-if="!isTableActive && isItemVisible('lists')"
-              v-tooltip.group="translations.menu.lists"
-              :aria-label="translations.menu.lists"
-              :class="
-                tbBtn(
-                  editor.isActive('orderedList') ||
-                    editor.isActive('bulletList') ||
-                    editor.isActive('taskList')
-                )
-              "
-              @click="openSub('lists')"
-            >
-              <v-remixicon name="riListOrdered" />
-            </button>
-
-            <button
-              v-if="!isTableActive && isItemVisible('blockquote')"
-              v-tooltip.group="translations.menu.blockQuote"
-              :aria-label="translations.menu.blockQuote"
-              :class="tbBtn(editor.isActive('blockquote'))"
-              @click="editor.chain().focus().toggleBlockquote().run()"
-            >
-              <v-remixicon name="riDoubleQuotesR" />
-            </button>
-
-            <button
-              v-if="!isTableActive && isItemVisible('codeBlock')"
-              v-tooltip.group="translations.menu.codeBlock"
-              :aria-label="translations.menu.codeBlock"
-              :class="tbBtn(editor.isActive('codeBlock'))"
-              @click="editor.chain().focus().toggleCodeBlock().run()"
-            >
-              <v-remixicon name="riCodeBoxLine" />
-            </button>
+            <toolbar-overflow
+              section="block"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+            />
 
             <template v-if="isTableActive">
               <button
@@ -164,184 +99,37 @@
               class="tb-divider"
             />
 
-            <ui-popover
-              v-if="isItemVisible('link')"
-              v-model:model-value="linkPopoverOpen"
-              @show="onLinkPopoverShow"
-            >
-              <template #trigger>
-                <button
-                  v-tooltip.group="translations.menu.link"
-                  :aria-label="translations.menu.link"
-                  :class="tbBtn(editor.isActive('link') || linkPopoverOpen)"
-                >
-                  <v-remixicon name="riLink" />
-                </button>
-              </template>
-
-              <div class="min-w-[260px]">
-                <div class="flex items-center gap-2">
-                  <input
-                    ref="linkInputRef"
-                    v-model="linkInputValue"
-                    type="text"
-                    :placeholder="
-                      translations.editor?.linkPlaceholder ||
-                      'Enter URL or @note'
-                    "
-                    class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors"
-                    @keydown="onLinkInputKeydown"
-                    @keydown.esc="closeLinkInput"
-                    @keyup.enter="saveLinkInput"
-                  />
-                  <button
-                    class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
-                    :title="translations.common?.cancel || 'Cancel'"
-                    :aria-label="translations.common?.cancel || 'Cancel'"
-                    @click="closeLinkInput"
-                  >
-                    <v-remixicon name="riCloseLine" class="size-4" />
-                  </button>
-                  <button
-                    class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
-                    :title="translations.common?.save || 'Save'"
-                    :aria-label="translations.common?.save || 'Save'"
-                    :disabled="!linkInputValue.trim()"
-                    @click="saveLinkInput"
-                  >
-                    <v-remixicon name="riCheckLine" class="size-4" />
-                  </button>
-                </div>
-
-                <div
-                  v-if="
-                    linkInputValue.startsWith('@') && linkSuggestions.length > 0
-                  "
-                  class="mt-1 max-h-40 overflow-y-auto"
-                >
-                  <button
-                    v-for="(suggestion, index) in linkSuggestions"
-                    :key="suggestion.id"
-                    :class="
-                      index === selectedLinkIndex
-                        ? 'bg-neutral-100 dark:bg-neutral-700'
-                        : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
-                    "
-                    class="w-full text-left px-2 py-1.5 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 transition-colors"
-                    @click="selectLinkNote(suggestion.id)"
-                  >
-                    {{
-                      suggestion.title ||
-                      translations.editor?.untitledNote ||
-                      'Untitled Note'
-                    }}
-                  </button>
-                </div>
-                <div
-                  v-else-if="
-                    linkInputValue.startsWith('@') &&
-                    linkSuggestions.length === 0
-                  "
-                  class="mt-1 p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
-                >
-                  {{
-                    translations.editor?.noMatchingNotes ||
-                    'No matching notes found'
-                  }}
-                </div>
-              </div>
-            </ui-popover>
-            <button
-              v-if="isItemVisible('image')"
-              v-tooltip.group="translations.menu.image"
-              :aria-label="translations.menu.image"
-              :class="tbBtn()"
-              @click="isMobile ? triggerImageInput() : openSub('image')"
-            >
-              <v-remixicon name="riImageLine" />
-            </button>
-            <button
-              v-if="isItemVisible('file')"
-              v-tooltip.group="translations.menu.file"
-              :aria-label="translations.menu.file"
-              :class="tbBtn()"
-              @click="isMobile ? triggerFileInput() : openSub('file')"
-            >
-              <v-remixicon name="riFile2Line" />
-            </button>
-            <button
-              v-if="isItemVisible('video')"
-              v-tooltip.group="translations.menu.video"
-              :aria-label="translations.menu.video"
-              :class="tbBtn()"
-              @click="isMobile ? triggerVideoInput() : openSub('video')"
-            >
-              <v-remixicon name="riMovieLine" />
-            </button>
-            <button
-              v-if="isItemVisible('table')"
-              v-tooltip.group="translations.menu.table"
-              :aria-label="translations.menu.table"
-              :class="tbBtn()"
-              @click="
-                editor
-                  .chain()
-                  .focus()
-                  .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                  .run()
-              "
-            >
-              <v-remixicon name="riTableLine" />
-            </button>
-            <button
-              v-if="isItemVisible('draw')"
-              v-tooltip.group="translations.menu.draw"
-              :aria-label="translations.menu.draw"
-              :class="tbBtn(drawActions.some((action) => action.isActive))"
-              @click="editor.chain().focus().insertPaper().run()"
-            >
-              <v-remixicon name="riBrushLine" />
-            </button>
-
-            <span
-              v-if="hasMediaControls && isItemVisible('audio')"
-              class="tb-divider"
+            <toolbar-insert
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :table-actions="tableActions"
+              :draw-actions="drawActions"
+              :is-recording="isRecording"
+              :formatted-time="formattedTime"
+              :is-paused="isPaused"
+              :toggle-recording="toggleRecording"
+              :pause-resume="pauseResume"
+              :is-mobile="isMobile"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+              :link-input-value="linkInputValue"
+              :link-input-ref="linkInputRef"
+              :selected-link-index="selectedLinkIndex"
+              :link-suggestions="linkSuggestions"
+              :link-popover-open="linkPopoverOpen"
+              :on-link-popover-show="onLinkPopoverShow"
+              :on-link-input-keydown="onLinkInputKeydown"
+              :close-link-input="closeLinkInput"
+              :save-link-input="saveLinkInput"
+              :select-link-note="selectLinkNote"
+              :trigger-image-input="triggerImageInput"
+              :trigger-file-input="triggerFileInput"
+              :trigger-video-input="triggerVideoInput"
+              @update:link-input-value="linkInputValue = $event"
+              @update:link-popover-open="linkPopoverOpen = $event"
             />
-
-            <!-- Audio -->
-            <div class="flex items-center gap-0.5">
-              <template v-if="isRecording">
-                <button
-                  :class="tbBtn()"
-                  class="!text-red-500"
-                  aria-label="Stop recording"
-                  @click="toggleRecording"
-                >
-                  <v-remixicon name="riStopCircleLine" />
-                </button>
-                <span
-                  class="min-w-10 px-1 text-xs font-semibold tabular-nums text-red-500"
-                  >{{ formattedTime }}</span
-                >
-                <button :class="tbBtn()" :aria-label="isPaused ? 'Play recording' : 'Pause recording'" @click="pauseResume">
-                  <v-remixicon
-                    :name="isPaused ? 'riPlayFill' : 'riPauseFill'"
-                  />
-                </button>
-              </template>
-              <template v-else>
-                <button
-                  v-if="isItemVisible('audio')"
-                  v-tooltip.group="translations.menu.record"
-                  :aria-label="translations.menu.record"
-                  :class="tbBtn()"
-                  @click="openSub('audio')"
-                >
-                  <v-remixicon name="riMicLine" />
-                </button>
-              </template>
-            </div>
-
             <span
               v-if="
                 (hasMediaControls || isItemVisible('audio')) &&
@@ -350,39 +138,25 @@
               class="tb-divider"
             />
 
-            <button
-              v-if="isItemVisible('delete')"
-              v-tooltip.group="translations.menu.delete"
-              :aria-label="translations.menu.delete"
-              :class="[tbBtn(), 'hover:!text-red-500 hover:!bg-red-500/10']"
-              @click="deleteNode"
-            >
-              <v-remixicon name="riDeleteBin6Line" />
-            </button>
+            <toolbar-overflow
+              section="actions"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+              :font-size="fontSize"
+              :show-customizer="showCustomizer"
+              :delete-node="deleteNode"
+              :visible-items="visibleItems"
+              @update:show-customizer="showCustomizer = $event"
+            />
 
             <span
               v-if="isItemVisible('delete') || visibleItems.length"
               class="tb-divider"
             />
-
-            <button
-              v-tooltip.group="
-                translations.toolbar?.customizeToolbar || 'Customize toolbar'
-              "
-              :aria-label="translations.toolbar?.customizeToolbar || 'Customize toolbar'"
-              :class="tbBtn(showCustomizer)"
-              @click="showCustomizer = true"
-            >
-              <v-remixicon name="riSettings3Line" />
-            </button>
-
-            <template v-for="item in visibleItems" :key="item.id">
-              <component
-                :is="item.meta.component"
-                v-if="item.meta?.component"
-                :editor="editor"
-              />
-            </template>
           </div>
 
           <!-- ── HEADINGS SUB-PANEL ── -->
@@ -782,6 +556,9 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
+import ToolbarFormatting from './toolbar/ToolbarFormatting.vue';
+import ToolbarInsert from './toolbar/ToolbarInsert.vue';
+import ToolbarOverflow from './toolbar/ToolbarOverflow.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
@@ -791,7 +568,7 @@ import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
 export default {
-  components: { ToolbarCustomizer, MobileBlockPicker },
+  components: { ToolbarCustomizer, MobileBlockPicker, ToolbarFormatting, ToolbarInsert, ToolbarOverflow },
   props: {
     editor: { type: Object, default: () => ({}) },
     id: { type: String, default: '' },
