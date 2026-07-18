@@ -100,7 +100,7 @@ pub(crate) async fn check_for_updates(
         });
     }
     {
-        let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+        let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
         if updater.is_checking || updater.is_downloading {
             return Ok(CheckResult {
                 success: false,
@@ -117,7 +117,7 @@ pub(crate) async fn check_for_updates(
         Ok(client) => client,
         Err(e) => {
             let error = e.to_string();
-            let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             let _ = emit_update_status(
                 &app,
@@ -137,7 +137,7 @@ pub(crate) async fn check_for_updates(
     match updater_client.check().await {
         Err(e) => {
             let error = e.to_string();
-            let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             let _ = emit_update_status(
                 &app,
@@ -153,7 +153,7 @@ pub(crate) async fn check_for_updates(
             })
         }
         Ok(Some(update)) => {
-            let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             updater.available_version = Some(update.version.clone());
             updater.current_version = Some(update.current_version.clone());
@@ -174,7 +174,7 @@ pub(crate) async fn check_for_updates(
         }
         Ok(None) => {
             let current = app.package_info().version.to_string();
-            let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+            let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
             updater.is_checking = false;
             updater.current_version = Some(current.clone());
             updater.available_version = None;
@@ -203,7 +203,7 @@ pub(crate) async fn download_update(
         return Err(AppError::Other(managed_err("Updates are managed by")));
     }
     let update = {
-        let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+        let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
         if updater.is_downloading {
             return Err(AppError::Other("Download already in progress".into()));
         }
@@ -250,7 +250,7 @@ pub(crate) async fn download_update(
         version: version.clone(),
     };
 
-    let mut updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+    let mut updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
     updater.is_downloading = false;
     updater.pending_banner_data = Some(banner.clone());
     updater.downloaded_bytes = Some(bytes);
@@ -271,7 +271,7 @@ pub(crate) fn install_update(state: State<AppState>) -> Result<(), AppError> {
     if !standalone() {
         return Err(AppError::Other(managed_err("Updates are managed by")));
     }
-    let updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+    let updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
     let update = updater
         .downloaded_update
         .clone()
@@ -298,7 +298,7 @@ pub(crate) fn toggle_auto_update(
         return Err(AppError::Other("Auto-update is managed by your package manager.".into()));
     }
     save_auto_update_enabled(&app, enabled)?;
-    state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?.auto_update_enabled = enabled;
+    state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?.auto_update_enabled = enabled;
     Ok(())
 }
 
@@ -307,7 +307,7 @@ pub(crate) fn get_auto_update_status(state: State<AppState>) -> Result<bool, App
     if !standalone() {
         return Ok(false);
     }
-    Ok(state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?.auto_update_enabled)
+    Ok(state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?.auto_update_enabled)
 }
 
 #[tauri::command]
@@ -315,7 +315,7 @@ pub(crate) fn is_update_downloading(state: State<AppState>) -> Result<bool, AppE
     if !standalone() {
         return Ok(false);
     }
-    Ok(state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?.is_downloading)
+    Ok(state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?.is_downloading)
 }
 
 #[tauri::command]
@@ -330,7 +330,7 @@ pub(crate) fn get_update_info(state: State<AppState>) -> Result<UpdateInfo, AppE
             is_busy: false,
         });
     }
-    let updater = state.updater.lock().map_err(|_| AppError::Other("Mutex lock poisoned".into()))?;
+    let updater = state.updater.lock().map_err(|e| AppError::Other(e.to_string()))?;
     Ok(UpdateInfo {
         is_checking: updater.is_checking,
         is_downloading: updater.is_downloading,
