@@ -1,6 +1,8 @@
 mod bootstrap;
 mod commands;
 mod db;
+pub mod specta_setup;
+
 #[cfg(desktop)]
 mod menu;
 mod secure_blob;

@@ -12,6 +12,10 @@ rust-version = "1.77.2"
 name = "beaver_notes"
 crate-type = ["staticlib", "cdylib", "lib"]
 
+[[bin]]
+name = "gen-specta"
+path = "src/bin/gen-specta.rs"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -60,6 +64,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
 tauri-plugin-scoped-storage = "=1.5.0"
+specta = "=2.0.0-rc.25"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta-typescript = "0.0.12"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

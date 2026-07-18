@@ -4,6 +4,7 @@ use crate::shared::*;
 
 /// Return all registered workspaces.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn workspace_list(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -13,6 +14,7 @@ pub(crate) fn workspace_list(
 
 /// Return the currently active workspace.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn workspace_get_active(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -32,6 +34,7 @@ pub(crate) fn workspace_get_active(
 
 /// Create a new workspace and switch to it.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn workspace_create(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -82,6 +85,7 @@ pub(crate) fn workspace_create(
 
 /// Switch the active workspace. The frontend must reload stores after this.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn workspace_switch(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -103,6 +107,7 @@ pub(crate) fn workspace_switch(
 
 /// Rename a workspace.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn workspace_rename(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -122,6 +127,7 @@ pub(crate) fn workspace_rename(
 /// Delete a workspace. Cannot delete the currently active workspace.
 /// The workspace directory and all its data are removed.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn workspace_delete(
     app: AppHandle,
     state: State<'_, AppState>,

@@ -577,7 +577,7 @@ pub(crate) const DEFAULT_WORKSPACE_NAME: &str = "Default";
 pub(crate) const WORKSPACES_DIR: &str = "workspaces";
 pub(crate) const WORKSPACES_JSON: &str = "workspaces.json";
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WorkspaceInfo {
     pub(crate) id: String,
