@@ -97,4 +97,58 @@ impl From<AppError> for String {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_wrong_password() {
+        assert_eq!(AppError::WrongPassword.to_string(), "Wrong password.");
+    }
+
+    #[test]
+    fn display_encryption_locked() {
+        assert_eq!(
+            AppError::EncryptionLocked.to_string(),
+            "App encryption is locked. Unlock before reading assets."
+        );
+    }
+
+    #[test]
+    fn display_crypto_carries_message() {
+        assert_eq!(
+            AppError::Crypto("boom".to_string()).to_string(),
+            "boom"
+        );
+    }
+
+    #[test]
+    fn display_serialization_carries_message() {
+        assert_eq!(
+            AppError::Serialization("bad json".to_string()).to_string(),
+            "bad json"
+        );
+    }
+
+    #[test]
+    fn display_other_carries_message() {
+        assert_eq!(AppError::Other("oops".to_string()).to_string(), "oops");
+    }
+
+    #[test]
+    fn display_io_carries_inner_error() {
+        let err = AppError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "missing file",
+        ));
+        assert_eq!(err.to_string(), "missing file");
+    }
+
+    #[test]
+    fn serialize_emits_plain_display_string() {
+        let value = serde_json::to_value(AppError::WrongPassword).unwrap();
+        assert_eq!(value, serde_json::Value::String("Wrong password.".to_string()));
+    }
+}
+
 

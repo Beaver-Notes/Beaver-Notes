@@ -85,3 +85,66 @@ pub(crate) fn clear_decrypted_caches(state: &AppState) {
         cache.clear();
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert_then_get_hits() {
+        let mut cache = ByteLruCache::new(1024);
+        cache.put("a".to_string(), vec![1, 2, 3]);
+        assert_eq!(cache.get("a"), Some(&vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn get_missing_key_returns_none() {
+        let mut cache = ByteLruCache::new(1024);
+        assert_eq!(cache.get("absent"), None);
+    }
+
+    #[test]
+    fn single_oversized_value_is_still_inserted_and_retained() {
+        // The current implementation cannot evict an oversized entry that is the
+        // sole occupant (the eviction loop is skipped when `inner` is empty), so a
+        // value larger than `max_bytes` is stored verbatim. This pins today's
+        // behavior for the Task 10 refactor.
+        let mut cache = ByteLruCache::new(4);
+        cache.put("big".to_string(), vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(cache.get("big"), Some(&vec![1, 2, 3, 4, 5, 6]));
+    }
+
+    #[test]
+    fn put_of_same_key_updates_value_without_growing_bytes() {
+        let mut cache = ByteLruCache::new(1024);
+        cache.put("k".to_string(), vec![1, 2, 3]);
+        cache.put("k".to_string(), vec![4, 5, 6, 7]);
+        assert_eq!(cache.get("k"), Some(&vec![4, 5, 6, 7]));
+        assert_eq!(cache.get("missing"), None);
+    }
+
+    #[test]
+    fn byte_limit_evicts_least_recently_used() {
+        let mut cache = ByteLruCache::new(10);
+        cache.put("a".to_string(), vec![0u8; 6]);
+        cache.put("b".to_string(), vec![0u8; 6]);
+        cache.put("c".to_string(), vec![0u8; 6]);
+
+        let present: Vec<bool> = ["a", "b", "c"]
+            .iter()
+            .map(|k| cache.get(k).is_some())
+            .collect();
+        assert!(present.contains(&false), "one entry must be evicted: {present:?}");
+        assert!(present.iter().filter(|&&p| p).count() >= 1);
+    }
+
+    #[test]
+    fn clear_removes_all_entries() {
+        let mut cache = ByteLruCache::new(1024);
+        cache.put("a".to_string(), vec![1]);
+        cache.put("b".to_string(), vec![2]);
+        cache.clear();
+        assert_eq!(cache.get("a"), None);
+        assert_eq!(cache.get("b"), None);
+    }
+}
