@@ -1,6 +1,6 @@
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { hydrateNote, decryptNoteForMemory } from '@/utils/note/serializer.js';
-import { saveNote } from './helpers';
+import { saveNote } from './index';
 
 export async function decryptAllNotesForAppEncryption(options = {}) {
   const { onProgress } = options;

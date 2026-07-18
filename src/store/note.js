@@ -4,13 +4,13 @@ import {
   getById,
   getByFolder,
   getNotesCountByFolder,
-} from './note/search';
+} from './note/index';
 import {
   getFolderContents,
   searchNotes,
   getNotesWithPath,
   searchNotesSql,
-} from './note/search';
+} from './note/index';
 import {
   lockNote,
   unlockNote,
@@ -35,7 +35,7 @@ import {
   normalizeInvalidFolderIds,
   addLabel,
   removeLabel,
-} from './note/crud';
+} from './note/index';
 import { getBacklinks, getBacklinkCount } from './note/backlinks';
 
 export const useNoteStore = defineStore('note', {

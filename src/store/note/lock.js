@@ -9,7 +9,7 @@ import {
   reconcileFootnotes,
   uncollapseHeadings,
 } from '@/utils/note/contentUtils.js';
-import { saveNote } from './helpers';
+import { saveNote } from './index';
 
 export async function lockNote(id, password) {
   if (!password) {

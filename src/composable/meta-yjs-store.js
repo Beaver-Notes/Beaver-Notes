@@ -13,7 +13,7 @@ import { yXmlFragmentToProsemirrorJSON } from '@tiptap/y-tiptap';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
-import { saveNote } from '@/store/note/helpers';
+import { saveNote } from '@/store/note/index';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
 import { getWorkspaceDoc } from './meta-yjs-doc.js';
 
