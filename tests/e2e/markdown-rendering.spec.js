@@ -1,5 +1,5 @@
 import { browser, expect } from '@wdio/globals';
-import { navigateToNotes, createNote, getEditorHTML, waitForSaved } from './helpers.js';
+import { navigateToNotes, createNote, getEditorHTML } from './helpers.js';
 
 describe('Markdown Rendering', () => {
   before(async () => {

@@ -70,9 +70,6 @@ describe('Appearance', () => {
   });
 
   it('should persist theme selection', async () => {
-    const themeBefore = await browser.execute(() => {
-      return document.documentElement.classList.contains('dark');
-    });
 
     const btns = await browser.execute(() => {
       const allBtns = Array.from(document.querySelectorAll('button'));

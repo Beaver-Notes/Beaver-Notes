@@ -1,5 +1,5 @@
 import { browser, expect } from '@wdio/globals';
-import { navigateToSettings, navigateToNotes, createNoteWithTitle, waitForSaved } from './helpers.js';
+import { navigateToSettings, navigateToNotes } from './helpers.js';
 
 describe('Import/Export', () => {
   it('should navigate to Settings for import', async () => {

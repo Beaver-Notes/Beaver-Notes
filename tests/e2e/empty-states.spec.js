@@ -1,5 +1,5 @@
 import { browser, expect } from '@wdio/globals';
-import { navigateToNotes, deleteAllNotes, createNote, waitForSaved } from './helpers.js';
+import { navigateToNotes } from './helpers.js';
 
 describe('Empty States', () => {
   it('should show empty state when no notes exist', async () => {

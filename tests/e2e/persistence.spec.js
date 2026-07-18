@@ -1,5 +1,5 @@
 import { browser, expect } from '@wdio/globals';
-import { navigateToNotes, createNote, createNoteWithTitle, typeInEditor, getTitleText, getEditorText, waitForSaved, deleteCurrentNote } from './helpers.js';
+import { navigateToNotes, createNoteWithTitle, typeInEditor, getTitleText, getEditorText, waitForSaved, deleteCurrentNote } from './helpers.js';
 
 describe('Data Persistence', () => {
   const uniqueId = Date.now();

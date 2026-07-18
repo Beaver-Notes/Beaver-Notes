@@ -3,7 +3,6 @@ import { navigateToNotes } from './helpers.js';
 
 describe('Folder CRUD', () => {
   const folderName = `E2E Folder ${Date.now()}`;
-  const renamedFolder = `Renamed Folder ${Date.now()}`;
 
   it('should create a new folder via keyboard shortcut', async () => {
     await navigateToNotes();

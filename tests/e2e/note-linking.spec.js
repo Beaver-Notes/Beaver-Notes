@@ -3,8 +3,7 @@ import { navigateToNotes, createNoteWithTitle, typeInEditor, waitForSaved, delet
 
 describe('Note Linking', () => {
   const linkTestId = Date.now();
-  let noteAId;
-  let noteBId;
+
 
   it('should create a link via Ctrl+K', async () => {
     await navigateToNotes();
@@ -100,10 +99,6 @@ describe('Note Linking', () => {
     await navigateToNotes();
     await createNoteWithTitle(`Link Target ${linkTestId}`);
     await waitForSaved();
-
-    const currentUrl = await browser.getUrl();
-    const noteIdMatch = currentUrl.match(/#\/note\/(.+)/);
-    noteBId = noteIdMatch ? noteIdMatch[1] : null;
 
     await navigateToNotes();
     const cards = await $$('[data-testid="note-card"]');
