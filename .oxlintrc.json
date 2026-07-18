@@ -7,6 +7,8 @@
     "unicorn/no-new-array": "error",
     "unicorn/no-useless-spread": "error",
     "no-self-compare": "error",
-    "no-loss-of-precision": "error"
-  }
+    "no-loss-of-precision": "error",
+    "no-console": ["error", { "allow": ["warn", "error", "time", "timeEnd"] }]
+  },
+  "ignorePatterns": ["scripts/**", "tests/**", "wdio.conf.mjs"]
 }

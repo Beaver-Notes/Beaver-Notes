@@ -45,7 +45,6 @@ export async function migrateNotesContent() {
     const isLockedOrEncrypted =
       note.isLocked || isEncryptedContent(note.content);
     if (isLockedOrEncrypted) {
-      console.log(`[yjs-migration] Skipping locked/encrypted note ${id}.`);
       continue;
     }
 
@@ -80,6 +79,5 @@ export async function migrateNotesContent() {
   }
 
   await storage.set('yjs_migration_done', true, 'settings');
-  console.log(`[yjs-migration] Migrated ${migrated}/${noteIds.length} notes.`);
   return migrated;
 }
