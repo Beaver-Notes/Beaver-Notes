@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { NoteState } from './note/index';
 import {
   notes,
   getById,
@@ -39,7 +40,7 @@ import {
 import { getBacklinks, getBacklinkCount } from './note/backlinks';
 
 export const useNoteStore = defineStore('note', {
-  state: () => ({
+  state: (): NoteState => ({
     data: {},
     lockStatus: {},
     isLocked: {},

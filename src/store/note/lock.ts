@@ -11,7 +11,12 @@ import {
 } from '@/utils/note/contentUtils.js';
 import { saveNote } from './index';
 
-export async function lockNote(id, password) {
+interface NoteStoreLockThis {
+  data: Record<string, any>;
+  convertNote(id: string): void;
+}
+
+export async function lockNote(this: NoteStoreLockThis, id: string, password: string): Promise<void> {
   if (!password) {
     console.error('No password provided.');
     return;
@@ -39,7 +44,7 @@ export async function lockNote(id, password) {
   }
 }
 
-export async function unlockNote(id, password) {
+export async function unlockNote(this: NoteStoreLockThis, id: string, password: string): Promise<void> {
   if (!password) {
     console.error('No password provided.');
     return;
@@ -67,7 +72,7 @@ export async function unlockNote(id, password) {
       return;
     }
 
-    let decryptedContent, wasLegacy;
+    let decryptedContent: string, wasLegacy: boolean | undefined;
     try {
       ({ plaintext: decryptedContent, wasLegacy } =
         await decryptNoteWithPassword(
@@ -115,14 +120,14 @@ export async function unlockNote(id, password) {
   }
 }
 
-export function convertNote(id) {
+export function convertNote(this: NoteStoreLockThis, id: string): void {
   const note = this.data[id];
   if (!note || note.isLocked) return;
   const content = note.content;
   if (!content || typeof content === 'string' || !Array.isArray(content.content)) {
     return;
   }
-  const footnotes = [];
+  const footnotes: any[] = [];
   const newContent = uncollapseHeadings(content.content, footnotes);
   note.content = { ...content, content: newContent };
   if (footnotes.length > 0) {
@@ -132,11 +137,11 @@ export function convertNote(id) {
 }
 
 // Kept for backward-compatibility with any callers that reference the store method directly.
-export function uncollapseHeading(contents, footnotes) {
+export function uncollapseHeading(contents: any[], footnotes: any[]): any[] {
   return uncollapseHeadings(contents, footnotes);
 }
 
 // Legacy migration — no longer needed; lock state lives in Yjs note metadata.
-export async function migrateLockData() {
+export async function migrateLockData(): Promise<void> {
   // no-op
 }

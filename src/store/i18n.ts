@@ -4,22 +4,22 @@ import { ref, computed } from 'vue';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 
-const localeFiles = import.meta.glob('@/assets/locales/*.json', {
+const localeFiles = import.meta.glob<{ default: Record<string, string> }>('@/assets/locales/*.json', {
   eager: true,
 });
 
 const dayjsLocales = import.meta.glob('../../node_modules/dayjs/locale/*.js');
 
 export const useI18nStore = defineStore('i18n', () => {
-  const lang = ref(getSettingSync('selectedLanguage'));
+  const lang = ref<string>(getSettingSync('selectedLanguage') as string);
 
-  let _cachedLang = null;
-  let _cachedMessages = null;
+  let _cachedLang: string | null = null;
+  let _cachedMessages: Record<string, string> | null = null;
 
   const messages = computed(() => {
     if (lang.value === _cachedLang && _cachedMessages) return _cachedMessages;
-    const fallback = localeFiles[`/src/assets/locales/en.json`]?.default ?? {};
-    const selected =
+    const fallback: Record<string, string> = localeFiles[`/src/assets/locales/en.json`]?.default ?? {};
+    const selected: Record<string, string> =
       lang.value === 'en'
         ? fallback
         : localeFiles[`/src/assets/locales/${lang.value}.json`]?.default ??
@@ -29,7 +29,7 @@ export const useI18nStore = defineStore('i18n', () => {
     return _cachedMessages;
   });
 
-  async function setLanguage(newLang) {
+  async function setLanguage(newLang: string) {
     lang.value = newLang;
     await setSetting('selectedLanguage', newLang);
     document.documentElement.setAttribute('lang', newLang);

@@ -7,26 +7,29 @@ import {
   syncLabelColor,
 } from '@/composable/useWorkspaceYjs';
 
+interface LabelState {
+  data: string[];
+  colors: Record<string, string>;
+}
+
 export const useLabelStore = defineStore('label', {
-  state: () => ({
+  state: (): LabelState => ({
     data: [],
-    colors: {}, // { [labelName]: '#hexcolor' }
+    colors: {},
   }),
 
   getters: {
-    getByIds: (state) => (ids) => ids.filter((id) => state.data.includes(id)),
-    getColor: (state) => (name) => state.colors[name] ?? null,
+    getByIds: (state) => (ids: string[]) => ids.filter((id) => state.data.includes(id)),
+    getColor: (state) => (name: string) => state.colors[name] ?? null,
   },
 
   actions: {
     async retrieve() {
-      // Data is already populated from the Yjs workspace doc via
-      // writeStoresFromWorkspace().  No KV reads needed.
       return this.data;
     },
 
-    add(name) {
-      return new Promise((resolve) => {
+    add(name: string) {
+      return new Promise<string | null>((resolve) => {
         if (typeof name !== 'string' || name.trim() === '') {
           console.error('Invalid name:', name);
           resolve(null);
@@ -42,7 +45,7 @@ export const useLabelStore = defineStore('label', {
       });
     },
 
-    async delete(id) {
+    async delete(id: string) {
       try {
         const labelIndex = this.data.indexOf(id);
         if (labelIndex === -1) return null;
@@ -60,7 +63,6 @@ export const useLabelStore = defineStore('label', {
 
         this.data.splice(labelIndex, 1);
 
-        // Clean up color entry if one existed
         if (this.colors[id]) {
           delete this.colors[id];
         }
@@ -73,7 +75,7 @@ export const useLabelStore = defineStore('label', {
       }
     },
 
-    async setColor(name, color) {
+    async setColor(name: string, color: string | null) {
       if (!this.data.includes(name)) return null;
 
       if (color) {

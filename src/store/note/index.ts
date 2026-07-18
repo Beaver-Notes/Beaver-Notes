@@ -12,7 +12,6 @@ import { useUndoStore } from '../undo';
 import {
   indexNote,
   removeNoteFromIndex,
-  searchNotesFts,
 } from '@/lib/native/search';
 import {
   indexNoteForSpotlight,
@@ -31,29 +30,54 @@ import {
   syncDeletedNoteIds,
 } from '@/composable/useWorkspaceYjs';
 
+export interface NoteData {
+  id: string;
+  title: string;
+  content: any;
+  labels: string[];
+  createdAt: number;
+  updatedAt: number;
+  isBookmarked: boolean;
+  isArchived: boolean;
+  isLocked: boolean;
+  isFullWidth: boolean;
+  folderId: string | null;
+  preview?: string;
+  searchText?: string;
+  cardPreview?: any;
+}
+
+export interface NoteState {
+  data: Record<string, NoteData>;
+  deletedIds: Record<string, number>;
+  lockStatus: Record<string, unknown>;
+  isLocked: Record<string, unknown>;
+  syncInProgress: boolean;
+}
+
 const _skipUndo = { value: false };
 
 // ── search (from search.js) ──
 
 // ─── Simple getters (kept together for discoverability) ──────────────────────
 
-export function notes(state) {
+export function notes(state: NoteState) {
   return Object.values(state.data).filter(({ id }) => id);
 }
 
-export function getById(state) {
-  return (id) => state.data[id];
+export function getById(state: NoteState) {
+  return (id: string) => state.data[id];
 }
 
-export function getByFolder(state) {
-  return (folderId = null) =>
+export function getByFolder(state: NoteState) {
+  return (folderId: string | null = null) =>
     Object.values(state.data).filter(
       (note) => note.folderId === folderId && note.id
     );
 }
 
-export function getNotesCountByFolder(state) {
-  return (folderId = null) => {
+export function getNotesCountByFolder(state: NoteState) {
+  return (folderId: string | null = null) => {
     let count = 0;
     for (const note of Object.values(state.data)) {
       if (note.id && note.folderId === folderId) count++;
@@ -64,15 +88,15 @@ export function getNotesCountByFolder(state) {
 
 // ─── Search-related getters ──────────────────────────────────────────────────
 
-export function getFolderContents(state) {
-  return (folderId = null) => {
+export function getFolderContents(state: NoteState) {
+  return (folderId: string | null = null) => {
     const notes = Object.values(state.data)
       .filter((note) => note.folderId === folderId && note.id)
       .sort((a, b) => b.updatedAt - a.updatedAt);
 
     const folders = useFolderStore()
       .getByParent(folderId)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a: any, b: any) => a.name.localeCompare(b.name));
 
     return { folders, notes };
   };
@@ -84,8 +108,8 @@ export function getFolderContents(state) {
  * callers that need a synchronous result.
  * For the primary search UI use `searchNotesSql` instead.
  */
-export function searchNotes(state) {
-  return (query) => {
+export function searchNotes(state: NoteState) {
+  return (query: string) => {
     const searchTerm = query.toLowerCase();
     return Object.values(state.data).filter((note) => {
       if (!note.id) return false;
@@ -97,27 +121,37 @@ export function searchNotes(state) {
   };
 }
 
-export function getNotesWithPath(state) {
-  return (notes = null) => {
-    const notesToProcess =
+export function getNotesWithPath(state: NoteState) {
+  return (notes: NoteData[] | null = null) => {
+    const notesToProcess: NoteData[] =
       notes || Object.values(state.data).filter(({ id }) => id);
     return notesToProcess.map((note) => ({
       ...note,
-      folderPath: note.folderId ? useFolderStore().getPath(note.folderId) : [],
+      folderPath: note.folderId ? (useFolderStore() as any).getPath(note.folderId) : [],
     }));
   };
 }
 
 // ─── Actions ─────────────────────────────────────────────────────────────────
 
-export async function searchNotesSql(query) {
+export interface NoteStoreThis {
+  data: Record<string, NoteData>;
+  deletedIds: Record<string, number>;
+  searchNotes?(query: string): NoteData[];
+  patchLocal(id: string, data?: Record<string, any>): NoteData | null;
+  persist(id: string): Promise<NoteData | null>;
+  delete(id: string): Promise<string>;
+  cleanupDeletedIds(days?: number): Promise<string[]>;
+}
+
+export async function searchNotesSql(this: NoteStoreThis, query: string): Promise<NoteData[]> {
   if (!query?.trim()) return [];
   try {
-    const { ids } = await searchNotesFts(query);
-    return ids.map((id) => this.data[id]).filter(Boolean);
+    const { ids } = (await import('@/lib/native/search')).searchNotesFts(query) as any;
+    return ids.map((id: string) => this.data[id]).filter(Boolean);
   } catch {
     // FTS not yet available (first launch before rebuild) — fall back
-    return this.searchNotes(query);
+    return this.searchNotes!(query);
   }
 }
 
@@ -125,7 +159,7 @@ export async function searchNotesSql(query) {
 
 // ─── Load & hydration ────────────────────────────────────────────────────────
 
-export async function retrieve() {
+export async function retrieve(this: NoteStoreThis): Promise<Record<string, NoteData>> {
   try {
     // Data is already populated from the Yjs workspace doc via
     // writeStoresFromWorkspace().  No KV reads needed.
@@ -142,7 +176,7 @@ export async function retrieve() {
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-export async function add(note = {}) {
+export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<string, any> = {}): Promise<NoteData> {
   try {
     const folderId = await resolveFolderId(note.folderId);
     const id = note.id || nanoid();
@@ -159,7 +193,7 @@ export async function add(note = {}) {
       isFullWidth: false,
       ...note,
       folderId,
-    };
+    } as NoteData;
 
     this.data[id] = hydrateNote(newNote);
     await saveNote(id, this.data[id]);
@@ -173,7 +207,7 @@ export async function add(note = {}) {
   }
 }
 
-export async function update(id, data = {}) {
+export async function update(this: NoteStoreThis, id: string, data: Record<string, any> = {}): Promise<NoteData> {
   try {
     if (data.folderId !== undefined && data.folderId !== null) {
       const folderStore = useFolderStore();
@@ -219,7 +253,7 @@ export async function update(id, data = {}) {
   }
 }
 
-export function patchLocal(id, data = {}) {
+export function patchLocal(this: NoteStoreThis, id: string, data: Record<string, any> = {}): NoteData | null {
   if (!this.data[id]) return null;
 
   this.data[id] = hydrateNote({
@@ -231,7 +265,7 @@ export function patchLocal(id, data = {}) {
   return this.data[id];
 }
 
-export async function persist(id) {
+export async function persist(this: NoteStoreThis, id: string): Promise<NoteData | null> {
   if (!this.data[id]) return null;
 
   const note = this.data[id];
@@ -256,7 +290,7 @@ export async function persist(id) {
   return note;
 }
 
-export async function deleteNote(id) {
+export async function deleteNote(this: NoteStoreThis, id: string): Promise<string> {
   try {
     const snapshot =
       !_skipUndo.value && this.data[id]
@@ -317,7 +351,7 @@ export async function deleteNote(id) {
   }
 }
 
-export async function cleanupDeletedIds(days = 30) {
+export async function cleanupDeletedIds(this: NoteStoreThis, days = 30): Promise<string[]> {
   const toDelete = collectExpiredIds(this.deletedIds, days);
 
   for (const id of toDelete) {
@@ -331,7 +365,7 @@ export async function cleanupDeletedIds(days = 30) {
 
 // ─── Folder operations ───────────────────────────────────────────────────────
 
-export async function moveToFolder(noteIds, folderId) {
+export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folderId: string | null): Promise<NoteData[]> {
   try {
     const targetFolderId = folderId ?? null;
     if (targetFolderId !== null) {
@@ -341,8 +375,8 @@ export async function moveToFolder(noteIds, folderId) {
       }
     }
 
-    const undoNotes = [];
-    const updatePromises = [];
+    const undoNotes: { id: string; prevFolderId: string | null | undefined }[] = [];
+    const updatePromises: Promise<any>[] = [];
     for (const noteId of noteIds) {
       if (this.data[noteId]) {
         undoNotes.push({
@@ -366,7 +400,7 @@ export async function moveToFolder(noteIds, folderId) {
   }
 }
 
-export async function handleFolderDeletion(deletionResult) {
+export async function handleFolderDeletion(this: NoteStoreThis, deletionResult: any): Promise<{ noteIds: string[]; noteSnapshots: { type: string; data: any }[] }> {
   try {
     const { deletedFolderId, descendantIds, moveContentsTo, deleteContents } =
       deletionResult;
@@ -407,7 +441,7 @@ export async function handleFolderDeletion(deletionResult) {
   }
 }
 
-export async function normalizeInvalidFolderIds() {
+export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<string[]> {
   const folderStore = useFolderStore();
   const invalid = Object.values(this.data).filter(
     (note) => note?.id && note.folderId && !folderStore.exists(note.folderId)
@@ -423,7 +457,7 @@ export async function normalizeInvalidFolderIds() {
 
 // ─── Labels ──────────────────────────────────────────────────────────────────
 
-export async function addLabel(id, labelId) {
+export async function addLabel(this: NoteStoreThis, id: string, labelId: string): Promise<string | undefined> {
   try {
     if (!this.data[id]) {
       console.error('Note not found');
@@ -448,7 +482,7 @@ export async function addLabel(id, labelId) {
   }
 }
 
-export async function removeLabel(id, labelId) {
+export async function removeLabel(this: NoteStoreThis, id: string, labelId: string): Promise<string | undefined> {
   try {
     if (!this.data[id]) {
       console.error('Note not found');
@@ -483,22 +517,22 @@ export async function removeLabel(id, labelId) {
  * Uses the pre-computed `searchText` field so no content serialisation is needed.
  * Errors are swallowed — a stale index degrades gracefully to no results.
  */
-export function syncFtsIndex(note) {
+export function syncFtsIndex(note: NoteData): void {
   if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
   indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
 }
 
-export async function saveNote(id, noteData) {
+export async function saveNote(id: string, noteData: NoteData): Promise<void> {
   syncFtsIndex(noteData);
   indexNoteForSpotlight(noteData);
 }
 
-export async function resolveFolderId(folderId) {
+async function resolveFolderId(folderId: string | null | undefined): Promise<string | null> {
   if (folderId === undefined || folderId === null) return null;
   return useFolderStore().exists(folderId) ? folderId : null;
 }
 
-export async function removeNoteFromFts(id) {
+function removeNoteFromFts(id: string): void {
   removeNoteFromIndex(id).catch(() => {});
   deleteNoteFromSpotlight(id);
 }

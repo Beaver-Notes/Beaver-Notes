@@ -3,13 +3,37 @@ import { ref } from 'vue';
 
 const MAX_STACK = 50;
 
-export const useUndoStore = defineStore('undo', () => {
-  const stack = [];
-  const _batchStack = [];
-  let _batch = null;
-  const lastAction = ref(null);
+interface BulkDeleteItem {
+  type: 'note' | 'folder';
+  data: Record<string, unknown>;
+}
 
-  function push(action) {
+interface NoteRef {
+  id: string;
+  prev?: boolean;
+  prevFolderId?: string | null;
+}
+
+interface FolderRef {
+  id: string;
+  prev?: boolean;
+  prevParentId?: string | null;
+}
+
+interface UndoAction {
+  type: string;
+  notes?: NoteRef[];
+  folders?: FolderRef[];
+  items?: BulkDeleteItem[];
+}
+
+export const useUndoStore = defineStore('undo', () => {
+  const stack: UndoAction[] = [];
+  const _batchStack: (UndoAction[] | null)[] = [];
+  let _batch: UndoAction[] | null = null;
+  const lastAction = ref<UndoAction | null>(null);
+
+  function push(action: UndoAction) {
     if (_batch) {
       _batch.push(action);
       return;
@@ -50,7 +74,7 @@ export const useUndoStore = defineStore('undo', () => {
 
     switch (action.type) {
       case 'bulk-delete': {
-        for (const item of action.items) {
+        for (const item of action.items!) {
           if (item.type === 'note') {
             item.data.isLocked = false;
             await noteStore.add(item.data);
@@ -61,16 +85,16 @@ export const useUndoStore = defineStore('undo', () => {
         break;
       }
       case 'toggle-bookmark': {
-        for (const { id, prev } of action.notes) {
+        for (const { id, prev } of action.notes!) {
           await noteStore.update(id, { isBookmarked: prev });
         }
         break;
       }
       case 'toggle-archive': {
-        for (const { id, prev } of action.notes) {
+        for (const { id, prev } of action.notes!) {
           await noteStore.update(id, { isArchived: prev });
         }
-        for (const { id, prev } of action.folders) {
+        for (const { id, prev } of action.folders!) {
           if (prev) {
             await folderStore.unarchive(id);
           } else {
@@ -80,10 +104,10 @@ export const useUndoStore = defineStore('undo', () => {
         break;
       }
       case 'move': {
-        for (const { id, prevFolderId } of action.notes) {
+        for (const { id, prevFolderId } of action.notes!) {
           await noteStore.update(id, { folderId: prevFolderId });
         }
-        for (const { id, prevParentId } of action.folders) {
+        for (const { id, prevParentId } of action.folders!) {
           await folderStore.update(id, { parentId: prevParentId });
         }
         break;
@@ -94,10 +118,10 @@ export const useUndoStore = defineStore('undo', () => {
   return { push, undo, stack, lastAction, clearLastAction, startBatch, commitBatch, cancelBatch };
 });
 
-function mergeActions(actions) {
+function mergeActions(actions: UndoAction[]): UndoAction {
   if (actions.length === 1) return actions[0];
 
-  const result = { notes: [], folders: [], items: [] };
+  const result: { notes: NoteRef[]; folders: FolderRef[]; items: BulkDeleteItem[] } = { notes: [], folders: [], items: [] };
   let type = actions[0]?.type;
 
   for (const a of actions) {

@@ -2,12 +2,26 @@ import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { hydrateNote, decryptNoteForMemory } from '@/utils/note/serializer.js';
 import { saveNote } from './index';
 
-export async function decryptAllNotesForAppEncryption(options = {}) {
+interface EncryptionProgress {
+  phase: 'decrypt' | 'encrypt';
+  processed: number;
+  total: number;
+  id: string;
+}
+
+interface NoteStoreEncryptionThis {
+  data: Record<string, any>;
+}
+
+export async function decryptAllNotesForAppEncryption(
+  this: NoteStoreEncryptionThis,
+  options: { onProgress?: (progress: EncryptionProgress) => void } = {}
+): Promise<void> {
   const { onProgress } = options;
   const entries = Object.entries(this.data).filter(([id]) => !!id);
   const total = entries.length;
   let processed = 0;
-  const failures = [];
+  const failures: string[] = [];
 
   for (const [id, note] of entries) {
     try {
@@ -40,12 +54,15 @@ export async function decryptAllNotesForAppEncryption(options = {}) {
   }
 }
 
-export async function persistAllNotesForAppEncryption(options = {}) {
+export async function persistAllNotesForAppEncryption(
+  this: NoteStoreEncryptionThis,
+  options: { onProgress?: (progress: EncryptionProgress) => void } = {}
+): Promise<void> {
   const { onProgress } = options;
   const entries = Object.entries(this.data).filter(([id]) => !!id);
   const total = entries.length;
   let processed = 0;
-  const failures = [];
+  const failures: string[] = [];
 
   for (const [id, note] of entries) {
     try {

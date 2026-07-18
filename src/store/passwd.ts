@@ -15,36 +15,40 @@ import {
   resetPasswordFailures,
 } from '@/lib/native/security';
 
-async function _getPasswordFilePath() {
+async function _getPasswordFilePath(): Promise<string | null> {
   const appDirectory = await getAppDirectory();
   if (!appDirectory) return null;
   return path.join(appDirectory, 'password.enc');
 }
 
+interface PasswdState {
+  sharedKey: string;
+}
+
 export const usePasswordStore = defineStore('password', {
-  state: () => ({
+  state: (): PasswdState => ({
     sharedKey: '',
   }),
 
   actions: {
-    async _fileExists(file) {
+    async _fileExists(file: string): Promise<boolean> {
       return pathExists(file);
     },
 
-    async _readEncryptedFile() {
+    async _readEncryptedFile(): Promise<string | null> {
       const filePath = await _getPasswordFilePath();
       if (!filePath) return null;
       if (!(await this._fileExists(filePath))) return null;
       return readFile(filePath);
     },
 
-    async _writeEncryptedFile(data) {
+    async _writeEncryptedFile(data: string): Promise<void> {
       const filePath = await _getPasswordFilePath();
       if (!filePath) throw new Error('Data directory not configured.');
       await writeFile(filePath, data, { mode: 0o600 });
     },
 
-    async retrieve() {
+    async retrieve(): Promise<string> {
       try {
         const encryptionAvailable = await isEncryptionAvailable();
 
@@ -92,7 +96,7 @@ export const usePasswordStore = defineStore('password', {
       }
     },
 
-    async setSharedKey(password) {
+    async setSharedKey(password: string): Promise<void> {
       try {
         const hashedPassword = await hashPassword(password);
         this.sharedKey = hashedPassword;
@@ -110,7 +114,7 @@ export const usePasswordStore = defineStore('password', {
       }
     },
 
-    async isValidPassword(enteredPassword) {
+    async isValidPassword(enteredPassword: string): Promise<boolean> {
       try {
         const valid = await comparePassword(enteredPassword, this.sharedKey);
 
@@ -128,7 +132,7 @@ export const usePasswordStore = defineStore('password', {
       }
     },
 
-    async resetPassword(currentPassword, newPassword) {
+    async resetPassword(currentPassword: string, newPassword: string): Promise<boolean> {
       const noteStore = useNoteStore();
 
       if (!(await this.isValidPassword(currentPassword))) {
@@ -136,7 +140,7 @@ export const usePasswordStore = defineStore('password', {
       }
 
       const lockedNotes = Object.values(noteStore.data).filter(
-        (note) => note.id && note.isLocked
+        (note: any) => note.id && note.isLocked
       );
 
       for (const note of lockedNotes) {
@@ -151,7 +155,7 @@ export const usePasswordStore = defineStore('password', {
       return true;
     },
 
-    async importSharedKey(rawHash) {
+    async importSharedKey(rawHash: string): Promise<void> {
       if (!rawHash || typeof rawHash !== 'string') return;
       const trimmed = rawHash.trim();
       const isBcryptHash =

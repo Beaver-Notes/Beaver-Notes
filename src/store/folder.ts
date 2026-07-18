@@ -10,40 +10,60 @@ import {
 
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 
+interface FolderData {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: number;
+  updatedAt: number;
+  color: string | null;
+  isExpanded: boolean;
+  isArchived: boolean;
+  icon: string;
+  sortOrder: number;
+  [key: string]: unknown;
+}
+
+interface FolderState {
+  data: Record<string, FolderData>;
+  deletedIds: Record<string, number>;
+  _ci: Map<string | null, Set<string>> | null;
+}
+
 // Children index helpers
 
-function buildChildIndex(data) {
-  const index = new Map();
+function buildChildIndex(data: Record<string, FolderData>): Map<string | null, Set<string>> {
+  const index = new Map<string | null, Set<string>>();
   for (const folder of Object.values(data)) {
     if (!folder.id) continue;
     const key = folder.parentId ?? null;
     if (!index.has(key)) index.set(key, new Set());
-    index.get(key).add(folder.id);
+    index.get(key)!.add(folder.id);
   }
   return index;
 }
 
-function indexAdd(index, folder) {
+function indexAdd(index: Map<string | null, Set<string>>, folder: FolderData): void {
   const key = folder.parentId ?? null;
   if (!index.has(key)) index.set(key, new Set());
-  index.get(key).add(folder.id);
+  index.get(key)!.add(folder.id);
 }
 
-function indexRemove(index, folder) {
+function indexRemove(index: Map<string | null, Set<string>>, folder: FolderData): void {
   const key = folder.parentId ?? null;
   index.get(key)?.delete(folder.id);
 }
 
-function indexMove(index, folder, oldParentId) {
+function indexMove(index: Map<string | null, Set<string>>, folder: FolderData, oldParentId: string | undefined | null): void {
   const oldKey = oldParentId ?? null;
   index.get(oldKey)?.delete(folder.id);
   const newKey = folder.parentId ?? null;
   if (!index.has(newKey)) index.set(newKey, new Set());
-  index.get(newKey).add(folder.id);
+  index.get(newKey)!.add(folder.id);
 }
 
 export const useFolderStore = defineStore('folder', {
-  state: () => ({
+  state: (): FolderState => ({
     data: {},
     deletedIds: {},
     // _ci holds the children index (Map). Null until first access.
@@ -62,40 +82,41 @@ export const useFolderStore = defineStore('folder', {
 
     folders: (state) => Object.values(state.data).filter(({ id }) => id),
 
-    getById: (state) => (id) => state.data[id],
+    getById: (state) => (id: string) => state.data[id],
 
-    getByParent() {
-      return (parentId = null) => {
-        const ids = this._index.get(parentId ?? null) ?? new Set();
-        return [...ids].map((id) => this.data[id]).filter(Boolean);
-      };
+    getByParent: (state) => (parentId: string | null = null) => {
+      const ci = state._ci ?? buildChildIndex(state.data);
+      const ids = ci.get(parentId ?? null) ?? new Set();
+      return [...ids].map((id: string) => state.data[id]).filter(Boolean) as FolderData[];
     },
 
-    rootFolders() {
-      const ids = this._index.get(null) ?? new Set();
-      return [...ids].map((id) => this.data[id]).filter(Boolean);
+    rootFolders: (state) => {
+      const ci = state._ci ?? buildChildIndex(state.data);
+      const ids = ci.get(null) ?? new Set();
+      return [...ids].map((id: string) => state.data[id]).filter(Boolean) as FolderData[];
     },
 
-    getFolderPath: (state) => (folderId) => {
+    getFolderPath: (state) => (folderId: string) => {
       if (!folderId || !state.data[folderId]) return [];
-      const path = [];
-      let current = state.data[folderId];
+      const path: FolderData[] = [];
+      let current: FolderData | undefined = state.data[folderId];
       while (current) {
         path.unshift(current);
-        current = current.parentId ? state.data[current.parentId] : null;
+        current = current.parentId ? state.data[current.parentId] : undefined;
       }
       return path;
     },
 
-    getDescendants() {
-      return (folderId) => {
-        const descendants = [];
+    getDescendants: (state) => {
+      const ci = state._ci ?? buildChildIndex(state.data);
+      return (folderId: string) => {
+        const descendants: FolderData[] = [];
         const queue = [folderId];
         while (queue.length > 0) {
-          const currentId = queue.shift();
-          const childIds = this._index.get(currentId) ?? new Set();
+          const currentId = queue.shift()!;
+          const childIds = ci.get(currentId) ?? new Set();
           for (const childId of childIds) {
-            const child = this.data[childId];
+            const child = state.data[childId];
             if (child) {
               descendants.push(child);
               queue.push(childId);
@@ -106,14 +127,15 @@ export const useFolderStore = defineStore('folder', {
       };
     },
 
-    hasChildren() {
-      return (folderId) => {
-        const children = this._index.get(folderId);
+    hasChildren: (state) => {
+      const ci = state._ci ?? buildChildIndex(state.data);
+      return (folderId: string) => {
+        const children = ci.get(folderId);
         return children ? children.size > 0 : false;
       };
     },
 
-    getFolderDepth: (state) => (folderId) => {
+    getFolderDepth: (state) => (folderId: string) => {
       if (!folderId || !state.data[folderId]) return 0;
       let depth = 0;
       let current = state.data[folderId];
@@ -124,17 +146,18 @@ export const useFolderStore = defineStore('folder', {
       return depth;
     },
 
-    getFolderTree() {
-      const buildTree = (parentId = null) => {
-        const childIds = this._index.get(parentId ?? null) ?? new Set();
+    getFolderTree: (state) => {
+      const ci = state._ci ?? buildChildIndex(state.data);
+      const buildTree = (parentId: string | null = null): (FolderData & { children: FolderData[]; hasChildren: boolean })[] => {
+        const childIds = ci.get(parentId ?? null) ?? new Set();
         return [...childIds]
-          .map((id) => this.data[id])
-          .filter(Boolean)
-          .sort((a, b) => a.name.localeCompare(b.name))
-          .map((folder) => ({
+          .map((id: string) => state.data[id])
+          .filter((x): x is FolderData => !!x)
+          .sort((a: FolderData, b: FolderData) => a.name.localeCompare(b.name))
+          .map((folder: FolderData) => ({
             ...folder,
             children: buildTree(folder.id),
-            hasChildren: (this._index.get(folder.id)?.size ?? 0) > 0,
+            hasChildren: (ci.get(folder.id)?.size ?? 0) > 0,
           }));
       };
       return buildTree;
@@ -151,7 +174,7 @@ export const useFolderStore = defineStore('folder', {
           folder.id && !state.deletedIds[folder.id] && folder.isArchived
       ),
 
-    exists: (state) => (id) => !!state.data[id] && !state.deletedIds[id],
+    exists: (state) => (id: string) => !!state.data[id] && !state.deletedIds[id],
   },
 
   actions: {
@@ -163,7 +186,7 @@ export const useFolderStore = defineStore('folder', {
 
     // ── Load & hydration ──────────────────────────────────────────────────
 
-    async retrieve() {
+    async retrieve(): Promise<Record<string, FolderData>> {
       try {
         // Data is already populated from the Yjs workspace doc via
         // writeStoresFromWorkspace().  No KV reads needed.
@@ -177,10 +200,10 @@ export const useFolderStore = defineStore('folder', {
 
     // ── CRUD ──────────────────────────────────────────────────────────────
 
-    async add(folder = {}) {
+    async add(folder: Partial<FolderData> = {}): Promise<FolderData> {
       try {
         const id = folder.id || nanoid();
-        const newFolder = {
+        const newFolder: FolderData = {
           id,
           name: folder.name || '',
           parentId: folder.parentId || null,
@@ -193,7 +216,7 @@ export const useFolderStore = defineStore('folder', {
           icon: folder.icon || '',
           sortOrder: folder.sortOrder || 0,
           ...folder,
-        };
+        } as FolderData;
 
         if (newFolder.parentId && !this.data[newFolder.parentId]) {
           throw new Error('Parent folder does not exist');
@@ -211,7 +234,7 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    async update(id, data = {}) {
+    async update(id: string, data: Partial<FolderData> = {}): Promise<FolderData> {
       try {
         if (!this.data[id]) throw new Error('Folder not found');
 
@@ -244,7 +267,7 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    async delete(id, options = {}) {
+    async delete(id: string, options: { moveContentsToParent?: boolean; moveContentsTo?: string | null; deleteContents?: boolean } = {}): Promise<{ deletedFolderId: string; targetFolderId: string | null; affectedFolders: string[] }> {
       try {
         if (!this.data[id]) throw new Error('Folder not found');
 
@@ -296,17 +319,17 @@ export const useFolderStore = defineStore('folder', {
 
     // ── Archive / Unarchive ────────────────────────────────────────────
 
-    async archive(id) {
+    async archive(id: string): Promise<{ archivedFolderIds: string[] }> {
       try {
         if (!this.data[id]) throw new Error('Folder not found');
 
-        const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
+        const allIds = [id, ...this.getDescendants(id).map((f: FolderData) => f.id)];
         const allIdsSet = new Set(allIds);
 
         const undoStore = useUndoStore();
         undoStore.startBatch();
 
-        const undoFolders = allIds.map((fid) => ({ id: fid, prev: false }));
+        const undoFolders = allIds.map((fid: string) => ({ id: fid, prev: false }));
         for (const folderId of allIds) {
           await this.update(folderId, { isArchived: true });
         }
@@ -314,9 +337,9 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToArchive = Object.values(noteStore.data).filter(
-          (note) => note.id && allIdsSet.has(note.folderId)
+          (note: any) => note.id && allIdsSet.has(note.folderId)
         );
-        const undoNotes = notesToArchive.map((n) => ({ id: n.id, prev: false }));
+        const undoNotes = notesToArchive.map((n: any) => ({ id: n.id, prev: false }));
         for (const note of notesToArchive) {
           await noteStore.update(note.id, { isArchived: true });
         }
@@ -331,17 +354,17 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    async unarchive(id) {
+    async unarchive(id: string): Promise<{ unarchivedFolderIds: string[] }> {
       try {
         if (!this.data[id]) throw new Error('Folder not found');
 
-        const allIds = [id, ...this.getDescendants(id).map((f) => f.id)];
+        const allIds = [id, ...this.getDescendants(id).map((f: FolderData) => f.id)];
         const allIdsSet = new Set(allIds);
 
         const undoStore = useUndoStore();
         undoStore.startBatch();
 
-        const undoFolders = allIds.map((fid) => ({ id: fid, prev: true }));
+        const undoFolders = allIds.map((fid: string) => ({ id: fid, prev: true }));
         for (const folderId of allIds) {
           await this.update(folderId, { isArchived: false });
         }
@@ -349,9 +372,9 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToUnarchive = Object.values(noteStore.data).filter(
-          (note) => note.id && allIdsSet.has(note.folderId)
+          (note: any) => note.id && allIdsSet.has(note.folderId)
         );
-        const undoNotes = notesToUnarchive.map((n) => ({ id: n.id, prev: true }));
+        const undoNotes = notesToUnarchive.map((n: any) => ({ id: n.id, prev: true }));
         for (const note of notesToUnarchive) {
           await noteStore.update(note.id, { isArchived: false });
         }
@@ -366,7 +389,7 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    async move(folderId, newParentId) {
+    async move(folderId: string, newParentId: string | null): Promise<FolderData> {
       try {
         if (this.wouldCreateCircularReference(folderId, newParentId)) {
           throw new Error(
@@ -380,32 +403,32 @@ export const useFolderStore = defineStore('folder', {
       }
     },
 
-    wouldCreateCircularReference(folderId, targetParentId) {
+    wouldCreateCircularReference(folderId: string, targetParentId: string | null | undefined): boolean {
       if (!targetParentId) return false;
       if (folderId === targetParentId) return true;
-      let current = this.data[targetParentId];
+      let current: FolderData | undefined = this.data[targetParentId];
       while (current) {
         if (current.id === folderId) return true;
-        current = current.parentId ? this.data[current.parentId] : null;
+        current = current.parentId ? this.data[current.parentId] : undefined;
       }
       return false;
     },
 
-    cleanupDeletedIds(days = 30) {
+    cleanupDeletedIds(days = 30): string[] {
       const toDelete = collectExpiredIds(this.deletedIds, days);
       for (const id of toDelete) delete this.deletedIds[id];
       syncDeletedFolderIds(this.deletedIds);
       return toDelete;
     },
 
-    async createFolderPath(pathArray, parentId = null) {
+    async createFolderPath(pathArray: string[], parentId: string | null = null): Promise<FolderData[]> {
       let currentParentId = parentId;
-      const createdFolders = [];
+      const createdFolders: FolderData[] = [];
 
       for (const folderName of pathArray) {
         // O(1) via index instead of Object.values().find()
         const childIds = this._index.get(currentParentId ?? null) ?? new Set();
-        let existingFolder = null;
+        let existingFolder: FolderData | undefined;
         for (const cid of childIds) {
           if (this.data[cid]?.name === folderName) {
             existingFolder = this.data[cid];
@@ -427,7 +450,7 @@ export const useFolderStore = defineStore('folder', {
       return createdFolders;
     },
 
-    async getFolderStats(folderId) {
+    async getFolderStats(folderId: string): Promise<{ subfolderCount: number; depth: number; hasChildren: boolean }> {
       const descendants = this.getDescendants(folderId);
       return {
         subfolderCount: descendants.length,

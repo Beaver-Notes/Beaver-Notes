@@ -12,8 +12,12 @@ const settingsStorage = useStorage('settings');
 // existing users automatically get a full index rebuild on next launch.
 const FTS_INDEX_VERSION = 1;
 
+interface MainState {
+  activeNoteId: string;
+}
+
 export const useStore = defineStore('main', {
-  state: () => ({
+  state: (): MainState => ({
     activeNoteId: '',
   }),
   actions: {
@@ -37,16 +41,17 @@ export const useStore = defineStore('main', {
         await noteStore.normalizeInvalidFolderIds();
       }
 
-      this._ensureFtsIndex().catch((err) =>
+      this._ensureFtsIndex().catch((err: unknown) =>
         console.warn('[fts] Background index build failed:', err)
       );
 
       return values
-        .filter(({ status }) => status === 'fulfilled')
+        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
         .map(({ value }) => value);
     },
 
-    async _ensureSpotlightIndex(noteStore) {
+    async _ensureSpotlightIndex(noteStore: any) {
+      const { reindexAllNotes } = await import('@/utils/platform/spotlightSync.js');
       reindexAllNotes(noteStore.data);
     },
 
