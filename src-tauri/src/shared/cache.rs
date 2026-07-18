@@ -115,7 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn put_of_same_key_updates_value_without_growing_bytes() {
+    fn put_of_same_key_updates_value() {
         let mut cache = ByteLruCache::new(1024);
         cache.put("k".to_string(), vec![1, 2, 3]);
         cache.put("k".to_string(), vec![4, 5, 6, 7]);
@@ -126,16 +126,14 @@ mod tests {
     #[test]
     fn byte_limit_evicts_least_recently_used() {
         let mut cache = ByteLruCache::new(10);
-        cache.put("a".to_string(), vec![0u8; 6]);
-        cache.put("b".to_string(), vec![0u8; 6]);
-        cache.put("c".to_string(), vec![0u8; 6]);
+        cache.put("a".to_string(), vec![0u8; 4]);
+        cache.put("b".to_string(), vec![0u8; 4]);
+        cache.get("a");
+        cache.put("c".to_string(), vec![0u8; 4]);
 
-        let present: Vec<bool> = ["a", "b", "c"]
-            .iter()
-            .map(|k| cache.get(k).is_some())
-            .collect();
-        assert!(present.contains(&false), "one entry must be evicted: {present:?}");
-        assert!(present.iter().filter(|&&p| p).count() >= 1);
+        assert_eq!(cache.get("a"), Some(&vec![0u8; 4]), "a was promoted, should survive");
+        assert_eq!(cache.get("b"), None, "b was LRU, should have been evicted");
+        assert_eq!(cache.get("c"), Some(&vec![0u8; 4]), "c was just inserted, should survive");
     }
 
     #[test]
