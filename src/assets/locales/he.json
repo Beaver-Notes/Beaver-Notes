@@ -9,7 +9,7 @@
   },
   "appearence": {
     "appTheme": "ערכת הנושא של היישום",
-    "clearFont": "Clear Font - OLED",
+    "clearFont": "גופן ברור - OLED",
     "colorScheme": "צבע נושא",
     "dark": "כהה",
     "default": "ברירת מחדל",
@@ -17,10 +17,10 @@
     "enterWidth": "נא להקליד רוחב",
     "interfaceOptions": "אפשרויות ממשק",
     "interfaceSize": "גודל ממשק",
-    "large": "Large",
-    "light": "Light",
-    "medium": "Medium",
-    "menuBarVisibility": "Hidden Menu Bar",
+    "large": "גדול",
+    "light": "קליל",
+    "medium": "בינוני",
+    "menuBarVisibility": "שורת תפריט מוסתרת",
     "moreSpace": "יותר מרחב",
     "normal": "רגיל",
     "selectCodeFont": "בחירת גופן קוד",
@@ -41,7 +41,7 @@
     "keyFail": "הגדרת הסיסמה בוטלה. אין אפשרות לנעול את ההערה.",
     "lock": "נעילה",
     "newKey": "מפתח חדש",
-    "noKey": "No shared key set up for this note",
+    "noKey": "לא הוגדר מפתח משותף להערה זו",
     "passwdCorrect": "הסיסמה שגויה.",
     "password": "סיסמה",
     "removeBookmark": "הסרת סימנייה",
@@ -51,11 +51,11 @@
     "unarchived": "בוצעה הוצאה מהארכיון",
     "unlock": "שחרור",
     "unlockToEdit": "יש לשחרר כדי לערוך",
-    "warning": "זהירות, אם הסיסמה תישכח ממך, תיאבד לך הגישה להערות הנעולות, ויידרש ממך לדעת את הסיסמה הישנה לצורך הגדרת סיסמה חדשה.",
+    "warning": "זהירות, אם הסיסמה תישכח, לא תהיה לך עוד גישה להערות הנעולות, וגם יידרש ממך לדעת את הסיסמה הישנה לצורך הגדרת סיסמה חדשה.",
     "wrongPasswd": "סיסמה שגויה. אין אפשרות לשחרר את ההערה."
   },
   "commandPrompt": {
-    "placeholder": "Search file or type '>' to search commands",
+    "placeholder": "אפשר לחפש קבצים או להקליד ‚>’ כדי לחפש פקודות",
     "untitledNote": "הערה ללא שם"
   },
   "commands": {
@@ -70,8 +70,8 @@
   "editor": {
     "error": "אופס! הייתה בעיה בהצגת התרשים. נא לבדוק את התחביר.",
     "exit": "יש ללחוץ על Ctrl + Enter לסגירה",
-    "linkPlaceholder": "URL or type @ to link a note",
-    "linkShortcut": "Press Alt + Click to open the link",
+    "linkPlaceholder": "אפשר להקליד כתובת, או להקליד @ כדי לצרף קישור להערה",
+    "linkShortcut": "לחיצה על Alt בצירוף עם הכפתור השמאלי בעכבר תפתח את הקישור",
     "mathPlaceholder": "הטקסט נכנס כאן...",
     "mermaidPlaceholder": "נא להקליד כאן קוד Mermaid...",
     "previousNote": "הערות קודמות",
@@ -97,7 +97,7 @@
     "archived": "בארכיון",
     "bookmarked": "בסימניות",
     "close": "סגירה",
-    "newNote": "To create a new note, you can press Ctrl + N, Cmd + N or click the + button on top left"
+    "newNote": "כדי ליצור הערה חדשה, אפשר ללחוץ על Ctrl + N,‏ Cmd + N או ללחוץ על הכפתור „+” שבצד ימין למעלה" # I translated left as right here, as a proper RTL interface should be horizontally-flipped.
   },
   "menu": {
     "add": "הוספה",
@@ -127,7 +127,7 @@
     "greenCallout": "Green Callout",
     "heading": "כותרת",
     "headings": "כותרות",
-    "headingsTree": "Headings search",
+    "headingsTree": "חיפוש בכותרות",
     "highlight": "מדגוש",
     "highlighterColor": "צבע מדגש",
     "image": "תמונה",
@@ -145,7 +145,7 @@
     "pdf": "PDF",
     "purpleCallout": "Purple Callout",
     "readerMode": "מצב קריאה",
-    "record": "Record",
+    "record": "הקלטה",
     "redCallout": "Red Callout",
     "resume": "Resume",
     "searchHeadings": "חיפוש בכותרות",
@@ -192,7 +192,7 @@
     "replaceAll": "להחליף הכול",
     "replacePlaceholder": "החלפה...",
     "searchPlaceholder": "חיפוש...",
-    "useRegex": "Use regex (Alt+R)"
+    "useRegex": "שימוש בביטוי רגולרי (Alt+R)"
   },
   "settings": {
     "about": "על אודות",
@@ -205,7 +205,7 @@
     "body": "נתונים אלה מוצפנים, יש להקליד את הסיסמה בשביל לקבל גישה אליהם",
     "cancel": "ביטול",
     "checkUpdates": "בדיקת עדכונים",
-    "collapsibleHeading": "Collapsible Heading",
+    "collapsibleHeading": "כותרת הניתנת לצמצום",
     "confirmDelete": "למחוק את {name} (id: {id})?",
     "createdAt": "נוצר בתאריך",
     "disable": "השבתה",
@@ -217,7 +217,7 @@
     "enterNewPassword": "נא להקליד את הסיסמה החשה",
     "exportData": "ייצוא נתונים",
     "exportMessage": "Notes is exported in",
-    "fullWidth": "Expand page",
+    "fullWidth": "הרחבת העמוד",
     "general": "כללי",
     "id": "מזהה",
     "ieData": "ייבוא/ייצוא נתונים",
@@ -237,7 +237,7 @@
     "next": "קדימה",
     "noAuthorizedApplications": "אין יישומים מורשים",
     "notification": "התראה",
-    "openLastEdited": "Open the last edited note at startup",
+    "openLastEdited": "פתיחת ההערה האחרונה שנערכה בעת כניסה ליישום",
     "password": "סיסמה",
     "passwordResetError": "משהו השתבש בעת איפוס סיסמתך",
     "passwordResetSuccess": "הסיסמה אופסה בהצלחה",
