@@ -72,11 +72,10 @@ function createBaseExtensions({ yjs = false } = {}) {
       code: false,
       link: false,
       document: false,
-      paste: false,
       dropcursor: false,
-      // Collaboration extension adds yUndoPlugin — skip built-in history to
+      // Collaboration extension adds yUndoPlugin — skip built-in undoRedo to
       // avoid the "not compatible with undo-redo" console warning.
-      history: !yjs,
+      undoRedo: !yjs,
     }),
     Paste,
     Document.extend({

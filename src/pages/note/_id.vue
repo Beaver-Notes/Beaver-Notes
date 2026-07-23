@@ -317,9 +317,7 @@ export default {
           }
         }
         if (!appStore.setting.collapsibleHeading && !isLocked.value) {
-          console.time(`[perf] convertNote ${n}`);
           noteStore.convertNote(n);
-          console.timeEnd(`[perf] convertNote ${n}`);
         }
       },
       { immediate: true }
@@ -364,11 +362,8 @@ export default {
         });
 
         const seedContent = noteStore.getById(noteId)?.content;
-        console.time(`[perf] yjsLoad ${noteId}`);
         yjsLoad(noteId, seedContent).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
-        }).finally(() => {
-          console.timeEnd(`[perf] yjsLoad ${noteId}`);
         });
       },
       { immediate: true }

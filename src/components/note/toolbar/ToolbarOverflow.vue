@@ -125,7 +125,7 @@ export default {
     openSub: { type: Function, required: true },
     fontSize: { type: [Number, String], default: null },
     showCustomizer: { type: Boolean, default: false },
-    deleteNode: { type: Function, required: true },
+    deleteNode: { type: Function },
     visibleItems: { type: Array, default: () => [] },
   },
 };

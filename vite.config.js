@@ -30,25 +30,16 @@ export default defineConfig({
       },
     },
   },
+  esbuild: {
+    pure: ['console.log', 'console.debug', 'console.info'],
+    drop: ['debugger'],
+  },
   build: {
     sourcemap: false,
-    minify: 'terser',
     target: ['es2021', 'chrome100', 'safari13'],
     outDir: 'dist',
     chunkSizeWarningLimit: 1600,
     assetsDir: '.',
-    terserOptions: {
-      ecma: 2020,
-      compress: {
-        passes: 1,
-        pure_funcs: ['console.log', 'console.debug', 'console.info'],
-        drop_debugger: true,
-        pure_getters: true,
-        module: true,
-      },
-      format: { comments: false },
-      safari10: false,
-    },
     rollupOptions: {
       output: {
         manualChunks: {

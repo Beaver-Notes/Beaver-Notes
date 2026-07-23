@@ -285,8 +285,6 @@ export default {
     const hasUserEdited = ref(false);
     let pendingProgrammaticUpdates = 0;
 
-    const editorTimerLabel = `[perf] editor ${props.id}`;
-    console.time(editorTimerLabel);
     const editor = useEditor({
       content: isYjs ? undefined : safeContent.value,
       autofocus: props.cursorPosition,
@@ -351,7 +349,6 @@ export default {
     onMounted(() => {
       if (!editor.value) return;
       emit('init', editor.value);
-      console.timeEnd(editorTimerLabel);
 
       if (!isYjs && safeContent.value) {
         editor.value.commands.setContent(safeContent.value);
