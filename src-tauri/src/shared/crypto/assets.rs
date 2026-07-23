@@ -2,16 +2,13 @@ use std::{
     fs,
     fs::File,
     io::{BufReader, BufWriter, Read, Write},
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Key, Nonce,
 };
-use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use rand::RngCore;
-use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use super::keys::{current_app_key, derive_chunk_nonce, random_nonce, STREAM_CHUNK_SIZE};

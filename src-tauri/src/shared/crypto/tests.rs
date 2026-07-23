@@ -22,11 +22,11 @@ mod characterization {
     #[test]
     fn note_content_round_trip() {
         use crate::shared::crypto::keys::{encrypt_note_content_for_storage, decrypt_native_note_content};
-        use crate::shared::{AppState, CryptoState};
-        use std::sync::RwLock;
-        use std::collections::HashMap;
+        use crate::shared::AppState;
+        
+        
 
-        let mut state = AppState::new(std::path::PathBuf::new(), std::path::PathBuf::new(), None);
+        let state = AppState::new(std::path::PathBuf::new(), std::path::PathBuf::new(), None);
         // Inject a fake unlocked key + session.
         {
             let mut s = state.crypto.session.write().unwrap();

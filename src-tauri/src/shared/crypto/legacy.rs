@@ -1,6 +1,5 @@
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use aes::Aes256;
-use base64::Engine as _;
 use cbc::Decryptor;
 
 use super::super::AppError;

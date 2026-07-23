@@ -1,8 +1,7 @@
 use std::{
-    fs::{self, File},
-    io::{BufReader, BufWriter, Read, Write},
+    fs,
     path::{Path, PathBuf},
-    sync::atomic::{AtomicBool, Ordering},
+    sync::atomic::Ordering,
 };
 
 use aes_gcm::{

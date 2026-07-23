@@ -1,5 +1,5 @@
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, Theme};
+use tauri::{AppHandle, Emitter, Manager, State, Theme};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::shared::*;

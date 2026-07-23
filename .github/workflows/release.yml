@@ -426,6 +426,13 @@ jobs:
             echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/beaver-notes.jks" >> "$GITHUB_ENV"
           fi
 
+      - name: Regenerate Android project for CI
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        run: |
+          rm -rf src-tauri/gen/android
+          cargo tauri android init
+
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
         shell: bash
@@ -438,6 +445,13 @@ jobs:
           cargo tauri android build --apk --aab
 
       # iOS build
+      - name: Regenerate iOS project
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: |
+          rm -rf src-tauri/gen/apple
+          cargo tauri ios init
+
       - name: Build iOS app
         if: ${{ matrix.id == 'ios' }}
         shell: bash

@@ -1,4 +1,4 @@
-package com.danielerolli.beaver_notes
+package com.beavernotes.beaver_notes
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
