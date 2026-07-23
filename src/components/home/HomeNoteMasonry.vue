@@ -316,6 +316,12 @@ function updateOffset() {
   }
 }
 
+function onWindowResize() {
+  updateWidth();
+  updateViewport();
+  updateOffset();
+}
+
 function updateCardHeight(id, el) {
   const h = Math.round(el.getBoundingClientRect().height);
   const prev = cardHeights.get(id);
@@ -511,21 +517,14 @@ onMounted(async () => {
 
     measureTimeout = setTimeout(finishMeasurement, 5000);
   } else {
-    window.addEventListener(
-      'resize',
-      () => {
-        updateWidth();
-        updateViewport();
-        updateOffset();
-      },
-      { passive: true }
-    );
+    window.addEventListener('resize', onWindowResize, { passive: true });
     finishMeasurement();
   }
 });
 
 onBeforeUnmount(() => {
   scrollEl?.removeEventListener('scroll', onScroll);
+  window.removeEventListener('resize', onWindowResize);
   containerRO?.disconnect();
   cardRO?.disconnect();
   if (measureRO) measureRO.disconnect();

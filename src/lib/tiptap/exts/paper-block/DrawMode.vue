@@ -874,8 +874,7 @@ watch(
       height: state.height,
       lines: state.lines, // keep for HTML export compat
     });
-  },
-  { deep: true }
+  }
 );
 
 // Toolbar state for Paper.vue
@@ -901,6 +900,14 @@ watch(
 // Lifecycle — register keyboard listener on document for Shift key
 // ---------------------------------------------------------------------------
 
+const preventScroll = (e) => {
+  if (e.touches?.length > 1) return;
+  e.preventDefault();
+};
+const preventPencilZoom = (e) => { if (isPen(e)) e.preventDefault(); };
+const preventInput = (e) => e.preventDefault();
+const preventGesture = (e) => e.preventDefault();
+
 onMounted(() => {
   const svg = svgRef.value;
   if (!svg) return;
@@ -919,31 +926,31 @@ onMounted(() => {
     svg._resizeObserver = ro;
   }
 
-  const preventScroll = (e) => {
-    if (e.touches?.length > 1) return;
-    e.preventDefault();
-  };
-
   svg.addEventListener('touchstart', preventScroll, { passive: false });
   svg.addEventListener('touchmove', preventScroll, { passive: false });
 
   // Also prevent Pencil double-tap zoom on the SVG
-  const preventPencilZoom = (e) => {
-    if (isPen(e)) e.preventDefault();
-  };
   svg.addEventListener('touchstart', preventPencilZoom);
   svg.addEventListener('touchend', preventPencilZoom);
 
-  svg.addEventListener('beforeinput', (e) => e.preventDefault());
-  svg.addEventListener('gesturestart', (e) => e.preventDefault());
+  svg.addEventListener('beforeinput', preventInput);
+  svg.addEventListener('gesturestart', preventGesture);
 });
 
 onUnmounted(() => {
   if (animationFrameRef.value) cancelAnimationFrame(animationFrameRef.value);
   const svg = svgRef.value;
-  if (svg?._resizeObserver) {
-    svg._resizeObserver.disconnect();
-    delete svg._resizeObserver;
+  if (svg) {
+    svg.removeEventListener('touchstart', preventScroll);
+    svg.removeEventListener('touchmove', preventScroll);
+    svg.removeEventListener('touchstart', preventPencilZoom);
+    svg.removeEventListener('touchend', preventPencilZoom);
+    svg.removeEventListener('beforeinput', preventInput);
+    svg.removeEventListener('gesturestart', preventGesture);
+    if (svg._resizeObserver) {
+      svg._resizeObserver.disconnect();
+      delete svg._resizeObserver;
+    }
   }
 });
 </script>

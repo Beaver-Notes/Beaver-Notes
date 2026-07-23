@@ -351,6 +351,7 @@ export default {
     const pillHeight = ref(0);
     const footerPillTop = ref(0);
     const footerPillHeight = ref(0);
+    const pillsReady = ref(false);
 
     const {
       translations,
@@ -407,13 +408,13 @@ export default {
     const pillStyle = computed(() => ({
       top: `${pillTop.value}px`,
       height: `${pillHeight.value}px`,
-      opacity: pillHeight.value > 0 ? 1 : 0,
+      opacity: pillsReady.value && pillHeight.value > 0 ? 1 : 0,
     }));
 
     const footerPillStyle = computed(() => ({
       top: `${footerPillTop.value}px`,
       height: `${footerPillHeight.value}px`,
-      opacity: footerPillHeight.value > 0 ? 1 : 0,
+      opacity: pillsReady.value && footerPillHeight.value > 0 ? 1 : 0,
     }));
 
     function calculatePillPositions() {
@@ -438,6 +439,8 @@ export default {
       } else {
         footerPillHeight.value = 0;
       }
+
+      pillsReady.value = true;
     }
 
     watch(
