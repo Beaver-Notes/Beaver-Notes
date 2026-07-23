@@ -189,6 +189,9 @@ pub(crate) fn storage_replace(
     let pool = pick_pool(&name, &app, &state)?;
     let flattened = flatten_store_value(data);
     crate::db::db_replace_all(&pool, flattened)?;
+    if name == SETTINGS_STORE {
+        invalidate_settings_cache(&state);
+    }
     Ok(())
 }
 
@@ -243,6 +246,9 @@ pub(crate) fn storage_set(
     if let Some(flat_key) = flat_db_key(&segments) {
         let serialized = serde_json::to_string(&value)?;
         crate::db::db_set(&pool, &flat_key, &serialized)?;
+        if name == SETTINGS_STORE {
+            invalidate_settings_cache(&state);
+        }
         return Ok(());
     }
 
@@ -250,6 +256,9 @@ pub(crate) fn storage_set(
     let mut root = load_store_root(&pool)?;
     set_nested_value(&mut root, &segments, value);
     crate::db::db_replace_all(&pool, flatten_store_value(root))?;
+    if name == SETTINGS_STORE {
+        invalidate_settings_cache(&state);
+    }
     Ok(())
 }
 
@@ -271,6 +280,9 @@ pub(crate) fn storage_delete(
 
     if let Some(flat_key) = flat_db_key(&segments) {
         crate::db::db_delete(&pool, &flat_key)?;
+        if name == SETTINGS_STORE {
+            invalidate_settings_cache(&state);
+        }
         return Ok(());
     }
 
@@ -278,6 +290,9 @@ pub(crate) fn storage_delete(
     let mut root = load_store_root(&pool)?;
     let _ = delete_nested_value(&mut root, &segments);
     crate::db::db_replace_all(&pool, flatten_store_value(root))?;
+    if name == SETTINGS_STORE {
+        invalidate_settings_cache(&state);
+    }
     Ok(())
 }
 

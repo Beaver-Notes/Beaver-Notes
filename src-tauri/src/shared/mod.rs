@@ -244,6 +244,7 @@ pub(crate) struct AppState {
     pub(crate) cache: CacheState,
     pub(crate) files: FileState,
     pub(crate) updater: Arc<Mutex<UpdaterState>>,
+    pub(crate) settings_cache: RwLock<HashMap<String, Option<String>>>,
 }
 
 impl AppState {
@@ -263,6 +264,7 @@ impl AppState {
                 auto_update_enabled: true,
                 ..Default::default()
             })),
+            settings_cache: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -708,6 +710,36 @@ pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -
     serde_json::from_str(&raw).ok()
 }
 
+fn cache_key_for(settings_key: &str) -> &str {
+    match settings_key {
+        "defaultPath" => "defaultPath",
+        "default-path" => "defaultPath",
+        _ => settings_key,
+    }
+}
+
+pub(crate) fn get_cached_settings_value(
+    app: &AppHandle,
+    state: &AppState,
+    key: &str,
+) -> Option<String> {
+    let ck = cache_key_for(key).to_string();
+    if let Some(cached) = state.settings_cache.read().ok()?.get(&ck).cloned() {
+        return cached;
+    }
+    let value = get_settings_value(app, state, key)?;
+    let s = value.as_str()?.to_string();
+    let mut cache = state.settings_cache.write().ok()?;
+    cache.insert(ck, Some(s.clone()));
+    Some(s)
+}
+
+pub(crate) fn invalidate_settings_cache(state: &AppState) {
+    if let Ok(mut cache) = state.settings_cache.write() {
+        cache.clear();
+    }
+}
+
 pub(crate) fn app_encryption_manifest_path(
     app: &AppHandle,
     state: &AppState,
@@ -834,7 +866,7 @@ pub(crate) fn grant_dialog_paths(state: &AppState, paths: &[PathBuf]) {
 
 pub(crate) fn sync_roots_from_settings(app: &AppHandle, state: &AppState) {
     for key in ["syncPath", "defaultPath", "default-path"] {
-        if let Some(Value::String(value)) = get_settings_value(app, state, key) {
+        if let Some(value) = get_cached_settings_value(app, state, key) {
             if !value.trim().is_empty() {
                 grant_trusted_path(state, Path::new(&value));
             }
@@ -854,7 +886,7 @@ pub(crate) fn assert_path_access(
     ];
 
     for key in ["syncPath", "defaultPath", "default-path"] {
-        if let Some(Value::String(value)) = get_settings_value(app, state, key) {
+        if let Some(value) = get_cached_settings_value(app, state, key) {
             if !value.trim().is_empty() {
                 allowed_roots.push(PathBuf::from(value));
             }
