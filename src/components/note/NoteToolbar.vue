@@ -596,7 +596,10 @@ export default {
       if (!linkInputValue.value.startsWith('@')) return [];
       const query = linkInputValue.value.substring(1).toLowerCase();
       if (!query) return [];
-      return noteStore.notes
+      const candidates = noteStore.notes.length > 200
+        ? noteStore.notes.slice(0, 200)
+        : noteStore.notes;
+      return candidates
         .filter(
           (n) =>
             n.id !== route.params.id &&

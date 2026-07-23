@@ -271,11 +271,15 @@ export default {
       );
     }
 
+    let _lastContent = null;
+    let _lastSanitized = null;
     const safeContent = computed(() => {
       if (isYjs) return '';
-      return isEncryptedContent(props.modelValue)
-        ? ''
-        : sanitizeNoteContent(props.modelValue);
+      if (isEncryptedContent(props.modelValue)) return '';
+      if (props.modelValue === _lastContent) return _lastSanitized;
+      _lastContent = props.modelValue;
+      _lastSanitized = sanitizeNoteContent(props.modelValue);
+      return _lastSanitized;
     });
 
     const hasUserEdited = ref(false);

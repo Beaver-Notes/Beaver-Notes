@@ -51,9 +51,8 @@ export function applyRemote(noteId, update) {
   return true;
 }
 
-/**
- * Convert TipTap JSON content to Yjs using the editor's own schema.
- */
+ // Convert TipTap JSON content to Yjs using the editor's own schema.
+
 async function seedFromTipJson(ydoc, contentJson) {
   const { prosemirrorJSONToYDoc } = await import('@tiptap/y-tiptap');
   const schema = await ensureSchema();
@@ -62,10 +61,9 @@ async function seedFromTipJson(ydoc, contentJson) {
   Y.applyUpdate(ydoc, update);
 }
 
-/**
- * Load Yjs state into a doc: try snapshot first (O(1)), fall back to
- * replaying individual updates for backwards compatibility.
- */
+  // Load Yjs state into a doc: try snapshot first (O(1)), fall back to
+  // replaying individual updates for backwards compatibility.
+
 async function loadStateIntoDoc(newDoc, noteId) {
   try {
     const snapshot = await getSnapshot(noteId);
@@ -85,11 +83,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
   }
 }
 
-/**
- * Persist a Yjs update to SQLite and optionally queue it for the sync folder.
- * Sync-folder writes are deferred to the periodic sync cycle so the steady-
- * state write rate drops from ~200 files/minute to one batch per 10 s.
- */
+  // Persist a Yjs update to SQLite and optionally queue it for the sync folder.
 async function persistUpdate(noteId, update) {
   if (!noteId || !update || update.byteLength === 0) return;
   try {
@@ -98,8 +92,7 @@ async function persistUpdate(noteId, update) {
       `SQLite appendUpdate for ${noteId}`
     );
   } catch {
-    // Update lost — the gap between pendingUpdates being spliced and this
-    // write is inherent; the console.error in retryWrite documents it.
+    //
   }
   try {
     if (getSettingSync('autoSync')) {
@@ -110,29 +103,21 @@ async function persistUpdate(noteId, update) {
       }
     }
   } catch {
-    // Sync folder path resolution is best-effort; the update is already in SQLite
+    //
   }
 }
 
 const FLUSH_DELAY_MS = 300;
 
-/**
- * Composable that manages Yjs documents across note switches on the page.
- *
- * - `load(noteId)` — loads/creates a Y.Doc for the given note
- * - `doc` — ref to the current Y.Doc
- * - `ready` — becomes true after first load
- */
+
+// Composable that manages Yjs documents across note switches on the page.
 export function useNoteYjs() {
   const doc = shallowRef(null);
   const ready = ref(false);
   let currentNoteId = null;
   let currentDoc = null;
 
-  // ── Debounced Yjs update persistence ──────────────────────────────────────
-  // Individual Y.Doc updates (one per keystroke) are buffered and merged into
-  // a single Yjs update every FLUSH_DELAY_MS.  This avoids an IPC round-trip
-  // and a full snapshot rebuild on every character typed.
+  // Debounced Yjs update persistence
   let pendingUpdates = [];
   let flushTimer = null;
 
