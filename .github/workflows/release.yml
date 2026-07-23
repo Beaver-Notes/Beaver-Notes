@@ -298,20 +298,12 @@ jobs:
             --target "${{ matrix.tauri_target }}" \
             --ci
 
-      # Install OSSign for Windows code signing
-      - name: Install OSSign
-        if: ${{ startsWith(matrix.id, 'windows-') }}
-        uses: ossign/ossign@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          installOnly: true
-
+      # Windows build (unsigned - signing done by OSSign workflow)
       - name: Build Windows bundles
         if: ${{ startsWith(matrix.id, 'windows-') }}
         shell: bash
         env:
           CI: 'true'
-          OSSIGN_CONFIG_BASE64: ${{ secrets.OSSIGN_CONFIG_BASE64 }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -319,6 +311,32 @@ jobs:
             --target "${{ matrix.tauri_target }}" \
             ${{ matrix.bundle_args }} \
             --ci
+
+      # Dispatch Windows signing to OSSign workflow
+      - name: Dispatch Windows signing
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        uses: ossign/actions/workflow/dispatch@main
+        id: dispatch
+        with:
+          username: beaver-notes
+          token: ${{ secrets.SIGNING_TOKEN }}
+
+      - name: Parse signed artifacts
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: bash
+        run: |
+          printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
+          echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Download signed artifacts
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: bash
+        run: |
+          mkdir -p signed
+          for url in $(jq -r '.[].browser_download_url' artifacts.json); do
+            echo "Downloading $url"
+            curl -L -o "signed/$(basename "$url")" "$url"
+          done
 
       # macOS release assets: DMG plus updater files
       - name: Stage macOS assets
@@ -409,25 +427,14 @@ jobs:
         run: |
           cargo tauri ios build
 
-      # Windows release assets: installer artifacts plus a portable zip
+      # Windows release assets: use signed artifacts from OSSign
       - name: Stage Windows assets
         if: ${{ startsWith(matrix.id, 'windows-') }}
-        shell: pwsh
+        shell: bash
         run: |
-          $ErrorActionPreference = "Stop"
-
-          $Version = "${{ needs.validate.outputs.version }}"
-          $Target = "${{ matrix.tauri_target }}"
-          $OutDir = "release-assets"
-          New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-
-          Get-ChildItem "src-tauri/target/$Target/release/bundle" -Recurse -File |
-            Where-Object { $_.Extension -in ".exe", ".msi", ".sig", ".json", ".zip" } |
-            ForEach-Object { Copy-Item $_.FullName -Destination $OutDir -Force }
-
-          $Binary = "src-tauri/target/$Target/release/beaver-notes.exe"
-          $PortableName = "Beaver Notes-$Version-portable-${{ matrix.asset_suffix }}.zip"
-          Compress-Archive -Path $Binary -DestinationPath (Join-Path $OutDir $PortableName) -Force
+          set -euo pipefail
+          rm -rf release-assets
+          mv signed release-assets
 
       # Android release assets: APK and AAB
       - name: Stage Android assets
