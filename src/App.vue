@@ -124,7 +124,7 @@
 </template>
 
 <script>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
@@ -152,6 +152,18 @@ export default {
         main.focus();
       }
     }
+
+    onMounted(() => {
+      if (typeof window.requestIdleCallback === 'undefined') return;
+      window.requestIdleCallback(
+        () => {
+          import('./pages/note/_id.vue');
+          import('./pages/folder/_id.vue');
+          import('@/lib/tiptap/index.js').then((m) => m.prewarmEditor());
+        },
+        { timeout: 2000 }
+      );
+    });
 
     return { ...shell, mainRef, skipToMain };
   },

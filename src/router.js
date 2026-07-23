@@ -1,7 +1,4 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import Home from './pages/Index.vue';
-import Note from './pages/note/_id.vue';
-import Folder from './pages/folder/_id.vue';
 
 const Settings = () => import('./pages/Settings.vue');
 const Onboarding = () => import('./pages/Onboarding.vue');
@@ -31,7 +28,7 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home,
+    component: () => import('./pages/Index.vue'),
   },
   {
     path: '/onboarding',
@@ -41,12 +38,12 @@ const routes = [
   {
     path: '/note/:id',
     name: 'Note',
-    component: Note,
+    component: () => import('./pages/note/_id.vue'),
   },
   {
     path: '/folder/:id',
     name: 'Folder',
-    component: Folder,
+    component: () => import('./pages/folder/_id.vue'),
   },
   {
     path: '/settings',

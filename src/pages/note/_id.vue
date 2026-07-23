@@ -66,6 +66,7 @@
         data-testid="note-title-input"
         rows="1"
         class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder resize-none overflow-hidden leading-tight"
+        :class="editor ? '' : 'invisible'"
         :placeholder="translations.editor.untitledNote"
         @input="handleTitleInput"
         @keydown="disallowedEnter"
@@ -105,21 +106,42 @@
         </router-link>
       </div>
 
-      <note-editor
-        v-if="!isLocked && yjsReady"
-        :id="$route.params.id"
-        ref="noteEditor"
-        :key="$route.params.id"
-        :ydoc="ydoc"
-        :note="note"
-        :cursor-position="note.lastCursorPosition"
-        @update="
-          autoScroll();
-          handleContentUpdate($event);
-        "
-        @init="editor = $event"
-        @keyup.down="autoScroll"
-      />
+      <div v-if="!isLocked" class="relative editor-skeleton-wrapper">
+        <note-editor
+          v-if="yjsReady"
+          :id="$route.params.id"
+          ref="noteEditor"
+          :key="$route.params.id"
+          :ydoc="ydoc"
+          :note="note"
+          :cursor-position="note.lastCursorPosition"
+          @update="
+            autoScroll();
+            handleContentUpdate($event);
+          "
+          @init="editor = $event"
+          @keyup.down="autoScroll"
+        />
+        <div
+          v-if="yjsReady && !editor"
+          class="editor-skeleton"
+        >
+          <div class="space-y-4 animate-pulse">
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-5/6" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3" />
+          </div>
+        </div>
+        <div v-if="!yjsReady" class="editor-skeleton">
+          <div class="space-y-4 animate-pulse">
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-5/6" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3" />
+          </div>
+        </div>
+      </div>
       <note-backlinks v-if="!isLocked" />
     </div>
     <note-headings-progress
@@ -523,5 +545,14 @@ export default {
 
 .editor {
   max-width: var(--selected-width);
+}
+
+.editor-skeleton-wrapper {
+  min-height: calc(100dvh - 16rem);
+}
+
+.editor-skeleton {
+  position: absolute;
+  inset: 0;
 }
 </style>
