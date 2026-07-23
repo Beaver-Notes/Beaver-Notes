@@ -342,6 +342,12 @@ jobs:
           cp "$BIN_PATH" portable-root/
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
 
+      # Install cargo-tauri for Android/iOS builds
+      - name: Install Tauri CLI
+        if: ${{ matrix.id == 'android' || matrix.id == 'ios' }}
+        shell: bash
+        run: cargo install tauri-cli --version "^2"
+
       # Android build
       - name: Install Java
         if: ${{ matrix.id == 'android' }}
