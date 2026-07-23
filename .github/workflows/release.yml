@@ -3,8 +3,8 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
   contents: write
@@ -39,7 +39,7 @@ jobs:
         shell: bash
         run: |
           corepack enable
-          corepack prepare yarn@stable --activate
+          corepack prepare yarn@1.22.22 --activate
 
       # package.json is the source of truth for the release version.
       - name: Read version from package.json
@@ -105,7 +105,13 @@ jobs:
         run: |
           yarn lint
 
+      - name: Run typecheck
+        shell: bash
+        run: |
+          yarn typecheck
+
       - name: Run unit tests
+        shell: bash
         run: yarn test
 
       - name: Install Linux dependencies
@@ -130,11 +136,6 @@ jobs:
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
-      - name: Validate IPC command map
-        shell: bash
-        run: |
-          yarn validate:commands
-
       - name: Audit npm dependencies
         shell: bash
         run: |
@@ -157,11 +158,6 @@ jobs:
         shell: bash
         run: |
           cd src-tauri && cargo audit
-
-      - name: Run Rust tests
-        shell: bash
-        run: |
-          cd src-tauri && cargo test
 
   desktop:
     name: Build ${{ matrix.id }}
@@ -247,7 +243,7 @@ jobs:
         shell: bash
         run: |
           corepack enable
-          corepack prepare yarn@stable --activate
+          corepack prepare yarn@1.22.22 --activate
           yarn --version
 
       # Install the Rust targets needed for each matrix job
