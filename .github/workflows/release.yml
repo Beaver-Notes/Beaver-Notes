@@ -159,10 +159,33 @@ jobs:
         run: |
           cd src-tauri && cargo audit
 
+  create-release:
+    name: Create draft release
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    needs: validate
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+
+    steps:
+      - name: Create empty draft release
+        id: create
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag_name }}
+          name: Beaver Notes ${{ needs.validate.outputs.version }}
+          draft: true
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
   desktop:
     name: Build ${{ matrix.id }}
     if: ${{ needs.validate.outputs.version_match == 'true' }}
-    needs: validate
+    needs:
+      - validate
+      - create-release
     runs-on: ${{ matrix.runner }}
 
     strategy:
@@ -540,10 +563,11 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish draft release
+    name: Upload to draft release
     if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
+      - create-release
       - desktop
     runs-on: ubuntu-latest
 
@@ -562,12 +586,11 @@ jobs:
           set -euo pipefail
           ls -R dist-artifacts
 
-      # Create or update the GitHub draft release with everything attached
-      - name: Create or update draft release
+      # Attach files to the existing draft release (created earlier by create-release)
+      - name: Upload files to draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate.outputs.tag_name }}
-          name: Beaver Notes ${{ needs.validate.outputs.version }}
           draft: true
           prerelease: false
           files: dist-artifacts/*

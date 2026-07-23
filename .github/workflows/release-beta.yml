@@ -144,10 +144,30 @@ jobs:
         run: |
           cd src-tauri && cargo audit
 
+  create-release:
+    name: Create beta draft release
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Create empty draft prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.BETA_TAG }}
+          name: Beaver Notes Beta ${{ needs.validate.outputs.version }}
+          draft: true
+          prerelease: true
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+
   desktop:
     name: Build beta ${{ matrix.id }}
     if: ${{ needs.validate.outputs.version_match == 'true' }}
-    needs: validate
+    needs:
+      - validate
+      - create-release
     runs-on: ${{ matrix.runner }}
 
     strategy:
@@ -524,10 +544,11 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish beta prerelease
+    name: Upload to beta draft release
     if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
+      - create-release
       - desktop
     runs-on: ubuntu-latest
 
@@ -544,12 +565,11 @@ jobs:
           set -euo pipefail
           ls -R dist-artifacts
 
-      - name: Create or update beta prerelease
+      - name: Upload files to beta draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.BETA_TAG }}
-          name: Beaver Notes Beta ${{ needs.validate.outputs.version }}
-          draft: false
+          draft: true
           prerelease: true
           files: dist-artifacts/*
           fail_on_unmatched_files: true
