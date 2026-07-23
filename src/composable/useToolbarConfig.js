@@ -1,24 +1,7 @@
-/**
- * useToolbarConfig.js
- *
- * Owns all toolbar config logic: ordering, visibility, persistence.
- * Reads/writes through appStore.toolbarStorage so storage stays consistent
- * with the rest of the app — but all toolbar-specific code stays here,
- * not in the store.
- *
- * Writes are debounced: during a drag the in-memory state updates
- * immediately (reactive, zero latency) but localStorage only flushes
- * once the user stops moving for 400ms. Toggle and reset write instantly
- * since they fire at most once per user action.
- */
-
+// useToolbarConfig.js
 import { ref, computed } from 'vue';
 import { useAppStore } from '@/store/app';
 import { toolbarRegistry } from '@/utils/ui/toolbarRegistry.js';
-
-// ─── Shared singleton ─────────────────────────────────────────────────────────
-// One instance is created and reused across NoteMenu + ToolbarCustomizer
-// so they always see the same reactive state.
 
 let _instance = null;
 
@@ -27,7 +10,7 @@ export function useToolbarConfig() {
 
   const appStore = useAppStore();
 
-  // ── Bootstrap: merge saved config with live registry ────────────────────────
+  //  Bootstrap
   function buildDefault() {
     return toolbarRegistry.all().map(({ id, defaultVisible }) => ({
       id,
@@ -51,8 +34,7 @@ export function useToolbarConfig() {
 
   const config = ref(mergeWithRegistry(appStore.toolbarStorage.get()));
 
-  // ── Debounced persist ────────────────────────────────────────────────────────
-  // Only the minimal { id, visible } shape is persisted — no metadata.
+  //  Debounced persist
   let _flushTimer = null;
 
   function persist(immediate = false) {
@@ -65,14 +47,12 @@ export function useToolbarConfig() {
     }
   }
 
-  // ── Public API ───────────────────────────────────────────────────────────────
+  //  Public API
 
-  /** All items in user order, with registry metadata attached. Used by customizer. */
   const allItems = computed(() =>
     config.value.map((c) => ({ ...c, meta: toolbarRegistry.get(c.id) }))
   );
 
-  /** Visible items only, with metadata. Used by NoteMenu to render toolbar. */
   const visibleItems = computed(() => allItems.value.filter((c) => c.visible));
 
   const visibleCount = computed(
@@ -87,7 +67,7 @@ export function useToolbarConfig() {
     const item = config.value.find((c) => c.id === id);
     if (item) {
       item.visible = !item.visible;
-      persist(true); // immediate — single deliberate action
+      persist(true);
     }
   }
 
@@ -97,7 +77,7 @@ export function useToolbarConfig() {
     const [moved] = arr.splice(fromIndex, 1);
     arr.splice(toIndex, 0, moved);
     config.value = arr;
-    persist(); // debounced — may fire many times during a drag
+    persist();
   }
 
   function reset() {

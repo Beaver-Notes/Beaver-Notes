@@ -58,15 +58,14 @@ export function useOnboardingFlow({
   const { translations } = useTranslations();
   const theme = useTheme();
 
-  // ── Wizard state ───────────────────────────────────────────────────────────
+  //  Wizard state
 
   const step = ref('welcome');
   const completionMode = ref('fresh');
   const selectedMode = ref(null);
   const migrationPlatform = ref(null);
 
-  const getLegacyDir = () =>
-    customLegacyPath.value || state.status?.legacyDir;
+  const getLegacyDir = () => customLegacyPath.value || state.status?.legacyDir;
 
   const customLegacyPath = ref(null);
   const customLegacyStatus = ref(null);
@@ -115,7 +114,7 @@ export function useOnboardingFlow({
     spotlightEnabled: false,
   });
 
-  // ── Encryption password state ───────────────────────────────────────────────
+  //  Encryption password state
   const encryptionPassword = ref('');
   const encryptionConfirmPassword = ref('');
   const encryptionPasswordError = ref('');
@@ -140,7 +139,8 @@ export function useOnboardingFlow({
     try {
       const result = await setupEncryption(pw);
       if (!result.ok) {
-        encryptionPasswordError.value = result.error || 'Failed to set up encryption.';
+        encryptionPasswordError.value =
+          result.error || 'Failed to set up encryption.';
         return;
       }
       goToNextStep();
@@ -151,7 +151,7 @@ export function useOnboardingFlow({
     }
   }
 
-  // ── Static config ──────────────────────────────────────────────────────────
+  //  Static config
 
   const themeImages = { light: lightImg, dark: darkImg, system: systemImg };
   const themes = ONBOARDING_THEMES.map((item) => ({
@@ -164,7 +164,7 @@ export function useOnboardingFlow({
   const fonts = ONBOARDING_FONTS;
   const languages = ONBOARDING_LANGUAGES;
 
-  // ── Computed ───────────────────────────────────────────────────────────────
+  //  Computed
 
   const themeLabels = computed(() => ({
     light: translations.value.appearance?.light || 'Light',
@@ -173,7 +173,7 @@ export function useOnboardingFlow({
   }));
 
   const isDark = computed(() =>
-    fresh.theme === 'system' ? theme.isDark() : fresh.theme === 'dark'
+    fresh.theme === 'system' ? theme.isDark() : fresh.theme === 'dark',
   );
 
   const isMobileRuntime = backend.isMobileRuntime();
@@ -181,27 +181,27 @@ export function useOnboardingFlow({
   const isMacOS = computed(
     () =>
       typeof window !== 'undefined' &&
-      window.navigator.platform.toLowerCase().includes('mac')
+      window.navigator.platform.toLowerCase().includes('mac'),
   );
 
   const onboardingSubtitle = computed(
     () =>
       translations.value.onboarding?.subtitle ||
-      'Configure everything just the way you like it, or import your existing notes from Beaver Notes (Legacy).'
+      'Configure everything just the way you like it, or import your existing notes from Beaver Notes (Legacy).',
   );
 
   const completionEyebrow = computed(() =>
-    completionMode.value === 'migration' ? 'Migration complete' : 'All set'
+    completionMode.value === 'migration' ? 'Migration complete' : 'All set',
   );
   const completionTitle = computed(() =>
     completionMode.value === 'migration'
       ? 'Your notes are ready'
-      : 'Your app is ready'
+      : 'Your app is ready',
   );
   const completionSubtitle = computed(() =>
     completionMode.value === 'migration'
       ? 'Your data has been copied into the new Beaver Notes app. Everything is ready when you open it.'
-      : 'Your defaults are already applied. Open a clean app and start writing.'
+      : 'Your defaults are already applied. Open a clean app and start writing.',
   );
 
   const migrationDetectionCopy = computed(() => {
@@ -218,15 +218,15 @@ export function useOnboardingFlow({
   });
 
   const migrationPlatformLabel = computed(
-    () => PLATFORM_LABELS[migrationPlatform.value] || 'legacy'
+    () => PLATFORM_LABELS[migrationPlatform.value] || 'legacy',
   );
 
   const migrationPlatformIcon = computed(
-    () => PLATFORM_ICONS[migrationPlatform.value] || null
+    () => PLATFORM_ICONS[migrationPlatform.value] || null,
   );
 
   const migrationSourceHeading = computed(() =>
-    migrationPlatform.value === 'electron' ? '' : 'Import source'
+    migrationPlatform.value === 'electron' ? '' : 'Import source',
   );
 
   const migrationSourceCopy = computed(() => {
@@ -250,7 +250,7 @@ export function useOnboardingFlow({
   });
 
   const migrationWhatGetsCopied = computed(() =>
-    getMigrationWhatGetsCopied(migrationPlatform.value)
+    getMigrationWhatGetsCopied(migrationPlatform.value),
   );
 
   const migrationActionDisabled = computed(() => {
@@ -280,7 +280,7 @@ export function useOnboardingFlow({
     return isMobileRuntime ? ['welcome', 'setup'] : ['welcome', 'path'];
   });
 
-  // ── Navigation ─────────────────────────────────────────────────────────────
+  //  Navigation
 
   const setStep = (s) => {
     step.value = s;
@@ -339,7 +339,7 @@ export function useOnboardingFlow({
     }
   };
 
-  // ── Appearance setters (with DOM side-effects) ─────────────────────────────
+  //  Appearance
 
   const selectTheme = (name) => {
     fresh.theme = name;
@@ -376,7 +376,7 @@ export function useOnboardingFlow({
     fresh.zoomLevel = zoomLevel;
   };
 
-  // ── Confetti ───────────────────────────────────────────────────────────────
+  //  Confetti
 
   const prefersReducedMotion = () =>
     typeof window !== 'undefined' &&
@@ -424,15 +424,13 @@ export function useOnboardingFlow({
     }, 3800);
   }
 
-  // ── Async actions ──────────────────────────────────────────────────────────
+  //  Async actions
 
   async function refreshStatus() {
     state.error = '';
     state.status = await getOnboardingMigrationStatus();
     if (state.status?.hasLegacyData && state.status?.legacyDir) {
-      const lockedInfo = await detectLegacyLockedNotes(
-        state.status.legacyDir
-      );
+      const lockedInfo = await detectLegacyLockedNotes(state.status.legacyDir);
       state.legacyHasLockedNotes = lockedInfo.hasLocked;
       state.legacyLockedNoteCount = lockedInfo.count;
     }
@@ -463,7 +461,9 @@ export function useOnboardingFlow({
         canceled,
         filePaths: [dir],
       } = await openDialog({
-        title: translations.value.onboarding?.locatePortableData || 'Locate Beaver Notes portable data folder',
+        title:
+          translations.value.onboarding?.locatePortableData ||
+          'Locate Beaver Notes portable data folder',
         properties: ['openDirectory'],
         useScopedStorage: true,
       });
@@ -486,7 +486,8 @@ export function useOnboardingFlow({
     state.migrating = true;
     state.migrationDone = false;
     state.migrationProgress = 0;
-    state.migrationStatus = translations.value.onboarding?.startingImport || 'Starting import…';
+    state.migrationStatus =
+      translations.value.onboarding?.startingImport || 'Starting import…';
     state.migrationCurrent = '';
     state.migrationResult = null;
     state.migrationIssuesText = '';
@@ -503,13 +504,13 @@ export function useOnboardingFlow({
         if (state.migrationProgress < 85) {
           state.migrationProgress = Math.min(
             state.migrationProgress + Math.floor(Math.random() * 8) + 2,
-            85
+            85,
           );
           state.migrationStatus =
             steps[
               Math.min(
                 Math.floor(state.migrationProgress / 20),
-                steps.length - 1
+                steps.length - 1,
               )
             ];
         }
@@ -522,7 +523,8 @@ export function useOnboardingFlow({
       }
       clearInterval(ticker);
       state.migrationProgress = 100;
-      state.migrationStatus = translations.value.onboarding?.allDone || 'All done!';
+      state.migrationStatus =
+        translations.value.onboarding?.allDone || 'All done!';
       completionMode.value = 'migration';
       state.migrationDone = true;
     } catch (e) {
@@ -562,7 +564,8 @@ export function useOnboardingFlow({
     state.migrating = true;
     state.migrationDone = false;
     state.migrationProgress = 0;
-    state.migrationStatus = translations.value.onboarding?.startingImport || 'Starting import…';
+    state.migrationStatus =
+      translations.value.onboarding?.startingImport || 'Starting import…';
     state.migrationCurrent = '';
     state.migrationResult = null;
     state.migrationIssuesText = '';
@@ -578,12 +581,13 @@ export function useOnboardingFlow({
       if (!result) return;
 
       state.migrationProgress = 100;
-      state.migrationStatus = translations.value.onboarding?.allDone || 'All done!';
+      state.migrationStatus =
+        translations.value.onboarding?.allDone || 'All done!';
       state.migrationResult = result;
       state.migrationIssuesText = (result.errors || [])
         .map(
           (issue) =>
-            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`
+            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`,
         )
         .join('\n');
       completionMode.value = 'migration';
@@ -607,10 +611,8 @@ export function useOnboardingFlow({
         return { success: true, migratedCount };
       }
 
-      migratedCount = await migrateLegacyLockedNotes(
-        dir,
-        password,
-        (pw) => passwordStore.setSharedKey(pw)
+      migratedCount = await migrateLegacyLockedNotes(dir, password, (pw) =>
+        passwordStore.setSharedKey(pw),
       );
       state.legacyPasswordPrompt = false;
       state.legacyHasLockedNotes = false;
@@ -650,7 +652,9 @@ export function useOnboardingFlow({
         canceled,
         filePaths: [dir],
       } = await openDialog({
-        title: translations.value.onboarding?.chooseSyncFolder || 'Choose a sync folder',
+        title:
+          translations.value.onboarding?.chooseSyncFolder ||
+          'Choose a sync folder',
         properties: ['openDirectory'],
         useScopedStorage: true,
       });
@@ -708,7 +712,7 @@ export function useOnboardingFlow({
     setStep(targetStep === 'migration' ? 'migration' : 'platform');
   }
 
-  // ── Lifecycle ──────────────────────────────────────────────────────────────
+  //  Lifecycle
 
   watch(step, async (next) => {
     if (next === 'finish') {
@@ -724,7 +728,7 @@ export function useOnboardingFlow({
   watch(
     () => route.query,
     () => applyRouteEntry(),
-    { immediate: true }
+    { immediate: true },
   );
 
   onMounted(async () => {
@@ -754,7 +758,7 @@ export function useOnboardingFlow({
       getSettingSync('spotlightEnabled') ?? fresh.spotlightEnabled;
     document.documentElement.style.setProperty(
       '--selected-font',
-      fresh.selectedFont
+      fresh.selectedFont,
     );
     selectAccentColor(fresh.accentColor);
     selectZoomLevel(fresh.zoomLevel);
@@ -770,7 +774,7 @@ export function useOnboardingFlow({
 
   onUnmounted(() => timers.forEach(clearTimeout));
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  //  Public API
 
   return {
     // State
