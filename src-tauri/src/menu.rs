@@ -121,6 +121,7 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
         .build()
         .map_err(|e| AppError::Other(e.to_string()))?;
 
+    #[allow(unused_mut)]
     let mut builder = MenuBuilder::new(app);
     #[cfg(target_os = "macos")]
     {
