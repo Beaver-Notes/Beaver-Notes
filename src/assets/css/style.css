@@ -87,8 +87,13 @@ body {
 button,
 input,
 textarea,
-select {
+select,
+a,
+[tabindex] {
   &:focus {
+    outline: none;
+  }
+  &:focus-visible {
     outline: none;
   }
 }
@@ -183,6 +188,7 @@ option {
   position: relative;
   isolation: isolate;
   overflow: clip;
+  background-color: var(--app-theme-background);
 }
 
 .route-stage__page {

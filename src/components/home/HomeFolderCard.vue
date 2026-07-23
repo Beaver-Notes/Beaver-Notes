@@ -1,6 +1,7 @@
 <template>
   <div
-    class="is-drag-over folder-card relative group cursor-pointer w-full min-h-[130px] max-h-[180px] [perspective:1000px] [aspect-ratio:6/5]"
+    class="folder-card relative group cursor-pointer w-full min-h-[130px] max-h-[180px] [perspective:1000px] [aspect-ratio:6/5]"
+    :class="{ 'is-drag-over': isDragOver }"
     @click="handleCardClick($event, folder.id)"
   >
     <div
@@ -140,8 +141,9 @@
                       folder.icon === emoji.char,
                   }"
                   style="
-                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                      'Noto Color Emoji', 'Twemoji', sans-serif;
+                    font-family:
+                      'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                      'Twemoji', sans-serif;
                   "
                   :title="emoji.name"
                   @click="selectEmoji(emoji.char)"
@@ -163,7 +165,8 @@
                         folder.icon === variant.char,
                     }"
                     style="
-                      font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
+                      font-family:
+                        'Apple Color Emoji', 'Segoe UI Emoji',
                         'Noto Color Emoji', 'Twemoji', sans-serif;
                     "
                     :title="variant.name"
@@ -395,8 +398,9 @@
               'bg-primary/15 ring-1 ring-primary': folder.icon === emoji.char,
             }"
             style="
-              font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                'Noto Color Emoji', 'Twemoji', sans-serif;
+              font-family:
+                'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                'Twemoji', sans-serif;
             "
             :title="emoji.name"
             @click="selectEmoji(emoji.char)"
@@ -417,8 +421,9 @@
                   folder.icon === variant.char,
               }"
               style="
-                font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                  'Noto Color Emoji', 'Twemoji', sans-serif;
+                font-family:
+                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                  'Twemoji', sans-serif;
               "
               :title="variant.name"
               @click="selectSkinToneVariant(variant.char)"
@@ -600,7 +605,7 @@ function lightenHex(hex, amount = 0.18) {
 }
 
 const folderBaseColor = computed(
-  () => props.folder.color || DEFAULT_FOLDER_COLOR
+  () => props.folder.color || DEFAULT_FOLDER_COLOR,
 );
 
 const itemCount = computed(() => {
@@ -614,11 +619,11 @@ const filteredEmojis = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter((emoji) =>
-      emoji.name.toLowerCase().includes(query)
+      emoji.name.toLowerCase().includes(query),
     );
   } else if (selectedCategory.value) {
     const category = emojiCategories.find(
-      (cat) => cat.name === selectedCategory.value
+      (cat) => cat.name === selectedCategory.value,
     );
     if (category) {
       filtered = filtered.filter((emoji) => {
