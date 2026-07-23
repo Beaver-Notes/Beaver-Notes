@@ -352,15 +352,11 @@ pub(crate) fn yjs_append(
         rusqlite::params![note_id, stored, device, chrono::Utc::now().timestamp_millis()],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
-    // Invalidate the cached snapshot so yjs_get_snapshot rebuilds it lazily
-    // from the full update log.  This avoids the O(document-size) fold that
-    // previously ran on every keystroke.  The snapshot is refreshed eagerly
-    // by yjs_compact (called on note switch / unmount).
-    conn.execute(
-        "DELETE FROM yjs_snapshots WHERE note_id = ?1",
-        rusqlite::params![note_id],
-    )
-    .map_err(|e| AppError::Other(e.to_string()))?;
+    // Fold the new update into the cached snapshot incrementally so that
+    // repeated reads (yjs_get_snapshot) stay O(1) without requiring a full
+    // compaction via yjs_compact.  If no snapshot exists yet, fold_snapshot
+    // is a no-op and yjs_get_snapshot will build it lazily on the next read.
+    fold_snapshot(pool, note_id, blob, key)?;
     Ok(())
 }
 
