@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div :class="{ 'inline-block': !block }" class="ui-select">
     <label
@@ -52,17 +51,19 @@
 
       <!-- Dropdown Menu -->
       <Transition
-        enter-active-class="transition duration-200 ease-out"
+        enter-active-class="transition duration-200 ease-[var(--ease-standard)]"
         enter-from-class="opacity-0 scale-95"
         enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-150 ease-in"
+        leave-active-class="transition duration-150 ease-out"
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
         <div
           v-if="isOpen"
           ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-800 border rounded-xl shadow-xl z-50 p-1.5"
+          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5 origin-top"
+          role="listbox"
+          :aria-activedescendant="focusedIndex >= 0 ? `${selectId}-option-${focusedIndex}` : undefined"
         >
           <!-- Search Input -->
           <div v-if="search" class="mb-2">
@@ -93,7 +94,10 @@
               v-for="(option, index) in filteredOptions"
               :key="`${option.value}-${index}`"
               :ref="(el) => setOptionRef(el, index)"
+              :id="`${selectId}-option-${index}`"
               class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+              role="option"
+              :aria-selected="option.value === String(modelValue)"
               :class="{
                 'bg-neutral-100 dark:bg-neutral-700':
                   option.value === String(modelValue) ||
@@ -415,7 +419,7 @@ export default {
 }
 
 .ui-select .max-h-60::-webkit-scrollbar-track {
-  @apply bg-neutral-200 dark:bg-neutral-800;
+  @apply bg-neutral-200 dark:bg-neutral-900;
 }
 
 .ui-select .max-h-60::-webkit-scrollbar-thumb {

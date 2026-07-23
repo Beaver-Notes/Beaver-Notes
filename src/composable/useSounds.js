@@ -138,62 +138,6 @@ function bell(c, dest, freq, t, decay = 0.6, gain = 0.1) {
   carrier.stop(t + decay + 0.05);
 }
 
-function osc(
-  ctx,
-  type,
-  freq,
-  t,
-  dur,
-  gain = 0.15,
-  attack = 0.003,
-  release = 0.06
-) {
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-
-  o.type = type;
-  o.frequency.value = freq;
-
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + attack);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + release);
-
-  o.connect(g);
-  g.connect(ctx.destination);
-
-  o.start(t);
-  o.stop(t + dur + release + 0.02);
-}
-
-function sweep(
-  ctx,
-  type,
-  f1,
-  f2,
-  t,
-  dur,
-  gain = 0.13,
-  attack = 0.002,
-  release = 0.05
-) {
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-
-  o.type = type;
-
-  o.frequency.setValueAtTime(f1, t);
-  o.frequency.exponentialRampToValueAtTime(f2, t + dur);
-
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + attack);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur + release);
-
-  o.connect(g);
-  g.connect(ctx.destination);
-
-  o.start(t);
-  o.stop(t + dur + release + 0.02);
-}
 
 const sounds = {
   noteCreate: () => {

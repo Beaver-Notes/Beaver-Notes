@@ -1,7 +1,6 @@
 <script>
 import { h, Transition, TransitionGroup } from 'vue';
 
-/* eslint-disable */
 export default {
   props: {
     group: Boolean,
@@ -20,27 +19,29 @@ export default {
       element.style.width = null;
       element.style.position = null;
       element.style.visibility = null;
-      element.style.height = 0;
+      element.style.height = '0px';
+      element.style.transition = 'height var(--motion-base) var(--ease-standard)';
 
-      getComputedStyle(element).height;
+      void element.offsetHeight;
 
-      requestAnimationFrame(() => {
-        element.style.height = height;
-      });
+      element.style.height = height;
     }
     function afterEnter(element) {
       element.style.height = 'auto';
+      element.style.transition = '';
     }
     function leave(element) {
       const { height } = getComputedStyle(element);
-
       element.style.height = height;
+      element.style.transition = 'height var(--motion-base) var(--ease-standard)';
 
-      getComputedStyle(element).height;
+      void element.offsetHeight;
 
-      requestAnimationFrame(() => {
-        element.style.height = 0;
-      });
+      element.style.height = '0px';
+    }
+    function afterLeave(element) {
+      element.style.height = '';
+      element.style.transition = '';
     }
 
     return () =>
@@ -52,6 +53,7 @@ export default {
           onEnter: enter,
           onAfterEnter: afterEnter,
           onLeave: leave,
+          onAfterLeave: afterLeave,
         },
         slots.default
       );
@@ -61,7 +63,6 @@ export default {
 <style>
 .expand-enter-active,
 .expand-leave-active {
-  transition: height var(--motion-base) var(--ease-standard);
   overflow: hidden;
 }
 

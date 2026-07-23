@@ -2,7 +2,7 @@
   <!-- Desktop -->
   <div
     ref="container"
-    class="bg-white dark:bg-neutral-800 border overflow-x-auto z-20 top-4 right-4 w-fit p-1 sticky self-end rounded-lg shadow-sm no-print max-w-content mobile:hidden"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto w-fit p-1 rounded-lg shadow-sm no-print max-w-content mobile:hidden"
     :class="{
       'opacity-0 hover:opacity-100 transition-opacity': store.inReaderMode,
     }"
@@ -10,7 +10,8 @@
   >
     <div class="w-full h-full flex items-center justify-between">
       <button
-        v-tooltip.group="'Undo'"
+        v-tooltip.group="translations.noteActions?.undo || 'Undo'"
+        :aria-label="translations.noteActions?.undo || 'Undo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="editor.chain().focus().undo().run()"
       >
@@ -18,7 +19,8 @@
       </button>
 
       <button
-        v-tooltip.group="'Redo'"
+        v-tooltip.group="translations.noteActions?.redo || 'Redo'"
+        :aria-label="translations.noteActions?.redo || 'Redo'"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="editor.chain().focus().redo().run()"
       >
@@ -31,6 +33,7 @@
         <template #trigger>
           <button
             v-tooltip.group="translations.menu.share"
+            :aria-label="translations.menu.share"
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riShare2Line" />
@@ -54,6 +57,7 @@
 
       <button
         v-tooltip.group="translations.menu.readerMode"
+        :aria-label="translations.menu.readerMode"
         :class="{ 'is-active': store.inReaderMode }"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="toggleReaderMode"
@@ -62,7 +66,8 @@
       </button>
 
       <button
-        v-tooltip.group="'Search'"
+        v-tooltip.group="translations.noteActions?.search || 'Search'"
+        :aria-label="translations.noteActions?.search || 'Search'"
         :class="{ 'is-active': showSearch }"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
         @click="$emit('toggle-search')"
@@ -73,7 +78,8 @@
       <ui-popover>
         <template #trigger>
           <button
-            v-tooltip.group="'Note actions'"
+            v-tooltip.group="translations.noteActions?.noteActions || 'Note actions'"
+            :aria-label="translations.noteActions?.noteActions || 'Note actions'"
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riEqualizer3Line" />
@@ -91,7 +97,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isBookmarked ? 'Remove bookmark' : 'Bookmark' }}
+            {{ note.isBookmarked ? translations.noteActions?.removeBookmark || 'Remove bookmark' : translations.noteActions?.bookmark || 'Bookmark' }}
           </span>
         </button>
 
@@ -106,7 +112,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isArchived ? 'Unarchive' : 'Archive' }}
+            {{ note.isArchived ? (translations.noteActions?.unarchive || 'Unarchive') : (translations.noteActions?.archive || 'Archive') }}
           </span>
         </button>
 
@@ -118,7 +124,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            Lock note
+            {{ translations.noteActions?.lockNote || 'Lock note' }}
           </span>
         </button>
 
@@ -133,7 +139,7 @@
           <span
             class="block text-sm font-medium text-red-600 dark:text-red-400"
           >
-            Delete
+            {{ translations.noteActions?.delete || 'Delete' }}
           </span>
         </button>
 
@@ -147,7 +153,7 @@
             <span
               class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
             >
-              Full width
+              {{ translations.noteActions?.fullWidth || 'Full width' }}
             </span>
           </div>
           <ui-switch
@@ -169,7 +175,7 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ copyState === 1 ? 'Copied!' : 'Copy content' }}
+            {{ copyState === 1 ? (translations.noteActions?.copied || 'Copied!') : (translations.noteActions?.copyContent || 'Copy content') }}
           </span>
         </button>
       </ui-popover>
@@ -184,6 +190,7 @@
   >
     <div class="flex w-full items-center justify-between p-1.5">
       <button
+        aria-label="Back"
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
         @click="goBack"
       >
@@ -192,12 +199,14 @@
 
       <div class="flex items-center gap-1">
         <button
+          :aria-label="translations.menu.share"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
           @click="showShareDialog = true"
         >
           <v-remixicon name="riShare2Line" />
         </button>
         <button
+          :aria-label="translations.menu.readerMode"
           class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
           :class="
             store.inReaderMode
@@ -209,6 +218,7 @@
           <v-remixicon name="riArticleLine" />
         </button>
         <button
+          :aria-label="translations.noteActions?.search || 'Search'"
           class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
           :class="
             showSearch
@@ -427,7 +437,6 @@ input[type='number'] {
 }
 
 .editor-actions-mobile-shell {
-  transition: padding-top 180ms ease, box-shadow 180ms ease,
-    background-color 180ms ease;
+  transition: box-shadow 180ms ease, background-color 180ms ease;
 }
 </style>

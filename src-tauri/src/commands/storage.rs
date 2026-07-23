@@ -111,21 +111,21 @@ fn flatten_store_value(root: Value) -> Map<String, Value> {
     output
 }
 
-fn load_store_root(pool: &crate::db::DbPool) -> Result<Value, String> {
+fn load_store_root(pool: &crate::db::DbPool) -> Result<Value, AppError> {
     Ok(nested_store_value(crate::db::db_all(pool)?))
 }
 
-fn pick_pool<'a>(
+fn pick_pool(
     name: &str,
     app: &AppHandle,
-    state: &'a AppState,
-) -> Result<&'a crate::db::DbPool, String> {
+    state: &AppState,
+) -> Result<crate::db::DbPool, AppError> {
     match allowed_store_name(name)? {
-        SETTINGS_STORE => settings_pool(app, state),
-        DATA_STORE => data_pool(app, state),
-        _ => Err(format!(
+        SETTINGS_STORE => Ok(settings_pool(app, state)?),
+        DATA_STORE => Ok(data_pool(app, state)?),
+        _ => Err(AppError::Other(format!(
             r#"[storage] blocked access to unknown store: "{name}""#
-        )),
+        ))),
     }
 }
 
@@ -137,14 +137,14 @@ fn pick_pool<'a>(
 //
 // A key is "flat-addressable" when it has exactly one level (e.g. "deletedIds")
 // or when its top-level prefix is a known note-like namespace ("notes",
-// "notes-content") with a single sub-key — both of which are already stored as
+// "folders") with a single sub-key — both of which are already stored as
 // flat rows by flatten_store_value / the note store.
 
 /// Collection namespaces whose entries are stored as individual flat rows
 /// (e.g. "notes.abc123") rather than a single JSON blob under the bare key.
 /// Requests for the bare key (e.g. `storage_get("notes")`) must fall through
 /// to `load_store_root` so they see all the individual rows reassembled.
-const COLLECTION_NAMESPACES: &[&str] = &["notes", "notes-content", "folders"];
+const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
 fn flat_db_key(segments: &[&str]) -> Option<String> {
     match segments {
@@ -153,8 +153,8 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
         // Collection-namespace bare keys ("notes", "folders", …) must fall
         // through to load_store_root so the caller gets the full assembled object.
         [key] if !COLLECTION_NAMESPACES.contains(key) => Some((*key).to_string()),
-        // "notes.<id>", "notes-content.<id>", "folders.<id>" → flat rows
-        ["notes", id] | ["notes-content", id] | ["folders", id] => {
+        // "notes.<id>", "folders.<id>" → flat rows
+        ["notes", id] | ["folders", id] => {
             Some(format!("{}.{}", segments[0], id))
         }
         _ => None,
@@ -165,16 +165,16 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
 
 /// Returns the full store as a nested JSON object.
 /// Only used on startup / sync — intentionally loads everything.
-/// For the data store, notes are returned with encrypted content intact
-/// (decryption happens on-demand per-note in the frontend).
+/// Note content is no longer encrypted at the KV layer; Yjs blobs are
+/// encrypted at rest in the note_content / yjs_snapshots tables instead.
 #[tauri::command]
 pub(crate) fn storage_get_store(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
-) -> Result<Value, String> {
+) -> Result<Value, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let root = load_store_root(pool)?;
+    let root = load_store_root(&pool)?;
     Ok(root)
 }
 
@@ -185,10 +185,13 @@ pub(crate) fn storage_replace(
     name: String,
     data: Value,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let flattened = flatten_store_value(data);
-    crate::db::db_replace_all(pool, flattened)?;
+    crate::db::db_replace_all(&pool, flattened)?;
+    if name == SETTINGS_STORE {
+        invalidate_settings_cache(&state);
+    }
     Ok(())
 }
 
@@ -202,7 +205,7 @@ pub(crate) fn storage_get(
     key: String,
     def: Value,
     state: State<'_, AppState>,
-) -> Result<Value, String> {
+) -> Result<Value, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -210,18 +213,15 @@ pub(crate) fn storage_get(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let raw = crate::db::db_get(pool, &flat_key)?;
+        let raw = crate::db::db_get(&pool, &flat_key)?;
         let value = raw
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
             .unwrap_or(def);
-        if name == DATA_STORE {
-            return Ok(decrypt_note_row_from_storage(state.inner(), &flat_key, value)?);
-        }
         return Ok(value);
     }
 
     // Fallback: multi-level key — load full store and walk the tree
-    let root = load_store_root(pool)?;
+    let root = load_store_root(&pool)?;
     let value = get_nested_value(&root, &segments).cloned().unwrap_or(def);
     Ok(value)
 }
@@ -236,7 +236,7 @@ pub(crate) fn storage_set(
     key: String,
     value: Value,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -244,24 +244,21 @@ pub(crate) fn storage_set(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let value = if name == DATA_STORE {
-            encrypt_note_row_for_storage(state.inner(), &flat_key, value)?
-        } else {
-            value
-        };
-        let serialized = serde_json::to_string(&value).map_err(to_error)?;
-        return crate::db::db_set(pool, &flat_key, &serialized);
+        let serialized = serde_json::to_string(&value)?;
+        crate::db::db_set(&pool, &flat_key, &serialized)?;
+        if name == SETTINGS_STORE {
+            invalidate_settings_cache(&state);
+        }
+        return Ok(());
     }
 
     // Fallback: multi-level key — load, mutate, rewrite
-    let mut root = load_store_root(pool)?;
-    let value = if name == DATA_STORE {
-        encrypt_note_row_for_storage(state.inner(), &key, value)?
-    } else {
-        value
-    };
+    let mut root = load_store_root(&pool)?;
     set_nested_value(&mut root, &segments, value);
-    crate::db::db_replace_all(pool, flatten_store_value(root))?;
+    crate::db::db_replace_all(&pool, flatten_store_value(root))?;
+    if name == SETTINGS_STORE {
+        invalidate_settings_cache(&state);
+    }
     Ok(())
 }
 
@@ -274,7 +271,7 @@ pub(crate) fn storage_delete(
     name: String,
     key: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -282,13 +279,20 @@ pub(crate) fn storage_delete(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        return crate::db::db_delete(pool, &flat_key);
+        crate::db::db_delete(&pool, &flat_key)?;
+        if name == SETTINGS_STORE {
+            invalidate_settings_cache(&state);
+        }
+        return Ok(());
     }
 
     // Fallback: multi-level key — load, mutate, rewrite
-    let mut root = load_store_root(pool)?;
+    let mut root = load_store_root(&pool)?;
     let _ = delete_nested_value(&mut root, &segments);
-    crate::db::db_replace_all(pool, flatten_store_value(root))?;
+    crate::db::db_replace_all(&pool, flatten_store_value(root))?;
+    if name == SETTINGS_STORE {
+        invalidate_settings_cache(&state);
+    }
     Ok(())
 }
 
@@ -300,7 +304,7 @@ pub(crate) fn storage_has(
     name: String,
     key: String,
     state: State<'_, AppState>,
-) -> Result<bool, String> {
+) -> Result<bool, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -308,11 +312,11 @@ pub(crate) fn storage_has(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        return crate::db::db_has(pool, &flat_key);
+        return Ok(crate::db::db_has(&pool, &flat_key)?);
     }
 
     // Fallback: multi-level key
-    let root = load_store_root(pool)?;
+    let root = load_store_root(&pool)?;
     Ok(get_nested_value(&root, &segments).is_some())
 }
 
@@ -321,8 +325,8 @@ pub(crate) fn storage_clear(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    crate::db::db_clear(pool)?;
+    crate::db::db_clear(&pool)?;
     Ok(())
 }

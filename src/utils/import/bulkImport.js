@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
 import { path } from '@/lib/tauri-bridge';
-import { getAppDirectory } from '@/lib/native/app';
 import { ensureDir, readDir, readFile, writeFile } from '@/lib/native/fs';
 import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
@@ -279,7 +278,7 @@ async function processRustImportNote(note, state) {
 }
 
 export function startRustImport(source, onProgress) {
-  return new Promise(async (resolve) => {
+  return new Promise((resolve) => {
     const state = {
       imported: 0,
       folderIds: new Set(),
@@ -288,6 +287,7 @@ export function startRustImport(source, onProgress) {
     let completionErrors = [];
     let processing = Promise.resolve();
 
+    (async () => {
     const unlistenProgress = await onImportProgress(async (_, payload) => {
       if (payload.source !== source) return;
 
@@ -327,6 +327,7 @@ export function startRustImport(source, onProgress) {
         errors: [...completionErrors, ...state.errors],
       });
     });
+    })();
   });
 }
 

@@ -12,16 +12,26 @@ const MAX_CHARS_BY_KIND = {
   callout: 84,
 };
 
+let _cardLabels = {};
+
+export function setCardPreviewLabels(labels) {
+  _cardLabels = labels || {};
+}
+
+function cl(key, fallback) {
+  return _cardLabels[key] || fallback;
+}
+
 const MEDIA_TYPES = {
-  audioBlock: { label: 'Audio', tone: 'audio' },
-  videoBlock: { label: 'Video', tone: 'video' },
-  fileEmbed: { label: 'Attachment', tone: 'file' },
-  mermaidBlock: { label: 'Diagram', tone: 'diagram' },
-  mermaidDiagram: { label: 'Diagram', tone: 'diagram' },
-  mathBlock: { label: 'Math', tone: 'math' },
-  mathInline: { label: 'Math', tone: 'math' },
-  math_inline: { label: 'Math', tone: 'math' },
-  paper: { label: 'Sketch', tone: 'sketch' },
+  audioBlock: { label: cl('audio', 'Audio'), tone: 'audio' },
+  videoBlock: { label: cl('video', 'Video'), tone: 'video' },
+  fileEmbed: { label: cl('attachment', 'Attachment'), tone: 'file' },
+  mermaidBlock: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
+  mermaidDiagram: { label: cl('diagram', 'Diagram'), tone: 'diagram' },
+  mathBlock: { label: cl('math', 'Math'), tone: 'math' },
+  mathInline: { label: cl('math', 'Math'), tone: 'math' },
+  math_inline: { label: cl('math', 'Math'), tone: 'math' },
+  paper: { label: cl('sketch', 'Sketch'), tone: 'sketch' },
 };
 
 export const EMPTY_CARD_PREVIEW = Object.freeze({
@@ -159,7 +169,7 @@ function extractTableRows(node) {
 function pushTableBlock(preview, node) {
   const rows = extractTableRows(node);
   if (!rows.length) {
-    pushMediaBlock(preview, { label: 'Table', tone: 'table' });
+    pushMediaBlock(preview, { label: cl('table', 'Table'), tone: 'table' });
     return;
   }
 
@@ -328,4 +338,43 @@ export function buildCardPreview(content) {
   preview.visibleMediaCount = visibleVisualBlocks(preview);
 
   return preview;
+}
+
+/**
+ * Build a structured cardPreview and flat preview text for a note.
+ * Handles the fallback chain: structured content -> flat text -> empty.
+ *
+ * @param {Object} opts
+ * @param {*}       opts.content     - TipTap JSON content (or null)
+ * @param {string}  [opts.preview]   - Flat preview text (cross-device fallback)
+ * @param {string}  [opts.searchText] - Legacy search text
+ * @param {boolean} [opts.hidden]    - true when note is locked/encrypted
+ * @returns {{ cardPreview: Object, preview: string }}
+ */
+export function buildNotePreview({
+  content,
+  preview: previewText,
+  searchText,
+  hidden,
+}) {
+  if (hidden) {
+    return { cardPreview: EMPTY_CARD_PREVIEW, preview: '' };
+  }
+
+  const text = previewText || searchText || '';
+
+  let cardPreview;
+  if (content) {
+    cardPreview = buildCardPreview(content);
+    // Bare top-level text (no paragraph wrapper) yields no blocks
+    if (!cardPreview.blocks || !cardPreview.blocks.length) {
+      cardPreview = buildCardPreview(text);
+    }
+  } else if (text) {
+    cardPreview = buildCardPreview(text);
+  } else {
+    cardPreview = EMPTY_CARD_PREVIEW;
+  }
+
+  return { cardPreview, preview: text };
 }

@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <ui-modal :model-value="state.show" content-class="max-w-md" persist>
     <!-- Alert -->
@@ -88,10 +87,10 @@
             autofocus
             :placeholder="state.options.placeholder"
             :label="state.options.label"
-            :password="true"
+            :password="state.options.password"
             class="w-full"
           ></ui-input>
-          <div v-if="isEmpty" class="text-sm text-red-500 mt-2">
+          <div v-if="isEmpty" id="dialog-error" class="text-sm text-red-500 mt-2" role="alert">
             {{ translations.dialog.inputEmpty }}
           </div>
           <div v-if="state.type === 'auth'" class="w-full flex flex-wrap gap-2">

@@ -1,9 +1,9 @@
 <template>
-  <nav class="w-full" data-selection-keep>
+  <nav class="w-full" role="navigation" aria-label="Main navigation" data-selection-keep>
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <!-- ── Left Rail ── -->
       <div
-        class="flex items-center rounded-full bg-white dark:bg-neutral-800 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden"
+        class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-all duration-300 ease-[var(--ease-snappy)] overflow-hidden"
         :class="railWidthClass"
       >
         <!-- Default Navigation -->
@@ -13,7 +13,7 @@
           class="relative flex items-center gap-1.5 w-full"
         >
           <div
-            class="pointer-events-none absolute inset-y-0 rounded-full bg-primary/15 ring-1 ring-white/60 transition-[transform,width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-primary/20 dark:ring-white/10"
+            class="pointer-events-none absolute inset-y-0 rounded-full bg-primary/15 ring-1 ring-white/60 transition-[transform,opacity] duration-300 ease-[var(--ease-snappy)] dark:bg-primary/20 dark:ring-white/10"
             :style="activePillStyle"
           />
           <button
@@ -23,8 +23,9 @@
             v-tooltip:right="
               `${nav.name} (${nav.shortcut.replace('mod', keyBinding)})`
             "
+            :aria-label="nav.name"
             :data-testid="getNavTestId(nav.path)"
-            class="relative z-10 flex h-12 w-16 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97]"
+            class="relative z-10 flex h-12 w-16 items-center justify-center rounded-full text-inherit transition-[color,transform] duration-300 ease-[var(--ease-snappy)] active:scale-[0.97]"
             :class="{
               'text-primary': isActivePath(nav.path),
             }"
@@ -41,6 +42,7 @@
         >
           <button
             v-tooltip:right="translations.sidebar.newFolder || 'New Folder'"
+            :aria-label="translations.sidebar.newFolder || 'New Folder'"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addFolderAndClose"
           >
@@ -48,6 +50,7 @@
           </button>
           <button
             v-tooltip:right="translations.sidebar.addNotes || 'New Note'"
+            :aria-label="translations.sidebar.addNotes || 'New Note'"
             class="flex h-12 w-16 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors duration-200"
             @click="addNoteAndClose"
           >
@@ -72,6 +75,11 @@
                   ? translations.card.lock || 'Lock'
                   : translations.card.unlock || 'Unlock'
               "
+              :aria-label="
+                selectionBar.shouldLock
+                  ? translations.card.lock || 'Lock'
+                  : translations.card.unlock || 'Unlock'
+              "
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200"
               @click="selectionBar.toggleLock()"
             >
@@ -85,6 +93,11 @@
             <button
               v-if="selectionBar.hasSelectedNotes"
               v-tooltip:right="
+                selectionBar.shouldBookmark
+                  ? translations.card.bookmark || 'Bookmark'
+                  : translations.card.removeBookmark || 'Unbookmark'
+              "
+              :aria-label="
                 selectionBar.shouldBookmark
                   ? translations.card.bookmark || 'Bookmark'
                   : translations.card.removeBookmark || 'Unbookmark'
@@ -112,6 +125,11 @@
                   ? translations.card.archive || 'Archive'
                   : translations.card.unarchive || 'Unarchive'
               "
+              :aria-label="
+                selectionBar.shouldArchive
+                  ? translations.card.archive || 'Archive'
+                  : translations.card.unarchive || 'Unarchive'
+              "
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
               @click="selectionBar.toggleArchive()"
             >
@@ -126,6 +144,7 @@
             </button>
             <button
               v-tooltip:right="translations.card.moveToFolder || 'Move'"
+              :aria-label="translations.card.moveToFolder || 'Move'"
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
               @click="handleMoveSelection"
             >
@@ -133,6 +152,7 @@
             </button>
             <button
               v-tooltip:right="translations.card.delete || 'Delete'"
+              :aria-label="translations.card.delete || 'Delete'"
               class="flex h-12 w-12 items-center justify-center rounded-full text-red-500 hover:bg-red-500/10 transition-colors duration-200"
               @click="handleDeleteSelection"
             >
@@ -140,6 +160,7 @@
             </button>
             <button
               v-tooltip:right="translations.index.close || 'Close'"
+              :aria-label="translations.index.close || 'Close'"
               class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
               @click="handleClearSelection"
             >
@@ -157,8 +178,13 @@
               ? translations.index.close || 'Close'
               : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
           "
+          :aria-label="
+            showAddMenu
+              ? translations.index.close || 'Close'
+              : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
+          "
           data-testid="add-note-button"
-          class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
+          class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 ease-[var(--ease-snappy)] hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
           :class="{ 'rotate-40 scale-95': showAddMenu }"
           @click="toggleAddMenu"
         >

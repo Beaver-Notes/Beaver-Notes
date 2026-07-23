@@ -2,7 +2,6 @@
   <component :is="tag" ref="btnRef"></component>
 </template>
 <script setup>
-/* eslint-disable no-undef */
 
 import { ref } from 'vue';
 

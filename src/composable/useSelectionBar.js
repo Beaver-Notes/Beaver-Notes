@@ -23,25 +23,26 @@ export function useSelectionBar() {
   const hasSelection = computed(() => selectedKeys.value.size > 0);
   const selectedCount = computed(() => selectedKeys.value.size);
 
-  const selectedNotes = computed(() =>
-    Array.from(selectedKeys.value)
-      .map(parseItemId)
-      .filter(({ type, id }) => type === 'note' && id)
-      .map(({ id }) => noteStore.getById(id))
-      .filter(Boolean)
-  );
+  const _selectedParsed = computed(() => {
+    const notes = [];
+    const folders = [];
+    for (const key of selectedKeys.value) {
+      const { type, id } = parseItemId(key);
+      if (type === 'note' && id) {
+        const note = noteStore.getById(id);
+        if (note) notes.push(note);
+      } else if (type === 'folder' && id) {
+        const folder = folderStore.data[id];
+        if (folder) folders.push(folder);
+      }
+    }
+    return { notes, folders };
+  });
 
-  const hasSelectedNotes = computed(() => selectedNotes.value.length > 0);
-
-  const selectedFolders = computed(() =>
-    Array.from(selectedKeys.value)
-      .map(parseItemId)
-      .filter(({ type, id }) => type === 'folder' && id)
-      .map(({ id }) => folderStore.data[id])
-      .filter(Boolean)
-  );
-
-  const hasSelectedFolders = computed(() => selectedFolders.value.length > 0);
+  const selectedNotes = computed(() => _selectedParsed.value.notes);
+  const hasSelectedNotes = computed(() => _selectedParsed.value.notes.length > 0);
+  const selectedFolders = computed(() => _selectedParsed.value.folders);
+  const hasSelectedFolders = computed(() => _selectedParsed.value.folders.length > 0);
 
   const shouldArchive = computed(() => {
     const notes = selectedNotes.value;

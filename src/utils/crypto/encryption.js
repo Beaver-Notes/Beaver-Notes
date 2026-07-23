@@ -1,15 +1,13 @@
 import {
-  disableEncryptionState,
   getEncryptionState,
   lockEncryption,
   submitEncryptionPassword,
   encryptNotePayload,
   decryptNotePayload,
   clearDecryptedCaches,
-  encryptionExportAppKey,
+  reconcileSyncKeyParams,
 } from '@/lib/native/security.js';
 import {
-  clearSecureBlob,
   loadSecureBlob,
   persistSecureBlobInBackground,
 } from './safeStorageBlob.js';
@@ -19,7 +17,6 @@ const state = {
   loaded: false,
 };
 let _restoreInFlight = null;
-let _keyRaw = null;
 const BLOB_KEY = 'encryptionPassphraseBlob';
 
 async function refreshState() {
@@ -37,24 +34,17 @@ export function isKeyLoaded() {
   return state.loaded;
 }
 
-export async function exportKeyRaw() {
-  if (!state.loaded) return null;
-  if (_keyRaw) return _keyRaw;
-  try {
-    _keyRaw = await encryptionExportAppKey();
-    return _keyRaw;
-  } catch (e) {
-    return null;
-  }
-}
-
 export async function ensureKeyReadyForWrite() {
   const next = await refreshState();
-  if (!next?.enabled) return false;
+  if (!next?.enabled) {
+    throw new Error(
+      'Encryption is not configured. Complete onboarding to set up encryption.'
+    );
+  }
   if (next?.unlocked) return true;
 
   throw new Error(
-    'Encryption key is locked. Unlock encryption in Settings before editing notes.'
+    'Encryption key is locked. Unlock the app before editing notes.'
   );
 }
 
@@ -74,6 +64,7 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
+    reconcileSyncKeyParams().catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -87,16 +78,14 @@ export async function verifyPassphrase(passphrase) {
   }
 
   try {
-    const result = await submitEncryptionPassword(passphrase, null, false);
+    const result = await submitEncryptionPassword(passphrase, false);
     if (!result?.ok) {
       return { ok: false, error: result?.error || 'Wrong passphrase.' };
     }
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    if (result?.state?.unlocked) {
-      await exportKeyRaw();
-    }
+    reconcileSyncKeyParams(passphrase).catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] verify failed:', err);
@@ -115,9 +104,6 @@ export async function tryRestoreKeyFromSafeStorage() {
 async function _doRestoreKey() {
   const next = await refreshState();
   if (!next?.enabled || next?.unlocked) {
-    if (next?.unlocked) {
-      await exportKeyRaw();
-    }
     return !!next?.unlocked;
   }
 
@@ -144,16 +130,6 @@ async function _doRestoreKey() {
 export async function encryptionIsConfigured() {
   const next = await refreshState();
   return !!next?.enabled;
-}
-
-export async function disableEncryption(beforeKeyCleared) {
-  if (typeof beforeKeyCleared === 'function') {
-    await beforeKeyCleared();
-  }
-  await disableEncryptionState(true);
-  await clearSecureBlob(BLOB_KEY);
-  await clearDecryptedCaches();
-  await refreshState();
 }
 
 export async function encryptContent(contentObj) {
@@ -185,13 +161,17 @@ export async function decryptContent(contentVal) {
 
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
-  return contentVal.ae === 1 || contentVal.ae === 2;
+  return contentVal.ae === 1 || contentVal.ae === 2 || contentVal.ae === 3;
 }
 
 export async function lockEncryptionKey() {
   await lockEncryption();
   await clearDecryptedCaches();
   await refreshState();
+  try {
+    const { clearSyncKey } = await import('@/utils/sync/crypto.js');
+    clearSyncKey();
+  } catch {}
 }
 
 // Re-exports for sync/crypto.js

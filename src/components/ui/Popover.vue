@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="ui-popover inline-block" :class="{ hidden: to }">
     <div
@@ -9,14 +8,16 @@
       <slot name="trigger" v-bind="{ isShow }"></slot>
     </div>
     <Teleport to="body">
-      <div
-        v-if="isShow"
-        ref="content"
-        :style="floatingStyles"
-        class="ui-popover__content bg-white dark:bg-neutral-800 rounded-xl shadow-xl border z-50 p-1.5"
-      >
-        <slot v-bind="{ isShow }"></slot>
-      </div>
+      <Transition name="ui-popover">
+        <div
+          v-show="isShow"
+          ref="content"
+          :style="floatingStyles"
+          class="ui-popover__content bg-white dark:bg-neutral-900 rounded-xl shadow-xl border z-50 p-1.5"
+        >
+          <slot v-bind="{ isShow }"></slot>
+        </div>
+      </Transition>
     </Teleport>
   </div>
 </template>
@@ -48,7 +49,7 @@ export default {
       default: false,
     },
   },
-  emits: ['show', 'trigger', 'close'],
+  emits: ['show', 'trigger', 'close', 'update:modelValue'],
   setup(props, { emit }) {
     const targetEl = ref(null);
     const content = ref(null);
@@ -65,9 +66,9 @@ export default {
 
     const placement = computed(() => props.placement);
     const middleware = computed(() => [
-      offset(4),
+      offset(15),
       flip(),
-      shift({ padding: 8 }),
+      shift({ padding: 15 }),
     ]);
 
     const { floatingStyles } = useFloating(reference, content, {
@@ -82,6 +83,7 @@ export default {
       if (props.disabled) return;
       isShow.value = true;
       lockScroll();
+      emit('update:modelValue', true);
       emit('show');
       emit('trigger');
     };
@@ -89,6 +91,7 @@ export default {
     const hide = () => {
       isShow.value = false;
       unlockScroll();
+      emit('update:modelValue', false);
       emit('close');
     };
 
@@ -126,12 +129,21 @@ export default {
       }
     };
 
+    const handleKeydown = (e) => {
+      if (e.key === 'Escape' && isShow.value) {
+        hide();
+        targetEl.value?.focus();
+      }
+    };
+
     onMounted(() => {
       document.addEventListener('click', handleClickOutside, true);
+      document.addEventListener('keydown', handleKeydown, true);
     });
 
     onUnmounted(() => {
       document.removeEventListener('click', handleClickOutside, true);
+      document.removeEventListener('keydown', handleKeydown, true);
       if (isShow.value) {
         unlockScroll();
       }
@@ -147,3 +159,29 @@ export default {
   },
 };
 </script>
+<style>
+.ui-popover-enter-active {
+  transition: opacity var(--motion-fast) var(--ease-snappy),
+    transform var(--motion-fast) var(--ease-snappy);
+}
+.ui-popover-leave-active {
+  transition: opacity var(--motion-fast) var(--ease-exit),
+    transform var(--motion-fast) var(--ease-exit);
+}
+.ui-popover-enter-from,
+.ui-popover-leave-to {
+  opacity: 0;
+  transform: scale(0.97);
+}
+.ui-popover-enter-to,
+.ui-popover-leave-from {
+  opacity: 1;
+  transform: scale(1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-popover-enter-active,
+  .ui-popover-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+</style>

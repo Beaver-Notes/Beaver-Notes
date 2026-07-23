@@ -1,5 +1,3 @@
-import { debounce } from '@/utils/helpers/index.js';
-
 const PERSIST_DELAY_MS = 300;
 
 /**
@@ -93,7 +91,7 @@ export function useNotePersistence({
     });
 
     const currentContent = editor?.getJSON();
-    const currentTitle = titleDiv?.innerText ?? '';
+    const currentTitle = titleDiv?.value ?? titleDiv?.innerText ?? '';
     const currentCursorPosition = editor?.state?.selection?.to;
 
     return {

@@ -52,6 +52,9 @@ if (getSettingSync('highContrast')) {
   document.documentElement.classList.add('high-contrast');
 }
 
+const selectedLanguage = getSettingSync('selectedLanguage') || 'en';
+document.documentElement.setAttribute('lang', selectedLanguage);
+
 const app = createApp(App);
 
 app.config.unwrapInjectedRef = true;

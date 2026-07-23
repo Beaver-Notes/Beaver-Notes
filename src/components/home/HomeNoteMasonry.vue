@@ -84,9 +84,8 @@
             'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
               isSelected(item.note.id),
           }"
-          class="w-full"
+          class="w-full [contain:layout_style]"
           draggable="true"
-          style="contain: layout style"
           @dragstart="
             $emit('dragstart', { event: $event, noteId: item.note.id })
           "
@@ -233,7 +232,7 @@ const layoutResult = computed(() => {
 
   const colW = Math.floor((width - gap * (cols - 1)) / cols);
   const remainder = width - gap * (cols - 1) - colW * cols;
-  const colH = new Array(cols).fill(0);
+  const colH = Array.from({ length: cols }).fill(0);
   const items = [];
 
   for (const [index, note] of props.notes.entries()) {
@@ -317,6 +316,12 @@ function updateOffset() {
   }
 }
 
+function onWindowResize() {
+  updateWidth();
+  updateViewport();
+  updateOffset();
+}
+
 function updateCardHeight(id, el) {
   const h = Math.round(el.getBoundingClientRect().height);
   const prev = cardHeights.get(id);
@@ -335,7 +340,7 @@ function scheduleMeasure() {
       if (el && updateCardHeight(note.id, el)) changed = true;
     }
     const ids = new Set(props.notes.map((n) => n.id));
-    for (const id of [...cardHeights.keys()]) {
+    for (const id of cardHeights.keys()) {
       if (!ids.has(id)) {
         const el = cardElements.get(id);
         if (el && cardRO) cardRO.unobserve(el);
@@ -433,28 +438,14 @@ watch(columnCount, () => {
   scheduleMeasure();
 });
 
+let _prevNoteIds = new Set();
+
 watch(
-  () =>
-    props.notes
-      .map(
-        (n) =>
-          `${n.id}:${n.updatedAt ?? ''}:${n.title ?? ''}:${
-            n.labels?.length ?? 0
-          }:${n.isLocked}:${n.isConflict}`
-      )
-      .join('|'),
-  async (newVal, oldVal) => {
-    const oldIds = oldVal
-      ? new Set(
-          oldVal
-            .split('|')
-            .map((s) => s.split(':')[0])
-            .filter(Boolean)
-        )
-      : new Set();
+  () => props.notes.map((n) => n.id).join(','),
+  async () => {
     const newIds = new Set(props.notes.map((n) => n.id));
 
-    for (const id of oldIds) {
+    for (const id of _prevNoteIds) {
       if (!newIds.has(id) && !leavingItems.has(id)) {
         leavingItems.set(id, { timestamp: Date.now() });
         setTimeout(() => leavingItems.delete(id), CARD_LEAVE_CLEANUP_MS);
@@ -462,11 +453,13 @@ watch(
     }
 
     for (const id of newIds) {
-      if (!oldIds.has(id) && !enteringItems.has(id)) {
+      if (!_prevNoteIds.has(id) && !enteringItems.has(id)) {
         enteringItems.set(id, { timestamp: Date.now() });
         setTimeout(() => enteringItems.delete(id), CARD_ENTER_CLEANUP_MS);
       }
     }
+
+    _prevNoteIds = newIds;
 
     await nextTick();
     scheduleMeasure();
@@ -524,21 +517,14 @@ onMounted(async () => {
 
     measureTimeout = setTimeout(finishMeasurement, 5000);
   } else {
-    window.addEventListener(
-      'resize',
-      () => {
-        updateWidth();
-        updateViewport();
-        updateOffset();
-      },
-      { passive: true }
-    );
+    window.addEventListener('resize', onWindowResize, { passive: true });
     finishMeasurement();
   }
 });
 
 onBeforeUnmount(() => {
   scrollEl?.removeEventListener('scroll', onScroll);
+  window.removeEventListener('resize', onWindowResize);
   containerRO?.disconnect();
   cardRO?.disconnect();
   if (measureRO) measureRO.disconnect();

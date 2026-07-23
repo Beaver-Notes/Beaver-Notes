@@ -8,8 +8,7 @@
     >
       <div
         ref="railRef"
-        class="w-8 relative flex flex-col items-end gap-1.5 overflow-hidden py-1.5"
-        style="max-height: 100px"
+        class="w-8 relative flex flex-col items-end gap-1.5 overflow-hidden py-1.5 max-h-[100px]"
       >
         <button
           v-for="(item, i) in visibleHeadings"
@@ -19,7 +18,7 @@
               if (el) setPillRef(i, el);
             }
           "
-          class="flex-shrink-0 rounded-full cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          class="flex-shrink-0 rounded-full cursor-pointer transition-[width,height,background-color,box-shadow] duration-300 ease-[var(--ease-snappy)]"
           :class="
             item === activeHeading
               ? 'w-3 h-1.5 bg-primary ring-2 ring-white/60 dark:ring-neutral-900/60'
@@ -32,17 +31,17 @@
 
     <Teleport to="body">
       <Transition
-        enter-active-class="transition duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        enter-active-class="transition duration-300 ease-[var(--ease-snappy)]"
         enter-from-class="opacity-0 scale-95"
         enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        leave-active-class="transition duration-200 ease-[var(--ease-snappy)]"
         leave-from-class="opacity-100 scale-100"
         leave-to-class="opacity-0 scale-95"
       >
         <div
           v-if="showMenu"
           ref="popoverRef"
-          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-800 shadow-xl overflow-hidden"
+          class="fixed z-50 w-64 rounded-xl border bg-white dark:bg-neutral-900 shadow-xl overflow-hidden origin-right"
           :style="popoverStyle"
           @mouseenter="onEnter"
           @mouseleave="onLeave"
@@ -51,7 +50,7 @@
             <input
               v-model="search"
               type="text"
-              placeholder="Search headings..."
+              :placeholder="translations.noteActions?.searchHeadings || 'Search headings…'"
               class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary placeholder:text-neutral-400"
             />
           </div>
@@ -88,10 +87,12 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: { editor: Object },
   setup(props) {
+    const { translations } = useTranslations();
     const headings = ref([]);
     const activeHeading = ref(null);
     const search = ref('');
@@ -384,6 +385,7 @@ export default {
     });
 
     return {
+      translations,
       headings,
       activeHeading,
       visibleHeadings,

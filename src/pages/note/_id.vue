@@ -1,28 +1,34 @@
 <template>
   <div v-if="note" class="flex flex-col">
-    <button
-      v-if="
-        (showBack && !uiState.inReaderMode.value) ||
-        ($route.query.linked && !uiState.inReaderMode.value)
-      "
-      class="ltr:left-0 rtl:right-0 ml-24 mt-4 fixed group print:hidden mobile:hidden"
-      :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
-      @click="goBack"
-    >
-      <v-remixicon
-        name="riArrowDownLine"
-        class="mr-2 -ml-1 rtl:ml-0 group-hover:-translate-x-1 transform transition rotate-90 rtl:-rotate-90"
-      />
-      <span v-if="$route.query.linked && !uiState.inReaderMode.value">
-        {{ translations.editor.previousNote || '-' }}
-      </span>
-    </button>
-
     <template v-if="editor && !isLocked">
-      <note-actions
-        v-bind="{ editor, id, note, showSearch, goBack }"
-        @toggle-search="showSearch = !showSearch"
-      />
+      <div
+        class="no-print sticky top-4 mobile:top-0 z-10 flex items-start px-4"
+      >
+        <div
+          v-if="previousNote && !uiState.inReaderMode"
+          class="bg-white dark:bg-neutral-900 border p-1 rounded-lg shadow-sm flex items-center w-fit max-w-content"
+        >
+          <button
+            class="hoverable h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm text-neutral-700 dark:text-neutral-300 mobile:hidden"
+            :title="translations.editor.backShortcutTitle || 'Alt+Arrow left'"
+            @click="goToPrevious"
+          >
+            <v-remixicon name="riArrowLeftLine" class="flex-shrink-0" />
+            <span class="truncate max-w-[16rem]">
+              {{
+                previousNote.title ||
+                translations.editor.untitledNote ||
+                'Untitled'
+              }}
+            </span>
+          </button>
+        </div>
+        <div class="flex-1"></div>
+        <note-actions
+          v-bind="{ editor, id, note, showSearch, goBack }"
+          @toggle-search="showSearch = !showSearch"
+        />
+      </div>
     </template>
 
     <div
@@ -41,9 +47,9 @@
           v-if="showSearch"
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="opacity-0 translate-y-4"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
+          enter-to-class="opacity-0 translate-y-0"
+          leave-active-class="transition duration-150 ease-out"
+          leave-from-class="opacity-0 translate-y-0"
           leave-to-class="opacity-0 translate-y-4"
         >
           <note-search
@@ -54,16 +60,17 @@
         </transition>
         <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
       </template>
-      <div
+      <textarea
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
-        contenteditable="true"
-        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder"
+        rows="1"
+        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder resize-none overflow-hidden leading-tight"
+        :class="editor ? '' : 'invisible'"
         :placeholder="translations.editor.untitledNote"
         @input="handleTitleInput"
         @keydown="disallowedEnter"
-      ></div>
+      ></textarea>
       <div v-else class="flex flex-col items-center justify-center h-screen">
         <v-remixicon
           class="w-24 h-auto text-gray-600 dark:text-white"
@@ -99,21 +106,43 @@
         </router-link>
       </div>
 
-      <note-editor
-        v-if="!isLocked"
-        :id="$route.params.id"
-        ref="noteEditor"
-        :key="$route.params.id"
-        :model-value="note.content"
-        :note="note"
-        :cursor-position="note.lastCursorPosition"
-        @update="
-          autoScroll();
-          handleContentUpdate($event);
-        "
-        @init="editor = $event"
-        @keyup.down="autoScroll"
-      />
+      <div v-if="!isLocked" class="relative editor-skeleton-wrapper">
+        <note-editor
+          v-if="yjsReady"
+          :id="$route.params.id"
+          ref="noteEditor"
+          :key="$route.params.id"
+          :ydoc="ydoc"
+          :note="note"
+          :cursor-position="note.lastCursorPosition"
+          @update="
+            autoScroll();
+            handleContentUpdate($event);
+          "
+          @init="editor = $event"
+          @keyup.down="autoScroll"
+        />
+        <div
+          v-if="yjsReady && !editor"
+          class="editor-skeleton"
+        >
+          <div class="space-y-4 animate-pulse">
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-5/6" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3" />
+          </div>
+        </div>
+        <div v-if="!yjsReady" class="editor-skeleton">
+          <div class="space-y-4 animate-pulse">
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-5/6" />
+            <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-2/3" />
+          </div>
+        </div>
+      </div>
+      <note-backlinks v-if="!isLocked" />
     </div>
     <note-headings-progress
       v-if="editor"
@@ -148,11 +177,13 @@ import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
+import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
+import { useNoteYjs } from '@/composable/useNoteYjs';
 
 export default {
   components: {
@@ -161,6 +192,7 @@ export default {
     NoteSearch,
     NoteToolbar,
     NoteHeadingsProgress,
+    NoteBacklinks,
   },
   inheritAttrs: false,
   setup() {
@@ -188,6 +220,13 @@ export default {
     );
     const { translations } = useTranslations();
 
+    // Yjs document management for note content
+    const {
+      doc: ydoc,
+      ready: yjsReady,
+      load: yjsLoad,
+    } = useNoteYjs();
+
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
       useNotePersistence({
@@ -202,6 +241,11 @@ export default {
       if (!back) return false;
       if (back === '/' || back.includes('/#/?')) return false;
       return true;
+    });
+    const previousNote = computed(() => {
+      const fromId = route.query.from;
+      if (!fromId) return null;
+      return noteStore.getById(fromId) || null;
     });
     function goBack() {
       const from = router.options.history.state.back;
@@ -218,6 +262,16 @@ export default {
         return;
       }
       router.push('/');
+    }
+    function goToPrevious() {
+      if (previousNote.value) {
+        router.push({
+          name: 'Note',
+          params: { id: previousNote.value.id },
+        });
+        return;
+      }
+      goBack();
     }
 
     // Encryption
@@ -263,7 +317,9 @@ export default {
           }
         }
         if (!appStore.setting.collapsibleHeading && !isLocked.value) {
+          console.time(`[perf] convertNote ${n}`);
           noteStore.convertNote(n);
+          console.timeEnd(`[perf] convertNote ${n}`);
         }
       },
       { immediate: true }
@@ -271,10 +327,11 @@ export default {
 
     // Title / content handlers
     const handleTitleInput = debounce((event) => {
-      return updateNote(id.value, { title: event.target.innerText });
+      return updateNote(id.value, { title: event.target.value });
     }, 150);
 
     function handleContentUpdate(content) {
+      if (ydoc.value) return; // Yjs manages content persistence
       return updateNote(id.value, { content });
     }
 
@@ -304,6 +361,14 @@ export default {
             store.activeNoteId = data.id;
             localStorage.setItem('lastNoteEdit', noteId);
           }
+        });
+
+        const seedContent = noteStore.getById(noteId)?.content;
+        console.time(`[perf] yjsLoad ${noteId}`);
+        yjsLoad(noteId, seedContent).catch((err) => {
+          console.error('[yjs] Failed to load note:', err);
+        }).finally(() => {
+          console.timeEnd(`[perf] yjsLoad ${noteId}`);
         });
       },
       { immediate: true }
@@ -359,7 +424,8 @@ export default {
       window.addEventListener('beforeunload', handleBeforeUnload);
 
       if (titleDiv.value && note.value.title) {
-        titleDiv.value.innerText = note.value.title;
+        titleDiv.value.value = note.value.title;
+        autoResizeTitle();
       }
     });
 
@@ -406,6 +472,13 @@ export default {
       }
     };
 
+    function autoResizeTitle() {
+      const el = titleDiv.value;
+      if (!el) return;
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
     watch(
       () => uiState.showPrompt.value,
       (n) => {
@@ -422,9 +495,10 @@ export default {
         await nextTick();
         if (!titleDiv.value) return;
         const stored = newNote.title || '';
-        if (titleDiv.value.innerText !== stored) {
-          titleDiv.value.innerText = stored;
+        if (titleDiv.value.value !== stored) {
+          titleDiv.value.value = stored;
         }
+        autoResizeTitle();
       },
       { immediate: true }
     );
@@ -432,8 +506,10 @@ export default {
     return {
       id,
       showBack,
+      previousNote,
       titleDiv,
       goBack,
+      goToPrevious,
       noteEditor,
       note,
       translations,
@@ -447,20 +523,36 @@ export default {
       handleContentUpdate,
       closeSearch,
       disallowedEnter,
+      autoResizeTitle,
       autoScroll,
       isLocked,
+      yjsReady,
+      ydoc,
     };
   },
 };
 </script>
 
 <style scoped>
-.title-placeholder:empty::before {
-  content: attr(placeholder);
-  color: #a1a1aa;
+.title-placeholder::placeholder {
+  color: var(--text-muted);
+}
+
+.title-placeholder {
+  field-sizing: content;
+  max-height: 8em;
 }
 
 .editor {
   max-width: var(--selected-width);
+}
+
+.editor-skeleton-wrapper {
+  min-height: calc(100dvh - 16rem);
+}
+
+.editor-skeleton {
+  position: absolute;
+  inset: 0;
 }
 </style>

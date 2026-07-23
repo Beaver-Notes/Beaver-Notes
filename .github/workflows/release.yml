@@ -3,10 +3,8 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-  pull_request_target:
-    types: [labeled]
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -21,17 +19,15 @@ env:
 jobs:
   validate:
     name: Validate versions
-    if: ${{ github.event_name != 'pull_request_target' || github.event.label.name == 'release' }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag_name: ${{ steps.tag.outputs.tag_name }}
+      version_match: ${{ steps.jurisdiction.outputs.version_match }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       # Node Setup
       - name: Setup Node
@@ -84,18 +80,72 @@ jobs:
           echo "tauri.conf.json: $TAURI_VERSION"
           echo "Cargo.toml: $CARGO_VERSION"
 
-          # Stable releases must not carry a pre-release suffix.
-          if [[ "$PKG_VERSION" == *"-"* ]]; then
-            echo "ERROR: package.json version '$PKG_VERSION' looks like a pre-release."
-            echo "Use the beta workflow for pre-release builds."
-            exit 1
-          fi
-
           test "$PKG_VERSION" = "$TAURI_VERSION"
           test "$PKG_VERSION" = "$CARGO_VERSION"
 
+      - name: Check jurisdiction
+        id: jurisdiction
+        shell: bash
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$PKG_VERSION" == *"-"* ]]; then
+            echo "version_match=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping — this is a pre-release version, use the beta workflow."
+          else
+            echo "version_match=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          yarn install --frozen-lockfile
+
+      - name: Run lint
+        shell: bash
+        run: |
+          yarn lint
+
+      - name: Run unit tests
+        run: yarn test
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Validate IPC command map
+        shell: bash
+        run: |
+          yarn validate:commands
+
+      - name: Audit npm dependencies
+        shell: bash
+        run: |
+          yarn audit --audit-level=high
+
+      - name: Run knip (dead code detection)
+        shell: bash
+        run: |
+          yarn knip --no-progress
+
+      # Rust audit — catches RUSTSEC advisories
+      - name: Install cargo-audit
+        shell: bash
+        run: |
+          if ! command -v cargo-audit &>/dev/null; then
+            cargo install cargo-audit
+          fi
+
+      - name: Audit Rust dependencies
+        shell: bash
+        run: |
+          cd src-tauri && cargo audit
+
+      - name: Run Rust tests
+        shell: bash
+        run: |
+          cd src-tauri && cargo test
+
   desktop:
     name: Build ${{ matrix.id }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs: validate
     runs-on: ${{ matrix.runner }}
 
@@ -157,8 +207,6 @@ jobs:
       # Pull source
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.ref }}
 
       # Use cache on GitHub runners, skipped in local ACT runs
       - name: Setup Node with Yarn cache
@@ -250,20 +298,12 @@ jobs:
             --target "${{ matrix.tauri_target }}" \
             --ci
 
-      # Install OSSign for Windows code signing
-      - name: Install OSSign
-        if: ${{ startsWith(matrix.id, 'windows-') }}
-        uses: ossign/ossign@main
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          installOnly: true
-
+      # Windows build (unsigned - signing done by OSSign workflow)
       - name: Build Windows bundles
         if: ${{ startsWith(matrix.id, 'windows-') }}
         shell: bash
         env:
           CI: 'true'
-          OSSIGN_CONFIG_BASE64: ${{ secrets.OSSIGN_CONFIG_BASE64 }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -271,6 +311,32 @@ jobs:
             --target "${{ matrix.tauri_target }}" \
             ${{ matrix.bundle_args }} \
             --ci
+
+      # Dispatch Windows signing to OSSign workflow
+      - name: Dispatch Windows signing
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        uses: ossign/actions/workflow/dispatch@main
+        id: dispatch
+        with:
+          username: beaver-notes
+          token: ${{ secrets.SIGNING_TOKEN }}
+
+      - name: Parse signed artifacts
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: bash
+        run: |
+          printf "%s" "${{ steps.dispatch.outputs.signed_artifacts }}" > artifacts.json
+          echo "parsed=$(cat artifacts.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Download signed artifacts
+        if: ${{ startsWith(matrix.id, 'windows-') }}
+        shell: bash
+        run: |
+          mkdir -p signed
+          for url in $(jq -r '.[].browser_download_url' artifacts.json); do
+            echo "Downloading $url"
+            curl -L -o "signed/$(basename "$url")" "$url"
+          done
 
       # macOS release assets: DMG plus updater files
       - name: Stage macOS assets
@@ -361,25 +427,14 @@ jobs:
         run: |
           cargo tauri ios build
 
-      # Windows release assets: installer artifacts plus a portable zip
+      # Windows release assets: use signed artifacts from OSSign
       - name: Stage Windows assets
         if: ${{ startsWith(matrix.id, 'windows-') }}
-        shell: pwsh
+        shell: bash
         run: |
-          $ErrorActionPreference = "Stop"
-
-          $Version = "${{ needs.validate.outputs.version }}"
-          $Target = "${{ matrix.tauri_target }}"
-          $OutDir = "release-assets"
-          New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-
-          Get-ChildItem "src-tauri/target/$Target/release/bundle" -Recurse -File |
-            Where-Object { $_.Extension -in ".exe", ".msi", ".sig", ".json", ".zip" } |
-            ForEach-Object { Copy-Item $_.FullName -Destination $OutDir -Force }
-
-          $Binary = "src-tauri/target/$Target/release/beaver-notes.exe"
-          $PortableName = "Beaver Notes-$Version-portable-${{ matrix.asset_suffix }}.zip"
-          Compress-Archive -Path $Binary -DestinationPath (Join-Path $OutDir $PortableName) -Force
+          set -euo pipefail
+          rm -rf release-assets
+          mv signed release-assets
 
       # Android release assets: APK and AAB
       - name: Stage Android assets
@@ -447,6 +502,7 @@ jobs:
 
   publish:
     name: Publish draft release
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
       - desktop

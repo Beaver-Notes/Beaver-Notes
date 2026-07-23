@@ -1,0 +1,175 @@
+yarn run v1.22.19
+(node:44474) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+$ /Users/danielerolli/Documents/GitHub/Beaver-Notes/node_modules/.bin/knip
+Unused files (3)
+src/utils/iosKeyboard.js             
+src/utils/onClickOutside.js          
+src/utils/sync/sync-crypto-storage.js
+Unused dependencies (14)
+@tiptap/extension-bubble-menu   package.json:87:6 
+@tiptap/extension-hard-break    package.json:96:6 
+@tiptap/extension-highlight     package.json:98:6 
+@tiptap/extension-mention       package.json:102:6
+@tiptap/extension-table-cell    package.json:109:6
+@tiptap/extension-table-header  package.json:110:6
+@tiptap/extension-table-row     package.json:111:6
+@tiptap/extension-underline     package.json:117:6
+cross-env                       package.json:124:6
+perfect-freehand                package.json:135:6
+recordrtc                       package.json:138:6
+tiptap-extension-resize-image   package.json:143:6
+turndown                        package.json:145:6
+turndown-plugin-gfm             package.json:146:6
+Unused devDependencies (8)
+@axe-core/webdriverio     package.json:47:6
+@babel/eslint-parser      package.json:48:6
+@wdio/cli                 package.json:53:6
+@wdio/local-runner        package.json:54:6
+@wdio/mocha-framework     package.json:55:6
+@wdio/spec-reporter       package.json:56:6
+lint-staged               package.json:63:6
+rollup-plugin-visualizer  package.json:67:6
+Unlisted dependencies (14)
+prosemirror-state            src/components/note/NoteBubbleMenuLink.vue:6:32     
+prosemirror-state            src/lib/tiptap/exts/commands/index.js:3:28          
+prosemirror-state            src/lib/tiptap/exts/drop-file.js:4:36               
+@tiptap/extension-list-item  src/lib/tiptap/exts/footnote-block/footnote.ts:2:23 
+uuid                         src/lib/tiptap/exts/footnote-block/reference.ts:3:29
+prosemirror-state            src/lib/tiptap/exts/image.js:2:36                   
+prosemirror-state            src/lib/tiptap/exts/markdown-engine/paste.js:2:36   
+markdown-it                  src/lib/tiptap/exts/markdown-engine/paste.js:3:25   
+prosemirror-state            src/lib/tiptap/exts/suggestion/index.js:2:28        
+@tiptap/extension-text       src/lib/tiptap/index.js:26:19                       
+uuid                         src/utils/import/bulkImport.js:1:31                 
+uuid                         src/utils/import/fileImport.js:1:31                 
+uuid                         src/utils/import/helpers.js:1:31                    
+uuid                         src/utils/markdown.js:2:31                          
+Unlisted binaries (2)
+audit  .github/workflows/release-beta.yml
+audit  .github/workflows/release.yml     
+Unresolved imports (1)
+espree  .eslintrc.json
+Unused exports (112)
+GROUP_STYLES                          src/components/note/ToolbarCustomizer.vue:6:14              
+getSetting                  function  src/composable/settings.js:156:23                           
+transactWorkspace           function  src/composable/useWorkspaceYjs.js:159:17                    
+setReducedMotion            function  src/lib/native/app.js:74:23                                 
+getReducedMotion            function  src/lib/native/app.js:78:23                                 
+setHighContrast             function  src/lib/native/app.js:82:23                                 
+getHighContrast             function  src/lib/native/app.js:86:23                                 
+getHelperPath               function  src/lib/native/app.js:90:17                                 
+showNotification            function  src/lib/native/app.js:102:23                                
+saveExportFile              function  src/lib/native/exports.js:19:17                             
+setAssetPassphrase          function  src/lib/native/security.js:30:17                            
+enableEncryption            function  src/lib/native/security.js:58:17                            
+disableEncryptionState      function  src/lib/native/security.js:62:17                            
+unlockEncryption            function  src/lib/native/security.js:66:17                            
+decryptAssetStream          function  src/lib/native/security.js:98:17                            
+encryptAssetStream          function  src/lib/native/security.js:102:17                           
+cacheDecryptedNote          function  src/lib/native/security.js:106:17                           
+getCachedDecryptedNote      function  src/lib/native/security.js:110:17                           
+listAssetFiles              function  src/lib/native/security.js:148:23                           
+rewriteAssetFile            function  src/lib/native/security.js:171:23                           
+shareTextViaNative          function  src/lib/native/share.js:16:23                               
+isTabletRuntime             function  src/lib/tauri/runtime.js:28:17                              
+default                               src/lib/tiptap/exts/callouts/index.js:35:16                 
+findAllNodesInRange         function  src/lib/tiptap/exts/collapse-heading/index.js:90:17         
+updateFootnoteReferences    function  src/lib/tiptap/exts/footnote-block/utils.ts:11:17           
+inputRegex                            src/lib/tiptap/exts/highlight/highlight.ts:51:14            
+pasteRegex                            src/lib/tiptap/exts/highlight/highlight.ts:56:14            
+default                               src/lib/tiptap/exts/highlight/index.ts:3:16                 
+liftEmptyBlock                        src/lib/tiptap/exts/multi-column/keymap.js:26:14            
+updateColumnNodeFlex        function  src/lib/tiptap/exts/multi-column/utils.js:30:17             
+preventPencilDoubleTapZoom  function  src/lib/tiptap/exts/paper-block/helpers/drawHelper.js:81:17 
+interpolatePoints           function  src/lib/tiptap/exts/paper-block/helpers/drawHelper.js:122:17
+appendStraightSegment       function  src/lib/tiptap/exts/paper-block/helpers/drawHelper.js:196:17
+getFreehandOptions          function  src/lib/tiptap/exts/paper-block/helpers/freehand.js:116:17  
+getStrokePoints             function  src/lib/tiptap/exts/paper-block/helpers/freehand.js:173:17  
+setStrokePointRadii         function  src/lib/tiptap/exts/paper-block/helpers/freehand.js:294:17  
+CustomTable                           src/lib/tiptap/exts/table/index.js:1:10                     
+CustomTableView                       src/lib/tiptap/exts/table/index.js:2:10                     
+CustomTableCell                       src/lib/tiptap/exts/table/index.js:3:10                     
+CustomTableHeader                     src/lib/tiptap/exts/table/index.js:4:10                     
+TableHandlePlugin                     src/lib/tiptap/exts/table/index.js:8:3                      
+tableHandlePluginKey                  src/lib/tiptap/exts/table/index.js:9:3                      
+createTableDragImage                  src/lib/tiptap/exts/table/index.js:11:10                    
+TableHandle                           src/lib/tiptap/exts/table/index.js:12:21                    
+TableHandleMenu                       src/lib/tiptap/exts/table/index.js:13:21                    
+TableSelectionOverlay                 src/lib/tiptap/exts/table/index.js:14:21                    
+TableExtendRowColumnButton            src/lib/tiptap/exts/table/index.js:15:21                    
+TableHandleView             class     src/lib/tiptap/exts/table/table-handle-plugin.js:43:14      
+isCellEmpty                 function  src/lib/tiptap/exts/table/tiptap-table-utils.js:47:17       
+getIndexCoordinates         function  src/lib/tiptap/exts/table/tiptap-table-utils.js:190:17      
+selectCellAt                function  src/lib/tiptap/exts/table/tiptap-table-utils.js:271:17      
+getClipContainers           function  src/lib/tiptap/exts/table/tiptap-table-utils.js:375:17      
+prewarmEditor               function  src/lib/tiptap/index.js:182:17                              
+linkIndex                             src/store/note/backlinks.js:4:14                            
+extractLinkNoteTargets      function  src/store/note/backlinks.js:11:17                           
+syncFtsIndex                function  src/store/note/helpers.js:16:17                             
+encryptStringOnWorker       function  src/utils/crypto/codec.js:131:23                            
+decryptStringOnWorker       function  src/utils/crypto/codec.js:146:23                            
+ALGO_HKDF                             src/utils/crypto/constants.js:9:14                          
+encryptPayload                        src/utils/crypto/encryption.js:178:28                       
+decryptPayload                        src/utils/crypto/encryption.js:178:62                       
+storeSecureBlob             function  src/utils/crypto/safeStorageBlob.js:10:23                   
+clearSecureBlob             function  src/utils/crypto/safeStorageBlob.js:62:23                   
+sanitizeFileName            function  src/utils/helpers/index.js:85:17                            
+DELETED_IDS_TTL_MS                    src/utils/helpers/index.js:137:14                           
+pruneExpiredIds             function  src/utils/helpers/index.js:139:17                           
+importSingleMarkdown        function  src/utils/import/fileImport.js:40:23                        
+importSingleText            function  src/utils/import/fileImport.js:68:23                        
+importSingleHTML            function  src/utils/import/fileImport.js:95:23                        
+SUPPORTED_EXTENSIONS                  src/utils/import/fileImport.js:125:14                       
+getPathParts                function  src/utils/import/helpers.js:45:17                           
+isFile                      function  src/utils/import/helpers.js:96:23                           
+extensionForContentType     function  src/utils/import/helpers.js:104:17                          
+parseDataUri                function  src/utils/import/helpers.js:108:17                          
+getOrCreateFolder           function  src/utils/import/helpers.js:451:23                          
+registerMarkdownHandler     function  src/utils/markdown.js:10:17                                 
+getMarkdownHandlers         function  src/utils/markdown.js:20:17                                 
+clearMarkdownHandlers       function  src/utils/markdown.js:23:17                                 
+readMarkdownFile                      src/utils/markdown.js:234:14                                
+resolveAssetSrc             function  src/utils/markdown.js:347:17                                
+setCardPreviewLabels        function  src/utils/note/cardPreview.js:17:17                         
+isHttpsUrl                  function  src/utils/note/contentSecurity.js:28:17                     
+sanitizeMediaSource         function  src/utils/note/contentSecurity.js:51:17                     
+buildIframeFallbackText     function  src/utils/note/contentSecurity.js:66:17                     
+buildImageFallbackText      function  src/utils/note/contentSecurity.js:73:17                     
+buildMediaFallbackText      function  src/utils/note/contentSecurity.js:81:17                     
+createFallbackNode          function  src/utils/note/contentSecurity.js:99:17                     
+findAllNodesInRange         function  src/utils/note/contentUtils.js:16:17                        
+getAppKeyRaw                function  src/utils/note/serializer.js:36:17                          
+setAppKeyRaw                function  src/utils/note/serializer.js:44:17                          
+batchDecryptNotesForMemory  function  src/utils/note/serializer.js:153:23                         
+encryptNoteForStorage       function  src/utils/note/serializer.js:188:23                         
+CURTAIN_DURATIONS                     src/utils/onboarding/index.js:25:14                         
+MIGRATION_PLATFORMS                   src/utils/onboarding/platforms.js:126:14                    
+isSpotlightEnabled          function  src/utils/platform/spotlightSync.js:11:17                   
+bulkDeleteFromSpotlight     function  src/utils/platform/spotlightSync.js:57:17                   
+chooseRootExportDir         function  src/utils/share/exportBulk.js:72:23                         
+createDatedExportRoot       function  src/utils/share/exportBulk.js:78:23                         
+writeTextExportFile         function  src/utils/share/exportBulk.js:87:23                         
+ensureExportFolder          function  src/utils/share/exportBulk.js:91:23                         
+copyExportAssetDir          function  src/utils/share/exportBulk.js:95:23                         
+tiptapToHtml                function  src/utils/share/exportBulk.js:592:17                        
+getFolderPath               function  src/utils/share/exportBulk.js:600:17                        
+buildFolderTree             function  src/utils/share/exportBulk.js:614:17                        
+sanitizeClone               function  src/utils/share/exportBulk.js:772:17                        
+inlineImages                function  src/utils/share/exportBulk.js:932:23                        
+CRYPTO_DIR                            src/utils/sync/constants.js:12:14                           
+ensureSyncKeyReadyForWrite  function  src/utils/sync/crypto.js:14:23                              
+SyncCryptoError             class     src/utils/sync/crypto.js:31:14                              
+syncAssetName               function  src/utils/sync/crypto.js:74:17                              
+queueSyncWrite                        src/utils/sync/index.js:40:10                               
+getShortcutCombo            function  src/utils/ui/globalShortcuts.js:25:17                       
+Unused exported types (1)
+HighlightOptions  interface  src/lib/tiptap/exts/highlight/highlight.ts:8:18
+Configuration hints (5)
+vite.config.js          knip.json  Remove from ignore            
+**/*.scss               knip.json  Remove from ignore            
+**/vite.config.*        knip.json  Remove from ignore            
+src/components/ui/**    knip.json  Remove from ignore            
+src/index.js            knip.json  Remove redundant entry pattern
+error Command failed with exit code 1.
+info Visit https://yarnpkg.com/en/docs/cli/run for documentation about this command.

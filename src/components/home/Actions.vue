@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <teleport to="body">
     <div
@@ -7,7 +6,7 @@
       class="mobile:hidden sm:pl-16 fixed inset-x-0 z-40 transition-all duration-300 ease-out mx-2 bottom-4"
     >
       <div
-        class="relative bg-white dark:bg-neutral-800 border rounded-xl shadow-lg overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
+        class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
       >
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">

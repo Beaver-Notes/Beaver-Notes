@@ -279,7 +279,7 @@ export function escapeHtml(value) {
 }
 
 function escapeMarkdownText(value) {
-  return String(value ?? '').replace(/([\\`*_{}\[\]()#+\-.!|>])/g, '\\$1');
+  return String(value ?? '').replace(/([\\`*_{}[\]()#+\-.!|>])/g, '\\$1');
 }
 
 export function normalizeWhitespace(value) {
@@ -344,7 +344,7 @@ function toIsoString(timestamp) {
     : date.toISOString();
 }
 
-export function resolveAssetSrc(src, noteId) {
+export function resolveAssetSrc(src, _noteId) {
   if (!src) return null;
   if (/^https?:\/\//i.test(src)) return { type: 'remote', filename: src };
   const m1 = src.match(/^assets:\/\/([^/]+)\/(.+)$/);

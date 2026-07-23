@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-white dark:bg-neutral-800 border z-20 w-fit mx-auto p-1 rounded-lg shadow-lg no-print flex items-center"
+    class="bg-white dark:bg-neutral-900 border z-20 w-fit mx-auto p-1 rounded-xl shadow-md no-print flex items-center"
   >
     <button
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
@@ -64,6 +64,7 @@ import { onMounted, onUnmounted, ref } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 function normalizeSrc(src) {
   return String(src || '').split('?')[0];
@@ -73,16 +74,7 @@ function isLocalAsset(src) {
   return src.startsWith('assets://') || src.startsWith('file-assets://');
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
 
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return bytes;
-}
 
 function getFileName(src) {
   const normalizedSrc = normalizeSrc(src);
@@ -239,6 +231,7 @@ export default {
     });
 
     onUnmounted(() => {
+      if (!props.editor) return;
       props.editor.off('selectionUpdate', syncLayout);
       props.editor.off('transaction', syncLayout);
     });

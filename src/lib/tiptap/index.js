@@ -37,10 +37,7 @@ import {
 } from './exts/callouts';
 import { LiteralTab } from './exts/literal-tab';
 import Image from './exts/image';
-import { CustomTable as Table } from './exts/table/index.js';
-import TableCell from '@tiptap/extension-table-cell';
-import TableHeader from '@tiptap/extension-table-header';
-import TableRow from '@tiptap/extension-table-row';
+import { TableKit, TableHandleExtension } from './exts/table/index.js';
 import {
   Column,
   ColumnContainer,
@@ -65,110 +62,137 @@ const directionPreference = getSettingSync('directionPreference');
 
 const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
 
-const extensions = [
-  LabelSuggestion,
-  StarterKit.configure({
-    heading: false,
-    text: false,
-    codeBlock: false,
-    code: false,
-    link: false,
-    document: false,
-    paste: false,
-    dropcursor: false,
-  }),
-  Paste,
-  Document.extend({
-    content: 'block+ (footnotes)?',
-    allowGapCursor: true,
-  }),
-  Highlight.extend({ priority: 1000 }).configure({
-    multicolor: true,
-  }),
-  Typography,
-  LiteralTab,
-  Color,
-  blueCallout,
-  yellowCallout,
-  Text,
-  redCallout,
-  purpleCallout,
-  blackCallout,
-  greenCallout,
-  LinkNote,
-  FileEmbed,
-  ColumnContainer,
-  Column,
-  MultiColumn,
-  Dropcursor.configure({
-    color: 'hsl(var(--twc-primary) / 0.5)',
-    width: 3,
-  }),
-  ColumnDropCursor,
-  Footnotes,
-  FootnoteReference,
-  Footnote,
-  TaskList,
-  Table.configure({
-    resizable: true,
-  }),
-  TableRow,
-  TableHeader,
-  TableCell,
-  TaskItem.configure({
-    nested: true,
-  }),
-  CodeBlock,
-  Video,
-  MathInline,
-  MermaidBlock,
-  FontSize,
-  MathBlock,
-  Subscript.extend({
-    addKeyboardShortcuts() {
-      return {
-        'Alt-,': () => this.editor.commands.toggleSubscript(),
-      };
-    },
-  }),
-  Superscript,
-  TextDirection.configure({
-    defaultDirection: defaultDirection,
-  }),
-  Image,
-  Audio,
-  SearchAndReplace.configure(),
-  TextStyle,
-  TextAlign.configure({
-    types: ['heading', 'paragraph'],
-  }),
-  markdownEngine,
-  Paper,
+function createBaseExtensions({ yjs = false } = {}) {
+  return [
+    LabelSuggestion,
+    StarterKit.configure({
+      heading: false,
+      text: false,
+      codeBlock: false,
+      code: false,
+      link: false,
+      document: false,
+      paste: false,
+      dropcursor: false,
+      // Collaboration extension adds yUndoPlugin — skip built-in history to
+      // avoid the "not compatible with undo-redo" console warning.
+      history: !yjs,
+    }),
+    Paste,
+    Document.extend({
+      content: 'block+ (footnotes)?',
+      allowGapCursor: true,
+    }),
+    Highlight.extend({ priority: 1000 }).configure({
+      multicolor: true,
+    }),
+    Typography,
+    LiteralTab,
+    Color,
+    blueCallout,
+    yellowCallout,
+    Text,
+    redCallout,
+    purpleCallout,
+    blackCallout,
+    greenCallout,
+    LinkNote,
+    FileEmbed,
+    ColumnContainer,
+    Column,
+    MultiColumn,
+    Dropcursor.configure({
+      color: 'hsl(var(--twc-primary) / 0.5)',
+      width: 3,
+    }),
+    ColumnDropCursor,
+    Footnotes,
+    FootnoteReference,
+    Footnote,
+    TaskList,
+    TableKit.configure({
+      table: {
+        resizable: true,
+        cellMinWidth: 80,
+        handleWidth: 5,
+        cellHeight: 44,
+        lastColumnResizable: true,
+      },
+    }),
+    TableHandleExtension,
+    TaskItem.configure({
+      nested: true,
+    }),
+    CodeBlock,
+    Video,
+    MathInline,
+    MermaidBlock,
+    FontSize,
+    MathBlock,
+    Subscript.extend({
+      addKeyboardShortcuts() {
+        return {
+          'Alt-,': () => this.editor.commands.toggleSubscript(),
+        };
+      },
+    }),
+    Superscript,
+    TextDirection.configure({
+      defaultDirection: defaultDirection,
+    }),
+    Image,
+    Audio,
+    SearchAndReplace.configure(),
+    TextStyle,
+    TextAlign.configure({
+      types: ['heading', 'paragraph'],
+    }),
+    markdownEngine,
+    Paper,
+    Placeholder.configure({
+      placeholder: translations.editor.tiptapPlaceholder,
+    }),
+    Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
+    Link.extend({
+      inclusive: false,
+      addKeyboardShortcuts() {
+        return {
+          'Mod-k': () =>
+            this.editor.chain().focus().toggleLink({ href: '' }).run(),
+        };
+      },
+    }).configure({
+      openOnClick: false,
+      protocols: ['http', 'https', 'mailto', 'note'],
+      HTMLAttributes: {
+        target: '_blank',
+        rel: 'noopener noreferrer nofollow',
+        'tiptap-url': 'true',
+      },
+    }),
+  ];
+}
 
-  Placeholder.configure({
-    placeholder: translations.editor.tiptapPlaceholder,
-  }),
-  Code.configure({ HTMLAttributes: { class: 'inline-code' } }),
-  Link.extend({
-    inclusive: false,
-    addKeyboardShortcuts() {
-      return {
-        'Mod-k': () =>
-          this.editor.chain().focus().toggleLink({ href: '' }).run(),
-      };
-    },
-  }).configure({
-    openOnClick: false,
-    protocols: ['http', 'https', 'mailto', 'note'],
-    HTMLAttributes: {
-      target: '_blank',
-      rel: 'noopener noreferrer nofollow',
-      'tiptap-url': 'true',
-    },
-  }),
-];
+const extensions = createBaseExtensions();
+const yjsExtensions = createBaseExtensions({ yjs: true });
 
-export { extensions, CollapseHeading, heading, dropFile, Commands };
+export { extensions, yjsExtensions, createBaseExtensions, CollapseHeading, heading, dropFile, Commands };
+
+let _prewarmed = false;
+export function prewarmEditor() {
+  if (_prewarmed || typeof document === 'undefined') return;
+  _prewarmed = true;
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-9999px;top:-9999px;visibility:hidden';
+  document.body.appendChild(host);
+  try {
+    const e = new Editor({ extensions: yjsExtensions, content: '' });
+    e.destroy();
+  } catch {
+    //non-critical
+  }
+  host.remove();
+}
 
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({

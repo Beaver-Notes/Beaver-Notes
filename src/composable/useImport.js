@@ -10,19 +10,10 @@ import {
 import { openDialog } from '@/lib/native/dialog';
 import { getAppDirectory } from '@/lib/native/app';
 import { importAppleNotes, importEvernote } from '@/lib/native/imports';
-
-function createProgressState(extra = {}) {
-  return shallowReactive({
-    running: false,
-    done: 0,
-    total: 0,
-    result: null,
-    ...extra,
-  });
-}
+import { createProgressState } from '@/utils/helpers/index.js';
 
 export function useImport({
-  storage,
+  storage: _storage,
   noteStore,
   folderStore,
   clipboard,
@@ -85,68 +76,47 @@ export function useImport({
     await clipboard.writeText(text);
   }
 
-  async function importObsidianHandler(options = {}) {
+  async function importDirectorySource(key, title, importer, options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select Obsidian Vault',
+      title,
       properties: ['openDirectory'],
       useScopedStorage: true,
     });
     if (!filePaths) return;
     const appDirectory = await getAppDirectory();
     return runImport(
+      key,
+      (onProgress) => importer(filePaths[0], appDirectory, onProgress),
+      options
+    );
+  }
+
+  async function importObsidianHandler(options = {}) {
+    return importDirectorySource(
       'obsidian',
-      (onProgress) =>
-        importObsidian(
-          filePaths[0],
-          noteStore,
-          folderStore,
-          appDirectory,
-          onProgress
-        ),
+      t?.settings?.selectObsidianVault || 'Select Obsidian Vault',
+      (path, appDir, onProgress) =>
+        importObsidian(path, noteStore, folderStore, appDir, onProgress),
       options
     );
   }
 
   async function importNotionHandler(options = {}) {
-    const filePaths = await pickDialogPaths({
-      title: 'Select Notion Export',
-      properties: ['openDirectory'],
-      useScopedStorage: true,
-    });
-    if (!filePaths) return;
-    const appDirectory = await getAppDirectory();
-    return runImport(
+    return importDirectorySource(
       'notion',
-      (onProgress) =>
-        importNotion(
-          filePaths[0],
-          noteStore,
-          folderStore,
-          appDirectory,
-          onProgress
-        ),
+      t?.settings?.selectNotionExport || 'Select Notion Export',
+      (path, appDir, onProgress) =>
+        importNotion(path, noteStore, folderStore, appDir, onProgress),
       options
     );
   }
 
   async function importBearHandler(options = {}) {
-    const filePaths = await pickDialogPaths({
-      title: 'Select Bear Export',
-      properties: ['openDirectory'],
-      useScopedStorage: true,
-    });
-    if (!filePaths) return;
-    const appDirectory = await getAppDirectory();
-    return runImport(
+    return importDirectorySource(
       'bear',
-      (onProgress) =>
-        importBear(
-          filePaths[0],
-          noteStore,
-          folderStore,
-          appDirectory,
-          onProgress
-        ),
+      t?.settings?.selectBearExport || 'Select Bear Export',
+      (path, appDir, onProgress) =>
+        importBear(path, noteStore, folderStore, appDir, onProgress),
       options
     );
   }
@@ -154,7 +124,7 @@ export function useImport({
   async function importEvernoteHandler(options = {}) {
     const { notebookName } = options;
     const filePaths = await pickDialogPaths({
-      title: 'Select ENEX File',
+      title: t?.settings?.selectEnexFile || 'Select ENEX File',
       properties: ['openFile'],
       filters: [{ name: 'Evernote ENEX', extensions: ['enex'] }],
     });
@@ -192,7 +162,7 @@ export function useImport({
 
   async function importSimplenoteHandler(options = {}) {
     const filePaths = await pickDialogPaths({
-      title: 'Select notes.json',
+      title: t?.settings?.selectSimplenoteExport || 'Select notes.json',
       properties: ['openFile'],
       filters: [{ name: 'Simplenote JSON', extensions: ['json'] }],
     });
@@ -205,23 +175,11 @@ export function useImport({
   }
 
   async function importGenericMarkdownHandler(options = {}) {
-    const filePaths = await pickDialogPaths({
-      title: 'Select Markdown Folder',
-      properties: ['openDirectory'],
-      useScopedStorage: true,
-    });
-    if (!filePaths) return;
-    const appDirectory = await getAppDirectory();
-    return runImport(
+    return importDirectorySource(
       'genericMd',
-      (onProgress) =>
-        importGenericMarkdown(
-          filePaths[0],
-          noteStore,
-          folderStore,
-          appDirectory,
-          onProgress
-        ),
+      t?.settings?.selectMarkdownFolder || 'Select Markdown Folder',
+      (path, appDir, onProgress) =>
+        importGenericMarkdown(path, noteStore, folderStore, appDir, onProgress),
       options
     );
   }

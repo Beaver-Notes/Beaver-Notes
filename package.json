@@ -4,7 +4,7 @@
   "private": true,
   "version": "5.0.0-beta.1",
   "author": "Daniele Rolli",
-  "description": "Your Personal Note-Taking Haven for Privacy and Efficiency",
+  "description": "Open-source notes that live where you choose: your device, your server, or ours.",
   "license": "MIT",
   "engines": {
     "node": ">=v18.0.0"
@@ -29,7 +29,12 @@
     "dev:android": "cargo tauri android dev",
     "build:android": "cargo tauri android build --apk --aab",
     "open:android": "cargo tauri android dev --open",
-    "lint": "eslint . --ext js,ts,vue",
+    "test:e2e": "bash scripts/run-e2e.sh",
+    "test:e2e:install": "cargo install tauri-webdriver-automation || true",
+    "test": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest run",
+    "test:watch": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest",
+    "lint": "oxlint --vue-plugin --max-warnings 0",
+    "typecheck": "vue-tsc --noEmit",
     "tran-util": "node scripts/translationUtil.js",
     "tran-update": "node scripts/updateTranslations.js",
     "version:bump": "node scripts/bump-version.mjs",
@@ -39,28 +44,35 @@
     "pre-commit": "yarn lint-staged"
   },
   "lint-staged": {
-    "*.{js,ts,vue}": "eslint --cache --fix"
+    "*.{js,ts,vue}": "oxlint --fix"
   },
   "devDependencies": {
-    "@babel/eslint-parser": "^7.28.6",
+    "@axe-core/webdriverio": "^4.12.1",
     "@benrbray/prosemirror-math": "^0.2.2",
+    "@pinia/testing": "^2.0.1",
     "@tailwindcss/typography": "^0.5.19",
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^5.0.2",
+    "@vue/test-utils": "^2.4.11",
+    "@wdio/cli": "^9.29.1",
+    "@wdio/local-runner": "^9.29.1",
+    "@wdio/mocha-framework": "^9.29.1",
+    "@wdio/spec-reporter": "^9.29.1",
     "autoprefixer": "^10.3.1",
-    "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-prettier-vue": "^4.0.0",
-    "eslint-plugin-vue": "^9.18.1",
+    "happy-dom": "^20.10.6",
     "knip": "^5.83.1",
     "lint-staged": "^11.1.2",
+    "oxlint": "^1.73.0",
     "postcss": "^8.4.33",
     "postcss-nested": "^6.0.1",
     "rollup-plugin-visualizer": "^6.0.3",
     "sass": "^1.70.0",
     "tailwindcss": "^3.4.3",
     "terser": "^5.26.0",
-    "vite": "^5.0.11"
+    "typescript": "^5.6.0",
+    "vite": "^5.0.11",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.7"
   },
   "dependencies": {
     "@eioluseyi/tailwind-fade": "^1.1.1",
@@ -111,14 +123,15 @@
     "@tiptap/starter-kit": "^3",
     "@tiptap/suggestion": "^3",
     "@tiptap/vue-3": "^3",
-    "@tiptap/y-tiptap": "3.0.3",
+    "@tiptap/y-tiptap": "^3.0.3",
     "cross-env": "^7.0.3",
     "dayjs": "^1.10.6",
     "emoji.json": "^16.0.0",
+    "focus-trap": "^8.2.2",
     "jszip": "^3.10.1",
-    "katex": "^0.13.0",
+    "katex": "^0.16.22",
     "marked": "^13.0.2",
-    "mermaid": "10.9.1",
+    "mermaid": "^11.6.0",
     "mime": "^4.1.0",
     "mousetrap": "^1.6.5",
     "nanoid": "^3.1.25",
@@ -127,7 +140,7 @@
     "prosemirror-model": "^1.25.4",
     "recordrtc": "^5.6.2",
     "tauri-plugin-audio-recorder-api": "^0.1.0",
-    "tauri-plugin-scoped-storage-api": "^0.1.3",
+    "tauri-plugin-scoped-storage-api": "^1.5.0",
     "tiny-emitter": "^2.1.0",
     "tiptap-extension-font-size": "^1.2.0",
     "tiptap-extension-resize-image": "^1.3.2",
@@ -138,7 +151,7 @@
     "vue": "^3.4.6",
     "vue-router": "^4.0.11",
     "y-protocols": "^1.0.7",
-    "yjs": "13.5.38"
+    "yjs": "^13.6.31"
   },
   "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

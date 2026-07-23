@@ -19,11 +19,15 @@ export function findAllNodesInRange(fragment, name) {
     return findAllNodesInRange(fragment.content, name);
   }
   const nodes = [];
-  for (const n of fragment) {
+  const stack = fragment.slice();
+  while (stack.length > 0) {
+    const n = stack.pop();
     if (n.type === name) {
       nodes.push(n);
-    } else {
-      nodes.push(...findAllNodesInRange(n.content, name));
+    } else if (Array.isArray(n.content)) {
+      for (let i = n.content.length - 1; i >= 0; i--) {
+        stack.push(n.content[i]);
+      }
     }
   }
   return nodes;
@@ -49,10 +53,15 @@ export function reconcileFootnotes(note, footnotes) {
     note.content.content.push(lastNode);
   }
 
-  const footnoteMap = [...footnotes, ...lastNode.content].reduce(
-    (acc, node) => ({ ...acc, [node.attrs['data-id']]: node }),
-    {}
-  );
+  const footnoteMap = new Map();
+  for (const node of footnotes) {
+    footnoteMap.set(node.attrs['data-id'], node);
+  }
+  for (const node of lastNode.content) {
+    if (!footnoteMap.has(node.attrs['data-id'])) {
+      footnoteMap.set(node.attrs['data-id'], node);
+    }
+  }
 
   const references = findAllNodesInRange(
     note.content.content,
@@ -82,7 +91,7 @@ export function reconcileFootnotes(note, footnotes) {
 export function uncollapseHeadings(contents, footnotes) {
   if (!contents.length) return contents;
 
-  let result = [];
+  const result = [];
   for (const node of contents) {
     result.push(node);
 
@@ -90,7 +99,7 @@ export function uncollapseHeadings(contents, footnotes) {
 
     const collapsedFootnotes = node.attrs.collapsedFootnotes ?? [];
     if (collapsedFootnotes.length > 0) {
-      footnotes.push(...collapsedFootnotes);
+      for (const fn of collapsedFootnotes) footnotes.push(fn);
     }
 
     let collapsedContent = node.attrs.collapsedContent ?? [];
@@ -104,7 +113,8 @@ export function uncollapseHeadings(contents, footnotes) {
     node.attrs.collapsedFootnotes = null;
 
     if (collapsedContent.length > 0) {
-      result = [...result, ...uncollapseHeadings(collapsedContent, footnotes)];
+      uncollapseHeadings(collapsedContent, footnotes);
+      for (const child of collapsedContent) result.push(child);
     }
   }
   return result;

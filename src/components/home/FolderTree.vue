@@ -16,7 +16,7 @@
     <div>
       <!-- Root option -->
       <div
-        class="group flex items-center p-1.5 rounded-lg cursor-pointer transition-all duration-200"
+        class="group flex items-center p-1.5 rounded-lg cursor-pointer transition-colors duration-200"
         :class="{
           'bg-primary/10 text-primary font-medium ring-1 ring-primary/30':
             selectedId === null,
@@ -65,7 +65,7 @@
       <!-- Action buttons -->
       <div class="mt-8 flex space-x-2 rtl:space-x-0">
         <ui-button class="w-6/12 rtl:ml-2" @click="closeModal">
-          {{ translations.folderTree.cancel }}
+          {{ translations.dialog.cancel }}
         </ui-button>
         <ui-button
           class="w-6/12"

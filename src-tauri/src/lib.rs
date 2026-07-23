@@ -1,6 +1,8 @@
 mod bootstrap;
 mod commands;
 mod db;
+pub mod specta_setup;
+
 #[cfg(desktop)]
 mod menu;
 mod secure_blob;
@@ -84,6 +86,11 @@ pub fn run() {
     }
     builder = builder.plugin(tauri_plugin_app_icon::init());
 
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+    }
+
     #[cfg(target_os = "ios")]
     {
         builder = builder.plugin(tauri_plugin_swipe_back_ios::init());
@@ -163,17 +170,16 @@ pub fn run() {
             commands::security::encryption_disable,
             commands::security::encryption_unlock,
             commands::security::encryption_lock,
-            commands::security::encryption_export_app_key,
             commands::security::encryption_encrypt_note_payload,
             commands::security::encryption_decrypt_note_payload,
-            commands::security::encryption_encrypt_sync_payload,
-            commands::security::encryption_decrypt_sync_payload,
-            commands::security::encryption_encrypt_sync_asset_base64,
+            commands::security::sync_encrypt_payload,
+            commands::security::sync_decrypt_payload,
+            commands::security::sync_key_ready,
+            commands::security::encryption_reconcile_key_params,
             commands::security::passwd_hash,
             commands::security::passwd_compare,
             commands::security::passwd_record_failure,
             commands::security::passwd_reset_failures,
-            commands::security::is_encrypted_asset,
             commands::security::encryption_decrypt_asset_stream,
             commands::security::encryption_encrypt_asset_stream,
             commands::security::encryption_cache_decrypted_note,
@@ -200,6 +206,17 @@ pub fn run() {
             commands::search::search_remove_note,
             commands::search::search_rebuild_index,
             commands::pdf::render_pdf,
+            commands::yjs::yjs_append,
+            commands::yjs::yjs_get_updates,
+            commands::yjs::yjs_get_snapshot,
+            commands::yjs::yjs_compact,
+            commands::yjs::yjs_delete,
+            commands::workspace::workspace_list,
+            commands::workspace::workspace_get_active,
+            commands::workspace::workspace_create,
+            commands::workspace::workspace_switch,
+            commands::workspace::workspace_rename,
+            commands::workspace::workspace_delete,
         ])
         .setup(|app| {
             bootstrap::setup_app(app)?;
@@ -218,7 +235,7 @@ pub fn run() {
     app.run(|app, event| match event {
         RunEvent::Exit => {
             let state = app.state::<AppState>();
-            if let Ok(open_files) = state.external_open_files.lock() {
+            if let Ok(open_files) = state.files.external_open_files.lock() {
                 for (original, temp) in open_files.iter() {
                     let _ = crate::commands::external::sync_external_temp_file(app, original, temp);
                 }

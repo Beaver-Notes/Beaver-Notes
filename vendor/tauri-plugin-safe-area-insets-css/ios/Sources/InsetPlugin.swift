@@ -76,21 +76,25 @@ class InsetPlugin: Plugin, UIScribbleInteractionDelegate {
 
   // MARK: - Commande: obtenir le top inset (status bar / notch)
   @objc public func getTopInset(_ invoke: Invoke) throws {
-    let window = UIApplication.shared.windows.first
-    let topInset = window?.safeAreaInsets.top ?? 0
-    let topInsetDIP = toDIPFromPixel(topInset)
-    logger.info("Top inset: \(topInsetDIP)")
+    DispatchQueue.main.async {
+      let window = UIApplication.shared.windows.first
+      let topInset = window?.safeAreaInsets.top ?? 0
+      let topInsetDIP = self.toDIPFromPixel(topInset)
+      logger.info("Top inset: \(topInsetDIP)")
 
-    invoke.resolve(["inset": topInset])
+      invoke.resolve(["inset": topInset])
+    }
   }
 
   // MARK: - Commande: obtenir le bottom inset (home indicator / nav bar)
   @objc public func getBottomInset(_ invoke: Invoke) throws {
-    let window = UIApplication.shared.windows.first
-    let bottomInset = window?.safeAreaInsets.bottom ?? 0
-    let bottomInsetDIP = toDIPFromPixel(bottomInset)
-    logger.info("Bottom inset: \(bottomInsetDIP)")
-    invoke.resolve(["inset": bottomInset])
+    DispatchQueue.main.async {
+      let window = UIApplication.shared.windows.first
+      let bottomInset = window?.safeAreaInsets.bottom ?? 0
+      let bottomInsetDIP = self.toDIPFromPixel(bottomInset)
+      logger.info("Bottom inset: \(bottomInsetDIP)")
+      invoke.resolve(["inset": bottomInset])
+    }
   }
 
   // MARK: - Conversion PX -> DIP

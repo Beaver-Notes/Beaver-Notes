@@ -50,13 +50,13 @@ impl ByteLruCache {
 }
 
 pub(crate) fn cache_decrypted_note(state: &AppState, note_id: &str, content: &[u8]) {
-    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_notes_cache.lock() {
         cache.put(note_id.to_string(), content.to_vec());
     }
 }
 
 pub(crate) fn get_cached_decrypted_note(state: &AppState, note_id: &str) -> Option<Vec<u8>> {
-    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_notes_cache.lock() {
         cache.get(note_id).cloned()
     } else {
         None
@@ -64,13 +64,13 @@ pub(crate) fn get_cached_decrypted_note(state: &AppState, note_id: &str) -> Opti
 }
 
 pub(crate) fn cache_decrypted_asset(state: &AppState, asset_path: &str, content: &[u8]) {
-    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_assets_cache.lock() {
         cache.put(asset_path.to_string(), content.to_vec());
     }
 }
 
 pub(crate) fn get_cached_decrypted_asset(state: &AppState, asset_path: &str) -> Option<Vec<u8>> {
-    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_assets_cache.lock() {
         cache.get(asset_path).cloned()
     } else {
         None
@@ -78,10 +78,71 @@ pub(crate) fn get_cached_decrypted_asset(state: &AppState, asset_path: &str) -> 
 }
 
 pub(crate) fn clear_decrypted_caches(state: &AppState) {
-    if let Ok(mut cache) = state.decrypted_notes_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_notes_cache.lock() {
         cache.clear();
     }
-    if let Ok(mut cache) = state.decrypted_assets_cache.lock() {
+    if let Ok(mut cache) = state.cache.decrypted_assets_cache.lock() {
         cache.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert_then_get_hits() {
+        let mut cache = ByteLruCache::new(1024);
+        cache.put("a".to_string(), vec![1, 2, 3]);
+        assert_eq!(cache.get("a"), Some(&vec![1, 2, 3]));
+    }
+
+    #[test]
+    fn get_missing_key_returns_none() {
+        let mut cache = ByteLruCache::new(1024);
+        assert_eq!(cache.get("absent"), None);
+    }
+
+    #[test]
+    fn single_oversized_value_is_still_inserted_and_retained() {
+        // The current implementation cannot evict an oversized entry that is the
+        // sole occupant (the eviction loop is skipped when `inner` is empty), so a
+        // value larger than `max_bytes` is stored verbatim. This pins today's
+        // behavior for the Task 10 refactor.
+        let mut cache = ByteLruCache::new(4);
+        cache.put("big".to_string(), vec![1, 2, 3, 4, 5, 6]);
+        assert_eq!(cache.get("big"), Some(&vec![1, 2, 3, 4, 5, 6]));
+    }
+
+    #[test]
+    fn put_of_same_key_updates_value() {
+        let mut cache = ByteLruCache::new(1024);
+        cache.put("k".to_string(), vec![1, 2, 3]);
+        cache.put("k".to_string(), vec![4, 5, 6, 7]);
+        assert_eq!(cache.get("k"), Some(&vec![4, 5, 6, 7]));
+        assert_eq!(cache.get("missing"), None);
+    }
+
+    #[test]
+    fn byte_limit_evicts_least_recently_used() {
+        let mut cache = ByteLruCache::new(10);
+        cache.put("a".to_string(), vec![0u8; 4]);
+        cache.put("b".to_string(), vec![0u8; 4]);
+        cache.get("a");
+        cache.put("c".to_string(), vec![0u8; 4]);
+
+        assert_eq!(cache.get("a"), Some(&vec![0u8; 4]), "a was promoted, should survive");
+        assert_eq!(cache.get("b"), None, "b was LRU, should have been evicted");
+        assert_eq!(cache.get("c"), Some(&vec![0u8; 4]), "c was just inserted, should survive");
+    }
+
+    #[test]
+    fn clear_removes_all_entries() {
+        let mut cache = ByteLruCache::new(1024);
+        cache.put("a".to_string(), vec![1]);
+        cache.put("b".to_string(), vec![2]);
+        cache.clear();
+        assert_eq!(cache.get("a"), None);
+        assert_eq!(cache.get("b"), None);
     }
 }

@@ -2,7 +2,7 @@
   <NodeViewWrapper>
     <div>
       <div
-        class="mt-2 mb-2 file-embed bg-neutral-100 dark:bg-[#353333] p-3 rounded-lg flex items-center justify-between"
+        class="mt-2 mb-2 file-embed bg-neutral-100 dark:bg-neutral-800 p-3 rounded-lg flex items-center justify-between"
       >
         <div class="flex items-center">
           <v-remixicon name="riFile2Line" class="w-6 h-6 mr-2" />
@@ -31,9 +31,12 @@
 import { NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { ref, onMounted } from 'vue';
 import { backend } from '@/lib/tauri-bridge';
-import { openFileExternal } from '@/lib/native/app';
+import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { openFileExternal, getAppDirectory } from '@/lib/native/app';
 import { saveDialog } from '@/lib/native/dialog';
 import { readData, writeFile } from '@/lib/native/fs';
+import { shareFileViaNative } from '@/lib/native/share';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 export default {
   components: {
@@ -48,18 +51,18 @@ export default {
       return base;
     }
 
-    function base64ToUint8Array(base64) {
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes;
-    }
 
-    function openDocument() {
+
+    async function openDocument() {
       const src = encodeURI(normalizeSrc(props.node.attrs.src));
-      openFileExternal(src);
+      if (isMobileRuntime()) {
+        const appDir = await getAppDirectory();
+        const [, noteId, ...rest] = src.replace('file-assets://', '').split('/');
+        const filePath = `${appDir}/file-assets/${noteId}/${rest.join('/')}`;
+        await shareFileViaNative(filePath);
+      } else {
+        openFileExternal(src);
+      }
     }
 
     function refreshFileEmbed() {

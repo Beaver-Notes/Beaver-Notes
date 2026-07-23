@@ -31,13 +31,13 @@
       <!-- ── Welcome ── -->
       <div
         v-if="step === 'welcome'"
-        class="ob-screen flex flex-col items-center justify-center w-full mobile:p-1"
+        class="ob-screen flex flex-col items-center justify-center gap-8 mobile:gap-0 w-full mobile:p-1"
       >
         <div
           class="mobile:flex-1 mobile:flex mobile:flex-col mobile:items-center mobile:justify-center w-full"
         >
           <div
-            class="flex flex-col items-center gap-6 text-center max-w-md w-full"
+            class="flex flex-col items-center gap-6 text-center max-w-md w-full mx-auto"
           >
             <img
               :src="logoUrl"
@@ -237,6 +237,32 @@
         </onboarding-setup-step>
       </div>
 
+      <!-- ── Encryption password ── -->
+      <div
+        v-else-if="step === 'password'"
+        class="ob-screen flex flex-col items-center justify-center w-full pt-8 pb-8"
+      >
+        <onboarding-password-step
+          v-model="encryptionPassword"
+          :confirm-value="encryptionConfirmPassword"
+          :error="encryptionPasswordError"
+          :loading="encryptionPasswordLoading"
+          @update:confirm-value="encryptionConfirmPassword = $event"
+        >
+          <template #next>
+            <ui-button
+              variant="primary"
+              :loading="encryptionPasswordLoading"
+              @click="setupEncryptionPassword"
+            >
+              <template v-if="!encryptionPasswordLoading">
+                Continue <v-remixicon name="riArrowRightLine" />
+              </template>
+            </ui-button>
+          </template>
+        </onboarding-password-step>
+      </div>
+
       <!-- ── Sync ── -->
       <OnboardingSyncStep
         v-else-if="step === 'sync'"
@@ -302,7 +328,7 @@
         @copy-issues="copyMigrationIssues"
         @browse-portable="browseForPortableData"
         @back="curtainNavigate('platform')"
-        @continue="curtainNavigate('finish')"
+        @continue="goToNextStep"
       />
 
       <!-- ── Legacy Password ── -->
@@ -319,13 +345,13 @@
       <!-- ── Finish ── -->
       <div
         v-else
-        class="ob-screen flex flex-col items-center justify-center w-full mobile:p-1"
+        class="ob-screen flex flex-col items-center justify-center gap-8 mobile:gap-0 w-full mobile:p-1"
       >
         <div
           class="mobile:flex-1 mobile:flex mobile:flex-col mobile:items-center mobile:justify-center w-full"
         >
           <div
-            class="flex flex-col items-center gap-5 text-center max-w-md w-full ob-finish"
+            class="flex flex-col items-center gap-5 text-center max-w-md w-full mx-auto ob-finish"
             :class="{ 'ob-finish--in': finishIn }"
           >
             <img
@@ -410,6 +436,7 @@ import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
 import OnboardingSetupStep from '@/components/onboarding/OnboardingSetupStep.vue';
 import OnboardingPlatformStep from '@/components/onboarding/OnboardingPlatformStep.vue';
 import OnboardingSyncStep from '@/components/onboarding/OnboardingSyncStep.vue';
+import OnboardingPasswordStep from '@/components/onboarding/OnboardingPasswordStep.vue';
 import OnboardingMigrationStep from '@/components/onboarding/OnboardingMigrationStep.vue';
 import OnboardingLegacyPasswordStep from '@/components/onboarding/OnboardingLegacyPasswordStep.vue';
 
@@ -433,6 +460,7 @@ export default {
     OnboardingSyncStep,
     OnboardingMigrationStep,
     OnboardingLegacyPasswordStep,
+    OnboardingPasswordStep,
   },
 
   setup() {
@@ -544,8 +572,8 @@ export default {
 <style scoped>
 /* ── Background ── */
 .ob-light {
-  --ob-bg-start: #fff9ec;
-  --ob-bg-end: #fff9ec;
+  --ob-bg-start: theme('colors.amber.50');
+  --ob-bg-end: theme('colors.amber.50');
 }
 .ob-dark {
   --ob-bg-start: #1e0e02;
@@ -591,13 +619,13 @@ export default {
 
 /* Curtain colours (adapt to theme) */
 .ob-light .ob-curtain__block {
-  background: #e8d5a3;
+  background: theme('colors.amber.200');
 }
 .ob-light .ob-curtain__block:nth-child(2) {
-  background: #d4bc87;
+  background: theme('colors.amber.300');
 }
 .ob-light .ob-curtain__block:nth-child(3) {
-  background: #e8d5a3;
+  background: theme('colors.amber.200');
 }
 .ob-dark .ob-curtain__block {
   background: #2e1a06;

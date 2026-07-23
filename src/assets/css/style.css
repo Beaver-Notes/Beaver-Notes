@@ -10,6 +10,8 @@
   --motion-slow: 300ms;
   --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-exit: cubic-bezier(0.4, 0, 0.8, 1);
+  --ease-snappy: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --app-safe-area-top: var(
     --safe-area-inset-top,
     env(safe-area-inset-top, 0px)
@@ -37,11 +39,22 @@
   --app-mobile-floating-offset: calc(
     var(--app-mobile-content-offset) + 0.75rem
   );
-  @apply dark:text-[color:var(--selected-dark-text)];
+  --text-dark: theme('colors.neutral.900');
+  --text-muted: theme('colors.neutral.500');
+  --bg-code: theme('colors.neutral.50');
+  --bg-code-dark: theme('colors.neutral.900');
+  --border-input: theme('colors.neutral.300');
+  --scrollbar-thumb: #d8d9d9;
 }
 
 :root.dark {
   --app-theme-background: theme('colors.neutral.900');
+  --text-dark: white;
+  --text-muted: theme('colors.neutral.400');
+  --bg-code: theme('colors.neutral.900');
+  --bg-code-dark: theme('colors.neutral.800');
+  --border-input: theme('colors.neutral.600');
+  --scrollbar-thumb: #424546;
 }
 
 html,
@@ -59,7 +72,7 @@ body {
   position: relative;
   font-family: var(--selected-font);
   min-height: 100dvh;
-  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--selected-dark-text)];
+  @apply bg-white dark:bg-neutral-900 dark:text-[color:var(--text-dark)];
 }
 
 #app {
@@ -74,17 +87,19 @@ body {
 button,
 input,
 textarea,
-select {
+select,
+a,
+[tabindex] {
   &:focus {
+    outline: none;
+  }
+  &:focus-visible {
     outline: none;
   }
 }
 
-*,
-a,
-button {
-  cursor: default;
-  user-select: none;
+* {
+  cursor: auto;
 }
 
 option {
@@ -108,7 +123,7 @@ option {
   height: 10px;
 }
 .custom-scrollbar ::-webkit-scrollbar-thumb {
-  @apply bg-[#d8d9d9] dark:bg-[#424546];
+  background: var(--scrollbar-thumb);
   border-radius: 8px;
 }
 .custom-scrollbar ::-webkit-scrollbar-thumb:hover {
@@ -120,13 +135,7 @@ option {
 
 .custom-scrollbar * {
   scrollbar-width: thin;
-  scrollbar-color: #d8d9d9 transparent;
-}
-
-@media (prefers-color-scheme: dark) {
-  .custom-scrollbar * {
-    scrollbar-color: #424546 transparent;
-  }
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 
 .text-overflow {
@@ -179,6 +188,7 @@ option {
   position: relative;
   isolation: isolate;
   overflow: clip;
+  background-color: var(--app-theme-background);
 }
 
 .route-stage__page {
@@ -260,4 +270,38 @@ option {
     opacity: 1;
     transform: none;
   }
+}
+
+html.prefers-reduced-motion {
+  --motion-fast: 1ms;
+  --motion-base: 1ms;
+  --motion-slow: 1ms;
+}
+
+html.prefers-reduced-motion *,
+html.prefers-reduced-motion *::before,
+html.prefers-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
+  scroll-behavior: auto !important;
+}
+
+html.prefers-reduced-motion .route-stage-enter-active,
+html.prefers-reduced-motion .route-stage-leave-active {
+  transition-duration: 0.01ms;
+}
+
+html.prefers-reduced-motion .route-stage-enter-from,
+html.prefers-reduced-motion .route-stage-enter-to,
+html.prefers-reduced-motion .route-stage-leave-from,
+html.prefers-reduced-motion .route-stage-leave-to {
+  opacity: 1;
+  transform: none;
+}
+
+/* Workspace feature gate — hidden until launch */
+.workspace-feature-gated {
+  display: none !important;
 }

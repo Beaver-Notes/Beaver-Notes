@@ -5,9 +5,9 @@ use tauri::{
 };
 use tauri_plugin_opener::OpenerExt;
 
-use crate::shared::{to_error, HELP_URL, MAIN_WINDOW_LABEL};
+use crate::shared::{to_error, AppError, HELP_URL, MAIN_WINDOW_LABEL};
 
-pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
+pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
     let undo = MenuItem::new(app, "Undo", true, None::<&str>).map_err(to_error)?;
     let redo = MenuItem::new(app, "Redo", true, None::<&str>).map_err(to_error)?;
     let cut = MenuItem::new(app, "Cut", true, None::<&str>).map_err(to_error)?;
@@ -23,11 +23,11 @@ pub(crate) fn build_context_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
         .item(&paste)
         .item(&select_all)
         .build()
-        .map_err(to_error)
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
-pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
-    let new_note = MenuItem::new(app, "New Note", true, Some("CmdOrCtrl+N")).map_err(to_error)?;
+pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, AppError> {
+    let new_note = MenuItem::new(app, "New Note", true, Some("CmdOrCtrl+N")).map_err(|e| AppError::Other(e.to_string()))?;
     let file_submenu = {
         let mut builder = SubmenuBuilder::new(app, "File").item(&new_note);
         #[cfg(target_os = "macos")]
@@ -38,7 +38,7 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
         {
             builder = builder.quit();
         }
-        builder.build().map_err(to_error)?
+        builder.build().map_err(|e| AppError::Other(e.to_string()))?
     };
 
     let edit_submenu = {
@@ -66,24 +66,24 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
                 .separator()
                 .select_all();
         }
-        builder.build().map_err(to_error)?
+        builder.build().map_err(|e| AppError::Other(e.to_string()))?
     };
 
     let view_submenu = {
-        let reload = MenuItem::new(app, "Reload", true, Some("CmdOrCtrl+R")).map_err(to_error)?;
+        let reload = MenuItem::new(app, "Reload", true, Some("CmdOrCtrl+R")).map_err(|e| AppError::Other(e.to_string()))?;
         let force_reload = MenuItem::new(app, "Force Reload", true, Some("CmdOrCtrl+Shift+R"))
-            .map_err(to_error)?;
+            .map_err(|e| AppError::Other(e.to_string()))?;
         let toggle_devtools =
             MenuItem::new(app, "Toggle Developer Tools", true, Some("Alt+CmdOrCtrl+I"))
-                .map_err(to_error)?;
+                .map_err(|e| AppError::Other(e.to_string()))?;
         let reset_zoom =
-            MenuItem::new(app, "Reset Zoom", true, Some("CmdOrCtrl+0")).map_err(to_error)?;
+            MenuItem::new(app, "Reset Zoom", true, Some("CmdOrCtrl+0")).map_err(|e| AppError::Other(e.to_string()))?;
         let zoom_in =
-            MenuItem::new(app, "Zoom In", true, Some("CmdOrCtrl+Plus")).map_err(to_error)?;
+            MenuItem::new(app, "Zoom In", true, Some("CmdOrCtrl+Plus")).map_err(|e| AppError::Other(e.to_string()))?;
         let zoom_out =
-            MenuItem::new(app, "Zoom Out", true, Some("CmdOrCtrl+-")).map_err(to_error)?;
+            MenuItem::new(app, "Zoom Out", true, Some("CmdOrCtrl+-")).map_err(|e| AppError::Other(e.to_string()))?;
         let toggle_fullscreen =
-            MenuItem::new(app, "Toggle Fullscreen", true, Some("F11")).map_err(to_error)?;
+            MenuItem::new(app, "Toggle Fullscreen", true, Some("F11")).map_err(|e| AppError::Other(e.to_string()))?;
         SubmenuBuilder::new(app, "View")
             .item(&reload)
             .item(&force_reload)
@@ -95,7 +95,7 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
             .separator()
             .item(&toggle_fullscreen)
             .build()
-            .map_err(to_error)?
+            .map_err(|e| AppError::Other(e.to_string()))?
     };
 
     let window_submenu = {
@@ -112,14 +112,14 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
         {
             builder = builder.close_window();
         }
-        builder.build().map_err(to_error)?
+        builder.build().map_err(|e| AppError::Other(e.to_string()))?
     };
 
-    let docs = MenuItem::new(app, "Docs", true, None::<&str>).map_err(to_error)?;
+    let docs = MenuItem::new(app, "Docs", true, None::<&str>).map_err(|e| AppError::Other(e.to_string()))?;
     let help_submenu = SubmenuBuilder::new(app, "Help")
         .item(&docs)
         .build()
-        .map_err(to_error)?;
+        .map_err(|e| AppError::Other(e.to_string()))?;
 
     let mut builder = MenuBuilder::new(app);
     #[cfg(target_os = "macos")]
@@ -132,8 +132,8 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
             .show_all()
             .separator()
             .quit()
-            .build()
-            .map_err(to_error)?;
+        .build()
+        .map_err(|e| AppError::Other(e.to_string()))?;
         builder = builder.item(&app_menu);
     }
 
@@ -144,7 +144,7 @@ pub(crate) fn build_app_menu(app: &AppHandle) -> Result<Menu<Wry>, String> {
         .item(&window_submenu)
         .item(&help_submenu)
         .build()
-        .map_err(to_error)
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 pub(crate) fn handle_menu_event(app: &AppHandle, event: MenuEvent) {

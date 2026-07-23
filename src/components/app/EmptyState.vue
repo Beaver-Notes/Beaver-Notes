@@ -7,7 +7,7 @@
         <div
           v-for="chip in chips"
           :key="chip.id"
-          class="chip absolute flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-500 dark:text-neutral-400 whitespace-nowrap shadow-sm transition-opacity duration-500"
+          class="chip absolute flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-500 dark:text-neutral-400 whitespace-nowrap shadow-sm transition-opacity duration-500"
           :class="[chip.cls, chipsVisible ? 'opacity-100' : 'opacity-0']"
         >
           <span>{{ chip.emoji }}</span
@@ -30,7 +30,7 @@
               d="M156 217H199V258.5C199 270.374 189.374 280 177.5 280C165.626 280 156 270.374 156 258.5V217Z"
               fill="#E07C2F"
             />
-            <g class="animate-wave" style="transform-origin: 240px 142px">
+            <g class="animate-wave origin-[240px_142px]">
               <path
                 d="M240.853 176.503L216 141.412L249.866 117.426C259.556 110.563 272.975 112.855 279.838 122.545C286.701 132.235 284.409 145.654 274.719 152.517L240.853 176.503Z"
                 fill="#E37C2D"
@@ -168,7 +168,6 @@
 
       <!-- CTA -->
       <ui-button variant="primary" @click="handleCreate">
-        <v-remixicon name="riAddFill" size="24" />
         <span>{{
           translations.emptyState?.createCta || 'Create Your First Note'
         }}</span>
@@ -184,7 +183,7 @@
           <span
             v-for="k in sc.keys"
             :key="k"
-            class="inline-flex items-center justify-center min-w-[24px] px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 shadow-[0_1px_0_theme(colors.neutral.200)] dark:shadow-[0_1px_0_theme(colors.neutral.700)]"
+            class="inline-flex items-center justify-center min-w-[24px] px-1.5 py-0.5 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 rounded text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 shadow-[0_1px_0_theme(colors.neutral.200)] dark:shadow-[0_1px_0_theme(colors.neutral.700)]"
             >{{ k }}</span
           >
           <span>{{ sc.label }}</span>
@@ -242,43 +241,43 @@ onMounted(() => {
   setTimeout(() => (chipsVisible.value = true), 400);
 });
 
-const emit = defineEmits(['create']);
-const handleCreate = () => emit('create');
+const emit = defineEmits(['new-note']);
+const handleCreate = () => emit('new-note');
 </script>
 
 <style scoped>
 /* Mascot float */
 .mascot-float {
-  animation: mascotFloat 5s ease-in-out infinite;
+  animation: mascotFloat 5s ease infinite;
 }
 
 /* Ground shadow synced to float */
 .mascot-shadow {
-  animation: shadowPulse 5s ease-in-out infinite;
+  animation: shadowPulse 5s ease infinite;
 }
 
 /* Waving arm */
 .animate-wave {
-  animation: wave 2s ease-in-out infinite;
+  animation: wave 2s ease infinite;
 }
 
 /* Chip positions + floats */
 .chip-1 {
   top: 12px;
   right: 24px;
-  animation: chipFloat1 4s ease-in-out infinite;
+  animation: chipFloat1 4s ease infinite;
   transition-delay: 0s;
 }
 .chip-2 {
   top: 48px;
   left: 12px;
-  animation: chipFloat2 4.5s ease-in-out infinite;
+  animation: chipFloat2 4.5s ease infinite;
   transition-delay: 0.25s;
 }
 .chip-3 {
   bottom: 40px;
   right: 8px;
-  animation: chipFloat3 3.8s ease-in-out infinite;
+  animation: chipFloat3 3.8s ease infinite;
   transition-delay: 0.5s;
 }
 
@@ -343,5 +342,22 @@ const handleCreate = () => emit('create');
   50% {
     transform: translate(-4px, -8px);
   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascot-float,
+  .mascot-shadow,
+  .animate-wave,
+  .chip-1,
+  .chip-2,
+  .chip-3 {
+    animation: none;
+  }
+  .mascot-float {
+    animation: mascotFloatReduced 5s ease infinite;
+  }
+}
+@keyframes mascotFloatReduced {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 </style>

@@ -1,15 +1,18 @@
-import { DEFAULT_UI_FONT_STACK, setSetting } from '@/composable/settings';
+import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/composable/settings';
 import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
-import {
-  getMigrationStatus,
-  probeMigrationPath,
-  runMigration,
-  runMigrationFromPath,
-} from '@/lib/native/app';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
+import { forceSyncNow } from '@/utils/sync';
+
+// Re-export the legacy/Electron migration helpers under stable onboarding names.
+export {
+  getLegacyMigrationStatus as getOnboardingMigrationStatus,
+  probeLegacyPath as probeCustomMigrationPath,
+  runLegacyMigration as runOnboardingMigration,
+  runLegacyMigrationFromPath as runOnboardingMigrationFromPath,
+} from '@/utils/migration/legacyElectron';
 
 // ─── Animation timing constants ──────────────────────────────────────────────
 
@@ -161,44 +164,23 @@ export async function markOnboardingCompleted(settingsStorage) {
   await settingsStorage.set('onboardingCompleted', true);
 }
 
-export async function getOnboardingMigrationStatus() {
-  if (backend.isMobileRuntime?.()) {
-    return {
-      legacyDir: null,
-      appDir: null,
-      hasLegacyData: false,
-      alreadyMigrated: false,
-      targetHasData: false,
-    };
-  }
-  return getMigrationStatus();
-}
-
-export async function runOnboardingMigration() {
-  if (backend.isMobileRuntime?.()) {
-    throw new Error('Legacy migration is only available on desktop.');
-  }
-  await runMigration();
-}
-
-export async function probeCustomMigrationPath(path) {
-  if (backend.isMobileRuntime?.()) {
-    return { hasLegacyData: false };
-  }
-  return probeMigrationPath(path);
-}
-
-export async function runOnboardingMigrationFromPath(path) {
-  if (backend.isMobileRuntime?.()) {
-    throw new Error('Legacy migration is only available on desktop.');
-  }
-  await runMigrationFromPath(path);
-}
-
 export async function openOnboardingWorkspace({ store, noteStore, router }) {
   await getSyncPath();
 
+  // Initialize the workspace Y.Doc — same sequence as useAppShell's
+  // initializeWorkspace so Pinia gets hydrated from Yjs.
+  const { loadWorkspaceDoc, observeWorkspace } = await import('@/composable/useWorkspaceYjs.js');
+  const { writeStoresFromWorkspace } = await import('@/composable/meta-yjs-store.js');
+
+  await loadWorkspaceDoc();
+  observeWorkspace(writeStoresFromWorkspace);
+  await writeStoresFromWorkspace();
+
   await store.retrieve();
+
+  // One-time batch migration: move existing note content from KV → Yjs
+  const { migrateNotesContent } = await import('./yjs-migration.js');
+  await migrateNotesContent();
 
   if (backend.isMobileRuntime?.()) {
     await router.replace('/');
@@ -210,4 +192,10 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
   );
 
   await router.replace(latestNote ? `/note/${latestNote.id}` : '/');
+
+  // Trigger an initial sync so a new client pulling from an existing sync
+  // folder gets all remote data (workspace meta + note content + assets).
+  if (getSettingSync('autoSync')) {
+    forceSyncNow().catch(() => {});
+  }
 }

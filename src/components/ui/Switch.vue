@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <label class="relative inline-flex items-center">
     <input
@@ -18,7 +17,7 @@
 defineProps({
   modelValue: {
     type: Boolean,
-    required: true,
+    default: false,
   },
   id: {
     type: String,

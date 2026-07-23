@@ -7,10 +7,15 @@ license = "MIT"
 repository = "https://github.com/Beaver-Notes/Beaver-Notes"
 edition = "2021"
 rust-version = "1.77.2"
+default-run = "beaver-notes"
 
 [lib]
 name = "beaver_notes"
 crate-type = ["staticlib", "cdylib", "lib"]
+
+[[bin]]
+name = "gen-specta"
+path = "src/bin/gen-specta.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -18,7 +23,6 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-fs = "2"
-tauri-plugin-scoped-storage = "0.1.3"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -38,6 +42,7 @@ serde_json = "1"
 thiserror = "2"
 bcrypt = "0.15"
 aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
 aes = "0.8"
 cbc = "0.1"
 argon2 = { version = "0.5", features = ["alloc"] }
@@ -51,6 +56,7 @@ md5 = "0.7"
 keyring = "2"
 dirs = "5"
 lru = "0.12"
+yrs = "0.27"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
 http = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -58,11 +64,18 @@ urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
+tauri-plugin-scoped-storage = "=1.5.0"
+specta = "=2.0.0-rc.25"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+specta-typescript = "0.0.12"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 font-kit = "0.14"
 tauri-plugin-spotsearch = "0.2.1"
+
+[target.'cfg(debug_assertions)'.dependencies]
+tauri-plugin-webdriver-automation = { git = "https://github.com/danielraffel/tauri-webdriver" }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-haptics = "2"

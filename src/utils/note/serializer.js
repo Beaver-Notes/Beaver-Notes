@@ -77,7 +77,10 @@ export function extractTextFromContent(content) {
  */
 export function stripTransientFields(note) {
   if (!note || typeof note !== 'object') return note;
-  const { cardPreview, searchText, ...persistedNote } = note;
+  // `cardPreview` is now persisted (it is rebuilt from structured content and
+  // would otherwise be lost after the Yjs migration moved content out of KV).
+  // `searchText` remains a deprecated transient field.
+  const { searchText: _searchText, ...persistedNote } = note;
   return persistedNote;
 }
 
@@ -91,12 +94,36 @@ export function hydrateNote(note) {
   const persisted = stripTransientFields(note);
   const hidden = persisted.isLocked || isEncryptedContent(persisted.content);
 
+  // Fast path: if the note already has both a cardPreview and a searchText,
+  // return immediately without any content traversal.
+  if (!hidden && persisted.cardPreview && persisted.searchText) {
+    return { ...persisted, cardPreview: persisted.cardPreview, searchText: persisted.searchText };
+  }
+
+  const previewText = hidden
+    ? ''
+    : (persisted.preview ||
+      persisted.searchText ||
+      extractTextFromContent(persisted.content) ||
+      '');
+
+  // Prefer a persisted structured `cardPreview` (styled blocks). Rebuild it
+  // from structured content when available, otherwise fall back to a flat
+  // preview (legacy `searchText` / cross-device `preview`).
+  let cardPreview = persisted.cardPreview;
+  if (!hidden && !cardPreview) {
+    if (persisted.content) {
+      cardPreview = buildCardPreview(persisted.content);
+    } else if (previewText) {
+      cardPreview = buildCardPreview(previewText);
+    }
+  }
+  if (!cardPreview) cardPreview = EMPTY_CARD_PREVIEW;
+
   return {
     ...persisted,
-    cardPreview: hidden
-      ? EMPTY_CARD_PREVIEW
-      : buildCardPreview(persisted.content),
-    searchText: hidden ? '' : extractTextFromContent(persisted.content),
+    cardPreview,
+    searchText: previewText,
   };
 }
 
@@ -125,20 +152,20 @@ export async function decryptNoteForMemory(note) {
  */
 export async function batchDecryptNotesForMemory(notes, options = {}) {
   const { onProgress, batchSize = 5, signal } = options;
-  const results = new Array(notes.length);
+  const results = Array.from({ length: notes.length });
   let processed = 0;
 
   for (let i = 0; i < notes.length; i += batchSize) {
     if (signal?.aborted) break;
 
     const batch = notes.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
+    const _batchResults = await Promise.all(
       batch.map(async (note, idx) => {
         const noteIndex = i + idx;
         try {
           const decrypted = await decryptNoteForMemory(note);
           results[noteIndex] = hydrateNote(decrypted);
-        } catch (e) {
+        } catch {
           results[noteIndex] = hydrateNote({ ...note, decryptionError: true });
         }
         processed++;

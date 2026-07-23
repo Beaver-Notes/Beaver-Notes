@@ -1,15 +1,5 @@
-import { shallowReactive } from 'vue';
 import { exportAllMarkdown, exportAllHTML } from '@/utils/share/exportBulk';
-
-function createProgressState(extra = {}) {
-  return shallowReactive({
-    running: false,
-    done: 0,
-    total: 0,
-    result: null,
-    ...extra,
-  });
-}
+import { createProgressState } from '@/utils/helpers/index.js';
 
 export function useExport() {
   const exportMdState = createProgressState();

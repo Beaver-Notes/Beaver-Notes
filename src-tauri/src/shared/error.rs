@@ -1,8 +1,8 @@
 use std::fmt;
 
-#[derive(Debug)]
+#[derive(Debug, specta::Type)]
 pub(crate) enum AppError {
-    Io(std::io::Error),
+    Io(String),
     Crypto(String),
     Serialization(String),
     WrongPassword,
@@ -13,7 +13,7 @@ pub(crate) enum AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AppError::Io(e) => write!(f, "{e}"),
+            AppError::Io(m) => f.write_str(m),
             AppError::Crypto(m) => f.write_str(m),
             AppError::Serialization(m) => f.write_str(m),
             AppError::WrongPassword => f.write_str("Wrong password."),
@@ -25,15 +25,34 @@ impl fmt::Display for AppError {
     }
 }
 
+impl AppError {
+    pub(crate) fn kind(&self) -> &'static str {
+        match self {
+            AppError::Io(_) => "Io",
+            AppError::Crypto(_) => "Crypto",
+            AppError::Serialization(_) => "Serialization",
+            AppError::WrongPassword => "WrongPassword",
+            AppError::EncryptionLocked => "EncryptionLocked",
+            AppError::Other(_) => "Other",
+        }
+    }
+}
+
+impl std::error::Error for AppError {}
+
 impl serde::Serialize for AppError {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&self.to_string())
+        use serde::ser::SerializeStruct;
+        let mut state = serializer.serialize_struct("AppError", 2)?;
+        state.serialize_field("kind", self.kind())?;
+        state.serialize_field("message", &self.to_string())?;
+        state.end()
     }
 }
 
 impl From<std::io::Error> for AppError {
     fn from(e: std::io::Error) -> Self {
-        AppError::Io(e)
+        AppError::Io(e.to_string())
     }
 }
 
@@ -94,6 +113,80 @@ impl From<&str> for AppError {
 impl From<AppError> for String {
     fn from(e: AppError) -> Self {
         e.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_wrong_password() {
+        assert_eq!(AppError::WrongPassword.to_string(), "Wrong password.");
+    }
+
+    #[test]
+    fn display_encryption_locked() {
+        assert_eq!(
+            AppError::EncryptionLocked.to_string(),
+            "App encryption is locked. Unlock before reading assets."
+        );
+    }
+
+    #[test]
+    fn display_crypto_carries_message() {
+        assert_eq!(
+            AppError::Crypto("boom".to_string()).to_string(),
+            "boom"
+        );
+    }
+
+    #[test]
+    fn display_serialization_carries_message() {
+        assert_eq!(
+            AppError::Serialization("bad json".to_string()).to_string(),
+            "bad json"
+        );
+    }
+
+    #[test]
+    fn display_other_carries_message() {
+        assert_eq!(AppError::Other("oops".to_string()).to_string(), "oops");
+    }
+
+    #[test]
+    fn display_io_carries_inner_error() {
+        let err = AppError::Io("missing file".to_string());
+        assert_eq!(err.to_string(), "missing file");
+    }
+
+    #[test]
+    fn serialize_emits_structured_kind_and_message() {
+        let value = serde_json::to_value(AppError::WrongPassword).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({ "kind": "WrongPassword", "message": "Wrong password." })
+        );
+    }
+
+    #[test]
+    fn serialize_io_carries_kind_and_inner_message() {
+        let err = AppError::Io("missing file".to_string());
+        let value = serde_json::to_value(err).unwrap();
+        assert_eq!(
+            value,
+            serde_json::json!({ "kind": "Io", "message": "missing file" })
+        );
+    }
+
+    #[test]
+    fn kind_discriminator_matches_variant_name() {
+        assert_eq!(AppError::WrongPassword.kind(), "WrongPassword");
+        assert_eq!(AppError::EncryptionLocked.kind(), "EncryptionLocked");
+        assert_eq!(AppError::Io("x".into()).kind(), "Io");
+        assert_eq!(AppError::Crypto("x".into()).kind(), "Crypto");
+        assert_eq!(AppError::Serialization("x".into()).kind(), "Serialization");
+        assert_eq!(AppError::Other("x".into()).kind(), "Other");
     }
 }
 

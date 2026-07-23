@@ -55,7 +55,6 @@
     <div
       v-if="visibleLabels.length"
       class="flex items-center gap-1.5 mt-2 overflow-x-auto scrollbar-none mb-6"
-      style="scrollbar-width: none"
     >
       <button
         v-for="(entry, i) in visibleLabels"
@@ -64,7 +63,7 @@
         :class="[
           label === entry.name
             ? 'ring-1 ring-inset'
-            : 'opacity-60 hover:opacity-100 hover:scale-110',
+            : 'opacity-60 hover:opacity-100 label-chip',
           i === activeSuggestionIndex ? 'opacity-100 ring-1 ring-inset' : '',
         ]"
         :style="
@@ -94,14 +93,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import { useLabelStore } from '@/store/label';
-
-function debounce(fn, delay) {
-  let timer;
-  return function (...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn.apply(this, args), delay);
-  };
-}
+import { debounce } from '@/utils/helpers/index.js';
 
 export default {
   props: {
@@ -208,5 +200,10 @@ export default {
 <style>
 .btn-group .ui-select__content {
   @apply rounded-l-none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .label-chip:hover {
+    transform: scale(1.1);
+  }
 }
 </style>

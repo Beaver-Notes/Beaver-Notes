@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div>
     <div class="container pt-5">
@@ -127,7 +126,7 @@
                   'transform scale-[1.02] transition-transform duration-200':
                     selectedItems.has(`folder-${childFolder.id}`),
                 }"
-                style="contain: layout style"
+                class="[contain:layout_style]"
                 draggable="true"
                 @dragstart="handleFolderDragStart($event, childFolder.id)"
                 @dragend="handleDragEnd"
@@ -346,9 +345,11 @@ export default {
 
           if (isArchived) return filteredNotes.archived.push(noteCard);
 
-          isBookmarked
-            ? filteredNotes.bookmarked.push(noteCard)
-            : filteredNotes.all.push(noteCard);
+          if (isBookmarked) {
+            filteredNotes.bookmarked.push(noteCard);
+          } else {
+            filteredNotes.all.push(noteCard);
+          }
         }
       });
 

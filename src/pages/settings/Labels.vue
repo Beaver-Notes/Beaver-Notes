@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div class="general mb-14 w-full max-w-2xl">
     <section>
@@ -7,7 +6,7 @@
           {{ translations.labels?.title || 'Labels' }}
         </p>
         <span
-          class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded-full"
+          class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-full"
         >
           {{ sortedLabels.length }} {{ translations.labels?.total || 'total' }}
         </span>
@@ -19,7 +18,7 @@
       >
         {{ translations.labels?.emptyPrefix || 'No labels yet. Type' }}
         <code
-          class="bg-neutral-100 dark:bg-neutral-800 px-1 rounded text-primary"
+          class="bg-neutral-100 dark:bg-neutral-900 px-1 rounded text-primary"
           >#label</code
         >
         {{ translations.labels?.emptySuffix || 'to start.' }}
@@ -33,7 +32,7 @@
         >
           <div class="relative flex-shrink-0 flex items-center">
             <div
-              class="w-2 h-2 rounded-full transition-transform duration-200 group-hover:scale-125"
+              class="w-2 h-2 rounded-full transition-transform duration-200 label-dot"
               :style="{
                 backgroundColor: labelStore.getColor(name) || primaryColor,
               }"
@@ -56,13 +55,13 @@
             class="relative w-6 h-5 overflow-hidden flex items-center justify-center"
           >
             <span
-              class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-neutral-400 tabular-nums transition-all duration-300 ease-out transform group-hover:-translate-y-full group-hover:opacity-0"
+              class="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-neutral-400 tabular-nums transition-all duration-300 ease-out transform label-count"
             >
               {{ noteCountFor(name) }}
             </span>
 
             <div
-              class="absolute inset-0 flex items-center justify-center opacity-0 translate-y-full group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 ease-out"
+              class="absolute inset-0 flex items-center justify-center opacity-0 translate-y-full transition-all duration-300 ease-out label-delete"
             >
               <button
                 class="p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded text-neutral-400 hover:text-red-500 transition-colors"
@@ -139,5 +138,18 @@ function deleteLabel(name) {
 <style scoped>
 section .ui-list {
   @apply bg-neutral-800 bg-opacity-5 dark:bg-neutral-200 dark:bg-opacity-5;
+}
+@media (hover: hover) and (pointer: fine) {
+  .group:hover .label-dot {
+    transform: scale(1.25);
+  }
+  .group:hover .label-count {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  .group:hover .label-delete {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 </style>

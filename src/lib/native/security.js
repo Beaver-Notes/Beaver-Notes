@@ -1,6 +1,7 @@
 import { backend } from '@/lib/tauri-bridge';
 import { path } from '@/lib/tauri-bridge';
 import { readData, readDir, writeFile } from '@/lib/native/fs';
+import { base64ToUint8Array } from '@/utils/helpers/index.js';
 
 export function isEncryptionAvailable() {
   return backend.invoke('safeStorage:isEncryptionAvailable');
@@ -70,10 +71,6 @@ export function lockEncryption() {
   return backend.invoke('encryption:lock');
 }
 
-export function encryptionExportAppKey() {
-  return backend.invoke('encryption:exportAppKey');
-}
-
 export function encryptNotePayload(plainJson) {
   return backend.invoke('encryption:encryptNotePayload', plainJson);
 }
@@ -82,12 +79,20 @@ export function decryptNotePayload(payload) {
   return backend.invoke('encryption:decryptNotePayload', payload);
 }
 
-export function encryptSyncPayload(plainText) {
-  return backend.invoke('encryption:encryptSyncPayload', plainText);
+export function syncEncryptPayload(json, aad) {
+  return backend.invoke('sync:encryptPayload', { json, aad });
 }
 
-export function decryptSyncPayload(payload) {
-  return backend.invoke('encryption:decryptSyncPayload', payload);
+export function syncDecryptPayload(enc, aad) {
+  return backend.invoke('sync:decryptPayload', { enc, aad });
+}
+
+export function syncKeyReady() {
+  return backend.invoke('sync:keyReady');
+}
+
+export function reconcileSyncKeyParams(passphrase) {
+  return backend.invoke('encryption:reconcileKeyParams', { passphrase });
 }
 
 export function decryptAssetStream(path) {
@@ -134,14 +139,7 @@ export function resetPasswordFailures() {
   return backend.invoke('passwd:resetFailures');
 }
 
-function base64ToUint8Array(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return bytes;
-}
+
 
 function isIgnoredAssetEntry(name) {
   return !name || name.startsWith('.') || name === 'Thumbs.db';

@@ -1,38 +1,75 @@
 import {
-  decryptSyncPayload,
-  encryptSyncPayload,
-} from '@/lib/native/security.js';
-import {
   isEncryptionEnabled,
-  isKeyLoaded,
 } from '@/utils/crypto/encryption.js';
+import {
+  syncEncryptPayload,
+  syncDecryptPayload,
+  syncKeyReady,
+} from '@/lib/native/security.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
+// Encryption now runs entirely in Rust. The renderer never sees the items key:
+// it only asks the backend to encrypt/decrypt payloads with an AAD binding.
+
 export async function ensureSyncKeyReadyForWrite() {
-  if (!isEncryptionEnabled()) return false;
-  if (isKeyLoaded()) return true;
-  throw new Error(
-    'Encryption is enabled but the key is locked. Unlock encryption before syncing.'
-  );
+  const ready = await syncKeyReady().catch(() => false);
+  if (!ready) {
+    if (!isEncryptionEnabled()) return false;
+    throw new Error(
+      'Encryption key is locked. Unlock encryption before syncing.'
+    );
+  }
+  return true;
 }
 
-export async function encryptJSON(obj) {
+export async function encryptJSON(obj, aad = '') {
+  if (!isEncryptionEnabled()) return JSON.stringify(obj);
   await ensureSyncKeyReadyForWrite();
-  if (!isKeyLoaded()) return JSON.stringify(obj);
-  return encryptSyncPayload(JSON.stringify(obj));
+  return syncEncryptPayload(JSON.stringify(obj), aad);
 }
 
-export async function decryptJSON(raw) {
-  if (!raw) return null;
-  try {
-    const plain = await decryptSyncPayload(raw);
-    if (plain === null) return null;
-    return JSON.parse(plain);
-  } catch (err) {
-    console.error('[syncCrypto] decryptJSON failed — key may be wrong:', err);
-    throw err;
+export class SyncCryptoError extends Error {
+  constructor(message, code) {
+    super(message);
+    this.code = code;
+    this.name = 'SyncCryptoError';
   }
 }
+
+export async function decryptJSON(raw, aad = '') {
+  if (!raw) return null;
+  if (typeof raw !== 'string') return raw;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+
+  if (parsed && parsed.v === 4) {
+    try {
+      const plain = await syncDecryptPayload(raw, aad);
+      return JSON.parse(plain);
+    } catch (e) {
+      const msg = String(e?.message ?? e);
+      if (msg.includes('KEY_LOCKED')) {
+        throw new SyncCryptoError(
+          'Encryption is locked. Unlock it in Settings to sync.',
+          'KEY_LOCKED'
+        );
+      }
+      throw new SyncCryptoError(
+        'The encryption password on this device does not match the one used to encrypt the sync data. Make sure both devices use the same encryption password.',
+        'DECRYPT_FAILED'
+      );
+    }
+  }
+
+  return parsed;
+}
+
+export function clearSyncKey() {}
 
 export function syncAssetName(localFilename) {
   return isEncryptionEnabled()

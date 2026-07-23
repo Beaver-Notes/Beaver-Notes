@@ -2,13 +2,13 @@
 
 ## Overview
 
-This policy outlines the guidelines for conbutions that involve the use of AI (artificial intelligence) tools, including LLMs (large language models), code generation, and other AI-assisted tools. This document will evelove as AI technology and its regulation evolve.
+This policy outlines the guidelines for contributions that involve the use of AI (artificial intelligence) tools, including LLMs (large language models), code generation, and other AI-assisted tools. This document will evolve as AI technology and its regulation evolve.
 
-## Motvies 
+## Motives
 
-AI tools are powerful assistants that can help contributors become more productive, when configured and used corrently. They also serve as a learning tool for new contributors who may not have the expertise to contribute without AI assistance.
+AI tools are powerful assistants that can help contributors become more productive, when configured and used correctly. They also serve as a learning tool for new contributors who may not have the expertise to contribute without AI assistance.
 
-This policy aims at encoraging the use of AI tools within the Beaver Notes project to boost productivity and efficiency while maintaining transparency and accountability. This allows the community to learn and refine our policies and practices accordingly in order to maximise the value of these tools.
+This policy aims at encouraging the use of AI tools within the Beaver Notes project to boost productivity and efficiency while maintaining transparency and accountability. This allows the community to learn and refine our policies and practices accordingly in order to maximise the value of these tools.
 
 ## Contributors Accountability
 
@@ -47,7 +47,7 @@ attributing the AI tool used. Acceptable formats include:
 - `Co-authored-by: Claude <noreply@anthropic.com>`
 - `Generated-by: Claude <noreply@anthropic.com>`
 
-Many AI coding tools automatically add `Co-authored-by` trailers—this is
+Many AI coding tools automatically add `Co-authored-by` trailers, this is
 acceptable and need not be changed to `Assisted-by`.
 
 Authors **MUST** still adhere to Beaver's Developer's Certificate of Origin (DCO) requirements and sign off commits.
@@ -81,7 +81,7 @@ submitted content.
 - Content that has been substantially rewritten such that the original AI
   output is no longer recognizable
 
-When in doubt, err on the side of disclosure—transparency benefits the
+When in doubt, err on the side of disclosure, transparency benefits the
 community.
 
 ## Acceptable Uses of AI Tools

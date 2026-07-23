@@ -42,9 +42,9 @@ This project and everyone participating in it is governed by the [CODE_OF_CONDUC
 ### Prerequisites
 
 - **Node.js** >= v18.0.0
-- **Yarn 1.x** (Classic) — `npm install -g yarn`
-- **Rust toolchain** >= 1.77.2 — install via [rustup](https://rustup.rs/)
-- **Tauri system dependencies** — see the [Tauri v2 prerequisites guide](https://v2.tauri.app/start/prerequisites/)
+- **Yarn 1.x** (Classic): `npm install -g yarn`
+- **Rust toolchain** >= 1.77.2: install via [rustup](https://rustup.rs/)
+- **Tauri system dependencies**: see the [Tauri v2 prerequisites guide](https://v2.tauri.app/start/prerequisites/)
 
 #### Mobile targets (optional)
 
@@ -95,8 +95,8 @@ Fill in the values:
 
 Beaver Notes is a Tauri v2 application:
 
-- **`src/`** — Vue 3 frontend (the "web" layer)
-- **`src-tauri/`** — Rust backend (the "native" layer)
+- **`src/`**: Vue 3 frontend (the "web" layer)
+- **`src-tauri/`**: Rust backend (the "native" layer)
 - The Rust backend handles file system access, encryption, search, updates, and the SQLite database
 - The frontend communicates with the backend via Tauri's `invoke` command system
 
@@ -156,10 +156,10 @@ If a commit is rejected due to linting errors, fix the errors and try again.
 
 Use descriptive branch names:
 
-- `fix/description` — for bug fixes
-- `feat/description` — for new features
-- `refactor/description` — for code refactoring
-- `docs/description` — for documentation changes
+- `fix/description` for bug fixes
+- `feat/description` for new features
+- `refactor/description` for code refactoring
+- `docs/description` for documentation changes
 
 ### Commit Messages
 
@@ -197,11 +197,11 @@ You remain fully accountable for any AI-generated code. See [AI_POLICY.md](./AI_
 ## Pull Requests
 
 1. **Create an issue** first if the change is non-trivial (bug, feature, refactor). This avoids duplicate work.
-2. **Keep PRs focused** — each PR should address a single concern.
-3. **Ensure linting passes** — run `yarn lint` before submitting.
+2. **Keep PRs focused** each PR should address a single concern.
+3. **Ensure linting passes** run `yarn lint` before submitting.
 4. **Update translations** if your change adds or modifies user-facing strings.
-5. **Include a clear description** — what, why, and how.
-6. **Checklist in PR template** — fill it out when you open the PR.
+5. **Include a clear description** what, why, and how.
+6. **Checklist in PR template** fill it out when you open the PR.
 
 All PRs are reviewed before merging. Maintainers may request changes.
 
@@ -224,7 +224,7 @@ Produces platform-specific bundles:
 ### Mobile
 
 ```bash
-# iOS — first time only:
+# iOS - first time only:
 yarn mobile:init:ios
 
 # Run on iOS simulator:
@@ -233,7 +233,7 @@ yarn dev:ios "iPhone 16"
 # Build iOS:
 yarn build:ios
 
-# Android — first time only:
+# Android - first time only:
 yarn mobile:init:android
 
 # Run on Android emulator/device:
@@ -243,7 +243,7 @@ yarn dev:android
 yarn build:android
 ```
 
-#### iOS — Simulator Boot Order
+#### iOS - Simulator Boot Order
 
 Before running `yarn dev:ios`, the simulator must be booted first:
 
@@ -254,7 +254,7 @@ open -a Simulator
 yarn dev:ios "iPhone 16e"
 ```
 
-#### Android — libsodium Pre-build (one-time setup)
+#### Android - libsodium Pre-build (one-time setup)
 
 The `tauri-plugin-stronghold` dependency requires libsodium for Android ARM64. Build it once per machine:
 
@@ -369,9 +369,9 @@ Releases are automated via GitHub Actions.
 
 Use the appropriate issue template:
 
-- [Bug Report](https://github.com/Beaver-Notes/Beaver-Notes/issues/new?template=bug_report.md) — for crashes, unexpected behavior, etc.
-- [Feature Request](https://github.com/Beaver-Notes/Beaver-Notes/issues/new?template=feature_request.md) — for new ideas and enhancements
-- [Question / Help](https://github.com/Beaver-Notes/Beaver-Notes/issues/new?template=ask-a-question-or-get-help.md) — if you need assistance
+- [Bug Report](https://github.com/Beaver-Notes/Beaver-Notes/issues/new?template=bug_report.md) - for crashes, unexpected behavior, etc.
+- [Feature Request](https://github.com/Beaver-Notes/Beaver-Notes/issues/new?template=feature_request.md) - for new ideas and enhancements
+- [Question / Help](https://github.com/Beaver-Notes/Beaver-Notes/issues/new?template=ask-a-question-or-get-help.md) - if you need assistance
 
 ## Security
 

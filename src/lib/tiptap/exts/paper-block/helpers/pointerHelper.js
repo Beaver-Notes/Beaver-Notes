@@ -285,7 +285,6 @@ export function usePointerHelper(context) {
         touchMode = TouchMode.DRAWING;
         // Fall through to DRAWING
       }
-      // eslint-disable-next-line no-fallthrough
       case TouchMode.DRAWING: {
         if (!state.isDrawing) return;
 

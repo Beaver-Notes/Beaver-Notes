@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "no-unused-vars": "error",
+    "no-unused-expressions": "error",
+    "no-control-regex": "off",
+    "no-async-promise-executor": "error",
+    "unicorn/no-new-array": "error",
+    "unicorn/no-useless-spread": "error",
+    "no-self-compare": "error",
+    "no-loss-of-precision": "error",
+    "no-console": ["error", { "allow": ["warn", "error", "time", "timeEnd"] }]
+  },
+  "ignorePatterns": ["scripts/**", "tests/**", "wdio.conf.mjs"]
+}

@@ -1,10 +1,8 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
-    class="bg-white dark:bg-neutral-800 rounded-xl shadow-xl border p-1.5"
-    style="max-width: 18rem; min-width: 8rem"
+    class="bg-white dark:bg-neutral-900 rounded-xl shadow-xl border p-1.5 max-w-[18rem] min-w-[8rem]"
   >
-    <ui-list class="overflow-y-auto no-scrollbar" style="max-height: 20rem">
+    <ui-list class="overflow-y-auto no-scrollbar max-h-80">
       <ui-list-item
         v-for="(item, index) in filteredItems"
         small
@@ -111,11 +109,12 @@ export default {
     }
 
     const handleItemClick = (item) => {
+      if (!props.editor || props.editor.isDestroyed) return;
       props.command({
         editor: props.editor,
         range: props.range,
         props: {
-          action: item.action,
+          action: (chain) => item.action(chain),
         },
       });
     };
@@ -135,9 +134,7 @@ export default {
             editor: props.editor,
             range: props.range,
             props: {
-              action: () => {
-                props.editor.commands.setFileEmbed(relativePath, fileName);
-              },
+              action: (chain) => chain.setFileEmbed(relativePath, fileName),
             },
           });
         }
@@ -163,7 +160,7 @@ export default {
               editor: props.editor,
               range: props.range,
               props: {
-                action: () => props.editor.commands.setVideo(relativePath),
+                action: (chain) => chain.setVideo(relativePath),
               },
             });
           }
@@ -191,7 +188,7 @@ export default {
               editor: props.editor,
               range: props.range,
               props: {
-                action: () => props.editor.commands.setAudio(relativePath),
+                action: (chain) => chain.setAudio(relativePath),
               },
             });
           }
@@ -215,188 +212,174 @@ export default {
         icon: 'riParagraph',
         name: 'paragraph',
         description: 'paragraphDescription',
-        action: () => props.editor.chain().focus().setParagraph().run(),
+        action: (chain) => chain.setParagraph(),
       },
       ...Array.from({ length: 6 }, (_, i) => ({
         icon: `riH${i + 1}`,
         name: `heading ${i + 1}`,
         description: headingDescriptions[i],
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .toggleHeading({ level: i + 1 })
-            .run(),
+        action: (chain) => chain.toggleHeading({ level: i + 1 }),
       })),
       {
         icon: 'riDoubleQuotesR',
         name: 'blockQuote',
         description: 'blockQuoteDescription',
-        action: () => props.editor.chain().focus().toggleBlockquote().run(),
+        action: (chain) => chain.toggleBlockquote(),
       },
       {
         icon: 'riCodeBoxLine',
         name: 'codeBlock',
         description: 'codeBlockDescription',
-        action: () => props.editor.chain().focus().toggleCodeBlock().run(),
+        action: (chain) => chain.toggleCodeBlock(),
       },
       {
         icon: 'riTableLine',
         name: 'table',
         description: 'tableDescription',
-        action: () =>
-          props.editor
-            .chain()
-            .focus()
-            .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-            .run(),
+        action: (chain) =>
+          chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }),
       },
       {
         icon: 'riListOrdered',
         name: 'orderedList',
         description: 'orderedListDescription',
-        action: () => props.editor.chain().focus().toggleOrderedList().run(),
+        action: (chain) => chain.toggleOrderedList(),
       },
       {
         icon: 'riListUnordered',
         name: 'bulletList',
         description: 'bulletListDescription',
-        action: () => props.editor.chain().focus().toggleBulletList().run(),
+        action: (chain) => chain.toggleBulletList(),
       },
       {
         icon: 'riListCheck2',
         name: 'checkList',
         description: 'checkListDescription',
-        action: () => props.editor.chain().focus().toggleTaskList().run(),
+        action: (chain) => chain.toggleTaskList(),
       },
       {
         icon: 'riCalculatorLine',
         name: 'mathBlock',
         description: 'mathBlockDescription',
-        action: () => {
-          props.editor.commands.insertMathBlock({
+        action: (chain) =>
+          chain.insertMathBlock({
             content: '',
             macros: '{\\f: "#1f(#2)"}',
-          });
-        },
+          }),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'blackCallout',
         description: 'blackCalloutDescription',
         className: 'dark:text-neutral-400',
-        action: () => props.editor.chain().focus().setBlackCallout().run(),
+        action: (chain) => chain.setBlackCallout(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'blueCallout',
         description: 'blueCalloutDescription',
         className: 'text-blue-500 dark:text-blue-500',
-        action: () => props.editor.chain().focus().setBlueCallout().run(),
+        action: (chain) => chain.setBlueCallout(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'greenCallout',
         description: 'greenCalloutDescription',
         className: 'text-green-600 dark:text-green-600',
-        action: () => props.editor.chain().focus().setGreenCallout().run(),
+        action: (chain) => chain.setGreenCallout(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'purpleCallout',
         description: 'purpleCalloutDescription',
         className: 'text-purple-500 dark:text-purple-500',
-        action: () => props.editor.chain().focus().setPurpleCallout().run(),
+        action: (chain) => chain.setPurpleCallout(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'redCallout',
         description: 'redCalloutDescription',
         className: 'text-red-500 dark:text-red-500',
-        action: () => props.editor.chain().focus().setRedCallout().run(),
+        action: (chain) => chain.setRedCallout(),
       },
       {
         icon: 'riSingleQuotesR',
         name: 'yellowCallout',
         description: 'yellowCalloutDescription',
         className: 'text-yellow-500 dark:text-yellow-500',
-        action: () => props.editor.chain().focus().setYellowCallout().run(),
+        action: (chain) => chain.setYellowCallout(),
       },
       {
         icon: 'riPieChart2Line',
         name: 'mermaid',
         description: 'mermaidDescription',
-        action: () => props.editor.chain().focus().setMermaidDiagram().run(),
+        action: (chain) => chain.setMermaidDiagram(),
       },
       {
         icon: 'riBrush3Fill',
         name: 'drawing',
         description: 'drawingDescription',
-        action: () => props.editor.chain().focus().insertPaper().run(),
+        action: (chain) => chain.insertPaper(),
       },
       {
         icon: 'riImageLine',
         name: 'image',
         description: 'imageDescription',
-        action: () => {
+        action: (chain) => {
           editorImage.select(true);
+          return chain;
         },
       },
       {
         icon: 'riFile2Line',
         name: 'file',
         description: 'fileDescription',
-        action: () => {
+        action: (chain) => {
           handleFileSelect();
+          return chain;
         },
       },
       {
         icon: 'riMovieLine',
         name: 'video',
         description: 'videoDescription',
-        action: () => {
+        action: (chain) => {
           handleVideoSelect();
+          return chain;
         },
       },
       {
         icon: 'riMicLine',
         name: 'audio',
         description: 'audioDescription',
-        action: () => {
+        action: (chain) => {
           handleAudioSelect();
+          return chain;
         },
       },
       {
         icon: 'riCalendarLine',
         name: 'todayDate',
         description: 'todayDateDescription',
-        action: () => {
+        action: (chain) => {
           const customFormat = getSettingSync('todayDateFormat');
-          props.editor
-            .chain()
-            .focus()
-            .insertContent(dayjs().format(customFormat))
-            .run();
+          return chain.insertContent(dayjs().format(customFormat));
         },
       },
       {
         icon: 'riTimerLine',
         name: 'currentTime',
         description: 'currentTimeDescription',
-        action: () => {
+        action: (chain) => {
           const customFormat = getSettingSync('timeFormat');
-          props.editor
-            .chain()
-            .focus()
-            .insertContent(dayjs().format(customFormat))
-            .run();
+          return chain.insertContent(dayjs().format(customFormat));
         },
       },
       {
         icon: 'riLayoutColumnLine',
         name: 'columns',
         description: 'columnsDescription',
-        action: () => props.editor.chain().focus().insertMultiColumn(2).run(),
+        action: (chain) => chain.insertMultiColumn(2),
       },
     ]);
 

@@ -1,19 +1,7 @@
 <template>
   <div
-    :class="{
-      'is-drag-over': isDragOver,
-      'folder-card': true,
-      relative: true,
-      group: true,
-      'cursor-pointer': true,
-      'w-full': true,
-    }"
-    style="
-      aspect-ratio: 6/5;
-      min-height: 130px;
-      max-height: 180px;
-      perspective: 1000px;
-    "
+    class="folder-card relative group cursor-pointer w-full min-h-[130px] max-h-[180px] [perspective:1000px] [aspect-ratio:6/5]"
+    :class="{ 'is-drag-over': isDragOver }"
     @click="handleCardClick($event, folder.id)"
   >
     <div
@@ -25,8 +13,7 @@
     ></div>
 
     <div
-      class="absolute top-[20%] left-0 z-0 w-full rounded-xl rounded-tl-none transition-colors"
-      style="height: 80%"
+      class="absolute top-[20%] left-0 z-0 w-full h-[80%] rounded-xl rounded-tl-none transition-colors"
       :style="{
         backgroundColor: folder.color || DEFAULT_FOLDER_COLOR,
         filter: 'saturate(0.8)',
@@ -35,8 +22,7 @@
 
     <div
       v-if="itemCount > 1"
-      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3"
-      style="top: 15%; left: 14%; width: 72%; height: 58%"
+      class="folder-card__sheet folder-card__sheet--rear absolute z-10 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-white p-3 top-[15%] left-[14%] w-[72%] h-[58%]"
     >
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-100"></div>
@@ -45,8 +31,7 @@
 
     <div
       v-if="itemCount > 0"
-      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4"
-      style="top: 23%; left: 21%; width: 72%; height: 64%"
+      class="folder-card__sheet folder-card__sheet--front absolute z-10 rotate-2 rounded-lg border border-neutral-200 dark:border-neutral-200 bg-gray-50 p-4 top-[23%] left-[21%] w-[72%] h-[64%]"
     >
       <div class="mb-3 h-2 w-12 rounded-full bg-blue-400/30"></div>
       <div class="mb-2 h-1 w-full rounded-full bg-gray-200"></div>
@@ -55,8 +40,7 @@
     </div>
 
     <div
-      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col rounded-xl px-3 pb-2.5 pt-3 text-neutral-800"
-      style="height: 65%"
+      class="folder-card__body absolute bottom-0 left-0 z-20 flex w-full flex-col rounded-xl px-3 pb-2.5 pt-3 text-neutral-800 h-[65%]"
       :style="{
         background: `linear-gradient(to bottom, ${
           folder.color || lightenHex(DEFAULT_FOLDER_COLOR, 0.18)
@@ -70,7 +54,7 @@
           <ui-popover placement="bottom" @click.stop>
             <template #trigger>
               <button
-                class="flex items-center justify-center text-white transition-transform hover:scale-110 active:scale-95"
+                class="flex items-center justify-center text-white transition-transform folder-emoji active:scale-95"
               >
                 <span
                   v-if="folder.icon"
@@ -95,7 +79,7 @@
                 :key="color"
                 class="p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                 :class="{
-                  'ring-2 ring-primary ring-inset bg-neutral-100 dark:bg-neutral-800':
+                  'ring-2 ring-primary ring-inset bg-neutral-100 dark:bg-neutral-900':
                     folder.color === color ||
                     (!folder.color && color === '#6366f1'),
                 }"
@@ -132,7 +116,7 @@
                   :key="category.name"
                   :class="{
                     'bg-primary text-white': selectedCategory === category.name,
-                    'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
+                    'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                       selectedCategory !== category.name,
                   }"
                   class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-all duration-200"
@@ -157,8 +141,9 @@
                       folder.icon === emoji.char,
                   }"
                   style="
-                    font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                      'Noto Color Emoji', 'Twemoji', sans-serif;
+                    font-family:
+                      'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                      'Twemoji', sans-serif;
                   "
                   :title="emoji.name"
                   @click="selectEmoji(emoji.char)"
@@ -180,7 +165,8 @@
                         folder.icon === variant.char,
                     }"
                     style="
-                      font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
+                      font-family:
+                        'Apple Color Emoji', 'Segoe UI Emoji',
                         'Noto Color Emoji', 'Twemoji', sans-serif;
                     "
                     :title="variant.name"
@@ -334,7 +320,7 @@
         <input
           ref="mobileRenameInput"
           v-model="newName"
-          class="w-full bg-neutral-100 dark:bg-neutral-800 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-neutral-400"
+          class="w-full bg-neutral-100 dark:bg-neutral-900 rounded-lg px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-neutral-400"
           :placeholder="translations.card.untitledFolder"
           @keydown.enter.prevent="showCustomizeModal = false"
         />
@@ -390,7 +376,7 @@
             :key="category.name"
             :class="{
               'bg-primary text-white': selectedCategory === category.name,
-              'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
+              'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                 selectedCategory !== category.name,
             }"
             class="flex items-center gap-2 p-2.5 rounded-full text-xs font-medium transition-all duration-200"
@@ -412,8 +398,9 @@
               'bg-primary/15 ring-1 ring-primary': folder.icon === emoji.char,
             }"
             style="
-              font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                'Noto Color Emoji', 'Twemoji', sans-serif;
+              font-family:
+                'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                'Twemoji', sans-serif;
             "
             :title="emoji.name"
             @click="selectEmoji(emoji.char)"
@@ -434,8 +421,9 @@
                   folder.icon === variant.char,
               }"
               style="
-                font-family: 'Apple Color Emoji', 'Segoe UI Emoji',
-                  'Noto Color Emoji', 'Twemoji', sans-serif;
+                font-family:
+                  'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji',
+                  'Twemoji', sans-serif;
               "
               :title="variant.name"
               @click="selectSkinToneVariant(variant.char)"
@@ -617,7 +605,7 @@ function lightenHex(hex, amount = 0.18) {
 }
 
 const folderBaseColor = computed(
-  () => props.folder.color || DEFAULT_FOLDER_COLOR
+  () => props.folder.color || DEFAULT_FOLDER_COLOR,
 );
 
 const itemCount = computed(() => {
@@ -631,11 +619,11 @@ const filteredEmojis = computed(() => {
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter((emoji) =>
-      emoji.name.toLowerCase().includes(query)
+      emoji.name.toLowerCase().includes(query),
     );
   } else if (selectedCategory.value) {
     const category = emojiCategories.find(
-      (cat) => cat.name === selectedCategory.value
+      (cat) => cat.name === selectedCategory.value,
     );
     if (category) {
       filtered = filtered.filter((emoji) => {
@@ -747,24 +735,26 @@ const { translations } = useTranslations();
 
 <style scoped>
 .folder-card {
-  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.25s var(--ease-spring);
 }
-.folder-card:hover {
-  transform: translateY(-1px);
+@media (hover: hover) and (pointer: fine) {
+  .folder-card:hover {
+    transform: translateY(-1px);
+  }
 }
 .folder-card:active {
   transform: translateY(0) scale(0.99);
 }
 
 .folder-card .folder-card__body {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.35s var(--ease-spring);
 }
 
 .folder-card .folder-card__sheet--front {
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.35s var(--ease-spring) 30ms;
 }
 .folder-card .folder-card__sheet--rear {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s var(--ease-spring) 60ms;
 }
 
 .folder-card.is-drag-over .folder-card__body {
@@ -775,5 +765,10 @@ const { translations } = useTranslations();
 }
 .folder-card.is-drag-over .folder-card__sheet--rear {
   transform: translateY(-8px) !important;
+}
+@media (hover: hover) and (pointer: fine) {
+  .folder-emoji:hover {
+    transform: scale(1.1);
+  }
 }
 </style>

@@ -12,11 +12,11 @@ pub(crate) async fn dialog_open(
     app: AppHandle,
     state: State<'_, AppState>,
     props: OpenDialogOptions,
-) -> Result<DialogResult, String> {
+) -> Result<DialogResult, AppError> {
     let app_clone = app.clone();
     let window = app.get_webview_window(MAIN_WINDOW_LABEL);
     let props_clone = props.clone();
-    let result = tokio::task::spawn_blocking(move || -> Result<Vec<FilePath>, String> {
+    let result = tokio::task::spawn_blocking(move || -> Result<Vec<FilePath>, AppError> {
         let builder =
             configure_file_dialog(app_clone.dialog().file(), &props_clone, window.as_ref());
         let properties = props_clone.properties.unwrap_or_default();
@@ -52,7 +52,9 @@ pub(crate) async fn dialog_open(
         #[cfg(not(desktop))]
         {
             if wants_directory {
-                return Err("Native directory picking is unavailable on mobile".into());
+                return Err(AppError::Other(
+                    "Native directory picking is unavailable on mobile".into(),
+                ));
             }
 
             let result = if multiple {
@@ -81,7 +83,7 @@ pub(crate) async fn dialog_open(
 pub(crate) async fn dialog_message(
     app: AppHandle,
     props: MessageDialogOptions,
-) -> Result<(), String> {
+) -> Result<(), AppError> {
     tokio::task::spawn_blocking(move || {
         let kind = match props.kind.as_deref() {
             Some("warning") => MessageDialogKind::Warning,
@@ -112,7 +114,7 @@ pub(crate) async fn dialog_save(
     app: AppHandle,
     state: State<'_, AppState>,
     props: SaveDialogOptions,
-) -> Result<SaveDialogResult, String> {
+) -> Result<SaveDialogResult, AppError> {
     let app_clone = app.clone();
     let window = app.get_webview_window(MAIN_WINDOW_LABEL);
     let props_clone = props.clone();
@@ -170,7 +172,7 @@ pub(crate) async fn dialog_save(
 }
 
 #[tauri::command]
-pub(crate) fn get_system_fonts() -> Result<Vec<String>, String> {
+pub(crate) fn get_system_fonts() -> Result<Vec<String>, AppError> {
     #[cfg(target_os = "android")]
     {
         return Ok(Vec::new());

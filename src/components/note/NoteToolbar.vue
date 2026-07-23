@@ -1,22 +1,19 @@
 <template>
   <teleport to="body">
     <div
-      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-4 transition-opacity duration-300 pointer-events-none mobile:flex"
+      class="fixed inset-x-0 z-20 print:hidden hidden justify-center px-2 transition-opacity duration-300 pointer-events-none mobile:flex"
       :class="
         store.inReaderMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'
       "
       :style="{ bottom: 'var(--app-keyboard-inset-bottom)' }"
     >
       <div
-        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm dark:border-white/10 dark:bg-neutral-800 dark:shadow-2xl"
+        class="pointer-events-auto relative h-14 max-w-full overflow-hidden rounded-2xl border bg-white shadow-sm dark:bg-neutral-900 dark:shadow-2xl"
       >
         <div
           ref="container"
-          class="relative h-full overflow-x-auto overflow-y-hidden scrollbar-hide scroll-smooth"
-          style="
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior-x: contain;
-          "
+          class="relative h-full overflow-x-auto overflow-y-hidden scrollbar-hide scroll-smooth overscroll-x-contain"
+          style="-webkit-overflow-scrolling: touch"
           @wheel.passive="changeWheelDirection"
         >
           <!-- All panels live inside the scroll track so the pill width
@@ -30,7 +27,10 @@
             ]"
           >
             <button
-              v-tooltip.group="'Insert block'"
+              v-tooltip.group="
+                translations.toolbar?.insertBlock || 'Insert block'
+              "
+              :aria-label="translations.toolbar?.insertBlock || 'Insert block'"
               :class="tbBtn()"
               @click="showMobileBlockPicker = true"
             >
@@ -39,110 +39,54 @@
 
             <span class="tb-divider" />
 
-            <button
-              v-if="isItemVisible('paragraph')"
-              v-tooltip.group="translations.menu.paragraph"
-              :class="tbBtn(editor.isActive('paragraph'))"
-              @click="openSub('paragraph')"
-            >
-              <v-remixicon name="riParagraph" />
-            </button>
-
-            <button
-              v-if="isItemVisible('headings')"
-              v-tooltip.group="translations.menu.headings"
-              :class="tbBtn(editor.isActive('heading'))"
-              @click="openSub('headings')"
-            >
-              <v-remixicon name="riHeading" />
-            </button>
-
-            <button
-              v-if="isItemVisible('fontSize')"
-              v-tooltip.group="translations.menu.fontSize"
-              :class="tbBtn()"
-              @click="openSub('fontSize')"
-            >
-              <span
-                class="pointer-events-none text-xs font-semibold leading-none"
-                >{{ fontSize || 'Aa' }}</span
-              >
-            </button>
+            <toolbar-overflow
+              section="text"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+              :font-size="fontSize"
+            />
 
             <span
               v-if="hasTextControls && hasFormattingControls"
               class="tb-divider"
             />
 
-            <button
-              v-for="item in visibleInlineFormatItems"
-              :key="item.id"
-              v-tooltip.group="fmtMap[item.fmt]?.title"
-              :class="tbBtn(editor.isActive(fmtMap[item.fmt]?.state))"
-              @click="fmtMap[item.fmt]?.run()"
-            >
-              <v-remixicon :name="fmtMap[item.fmt]?.icon" />
-            </button>
-
-            <button
-              v-if="isItemVisible('color')"
-              v-tooltip.group="translations.menu.highlight"
-              :class="
-                tbBtn(
-                  editor.isActive('textStyle') || editor.isActive('highlight')
-                )
-              "
-              @click="openSub('color')"
-            >
-              <v-remixicon
-                name="riFontColor"
-                :style="{ color: currentTextColor }"
-              />
-            </button>
+            <toolbar-formatting
+              :editor="editor"
+              :translations="translations"
+              :fmt-map="fmtMap"
+              :visible-inline-format-items="visibleInlineFormatItems"
+              :is-item-visible="isItemVisible"
+              :current-text-color="currentTextColor"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+            />
 
             <span
               v-if="hasFormattingControls && hasBlockControls"
               class="tb-divider"
             />
 
-            <button
-              v-if="!isTableActive && isItemVisible('lists')"
-              v-tooltip.group="translations.menu.lists"
-              :class="
-                tbBtn(
-                  editor.isActive('orderedList') ||
-                    editor.isActive('bulletList') ||
-                    editor.isActive('taskList')
-                )
-              "
-              @click="openSub('lists')"
-            >
-              <v-remixicon name="riListOrdered" />
-            </button>
-
-            <button
-              v-if="!isTableActive && isItemVisible('blockquote')"
-              v-tooltip.group="translations.menu.blockQuote"
-              :class="tbBtn(editor.isActive('blockquote'))"
-              @click="editor.chain().focus().toggleBlockquote().run()"
-            >
-              <v-remixicon name="riDoubleQuotesR" />
-            </button>
-
-            <button
-              v-if="!isTableActive && isItemVisible('codeBlock')"
-              v-tooltip.group="translations.menu.codeBlock"
-              :class="tbBtn(editor.isActive('codeBlock'))"
-              @click="editor.chain().focus().toggleCodeBlock().run()"
-            >
-              <v-remixicon name="riCodeBoxLine" />
-            </button>
+            <toolbar-overflow
+              section="block"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+            />
 
             <template v-if="isTableActive">
               <button
                 v-for="t in tableActions"
                 :key="t.name"
                 v-tooltip.group="t.label"
+                :aria-label="t.label"
                 :class="tbBtn()"
                 @click="t.run()"
               >
@@ -155,98 +99,37 @@
               class="tb-divider"
             />
 
-            <button
-              v-if="isItemVisible('link')"
-              v-tooltip.group="translations.menu.link"
-              :class="tbBtn(editor.isActive('link'))"
-              @click="editor.chain().focus().toggleLink({ href: '' }).run()"
-            >
-              <v-remixicon name="riLink" />
-            </button>
-            <button
-              v-if="isItemVisible('image')"
-              v-tooltip.group="translations.menu.image"
-              :class="tbBtn()"
-              @click="isMobile ? triggerImageInput() : openSub('image')"
-            >
-              <v-remixicon name="riImageLine" />
-            </button>
-            <button
-              v-if="isItemVisible('file')"
-              v-tooltip.group="translations.menu.file"
-              :class="tbBtn()"
-              @click="isMobile ? triggerFileInput() : openSub('file')"
-            >
-              <v-remixicon name="riFile2Line" />
-            </button>
-            <button
-              v-if="isItemVisible('video')"
-              v-tooltip.group="translations.menu.video"
-              :class="tbBtn()"
-              @click="isMobile ? triggerVideoInput() : openSub('video')"
-            >
-              <v-remixicon name="riMovieLine" />
-            </button>
-            <button
-              v-if="isItemVisible('table')"
-              v-tooltip.group="translations.menu.table"
-              :class="tbBtn()"
-              @click="
-                editor
-                  .chain()
-                  .focus()
-                  .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
-                  .run()
-              "
-            >
-              <v-remixicon name="riTableLine" />
-            </button>
-            <button
-              v-if="isItemVisible('draw')"
-              v-tooltip.group="translations.menu.draw"
-              :class="tbBtn(drawActions.some((action) => action.isActive))"
-              @click="openSub('draw')"
-            >
-              <v-remixicon name="riBrushLine" />
-            </button>
-
-            <span
-              v-if="hasMediaControls && isItemVisible('audio')"
-              class="tb-divider"
+            <toolbar-insert
+              ref="toolbarInsertRef"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :table-actions="tableActions"
+              :draw-actions="drawActions"
+              :is-recording="isRecording"
+              :formatted-time="formattedTime"
+              :is-paused="isPaused"
+              :toggle-recording="toggleRecording"
+              :pause-resume="pauseResume"
+              :is-mobile="isMobile"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+              :link-input-value="linkInputValue"
+              :selected-link-index="selectedLinkIndex"
+              :link-suggestions="linkSuggestions"
+              :link-popover-open="linkPopoverOpen"
+              :on-link-popover-show="onLinkPopoverShow"
+              :on-link-input-keydown="onLinkInputKeydown"
+              :close-link-input="closeLinkInput"
+              :save-link-input="saveLinkInput"
+              :select-link-note="selectLinkNote"
+              :trigger-image-input="triggerImageInput"
+              :trigger-file-input="triggerFileInput"
+              :trigger-video-input="triggerVideoInput"
+              @update:link-input-value="linkInputValue = $event"
+              @update:link-popover-open="linkPopoverOpen = $event"
             />
-
-            <!-- Audio -->
-            <div class="flex items-center gap-0.5">
-              <template v-if="isRecording">
-                <button
-                  :class="tbBtn()"
-                  class="!text-red-500"
-                  @click="toggleRecording"
-                >
-                  <v-remixicon name="riStopCircleLine" />
-                </button>
-                <span
-                  class="min-w-10 px-1 text-xs font-semibold tabular-nums text-red-500"
-                  >{{ formattedTime }}</span
-                >
-                <button :class="tbBtn()" @click="pauseResume">
-                  <v-remixicon
-                    :name="isPaused ? 'riPlayFill' : 'riPauseFill'"
-                  />
-                </button>
-              </template>
-              <template v-else>
-                <button
-                  v-if="isItemVisible('audio')"
-                  v-tooltip.group="translations.menu.record"
-                  :class="tbBtn()"
-                  @click="openSub('audio')"
-                >
-                  <v-remixicon name="riMicLine" />
-                </button>
-              </template>
-            </div>
-
             <span
               v-if="
                 (hasMediaControls || isItemVisible('audio')) &&
@@ -255,35 +138,25 @@
               class="tb-divider"
             />
 
-            <button
-              v-if="isItemVisible('delete')"
-              v-tooltip.group="translations.menu.delete"
-              :class="[tbBtn(), 'hover:!text-red-500 hover:!bg-red-500/10']"
-              @click="deleteNode"
-            >
-              <v-remixicon name="riDeleteBin6Line" />
-            </button>
+            <toolbar-overflow
+              section="actions"
+              :editor="editor"
+              :translations="translations"
+              :is-item-visible="isItemVisible"
+              :is-table-active="isTableActive"
+              :tb-btn="tbBtn"
+              :open-sub="openSub"
+              :font-size="fontSize"
+              :show-customizer="showCustomizer"
+              :delete-node="deleteNode"
+              :visible-items="visibleItems"
+              @update:show-customizer="showCustomizer = $event"
+            />
 
             <span
               v-if="isItemVisible('delete') || visibleItems.length"
               class="tb-divider"
             />
-
-            <button
-              v-tooltip.group="'Customize toolbar'"
-              :class="tbBtn(showCustomizer)"
-              @click="showCustomizer = true"
-            >
-              <v-remixicon name="riSettings3Line" />
-            </button>
-
-            <template v-for="item in visibleItems" :key="item.id">
-              <component
-                :is="item.meta.component"
-                v-if="item.meta?.component"
-                :editor="editor"
-              />
-            </template>
           </div>
 
           <!-- ── HEADINGS SUB-PANEL ── -->
@@ -293,13 +166,14 @@
               panelClass('headings'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.headings }}</span>
             <button
               :class="tbChip(editor.isActive('paragraph'))"
+              aria-label="Body"
               @click="
                 editor.chain().focus().setParagraph().run();
                 closeSub();
@@ -311,6 +185,7 @@
               v-for="h in [1, 2, 3, 4]"
               :key="h"
               :class="tbChip(editor.isActive('heading', { level: h }))"
+              :aria-label="'Heading ' + h"
               @click="
                 editor.chain().focus().toggleHeading({ level: h }).run();
                 closeSub();
@@ -327,7 +202,7 @@
               panelClass('fontSize'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -337,6 +212,7 @@
             >
               <button
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
+                aria-label="Decrease font size"
                 @click="
                   fontSize = Math.max(1, fontSize - 1);
                   updateFontSize();
@@ -353,6 +229,7 @@
               />
               <button
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
+                aria-label="Increase font size"
                 @click="
                   fontSize += 1;
                   updateFontSize();
@@ -366,6 +243,7 @@
               v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
               :key="size"
               :class="tbChip()"
+              :aria-label="'Font size ' + size + 'pt'"
               @click="
                 editor
                   .chain()
@@ -380,6 +258,7 @@
             </button>
             <button
               :class="[tbChip(), 'opacity-60 !text-xs']"
+              aria-label="Default font size"
               @click="
                 editor.chain().focus().unsetFontSize().run();
                 fontSize = null;
@@ -397,13 +276,14 @@
               panelClass('color'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.textColor }}</span>
             <button
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
+              aria-label="Remove text color"
               @click="
                 editor.chain().focus().unsetColor().run();
                 closeSub();
@@ -416,6 +296,7 @@
               :key="'tc-' + c"
               class="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
               :style="{ background: c + '33' }"
+              :aria-label="'Text color ' + c"
               @click="
                 setTextColor(c);
                 closeSub();
@@ -433,6 +314,7 @@
             }}</span>
             <button
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
+              aria-label="Remove highlight"
               @click="
                 editor.commands.unsetHighlight();
                 closeSub();
@@ -441,12 +323,13 @@
               ∅
             </button>
             <button
-              v-for="c in highlighterColors"
+              v-for="(c, i) in highlighterColors"
               :key="'hl-' + c"
               :class="[
                 'h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 active:scale-95 transition-transform',
                 c,
               ]"
+              :aria-label="'Highlight color ' + (i + 1)"
               @click="
                 setHighlightColor(c);
                 closeSub();
@@ -461,7 +344,7 @@
               panelClass('lists'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -486,31 +369,20 @@
               panelClass('image'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.image }}</span>
-            <input
-              v-model="imgUrl"
-              class="tb-input"
-              :placeholder="translations.menu.imgUrl || 'Image URL'"
-              @keyup.enter="
-                insertImage();
-                closeSub();
-              "
-            />
-            <button :class="tbBtn()" @click="triggerImageInput()">
-              <v-remixicon name="riFolderOpenLine" />
-            </button>
             <button
               :class="tbBtn()"
+              aria-label="Upload image"
               @click="
-                insertImage();
+                triggerImageInput();
                 closeSub();
               "
             >
-              <v-remixicon name="riSave3Line" />
+              <v-remixicon name="riFolderOpenLine" />
             </button>
           </div>
 
@@ -521,31 +393,20 @@
               panelClass('file'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.file }}</span>
-            <input
-              v-model="fileUrl"
-              class="tb-input"
-              :placeholder="translations.menu.fileUrl || 'File URL'"
-              @keyup.enter="
-                insertFile();
-                closeSub();
-              "
-            />
-            <button :class="tbBtn()" @click="triggerFileInput()">
-              <v-remixicon name="riFolderOpenLine" />
-            </button>
             <button
               :class="tbBtn()"
+              aria-label="Upload file"
               @click="
-                insertFile();
+                triggerFileInput();
                 closeSub();
               "
             >
-              <v-remixicon name="riSave3Line" />
+              <v-remixicon name="riFolderOpenLine" />
             </button>
           </div>
 
@@ -556,31 +417,20 @@
               panelClass('video'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
-            <input
-              v-model="videoUrl"
-              class="tb-input"
-              :placeholder="translations.menu.videoUrl || 'Video URL'"
-              @keyup.enter="
-                insertVideo();
-                closeSub();
-              "
-            />
-            <button :class="tbBtn()" @click="triggerVideoInput()">
-              <v-remixicon name="riFolderOpenLine" />
-            </button>
             <button
               :class="tbBtn()"
+              aria-label="Upload video"
               @click="
-                insertVideo();
+                triggerVideoInput();
                 closeSub();
               "
             >
-              <v-remixicon name="riSave3Line" />
+              <v-remixicon name="riFolderOpenLine" />
             </button>
           </div>
 
@@ -591,7 +441,7 @@
               panelClass('audio'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -620,56 +470,6 @@
             </button>
           </div>
 
-          <!-- ── DRAW SUB-PANEL ── -->
-          <div
-            :class="[
-              'tb-panel flex items-center gap-2 px-2 whitespace-nowrap h-full',
-              panelClass('draw'),
-            ]"
-          >
-            <button class="tb-back" @click="closeSub()">
-              <v-remixicon name="riArrowLeftLine" />
-            </button>
-            <span class="tb-divider" />
-            <span class="sub-label">{{ translations.menu.draw }}</span>
-
-            <button
-              v-for="action in drawActions"
-              :key="action.name"
-              class="flex min-w-[220px] shrink-0 items-start gap-3 rounded-2xl border border-black/10 bg-white px-3 py-3 text-left transition-colors hover:bg-black/5 dark:border-white/10 dark:bg-neutral-800 dark:hover:bg-white/10"
-              @click="
-                action.handler();
-                closeSub();
-              "
-            >
-              <span
-                class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl bg-neutral-100 text-neutral-700 dark:bg-neutral-700 dark:text-white"
-              >
-                <v-remixicon :name="action.icon" />
-              </span>
-              <span class="min-w-0">
-                <span class="flex items-center gap-2">
-                  <span
-                    class="text-sm font-medium text-neutral-900 dark:text-white"
-                  >
-                    {{ action.title }}
-                  </span>
-                  <span
-                    v-if="action.isActive"
-                    class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary dark:bg-secondary/10 dark:text-secondary"
-                  >
-                    {{ translations.menu.active || 'Active' }}
-                  </span>
-                </span>
-                <span
-                  class="mt-1 block text-xs leading-4 text-neutral-500 dark:text-neutral-400"
-                >
-                  {{ action.description }}
-                </span>
-              </span>
-            </button>
-          </div>
-
           <!-- ── PARAGRAPH / ALIGN SUB-PANEL ── -->
           <div
             :class="[
@@ -677,13 +477,14 @@
               panelClass('paragraph'),
             ]"
           >
-            <button class="tb-back" @click="closeSub()">
+            <button class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">Align</span>
             <button
               :class="tbBtn()"
+              aria-label="Align left"
               @click="
                 editor.chain().focus().setTextAlign('left').run();
                 closeSub();
@@ -693,6 +494,7 @@
             </button>
             <button
               :class="tbBtn()"
+              aria-label="Align center"
               @click="
                 editor.chain().focus().setTextAlign('center').run();
                 closeSub();
@@ -702,6 +504,7 @@
             </button>
             <button
               :class="tbBtn()"
+              aria-label="Align right"
               @click="
                 editor.chain().focus().setTextAlign('right').run();
                 closeSub();
@@ -711,6 +514,7 @@
             </button>
             <button
               :class="tbBtn()"
+              aria-label="Align justify"
               @click="
                 editor.chain().focus().setTextAlign('justify').run();
                 closeSub();
@@ -749,18 +553,22 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
+import ToolbarFormatting from './toolbar/ToolbarFormatting.vue';
+import ToolbarInsert from './toolbar/ToolbarInsert.vue';
+import ToolbarOverflow from './toolbar/ToolbarOverflow.vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import { useRoute } from 'vue-router';
+import { useNoteStore } from '@/store/note';
 import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
 export default {
-  components: { ToolbarCustomizer, MobileBlockPicker },
+  components: { ToolbarCustomizer, MobileBlockPicker, ToolbarFormatting, ToolbarInsert, ToolbarOverflow },
   props: {
     editor: { type: Object, default: () => ({}) },
     id: { type: String, default: '' },
@@ -776,60 +584,198 @@ export default {
     const showMobileBlockPicker = ref(false);
     const isMobile = backend.isMobileRuntime();
 
+    const toolbarInsertRef = ref(null);
+
+    // ── Link input state ────────────────────────────────────────────
+    const linkInputValue = ref('');
+    const selectedLinkIndex = ref(0);
+    const linkPopoverOpen = ref(false);
+    const noteStore = useNoteStore();
+
+    const linkSuggestions = computed(() => {
+      if (!linkInputValue.value.startsWith('@')) return [];
+      const query = linkInputValue.value.substring(1).toLowerCase();
+      if (!query) return [];
+      const candidates = noteStore.notes.length > 200
+        ? noteStore.notes.slice(0, 200)
+        : noteStore.notes;
+      return candidates
+        .filter(
+          (n) =>
+            n.id !== route.params.id &&
+            (n.title.toLowerCase().includes(query) ||
+              n.id.toLowerCase().includes(query))
+        )
+        .slice(0, 6);
+    });
+
+    function resolveNoteFromQuery(value) {
+      const query = value.substring(1).trim();
+      if (!query) return null;
+      return (
+        noteStore.notes.find(
+          (n) => n.title.toLowerCase() === query.toLowerCase()
+        ) || noteStore.notes.find((n) => n.id === query)
+      );
+    }
+
+    function saveLinkInput() {
+      const value = linkInputValue.value.trim();
+      if (!value || !props.editor) return;
+
+      const chain = props.editor.chain().focus();
+
+      if (value.startsWith('@')) {
+        const note = resolveNoteFromQuery(value);
+        if (note) {
+          chain.insertLinkNote(note.id).run();
+        }
+      } else {
+        chain.setLink({ href: value }).run();
+      }
+
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function closeLinkInput() {
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+      props.editor?.commands?.focus();
+    }
+
+    function selectLinkNote(id) {
+      if (!props.editor) return;
+      props.editor.chain().focus().insertLinkNote(id).run();
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function onLinkPopoverShow() {
+      // Reset input state when popover opens
+      linkInputValue.value = '';
+      selectedLinkIndex.value = 0;
+      nextTick(() => toolbarInsertRef.value?.linkInputRef?.focus());
+    }
+
+    function onLinkInputKeydown(event) {
+      if (
+        !linkInputValue.value.startsWith('@') ||
+        linkSuggestions.value.length === 0
+      )
+        return;
+
+      const len = linkSuggestions.value.length;
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + len - 1) % len;
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + 1) % len;
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const note = linkSuggestions.value[selectedLinkIndex.value];
+        if (note) selectLinkNote(note.id);
+      }
+    }
+
+    watch(linkInputValue, (val) => {
+      if (val.startsWith('@')) selectedLinkIndex.value = 0;
+    });
+
+    function getCursorPos() {
+      return props.editor?.state?.selection?.from ?? 0;
+    }
+
+    function insertAtPos(pos, nodeType, attrs) {
+      props.editor.commands.setTextSelection(pos);
+      props.editor.commands.focus();
+      const node = props.editor.state.schema.nodes[nodeType]?.create(attrs);
+      if (!node) return;
+      const tr = props.editor.state.tr.replaceSelectionWith(node);
+      if (tr) props.editor.view.dispatch(tr);
+    }
+
     async function triggerFileInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile', 'multiSelections'],
-      });
-      if (canceled || filePaths.length === 0) return;
-      for (const filePath of filePaths) {
-        const { fileName, relativePath } = await saveFile(filePath, props.id);
-        props.editor.commands.setFileEmbed(`${relativePath}`, fileName);
+      try {
+        const pos = getCursorPos();
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+        });
+        if (canceled || filePaths.length === 0) return;
+        for (const filePath of filePaths) {
+          const { fileName, relativePath } = await saveFile(filePath, props.id);
+          insertAtPos(pos, 'fileEmbed', { src: `${relativePath}`, fileName });
+        }
+      } catch (error) {
+        console.error('triggerFileInput failed:', error);
       }
     }
 
     async function triggerAudioInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile', 'multiSelections'],
-        filters: [
-          {
-            name: 'Audio',
-            extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
-          },
-        ],
-      });
-      if (canceled || filePaths.length === 0) return;
-      for (const filePath of filePaths) {
-        const { fileName, relativePath } = await saveFile(filePath, props.id);
-        props.editor.commands.setAudio(`${relativePath}`, fileName);
+      try {
+        const pos = getCursorPos();
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+          filters: isMobile
+            ? [{ name: 'Audio', extensions: ['audio/*'] }]
+            : [
+                {
+                  name: 'Audio',
+                  extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
+                },
+              ],
+        });
+        if (canceled || filePaths.length === 0) return;
+        for (const filePath of filePaths) {
+          const { fileName, relativePath } = await saveFile(filePath, props.id);
+          insertAtPos(pos, 'Audio', { src: `${relativePath}`, fileName });
+        }
+      } catch (error) {
+        console.error('triggerAudioInput failed:', error);
       }
     }
 
     async function triggerVideoInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile', 'multiSelections'],
-        filters: [
-          {
-            name: 'Video',
-            extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'],
-          },
-        ],
-      });
-      if (canceled || filePaths.length === 0) return;
-      for (const filePath of filePaths) {
-        const { relativePath } = await saveFile(filePath, props.id);
-        props.editor.commands.setVideo(`${relativePath}`);
+      try {
+        const pos = getCursorPos();
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile', 'multiSelections'],
+          filters: isMobile
+            ? [{ name: 'Video', extensions: ['video/*'] }]
+            : [
+                {
+                  name: 'Video',
+                  extensions: ['mp4', 'webm', 'avi', 'mov', 'mkv', 'flv'],
+                },
+              ],
+        });
+        if (canceled || filePaths.length === 0) return;
+        for (const filePath of filePaths) {
+          const { relativePath } = await saveFile(filePath, props.id);
+          insertAtPos(pos, 'Video', { src: `${relativePath}` });
+        }
+      } catch (error) {
+        console.error('triggerVideoInput failed:', error);
       }
     }
 
     async function triggerImageInput() {
-      const { canceled, filePaths } = await openDialog({
-        properties: ['openFile'],
-        filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
-      });
-      if (canceled || filePaths.length === 0) return;
-      const { fileName } = await copyImage(filePaths[0], route.params.id);
-      const imgPath = `assets://${route.params.id}/${fileName}`;
-      props.editor.chain().focus().setImage({ src: imgPath }).run();
+      try {
+        const { canceled, filePaths } = await openDialog({
+          properties: ['openFile'],
+          filters: isMobile
+            ? [{ name: 'Images', extensions: ['image/*'] }]
+            : [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg'] }],
+        });
+        if (canceled || filePaths.length === 0) return;
+        const { fileName } = await copyImage(filePaths[0], route.params.id);
+        const imgPath = `assets://${route.params.id}/${fileName}`;
+        props.editor.chain().focus().setImage({ src: imgPath }).run();
+      } catch (error) {
+        console.error('triggerImageInput failed:', error);
+      }
     }
 
     // ── Sub-panel morph ───────────────────────────────────────────
@@ -898,7 +844,7 @@ export default {
         'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
         'hover:text-neutral-800 dark:hover:text-white',
         'active:scale-[0.88] active:bg-black/[0.08] dark:active:bg-white/[0.10]',
-        'transition-all duration-150 select-none touch-manipulation',
+        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
         active ? 'is-active' : '',
       ];
     }
@@ -911,7 +857,7 @@ export default {
         'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
         'hover:text-neutral-800 dark:hover:text-white',
         'active:scale-[0.93] active:bg-black/[0.08]',
-        'transition-all duration-150 select-none touch-manipulation',
+        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
         active ? 'is-active' : '',
       ];
     }
@@ -932,6 +878,17 @@ export default {
       triggerImageInput,
       showMobileBlockPicker,
       isMobile,
+      // Link input
+      linkInputValue,
+      toolbarInsertRef,
+      selectedLinkIndex,
+      linkSuggestions,
+      linkPopoverOpen,
+      onLinkPopoverShow,
+      onLinkInputKeydown,
+      closeLinkInput,
+      saveLinkInput,
+      selectLinkNote,
     };
   },
 };
@@ -953,8 +910,8 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  transition: opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 200ms var(--ease-standard),
+    transform 200ms var(--ease-standard);
   will-change: opacity, transform;
   -webkit-overflow-scrolling: touch;
 }
@@ -973,8 +930,8 @@ export default {
 .panel-exit {
   @apply absolute inset-0 opacity-0 pointer-events-none;
   transform: translateX(-16px);
-  transition: opacity 160ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: opacity 160ms var(--ease-standard),
+    transform 160ms var(--ease-standard);
 }
 
 /* Active: in normal flow so its width drives the pill size */
@@ -996,7 +953,7 @@ export default {
          hover:bg-black/5 dark:hover:bg-white/10
          hover:text-neutral-800 dark:hover:text-white
          active:scale-90
-         transition-all duration-150 select-none touch-manipulation;
+         transition-[transform,background-color] duration-150 select-none touch-manipulation;
 }
 
 /* ── Divider ────────────────────────────────────────────────────────────── */

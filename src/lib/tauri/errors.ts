@@ -1,0 +1,36 @@
+/**
+ * Helpers for working with structured `AppError` values returned over IPC.
+ *
+ * Rust now serializes `AppError` as `{ "kind": "<Variant>", "message": "..." }`.
+ * During the transition some commands may still reject with a plain string; this
+ * helper tolerates that and simply returns `false` rather than throwing.
+ */
+
+interface AppError {
+  kind: string;
+  message?: string;
+}
+
+export function isError(err: unknown, kind: string): boolean {
+  if (err == null || typeof err !== 'object') return false;
+  const candidate = err as AppError;
+  if (typeof candidate.kind !== 'string') return false;
+  return candidate.kind === kind;
+}
+
+/**
+ * Extract a displayable message from an error value, regardless of whether it
+ * is a structured `AppError` (`{ kind, message }`), a plain string, or a
+ * non-object value. Intended for user-facing surfaces (toasts, alerts) so they
+ * keep working while command rejections transition from strings to structured
+ * errors.
+ */
+export function errorMessage(err: unknown): string {
+  if (err != null && typeof err === 'object') {
+    const candidate = err as AppError;
+    if (typeof candidate.message === 'string') {
+      return candidate.message;
+    }
+  }
+  return String(err);
+}

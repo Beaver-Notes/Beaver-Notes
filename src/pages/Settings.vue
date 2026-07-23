@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <div
     class="container py-6 mobile:px-4 mobile:pb-[calc(var(--app-mobile-content-offset)+1.5rem)]"
@@ -58,7 +57,7 @@
               :class="
                 isExactActive
                   ? 'border-primary bg-primary text-white'
-                  : 'border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-800 dark:text-neutral-300'
+                  : 'border-neutral-200 bg-white text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300'
               "
             >
               <v-remixicon :name="item.icon" />
@@ -156,8 +155,7 @@ onUnmounted(() => {
 
 <style scoped>
 .settings-mobile-header {
-  transition: padding-top 180ms ease, box-shadow 180ms ease,
-    background-color 180ms ease;
+  transition: box-shadow 180ms ease, background-color 180ms ease;
   @apply border-y border-neutral-200 shadow-sm dark:border-neutral-800 dark:bg-neutral-900;
 }
 </style>

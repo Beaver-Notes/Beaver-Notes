@@ -1,8 +1,7 @@
 <template>
   <ui-card
-    class="border max-w-xs"
+    class="border max-w-[16rem] min-w-[6rem]"
     padding="p-1.5"
-    style="max-width: 16rem; min-width: 6rem"
   >
     <ui-list class="space-y-1">
       <p v-if="items.length === 0 && query.length === 0" class="text-center">

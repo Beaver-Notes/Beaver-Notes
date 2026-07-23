@@ -37,6 +37,13 @@ import {
   isKeyLoaded,
 } from '@/utils/crypto/encryption.js';
 import { useSoundActions } from './useSoundActions';
+import {
+  loadWorkspaceDoc,
+  observeWorkspace,
+  writeStoresFromWorkspace,
+  backfillNotePreviews,
+} from './useWorkspaceYjs';
+import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -85,7 +92,7 @@ export function useAppShell() {
   const isMobileRuntime = computed(() => backend.isMobileRuntime());
   const isPhoneRuntime = computed(() => backend.isPhoneRuntime());
   const showSidebar = computed(
-    () => !uiState.inReaderMode.value && route.name !== ONBOARDING_ROUTE_NAME
+    () => !uiState.inReaderMode && route.name !== ONBOARDING_ROUTE_NAME
   );
   const showMobileNavbar = computed(
     () =>
@@ -123,7 +130,7 @@ export function useAppShell() {
   const showSafeAreaOverlay = computed(() => {
     if (!isMobileRuntime.value) return false;
     if (route.name === ONBOARDING_ROUTE_NAME) return false;
-    if (uiState.overlayCount.value > 0) return false;
+    if (uiState.overlayCount > 0) return false;
     return true;
   });
 
@@ -177,7 +184,7 @@ export function useAppShell() {
       if (typeof document === 'undefined' || !isMobileRuntime.value) return;
       document.documentElement.style.setProperty(
         '--app-keyboard-inset-bottom',
-        visible ? '0px' : 'var(--app-safe-area-bottom)'
+        visible ? '8px' : 'var(--app-safe-area-bottom)'
       );
     },
     { immediate: true }
@@ -284,11 +291,27 @@ export function useAppShell() {
     status: null,
     error: null,
   });
+  // Full-screen gate shown on launch when encryption is configured but the key
+  // is not loaded (and could not be auto-restored). Forces unlock before use.
+  const appEncryptionGate = reactive({
+    show: false,
+  });
 
   const syncLockBannerCopy = computed(() => ({
     content:
       translations.value.app?.syncLockContent ||
       'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.',
+    primaryText: translations.value.app?.openSettings || 'Open Settings',
+    secondaryText: translations.value.app?.dismiss || 'Dismiss',
+  }));
+
+  const appEncryptionMigrationBannerCopy = computed(() => ({
+    content:
+      appEncryptionMigrationBanner.status === 'in_progress'
+        ? translations.value.app?.encryptionMigrationInProgress ||
+          'App encryption migration is in progress. Please wait for it to complete.'
+        : translations.value.app?.encryptionMigrationFailed ||
+          'App encryption migration did not complete. Please re-enable app encryption from Settings.',
     primaryText: translations.value.app?.openSettings || 'Open Settings',
     secondaryText: translations.value.app?.dismiss || 'Dismiss',
   }));
@@ -326,6 +349,7 @@ export function useAppShell() {
     }
     const configured = await encryptionIsConfigured();
     syncLockBanner.show = configured && !isKeyLoaded();
+    await refreshEncryptionGate();
   };
 
   const dismissAppEncryptionMigrationBanner = () => {
@@ -374,6 +398,16 @@ export function useAppShell() {
   const restoreEncryptionKeys = async () => {
     await getSyncPath();
     await tryRestoreKeyFromSafeStorage();
+    await refreshEncryptionGate();
+  };
+
+  const refreshEncryptionGate = async () => {
+    if (route.name === ONBOARDING_ROUTE_NAME) {
+      appEncryptionGate.show = false;
+      return;
+    }
+    const configured = await encryptionIsConfigured();
+    appEncryptionGate.show = configured && !isKeyLoaded();
   };
 
   const hasExistingWorkspaceData = async () => {
@@ -415,15 +449,42 @@ export function useAppShell() {
       checkAppEncryptionMigration(migrationStatus);
     }
 
+    // Load the unified workspace Y.Doc first — it is the single source of
+    // truth for all note/folder/label metadata.  On first run after legacy
+    // migration the doc may still be empty, so seed it from the KV stores
+    // before wiring observers.
+    await loadWorkspaceDoc();
+    observeWorkspace(writeStoresFromWorkspace);
+    await writeStoresFromWorkspace();
+
+    // Post-process (FTS index, link index, lock migration, etc.) — the stores
+    // are now populated from Yjs, so retrieve() must NOT read from KV.
     await store.retrieve();
+
     retrieved.value = true;
     await refreshSyncLockBanner();
+
+    // One-time deferred backfill of card previews for notes that predate the
+    // persisted `cardPreview` (so their cards aren't blank on launch).
+    if (!(await settingsStorage.get('preview_backfill_done', false))) {
+      backfillNotePreviews()
+        .then(() => settingsStorage.set('preview_backfill_done', true))
+        .catch((err) => console.warn('[app] preview backfill failed:', err));
+    }
 
     if (appStore.setting.openLastEdited) {
       const lastNoteEdit = localStorage.getItem('lastNoteEdit');
       if (lastNoteEdit && route.name !== ONBOARDING_ROUTE_NAME) {
         router.push(`/note/${lastNoteEdit}`);
       }
+    }
+
+    // Trigger an initial sync so a new client pulling from an existing sync
+    // folder gets all remote data (workspace meta + note content + assets).
+    if (getSettingSync('autoSync')) {
+      forceSyncNow().catch((err) => console.warn('[sync] initial sync failed:', err));
+      setPeriodicSyncEnabled(true);
+      document.addEventListener('visibilitychange', handleVisibilityChange);
     }
   };
 
@@ -515,9 +576,19 @@ export function useAppShell() {
     });
   });
 
+  function handleVisibilityChange() {
+    // Pause the periodic pull while the app is backgrounded; resume when it
+    // returns to the foreground (only if autoSync is still enabled).
+    setPeriodicSyncEnabled(
+      !document.hidden && Boolean(getSettingSync('autoSync'))
+    );
+  }
+
   onUnmounted(() => {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    setPeriodicSyncEnabled(false);
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())
@@ -529,8 +600,20 @@ export function useAppShell() {
 
   onFileOpened(async (path) => {
     await router.isReady();
-    while (!retrieved.value)
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    if (!retrieved.value) {
+      await new Promise((resolve) => {
+        const unwatch = watch(
+          retrieved,
+          (val) => {
+            if (val) {
+              unwatch();
+              resolve();
+            }
+          },
+          { immediate: true }
+        );
+      });
+    }
 
     const ext = path.split('.').pop().toLowerCase();
 
@@ -629,8 +712,11 @@ export function useAppShell() {
     store,
     syncLockBanner,
     syncLockBannerCopy,
+    appEncryptionGate,
+    refreshEncryptionGate,
     updateBanner,
     appEncryptionMigrationBanner,
+    appEncryptionMigrationBannerCopy,
     dismissAppEncryptionMigrationBanner,
     openAppEncryptionMigrationSettings,
     showSafeAreaOverlay,

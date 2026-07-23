@@ -8,3 +8,5 @@ pub(crate) mod search;
 pub(crate) mod security;
 pub(crate) mod storage;
 pub(crate) mod updates;
+pub(crate) mod workspace;
+pub(crate) mod yjs;

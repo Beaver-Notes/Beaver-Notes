@@ -1,4 +1,3 @@
-<!-- eslint-disable vue/multi-word-component-names -->
 <template>
   <label class="checkbox-ui inline-flex items-center">
     <div
@@ -59,8 +58,9 @@ export default {
     align-items: center;
     justify-content: center;
     .remixicon-icon {
-      transform: scale(0) !important;
-      transition: transform 200ms ease;
+      transform: scale(0.95) !important;
+      opacity: 0;
+      transition: transform 200ms ease, opacity 200ms ease;
     }
   }
   &__input:checked ~ &__mark {
@@ -68,9 +68,11 @@ export default {
   }
   &__input:checked ~ &__mark .v-remixicon {
     transform: scale(1) !important;
+    opacity: 1;
   }
   .v-remixicon {
-    transform: scale(0);
+    transform: scale(0.95);
+    opacity: 0;
   }
 }
 </style>

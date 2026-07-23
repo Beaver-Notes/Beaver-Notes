@@ -1,6 +1,6 @@
 <template>
   <aside
-    class="flex flex-col h-full shrink-0 no-print transition-all duration-200 ease-in-out bg-white dark:bg-neutral-900 border-r border-neutral-200/40 dark:border-neutral-800/40 select-none"
+    class="flex flex-col h-full shrink-0 no-print transition-[width] duration-200 ease-[var(--ease-standard)] bg-white dark:bg-neutral-900 border-r border-neutral-200/40 dark:border-neutral-800/40 select-none"
     :class="expanded ? 'w-64' : 'w-16'"
     :style="{ paddingTop: titlebarInset }"
   >
@@ -31,14 +31,14 @@
         "
         :aria-label="translations.sidebar.addNotes"
         data-testid="add-note-button"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
         :class="expanded ? 'px-4 gap-2 h-10 w-full' : 'p-0 w-9 h-9'"
         @click="addNote"
       >
         <v-remixicon
           name="riAddFill"
           size="20"
-          class="transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] shrink-0"
+          class="transition-transform duration-200 ease-[var(--ease-snappy)] shrink-0"
         />
         <transition name="fade-fast">
           <span
@@ -61,7 +61,7 @@
             : undefined
         "
         :aria-label="translations.sidebar.newFolder || 'New Folder'"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
@@ -82,7 +82,7 @@
 
     <nav class="flex flex-col gap-1 px-3 shrink-0 relative">
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[var(--ease-snappy)]"
         :style="pillStyle"
       />
 
@@ -95,7 +95,7 @@
         "
         :aria-label="translations.sidebar.notes"
         data-testid="nav-notes-button"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isAllNotesActive
@@ -129,7 +129,7 @@
         "
         :aria-label="translations.sidebar.archive"
         data-testid="nav-archive-button"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isArchiveActive
@@ -155,7 +155,7 @@
       </button>
     </nav>
 
-    <transition name="fade-fast">
+    <ExpandTransition>
       <div
         v-show="expanded"
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
@@ -175,10 +175,21 @@
               item.type === 'folder' ? openFolder(item.id) : openNote(item.id)
             "
           >
+            <span
+              v-if="item.type === 'folder' && item.icon"
+              size="14"
+              class="select-none flex-shrink-0"
+            >
+              {{ item.icon }}
+            </span>
             <v-remixicon
+              v-if="!(item.type === 'folder' && item.icon)"
               :name="item.type === 'folder' ? 'riFolder5Fill' : 'riArticleLine'"
               size="14"
               class="text-neutral-400 shrink-0 transition-transform duration-200 group-hover:scale-105"
+              :style="{
+                color: item.type === 'folder' ? item.color : undefined,
+              }"
             />
             <span
               class="text-sm truncate flex-1 min-w-0 text-neutral-600 dark:text-neutral-400"
@@ -193,10 +204,12 @@
           </button>
         </div>
         <div v-else class="px-3 py-1.5">
-          <p class="text-xs text-neutral-400/80 italic">No recent items</p>
+          <p class="text-xs text-neutral-400/80 italic">
+            {{ translations.tray?.noRecentItems || 'No recent items' }}
+          </p>
         </div>
       </div>
-    </transition>
+    </ExpandTransition>
 
     <div v-if="!expanded" class="flex-grow" />
 
@@ -204,7 +217,7 @@
       class="flex flex-col items-center gap-1 px-3 pb-4 pt-3 border-t border-neutral-200/50 dark:border-neutral-800/50 shrink-0 relative"
     >
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[var(--ease-snappy)]"
         :style="footerPillStyle"
       />
 
@@ -215,7 +228,7 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleSync"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3' : 'justify-center w-9',
           { '!text-primary': spinning },
@@ -245,7 +258,7 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleDarkTheme"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
         :class="expanded ? 'w-full px-3' : 'justify-center w-9'"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
@@ -274,7 +287,7 @@
         "
         :aria-label="translations.settings.title"
         to="/settings"
-        class="transition-all duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
+        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
         active-class="text-primary bg-primary/10"
         :class="[
           !isSettingsActive
@@ -297,6 +310,8 @@
           </span>
         </transition>
       </router-link>
+
+      <WorkspaceSwitcher :expanded="expanded" />
     </div>
   </aside>
 </template>
@@ -312,8 +327,10 @@ import { forceSyncNow } from '@/utils/sync';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSounds } from '@/composable/useSounds';
+import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
 
 export default {
+  components: { WorkspaceSwitcher },
   setup() {
     const { play } = useSounds();
     const router = useRouter();
@@ -334,6 +351,7 @@ export default {
     const pillHeight = ref(0);
     const footerPillTop = ref(0);
     const footerPillHeight = ref(0);
+    const pillsReady = ref(false);
 
     const {
       translations,
@@ -390,13 +408,13 @@ export default {
     const pillStyle = computed(() => ({
       top: `${pillTop.value}px`,
       height: `${pillHeight.value}px`,
-      opacity: pillHeight.value > 0 ? 1 : 0,
+      opacity: pillsReady.value && pillHeight.value > 0 ? 1 : 0,
     }));
 
     const footerPillStyle = computed(() => ({
       top: `${footerPillTop.value}px`,
       height: `${footerPillHeight.value}px`,
-      opacity: footerPillHeight.value > 0 ? 1 : 0,
+      opacity: pillsReady.value && footerPillHeight.value > 0 ? 1 : 0,
     }));
 
     function calculatePillPositions() {
@@ -421,6 +439,8 @@ export default {
       } else {
         footerPillHeight.value = 0;
       }
+
+      pillsReady.value = true;
     }
 
     watch(
@@ -445,44 +465,42 @@ export default {
       router.push(`/folder/${folderId}`);
     }
 
-    // Optimized Reactive loop layer
-    const recentNotes = computed(() => {
-      return Object.values(noteStore.data)
-        .filter((note) => note.id && !note.isArchived)
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 5)
-        .map((note) => ({
-          id: note.id,
-          updatedAt: note.updatedAt,
-          title: note.title || 'Untitled',
-          type: 'note',
-        }));
-    });
-
-    const recentFolders = computed(() => {
-      return Object.values(folderStore.data)
-        .filter(
-          (folder) =>
-            folder.id &&
-            !folderStore.deletedIds[folder.id] &&
-            !folder.isArchived
-        )
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 5)
-        .map((folder) => ({
-          id: folder.id,
-          updatedAt: folder.updatedAt,
-          title: folder.name || 'Untitled',
-          type: 'folder',
-          icon: folder.icon || '',
-          color: folder.color || '',
-        }));
-    });
-
     const recentItems = computed(() => {
-      return [...recentNotes.value, ...recentFolders.value]
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 8);
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      const items = [];
+
+      for (const note of Object.values(noteStore.data)) {
+        if (note.id && !note.isArchived && note.updatedAt > cutoff) {
+          items.push({
+            id: note.id,
+            updatedAt: note.updatedAt,
+            title: note.title || 'Untitled',
+            type: 'note',
+          });
+        }
+      }
+
+      for (const folder of Object.values(folderStore.data)) {
+        if (
+          folder.id &&
+          !folderStore.deletedIds[folder.id] &&
+          !folder.isArchived &&
+          folder.updatedAt > cutoff
+        ) {
+          items.push({
+            id: folder.id,
+            updatedAt: folder.updatedAt,
+            title: folder.name || 'Untitled',
+            type: 'folder',
+            icon: folder.icon || '',
+            color: folder.color || '',
+          });
+        }
+      }
+
+      items.sort((a, b) => b.updatedAt - a.updatedAt);
+      if (items.length > 8) items.length = 8;
+      return items;
     });
 
     function formatRelativeTime(timestamp) {
@@ -512,7 +530,8 @@ export default {
     onMounted(() => {
       _unregSidebarShortcuts = bindGlobalShortcuts(
         createShortcutMap({
-          'mod+shift+l': () => theme.setTheme(theme.isDark() ? 'light' : 'dark'),
+          'mod+shift+l': () =>
+            theme.setTheme(theme.isDark() ? 'light' : 'dark'),
           'mod+shift+y': () => manualSync(),
         })
       );
@@ -586,7 +605,7 @@ export default {
 
 .fade-fast-enter-active,
 .fade-fast-leave-active {
-  transition: opacity 0.2s ease-in-out;
+  transition: opacity 0.2s var(--ease-standard);
 }
 .fade-fast-enter-from,
 .fade-fast-leave-to {

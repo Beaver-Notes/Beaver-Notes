@@ -7,7 +7,7 @@
       <ui-popover>
         <template #trigger>
           <button
-            v-tooltip.group="'Turn into'"
+            v-tooltip.group="translations.toolbar?.turnInto || 'Turn into'"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300"
           >
             {{ nodeName }}
@@ -20,8 +20,7 @@
 
         <div>
           <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[160px]"
-            style="max-height: 20rem"
+            class="overflow-y-auto no-scrollbar min-w-[160px] max-h-80"
           >
             <ui-list-item
               v-for="item in menuOptions"
@@ -46,7 +45,7 @@
       <ui-popover>
         <template #trigger>
           <div
-            class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 overflow-hidden flex-shrink-0"
+            class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 overflow-hidden flex-shrink-0"
           >
             <button
               type="button"
@@ -128,8 +127,7 @@
 
         <div>
           <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[140px]"
-            style="max-height: 20rem"
+            class="overflow-y-auto no-scrollbar min-w-[140px] max-h-80"
           >
             <ui-list-item
               v-for="item in alignmentOptions"
@@ -137,7 +135,7 @@
               small
               :class="
                 item.isActive
-                  ? 'bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white font-medium'
+                  ? 'bg-neutral-100 dark:bg-neutral-900 text-neutral-900 dark:text-white font-medium'
                   : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
               "
               class="flex items-center gap-2 cursor-pointer text-sm"
@@ -158,7 +156,7 @@
           v-tooltip.group="fmtMap[item.id].title"
           :class="
             editor.isActive(fmtMap[item.id].state)
-              ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white'
+              ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
               : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
           "
           class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
@@ -168,18 +166,92 @@
         </button>
       </template>
 
-      <button
-        v-tooltip.group="translations.menu.link"
-        :class="
-          editor.isActive('link')
-            ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-800 dark:text-white'
-            : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
-        "
-        class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
-        @click="editor.chain().focus().toggleLink({ href: '' }).run()"
+      <ui-popover
+        v-model:model-value="linkPopoverOpen"
+        @show="onLinkPopoverShow"
       >
-        <v-remixicon name="riLink" class="size-6" />
-      </button>
+        <template #trigger>
+          <button
+            v-tooltip.group="translations.menu.link"
+            :class="
+              editor.isActive('link')
+                ? 'bg-neutral-100 text-neutral-900 dark:bg-neutral-900 dark:text-white'
+                : 'hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400'
+            "
+            class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
+          >
+            <v-remixicon name="riLink" class="size-6" />
+          </button>
+        </template>
+
+        <div class="min-w-[260px]">
+          <div class="flex items-center gap-2">
+            <input
+              ref="linkInputRef"
+              v-model="linkInputValue"
+              type="text"
+              :placeholder="
+                translations.editor?.linkPlaceholder || 'Enter URL or @note'
+              "
+              class="flex-1 min-w-0 px-2 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 text-sm outline-none border border-transparent focus:border-primary transition-colors"
+              @keydown="onLinkInputKeydown"
+              @keydown.esc="closeLinkInput"
+              @keyup.enter="saveLinkInput"
+            />
+            <button
+              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
+              :title="translations.common?.cancel || 'Cancel'"
+              @click="closeLinkInput"
+            >
+              <v-remixicon name="riCloseLine" class="size-4" />
+            </button>
+            <button
+              class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
+              :title="translations.common?.save || 'Save'"
+              :disabled="!linkInputValue.trim()"
+              @click="saveLinkInput"
+            >
+              <v-remixicon name="riCheckLine" class="size-4" />
+            </button>
+          </div>
+
+          <expand-transition>
+            <div
+              v-if="
+                linkInputValue.startsWith('@') && linkSuggestions.length > 0
+              "
+              class="overflow-hidden mt-1"
+            >
+              <ui-list class="space-y-1 max-h-40 overflow-y-auto">
+                <ui-list-item
+                  v-for="(suggestion, index) in linkSuggestions"
+                  :key="suggestion.id"
+                  :active="index === selectedLinkIndex"
+                  class="label-item w-full truncate text-sm"
+                  @click="selectLinkNote(suggestion.id)"
+                >
+                  {{
+                    suggestion.title ||
+                    translations.editor?.untitledNote ||
+                    'Untitled Note'
+                  }}
+                </ui-list-item>
+              </ui-list>
+            </div>
+            <div
+              v-else-if="
+                linkInputValue.startsWith('@') && linkSuggestions.length === 0
+              "
+              class="mt-1 p-1.5 text-sm text-neutral-500 dark:text-neutral-400 italic"
+            >
+              {{
+                translations.editor?.noMatchingNotes ||
+                'No matching notes found'
+              }}
+            </div>
+          </expand-transition>
+        </div>
+      </ui-popover>
 
       <ui-popover>
         <template #trigger>
@@ -256,8 +328,11 @@
 </template>
 
 <script>
-import { computed } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
+import { useNoteStore } from '@/store/note';
+import { useRoute } from 'vue-router';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   props: {
@@ -267,47 +342,145 @@ export default {
   },
   setup(props) {
     const menu = useNoteMenu(props);
+    const route = useRoute();
+    const noteStore = useNoteStore();
+    const { translations } = useTranslations();
+
+    // ── Link input state ────────────────────────────────────────────
+    const linkInputValue = ref('');
+    const linkInputRef = ref(null);
+    const selectedLinkIndex = ref(0);
+    const linkPopoverOpen = ref(false);
+
+    function onLinkPopoverShow() {
+      linkInputValue.value = '';
+      selectedLinkIndex.value = 0;
+      nextTick(() => linkInputRef.value?.focus());
+    }
+
+    const linkSuggestions = computed(() => {
+      if (!linkInputValue.value.startsWith('@')) return [];
+      const query = linkInputValue.value.substring(1).toLowerCase();
+      if (!query) return [];
+      return noteStore.notes
+        .filter(
+          (n) =>
+            n.id !== route.params.id &&
+            (n.title.toLowerCase().includes(query) ||
+              n.id.toLowerCase().includes(query))
+        )
+        .slice(0, 6);
+    });
+
+    function resolveNoteFromQuery(value) {
+      const query = value.substring(1).trim();
+      if (!query) return null;
+      return (
+        noteStore.notes.find(
+          (n) => n.title.toLowerCase() === query.toLowerCase()
+        ) || noteStore.notes.find((n) => n.id === query)
+      );
+    }
+
+    function saveLinkInput() {
+      const value = linkInputValue.value.trim();
+      if (!value || !props.editor) return;
+
+      const chain = props.editor.chain().focus();
+
+      if (value.startsWith('@')) {
+        const note = resolveNoteFromQuery(value);
+        if (note) {
+          chain.insertLinkNote(note.id).run();
+        }
+      } else {
+        chain.setLink({ href: value }).run();
+      }
+
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function closeLinkInput() {
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+      props.editor?.commands?.focus();
+    }
+
+    function selectLinkNote(id) {
+      if (!props.editor) return;
+      props.editor.chain().focus().insertLinkNote(id).run();
+      linkInputValue.value = '';
+      linkPopoverOpen.value = false;
+    }
+
+    function onLinkInputKeydown(event) {
+      if (
+        !linkInputValue.value.startsWith('@') ||
+        linkSuggestions.value.length === 0
+      )
+        return;
+
+      const len = linkSuggestions.value.length;
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + len - 1) % len;
+      } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        selectedLinkIndex.value = (selectedLinkIndex.value + 1) % len;
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        const note = linkSuggestions.value[selectedLinkIndex.value];
+        if (note) selectLinkNote(note.id);
+      }
+    }
+
+    watch(linkInputValue, (val) => {
+      if (val.startsWith('@')) selectedLinkIndex.value = 0;
+    });
+    const t = (key) => translations.value.toolbar?.[key] || translations.value.menu?.[key];
     const blockTypes = [
       {
         id: 'paragraph',
         icon: 'riParagraph',
-        label: 'Text',
+        label: t('paragraph') || 'Text',
         cmd: (e) => e.chain().focus().setParagraph().run(),
       },
       ...[1, 2, 3, 4, 5, 6].map((level) => ({
         id: 'heading',
         level,
         icon: `riH${level}`,
-        label: `Heading ${level}`,
+        label: (t('heading') || `Heading`).replace('{level}', level),
         cmd: (e) => e.chain().focus().toggleHeading({ level }).run(),
       })),
       {
         id: 'bulletList',
         icon: 'riListUnordered',
-        label: 'Bullet List',
+        label: t('bulletList') || 'Bullet List',
         cmd: (e) => e.chain().focus().toggleBulletList().run(),
       },
       {
         id: 'orderedList',
-        label: 'Numbered List',
+        label: t('numberedList') || 'Numbered List',
         icon: 'riListOrdered',
         cmd: (e) => e.chain().focus().toggleOrderedList().run(),
       },
       {
         id: 'taskList',
-        label: 'Task List',
+        label: t('taskList') || 'Task List',
         icon: 'riListCheck2',
         cmd: (e) => e.chain().focus().toggleTaskList().run(),
       },
       {
         id: 'blockquote',
-        label: 'Quote',
+        label: t('quote') || 'Quote',
         icon: 'riDoubleQuotesR',
         cmd: (e) => e.chain().focus().toggleBlockquote().run(),
       },
       {
         id: 'codeBlock',
-        label: 'Code Block',
+        label: t('codeBlock') || 'Code Block',
         icon: 'riCodeBoxLine',
         cmd: (e) => e.chain().focus().toggleCodeBlock().run(),
       },
@@ -317,32 +490,32 @@ export default {
       {
         id: 'left',
         icon: 'riAlignLeft',
-        label: 'Left',
+        label: t('left') || 'Left',
         cmd: (e) => e.chain().focus().setTextAlign('left').run(),
       },
       {
         id: 'center',
         icon: 'riAlignCenter',
-        label: 'Center',
+        label: t('center') || 'Center',
         cmd: (e) => e.chain().focus().setTextAlign('center').run(),
       },
       {
         id: 'right',
         icon: 'riAlignRight',
-        label: 'Right',
+        label: t('right') || 'Right',
         cmd: (e) => e.chain().focus().setTextAlign('right').run(),
       },
       {
         id: 'justify',
         icon: 'riAlignJustify',
-        label: 'Justify',
+        label: t('justify') || 'Justify',
         cmd: (e) => e.chain().focus().setTextAlign('justify').run(),
       },
     ];
 
     const nodeName = computed(() => {
       const { editor } = props;
-      if (!editor) return 'Text';
+      if (!editor) return t('text') || 'Text';
 
       const active = blockTypes.find((type) =>
         type.level
@@ -350,7 +523,7 @@ export default {
           : editor.isActive(type.id)
       );
 
-      return active ? active.label : 'Text';
+      return active ? active.label : (t('text') || 'Text');
     });
 
     const menuOptions = computed(() => {
@@ -364,13 +537,13 @@ export default {
 
     const currentAlignment = computed(() => {
       const { editor } = props;
-      if (!editor) return 'Left';
+      if (!editor) return t('left') || 'Left';
 
       const active = alignmentTypes.find((type) =>
         editor.isActive({ textAlign: type.id })
       );
 
-      return active ? active.label : 'Left';
+      return active ? active.label : (t('left') || 'Left');
     });
 
     const currentAlignmentIcon = computed(() => {
@@ -400,6 +573,17 @@ export default {
       currentAlignment,
       currentAlignmentIcon,
       alignmentOptions,
+      // Link input
+      linkInputValue,
+      linkInputRef,
+      selectedLinkIndex,
+      linkPopoverOpen,
+      linkSuggestions,
+      onLinkPopoverShow,
+      onLinkInputKeydown,
+      closeLinkInput,
+      saveLinkInput,
+      selectLinkNote,
     };
   },
 };
