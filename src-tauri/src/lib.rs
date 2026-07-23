@@ -86,7 +86,7 @@ pub fn run() {
     }
     builder = builder.plugin(tauri_plugin_app_icon::init());
 
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "webdriver-debug")]
     {
         builder = builder.plugin(tauri_plugin_webdriver_automation::init());
     }

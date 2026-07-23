@@ -7171,24 +7171,6 @@
           "type": "string",
           "const": "updater:deny-install",
           "markdownDescription": "Denies the install command without any pre-configured scope."
-        },
-        {
-          "description": "Default permissions for the WebDriver plugin\n#### This default permission set includes:\n\n- `allow-resolve`",
-          "type": "string",
-          "const": "webdriver-automation:default",
-          "markdownDescription": "Default permissions for the WebDriver plugin\n#### This default permission set includes:\n\n- `allow-resolve`"
-        },
-        {
-          "description": "Enables the resolve command without any pre-configured scope.",
-          "type": "string",
-          "const": "webdriver-automation:allow-resolve",
-          "markdownDescription": "Enables the resolve command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the resolve command without any pre-configured scope.",
-          "type": "string",
-          "const": "webdriver-automation:deny-resolve",
-          "markdownDescription": "Denies the resolve command without any pre-configured scope."
         }
       ]
     },
