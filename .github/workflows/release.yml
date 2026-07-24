@@ -529,7 +529,13 @@ jobs:
           OUT="release-assets"
           mkdir -p "$OUT"
 
-          cp -R "src-tauri/gen/apple/build/beaver-notes_iOS.ipa" "$OUT/" 2>/dev/null || true
+          IPA=$(find src-tauri/gen/apple/build -name "*.ipa" -type f | head -1)
+          if [ -z "$IPA" ]; then
+            echo "::error::No .ipa file found in src-tauri/gen/apple/build/"
+            ls -R src-tauri/gen/apple/build/ || true
+            exit 1
+          fi
+          cp "$IPA" "$OUT/"
 
       # --- Store submission (uncomment when ready) ---
 
