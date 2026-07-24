@@ -331,17 +331,16 @@ jobs:
             ${{ matrix.bundle_args }} \
             --ci
 
-      # Linux binary build (no AppImage/deb/rpm bundles)
+      # Linux build (binary only for Flatpak)
       - name: Build Linux binary
         if: ${{ startsWith(matrix.id, 'linux-') }}
         shell: bash
         env:
           CI: 'true'
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           yarn tauri build \
             --target "${{ matrix.tauri_target }}" \
+            --bundles app \
             --ci
 
       # Dispatch Windows signing to OSSign workflow
@@ -385,10 +384,13 @@ jobs:
             \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.sig" -o -name "latest.json" \) \
             -exec cp {} "$OUT"/ \;
 
-      # Linux release assets: portable tarball and updater artifacts
+      # Linux release assets: binary tarball + updater signature
       - name: Stage Linux assets
         if: ${{ startsWith(matrix.id, 'linux-') }}
         shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -397,17 +399,19 @@ jobs:
           OUT="release-assets"
           BIN_NAME="beaver-notes"
           BIN_PATH="src-tauri/target/${TARGET}/release/${BIN_NAME}"
-          TAR_NAME="Beaver Notes-${VERSION}-${{ matrix.asset_suffix }}.tar.gz"
+          TAR_NAME="Beaver-Notes-${VERSION}-${{ matrix.asset_suffix }}.tar.gz"
 
           mkdir -p "$OUT"
 
-          cp "src-tauri/target/${TARGET}/release/bundle/latest.json" "$OUT/" 2>/dev/null || true
-
-          find "src-tauri/target/${TARGET}/release/bundle" -type f -name "*.sig" -exec cp {} "$OUT"/ \; 2>/dev/null || true
-
+          # Create tarball from binary
           mkdir -p portable-root
           cp "$BIN_PATH" portable-root/
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
+
+          # Sign the tarball for updater
+          yarn tauri signer sign \
+            --password "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" \
+            "$OUT/$TAR_NAME"
 
       # Android build
       - name: Install Java
@@ -540,6 +544,7 @@ jobs:
           issuer-id: ${{ secrets.APPLE_API_ISSUER }}
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPLE_API_KEY }}
+          wait-for-processing: false
 
       - name: Upload to release
         if: ${{ hashFiles('release-assets/*') != '' }}
