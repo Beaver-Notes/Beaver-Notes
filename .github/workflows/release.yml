@@ -475,21 +475,26 @@ jobs:
           rm -rf src-tauri/gen/apple
           cargo tauri ios init
 
-      - name: Disable iOS code signing for CI
+      - name: Write Apple API key
         if: ${{ matrix.id == 'ios' }}
-        shell: bash
+        env:
+          API_KEY: ${{ secrets.APPLE_API_KEY }}
+          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
         run: |
-          PROJ="src-tauri/gen/apple/project.yml"
-          sed -i '' "s/CODE_SIGN_STYLE: Automatic/CODE_SIGN_STYLE: Manual/" "$PROJ"
-          sed -i '' "s/DEVELOPMENT_TEAM: .*/DEVELOPMENT_TEAM: \"\"/" "$PROJ"
+          mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
+          echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
 
       - name: Build iOS app
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         env:
           CI: 'true'
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          cargo tauri ios build -- -- CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO
+          cargo tauri ios build
 
       # Windows release assets: use signed artifacts from OSSign
       - name: Stage Windows assets
