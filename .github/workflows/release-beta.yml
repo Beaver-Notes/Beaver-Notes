@@ -306,21 +306,6 @@ jobs:
             --target "${{ matrix.tauri_target }}" \
             --ci
 
-      # Windows build (unsigned - signing done by OSSign workflow)
-      - name: Build Windows beta bundles
-        if: ${{ startsWith(matrix.id, 'windows-') }}
-        shell: bash
-        env:
-          CI: 'true'
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          yarn tauri build \
-            --config src-tauri/tauri.beta.conf.json \
-            --target "${{ matrix.tauri_target }}" \
-            ${{ matrix.bundle_args }} \
-            --ci
-
       # Dispatch Windows signing to OSSign workflow
       - name: Dispatch Windows signing
         if: ${{ startsWith(matrix.id, 'windows-') }}
@@ -539,42 +524,10 @@ jobs:
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPLE_API_KEY }}
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: beta-${{ matrix.id }}
-          path: release-assets/*
-          if-no-files-found: warn
-
-  publish:
-    name: Upload to beta draft release
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
-    needs:
-      - validate
-      - create-release
-      - desktop
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist-artifacts
-          merge-multiple: true
-
-      - name: Inspect downloaded artifacts
+      - name: Upload to beta release
+        if: ${{ hashFiles('release-assets/*') != '' }}
         shell: bash
-        run: |
-          set -euo pipefail
-          ls -R dist-artifacts
-
-      - name: Upload files to beta draft release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.BETA_TAG }}
-          draft: true
-          prerelease: true
-          files: dist-artifacts/*
-          fail_on_unmatched_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ env.BETA_TAG }}" release-assets/* --clobber

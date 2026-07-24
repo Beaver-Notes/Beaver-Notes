@@ -344,20 +344,6 @@ jobs:
             --target "${{ matrix.tauri_target }}" \
             --ci
 
-      # Windows build (unsigned - signing done by OSSign workflow)
-      - name: Build Windows bundles
-        if: ${{ startsWith(matrix.id, 'windows-') }}
-        shell: bash
-        env:
-          CI: 'true'
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: |
-          yarn tauri build \
-            --target "${{ matrix.tauri_target }}" \
-            ${{ matrix.bundle_args }} \
-            --ci
-
       # Dispatch Windows signing to OSSign workflow
       - name: Dispatch Windows signing
         if: ${{ startsWith(matrix.id, 'windows-') }}
@@ -555,46 +541,10 @@ jobs:
           api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPLE_API_KEY }}
 
-      # Ship each platform's files to the publish job
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.id }}
-          path: release-assets/*
-          if-no-files-found: warn
-
-  publish:
-    name: Upload to draft release
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
-    needs:
-      - validate
-      - create-release
-      - desktop
-    runs-on: ubuntu-latest
-
-    steps:
-      # Gather all artifacts from every build job
-      - name: Download all build artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist-artifacts
-          merge-multiple: true
-
-      # Helpful when checking exactly what made it into the draft release
-      - name: Inspect downloaded artifacts
+      - name: Upload to release
+        if: ${{ hashFiles('release-assets/*') != '' }}
         shell: bash
-        run: |
-          set -euo pipefail
-          ls -R dist-artifacts
-
-      # Attach files to the existing draft release (created earlier by create-release)
-      - name: Upload files to draft release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.validate.outputs.tag_name }}
-          draft: true
-          prerelease: false
-          files: dist-artifacts/*
-          fail_on_unmatched_files: true
         env:
-          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ needs.validate.outputs.tag_name }}" release-assets/* --clobber
