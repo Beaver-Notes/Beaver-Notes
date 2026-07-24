@@ -523,58 +523,37 @@ jobs:
             -exec cp {} "$OUT"/ \;
 
       # iOS release assets
-      - name: Stage iOS assets
+      - name: Find iOS IPA
         if: ${{ matrix.id == 'ios' }}
+        id: find-ipa
         continue-on-error: true
         shell: bash
-        run: |
-          set -euo pipefail
-
-          OUT="release-assets"
-          mkdir -p "$OUT"
-
-          IPA=$(find src-tauri/gen/apple/build -name "*.ipa" -type f | head -1)
-          if [ -z "$IPA" ]; then
-            echo "::error::No .ipa file found in src-tauri/gen/apple/build/"
-            ls -R src-tauri/gen/apple/build/ || true
-            exit 1
-          fi
-          cp "$IPA" "$OUT/"
-
-      # --- Store submission (uncomment when ready) ---
-
-      # Upload Android AAB to Google Play Console
-      # Requires: PLAY_SERVICE_ACCOUNT_JSON secret (Google Play service account key)
-      #
-      # - name: Upload to Google Play
-      #   if: ${{ matrix.id == 'android' }}
-      #   uses: r0adkll/upload-google-play@v1
-      #   with:
-      #     serviceAccountJson: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
-      #     packageName: com.danielerolli.beaver_notes
-      #     releaseFiles: src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
-      #     track: production
-      #     status: completed
-
-      # Upload iOS IPA to App Store Connect via Transporter
-      # Requires: APPLE_ID + APPLE_ID_PASSWORD (app-specific password) secrets
-      - name: Upload to App Store Connect
-        if: ${{ matrix.id == 'ios' }}
-        continue-on-error: true
-        shell: bash
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
         run: |
           IPA=$(find src-tauri/gen/apple/build -name "*.ipa" -type f | head -1)
           if [ -n "$IPA" ]; then
-            xcrun transporter --upload \
-              -f "$IPA" \
-              -u "$APPLE_ID" \
-              -p "$APPLE_ID_PASSWORD"
+            echo "ipa-path=$IPA" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::No IPA found, skipping TestFlight upload"
+            echo "::warning::No .ipa file found"
           fi
+
+      - name: Stage iOS assets
+        if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          cp "${{ steps.find-ipa.outputs.ipa-path }}" release-assets/
+
+      # Upload iOS IPA to TestFlight via App Store Connect API
+      - name: Upload to TestFlight
+        if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
+        continue-on-error: true
+        uses: apple-actions/upload-testflight-build@v4
+        with:
+          app-path: ${{ steps.find-ipa.outputs.ipa-path }}
+          issuer-id: ${{ secrets.APPLE_API_ISSUER }}
+          api-key-id: ${{ secrets.APPLE_API_KEY_ID }}
+          api-private-key: ${{ secrets.APPLE_API_KEY }}
 
       # Ship each platform's files to the publish job
       - name: Upload build artifacts
