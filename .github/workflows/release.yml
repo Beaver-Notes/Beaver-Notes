@@ -463,7 +463,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          yarn tauri android build --apk --aab -- --profile ci
+          yarn tauri android build --apk --aab -- -- --profile ci
 
       # iOS build
       - name: Regenerate iOS project
@@ -492,7 +492,7 @@ jobs:
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          yarn tauri ios build -- --profile ci
+          yarn tauri ios build -- -- --profile ci
 
       # Windows release assets: use signed artifacts from OSSign
       - name: Stage Windows assets
