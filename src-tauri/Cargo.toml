@@ -136,11 +136,6 @@ opt-level = "s"
 panic = "abort"
 strip = true
 
-[profile.ci]
-inherits = "release"
-codegen-units = 16
-lto = "thin"
-
 [profile.dev.package.rusqlite]
 opt-level = 3
 [profile.dev.package.aes-gcm]

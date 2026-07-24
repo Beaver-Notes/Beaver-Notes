@@ -430,11 +430,13 @@ jobs:
         shell: bash
         env:
           CI: 'true'
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          yarn tauri android build --apk --aab --config src-tauri/tauri.beta.conf.json -- -- --profile ci
+          yarn tauri android build --apk --aab --config src-tauri/tauri.beta.conf.json
 
       # iOS build
       - name: Regenerate iOS project
@@ -464,12 +466,14 @@ jobs:
         shell: bash
         env:
           CI: 'true'
+          CARGO_PROFILE_RELEASE_LTO: thin
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          yarn tauri ios build --config src-tauri/tauri.beta.conf.json -- -- --profile ci
+          yarn tauri ios build --config src-tauri/tauri.beta.conf.json
 
       - name: Stage Windows beta assets
         if: ${{ startsWith(matrix.id, 'windows-') }}
