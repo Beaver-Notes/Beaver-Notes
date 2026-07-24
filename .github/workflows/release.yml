@@ -133,6 +133,12 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: validate
+
       - name: Run Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
 
@@ -148,11 +154,9 @@ jobs:
 
       # Rust audit — catches RUSTSEC advisories
       - name: Install cargo-audit
-        shell: bash
-        run: |
-          if ! command -v cargo-audit &>/dev/null; then
-            cargo install cargo-audit
-          fi
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
 
       - name: Audit Rust dependencies
         shell: bash
@@ -233,7 +237,7 @@ jobs:
           # Android build (APK + AAB)
           - id: android
             runner: ubuntu-24.04
-            rust_targets: 'aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android'
+            rust_targets: 'aarch64-linux-android,x86_64-linux-android'
             asset_suffix: 'android'
 
           # iOS build
@@ -419,12 +423,6 @@ jobs:
           cp "$BIN_PATH" portable-root/
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
 
-      # Install cargo-tauri for Android/iOS builds
-      - name: Install Tauri CLI
-        if: ${{ matrix.id == 'android' || matrix.id == 'ios' }}
-        shell: bash
-        run: cargo install tauri-cli --version "^2"
-
       # Android build
       - name: Install Java
         if: ${{ matrix.id == 'android' }}
@@ -454,7 +452,7 @@ jobs:
         shell: bash
         run: |
           rm -rf src-tauri/gen/android
-          cargo tauri android init
+          yarn tauri android init
 
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
@@ -465,7 +463,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          cargo tauri android build --apk --aab
+          yarn tauri android build --apk --aab -- --profile ci
 
       # iOS build
       - name: Regenerate iOS project
@@ -473,7 +471,7 @@ jobs:
         shell: bash
         run: |
           rm -rf src-tauri/gen/apple
-          cargo tauri ios init
+          yarn tauri ios init
 
       - name: Write Apple API key
         if: ${{ matrix.id == 'ios' }}
@@ -494,7 +492,7 @@ jobs:
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          cargo tauri ios build
+          yarn tauri ios build -- --profile ci
 
       # Windows release assets: use signed artifacts from OSSign
       - name: Stage Windows assets
