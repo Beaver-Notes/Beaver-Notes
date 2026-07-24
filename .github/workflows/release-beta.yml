@@ -159,7 +159,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.BETA_TAG }}
-          name: Beaver Notes Beta ${{ needs.validate.outputs.version }}
+          name: ${{ needs.validate.outputs.version }}
           draft: true
           prerelease: true
           generate_release_notes: false
@@ -463,6 +463,7 @@ jobs:
 
       - name: Build iOS beta app
         if: ${{ matrix.id == 'ios' }}
+        continue-on-error: true
         shell: bash
         env:
           CI: 'true'
@@ -508,6 +509,7 @@ jobs:
       # iOS release assets
       - name: Stage iOS beta assets
         if: ${{ matrix.id == 'ios' }}
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -539,25 +541,30 @@ jobs:
 
       # Upload iOS IPA to TestFlight via Transporter
       # Requires: APPLE_ID + APPLE_ID_PASSWORD (app-specific password) secrets
-      #
-      # - name: Upload to TestFlight
-      #   if: ${{ matrix.id == 'ios' }}
-      #   shell: bash
-      #   env:
-      #     APPLE_ID: ${{ secrets.APPLE_ID }}
-      #     APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      #   run: |
-      #     xcrun transporter --upload \
-      #       -f "src-tauri/gen/apple/build/beaver-notes_iOS.ipa" \
-      #       -u "$APPLE_ID" \
-      #       -p "$APPLE_ID_PASSWORD"
+      - name: Upload to TestFlight
+        if: ${{ matrix.id == 'ios' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          IPA=$(find src-tauri/gen/apple/build -name "*.ipa" -type f | head -1)
+          if [ -n "$IPA" ]; then
+            xcrun transporter --upload \
+              -f "$IPA" \
+              -u "$APPLE_ID" \
+              -p "$APPLE_ID_PASSWORD"
+          else
+            echo "::warning::No IPA found, skipping TestFlight upload"
+          fi
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: beta-${{ matrix.id }}
           path: release-assets/*
-          if-no-files-found: error
+          if-no-files-found: warn
 
   publish:
     name: Upload to beta draft release

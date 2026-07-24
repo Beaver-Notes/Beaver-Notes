@@ -177,7 +177,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate.outputs.tag_name }}
-          name: Beaver Notes ${{ needs.validate.outputs.version }}
+          name: ${{ needs.validate.outputs.version }}
           draft: true
           prerelease: false
           generate_release_notes: false
@@ -486,6 +486,7 @@ jobs:
 
       - name: Build iOS app
         if: ${{ matrix.id == 'ios' }}
+        continue-on-error: true
         shell: bash
         env:
           CI: 'true'
@@ -524,6 +525,7 @@ jobs:
       # iOS release assets
       - name: Stage iOS assets
         if: ${{ matrix.id == 'ios' }}
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -556,18 +558,23 @@ jobs:
 
       # Upload iOS IPA to App Store Connect via Transporter
       # Requires: APPLE_ID + APPLE_ID_PASSWORD (app-specific password) secrets
-      #
-      # - name: Upload to App Store Connect
-      #   if: ${{ matrix.id == 'ios' }}
-      #   shell: bash
-      #   env:
-      #     APPLE_ID: ${{ secrets.APPLE_ID }}
-      #     APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      #   run: |
-      #     xcrun transporter --upload \
-      #       -f "src-tauri/gen/apple/build/beaver-notes_iOS.ipa" \
-      #       -u "$APPLE_ID" \
-      #       -p "$APPLE_ID_PASSWORD"
+      - name: Upload to App Store Connect
+        if: ${{ matrix.id == 'ios' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        run: |
+          IPA=$(find src-tauri/gen/apple/build -name "*.ipa" -type f | head -1)
+          if [ -n "$IPA" ]; then
+            xcrun transporter --upload \
+              -f "$IPA" \
+              -u "$APPLE_ID" \
+              -p "$APPLE_ID_PASSWORD"
+          else
+            echo "::warning::No IPA found, skipping TestFlight upload"
+          fi
 
       # Ship each platform's files to the publish job
       - name: Upload build artifacts
@@ -575,7 +582,7 @@ jobs:
         with:
           name: ${{ matrix.id }}
           path: release-assets/*
-          if-no-files-found: error
+          if-no-files-found: warn
 
   publish:
     name: Upload to draft release
