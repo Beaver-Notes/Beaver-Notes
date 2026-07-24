@@ -446,14 +446,12 @@ jobs:
           rm -rf src-tauri/gen/apple
           cargo tauri ios init
 
-      - name: Configure iOS manual signing
+      - name: Configure iOS signing
         if: ${{ matrix.id == 'ios' }}
         shell: bash
         run: |
           PROJ="src-tauri/gen/apple/project.yml"
-          sed -i '' 's/CODE_SIGN_STYLE: Automatic/CODE_SIGN_STYLE: Manual/' "$PROJ"
           sed -i '' '/DEVELOPMENT_TEAM:/d' "$PROJ"
-          sed -i '' '/CODE_SIGN_STYLE: Manual$/a\'$'\n''        CODE_SIGN_IDENTITY: "-"' "$PROJ"
 
       - name: Set iOS build number
         if: ${{ matrix.id == 'ios' }}
