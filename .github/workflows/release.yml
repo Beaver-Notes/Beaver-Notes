@@ -406,6 +406,19 @@ jobs:
           # Create tarball from binary
           mkdir -p portable-root
           cp "$BIN_PATH" portable-root/
+          cp buildResources/icon.png portable-root/beaver-notes.png
+
+          cat > portable-root/beaver-notes.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=Beaver Notes
+          Comment=A clean, native markdown notes app
+          Exec=beaver-notes
+          Icon=beaver-notes
+          Type=Application
+          Categories=Utility;TextEditor;Office;
+          MimeType=text/markdown;text/plain;
+          DESKTOP
+
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
 
           # Sign the tarball for updater
@@ -425,24 +438,34 @@ jobs:
         if: ${{ matrix.id == 'android' }}
         uses: android-actions/setup-android@v3
 
-      - name: Setup Android keystore
-        if: ${{ matrix.id == 'android' }}
-        shell: bash
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-        run: |
-          set -euo pipefail
-          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
-            echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/beaver-notes.jks"
-            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/beaver-notes.jks" >> "$GITHUB_ENV"
-          fi
-
       - name: Regenerate Android project for CI
         if: ${{ matrix.id == 'android' }}
         shell: bash
         run: |
           rm -rf src-tauri/gen/android
           yarn tauri android init
+
+      - name: Setup Android keystore
+        if: ${{ matrix.id == 'android' }}
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          storeFile=$RUNNER_TEMP/keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
 
       - name: Build Android app
         if: ${{ matrix.id == 'android' }}
@@ -451,9 +474,6 @@ jobs:
           CI: 'true'
           CARGO_PROFILE_RELEASE_LTO: thin
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           yarn tauri android build --apk --aab
 
@@ -474,6 +494,41 @@ jobs:
           mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
           echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
 
+      - name: Import iOS signing certificate
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+
+          # Decode certificate
+          echo "$IOS_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
+
+          # Create and configure temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import certificate
+          security import "$CERTIFICATE_PATH" \
+            -P "$IOS_CERTIFICATE_PASSWORD" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Set keychain search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+          # Allow codesign to access keychain without prompt
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
       - name: Build iOS app
         if: ${{ matrix.id == 'ios' }}
         continue-on-error: true
@@ -486,6 +541,7 @@ jobs:
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           yarn tauri ios build
 
