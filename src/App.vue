@@ -124,7 +124,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
@@ -132,6 +132,8 @@ import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
 import { getHocuspocusSync } from './composable/useHocuspocusSync';
+import { useAccountStore } from './store/account';
+import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import AppNavbar from './components/app/AppNavbar.vue';
 
 export default {
@@ -146,6 +148,18 @@ export default {
   setup() {
     const shell = useAppShell();
     const mainRef = ref(null);
+    const accountStore = useAccountStore();
+    const cloudWorkspaces = useCloudWorkspaces();
+
+    watch(
+      () => accountStore.isAuthenticated,
+      async (authenticated) => {
+        if (authenticated) {
+          await cloudWorkspaces.fetchWorkspaces();
+        }
+      },
+      { immediate: true }
+    );
 
     function skipToMain() {
       const main = document.getElementById('app-main');
