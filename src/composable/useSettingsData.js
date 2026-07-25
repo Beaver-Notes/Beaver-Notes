@@ -16,6 +16,7 @@ import {
   writeJson,
 } from '@/lib/native/fs';
 import { useAppStore } from '@/store/app';
+import { useI18nStore } from '@/store/i18n';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { markRaw } from 'vue';
 import {
@@ -440,10 +441,11 @@ export function useSettingsData({
   const updateLanguage = () => {
     const languageCode = selectedLanguage.value;
     const dir = getLanguageDirection(languageCode);
+    const i18n = useI18nStore();
     void Promise.all([
-      setSetting('selectedLanguage', languageCode),
+      i18n.setLanguage(languageCode),
       setSetting('directionPreference', dir),
-    ]).then(() => window.location.reload());
+    ]);
   };
 
   const saveTodayDateFormat = () => {

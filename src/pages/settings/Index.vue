@@ -11,7 +11,7 @@
           <p
             class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Choose the interface language. Changing this will reload the app.
+            Choose the interface language.
           </p>
           <ui-select
             v-model="selectedLanguage"
