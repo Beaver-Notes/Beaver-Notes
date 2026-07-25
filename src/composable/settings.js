@@ -173,7 +173,14 @@ export async function setSetting(key, value) {
 
 export async function hydrateSettingsStore(keys = Object.keys(settingDefs)) {
   const entries = await Promise.all(
-    keys.map(async (key) => [key, await getSetting(key)])
+    keys.map(async (key) => {
+      try {
+        return [key, await getSetting(key)];
+      } catch (err) {
+        console.warn(`[settings] Failed to hydrate "${key}":`, err);
+        return [key, getSettingDef(key).defaultValue];
+      }
+    })
   );
   return Object.fromEntries(entries);
 }

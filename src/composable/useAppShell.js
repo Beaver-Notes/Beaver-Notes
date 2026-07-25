@@ -559,6 +559,19 @@ export function useAppShell() {
       await initializeWorkspace();
     } catch (error) {
       console.error('Error initializing workspace:', error);
+      try {
+        const [hasData, onboardingCompleted] = await Promise.all([
+          dataStorage.get('notes', {}),
+          settingsStorage.get('onboardingCompleted', false),
+        ]);
+        if (!hasData && !onboardingCompleted) {
+          retrieved.value = true;
+          await router.replace('/onboarding');
+          return;
+        }
+      } catch (innerError) {
+        console.error('Fallback onboarding check failed:', innerError);
+      }
       retrieved.value = true;
     }
 
