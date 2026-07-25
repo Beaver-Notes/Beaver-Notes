@@ -11,6 +11,12 @@
             <span class="text-sm font-medium truncate flex-1 text-neutral-700 dark:text-neutral-300">
               {{ activeName }}
             </span>
+            <span
+              v-if="activeRole && activeRole !== 'owner'"
+              class="text-[10px] px-1.5 py-0.5 rounded-full bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 uppercase font-medium"
+            >
+              {{ activeRole }}
+            </span>
             <v-remixicon name="riArrowDownSLine" size="16" class="shrink-0 text-neutral-400" />
           </div>
         </template>
@@ -25,6 +31,12 @@
           >
             <v-remixicon name="riFolderLine" size="14" class="shrink-0" />
             <span class="truncate">{{ ws.name }}</span>
+            <span
+              v-if="ws.role && ws.role !== 'owner'"
+              class="text-[10px] px-1 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400 uppercase font-medium ml-auto"
+            >
+              {{ ws.role }}
+            </span>
             <v-remixicon
               v-if="ws.id === activeId"
               name="riCheckLine"
@@ -34,11 +46,20 @@
           </button>
           <div class="border-t border-neutral-200 dark:border-neutral-700 my-1" />
           <button
+            v-if="isPaid"
             class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="promptCreate"
           >
             <v-remixicon name="riAddLine" size="14" class="shrink-0" />
             <span>New Workspace</span>
+          </button>
+          <button
+            v-if="isPaid"
+            class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+            @click="promptJoin"
+          >
+            <v-remixicon name="riLoginBoxLine" size="14" class="shrink-0" />
+            <span>Join Workspace</span>
           </button>
         </div>
       </ui-popover>
@@ -74,11 +95,20 @@
           </button>
           <div class="border-t border-neutral-200 dark:border-neutral-700 my-1" />
           <button
+            v-if="isPaid"
             class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
             @click="promptCreate"
           >
             <v-remixicon name="riAddLine" size="14" class="shrink-0" />
             <span>New Workspace</span>
+          </button>
+          <button
+            v-if="isPaid"
+            class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+            @click="promptJoin"
+          >
+            <v-remixicon name="riLoginBoxLine" size="14" class="shrink-0" />
+            <span>Join Workspace</span>
           </button>
         </div>
       </ui-popover>
@@ -90,6 +120,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
+import { useAccountStore } from '@/store/account';
 
 function clearSettingsLocalStorage() {
   const keys = [];
@@ -114,6 +145,7 @@ export default {
   },
   setup() {
     const workspaceStore = useWorkspaceStore();
+    const accountStore = useAccountStore();
     const triggerEl = ref(null);
     const triggerWidth = ref(232);
 
@@ -122,6 +154,10 @@ export default {
     const activeName = computed(
       () => workspaceStore.activeWorkspace?.name ?? 'Default'
     );
+    const activeRole = computed(
+      () => workspaceStore.activeWorkspace?.role ?? null
+    );
+    const isPaid = computed(() => accountStore.isPaidPlan);
 
     onMounted(async () => {
       await workspaceStore.retrieve();
@@ -153,14 +189,42 @@ export default {
       });
     }
 
+    function promptJoin() {
+      emitter.emit('show-dialog', 'prompt', {
+        title: 'Join Workspace',
+        placeholder: 'Paste invite token',
+        okText: 'Join',
+        password: false,
+        async onConfirm(token) {
+          if (!token || !token.trim()) return;
+          try {
+            const { useCloudWorkspaces } = await import('@/composable/useCloudWorkspaces');
+            const cloud = useCloudWorkspaces();
+            await cloud.joinWorkspace(token.trim());
+            await workspaceStore.retrieve();
+            clearSettingsLocalStorage();
+            window.location.reload();
+          } catch (err) {
+            emitter.emit('show-dialog', 'alert', {
+              title: 'Join Failed',
+              description: err?.message || 'Invalid or expired invite token.',
+            });
+          }
+        },
+      });
+    }
+
     return {
       triggerEl,
       triggerWidth,
       workspaces,
       activeId,
       activeName,
+      activeRole,
+      isPaid,
       switchWorkspace,
       promptCreate,
+      promptJoin,
     };
   },
 };
