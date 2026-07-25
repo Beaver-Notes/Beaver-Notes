@@ -22,10 +22,9 @@ import {
   getDeviceId,
   objToYMap,
 } from '@/utils/yjs-helpers.js';
-import {
-  getWorkspaceDoc,
-  META_DOC_ID,
-} from './meta-yjs-doc.js';
+import { getWorkspaceDoc, META_DOC_ID } from './meta-yjs-doc.js';
+import { getHocuspocusSync } from './useHocuspocusSync.js';
+import { useWorkspaceStore } from '@/store/workspace';
 
 // Re-export store hydration so consumers keep a single import path
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-yjs-store.js';
@@ -132,6 +131,11 @@ export async function loadWorkspaceDoc() {
   }
 
   registerActiveDoc(META_DOC_ID, doc);
+
+  const hocuspocus = getHocuspocusSync();
+  const workspaceStore = useWorkspaceStore();
+  const wsId = workspaceStore.activeId;
+  if (wsId) hocuspocus.joinMetaRoom(wsId);
 
   return doc;
 }

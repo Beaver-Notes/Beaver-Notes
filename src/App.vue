@@ -124,13 +124,14 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
+import { getHocuspocusSync } from './composable/useHocuspocusSync';
 import AppNavbar from './components/app/AppNavbar.vue';
 
 export default {
@@ -154,6 +155,9 @@ export default {
     }
 
     onMounted(() => {
+      const hocuspocus = getHocuspocusSync();
+      hocuspocus.start();
+
       if (typeof window.requestIdleCallback === 'undefined') return;
       window.requestIdleCallback(
         () => {
@@ -163,6 +167,11 @@ export default {
         },
         { timeout: 2000 }
       );
+    });
+
+    onBeforeUnmount(() => {
+      const hocuspocus = getHocuspocusSync();
+      hocuspocus.stop();
     });
 
     return { ...shell, mainRef, skipToMain };

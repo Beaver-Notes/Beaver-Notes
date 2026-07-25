@@ -16,6 +16,7 @@ import {
   toUint8Array,
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
+import { getHocuspocusSync } from './useHocuspocusSync.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
@@ -180,6 +181,9 @@ export function useNoteYjs() {
       pendingUpdates.push(update);
       scheduleFlush();
     });
+
+    const hocuspocus = getHocuspocusSync();
+    hocuspocus.joinNoteRoom(noteId, newDoc);
 
     currentDoc = newDoc;
     activeDocs.set(noteId, newDoc);
