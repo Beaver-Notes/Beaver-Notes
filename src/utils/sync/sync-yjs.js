@@ -90,7 +90,7 @@ function yjsSnapshotFileName(docId, ts) {
  * Because noteId / docId / deviceId may themselves contain dashes, we use an
  * unambiguous delimiter and split positionally from the right.
  */
-function parseSyncFilename(file) {
+export function parseSyncFilename(file) {
   if (!file.endsWith(YJS_UPDATE_EXT)) return null;
 
   // Strip extension

@@ -12,6 +12,48 @@
 const pendingSyncWrites = [];
 let flushing = false;
 
+/**
+ * @callback WriteFn
+ * @param {string} noteId
+ * @param {Uint8Array} update
+ * @returns {Promise<void>}
+ */
+
+/**
+ * Flush pending writes using the provided write function.
+ * Returns the list of flushed entries for downstream consumers (e.g. remote push).
+ * @param {WriteFn} writeFn - called for each entry with (noteId, update)
+ * @returns {Promise<Array<{noteId: string, update: Uint8Array}>>}
+ */
+export async function flushPendingSyncWritesTo(writeFn) {
+  if (flushing) return [];
+  flushing = true;
+  const flushed = [];
+  try {
+    while (pendingSyncWrites.length > 0) {
+      const batch = pendingSyncWrites.splice(0);
+      const byDir = new Map();
+      for (const w of batch) {
+        if (!byDir.has(w.commitsDir)) byDir.set(w.commitsDir, []);
+        byDir.get(w.commitsDir).push({ noteId: w.noteId, update: new Uint8Array(w.update) });
+      }
+      for (const [, entries] of byDir) {
+        for (const { noteId, update } of entries) {
+          try {
+            await writeFn(noteId, update);
+            flushed.push({ noteId, update });
+          } catch (err) {
+            console.warn('[sync] failed to flush pending write for', noteId, err);
+          }
+        }
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+  return flushed;
+}
+
 export function queueSyncWrite(commitsDir, noteId, update) {
   pendingSyncWrites.push({ commitsDir, noteId, update: Array.from(update) });
 }
