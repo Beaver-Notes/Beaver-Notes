@@ -572,8 +572,8 @@ export default {
 <style scoped>
 /* ── Background ── */
 .ob-light {
-  --ob-bg-start: theme('colors.amber.50');
-  --ob-bg-end: theme('colors.amber.50');
+  --ob-bg-start: #fff9ec;
+  --ob-bg-end: #fff9ec;
 }
 .ob-dark {
   --ob-bg-start: #1e0e02;
@@ -619,13 +619,13 @@ export default {
 
 /* Curtain colours (adapt to theme) */
 .ob-light .ob-curtain__block {
-  background: theme('colors.amber.200');
+  background: #e8d5a3;
 }
 .ob-light .ob-curtain__block:nth-child(2) {
-  background: theme('colors.amber.300');
+  background: #d4bc87;
 }
 .ob-light .ob-curtain__block:nth-child(3) {
-  background: theme('colors.amber.200');
+  background: #e8d5a3;
 }
 .ob-dark .ob-curtain__block {
   background: #2e1a06;
