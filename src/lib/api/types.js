@@ -187,3 +187,29 @@ export function normalizeCommit(raw) {
     ts: Number(raw.ts) || 0,
   };
 }
+
+export const WorkspaceShape = Object.freeze({
+  id: 'string',
+  name: 'string',
+  role: 'string',
+  ownerId: 'string?',
+  storageUsedBytes: 'number?',
+  createdAt: 'string?',
+});
+
+export function normalizeWorkspace(raw) {
+  if (!isObject(raw)) return null;
+  return {
+    id: raw.id,
+    name: raw.name || 'Untitled Workspace',
+    role: raw.role || 'owner',
+    ownerId: raw.ownerId || null,
+    storageUsedBytes: Number(raw.storageUsedBytes) || 0,
+    createdAt: raw.createdAt || null,
+  };
+}
+
+export function normalizeWorkspaceList(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeWorkspace).filter(Boolean);
+}
