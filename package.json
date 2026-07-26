@@ -2,7 +2,7 @@
   "name": "beaver-notes",
   "type": "module",
   "private": true,
-  "version": "5.0.0-beta.1",
+  "version": "5.0.0-beta.2",
   "author": "Daniele Rolli",
   "description": "Open-source notes that live where you choose: your device, your server, or ours.",
   "license": "MIT",

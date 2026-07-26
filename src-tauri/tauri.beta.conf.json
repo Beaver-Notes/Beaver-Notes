@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Beaver Notes Beta",
-  "version": "5.0.0-beta.1",
+  "version": "5.0.0-beta.2",
   "identifier": "com.beavernotes.beaver-notes",
   "build": {
     "removeUnusedCommands": true,
@@ -39,28 +39,37 @@
     ],
     "fileAssociations": [
       {
-        "ext": ["bea"],
+        "ext": [
+          "bea"
+        ],
         "name": "Beaver Notes",
         "description": "Beaver Notes File",
         "mimeType": "application/x-beaver-notes",
         "role": "Editor"
       },
       {
-        "ext": ["md", "mdx"],
+        "ext": [
+          "md",
+          "mdx"
+        ],
         "name": "Markdown",
         "description": "Markdown File",
         "mimeType": "text/markdown",
         "role": "Viewer"
       },
       {
-        "ext": ["txt"],
+        "ext": [
+          "txt"
+        ],
         "name": "Plain Text",
         "description": "Plain Text File",
         "mimeType": "text/plain",
         "role": "Viewer"
       },
       {
-        "ext": ["html"],
+        "ext": [
+          "html"
+        ],
         "name": "HTML",
         "description": "HTML File",
         "mimeType": "text/html",
