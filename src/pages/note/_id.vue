@@ -37,6 +37,7 @@
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
         </button>
+        <presence-avatars :peers="presence.peers" class="ml-auto mr-2" />
         <note-actions
           v-bind="{ editor, id, note, showSearch, goBack }"
           @toggle-search="showSearch = !showSearch"
@@ -201,6 +202,7 @@ import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import ShareModal from '@/components/ShareModal.vue';
 import { useAppStore } from '../../store/app';
+import { useAccountStore } from '@/store/account';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
@@ -208,6 +210,9 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
 import HistoryPanel from '@/components/HistoryPanel.vue';
 import { useNoteHistory } from '@/composable/useNoteHistory';
+import { Awareness } from 'y-protocols/awareness';
+import PresenceAvatars from '@/components/PresenceAvatars.vue';
+import { usePresence } from '@/composable/usePresence';
 
 export default {
   components: {
@@ -217,8 +222,8 @@ export default {
     NoteToolbar,
     NoteHeadingsProgress,
     NoteBacklinks,
-    HistoryPanel,
     ShareModal,
+    PresenceAvatars,
   },
   inheritAttrs: false,
   setup() {
@@ -255,6 +260,23 @@ export default {
       ready: yjsReady,
       load: yjsLoad,
     } = useNoteYjs();
+
+    // Presence
+    const awareness = ydoc.value ? new Awareness(ydoc.value) : null;
+    const accountStore = useAccountStore();
+    const presence = usePresence(
+      awareness,
+      accountStore.profile?.id || 'anonymous',
+      accountStore.profile?.username || 'Anonymous'
+    );
+
+    onMounted(() => {
+      presence.init();
+    });
+
+    onUnmounted(() => {
+      presence.destroy();
+    });
 
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
@@ -544,8 +566,6 @@ export default {
       editor,
       showSearch,
       showShareModal,
-      showHistory,
-      noteHistory,
       handleTitleInput,
       handleContentUpdate,
       closeSearch,
@@ -555,6 +575,7 @@ export default {
       isLocked,
       yjsReady,
       ydoc,
+      presence,
     };
   },
 };
