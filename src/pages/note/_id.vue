@@ -24,30 +24,11 @@
           </button>
         </div>
         <div class="flex-1"></div>
-        <button
-          v-tooltip:bottom="'Share'"
-          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
-          @click="showShareModal = true"
-        >
-          <v-remixicon name="riShareLine" size="18" />
-        </button>
-        <button
-          @click="showHistory = !showHistory"
-          class="rounded p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors duration-150"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        </button>
-        <presence-avatars :peers="presence.peers" class="ml-auto mr-2" />
-        <button
-          v-tooltip:bottom="'Online users'"
-          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
-          @click="showOnlineUsers = !showOnlineUsers"
-        >
-          <v-remixicon name="riUserLine" size="18" />
-        </button>
         <note-actions
-          v-bind="{ editor, id, note, showSearch, goBack }"
+          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showOnlineUsers, isShared }"
           @toggle-search="showSearch = !showSearch"
+          @toggle-history="showHistory = !showHistory"
+          @toggle-online-users="showOnlineUsers = !showOnlineUsers"
         />
       </div>
     </template>
@@ -172,21 +153,6 @@
       :editor="editor"
       class="mobile:hidden ipad:hidden"
     />
-    <share-modal
-      v-model="showShareModal"
-      :note-id="id"
-    />
-    <history-panel
-      v-if="showHistory"
-      @close="showHistory = false"
-    />
-    <online-users-panel
-      v-if="showOnlineUsers"
-      :peers="presence.peers"
-      :local-color="presence.localColor.value"
-      :local-name="accountStore.profile?.username || 'Anonymous'"
-      @close="showOnlineUsers = false"
-    />
   </div>
 </template>
 
@@ -216,7 +182,6 @@ import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
-import ShareModal from '@/components/ShareModal.vue';
 import { useAppStore } from '../../store/app';
 import { useAccountStore } from '@/store/account';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
@@ -224,11 +189,9 @@ import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
-import HistoryPanel from '@/components/HistoryPanel.vue';
 import { useNoteHistory } from '@/composable/useNoteHistory';
+import { useNoteSharing } from '@/composable/useNoteSharing';
 import { Awareness } from 'y-protocols/awareness';
-import PresenceAvatars from '@/components/PresenceAvatars.vue';
-import OnlineUsersPanel from '@/components/OnlineUsersPanel.vue';
 import { usePresence } from '@/composable/usePresence';
 
 export default {
@@ -239,10 +202,6 @@ export default {
     NoteToolbar,
     NoteHeadingsProgress,
     NoteBacklinks,
-    ShareModal,
-    HistoryPanel,
-    PresenceAvatars,
-    OnlineUsersPanel,
   },
   inheritAttrs: false,
   setup() {
@@ -258,11 +217,11 @@ export default {
     const editor = shallowRef(null);
     const noteEditor = ref();
     const showSearch = shallowRef(false);
-    const showShareModal = ref(false);
     const showHistory = ref(false);
     const showOnlineUsers = ref(false);
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
+    const sharing = useNoteSharing();
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
@@ -279,6 +238,7 @@ export default {
       doc: ydoc,
       ready: yjsReady,
       load: yjsLoad,
+      getTitle: yjsGetTitle,
       setTitle: yjsSetTitle,
       observeTitle: yjsObserveTitle,
     } = useNoteYjs();
@@ -299,6 +259,18 @@ export default {
     onUnmounted(() => {
       presence.destroy();
     });
+
+    // Sharing — fetch collaborators to determine if note is shared
+    const isShared = computed(() => sharing.collaborators.value.length > 0);
+    watch(
+      id,
+      async (newId) => {
+        if (newId && accountStore.isAuthenticated) {
+          await sharing.fetchCollaborators(newId);
+        }
+      },
+      { immediate: true }
+    );
 
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
@@ -397,7 +369,10 @@ export default {
     );
 
     // Title / content handlers
+    let titleInitialized = false;
+
     const handleTitleInput = debounce((event) => {
+      if (!titleInitialized) return;
       const text = event.target.textContent || '';
       yjsSetTitle(text);
       autoResizeTitle();
@@ -496,9 +471,13 @@ export default {
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
 
-      if (titleDiv.value && note.value.title) {
-        titleDiv.value.textContent = note.value.title;
-        autoResizeTitle();
+      if (titleDiv.value) {
+        const titleText = note.value?.title || yjsGetTitle() || '';
+        if (titleText) {
+          titleDiv.value.textContent = titleText;
+          autoResizeTitle();
+        }
+        titleInitialized = true;
       }
     });
 
@@ -565,19 +544,20 @@ export default {
     watch(
       () => note.value,
       async (newNote) => {
-        if (!newNote) return;
         await nextTick();
         if (!titleDiv.value) return;
-        const stored = newNote.title || '';
+        // Prefer store title, fall back to Yjs title, then empty
+        const stored = newNote?.title || yjsGetTitle() || '';
         if (titleDiv.value.textContent !== stored) {
           titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
+        titleInitialized = true;
       },
       { immediate: true }
     );
 
-    // Sync remote Yjs title changes back to the store
+    // Sync remote Yjs title changes back to the store and to the div
     let stopTitleObserver = () => {};
     watch(
       ydoc,
@@ -588,7 +568,11 @@ export default {
           if (note.value && note.value.title !== title) {
             updateNote(id.value, { title });
           }
-          nextTick(() => autoResizeTitle());
+          // Sync to div if it doesn't match
+          if (titleDiv.value && titleDiv.value.textContent !== title) {
+            titleDiv.value.textContent = title;
+            autoResizeTitle();
+          }
         });
       },
       { immediate: true }
@@ -610,7 +594,6 @@ export default {
       appEncryptedLocked,
       editor,
       showSearch,
-      showShareModal,
       showHistory,
       handleTitleInput,
       handleContentUpdate,
