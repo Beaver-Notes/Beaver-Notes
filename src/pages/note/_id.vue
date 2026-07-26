@@ -24,6 +24,13 @@
           </button>
         </div>
         <div class="flex-1"></div>
+        <button
+          v-tooltip:bottom="'Share'"
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+          @click="showShareModal = true"
+        >
+          <v-remixicon name="riShareLine" size="18" />
+        </button>
         <note-actions
           v-bind="{ editor, id, note, showSearch, goBack }"
           @toggle-search="showSearch = !showSearch"
@@ -149,6 +156,10 @@
       :editor="editor"
       class="mobile:hidden ipad:hidden"
     />
+    <share-modal
+      v-model="showShareModal"
+      :note-id="id"
+    />
   </div>
 </template>
 
@@ -178,6 +189,7 @@ import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
+import ShareModal from '@/components/ShareModal.vue';
 import { useAppStore } from '../../store/app';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
@@ -193,6 +205,7 @@ export default {
     NoteToolbar,
     NoteHeadingsProgress,
     NoteBacklinks,
+    ShareModal,
   },
   inheritAttrs: false,
   setup() {
@@ -208,6 +221,7 @@ export default {
     const editor = shallowRef(null);
     const noteEditor = ref();
     const showSearch = shallowRef(false);
+    const showShareModal = ref(false);
     const titleDiv = ref(null);
 
     const id = computed(() => route.params.id);
@@ -514,6 +528,7 @@ export default {
       appEncryptedLocked,
       editor,
       showSearch,
+      showShareModal,
       handleTitleInput,
       handleContentUpdate,
       closeSearch,
