@@ -102,20 +102,10 @@ const settings = computed(() => ({
     icon: 'riUserLine',
     path: '/settings/account',
   },
-  'Settings-Sync': {
-    name: translations.value.settings.sync || 'Sync',
-    icon: 'riSyncLine',
-    path: '/settings/sync',
-  },
-  'Settings-Editor': {
-    name: translations.value.settings.editor || 'Editor',
-    icon: 'riFontSize',
-    path: '/settings/editor',
-  },
-  'Settings-ImportExport': {
-    name: 'Import / Export',
-    icon: 'riArrowDownLine',
-    path: '/settings/import-export',
+  'Settings-Data': {
+    name: translations.value.settings.data || 'Data',
+    icon: 'riDatabase2Line',
+    path: '/settings/data',
   },
   'Settings-Labels': {
     name: translations.value.labels?.title || 'Labels',

@@ -9,9 +9,7 @@ const SettingsAbout = () => import('./pages/settings/About.vue');
 const SettingsLabels = () => import('./pages/settings/Labels.vue');
 const SettingsSecurity = () => import('./pages/settings/Security.vue');
 const SettingsAccount = () => import('./pages/settings/Account.vue');
-const SettingsSync = () => import('./pages/settings/Sync.vue');
-const SettingsEditor = () => import('./pages/settings/Editor.vue');
-const SettingsImportExport = () => import('./pages/settings/ImportExport.vue');
+const SettingsData = () => import('./pages/settings/Data.vue');
 
 const APP_NAME = 'Beaver Notes';
 
@@ -25,9 +23,7 @@ const routeTitles = {
   'Settings-About': `About — ${APP_NAME}`,
   'Settings-Labels': `Labels — ${APP_NAME}`,
   'Settings-Security': `Security — ${APP_NAME}`,
-  'Settings-Sync': `Sync — ${APP_NAME}`,
-  'Settings-Editor': `Editor — ${APP_NAME}`,
-  'Settings-ImportExport': `Import / Export — ${APP_NAME}`,
+  'Settings-Data': `Data — ${APP_NAME}`,
   Onboarding: `Welcome — ${APP_NAME}`,
 };
 
@@ -93,19 +89,9 @@ const routes = [
         component: SettingsSecurity,
       },
       {
-        path: 'sync',
-        name: 'Settings-Sync',
-        component: SettingsSync,
-      },
-      {
-        path: 'editor',
-        name: 'Settings-Editor',
-        component: SettingsEditor,
-      },
-      {
-        path: 'import-export',
-        name: 'Settings-ImportExport',
-        component: SettingsImportExport,
+        path: 'data',
+        name: 'Settings-Data',
+        component: SettingsData,
       },
     ],
   },

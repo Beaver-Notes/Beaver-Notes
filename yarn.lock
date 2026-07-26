@@ -3757,7 +3757,7 @@ lazystream@^1.0.0:
   dependencies:
     readable-stream "^2.0.5"
 
-lib0@^0.2.100, lib0@^0.2.85, lib0@^0.2.99:
+lib0@^0.2.100, lib0@^0.2.42, lib0@^0.2.85, lib0@^0.2.99:
   version "0.2.117"
   resolved "https://registry.npmjs.org/lib0/-/lib0-0.2.117.tgz"
   integrity sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==
@@ -5904,6 +5904,13 @@ xml-naming@^0.3.0:
   version "0.3.0"
   resolved "https://registry.npmjs.org/xml-naming/-/xml-naming-0.3.0.tgz"
   integrity sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ==
+
+y-prosemirror@^1.2.6:
+  version "1.2.6"
+  resolved "https://registry.npmjs.org/y-prosemirror/-/y-prosemirror-1.2.6.tgz"
+  integrity sha512-rGz8kX4v/uFJrLaqZvsezY1JGN/zTDSPMO76zRbNcpE63OEiw2PBCEQi9ZlfbEwgCMoeJLUT+otNyO/Oj73TGQ==
+  dependencies:
+    lib0 "^0.2.42"
 
 y-protocols@^1.0.7:
   version "1.0.7"

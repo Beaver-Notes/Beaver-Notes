@@ -123,6 +123,7 @@ import {
   RiShare2Line,
   RiSideBarLine,
   RiShieldCheckLine,
+  RiShieldKeyholeLine,
   RiSingleQuotesR,
   RiSortAsc,
   RiSortDesc,
@@ -163,10 +164,8 @@ import {
   RiCloudLine,
   RiComputerLine,
   RiFingerprintLine,
-  RiFolderLine,
   RiQrCodeLine,
   RiShieldStarLine,
-  RiCheckLine,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -285,6 +284,7 @@ const RemixIcons = {
   riShare2Line: RiShare2Line,
   riSideBarLine: RiSideBarLine,
   riShieldCheckLine: RiShieldCheckLine,
+  riShieldKeyholeLine: RiShieldKeyholeLine,
   riSingleQuotesR: RiSingleQuotesR,
   riSortAsc: RiSortAsc,
   riSortDesc: RiSortDesc,
@@ -333,10 +333,8 @@ const RemixIcons = {
   riCloudLine: RiCloudLine,
   riComputerLine: RiComputerLine,
   riFingerprintLine: RiFingerprintLine,
-  riFolderLine: RiFolderLine,
   riQrCodeLine: RiQrCodeLine,
-  riShieldStarLine: RiShieldStarLine,
-  riCheckLine: RiCheckLine,
+  riShieldStarLine: RiShieldStarLine
 };
 
 const customIconPaths = {
