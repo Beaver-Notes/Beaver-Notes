@@ -125,7 +125,7 @@ jobs:
           shared-key: validate
 
       - name: Run Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Audit npm dependencies
         shell: bash
