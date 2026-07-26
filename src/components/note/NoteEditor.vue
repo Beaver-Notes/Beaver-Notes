@@ -62,6 +62,7 @@ import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
 import Collaboration from '@tiptap/extension-collaboration';
+import { CommentExtension } from '@sereneinserenade/tiptap-comment-extension';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
@@ -269,6 +270,13 @@ export default {
           field: 'content',
         })
       );
+      exts.push(
+        CommentExtension.configure({
+          HTMLAttributes: {
+            class: 'comment-highlight',
+          },
+        })
+      );
     }
 
     let _lastContent = null;
@@ -443,3 +451,11 @@ export default {
 </script>
 
 <style src="@/assets/css/editor.css"></style>
+
+<style>
+.comment-highlight {
+  background-color: rgba(255, 235, 59, 0.3);
+  border-bottom: 2px solid rgba(255, 235, 59, 0.6);
+  cursor: pointer;
+}
+</style>
