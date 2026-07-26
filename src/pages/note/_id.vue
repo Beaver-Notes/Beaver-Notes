@@ -31,6 +31,12 @@
         >
           <v-remixicon name="riShareLine" size="18" />
         </button>
+        <button
+          @click="showHistory = !showHistory"
+          class="rounded p-1.5 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors duration-150"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        </button>
         <note-actions
           v-bind="{ editor, id, note, showSearch, goBack }"
           @toggle-search="showSearch = !showSearch"
@@ -160,6 +166,10 @@
       v-model="showShareModal"
       :note-id="id"
     />
+    <history-panel
+      v-if="showHistory"
+      @close="showHistory = false"
+    />
   </div>
 </template>
 
@@ -196,6 +206,8 @@ import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
+import HistoryPanel from '@/components/HistoryPanel.vue';
+import { useNoteHistory } from '@/composable/useNoteHistory';
 
 export default {
   components: {
@@ -205,6 +217,7 @@ export default {
     NoteToolbar,
     NoteHeadingsProgress,
     NoteBacklinks,
+    HistoryPanel,
     ShareModal,
   },
   inheritAttrs: false,
@@ -222,7 +235,9 @@ export default {
     const noteEditor = ref();
     const showSearch = shallowRef(false);
     const showShareModal = ref(false);
+    const showHistory = ref(false);
     const titleDiv = ref(null);
+    const noteHistory = useNoteHistory();
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
@@ -529,6 +544,8 @@ export default {
       editor,
       showSearch,
       showShareModal,
+      showHistory,
+      noteHistory,
       handleTitleInput,
       handleContentUpdate,
       closeSearch,
