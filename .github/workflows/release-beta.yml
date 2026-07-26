@@ -292,12 +292,12 @@ jobs:
         shell: bash
         env:
           CI: 'true'
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -433,9 +433,17 @@ jobs:
             echo "::error::ANDROID_KEYSTORE_BASE64 secret is not set"
             exit 1
           fi
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore.jks"
+          KEYSTORE_PATH="$RUNNER_TEMP/keystore.jks"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE_PATH"
+
+          # Verify keystore was created
+          if [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "::error::Failed to create keystore file"
+            exit 1
+          fi
+
           cat > src-tauri/gen/android/keystore.properties <<EOF
-          storeFile=$RUNNER_TEMP/keystore.jks
+          storeFile=$KEYSTORE_PATH
           storePassword=$ANDROID_KEYSTORE_PASSWORD
           keyAlias=$ANDROID_KEY_ALIAS
           keyPassword=$ANDROID_KEY_PASSWORD
@@ -462,6 +470,7 @@ jobs:
           yarn tauri android build --apk --aab --config src-tauri/tauri.beta.conf.json
 
       # iOS build
+      # iOS build
       - name: Regenerate iOS project
         if: ${{ matrix.id == 'ios' }}
         shell: bash
@@ -469,70 +478,26 @@ jobs:
           rm -rf src-tauri/gen/apple
           yarn tauri ios init
 
-      - name: Write Apple API key
-        if: ${{ matrix.id == 'ios' }}
-        env:
-          API_KEY: ${{ secrets.APPLE_API_KEY }}
-          API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
-          echo "$API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${API_KEY_ID}.p8"
-
-      - name: Set iOS build number
-        if: ${{ matrix.id == 'ios' }}
-        shell: bash
-        run: |
-          sed -i '' "s/CFBundleVersion: '.*'/CFBundleVersion: '${{ github.run_number }}'/" src-tauri/gen/apple/project.yml
-
-      - name: Import iOS signing certificate
-        if: ${{ matrix.id == 'ios' }}
-        shell: bash
-        env:
-          IOS_CERTIFICATE_BASE64: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
-          IOS_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
-
-          # Decode certificate
-          echo "$IOS_CERTIFICATE_BASE64" | base64 -d > "$CERTIFICATE_PATH"
-
-          # Create and configure temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import certificate
-          security import "$CERTIFICATE_PATH" \
-            -P "$IOS_CERTIFICATE_PASSWORD" \
-            -A \
-            -t cert \
-            -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-
-          # Set keychain search list
-          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
-
-          # Allow codesign to access keychain without prompt
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
       - name: Build iOS beta app
         if: ${{ matrix.id == 'ios' }}
-        continue-on-error: true
         shell: bash
         env:
           CI: 'true'
           CARGO_PROFILE_RELEASE_LTO: thin
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_IOS_SIGNING_CERTIFICATE_PASSWORD }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY_PATH: ${{ format('{0}/app-store-connect-api-key/AuthKey_{1}.p8', runner.temp, secrets.APPLE_API_KEY_ID) }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
+          mkdir -p "$RUNNER_TEMP/app-store-connect-api-key"
+          echo "$APPLE_API_KEY" > "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${APPLE_API_KEY_ID}.p8"
+          chmod 600 "$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${APPLE_API_KEY_ID}.p8"
+
+          export APPLE_API_KEY_PATH="$RUNNER_TEMP/app-store-connect-api-key/AuthKey_${APPLE_API_KEY_ID}.p8"
           yarn tauri ios build --config src-tauri/tauri.beta.conf.json
 
       - name: Stage Windows beta assets
