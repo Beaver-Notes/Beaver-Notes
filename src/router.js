@@ -10,6 +10,7 @@ const SettingsLabels = () => import('./pages/settings/Labels.vue');
 const SettingsSecurity = () => import('./pages/settings/Security.vue');
 const SettingsSync = () => import('./pages/settings/Sync.vue');
 const SettingsEditor = () => import('./pages/settings/Editor.vue');
+const SettingsImportExport = () => import('./pages/settings/ImportExport.vue');
 
 const APP_NAME = 'Beaver Notes';
 
@@ -25,6 +26,7 @@ const routeTitles = {
   'Settings-Security': `Security — ${APP_NAME}`,
   'Settings-Sync': `Sync — ${APP_NAME}`,
   'Settings-Editor': `Editor — ${APP_NAME}`,
+  'Settings-ImportExport': `Import / Export — ${APP_NAME}`,
   Onboarding: `Welcome — ${APP_NAME}`,
 };
 
@@ -98,6 +100,11 @@ const routes = [
         path: 'editor',
         name: 'Settings-Editor',
         component: SettingsEditor,
+      },
+      {
+        path: 'import-export',
+        name: 'Settings-ImportExport',
+        component: SettingsImportExport,
       },
     ],
   },

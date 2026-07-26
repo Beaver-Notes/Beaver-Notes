@@ -112,6 +112,11 @@ const settings = computed(() => ({
     icon: 'riFontSize',
     path: '/settings/editor',
   },
+  'Settings-ImportExport': {
+    name: 'Import / Export',
+    icon: 'riArrowDownLine',
+    path: '/settings/import-export',
+  },
   'Settings-Labels': {
     name: translations.value.labels?.title || 'Labels',
     icon: 'riPriceTag3Line',
