@@ -1,4 +1,5 @@
 import * as syncProtocol from 'y-protocols/sync'
+import * as awarenessProtocol from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
 import { useAccountStore } from '@/store/account'
@@ -14,6 +15,9 @@ import {
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
+
+// Awareness instance (set per-room via setAwareness)
+let localAwareness = null
 
 const HEARTBEAT_INTERVAL_MS = 25000
 const RECONNECT_DELAY_MS = 3000
@@ -38,6 +42,10 @@ export async function setRoomKey(roomName, hexKey) {
   } catch (err) {
     console.error('[hocuspocus] failed to import collab key:', err)
   }
+}
+
+export function setAwareness(awareness) {
+  localAwareness = awareness
 }
 
 export function useHocuspocusSync() {
@@ -115,27 +123,98 @@ export function useHocuspocusSync() {
 
       switch (messageType) {
         case 0: {
-          for (const [, room] of activeRooms) {
-            if (!room.doc) continue
-            try {
-              syncProtocol.readSyncStep1(msg, room.doc, 'hocuspocus')
-            } catch (err) {
-              console.warn(
-                '[hocuspocus] Failed to apply sync step 1:',
-                err.message,
-              )
+          // Sync message — read sub-type
+          const syncType = decoding.readVarUint(msg)
+          switch (syncType) {
+            case 0: {
+              // syncStep1 — server sends state vector, we reply with syncStep2
+              for (const [, room] of activeRooms) {
+                if (!room.doc) continue
+                try {
+                  const encoder = encoding.createEncoder()
+                  syncProtocol.readSyncStep1(msg, encoder, room.doc)
+                  sendBinary(encoding.toUint8Array(encoder).buffer)
+                } catch (err) {
+                  console.warn(
+                    '[hocuspocus] Failed to handle sync step 1:',
+                    err.message,
+                  )
+                }
+              }
+              break
             }
+            case 1: {
+              // syncStep2 — apply update to doc
+              for (const [, room] of activeRooms) {
+                if (!room.doc) continue
+                try {
+                  syncProtocol.readSyncStep2(msg, room.doc, 'hocuspocus')
+                } catch (err) {
+                  console.warn(
+                    '[hocuspocus] Failed to apply sync step 2:',
+                    err.message,
+                  )
+                }
+              }
+              break
+            }
+            case 2: {
+              // sync update — apply encrypted or plain update to doc
+              for (const [roomName, room] of activeRooms) {
+                if (!room.doc) continue
+                try {
+                  const key = collabKeys.get(roomName)
+                  if (key) {
+                    const aad = roomName
+                    const encryptedData = decoding.readVarUint8Array(msg)
+                    const decryptedData = await decryptUpdate(
+                      key,
+                      new Uint8Array(encryptedData),
+                      aad,
+                    )
+                    syncProtocol.readUpdate(
+                      decoding.createDecoder(decryptedData),
+                      room.doc,
+                      'hocuspocus',
+                    )
+                  } else {
+                    syncProtocol.readUpdate(
+                      msg,
+                      room.doc,
+                      'hocuspocus',
+                    )
+                  }
+                } catch (err) {
+                  console.warn(
+                    '[hocuspocus] Failed to apply update:',
+                    err.message,
+                  )
+                }
+              }
+              break
+            }
+            default:
+              console.warn(
+                `[hocuspocus] Unknown sync sub-type: ${syncType}`,
+              )
           }
           break
         }
         case 1: {
-          for (const [, room] of activeRooms) {
-            if (!room.doc) continue
+          // Query awareness — server asks for our awareness state
+          if (localAwareness) {
             try {
-              syncProtocol.readSyncStep2(msg, room.doc, 'hocuspocus')
+              const update = awarenessProtocol.encodeAwarenessUpdate(
+                localAwareness,
+                [localAwareness.clientID],
+              )
+              const encoder = encoding.createEncoder()
+              encoding.writeVarUint(encoder, 2)
+              encoding.writeVarUint8Array(encoder, update)
+              sendBinary(encoding.toUint8Array(encoder).buffer)
             } catch (err) {
               console.warn(
-                '[hocuspocus] Failed to apply sync step 2:',
+                '[hocuspocus] Failed to respond to awareness query:',
                 err.message,
               )
             }
@@ -143,36 +222,23 @@ export function useHocuspocusSync() {
           break
         }
         case 2: {
-          for (const [roomName, room] of activeRooms) {
-            if (!room.doc) continue
+          // Awareness update — apply to local awareness
+          if (localAwareness) {
             try {
-              const key = collabKeys.get(roomName)
-              if (key) {
-                const aad = roomName
-                const encryptedData = decoding.readVarUint8Array(msg)
-                const decryptedData = await decryptUpdate(
-                  key,
-                  new Uint8Array(encryptedData),
-                  aad,
-                )
-                syncProtocol.readUpdate(
-                  decoding.createDecoder(decryptedData),
-                  room.doc,
-                  'hocuspocus',
-                )
-              } else {
-                syncProtocol.readUpdate(
-                  msg,
-                  room.doc,
-                  'hocuspocus',
-                )
-              }
+              const update = decoding.readVarUint8Array(msg)
+              awarenessProtocol.applyAwarenessUpdate(
+                localAwareness,
+                update,
+                'hocuspocus',
+              )
             } catch (err) {
               console.warn(
-                '[hocuspocus] Failed to apply update:',
+                '[hocuspocus] Failed to apply awareness update:',
                 err.message,
               )
             }
+          } else {
+            decoding.readVarUint8Array(msg)
           }
           break
         }
@@ -234,6 +300,20 @@ export function useHocuspocusSync() {
     sendBinary(payload.buffer)
   }
 
+  function broadcastAwareness({ added, updated, removed }) {
+    if (!localAwareness) return
+    const changedClients = added.concat(updated).concat(removed)
+    if (changedClients.length === 0) return
+    const update = awarenessProtocol.encodeAwarenessUpdate(
+      localAwareness,
+      changedClients,
+    )
+    const encoder = encoding.createEncoder()
+    encoding.writeVarUint(encoder, 2)
+    encoding.writeVarUint8Array(encoder, update)
+    sendBinary(encoding.toUint8Array(encoder).buffer)
+  }
+
   function joinNoteRoom(noteId, doc) {
     const workspaceId = getActiveWorkspaceId()
     if (!workspaceId) return
@@ -247,6 +327,10 @@ export function useHocuspocusSync() {
     doc.on('update', (update, origin) => {
       broadcastUpdate(update, origin, doc)
     })
+
+    if (localAwareness) {
+      localAwareness.on('update', broadcastAwareness)
+    }
 
     if (connected && doc) {
       const encoder = encoding.createEncoder()
@@ -265,6 +349,10 @@ export function useHocuspocusSync() {
     doc.on('update', (update, origin) => {
       broadcastUpdate(update, origin, doc)
     })
+
+    if (localAwareness) {
+      localAwareness.on('update', broadcastAwareness)
+    }
 
     if (connected && doc) {
       const encoder = encoding.createEncoder()
@@ -380,6 +468,10 @@ export function useHocuspocusSync() {
     doc.on('update', (update, origin) => {
       broadcastUpdate(update, origin, doc)
     })
+
+    if (localAwareness) {
+      localAwareness.on('update', broadcastAwareness)
+    }
 
     if (connected && doc) {
       const encoder = encoding.createEncoder()
