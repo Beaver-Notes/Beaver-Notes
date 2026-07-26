@@ -49,6 +49,7 @@ export function useHocuspocusSync() {
   let reconnectTimeout = null
   let reconnectDelay = RECONNECT_DELAY_MS
   let connected = false
+  let messageQueue = Promise.resolve()
 
   const activeRooms = new Map()
   const pendingQueue = []
@@ -201,7 +202,7 @@ export function useHocuspocusSync() {
     }
   }
 
-  async function broadcastUpdate(update, origin) {
+  async function broadcastUpdate(update, origin, doc) {
     if (
       origin === 'hocuspocus' ||
       origin === 'load' ||
@@ -209,10 +210,9 @@ export function useHocuspocusSync() {
     )
       return
 
-    const roomName = [...activeRooms.keys()].find((name) => {
-      const room = activeRooms.get(name)
-      return room?.doc
-    })
+    const roomName = [...activeRooms.keys()].find(
+      (name) => activeRooms.get(name)?.doc === doc,
+    )
     if (!roomName) return
 
     const encoder = encoding.createEncoder()
@@ -245,7 +245,7 @@ export function useHocuspocusSync() {
     registerActiveDoc(noteId, doc)
 
     doc.on('update', (update, origin) => {
-      broadcastUpdate(update, origin)
+      broadcastUpdate(update, origin, doc)
     })
 
     if (connected && doc) {
@@ -263,7 +263,7 @@ export function useHocuspocusSync() {
     activeRooms.set(roomName, { doc, readOnly: false })
 
     doc.on('update', (update, origin) => {
-      broadcastUpdate(update, origin)
+      broadcastUpdate(update, origin, doc)
     })
 
     if (connected && doc) {
@@ -304,7 +304,7 @@ export function useHocuspocusSync() {
     }
 
     ws.onmessage = (event) => {
-      handleServerMessage(event.data)
+      messageQueue = messageQueue.then(() => handleServerMessage(event.data))
     }
 
     ws.onclose = () => {
@@ -378,7 +378,7 @@ export function useHocuspocusSync() {
     activeRooms.set(roomName, { doc, readOnly: false })
 
     doc.on('update', (update, origin) => {
-      broadcastUpdate(update, origin)
+      broadcastUpdate(update, origin, doc)
     })
 
     if (connected && doc) {
