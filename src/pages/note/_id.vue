@@ -38,6 +38,13 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
         </button>
         <presence-avatars :peers="presence.peers" class="ml-auto mr-2" />
+        <button
+          v-tooltip:bottom="'Online users'"
+          class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors"
+          @click="showOnlineUsers = !showOnlineUsers"
+        >
+          <v-remixicon name="riUserLine" size="18" />
+        </button>
         <note-actions
           v-bind="{ editor, id, note, showSearch, goBack }"
           @toggle-search="showSearch = !showSearch"
@@ -171,6 +178,13 @@
       v-if="showHistory"
       @close="showHistory = false"
     />
+    <online-users-panel
+      v-if="showOnlineUsers"
+      :peers="presence.peers"
+      :local-color="presence.localColor.value"
+      :local-name="accountStore.profile?.username || 'Anonymous'"
+      @close="showOnlineUsers = false"
+    />
   </div>
 </template>
 
@@ -212,6 +226,7 @@ import HistoryPanel from '@/components/HistoryPanel.vue';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { Awareness } from 'y-protocols/awareness';
 import PresenceAvatars from '@/components/PresenceAvatars.vue';
+import OnlineUsersPanel from '@/components/OnlineUsersPanel.vue';
 import { usePresence } from '@/composable/usePresence';
 
 export default {
@@ -224,6 +239,7 @@ export default {
     NoteBacklinks,
     ShareModal,
     PresenceAvatars,
+    OnlineUsersPanel,
   },
   inheritAttrs: false,
   setup() {
@@ -241,6 +257,7 @@ export default {
     const showSearch = shallowRef(false);
     const showShareModal = ref(false);
     const showHistory = ref(false);
+    const showOnlineUsers = ref(false);
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
 
@@ -259,6 +276,8 @@ export default {
       doc: ydoc,
       ready: yjsReady,
       load: yjsLoad,
+      setTitle: yjsSetTitle,
+      observeTitle: yjsObserveTitle,
     } = useNoteYjs();
 
     // Presence
@@ -576,6 +595,7 @@ export default {
       yjsReady,
       ydoc,
       presence,
+      showOnlineUsers,
     };
   },
 };
