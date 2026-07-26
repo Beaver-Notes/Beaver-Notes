@@ -102,6 +102,11 @@ const settings = computed(() => ({
     icon: 'riUserLine',
     path: '/settings/account',
   },
+  'Settings-Sync': {
+    name: translations.value.settings.sync || 'Sync',
+    icon: 'riSyncLine',
+    path: '/settings/sync',
+  },
   'Settings-Labels': {
     name: translations.value.labels?.title || 'Labels',
     icon: 'riPriceTag3Line',
