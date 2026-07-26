@@ -62,6 +62,7 @@ import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
 import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
 import { CommentExtension } from '@sereneinserenade/tiptap-comment-extension';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
@@ -83,6 +84,8 @@ export default {
     cursorPosition: { type: Number, default: 0 },
     note: { type: Object, default: () => ({}) },
     ydoc: { type: Object, default: null },
+    awareness: { type: Object, default: null },
+    userName: { type: String, default: 'Anonymous' },
   },
   emits: ['init', 'update', 'update:modelValue'],
   setup(props, { emit }) {
@@ -270,6 +273,17 @@ export default {
           field: 'content',
         })
       );
+      if (props.awareness) {
+        exts.push(
+          CollaborationCursor.configure({
+            provider: { awareness: props.awareness },
+            user: {
+              name: props.userName,
+              color: '#3B82F6',
+            },
+          })
+        );
+      }
       exts.push(
         CommentExtension.configure({
           HTMLAttributes: {

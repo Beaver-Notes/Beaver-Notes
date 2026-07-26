@@ -134,6 +134,8 @@
           ref="noteEditor"
           :key="$route.params.id"
           :ydoc="ydoc"
+          :awareness="awareness"
+          :user-name="accountStore.profile?.username || 'Anonymous'"
           :note="note"
           :cursor-position="note.lastCursorPosition"
           @update="
