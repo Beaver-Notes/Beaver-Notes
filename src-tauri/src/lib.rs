@@ -167,7 +167,6 @@ pub fn run() {
             commands::security::encryption_get_state,
             commands::security::encryption_submit_password,
             commands::security::encryption_enable,
-            commands::security::encryption_disable,
             commands::security::encryption_unlock,
             commands::security::encryption_lock,
             commands::security::encryption_encrypt_note_payload,

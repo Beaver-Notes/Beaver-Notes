@@ -13,6 +13,12 @@
         </p>
 
         <div class="mb-4">
+          <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
+            {{
+              translations.settings.appPasswordDesc ||
+              'Protects all notes on this device.'
+            }}
+          </p>
           <template v-if="hasPassword">
             <div class="flex items-center gap-2">
               <span
@@ -128,14 +134,21 @@
                 translations.settings.changePassphrase || 'Change Passphrase'
               }}
             </ui-button>
-            <ui-button
-              class="text-sm"
-              variant="secondary"
-              :disabled="encryptionBusy || !keyLoaded"
-              @click="lockNow"
-            >
-              {{ translations.settings.lockNow || 'Lock Now' }}
-            </ui-button>
+            <details class="ml-2">
+              <summary class="text-sm cursor-pointer text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300">
+                {{ translations.settings.advanced || 'Advanced' }}
+              </summary>
+              <div class="mt-2">
+                <ui-button
+                  class="text-sm"
+                  variant="secondary"
+                  :disabled="encryptionBusy || !keyLoaded"
+                  @click="lockNow"
+                >
+                  {{ translations.settings.lockNow || 'Lock Now' }}
+                </ui-button>
+              </div>
+            </details>
           </div>
         </div>
       </section>

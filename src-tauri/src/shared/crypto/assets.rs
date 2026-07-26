@@ -229,11 +229,14 @@ pub(crate) fn is_encrypted_yjs_blob(data: &[u8]) -> bool {
     data.len() >= 4 && &data[..4] == YJS_MAGIC
 }
 
+/// Checks if a buffer is an encrypted asset (all formats: v1, v2, v3, BNA1).
 pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
     (buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3))
         || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
 }
 
+/// DEPRECATED: Use is_encrypted_asset_buffer instead. This only checks v1/v2/v3 formats.
+#[deprecated(since = "5.0.0", note = "Use is_encrypted_asset_buffer instead")]
 pub(crate) fn is_encrypted_asset_v2(buffer: &[u8]) -> bool {
     buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3)
 }

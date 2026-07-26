@@ -268,15 +268,6 @@ pub(crate) fn encryption_enable(
 }
 
 #[tauri::command]
-pub(crate) fn encryption_disable(
-    _app: AppHandle,
-    _state: State<AppState>,
-    _remove_manifest: Option<bool>,
-) -> Result<(), AppError> {
-    Err(AppError::Other("Encryption cannot be disabled. It is a core storage feature.".into()))
-}
-
-#[tauri::command]
 pub(crate) fn encryption_unlock(
     app: AppHandle,
     state: State<AppState>,
@@ -625,12 +616,14 @@ fn assert_not_locked(state: &AppState) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[allow(deprecated)]
 pub(crate) fn is_encrypted_asset(path: String) -> Result<bool, AppError> {
     let raw = fs::read(path)?;
     Ok(is_encrypted_asset_buffer(&raw))
 }
 
 #[tauri::command]
+#[allow(deprecated)]
 pub(crate) async fn encryption_decrypt_asset_stream(
     app: AppHandle,
     state: State<'_, AppState>,

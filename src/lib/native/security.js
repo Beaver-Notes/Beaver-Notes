@@ -59,10 +59,6 @@ export function enableEncryption(password) {
   return backend.invoke('encryption:enable', password);
 }
 
-export function disableEncryptionState(removeManifest = true) {
-  return backend.invoke('encryption:disable', { removeManifest });
-}
-
 export function unlockEncryption(password) {
   return backend.invoke('encryption:unlock', { password });
 }

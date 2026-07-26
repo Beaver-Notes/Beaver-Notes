@@ -52,7 +52,6 @@ const commandAliases = {
   'encryption:getState': 'encryption_get_state',
   'encryption:submitPassword': 'encryption_submit_password',
   'encryption:enable': 'encryption_enable',
-  'encryption:disable': 'encryption_disable',
   'encryption:unlock': 'encryption_unlock',
   'encryption:lock': 'encryption_lock',
   'encryption:encryptNotePayload': 'encryption_encrypt_note_payload',
@@ -243,13 +242,6 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'encryption:enable':
       return withKeyVariants('password', payload);
-    case 'encryption:disable':
-      return {
-        ...withKeyVariants(
-          'remove_manifest',
-          payload?.removeManifest ?? payload?.remove_manifest ?? true
-        ),
-      };
     case 'encryption:unlock':
       return withKeyVariants('password', payload?.password);
     case 'encryption:lock':
