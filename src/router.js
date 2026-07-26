@@ -8,6 +8,7 @@ const SettingsShortcuts = () => import('./pages/settings/Shortcuts.vue');
 const SettingsAbout = () => import('./pages/settings/About.vue');
 const SettingsLabels = () => import('./pages/settings/Labels.vue');
 const SettingsSecurity = () => import('./pages/settings/Security.vue');
+const SettingsAccount = () => import('./pages/settings/Account.vue');
 const SettingsSync = () => import('./pages/settings/Sync.vue');
 const SettingsEditor = () => import('./pages/settings/Editor.vue');
 const SettingsImportExport = () => import('./pages/settings/ImportExport.vue');

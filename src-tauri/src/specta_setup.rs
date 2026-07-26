@@ -18,7 +18,7 @@ pub fn generate_bindings() {
     builder
         .export(
             Typescript::default(),
-            "src/lib/tauri/bindings.ts",
+            "../src/lib/tauri/bindings.ts",
         )
         .expect("failed to generate specta bindings");
 }

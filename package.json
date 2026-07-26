@@ -35,6 +35,7 @@
     "test:watch": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest",
     "lint": "oxlint --vue-plugin --max-warnings 0",
     "typecheck": "vue-tsc --noEmit",
+    "gen:specta": "node scripts/gen-specta.mjs",
     "tran-util": "node scripts/translationUtil.js",
     "tran-update": "node scripts/updateTranslations.js",
     "version:bump": "node scripts/bump-version.mjs",
@@ -138,6 +139,7 @@
     "uuid": "^11.1.1",
     "vue": "^3.4.6",
     "vue-router": "^4.0.11",
+    "y-prosemirror": "^1.2.6",
     "y-protocols": "^1.0.7",
     "yjs": "^13.6.31"
   },
