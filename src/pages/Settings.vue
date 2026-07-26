@@ -107,6 +107,11 @@ const settings = computed(() => ({
     icon: 'riSyncLine',
     path: '/settings/sync',
   },
+  'Settings-Editor': {
+    name: translations.value.settings.editor || 'Editor',
+    icon: 'riFontSize',
+    path: '/settings/editor',
+  },
   'Settings-Labels': {
     name: translations.value.labels?.title || 'Labels',
     icon: 'riPriceTag3Line',
