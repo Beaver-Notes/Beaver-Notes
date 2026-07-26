@@ -13,6 +13,8 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
   const quickConnectCode = ref('');
   const quickConnectSecret = ref('');
   const quickConnectExpiresAt = ref(null);
+  const showPasswordAuth = ref(false);
+  const showQuickConnect = ref(false);
   const showServerUrlEditor = ref(false);
   const draftServerUrl = ref(accountStore.serverUrl);
   const deletingAccount = ref(false);
@@ -249,6 +251,8 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     quickConnectCode,
     quickConnectSecret,
     quickConnectExpiresAt,
+    showPasswordAuth,
+    showQuickConnect,
     showServerUrlEditor,
     draftServerUrl,
     defaultServerUrl,

@@ -26,11 +26,6 @@
         </div>
 
         <div class="flex flex-col gap-2 px-4 pb-3">
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
-          >
-            {{ translations.account?.withPasskey || 'With passkey' }}
-          </p>
           <ui-input
             v-model="passkeyEmail"
             type="email"
@@ -67,12 +62,14 @@
         <div
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3"
         >
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+          <button
+            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            @click="showPasswordAuth = !showPasswordAuth"
           >
-            {{ translations.account?.withPassword || 'With password' }}
-          </p>
-          <div class="mt-2 flex flex-col gap-2">
+            {{ showPasswordAuth ? '↑' : '↓' }}
+            {{ translations.account?.withPassword || 'Or sign in with password' }}
+          </button>
+          <div v-if="showPasswordAuth" class="mt-2 flex flex-col gap-2">
             <ui-input
               v-model="signInEmail"
               type="email"
@@ -113,68 +110,72 @@
         <div
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3"
         >
-          <p
-            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+          <button
+            class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            @click="showQuickConnect = !showQuickConnect"
           >
-            {{ translations.account?.quickConnect || 'Sign in from another device' }}
-          </p>
-          <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-            {{
-              translations.account?.quickConnectBody ||
-              'Sign in by approving a code on another device that is already signed in.'
-            }}
-          </p>
-          <div v-if="!quickConnectSecret" class="mt-2">
-            <ui-button
-              class="w-full"
-              variant="secondary"
-              :loading="accountStore.busy"
-              :disabled="accountStore.busy"
-              @click="startQuickConnect"
-            >
-              <v-remixicon name="riQrCodeLine" class="mr-1" />
+            {{ showQuickConnect ? '↑' : '↓' }}
+            {{ translations.account?.quickConnect || 'Signing in from another device?' }}
+          </button>
+          <div v-if="showQuickConnect" class="mt-2 space-y-2">
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
               {{
-                translations.account?.quickConnectStart || 'Start'
+                translations.account?.quickConnectBody ||
+                'Approve a code on another device that is already signed in.'
               }}
-            </ui-button>
-          </div>
-          <div v-else class="mt-2 space-y-2">
-            <div
-              class="rounded-lg bg-neutral-100 px-3 py-2 font-mono text-lg text-center tracking-widest dark:bg-neutral-900 dark:text-neutral-200"
-            >
-              {{
-                translations.account?.quickConnectHint ||
-                'Enter this code on your other device, or paste a code from another device here.'
-              }}
-            </div>
-            <ui-input
-              v-model="quickConnectCode"
-              class="w-full"
-              :placeholder="
-                translations.account?.quickConnectEnterCode ||
-                'Enter code from another device'
-              "
-              @keyup.enter="authorizeQuickConnect"
-            />
-            <div class="flex gap-2">
+            </p>
+            <div v-if="!quickConnectSecret">
               <ui-button
-                class="flex-1"
+                class="w-full"
                 variant="secondary"
-                @click="pollQuickConnect"
-              >
-                <v-remixicon name="riRefreshLine" class="mr-1" />
-                {{
-                  translations.account?.quickConnectCheck || 'Check approval'
-                }}
-              </ui-button>
-              <ui-button
-                class="flex-1"
                 :loading="accountStore.busy"
                 :disabled="accountStore.busy"
-                @click="authorizeQuickConnect"
+                @click="startQuickConnect"
               >
-                {{ translations.account?.quickConnectUse || 'Use code' }}
+                <v-remixicon name="riQrCodeLine" class="mr-1" />
+                {{
+                  translations.account?.quickConnectStart || 'Start'
+                }}
               </ui-button>
+            </div>
+            <div v-else class="space-y-2">
+              <div
+                class="rounded-lg bg-neutral-100 px-3 py-2 font-mono text-lg text-center tracking-widest dark:bg-neutral-900 dark:text-neutral-200"
+              >
+                {{
+                  translations.account?.quickConnectHint ||
+                  'Enter this code on your other device, or paste a code from another device here.'
+                }}
+              </div>
+              <ui-input
+                v-model="quickConnectCode"
+                class="w-full"
+                :placeholder="
+                  translations.account?.quickConnectEnterCode ||
+                  'Enter code from another device'
+                "
+                @keyup.enter="authorizeQuickConnect"
+              />
+              <div class="flex gap-2">
+                <ui-button
+                  class="flex-1"
+                  variant="secondary"
+                  @click="pollQuickConnect"
+                >
+                  <v-remixicon name="riRefreshLine" class="mr-1" />
+                  {{
+                    translations.account?.quickConnectCheck || 'Check approval'
+                  }}
+                </ui-button>
+                <ui-button
+                  class="flex-1"
+                  :loading="accountStore.busy"
+                  :disabled="accountStore.busy"
+                  @click="authorizeQuickConnect"
+                >
+                  {{ translations.account?.quickConnectUse || 'Use code' }}
+                </ui-button>
+              </div>
             </div>
           </div>
         </div>

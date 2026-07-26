@@ -3,10 +3,10 @@
     class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-900 rounded-xl mobile:rounded-b-none border mobile:border-b-0 max-h-[80dvh] flex flex-col"
   >
     <div
-      class="flex flex-col items-center gap-2 my-8 text-center shrink-0 px-6"
+      class="flex flex-col items-center gap-1.5 my-5 text-center shrink-0 px-6"
     >
       <h2
-        class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+        class="text-xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
       >
         Your starting defaults
       </h2>
@@ -15,7 +15,7 @@
       </p>
     </div>
 
-    <div class="flex flex-col gap-4 overflow-y-auto flex-1 min-h-0 px-6 pb-4">
+    <div class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 px-6 pb-4">
       <!-- Appearance -->
       <div class="flex flex-col gap-2">
         <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
