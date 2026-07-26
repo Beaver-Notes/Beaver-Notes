@@ -5,6 +5,15 @@ import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { getWorkspaceDoc } from './meta-yjs-doc.js'
 import { registerActiveDoc } from './useNoteYjs.js'
+import {
+  importCollabKey,
+  encryptUpdate,
+  decryptUpdate,
+  isValidCollabKey,
+} from '@/utils/crypto/collab'
+
+// Collaboration keys per room (roomName -> CryptoKey)
+const collabKeys = new Map()
 
 const HEARTBEAT_INTERVAL_MS = 25000
 const RECONNECT_DELAY_MS = 3000
@@ -16,6 +25,19 @@ function buildRoomName(workspaceId, noteId) {
 
 function buildMetaRoomName(workspaceId) {
   return `workspace:${workspaceId}:meta`
+}
+
+export async function setRoomKey(roomName, hexKey) {
+  if (!isValidCollabKey(hexKey)) {
+    console.warn('[hocuspocus] invalid collab key for room', roomName)
+    return
+  }
+  try {
+    const key = await importCollabKey(hexKey)
+    collabKeys.set(roomName, key)
+  } catch (err) {
+    console.error('[hocuspocus] failed to import collab key:', err)
+  }
 }
 
 export function useHocuspocusSync() {
@@ -77,7 +99,7 @@ export function useHocuspocusSync() {
     sendBinary(buf.buffer)
   }
 
-  function handleServerMessage(buffer) {
+  async function handleServerMessage(buffer) {
     const data =
       buffer instanceof Uint8Array
         ? buffer
@@ -120,14 +142,30 @@ export function useHocuspocusSync() {
           break
         }
         case 2: {
-          for (const [, room] of activeRooms) {
+          for (const [roomName, room] of activeRooms) {
             if (!room.doc) continue
             try {
-              syncProtocol.readUpdate(
-                msg,
-                room.doc,
-                'hocuspocus',
-              )
+              const key = collabKeys.get(roomName)
+              if (key) {
+                const aad = roomName
+                const encryptedData = decoding.readVarUint8Array(msg)
+                const decryptedData = await decryptUpdate(
+                  key,
+                  new Uint8Array(encryptedData),
+                  aad,
+                )
+                syncProtocol.readUpdate(
+                  decoding.createDecoder(decryptedData),
+                  room.doc,
+                  'hocuspocus',
+                )
+              } else {
+                syncProtocol.readUpdate(
+                  msg,
+                  room.doc,
+                  'hocuspocus',
+                )
+              }
             } catch (err) {
               console.warn(
                 '[hocuspocus] Failed to apply update:',
@@ -163,7 +201,7 @@ export function useHocuspocusSync() {
     }
   }
 
-  function broadcastUpdate(update, origin) {
+  async function broadcastUpdate(update, origin) {
     if (
       origin === 'hocuspocus' ||
       origin === 'load' ||
@@ -171,9 +209,29 @@ export function useHocuspocusSync() {
     )
       return
 
+    const roomName = [...activeRooms.keys()].find((name) => {
+      const room = activeRooms.get(name)
+      return room?.doc
+    })
+    if (!roomName) return
+
     const encoder = encoding.createEncoder()
     syncProtocol.writeUpdate(encoder, update)
-    sendBinary(encoding.toUint8Array(encoder).buffer)
+    let payload = encoding.toUint8Array(encoder)
+
+    // Encrypt if collaboration key is available
+    const key = collabKeys.get(roomName)
+    if (key) {
+      try {
+        const aad = roomName
+        payload = await encryptUpdate(key, payload, aad)
+      } catch (err) {
+        console.error('[hocuspocus] encryption failed:', err)
+        return
+      }
+    }
+
+    sendBinary(payload.buffer)
   }
 
   function joinNoteRoom(noteId, doc) {
@@ -287,6 +345,7 @@ export function useHocuspocusSync() {
     }
     connected = false
     activeRooms.clear()
+    collabKeys.clear()
     pendingQueue.length = 0
   }
 
