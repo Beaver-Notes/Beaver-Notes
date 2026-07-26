@@ -81,17 +81,17 @@
         </transition>
         <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
       </template>
-      <textarea
+      <div
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
-        rows="1"
-        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder resize-none overflow-hidden leading-tight"
+        contenteditable="true"
+        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight"
         :class="editor ? '' : 'invisible'"
-        :placeholder="translations.editor.untitledNote"
+        :data-placeholder="translations.editor.untitledNote"
         @input="handleTitleInput"
         @keydown="disallowedEnter"
-      ></textarea>
+      ></div>
       <div v-else class="flex flex-col items-center justify-center h-screen">
         <v-remixicon
           class="w-24 h-auto text-gray-600 dark:text-white"
@@ -395,7 +395,10 @@ export default {
 
     // Title / content handlers
     const handleTitleInput = debounce((event) => {
-      return updateNote(id.value, { title: event.target.value });
+      const text = event.target.textContent || '';
+      yjsSetTitle(text);
+      autoResizeTitle();
+      return updateNote(id.value, { title: text });
     }, 150);
 
     function handleContentUpdate(content) {
@@ -431,8 +434,10 @@ export default {
           }
         });
 
-        const seedContent = noteStore.getById(noteId)?.content;
-        yjsLoad(noteId, seedContent).catch((err) => {
+        const currentNote = noteStore.getById(noteId);
+        const seedContent = currentNote?.content;
+        const seedTitle = currentNote?.title || '';
+        yjsLoad(noteId, seedContent, seedTitle).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
         });
       },
@@ -489,12 +494,13 @@ export default {
       window.addEventListener('beforeunload', handleBeforeUnload);
 
       if (titleDiv.value && note.value.title) {
-        titleDiv.value.value = note.value.title;
+        titleDiv.value.textContent = note.value.title;
         autoResizeTitle();
       }
     });
 
     onUnmounted(() => {
+      stopTitleObserver();
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();
@@ -560,10 +566,27 @@ export default {
         await nextTick();
         if (!titleDiv.value) return;
         const stored = newNote.title || '';
-        if (titleDiv.value.value !== stored) {
-          titleDiv.value.value = stored;
+        if (titleDiv.value.textContent !== stored) {
+          titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
+      },
+      { immediate: true }
+    );
+
+    // Sync remote Yjs title changes back to the store
+    let stopTitleObserver = () => {};
+    watch(
+      ydoc,
+      (newDoc, oldDoc) => {
+        stopTitleObserver();
+        if (!newDoc) return;
+        stopTitleObserver = yjsObserveTitle((title) => {
+          if (note.value && note.value.title !== title) {
+            updateNote(id.value, { title });
+          }
+          nextTick(() => autoResizeTitle());
+        });
       },
       { immediate: true }
     );
@@ -602,13 +625,15 @@ export default {
 </script>
 
 <style scoped>
-.title-placeholder::placeholder {
+.title-placeholder:empty::before {
+  content: attr(data-placeholder);
   color: var(--text-muted);
 }
 
 .title-placeholder {
   field-sizing: content;
   max-height: 8em;
+  min-height: 1.2em;
 }
 
 .editor {

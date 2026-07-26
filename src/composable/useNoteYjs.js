@@ -137,7 +137,7 @@ export function useNoteYjs() {
     await persistUpdate(currentNoteId, merged);
   }
 
-  async function load(noteId, initialContent) {
+  async function load(noteId, initialContent, initialTitle) {
     // Flush any pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);
@@ -176,6 +176,20 @@ export function useNoteYjs() {
       }
     }
 
+    // Seed title if the fragment is empty (first load from store)
+    const titleFrag = newDoc.getXmlFragment('title');
+    if (titleFrag.length === 0 && initialTitle) {
+      try {
+        newDoc.transact(() => {
+          const text = new Y.XmlText();
+          text.insert(0, initialTitle);
+          titleFrag.push([text]);
+        }, 'load');
+      } catch (e) {
+        console.error('[yjs] title seeding failed:', e);
+      }
+    }
+
     newDoc.on('update', (update, origin) => {
       if (origin === 'load' || origin === 'sync') return;
       pendingUpdates.push(update);
@@ -189,6 +203,35 @@ export function useNoteYjs() {
     activeDocs.set(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
+  }
+
+  function getTitle() {
+    if (!currentDoc) return '';
+    const titleFrag = currentDoc.getXmlFragment('title');
+    return titleFrag.toJSON() || '';
+  }
+
+  function setTitle(title) {
+    if (!currentDoc) return;
+    const titleFrag = currentDoc.getXmlFragment('title');
+    currentDoc.transact(() => {
+      titleFrag.delete(0, titleFrag.length);
+      if (title) {
+        const text = new Y.XmlText();
+        text.insert(0, title);
+        titleFrag.push([text]);
+      }
+    });
+  }
+
+  function observeTitle(callback) {
+    if (!currentDoc) return () => {};
+    const titleFrag = currentDoc.getXmlFragment('title');
+    const handler = () => {
+      callback(titleFrag.toJSON() || '');
+    };
+    titleFrag.observe(handler);
+    return () => titleFrag.unobserve(handler);
   }
 
   onUnmounted(async () => {
@@ -213,5 +256,5 @@ export function useNoteYjs() {
     }
   });
 
-  return { doc, ready, load };
+  return { doc, ready, load, getTitle, setTitle, observeTitle };
 }
