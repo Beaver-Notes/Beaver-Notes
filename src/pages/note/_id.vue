@@ -240,6 +240,7 @@ export default {
     NoteHeadingsProgress,
     NoteBacklinks,
     ShareModal,
+    HistoryPanel,
     PresenceAvatars,
     OnlineUsersPanel,
   },
@@ -610,6 +611,7 @@ export default {
       editor,
       showSearch,
       showShareModal,
+      showHistory,
       handleTitleInput,
       handleContentUpdate,
       closeSearch,
@@ -619,8 +621,10 @@ export default {
       isLocked,
       yjsReady,
       ydoc,
+      awareness,
       presence,
       showOnlineUsers,
+      accountStore,
     };
   },
 };

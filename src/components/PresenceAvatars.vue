@@ -25,7 +25,7 @@ import { computed } from 'vue';
 export default {
   props: {
     peers: {
-      type: Map,
+      type: [Map, Object],
       default: () => new Map(),
     },
     maxVisible: {
@@ -34,7 +34,11 @@ export default {
     },
   },
   setup(props) {
-    const peerList = computed(() => [...props.peers.values()]);
+    const peerList = computed(() => {
+      if (props.peers instanceof Map) return [...props.peers.values()];
+      if (props.peers && typeof props.peers === 'object') return Object.values(props.peers);
+      return [];
+    });
 
     const visiblePeers = computed(() =>
       peerList.value.slice(0, props.maxVisible)
