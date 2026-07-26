@@ -12,7 +12,7 @@
     </template>
 
     <div class="space-y-4">
-      <div v-if="sharing.noteShared" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
+      <div v-if="sharing.key" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
         <v-remixicon name="riCheckLine" size="16" class="inline mr-1" />
         Collaboration enabled for this note
       </div>
@@ -152,7 +152,11 @@ export default {
     }
 
     async function handleRemove(userId) {
-      await sharing.remove(props.noteId, userId);
+      try {
+        await sharing.remove(props.noteId, userId);
+      } catch {
+        // error is set in composable
+      }
     }
 
     return {
