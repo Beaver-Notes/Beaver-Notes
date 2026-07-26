@@ -304,7 +304,7 @@ export default {
             onConfirm: async (newKey) => {
               if (newKey) {
                 try {
-                  await passwordStore.setSharedKey(newKey);
+                  await passwordStore.setAppPassword(newKey);
                   await verifyPassphrase(newKey);
                   await noteStore.lockNote(props.note.id, newKey);
                 } catch {

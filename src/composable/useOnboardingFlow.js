@@ -612,7 +612,7 @@ export function useOnboardingFlow({
       }
 
       migratedCount = await migrateLegacyLockedNotes(dir, password, (pw) =>
-        passwordStore.setSharedKey(pw),
+        passwordStore.setAppPassword(pw),
       );
       state.legacyPasswordPrompt = false;
       state.legacyHasLockedNotes = false;

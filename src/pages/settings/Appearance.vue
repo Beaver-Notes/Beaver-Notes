@@ -33,8 +33,8 @@
         ></button>
         <button
           class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'light' }"
-          @click="setColor('light')"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'amber' }"
+          @click="setColor('amber')"
         ></button>
         <button
           class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
@@ -184,7 +184,7 @@
       <p class="mb-2">{{ translations.appearance.interfaceOptions || '-' }}</p>
       <div>
         <div class="space-y-1">
-          <!-- Clear Text - OLED -->
+          <!-- High contrast text (OLED) -->
           <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">

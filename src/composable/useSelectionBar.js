@@ -141,7 +141,7 @@ export function useSelectionBar() {
         onConfirm: async (newKey) => {
           if (!newKey) return;
           try {
-            await passwordStore.setSharedKey(newKey);
+            await passwordStore.setAppPassword(newKey);
             for (const note of selectedNotes.value) {
               if (!note.isLocked) {
                 await noteStore.lockNote(note.id, newKey);

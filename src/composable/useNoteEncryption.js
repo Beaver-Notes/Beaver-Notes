@@ -28,10 +28,10 @@ export function useNoteEncryption({ noteId, appEncryptedLocked: _appEncryptedLoc
       placeholder: translations.value.card.password,
       onConfirm: async (enteredPassword) => {
         try {
-          const hassharedKey = await passwordStore.retrieve();
-          if (!hassharedKey) {
+          const hasAppPassword = await passwordStore.retrieve();
+          if (!hasAppPassword) {
             await noteStore.unlockNote(note, enteredPassword);
-            await passwordStore.setSharedKey(enteredPassword);
+            await passwordStore.setAppPassword(enteredPassword);
             if (!isEncryptionEnabled() || isKeyLoaded()) {
               await verifyPassphrase(enteredPassword);
             }

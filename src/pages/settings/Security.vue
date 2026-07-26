@@ -24,7 +24,7 @@
                   size="16"
                 />
                 {{
-                  translations.settings.passwordSet || 'Global password is set'
+                  translations.settings.passwordSet || 'App password is set'
                 }}
               </span>
               <ui-button class="text-sm" @click="changePasswordDialog">
@@ -39,15 +39,15 @@
                 type="password"
                 class="flex-1"
                 :aria-label="
-                  translations.settings.globalPassword || 'Global password'
+                  translations.settings.globalPassword || 'App password'
                 "
                 :aria-describedby="securityError ? 'security-error' : undefined"
                 :placeholder="
-                  translations.settings.choosePassword || 'Choose a password...'
+                  translations.settings.choosePassword || 'Set your app password...'
                 "
-                @keyup.enter="setGlobalPassword"
+                @keyup.enter="setAppPassword"
               />
-              <ui-button :disabled="!passwordInput" @click="setGlobalPassword">
+              <ui-button :disabled="!passwordInput" @click="setAppPassword">
                 {{ translations.settings.setPassword || 'Set password' }}
               </ui-button>
             </div>
@@ -167,7 +167,7 @@ const noteStore = useNoteStore();
 
 const passwordInput = ref('');
 const securityError = ref('');
-const hasPassword = ref(!!passwordStore.sharedKey);
+const hasPassword = ref(!!passwordStore.appPassword);
 
 const keyLoaded = ref(isKeyLoaded());
 const encryptionBusy = ref(false);
@@ -262,11 +262,11 @@ async function resetPasswordDialog() {
   });
 }
 
-async function setGlobalPassword() {
+async function setAppPassword() {
   securityError.value = '';
   if (!passwordInput.value?.trim()) return;
   try {
-    await passwordStore.setSharedKey(passwordInput.value);
+    await passwordStore.setAppPassword(passwordInput.value);
     await verifyPassphrase(passwordInput.value);
     hasPassword.value = true;
     passwordInput.value = '';
@@ -457,7 +457,7 @@ function lockNow() {
 
 onMounted(async () => {
   await passwordStore.retrieve();
-  hasPassword.value = !!passwordStore.sharedKey;
+  hasPassword.value = !!passwordStore.appPassword;
   refreshKeyLoaded();
 });
 </script>

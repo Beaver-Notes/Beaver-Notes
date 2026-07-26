@@ -22,12 +22,12 @@ async function _getPasswordFilePath(): Promise<string | null> {
 }
 
 interface PasswdState {
-  sharedKey: string;
+  appPassword: string;
 }
 
 export const usePasswordStore = defineStore('password', {
   state: (): PasswdState => ({
-    sharedKey: '',
+    appPassword: '',
   }),
 
   actions: {
@@ -56,7 +56,7 @@ export const usePasswordStore = defineStore('password', {
           const encryptedBase64 = await this._readEncryptedFile();
 
           if (!encryptedBase64) {
-            this.sharedKey = '';
+            this.appPassword = '';
             return '';
           }
 
@@ -67,39 +67,39 @@ export const usePasswordStore = defineStore('password', {
             trimmed.startsWith('$2b$') ||
             trimmed.startsWith('$2y$')
           ) {
-            this.sharedKey = trimmed;
-            return this.sharedKey;
+            this.appPassword = trimmed;
+            return this.appPassword;
           }
 
           try {
             const decrypted = await decryptString(encryptedBase64);
             try {
               const parsed = JSON.parse(decrypted);
-              this.sharedKey = parsed.hash || decrypted;
+              this.appPassword = parsed.hash || decrypted;
             } catch {
-              this.sharedKey = decrypted;
+              this.appPassword = decrypted;
             }
-            return this.sharedKey;
+            return this.appPassword;
           } catch {
             // Decryption failed — treat raw content as hash if it looks like one
-            this.sharedKey = trimmed;
-            return this.sharedKey;
+            this.appPassword = trimmed;
+            return this.appPassword;
           }
         } else {
-          this.sharedKey = '';
+          this.appPassword = '';
           return '';
         }
       } catch (error) {
         console.error('[passwd] retrieve failed:', error);
-        this.sharedKey = '';
+        this.appPassword = '';
         return '';
       }
     },
 
-    async setSharedKey(password: string): Promise<void> {
+    async setAppPassword(password: string): Promise<void> {
       try {
         const hashedPassword = await hashPassword(password);
-        this.sharedKey = hashedPassword;
+        this.appPassword = hashedPassword;
 
         const encryptionAvailable = await isEncryptionAvailable();
         if (encryptionAvailable) {
@@ -109,14 +109,14 @@ export const usePasswordStore = defineStore('password', {
           await this._writeEncryptedFile(encrypted);
         }
       } catch (error) {
-        console.error('[passwd] setSharedKey failed:', error);
+        console.error('[passwd] setAppPassword failed:', error);
         throw error;
       }
     },
 
     async isValidPassword(enteredPassword: string): Promise<boolean> {
       try {
-        const valid = await comparePassword(enteredPassword, this.sharedKey);
+        const valid = await comparePassword(enteredPassword, this.appPassword);
 
         if (!valid) {
           const { warn, failCount } = await recordPasswordFailure();
@@ -151,11 +151,11 @@ export const usePasswordStore = defineStore('password', {
           console.error(`[passwd] failed to re-encrypt note ${note.id}:`, err);
         }
       }
-      await this.setSharedKey(newPassword);
+      await this.setAppPassword(newPassword);
       return true;
     },
 
-    async importSharedKey(rawHash: string): Promise<void> {
+    async importAppPassword(rawHash: string): Promise<void> {
       if (!rawHash || typeof rawHash !== 'string') return;
       const trimmed = rawHash.trim();
       const isBcryptHash =
@@ -165,11 +165,11 @@ export const usePasswordStore = defineStore('password', {
 
       if (!isBcryptHash) {
         // Plaintext password — hash and persist through the canonical path
-        return this.setSharedKey(trimmed);
+        return this.setAppPassword(trimmed);
       }
 
       // Already a bcrypt hash — store in memory and persist to disk
-      this.sharedKey = trimmed;
+      this.appPassword = trimmed;
       try {
         const encryptionAvailable = await isEncryptionAvailable();
         if (encryptionAvailable) {
@@ -179,7 +179,7 @@ export const usePasswordStore = defineStore('password', {
           await this._writeEncryptedFile(encrypted);
         }
       } catch (error) {
-        console.error('[passwd] importSharedKey persist failed:', error);
+        console.error('[passwd] importAppPassword persist failed:', error);
       }
     },
   },

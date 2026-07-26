@@ -18,7 +18,7 @@ export function useSettingsSecurity({
   const encryptionError = ref('');
   const passwordInput = ref('');
   const securityError = ref('');
-  const hasPassword = ref(!!passwordStore.sharedKey);
+  const hasPassword = ref(!!passwordStore.appPassword);
 
   async function resetPasswordDialog() {
     dialog.prompt({
@@ -67,12 +67,12 @@ export function useSettingsSecurity({
     });
   }
 
-  async function setGlobalPassword() {
+  async function setAppPassword() {
     securityError.value = '';
     if (!passwordInput.value?.trim()) return;
 
     try {
-      await passwordStore.setSharedKey(passwordInput.value);
+      await passwordStore.setAppPassword(passwordInput.value);
       await verifyPassphrase(passwordInput.value);
       hasPassword.value = true;
       passwordInput.value = '';
@@ -203,7 +203,7 @@ export function useSettingsSecurity({
     securityError,
     hasPassword,
     resetPasswordDialog,
-    setGlobalPassword,
+    setAppPassword,
     changePasswordDialog,
     changeEncryptionPassphrase,
     lockNow,

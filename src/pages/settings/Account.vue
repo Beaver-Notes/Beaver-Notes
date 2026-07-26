@@ -116,7 +116,7 @@
           <p
             class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
           >
-            {{ translations.account?.quickConnect || 'QuickConnect' }}
+            {{ translations.account?.quickConnect || 'Sign in from another device' }}
           </p>
           <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
             {{
@@ -134,7 +134,7 @@
             >
               <v-remixicon name="riQrCodeLine" class="mr-1" />
               {{
-                translations.account?.quickConnectStart || 'Start QuickConnect'
+                translations.account?.quickConnectStart || 'Start'
               }}
             </ui-button>
           </div>

@@ -351,8 +351,8 @@ async function lockNote(note) {
   const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
   try {
-    const hassharedKey = await passwordStore.retrieve();
-    if (!hassharedKey) {
+    const hasAppPassword = await passwordStore.retrieve();
+    if (!hasAppPassword) {
       dialog.prompt({
         title: translations.value.card.enterPasswd,
         okText: translations.value.card.setKey,
@@ -362,7 +362,7 @@ async function lockNote(note) {
         onConfirm: async (newKey) => {
           if (newKey) {
             try {
-              await passwordStore.setSharedKey(newKey);
+              await passwordStore.setAppPassword(newKey);
               await verifyPassphrase(newKey);
               await noteStore.lockNote(note, newKey);
             } catch {
@@ -409,10 +409,10 @@ async function unlockNote(note) {
     placeholder: translations.value.card.password,
     onConfirm: async (enteredPassword) => {
       try {
-        const hassharedKey = await passwordStore.retrieve();
-        if (!hassharedKey) {
+        const hasAppPassword = await passwordStore.retrieve();
+        if (!hasAppPassword) {
           await noteStore.unlockNote(note, enteredPassword);
-          await passwordStore.setSharedKey(enteredPassword);
+          await passwordStore.setAppPassword(enteredPassword);
           await verifyPassphrase(enteredPassword);
         } else {
           const isValid = await passwordStore.isValidPassword(enteredPassword);

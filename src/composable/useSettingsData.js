@@ -201,10 +201,10 @@ export function useSettingsData({
       if (canceled) return;
 
       let data = await storage.store();
-      data.sharedKey = storage.get('sharedKey');
+      data.appPassword = storage.get('sharedKey');
       data.lockedNotes = JSON.parse(localStorage.getItem('lockedNotes'));
       await passwordStore.retrieve();
-      data.sharedKey = passwordStore.sharedKey;
+      data.appPassword = passwordStore.appPassword;
 
       if (state.withPassword) {
         data = await encryptSettings(JSON.stringify(data), state.password);
@@ -286,8 +286,8 @@ export function useSettingsData({
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        if (result.sharedKey) {
-          await passwordStore.importSharedKey(result.sharedKey);
+        if (result.appPassword) {
+          await passwordStore.importAppPassword(result.appPassword);
         }
 
         if (result.lockStatus !== null && result.lockStatus !== undefined) {
