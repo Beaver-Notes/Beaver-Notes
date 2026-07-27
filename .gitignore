@@ -45,7 +45,5 @@ screenshots/
 package-lock.json
 
 # Internal / should not be published
-ENCRYPTION_MAP.md
-TECHNICAL_DEBT_AUDIT.md
 tests/
 docs/superpowers/
