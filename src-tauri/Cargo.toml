@@ -72,9 +72,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-app-icon = "0.1.0"
 tauri-plugin-scoped-storage = "=1.5.0"
-specta = "=2.0.0-rc.25"
+specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
-specta-typescript = "0.0.12"
+specta-typescript = { version = "0.0.12", features = ["serde"] }
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

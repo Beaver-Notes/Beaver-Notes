@@ -1,7 +1,7 @@
 use serde_json::{Map, Value};
 use tauri::{AppHandle, State};
 
-use crate::shared::*;
+use crate::shared::{RawJson, *};
 
 // ─── Key helpers ─────────────────────────────────────────────────────────────
 
@@ -168,26 +168,28 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
 /// Note content is no longer encrypted at the KV layer; Yjs blobs are
 /// encrypted at rest in the note_content / yjs_snapshots tables instead.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_get_store(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
-) -> Result<Value, AppError> {
+) -> Result<RawJson, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let root = load_store_root(&pool)?;
-    Ok(root)
+    Ok(root.into())
 }
 
 /// Replaces the entire store. Used by sync / import flows.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_replace(
     app: AppHandle,
     name: String,
-    data: Value,
+    data: RawJson,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let flattened = flatten_store_value(data);
+    let flattened = flatten_store_value(data.0);
     crate::db::db_replace_all(&pool, flattened)?;
     if name == SETTINGS_STORE {
         invalidate_settings_cache(&state);
@@ -199,13 +201,14 @@ pub(crate) fn storage_replace(
 /// For flat-addressable keys this is a single-row lookup; otherwise it falls
 /// back to loading the full store (legacy path, rarely hit).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_get(
     app: AppHandle,
     name: String,
     key: String,
-    def: Value,
+    def: RawJson,
     state: State<'_, AppState>,
-) -> Result<Value, AppError> {
+) -> Result<RawJson, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
     let segments = key_segments(&key);
     if segments.is_empty() {
@@ -216,25 +219,26 @@ pub(crate) fn storage_get(
         let raw = crate::db::db_get(&pool, &flat_key)?;
         let value = raw
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
-            .unwrap_or(def);
-        return Ok(value);
+            .unwrap_or(def.0);
+        return Ok(value.into());
     }
 
     // Fallback: multi-level key — load full store and walk the tree
     let root = load_store_root(&pool)?;
-    let value = get_nested_value(&root, &segments).cloned().unwrap_or(def);
-    Ok(value)
+    let value = get_nested_value(&root, &segments).cloned().unwrap_or(def.0);
+    Ok(value.into())
 }
 
 /// Sets a single value by dot-separated key.
 /// For flat-addressable keys this is a single INSERT OR REPLACE; otherwise it
 /// falls back to the load-modify-rewrite path.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_set(
     app: AppHandle,
     name: String,
     key: String,
-    value: Value,
+    value: RawJson,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
@@ -244,7 +248,7 @@ pub(crate) fn storage_set(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let serialized = serde_json::to_string(&value)?;
+        let serialized = serde_json::to_string(&*value)?;
         crate::db::db_set(&pool, &flat_key, &serialized)?;
         if name == SETTINGS_STORE {
             invalidate_settings_cache(&state);
@@ -254,7 +258,7 @@ pub(crate) fn storage_set(
 
     // Fallback: multi-level key — load, mutate, rewrite
     let mut root = load_store_root(&pool)?;
-    set_nested_value(&mut root, &segments, value);
+    set_nested_value(&mut root, &segments, value.0);
     crate::db::db_replace_all(&pool, flatten_store_value(root))?;
     if name == SETTINGS_STORE {
         invalidate_settings_cache(&state);
@@ -266,6 +270,7 @@ pub(crate) fn storage_set(
 /// For flat-addressable keys this is a single DELETE; otherwise falls back to
 /// the load-modify-rewrite path.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_delete(
     app: AppHandle,
     name: String,
@@ -299,6 +304,7 @@ pub(crate) fn storage_delete(
 /// Checks whether a key exists.
 /// For flat-addressable keys this is a single COUNT query; otherwise falls back.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_has(
     app: AppHandle,
     name: String,
@@ -321,6 +327,7 @@ pub(crate) fn storage_has(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn storage_clear(
     app: AppHandle,
     name: String,

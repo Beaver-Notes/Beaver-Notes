@@ -101,6 +101,7 @@ fn watch_external_temp_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn open_file_external(
     app: AppHandle,
     state: State<AppState>,

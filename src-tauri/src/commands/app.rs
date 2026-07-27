@@ -16,6 +16,7 @@ use crate::shared::path_for_name;
 use crate::menu::build_context_menu;
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
     Ok(AppInfo {
         name: app.package_info().name.clone(),
@@ -24,6 +25,7 @@ pub(crate) fn app_info(app: AppHandle) -> Result<AppInfo, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Result<String, AppError> {
     Ok(app_storage_dir(&app, state.inner())?
         .to_string_lossy()
@@ -31,6 +33,7 @@ pub(crate) fn app_directory(app: AppHandle, state: State<'_, AppState>) -> Resul
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn migration_status(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -48,6 +51,7 @@ pub(crate) fn migration_status(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn migration_run(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -65,6 +69,7 @@ pub(crate) fn migration_run(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn migration_probe_path(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -83,6 +88,7 @@ pub(crate) fn migration_probe_path(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn migration_run_with_path(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -101,6 +107,7 @@ pub(crate) fn migration_run_with_path(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, AppError> {
     #[cfg(desktop)]
     {
@@ -123,6 +130,7 @@ pub(crate) fn migration_read_legacy_data(dir: String) -> Result<Option<String>, 
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Result<(), AppError> {
     #[cfg(desktop)]
     {
@@ -147,6 +155,7 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> Result<(), AppError> {
     app.notification()
         .builder()
@@ -157,6 +166,7 @@ pub(crate) fn show_notification(app: AppHandle, title: String, body: String) -> 
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_spellcheck(app: AppHandle, enabled: bool) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window
@@ -167,6 +177,7 @@ pub(crate) fn set_spellcheck(app: AppHandle, enabled: bool) -> Result<(), AppErr
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         window.set_zoom(level).map_err(|e| AppError::Other(e.to_string()))?;
@@ -176,11 +187,13 @@ pub(crate) fn set_zoom(app: AppHandle, state: State<AppState>, level: f64) -> Re
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_zoom(state: State<AppState>) -> Result<f64, AppError> {
     Ok(*state.ui.zoom_level.lock()?)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_reduced_motion(
     app: AppHandle,
     state: State<AppState>,
@@ -196,11 +209,13 @@ pub(crate) fn set_reduced_motion(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_reduced_motion(state: State<AppState>) -> Result<bool, AppError> {
     Ok(*state.ui.reduced_motion.lock()?)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn set_high_contrast(
     app: AppHandle,
     state: State<AppState>,
@@ -216,11 +231,13 @@ pub(crate) fn set_high_contrast(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_high_contrast(state: State<AppState>) -> Result<bool, AppError> {
     Ok(*state.ui.high_contrast.lock()?)
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<(), AppError> {
     #[cfg(desktop)]
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
@@ -238,6 +255,7 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn app_ready(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
     if let Some(banner) = state
         .updater
@@ -260,6 +278,7 @@ pub(crate) fn app_ready(app: AppHandle, state: State<AppState>) -> Result<(), Ap
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn helper_relaunch(app: AppHandle) -> Result<(), AppError> {
     app.restart();
     #[allow(unreachable_code)]
@@ -267,6 +286,7 @@ pub(crate) fn helper_relaunch(app: AppHandle) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn helper_get_path(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -278,6 +298,7 @@ pub(crate) fn helper_get_path(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, AppError> {
     let theme = app
         .get_webview_window(MAIN_WINDOW_LABEL)
@@ -287,6 +308,7 @@ pub(crate) fn helper_is_dark_theme(app: AppHandle) -> Result<bool, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(), AppError> {
     #[cfg(desktop)]
     {

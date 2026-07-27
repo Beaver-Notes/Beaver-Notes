@@ -17,6 +17,7 @@ fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
 /// append-only BLOB rows so every peer's version is preserved.
 /// When app encryption is active the blob is encrypted before persisting.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_append(
   app: AppHandle,
   note_id: String,
@@ -34,6 +35,7 @@ pub(crate) fn yjs_append(
 /// (no stored update is newer than the snapshot). Returns an empty vector when
 /// the caller must replay history and re-cache it via `yjs_save_snapshot`.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_get_snapshot(
   app: AppHandle,
   note_id: String,
@@ -48,6 +50,7 @@ pub(crate) fn yjs_get_snapshot(
 /// Return every stored Yjs update for a note, oldest first.
 /// The caller replays them into a Y.Doc to reconstruct the current state.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_get_updates(
   app: AppHandle,
   note_id: String,
@@ -62,6 +65,7 @@ pub(crate) fn yjs_get_updates(
 /// Delete all existing updates for a note and replace them with a single
 /// compressed Yjs state vector (snapshot).  Keeps the row count bounded.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_compact(
   app: AppHandle,
   note_id: String,
@@ -76,6 +80,7 @@ pub(crate) fn yjs_compact(
 
 /// Delete every Yjs update for a note.  Called when the note itself is deleted.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_delete(
   app: AppHandle,
   note_id: String,

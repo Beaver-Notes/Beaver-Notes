@@ -14,6 +14,7 @@ use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use specta_typescript::Any;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::FilePath;
@@ -59,24 +60,58 @@ pub(crate) const SYNC_ENCRYPTION_SCOPE: &str = "sync";
 
 pub(crate) static HELP_URL: &str = "https://docs.beavernotes.com/";
 
-#[derive(Clone, Serialize)]
+/// Wrapper around `serde_json::Value` that specta exports as TypeScript `any`.
+/// This avoids the infinite-loop bug in specta-typescript when trying to render
+/// the recursive `serde_json::Value` enum definition.
+#[derive(Clone, Debug, Serialize, specta::Type)]
+pub(crate) struct RawJson(#[specta(type = Any)] pub serde_json::Value);
+
+impl<'de> serde::Deserialize<'de> for RawJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde_json::Value::deserialize(deserializer).map(Self)
+    }
+}
+
+impl std::ops::Deref for RawJson {
+    type Target = serde_json::Value;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for RawJson {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<serde_json::Value> for RawJson {
+    fn from(v: serde_json::Value) -> Self {
+        Self(v)
+    }
+}
+
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AppInfo {
     pub(crate) name: String,
     pub(crate) version: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FileStat {
     pub(crate) is_file: bool,
     pub(crate) is_directory: bool,
-    pub(crate) size: u64,
-    pub(crate) mtime_ms: u128,
-    pub(crate) ctime_ms: u128,
+    pub(crate) size: f64,
+    pub(crate) mtime_ms: f64,
+    pub(crate) ctime_ms: f64,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FailureResult {
     pub(crate) fail_count: u32,
@@ -84,10 +119,10 @@ pub(crate) struct FailureResult {
     /// True when the unlock is currently rate-limited (lockout active).
     pub(crate) locked: bool,
     /// Seconds remaining in the current lockout (0 when not locked).
-    pub(crate) lockout_seconds: u64,
+    pub(crate) lockout_seconds: f64,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WindowStateSnapshot {
     pub(crate) x: i32,
@@ -97,7 +132,7 @@ pub(crate) struct WindowStateSnapshot {
     pub(crate) maximized: bool,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LegacyMigrationStatus {
     pub(crate) legacy_dir: Option<String>,
@@ -107,7 +142,7 @@ pub(crate) struct LegacyMigrationStatus {
     pub(crate) target_has_data: bool,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LegacyMigrationResult {
     pub(crate) legacy_dir: Option<String>,
@@ -117,7 +152,7 @@ pub(crate) struct LegacyMigrationResult {
     pub(crate) marker_written: bool,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OpenDialogOptions {
     pub(crate) title: Option<String>,
@@ -128,21 +163,21 @@ pub(crate) struct OpenDialogOptions {
     pub(crate) filters: Option<Vec<DialogFilter>>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DialogFilter {
     pub(crate) name: String,
     pub(crate) extensions: Vec<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DialogResult {
     pub(crate) canceled: bool,
     pub(crate) file_paths: Vec<String>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MessageDialogOptions {
     pub(crate) title: Option<String>,
@@ -152,7 +187,7 @@ pub(crate) struct MessageDialogOptions {
     pub(crate) buttons: Option<Vec<String>>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SaveDialogOptions {
     pub(crate) title: Option<String>,
@@ -160,14 +195,14 @@ pub(crate) struct SaveDialogOptions {
     pub(crate) filters: Option<Vec<DialogFilter>>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SaveDialogResult {
     pub(crate) canceled: bool,
     pub(crate) file_path: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BannerData {
     pub(crate) content: String,
@@ -176,7 +211,7 @@ pub(crate) struct BannerData {
     pub(crate) version: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CheckResult {
     pub(crate) success: bool,
@@ -185,7 +220,7 @@ pub(crate) struct CheckResult {
     pub(crate) error: Option<String>,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateInfo {
     pub(crate) is_checking: bool,
@@ -288,7 +323,7 @@ pub(crate) fn app_storage_dir(app: &AppHandle, state: &AppState) -> Result<PathB
     app.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, specta::Type, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum InstallationSource {
     Standalone,
@@ -596,7 +631,7 @@ pub(crate) struct WorkspaceInfo {
 }
 
 /// Internal shape of workspaces.json
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, specta::Type, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspacesJson {
     #[serde(default = "default_workspace_id")]
@@ -930,9 +965,9 @@ pub(crate) fn to_file_stat(metadata: fs::Metadata) -> FileStat {
     FileStat {
         is_file: metadata.is_file(),
         is_directory: metadata.is_dir(),
-        size: metadata.len(),
-        mtime_ms: modified,
-        ctime_ms: created,
+        size: metadata.len() as f64,
+        mtime_ms: modified as f64,
+        ctime_ms: created as f64,
     }
 }
 

@@ -5,26 +5,26 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::shared::*;
+use crate::shared::{RawJson, *};
 use rand::RngCore;
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetMigrationResult {
-    pub(crate) total: usize,
-    pub(crate) processed: usize,
+    pub(crate) total: u32,
+    pub(crate) processed: u32,
     pub(crate) failed_paths: Vec<String>,
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetMigrationProgressPayload {
-    pub(crate) processed: usize,
-    pub(crate) total: usize,
+    pub(crate) processed: u32,
+    pub(crate) total: u32,
     pub(crate) current: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct EncryptionStateResult {
     pub(crate) enabled: bool,
@@ -33,7 +33,7 @@ pub(crate) struct EncryptionStateResult {
     pub(crate) app_unlocked: bool,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct EncryptionSubmitResult {
     pub(crate) ok: bool,
@@ -73,6 +73,7 @@ fn collect_asset_files(root: &PathBuf, files: &mut Vec<PathBuf>) -> Result<(), A
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn asset_crypto_migrate_dir(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -86,8 +87,8 @@ pub(crate) async fn asset_crypto_migrate_dir(
         collect_asset_files(&app_dir.join(root), &mut files)?;
     }
 
-    let total = files.len();
-    let mut processed = 0;
+    let total = files.len() as u32;
+    let mut processed: u32 = 0;
     let mut failed_paths = Vec::new();
     let mut failed_reasons = Vec::new();
     let batch_size = 4usize;
@@ -175,6 +176,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_get_state(
     app: AppHandle,
     state: State<AppState>,
@@ -192,6 +194,7 @@ pub(crate) fn encryption_get_state(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_submit_password(
     app: AppHandle,
     state: State<AppState>,
@@ -249,6 +252,7 @@ pub(crate) fn encryption_submit_password(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_enable(
     app: AppHandle,
     state: State<AppState>,
@@ -268,6 +272,7 @@ pub(crate) fn encryption_enable(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_unlock(
     app: AppHandle,
     state: State<AppState>,
@@ -298,6 +303,7 @@ pub(crate) fn encryption_unlock(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), AppError> {
     let mut s = state.crypto.session.write()?;
     *s = CryptoSession::default();
@@ -305,10 +311,11 @@ pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_encrypt_note_payload(
     state: State<AppState>,
     plain_json: String,
-) -> Result<Value, AppError> {
+) -> Result<RawJson, AppError> {
     let key = current_app_key(state.inner())?
         .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
     let key_id = state
@@ -327,16 +334,17 @@ pub(crate) fn encryption_encrypt_note_payload(
     if !key_id.is_empty() {
         result["kid"] = Value::String(key_id);
     }
-    Ok(result)
+    Ok(result.into())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_decrypt_note_payload(
     state: State<AppState>,
-    payload: Value,
+    payload: RawJson,
 ) -> Result<Option<String>, AppError> {
     if payload.get("ae").and_then(Value::as_u64) != Some(3) {
-        return Ok(Some(serde_json::to_string(&payload)?));
+        return Ok(Some(serde_json::to_string(&*payload)?));
     }
     // Look up the correct items key by `kid` (absent → current key).
     let kid = payload
@@ -370,6 +378,7 @@ pub(crate) fn encryption_decrypt_note_payload(
 /// XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
 /// stem) so it cannot be swapped between sync entries.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn sync_encrypt_payload(
     _app: AppHandle,
     state: State<AppState>,
@@ -386,6 +395,7 @@ pub(crate) fn sync_encrypt_payload(
 /// Decrypt a sync payload. Returns `DECRYPT_FAILED` on authentication failure
 /// (wrong passphrase or tampered AAD) and `KEY_LOCKED` when the key is absent.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn sync_decrypt_payload(
     _app: AppHandle,
     state: State<AppState>,
@@ -407,6 +417,7 @@ pub(crate) fn sync_decrypt_payload(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
     state
         .crypto
@@ -423,6 +434,7 @@ pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
 ///
 /// Requires that the app is unlocked (the KEK is cached in `master_key_cache`).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
     rotate_items_key(&app, state.inner())?;
     Ok(())
@@ -432,6 +444,7 @@ pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> R
 /// consistent so every device derives the same items key. `passphrase` is needed
 /// to adopt a remote items key on a joining device (it is never written out).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_reconcile_key_params(
     app: AppHandle,
     state: State<AppState>,
@@ -470,6 +483,7 @@ pub(crate) fn encryption_reconcile_key_params(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {
     if KEYRING_AVAILABLE.load(std::sync::atomic::Ordering::Relaxed) {
         return Ok(true);
@@ -479,17 +493,20 @@ pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool,
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn safe_storage_encrypt(plain_text: String) -> Result<String, AppError> {
     safe_storage_encrypt_bytes(plain_text.as_bytes())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn safe_storage_decrypt(encrypted_base64: String) -> Result<String, AppError> {
     let decrypted = safe_storage_decrypt_bytes(&encrypted_base64)?;
     String::from_utf8(decrypted).map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn safe_storage_store_blob(
     state: State<AppState>,
     key: String,
@@ -501,6 +518,7 @@ pub(crate) fn safe_storage_store_blob(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn safe_storage_fetch_blob(
     state: State<AppState>,
     key: String,
@@ -514,6 +532,7 @@ pub(crate) fn safe_storage_fetch_blob(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn safe_storage_clear_blob(state: State<AppState>, key: String) -> Result<(), AppError> {
     allowed_blob_key(&key)?;
     let s = state.inner();
@@ -521,6 +540,7 @@ pub(crate) fn safe_storage_clear_blob(state: State<AppState>, key: String) -> Re
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn asset_crypto_set_passphrase(
     state: State<AppState>,
     passphrase: String,
@@ -531,6 +551,7 @@ pub(crate) fn asset_crypto_set_passphrase(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn asset_crypto_clear_passphrase(state: State<AppState>) -> Result<(), AppError> {
     state.security.transient_passphrase.lock()?.clear();
     *state.crypto.asset_key_cache.lock()? = None;
@@ -538,11 +559,13 @@ pub(crate) fn asset_crypto_clear_passphrase(state: State<AppState>) -> Result<()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn passwd_hash(password: String) -> Result<String, AppError> {
     hash(password, DEFAULT_COST).map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn passwd_compare(password: String, hash: String) -> Result<bool, AppError> {
     if hash.is_empty() {
         return Ok(false);
@@ -551,6 +574,7 @@ pub(crate) fn passwd_compare(password: String, hash: String) -> Result<bool, App
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureResult, AppError> {
     let mut failures = state.security.failure_count.lock()?;
     *failures += 1;
@@ -580,11 +604,12 @@ pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureRes
         fail_count: *failures,
         warn: *failures >= WARN_THRESHOLD,
         locked: remaining > 0,
-        lockout_seconds: remaining,
+        lockout_seconds: remaining as f64,
     })
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn passwd_reset_failures(state: State<AppState>) -> Result<(), AppError> {
     *state.security.failure_count.lock()? = 0;
     *state.security.lockout_until.lock()? = None;
@@ -616,6 +641,7 @@ fn assert_not_locked(state: &AppState) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 #[allow(deprecated)]
 pub(crate) fn is_encrypted_asset(path: String) -> Result<bool, AppError> {
     let raw = fs::read(path)?;
@@ -623,6 +649,7 @@ pub(crate) fn is_encrypted_asset(path: String) -> Result<bool, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 #[allow(deprecated)]
 pub(crate) async fn encryption_decrypt_asset_stream(
     app: AppHandle,
@@ -668,6 +695,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn encryption_encrypt_asset_stream(
     _app: AppHandle,
     state: State<'_, AppState>,
@@ -685,6 +713,7 @@ pub(crate) async fn encryption_encrypt_asset_stream(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_cache_decrypted_note(
     state: State<AppState>,
     note_id: String,
@@ -695,6 +724,7 @@ pub(crate) fn encryption_cache_decrypted_note(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_get_cached_decrypted_note(
     state: State<AppState>,
     note_id: String,
@@ -703,12 +733,14 @@ pub(crate) fn encryption_get_cached_decrypted_note(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn encryption_clear_decrypted_caches(state: State<AppState>) -> Result<(), AppError> {
     crate::shared::clear_decrypted_caches(state.inner());
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn decrypt_legacy_cryptojs_note(
     ciphertext_b64: String,
     password: String,
@@ -717,6 +749,7 @@ pub(crate) fn decrypt_legacy_cryptojs_note(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn derive_argon2_key(
     passphrase: String,
     salt: Option<String>,

@@ -8,9 +8,10 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::Value;
 use tauri::{AppHandle, State};
 
-use crate::shared::*;
+use crate::shared::{RawJson, *};
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_copy(
     app: AppHandle,
     state: State<AppState>,
@@ -63,35 +64,38 @@ fn copy_dir_recursive(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_output_json(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-    data: Value,
+    data: RawJson,
 ) -> Result<(), AppError> {
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "write json")?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let serialized = serde_json::to_vec_pretty(&data)?;
+    let serialized = serde_json::to_vec_pretty(&*data)?;
     fs::write(path, serialized)?;
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_read_json(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-) -> Result<Value, AppError> {
+) -> Result<RawJson, AppError> {
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "read json")?;
     let raw = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&raw)?)
+    Ok(serde_json::from_str::<Value>(&raw)?.into())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_ensure_dir(
     app: AppHandle,
     state: State<AppState>,
@@ -104,6 +108,7 @@ pub(crate) fn fs_ensure_dir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_path_exists(
     app: AppHandle,
     state: State<AppState>,
@@ -115,6 +120,7 @@ pub(crate) fn fs_path_exists(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_remove(
     app: AppHandle,
     state: State<AppState>,
@@ -131,6 +137,7 @@ pub(crate) fn fs_remove(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_write_file(
     app: AppHandle,
     state: State<AppState>,
@@ -162,6 +169,7 @@ pub(crate) fn fs_write_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_mkdir(
     app: AppHandle,
     state: State<AppState>,
@@ -180,6 +188,7 @@ pub(crate) fn fs_mkdir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_read_file(
     app: AppHandle,
     state: State<AppState>,
@@ -191,6 +200,7 @@ pub(crate) fn fs_read_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_readdir(
     app: AppHandle,
     state: State<AppState>,
@@ -207,6 +217,7 @@ pub(crate) fn fs_readdir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_stat(
     app: AppHandle,
     state: State<AppState>,
@@ -218,6 +229,7 @@ pub(crate) fn fs_stat(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_unlink(
     app: AppHandle,
     state: State<AppState>,
@@ -230,6 +242,7 @@ pub(crate) fn fs_unlink(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_read_data(
     app: AppHandle,
     state: State<AppState>,
@@ -248,6 +261,7 @@ pub(crate) fn fs_read_data(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_is_file(
     app: AppHandle,
     state: State<AppState>,
@@ -259,6 +273,7 @@ pub(crate) fn fs_is_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_access(
     app: AppHandle,
     state: State<AppState>,

@@ -362,6 +362,7 @@ fn parse_apple_note_block(block: &str) -> Result<ImportNotePayload, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn import_evernote(
     app: AppHandle,
     enex_path: String,
@@ -453,6 +454,7 @@ pub(crate) async fn import_evernote(
 }
 
 #[tauri::command]
+#[specta::specta]
 #[cfg(target_os = "macos")]
 pub(crate) async fn import_apple_notes(app: AppHandle) -> Result<(), AppError> {
     let app_handle = app.clone();
@@ -585,6 +587,7 @@ return output
 }
 
 #[tauri::command]
+#[specta::specta]
 #[cfg(not(target_os = "macos"))]
 pub(crate) async fn import_apple_notes(_app: AppHandle) -> Result<(), AppError> {
     Err(AppError::Other("Apple Notes import is only available on macOS".into()))
