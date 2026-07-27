@@ -23,6 +23,7 @@ use keyring::Entry;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::Sha256;
 use tauri::AppHandle;
 
@@ -204,6 +205,17 @@ pub(crate) struct SyncEnvelope {
     pub(crate) enc: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct StoredJsonEnvelope {
+    pub(crate) ae: u8,
+    pub(crate) v: u8,
+    pub(crate) iv: String,
+    pub(crate) enc: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub(crate) kid: String,
+}
+
 pub(crate) fn aead_encrypt_json(
     key: &[u8; 32],
     value: &serde_json::Value,
@@ -260,7 +272,58 @@ pub(crate) fn aead_decrypt_json(
     Ok(serde_json::from_slice(&plaintext)?)
 }
 
-// ── Shared key params (Standard Notes-style items key distribution) ──────────
+pub(crate) fn encrypt_json_for_storage(
+    key: &[u8; 32],
+    value: &Value,
+    aad: &str,
+    key_id: Option<&str>,
+) -> Result<StoredJsonEnvelope, AppError> {
+    let envelope = aead_encrypt_json(key, value, aad)?;
+    Ok(StoredJsonEnvelope {
+        ae: 4,
+        v: envelope.v,
+        iv: envelope.iv,
+        enc: envelope.enc,
+        kid: key_id.unwrap_or_default().to_string(),
+    })
+}
+
+pub(crate) fn decrypt_json_from_storage(
+    key: &[u8; 32],
+    value: &Value,
+    aad: &str,
+) -> Result<Option<Value>, AppError> {
+    let Some(obj) = value.as_object() else {
+        return Ok(None);
+    };
+
+    if obj.get("ae").and_then(Value::as_u64) != Some(4) {
+        return Ok(None);
+    }
+
+    let envelope = SyncEnvelope {
+        v: obj
+            .get("v")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| AppError::Crypto("Encrypted store value missing version".into()))?
+            as u8,
+        iv: obj
+            .get("iv")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::Crypto("Encrypted store value missing iv".into()))?
+            .to_string(),
+        enc: obj
+            .get("enc")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::Crypto("Encrypted store value missing payload".into()))?
+            .to_string(),
+    };
+
+    let decrypted = aead_decrypt_json(key, &envelope, aad)?;
+    Ok(Some(decrypted))
+}
+
+//  Shared key params
 //
 // The items key is random and wrapped by the master key. To let a second device
 // derive the SAME master key (and thus unwrap the SAME items key) we publish the
@@ -528,11 +591,9 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
     //    so we can release the lock before doing disk I/O / crypto.
     let (kek, current_key_id, current_key) = {
         let s = state.crypto.session.read().map_err(AppError::from)?;
-        let kek = s
-            .master_key_cache
-            .ok_or_else(|| {
-                AppError::Other("Master key not cached. Cannot rotate without passphrase.".into())
-            })?;
+        let kek = s.master_key_cache.ok_or_else(|| {
+            AppError::Other("Master key not cached. Cannot rotate without passphrase.".into())
+        })?;
         if s.current_items_key_id.is_empty() {
             return Err(AppError::Other(
                 "No current key ID set — cannot rotate.".into(),
@@ -621,6 +682,7 @@ pub(crate) fn encrypt_note_content_for_storage(
     let key_id = state
         .crypto.session
         .read()
+
         .map_err(AppError::from)?
         .current_items_key_id
         .clone();

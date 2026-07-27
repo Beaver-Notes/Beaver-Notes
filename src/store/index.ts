@@ -3,14 +3,6 @@ import { useNoteStore } from './note';
 import { useLabelStore } from './label';
 import { usePasswordStore } from './passwd';
 import { useFolderStore } from './folder';
-import { useStorage } from '@/composable/storage';
-import { rebuildSearchIndex } from '@/lib/native/search';
-
-const settingsStorage = useStorage('settings');
-
-// Version bump this whenever the FTS schema or indexing logic changes so that
-// existing users automatically get a full index rebuild on next launch.
-const FTS_INDEX_VERSION = 1;
 
 interface MainState {
   activeNoteId: string;
@@ -41,10 +33,6 @@ export const useStore = defineStore('main', {
         await noteStore.normalizeInvalidFolderIds();
       }
 
-      this._ensureFtsIndex().catch((err: unknown) =>
-        console.warn('[fts] Background index build failed:', err)
-      );
-
       return values
         .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
         .map(({ value }) => value);
@@ -55,12 +43,5 @@ export const useStore = defineStore('main', {
       reindexAllNotes(noteStore.data);
     },
 
-    async _ensureFtsIndex() {
-      const storedVersion = await settingsStorage.get('fts_index_version', 0);
-      if (storedVersion >= FTS_INDEX_VERSION) return;
-
-      await rebuildSearchIndex();
-      await settingsStorage.set('fts_index_version', FTS_INDEX_VERSION);
-    },
   },
 });

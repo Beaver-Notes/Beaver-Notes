@@ -46,7 +46,7 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
               tokenize = 'unicode61 remove_diacritics 1'
             );
             CREATE INDEX IF NOT EXISTS idx_kv_notes_prefix
-              ON kv(key) WHERE key LIKE 'notes.%';",
+              ON kv(key);",
         )
         .map_err(|e| AppError::Other(e.to_string()))?;
     }
