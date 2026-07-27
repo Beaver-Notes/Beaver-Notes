@@ -295,6 +295,7 @@ export function useAppShell() {
   // is not loaded (and could not be auto-restored). Forces unlock before use.
   const appEncryptionGate = reactive({
     show: false,
+    deriving: false,
   });
 
   const syncLockBannerCopy = computed(() => ({
@@ -397,7 +398,12 @@ export function useAppShell() {
 
   const restoreEncryptionKeys = async () => {
     await getSyncPath();
-    await tryRestoreKeyFromSafeStorage();
+    appEncryptionGate.deriving = true;
+    try {
+      await tryRestoreKeyFromSafeStorage();
+    } finally {
+      appEncryptionGate.deriving = false;
+    }
     await refreshEncryptionGate();
   };
 
@@ -439,7 +445,7 @@ export function useAppShell() {
       return;
     }
 
-    await restoreEncryptionKeys();
+    restoreEncryptionKeys(); // non-blocking — key derives in background
 
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',

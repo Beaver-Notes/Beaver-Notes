@@ -9,9 +9,20 @@
   />
   <app-command-prompt />
   <app-encryption-gate
-    v-if="appEncryptionGate.show"
+    v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
     @unlocked="appEncryptionGate.show = false"
   />
+  <div
+    v-if="appEncryptionGate.show && appEncryptionGate.deriving"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+  >
+    <div class="flex flex-col items-center gap-3">
+      <ui-spinner :size="36" />
+      <span class="text-sm text-neutral-500 dark:text-neutral-400">
+        Unlocking…
+      </span>
+    </div>
+  </div>
 
   <a
     href="#app-main"

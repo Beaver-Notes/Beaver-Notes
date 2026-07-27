@@ -19,6 +19,12 @@ const state = {
 let _restoreInFlight = null;
 const BLOB_KEY = 'encryptionPassphraseBlob';
 
+function generateRandomPassphrase() {
+  const buf = new Uint8Array(32);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 async function refreshState() {
   const next = await getEncryptionState();
   state.enabled = !!next?.enabled;
@@ -37,9 +43,13 @@ export function isKeyLoaded() {
 export async function ensureKeyReadyForWrite() {
   const next = await refreshState();
   if (!next?.enabled) {
-    throw new Error(
-      'Encryption is not configured. Complete onboarding to set up encryption.'
-    );
+    const result = await setupEncryption(generateRandomPassphrase());
+    if (!result.ok) {
+      throw new Error(
+        'Encryption setup failed: ' + (result.error || 'Unknown error')
+      );
+    }
+    return true;
   }
   if (next?.unlocked) return true;
 
@@ -50,7 +60,7 @@ export async function ensureKeyReadyForWrite() {
 
 export async function setupEncryption(passphrase) {
   if (!passphrase?.trim()) {
-    return { ok: false, error: 'Passphrase cannot be empty.' };
+    passphrase = generateRandomPassphrase();
   }
 
   try {
