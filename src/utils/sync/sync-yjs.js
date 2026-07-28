@@ -99,25 +99,35 @@ export function parseSyncFilename(file) {
   const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
 
-  // 1. Timestamp is the final numeric segment.  If the segment before it is also
-  //    numeric (0-999), treat that as an optional sequence disambiguator.  The
-  //    two-numeric pattern uniquely identifies a seq (snapshot files never carry
-  //    a seq and device IDs are UUIDs, not 0-999 numbers).
+  // 1. Identify (ts, seq) from the final segments.
+  //    - If the last segment is small (0-999): it is seq, and the segment before
+  //      it is ts (a large epoch millis value).
+  //    - Otherwise: the last numeric segment is ts and there is no seq.
+  //    Snapshot files never carry a seq, and device IDs are UUIDs, not small ints.
   const last = parts[parts.length - 1];
+  const lastNum = Number(last);
   const secondLast = parts.length >= 2 ? parts[parts.length - 2] : null;
-  const tsCandidate = Number(last);
-  if (!Number.isFinite(tsCandidate)) return null;
+  const secondLastNum = secondLast != null ? Number(secondLast) : NaN;
 
   let seq;
-  let ts = tsCandidate;
-  parts.pop();
+  let ts;
 
-  if (secondLast != null) {
-    const seqCandidate = Number(secondLast);
-    if (Number.isInteger(seqCandidate) && seqCandidate >= 0 && seqCandidate <= 999) {
-      seq = seqCandidate;
-      parts.pop();
-    }
+  if (
+    secondLast != null &&
+    Number.isInteger(lastNum) && lastNum >= 0 && lastNum <= 999 &&
+    Number.isFinite(secondLastNum)
+  ) {
+    // Last segment is a seq (0-999), second-to-last is the ts.
+    seq = lastNum;
+    ts = secondLastNum;
+    parts.pop();
+    parts.pop();
+  } else if (Number.isFinite(lastNum)) {
+    // Last segment is the ts.
+    ts = lastNum;
+    parts.pop();
+  } else {
+    return null;
   }
 
   // 2. Device id is the segment right before the timestamp (or seq)
