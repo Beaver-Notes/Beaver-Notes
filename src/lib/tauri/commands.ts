@@ -60,6 +60,7 @@ const commandAliases = {
   'sync:decryptPayload': 'sync_decrypt_payload',
   'sync:keyReady': 'sync_key_ready',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
+  'encryption:rotateKey': 'encryption_rotate_key',
 
   'assetCrypto:decryptAssetStream': 'encryption_decrypt_asset_stream',
   'assetCrypto:encryptAssetStream': 'encryption_encrypt_asset_stream',

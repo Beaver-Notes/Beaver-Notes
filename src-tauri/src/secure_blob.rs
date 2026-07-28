@@ -81,9 +81,17 @@ impl SecureBlobCache {
             return Ok(None);
         };
         let bytes = safe_storage_decrypt_bytes(encrypted)?;
-                self.memory
-                    .lock()?
-                    .insert(key.to_string(), bytes.clone());
+
+        // Migrate disk-only blob to keyring so future reads don't depend on the file.
+        if let Ok(entry) = crate::shared::keyring_entry(key) {
+            if let Ok(as_string) = String::from_utf8(bytes.clone()) {
+                let _ = entry.set_password(&as_string);
+            }
+        }
+
+        self.memory
+            .lock()?
+            .insert(key.to_string(), bytes.clone());
         Ok(Some(bytes))
     }
 

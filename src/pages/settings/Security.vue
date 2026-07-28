@@ -134,6 +134,14 @@
                 translations.settings.changePassphrase || 'Change Passphrase'
               }}
             </ui-button>
+            <ui-button
+              class="text-sm"
+              variant="secondary"
+              :disabled="encryptionBusy || !keyLoaded"
+              @click="rotateKey"
+            >
+              {{ translations.settings.rotateKey || 'Rotate key' }}
+            </ui-button>
             <details class="ml-2">
               <summary class="text-sm cursor-pointer text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300">
                 {{ translations.settings.advanced || 'Advanced' }}
@@ -171,6 +179,7 @@ import {
 import {
   migrateAssetEncryption,
   onAssetMigrationProgress,
+  rotateEncryptionKey,
 } from '@/lib/native/security';
 
 const { translations } = useTranslations();
@@ -462,6 +471,24 @@ async function changeEncryptionPassphrase() {
       }
     },
   });
+}
+
+async function rotateKey() {
+  if (encryptionBusy.value) return;
+  encryptionBusy.value = true;
+  try {
+    await rotateEncryptionKey();
+    dialog.alert({
+      title: translations.value.settings.keyRotated || 'Key Rotated',
+      body: translations.value.settings.keyRotatedDesc ||
+        'The encryption key has been rotated. Old keys remain available for existing notes.',
+      okText: translations.value.dialog?.close || 'Close',
+    });
+  } catch (e) {
+    encryptionError.value = String(e);
+  } finally {
+    encryptionBusy.value = false;
+  }
 }
 
 function lockNow() {
