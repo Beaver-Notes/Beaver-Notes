@@ -4,7 +4,6 @@ import {
   decryptString,
   isEncryptionAvailable,
 } from '@/lib/native/security';
-import { useNoteStore } from './note';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { pathExists, readFile, writeFile } from '@/lib/native/fs';
@@ -133,24 +132,10 @@ export const usePasswordStore = defineStore('password', {
     },
 
     async resetPassword(currentPassword: string, newPassword: string): Promise<boolean> {
-      const noteStore = useNoteStore();
-
       if (!(await this.isValidPassword(currentPassword))) {
         throw new Error('Current password is incorrect');
       }
 
-      const lockedNotes = Object.values(noteStore.data).filter(
-        (note: any) => note.id && note.isLocked
-      );
-
-      for (const note of lockedNotes) {
-        try {
-          await noteStore.unlockNote(note.id, currentPassword);
-          await noteStore.lockNote(note.id, newPassword);
-        } catch (err) {
-          console.error(`[passwd] failed to re-encrypt note ${note.id}:`, err);
-        }
-      }
       await this.setAppPassword(newPassword);
       return true;
     },

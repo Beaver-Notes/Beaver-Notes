@@ -90,7 +90,7 @@
           <button
             class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
             @click="
-              appEncryptedLocked ? unlockAppEncryption() : unlockNote(note.id)
+              appEncryptedLocked ? unlockAppEncryption() : noteStore.unlockNote(note.id)
             "
           >
             {{
@@ -320,9 +320,8 @@ export default {
     }
 
     // Encryption
-    const { unlockNote, unlockAppEncryption } = useNoteEncryption({
+    const { unlockAppEncryption } = useNoteEncryption({
       noteId: id,
-      appEncryptedLocked,
     });
 
     // Auto-scroll
@@ -589,7 +588,6 @@ export default {
       note,
       translations,
       uiState,
-      unlockNote,
       unlockAppEncryption,
       appEncryptedLocked,
       editor,

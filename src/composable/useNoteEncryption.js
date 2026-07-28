@@ -1,82 +1,35 @@
 import { useDialog } from '@/composable/dialog';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { useTranslations } from '@/composable/useTranslations';
 import {
   isEncryptedContent,
-  isEncryptionEnabled,
-  isKeyLoaded,
   verifyPassphrase,
 } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory } from '@/utils/note/serializer.js';
 
-/**
- * Composable that handles per-note password locking and app-level
- * encryption unlocking flows.
- */
-export function useNoteEncryption({ noteId, appEncryptedLocked: _appEncryptedLocked }) {
+export function useNoteEncryption({ noteId }) {
   const dialog = useDialog();
-  const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
   const { translations } = useTranslations();
 
-  async function unlockNote(note) {
-    dialog.prompt({
-      title: translations.value.card.enterPasswd,
-      okText: translations.value.card.unlock,
-      cancelText: translations.value.dialog.cancel,
-      placeholder: translations.value.card.password,
-      onConfirm: async (enteredPassword) => {
-        try {
-          const hasAppPassword = await passwordStore.retrieve();
-          if (!hasAppPassword) {
-            await noteStore.unlockNote(note, enteredPassword);
-            await passwordStore.setAppPassword(enteredPassword);
-            if (!isEncryptionEnabled() || isKeyLoaded()) {
-              await verifyPassphrase(enteredPassword);
-            }
-          } else {
-            const isValidPassword = await passwordStore.isValidPassword(
-              enteredPassword
-            );
-            if (isValidPassword) {
-              await noteStore.unlockNote(note, enteredPassword);
-            } else {
-              dialog.alert({
-                title: translations.value.settings?.alertTitle || 'Alert',
-                body: translations.value.card.wrongPasswd,
-                okText: translations.value.dialog?.close || 'Close',
-              });
-            }
-          }
-        } catch {
-          dialog.alert({
-            title: translations.value.settings?.alertTitle || 'Alert',
-            body: translations.value.card.wrongPasswd,
-            okText: translations.value.dialog?.close || 'Close',
-          });
-        }
-      },
-    });
-  }
-
   async function unlockAppEncryption() {
+    const t = translations.value;
     dialog.prompt({
-      title: translations.value.settings?.unlock || 'Unlock',
+      title: t.settings?.unlock || 'Unlock',
       body:
-        translations.value.settings?.unlockAppEncryption ||
+        t.settings?.unlockAppEncryption ||
         'Enter your encryption passphrase to unlock this note.',
-      okText: translations.value.settings?.unlock || 'Unlock',
-      cancelText: translations.value.dialog?.close || 'Close',
-      placeholder: translations.value.settings?.password || 'Passphrase',
+      okText: t.settings?.unlock || 'Unlock',
+      cancelText: t.dialog?.close || 'Close',
+      placeholder: t.settings?.password || 'Passphrase',
       onConfirm: async (passphrase) => {
         try {
           const result = await verifyPassphrase(passphrase);
           if (!result.ok) {
             dialog.alert({
-              title: translations.value.settings?.alertTitle || 'Alert',
+              title: t.settings?.alertTitle || 'Alert',
               body: result.error || 'Wrong passphrase.',
-              okText: translations.value.dialog?.close || 'Close',
+              okText: t.dialog?.close || 'Close',
             });
             return;
           }
@@ -89,14 +42,14 @@ export function useNoteEncryption({ noteId, appEncryptedLocked: _appEncryptedLoc
           }
         } catch {
           dialog.alert({
-            title: translations.value.settings?.alertTitle || 'Alert',
-            body: translations.value.card.wrongPasswd,
-            okText: translations.value.dialog?.close || 'Close',
+            title: t.settings?.alertTitle || 'Alert',
+            body: t.card?.wrongPasswd || 'Wrong passphrase.',
+            okText: t.dialog?.close || 'Close',
           });
         }
       },
     });
   }
 
-  return { unlockNote, unlockAppEncryption };
+  return { unlockAppEncryption };
 }

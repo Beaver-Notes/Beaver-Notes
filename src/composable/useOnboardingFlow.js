@@ -26,7 +26,6 @@ import {
   runOnboardingMigrationFromPath,
 } from '@/utils/onboarding/index.js';
 import { setupEncryption } from '@/utils/crypto/encryption.js';
-import { NOTE_CRYPTO_ERROR } from '@/utils/crypto/noteCrypto.js';
 import {
   detectLegacyLockedNotes,
   migrateLegacyLockedNotes,
@@ -619,7 +618,7 @@ export function useOnboardingFlow({
       return { success: true, migratedCount };
     } catch (e) {
       console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
-      state.legacyPasswordError = e?.message || NOTE_CRYPTO_ERROR;
+      state.legacyPasswordError = e?.message || 'Incorrect password';
       return {
         success: false,
         migratedCount,
