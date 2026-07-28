@@ -121,17 +121,22 @@ export function useOnboardingFlow({
 
   async function setupEncryptionPassword() {
     encryptionPasswordError.value = '';
+    const t = translations.value;
     const pw = encryptionPassword.value;
     if (!pw) {
-      encryptionPasswordError.value = 'Please enter a password.';
+      encryptionPasswordError.value =
+        t?.settings?.invalidPassword || 'Please enter a password.';
       return;
     }
-    if (pw.length < 6) {
-      encryptionPasswordError.value = 'Password must be at least 6 characters.';
+    if (pw.length < 8) {
+      encryptionPasswordError.value =
+        t?.settings?.passwordTooShort ||
+        'Password must be at least 8 characters.';
       return;
     }
     if (pw !== encryptionConfirmPassword.value) {
-      encryptionPasswordError.value = 'Passwords do not match.';
+      encryptionPasswordError.value =
+        t?.settings?.passwordMismatch || 'Passwords do not match.';
       return;
     }
     encryptionPasswordLoading.value = true;

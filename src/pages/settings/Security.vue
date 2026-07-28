@@ -406,9 +406,10 @@ async function changeEncryptionPassphrase() {
             translations.value.settings.newPassphrase || 'New passphrase',
           onConfirm: async (newPass) => {
             if (!newPass) return;
-            if (newPass.length < 6) {
+            if (newPass.length < 8) {
               encryptionError.value =
-                'Passphrase must be at least 6 characters.';
+                translations.value.settings.passwordTooShort ||
+                'Passphrase must be at least 8 characters.';
               return;
             }
 
