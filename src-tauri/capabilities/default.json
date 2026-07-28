@@ -27,6 +27,7 @@
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
     "audio-recorder:default",
+    "biometry:default",
     "safe-area-insets-css:default",
     "core:webview:default"
   ]

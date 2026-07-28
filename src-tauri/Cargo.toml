@@ -70,6 +70,7 @@ chrono = { version = "0.4", default-features = false, features = ["clock"] }
 urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
+tauri-plugin-biometry = "0.2"
 tauri-plugin-app-icon = "0.1.0"
 tauri-plugin-scoped-storage = "=1.5.0"
 specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }

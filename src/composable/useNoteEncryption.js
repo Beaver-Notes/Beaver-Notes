@@ -4,8 +4,13 @@ import { useTranslations } from '@/composable/useTranslations';
 import {
   isEncryptedContent,
   verifyPassphrase,
+  tryRestoreKeyFromSafeStorage,
 } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory } from '@/utils/note/serializer.js';
+import {
+  isBiometricAvailable,
+  authenticateWithBiometrics,
+} from '@/lib/native/biometric';
 
 export function useNoteEncryption({ noteId }) {
   const dialog = useDialog();
@@ -13,6 +18,26 @@ export function useNoteEncryption({ noteId }) {
   const { translations } = useTranslations();
 
   async function unlockAppEncryption() {
+    const biometricOk = await isBiometricAvailable();
+    if (biometricOk) {
+      try {
+        await authenticateWithBiometrics('Unlock note');
+        const restored = await tryRestoreKeyFromSafeStorage();
+        if (restored) {
+          const current = noteStore.getById(noteId.value);
+          if (current && isEncryptedContent(current.content)) {
+            const decrypted = await decryptNoteForMemory(current);
+            if (decrypted !== current) {
+              noteStore.data[noteId.value] = decrypted;
+            }
+          }
+          return;
+        }
+      } catch {
+        // fall through to passphrase dialog
+      }
+    }
+
     const t = translations.value;
     dialog.prompt({
       title: t.settings?.unlock || 'Unlock',
