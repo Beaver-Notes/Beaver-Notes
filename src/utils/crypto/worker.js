@@ -118,6 +118,48 @@ self.onmessage = async ({ data }) => {
       return;
     }
 
+    if (type === 'encryptBuffer') {
+      const { keyRaw, plainBuf } = data;
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyRaw,
+        { name: ALGO_AES_GCM, length: KEY_LENGTH_256 },
+        false,
+        ['encrypt']
+      );
+      const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
+      const cipherBuf = await crypto.subtle.encrypt(
+        { name: ALGO_AES_GCM, iv },
+        key,
+        plainBuf
+      );
+      const envelope = new Uint8Array(IV_LENGTH_BYTES + cipherBuf.byteLength);
+      envelope.set(iv, 0);
+      envelope.set(new Uint8Array(cipherBuf), IV_LENGTH_BYTES);
+      self.postMessage({ requestId, ok: true, envelope: envelope.buffer }, [envelope.buffer]);
+      return;
+    }
+
+    if (type === 'decryptBuffer') {
+      const { keyRaw, envelope } = data;
+      const key = await crypto.subtle.importKey(
+        'raw',
+        keyRaw,
+        { name: ALGO_AES_GCM, length: KEY_LENGTH_256 },
+        false,
+        ['decrypt']
+      );
+      const iv = envelope.slice(0, IV_LENGTH_BYTES);
+      const cipherBytes = envelope.slice(IV_LENGTH_BYTES);
+      const plainBuf = await crypto.subtle.decrypt(
+        { name: ALGO_AES_GCM, iv },
+        key,
+        cipherBytes
+      );
+      self.postMessage({ requestId, ok: true, plainBuf: plainBuf }, [plainBuf]);
+      return;
+    }
+
     self.postMessage({
       requestId,
       ok: false,

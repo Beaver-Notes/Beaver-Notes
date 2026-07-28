@@ -734,14 +734,15 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     let key = current_app_key(&state_inner)?
         .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
 
-    if is_encrypted_asset_v2(&raw) || is_encrypted_asset_buffer(&raw) {
+    if is_encrypted_asset_buffer(&raw) {
         let metadata = fs::metadata(&path_buf)?;
         let output_path = crate::shared::decrypted_cache_path(
             &state_inner.files.asset_cache_dir,
             &path_buf,
             &metadata,
         )?;
-        if is_encrypted_asset_v2(&raw) {
+        let magic = &raw[..4];
+        if magic == ASSET_MAGIC || magic == ASSET_MAGIC_LEGACY_V2 {
             decrypt_asset_streaming(&path_buf, &output_path, &key)?;
         } else {
             let plain = decrypt_asset(&app, &state_inner, &path_buf, &raw)?;

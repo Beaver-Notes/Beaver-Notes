@@ -64,6 +64,13 @@
   resolved "https://registry.npmjs.org/@chevrotain/types/-/types-11.1.2.tgz"
   integrity sha512-U+HFai5+zmJCkK86QsaJtoITlboZHBqrVketcO2ROv865xfCMSFpELQoz1GkX5GzME8pTa+3kbKrZHQtI0gdbw==
 
+"@choochmeque/tauri-plugin-biometry-api@0.2.8":
+  version "0.2.8"
+  resolved "https://registry.yarnpkg.com/@choochmeque/tauri-plugin-biometry-api/-/tauri-plugin-biometry-api-0.2.8.tgz#e8bf33d811ebb810a70ae1e8d1a23adb4b3cfe81"
+  integrity sha512-rPxbjUggKK7nTPOdIQQS5GMzCoToB3L5JHK5HZeA3HBDiSDP5uWK7mZ45i9Do/1lB07DRNSNGJZ1UMA2yhqkcQ==
+  dependencies:
+    "@tauri-apps/api" "^2.8.0"
+
 "@eioluseyi/tailwind-fade@^1.1.1":
   version "1.1.1"
   resolved "https://registry.npmjs.org/@eioluseyi/tailwind-fade/-/tailwind-fade-1.1.1.tgz"

@@ -85,12 +85,12 @@ function _getWorker() {
   return w;
 }
 
-function _postToWorker(message) {
+function _postToWorker(message, transfer) {
   const worker = _getWorker();
   const { requestId } = message;
   return new Promise((resolve, reject) => {
     _pendingRequests.set(requestId, { resolve, reject });
-    worker.postMessage(message);
+    worker.postMessage(message, transfer || undefined);
   });
 }
 
@@ -153,4 +153,32 @@ export async function decryptStringOnWorker(keyRaw, nonceHex, cipherB64) {
     cipherB64,
   });
   return result.plaintext;
+}
+
+export async function encryptBufferOnWorker(keyRaw, plainBuf) {
+  const requestId = ++_cryptoWorkerRequestId;
+  const result = await _postToWorker(
+    {
+      requestId,
+      type: 'encryptBuffer',
+      keyRaw,
+      plainBuf,
+    },
+    [plainBuf.buffer]
+  );
+  return new Uint8Array(result.envelope);
+}
+
+export async function decryptBufferOnWorker(keyRaw, envelope) {
+  const requestId = ++_cryptoWorkerRequestId;
+  const result = await _postToWorker(
+    {
+      requestId,
+      type: 'decryptBuffer',
+      keyRaw,
+      envelope,
+    },
+    [envelope.buffer]
+  );
+  return new Uint8Array(result.plainBuf);
 }

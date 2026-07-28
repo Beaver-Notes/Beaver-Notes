@@ -71,6 +71,7 @@
     "vue-tsc": "^3.3.7"
   },
   "dependencies": {
+    "@choochmeque/tauri-plugin-biometry-api": "0.2.8",
     "@eioluseyi/tailwind-fade": "^1.1.1",
     "@floating-ui/dom": "^1.7.6",
     "@floating-ui/vue": "^1.1.11",
