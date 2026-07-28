@@ -8,6 +8,12 @@ use tauri::{AppHandle, Emitter, State};
 use crate::shared::{RawJson, *};
 use rand::RngCore;
 
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct RecoveryCodeResult {
+    pub(crate) code: String,
+}
+
 #[derive(Serialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AssetMigrationResult {
@@ -438,6 +444,60 @@ pub(crate) fn sync_key_ready(state: State<AppState>) -> bool {
 pub(crate) fn encryption_rotate_key(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
     rotate_items_key(&app, state.inner())?;
     Ok(())
+}
+
+/// Generate a recovery code that can unlock the app without the passphrase.
+/// The code is a 64-character hex string derived from random entropy, shown
+/// exactly once to the user. Requires the app to be unlocked.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn encryption_generate_recovery_code(
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<RecoveryCodeResult, AppError> {
+    let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
+    let mut manifest = load_encryption_manifest(&manifest_path)?
+        .ok_or_else(|| AppError::Other("Encryption is not enabled.".into()))?;
+
+    let data_key = current_app_key(state.inner())?
+        .ok_or_else(|| AppError::Other("App is locked.".into()))?;
+
+    let code = generate_recovery_code(&mut manifest, &data_key)?;
+    write_encryption_manifest(&manifest_path, &manifest)?;
+    Ok(RecoveryCodeResult { code })
+}
+
+/// Recover the app encryption key using a previously-generated recovery code.
+/// On success the app is unlocked just as if the passphrase had been entered.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn encryption_recover_with_code(
+    app: AppHandle,
+    state: State<AppState>,
+    code: String,
+) -> Result<EncryptionSubmitResult, AppError> {
+    assert_not_locked(state.inner())?;
+    let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
+    let manifest = load_encryption_manifest(&manifest_path)?
+        .ok_or_else(|| AppError::Other("Encryption is not enabled.".into()))?;
+
+    let data_key = recover_key_from_code(&manifest, &code)?;
+
+    {
+        let mut s = state.crypto.session.write()?;
+        s.app_data_key = Some(data_key);
+        s.active = true;
+    }
+    {
+        let mut f = state.security.failure_count.lock()?;
+        *f = 0;
+        *state.security.lockout_until.lock()? = None;
+    }
+    Ok(EncryptionSubmitResult {
+        ok: true,
+        error: None,
+        state: encryption_get_state(app, state)?,
+    })
 }
 
 /// Keep the local manifest and the shared `keyParams.json` in the sync folder

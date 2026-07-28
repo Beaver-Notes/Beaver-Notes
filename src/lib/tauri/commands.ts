@@ -61,6 +61,8 @@ const commandAliases = {
   'sync:keyReady': 'sync_key_ready',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
   'encryption:rotateKey': 'encryption_rotate_key',
+  'encryption:generateRecoveryCode': 'encryption_generate_recovery_code',
+  'encryption:recoverWithCode': 'encryption_recover_with_code',
 
   'assetCrypto:decryptAssetStream': 'encryption_decrypt_asset_stream',
   'assetCrypto:encryptAssetStream': 'encryption_encrypt_asset_stream',
@@ -247,6 +249,11 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('password', payload?.password);
     case 'encryption:lock':
       return {};
+    case 'encryption:rotateKey':
+    case 'encryption:generateRecoveryCode':
+      return {};
+    case 'encryption:recoverWithCode':
+      return withKeyVariants('code', payload?.code);
     case 'crypto:cacheDecryptedNote':
       return {
         ...withKeyVariants('note_id', payload?.noteId),

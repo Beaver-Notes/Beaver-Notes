@@ -146,7 +146,7 @@
               <summary class="text-sm cursor-pointer text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300">
                 {{ translations.settings.advanced || 'Advanced' }}
               </summary>
-              <div class="mt-2">
+              <div class="mt-2 flex flex-col gap-2">
                 <ui-button
                   class="text-sm"
                   variant="secondary"
@@ -154,6 +154,14 @@
                   @click="lockNow"
                 >
                   {{ translations.settings.lockNow || 'Lock Now' }}
+                </ui-button>
+                <ui-button
+                  class="text-sm"
+                  variant="secondary"
+                  :disabled="encryptionBusy || !keyLoaded"
+                  @click="showRecoveryCode"
+                >
+                  {{ translations.settings.showRecoveryCode || 'Recovery code' }}
                 </ui-button>
               </div>
             </details>
@@ -175,6 +183,7 @@ import {
   setupEncryption,
   verifyPassphrase,
   lockEncryptionKey,
+  generateRecoveryCode,
 } from '@/utils/crypto/encryption.js';
 import {
   migrateAssetEncryption,
@@ -489,6 +498,54 @@ async function rotateKey() {
   } finally {
     encryptionBusy.value = false;
   }
+}
+
+async function showRecoveryCode() {
+  const t = translations.value;
+  dialog.prompt({
+    title: t.settings.confirmPassphrase || 'Confirm Passphrase',
+    body: t.settings.recoveryCodeConfirm ||
+      'Enter your passphrase to reveal the recovery code.',
+    icon: 'riLockLine',
+    okText: t.settings.next || 'Next',
+    cancelText: t.settings.cancel || 'Cancel',
+    password: true,
+    onConfirm: async (passphrase) => {
+      if (!passphrase) return;
+      const result = await verifyPassphrase(passphrase);
+      if (!result.ok) {
+        dialog.alert({
+          title: t.settings.alertTitle || 'Alert',
+          body: result.error || 'Incorrect passphrase.',
+          okText: t.dialog?.close || 'Close',
+        });
+        return;
+      }
+      try {
+        const code = await generateRecoveryCode();
+        if (!code) {
+          dialog.alert({
+            title: t.settings.alertTitle || 'Alert',
+            body: t.settings.recoveryCodeError || 'Failed to generate recovery code.',
+            okText: t.dialog?.close || 'Close',
+          });
+          return;
+        }
+        dialog.alert({
+          title: t.settings.recoveryCode || 'Recovery Code',
+          body: t.settings.recoveryCodeBody ||
+            'Store this code somewhere safe. It can unlock the app if you forget your passphrase.\n\n' + code,
+          okText: t.dialog?.close || 'Close',
+        });
+      } catch (e) {
+        dialog.alert({
+          title: t.settings.alertTitle || 'Alert',
+          body: String(e),
+          okText: t.dialog?.close || 'Close',
+        });
+      }
+    },
+  });
 }
 
 function lockNow() {

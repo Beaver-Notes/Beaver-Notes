@@ -66,13 +66,19 @@
           {{ translations.settings?.unlockWithBiometrics || 'Unlock with Touch ID' }}
         </ui-button>
       </div>
+      <button
+        class="mt-3 text-xs text-neutral-400 dark:text-neutral-500 hover:text-primary transition-colors"
+        @click="recoverWithCode"
+      >
+        {{ translations.settings?.recoverWithCode || 'Forgot passphrase? Use recovery code' }}
+      </button>
     </div>
   </div>
 </template>
 
 <script>
 import { ref, onMounted, nextTick } from 'vue';
-import { verifyPassphrase, tryRestoreKeyFromSafeStorage } from '@/utils/crypto/encryption.js';
+import { verifyPassphrase, tryRestoreKeyFromSafeStorage, recoverWithRecoveryCode } from '@/utils/crypto/encryption.js';
 import { useTranslations } from '@/composable/useTranslations';
 import { useFocusTrap } from '@/composable/useFocusTrap';
 import { isBiometricAvailable, authenticateWithBiometrics } from '@/lib/native/biometric';
@@ -131,6 +137,27 @@ export default {
       }
     }
 
+    async function recoverWithCode() {
+      const t = translations.value;
+      const code = prompt(t?.settings?.recoveryCodePrompt || 'Enter your 64-character recovery code:');
+      if (!code?.trim()) return;
+      busy.value = true;
+      error.value = '';
+      try {
+        const result = await recoverWithRecoveryCode(code.trim());
+        if (result.ok) {
+          deactivate();
+          emit('unlocked');
+        } else {
+          error.value = result.error || 'Invalid recovery code.';
+        }
+      } catch (e) {
+        error.value = e?.message || 'Invalid recovery code.';
+      } finally {
+        busy.value = false;
+      }
+    }
+
     onMounted(async () => {
       nextTick(() => activate());
       biometricAvailable.value = await isBiometricAvailable();
@@ -138,7 +165,7 @@ export default {
 
     return {
       password, error, busy, unlock, translations, trapRef,
-      biometricAvailable, biometricBusy, unlockWithBiometrics,
+      biometricAvailable, biometricBusy, unlockWithBiometrics, recoverWithCode,
     };
   },
 };

@@ -92,6 +92,11 @@ pub(crate) struct EncryptionManifest {
     /// most recent rotation.
     #[serde(default)]
     pub(crate) previous_keys: Vec<PreviousWrappedKey>,
+    /// Items key wrapped with a random recovery secret so it can be recovered
+    /// without the passphrase. Absent for manifests created before recovery
+    /// codes were added; populated lazily when the user generates a code.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) recovery_kek: Option<WrappedKeyEnvelope>,
 }
 
 const MASTER_KEY_FILE: &str = "master.key";
@@ -445,6 +450,7 @@ pub(crate) fn adopt_key_params(
         wrapped_key: params.wrapped_items_key.clone(),
         current_key_id: key_id.clone(),
         previous_keys: Vec::new(),
+        recovery_kek: None,
     };
     write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
     Ok(())
@@ -495,8 +501,47 @@ pub(crate) fn create_encryption_manifest(
         wrapped_key: encrypt_bytes_with_key(&kek, &data_key)?,
         current_key_id: key_id,
         previous_keys: Vec::new(),
+        recovery_kek: None,
     };
     Ok((manifest, data_key))
+}
+
+/// Generate a random 256-bit recovery code and wrap the active items key with
+/// it. Returns the hex-encoded code so the frontend can display it once.
+pub(crate) fn generate_recovery_code(
+    manifest: &mut EncryptionManifest,
+    data_key: &[u8; 32],
+) -> Result<String, AppError> {
+    let recovery = random_key();
+    let wrapped = encrypt_bytes_with_key(&recovery, data_key)?;
+    manifest.recovery_kek = Some(wrapped);
+    Ok(hex::encode(recovery))
+}
+
+/// Recover the items key from a previously-generated recovery code (64 hex
+/// chars). The code must match the value returned by `generate_recovery_code`
+/// for the same manifest.
+pub(crate) fn recover_key_from_code(
+    manifest: &EncryptionManifest,
+    code_hex: &str,
+) -> Result<[u8; 32], AppError> {
+    let wrapped = manifest
+        .recovery_kek
+        .as_ref()
+        .ok_or_else(|| AppError::Other("No recovery code has been generated for this manifest.".into()))?;
+    let mut recovery = [0u8; 32];
+    let decoded = hex::decode(code_hex.trim())?;
+    if decoded.len() != 32 {
+        return Err(AppError::Other("Recovery code must be 64 hex characters.".into()));
+    }
+    recovery.copy_from_slice(&decoded);
+    let raw = decrypt_bytes_with_key(&recovery, wrapped)?;
+    if raw.len() != 32 {
+        return Err(AppError::Other("Recovered key is corrupted.".into()));
+    }
+    let mut key = [0u8; 32];
+    key.copy_from_slice(&raw);
+    Ok(key)
 }
 
 pub(crate) fn unlock_key_from_manifest(

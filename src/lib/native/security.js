@@ -75,6 +75,14 @@ export function rotateEncryptionKey() {
   return backend.invoke('encryption:rotateKey');
 }
 
+export function generateRecoveryCode() {
+  return backend.invoke('encryption:generateRecoveryCode');
+}
+
+export function recoverWithCode(code) {
+  return backend.invoke('encryption:recoverWithCode', { code });
+}
+
 export function decryptNotePayload(payload) {
   return backend.invoke('encryption:decryptNotePayload', payload);
 }

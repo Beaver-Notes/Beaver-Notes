@@ -6,6 +6,8 @@ import {
   decryptNotePayload,
   clearDecryptedCaches,
   reconcileSyncKeyParams,
+  generateRecoveryCode as generateRecoveryCodeNative,
+  recoverWithCode,
 } from '@/lib/native/security.js';
 import {
   loadSecureBlob,
@@ -186,5 +188,27 @@ export async function lockEncryptionKey() {
 
 // Re-exports for sync/crypto.js
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };
+
+export async function generateRecoveryCode() {
+  const result = await generateRecoveryCodeNative();
+  return result?.code || null;
+}
+
+export async function recoverWithRecoveryCode(code) {
+  if (!code || code.length !== 64) {
+    return { ok: false, error: 'Recovery code must be 64 hex characters.' };
+  }
+  try {
+    const result = await recoverWithCode(code);
+    if (result?.ok) {
+      state.enabled = !!result?.state?.enabled;
+      state.loaded = !!result?.state?.unlocked;
+      return { ok: true };
+    }
+    return { ok: false, error: result?.error || 'Recovery code is invalid.' };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
 
 void refreshState().catch(() => {});
