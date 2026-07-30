@@ -106,6 +106,32 @@
           </div>
         </div>
 
+        <div
+          v-if="state.syncPath"
+          class="border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between gap-3 px-4 py-3.5"
+        >
+          <p class="text-xs text-neutral-500 dark:text-neutral-400">
+            {{ lastSyncLabel }}
+          </p>
+          <ui-button
+            :disabled="syncState.syncing"
+            @click="onSyncNow"
+          >
+            <v-remixicon
+              :name="syncState.syncing ? 'riLoader4Line' : 'riRefreshLine'"
+              size="16"
+              :class="syncState.syncing ? 'animate-spin' : ''"
+            />
+            <span class="ml-1">
+              {{
+                syncState.syncing
+                  ? translations.settings?.syncing || 'Syncing...'
+                  : translations.settings?.syncNow || 'Sync now'
+              }}
+            </span>
+          </ui-button>
+        </div>
+
         <transition name="setting-fade">
           <div
             v-if="syncProgress?.phase === 'assets' && syncProgress.total > 0"
@@ -485,7 +511,7 @@
   </div>
 </template>
 <script>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsData } from '@/composable/useSettingsData';
@@ -497,6 +523,7 @@ import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/composable/storage';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
+import { forceSyncNow } from '@/utils/sync';
 
 export default {
   setup() {
@@ -509,6 +536,39 @@ export default {
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
     );
+
+    const lastSyncAt = ref(Number(localStorage.getItem('sync:lastRunAt') || 0));
+    const syncState = ref({ syncing: false });
+
+    const lastSyncLabel = computed(() => {
+      if (!lastSyncAt.value)
+        return translations.settings?.neverSynced || 'Never synced yet';
+      const secs = Math.floor((Date.now() - lastSyncAt.value) / 1000);
+      if (secs < 60)
+        return translations.settings?.syncedJustNow || 'Synced just now';
+      if (secs < 3600) {
+        const min = Math.floor(secs / 60);
+        return `${translations.settings?.syncedMinAgo || 'Synced {n} min ago'}`.replace(
+          '{n}',
+          String(min)
+        );
+      }
+      return new Date(lastSyncAt.value).toLocaleString();
+    });
+
+    async function onSyncNow() {
+      if (syncState.value.syncing) return;
+      syncState.value = { syncing: true };
+      try {
+        await forceSyncNow();
+        lastSyncAt.value = Date.now();
+        localStorage.setItem('sync:lastRunAt', String(lastSyncAt.value));
+      } catch {
+        // Toast handled by existing 'sync:error' listener
+      } finally {
+        syncState.value = { syncing: false };
+      }
+    }
 
     const {
       state,
@@ -584,6 +644,10 @@ export default {
       selectedImportSource,
       showImportModal,
       startSelectedImport,
+      lastSyncAt,
+      syncState,
+      lastSyncLabel,
+      onSyncNow,
     };
   },
 };
