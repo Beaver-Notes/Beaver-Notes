@@ -13,6 +13,11 @@ export function useSyncTransport() {
 
   const description = computed(() => describeActiveTransport());
 
+  const activeTransportNames = computed(() => {
+    if (transport.value === SYNC_TRANSPORT.FOLDER) return ['local'];
+    return ['local', 'cloud'];
+  });
+
   const isFolder = computed(
     () =>
       transport.value === SYNC_TRANSPORT.FOLDER ||
@@ -45,6 +50,7 @@ export function useSyncTransport() {
     isFolder,
     isRemote,
     description,
+    activeTransportNames,
     setTransport,
   };
 }
