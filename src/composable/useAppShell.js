@@ -43,7 +43,11 @@ import {
   writeStoresFromWorkspace,
   backfillNotePreviews,
 } from './useWorkspaceYjs';
-import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
+import { useAccountStore } from '@/store/account';
+import { SYNC_TRANSPORT } from '@/lib/api/types';
+import { initSyncEngine, getSyncEngine } from '@/utils/sync/engine.js';
+import { LocalFolderTransport } from '@/utils/sync/transports/local-folder.js';
+import { CloudTransport } from '@/utils/sync/transports/cloud.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -488,8 +492,40 @@ export function useAppShell() {
     // Trigger an initial sync so a new client pulling from an existing sync
     // folder gets all remote data (workspace meta + note content + assets).
     if (getSettingSync('autoSync')) {
-      forceSyncNow().catch((err) => console.warn('[sync] initial sync failed:', err));
-      setPeriodicSyncEnabled(true);
+      initSyncEngine({
+        transports: {
+          local: new LocalFolderTransport({
+            passphraseProvider: async () => {
+              try {
+                const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
+                return await loadSecureBlob('encryptionPassphraseBlob');
+              } catch { return null; }
+            },
+          }),
+          cloud: new CloudTransport({
+            passphraseProvider: async () => {
+              try {
+                const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
+                return await loadSecureBlob('encryptionPassphraseBlob');
+              } catch { return null; }
+            },
+            getTransportSetting: () => getSettingSync('syncTransport'),
+            getAccountState: () => {
+              const a = useAccountStore();
+              return { isAuth: a.isAuthenticated, plan: a.subscription?.plan };
+            },
+          }),
+        },
+        storage: useStorage(),
+        getActiveTransports: () => {
+          const t = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
+          if (t === SYNC_TRANSPORT.FOLDER) return ['local'];
+          return ['local', 'cloud'];
+        },
+      });
+      getSyncEngine().forceSyncNow()
+        .catch((err) => console.warn('[sync] initial sync failed:', err));
+      getSyncEngine().setPeriodicSyncEnabled(true);
       document.addEventListener('visibilitychange', handleVisibilityChange);
     }
   };
@@ -596,9 +632,11 @@ export function useAppShell() {
   });
 
   function handleVisibilityChange() {
-    // Pause the periodic pull while the app is backgrounded; resume when it
-    // returns to the foreground (only if autoSync is still enabled).
-    setPeriodicSyncEnabled(
+    if (document.hidden) {
+      // Flush cloud push before going to background
+      getSyncEngine()?.flush().catch(() => {});
+    }
+    getSyncEngine()?.setPeriodicSyncEnabled(
       !document.hidden && Boolean(getSettingSync('autoSync'))
     );
   }
@@ -607,7 +645,7 @@ export function useAppShell() {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    setPeriodicSyncEnabled(false);
+    getSyncEngine()?.setPeriodicSyncEnabled(false);
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())
