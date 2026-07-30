@@ -5,7 +5,7 @@ import * as decoding from 'lib0/decoding'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { getWorkspaceDoc } from './meta-yjs-doc.js'
-import { registerActiveDoc } from './useNoteYjs.js'
+import { registerActiveDoc } from './yjs-shared.js'
 import {
   importCollabKey,
   encryptUpdate,

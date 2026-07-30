@@ -17,7 +17,7 @@ import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
-import { registerActiveDoc } from '@/composable/useNoteYjs.js';
+import { registerActiveDoc } from './yjs-shared.js';
 import {
   getDeviceId,
   objToYMap,

@@ -18,6 +18,9 @@ import {
 } from '@/utils/yjs-helpers.js';
 import { getHocuspocusSync } from './useHocuspocusSync.js';
 
+export { registerActiveDoc, applyRemote } from './yjs-shared.js';
+import { registerActiveDoc, unregisterActiveDoc } from './yjs-shared.js';
+
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
 
@@ -35,21 +38,6 @@ async function retryWrite(fn, label) {
       await new Promise((r) => setTimeout(r, WRITE_RETRY_DELAY_MS));
     }
   }
-}
-
-const activeDocs = new Map();
-
-export function registerActiveDoc(noteId, doc) {
-  activeDocs.set(noteId, doc);
-}
-
-export function applyRemote(noteId, update) {
-  const target = activeDocs.get(noteId);
-  if (!target) return false;
-  target.transact(() => {
-    Y.applyUpdate(target, update);
-  }, 'sync');
-  return true;
 }
 
  // Convert TipTap JSON content to Yjs using the editor's own schema.
@@ -154,7 +142,7 @@ export function useNoteYjs() {
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
+      unregisterActiveDoc(currentNoteId);
       currentDoc.destroy();
     }
 
@@ -200,7 +188,7 @@ export function useNoteYjs() {
     hocuspocus.joinNoteRoom(noteId, newDoc);
 
     currentDoc = newDoc;
-    activeDocs.set(noteId, newDoc);
+    registerActiveDoc(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
   }
@@ -251,7 +239,7 @@ export function useNoteYjs() {
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
+      unregisterActiveDoc(currentNoteId);
       currentDoc.destroy();
     }
   });
