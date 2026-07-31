@@ -43,11 +43,8 @@ import {
   writeStoresFromWorkspace,
   backfillNotePreviews,
 } from './useWorkspaceYjs';
-import { useAccountStore } from '@/store/account';
-import { SYNC_TRANSPORT } from '@/lib/api/types';
-import { initSyncEngine, getSyncEngine } from '@/utils/sync/engine.js';
-import { LocalFolderTransport } from '@/utils/sync/transports/local-folder.js';
-import { CloudTransport } from '@/utils/sync/transports/cloud.js';
+import { getSyncEngine } from '@/utils/sync/engine.js';
+import { initAppSync } from '@/utils/sync/app-sync.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -489,45 +486,11 @@ export function useAppShell() {
       }
     }
 
-    // Trigger an initial sync so a new client pulling from an existing sync
-    // folder gets all remote data (workspace meta + note content + assets).
-    if (getSettingSync('autoSync')) {
-      initSyncEngine({
-        transports: {
-          local: new LocalFolderTransport({
-            passphraseProvider: async () => {
-              try {
-                const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
-                return await loadSecureBlob('encryptionPassphraseBlob');
-              } catch { return null; }
-            },
-          }),
-          cloud: new CloudTransport({
-            passphraseProvider: async () => {
-              try {
-                const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
-                return await loadSecureBlob('encryptionPassphraseBlob');
-              } catch { return null; }
-            },
-            getTransportSetting: () => getSettingSync('syncTransport'),
-            getAccountState: () => {
-              const a = useAccountStore();
-              return { isAuth: a.isAuthenticated, plan: a.subscription?.plan };
-            },
-          }),
-        },
-        storage: useStorage(),
-        getActiveTransports: () => {
-          const t = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
-          if (t === SYNC_TRANSPORT.FOLDER) return ['local'];
-          return ['local', 'cloud'];
-        },
-      });
-      getSyncEngine().forceSyncNow()
-        .catch((err) => console.warn('[sync] initial sync failed:', err));
-      getSyncEngine().setPeriodicSyncEnabled(true);
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    }
+    // Always initialize the engine so runtime sync config (Settings "Sync now",
+    // autoSync toggle, path pick) works without an app restart. Only the initial
+    // pull and periodic sync are gated behind autoSync.
+    initAppSync({ autoSync: Boolean(getSettingSync('autoSync')) });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
   };
 
   onMounted(async () => {
