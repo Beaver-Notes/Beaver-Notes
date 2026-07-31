@@ -6,8 +6,7 @@ import {
   getSnapshot,
   compactUpdates,
 } from '@/lib/native/yjs.js';
-import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
-import { getSyncPath } from '@/utils/sync/path.js';
+import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { getSettingSync } from '@/composable/settings';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
@@ -85,9 +84,8 @@ async function persistUpdate(noteId, update) {
   }
   try {
     if (getSettingSync('autoSync')) {
-      const syncPath = await getSyncPath();
-      if (syncPath) {
-        const commitsDir = await ensureCommitsDir(syncPath);
+      const commitsDir = await getCommitsDir();
+      if (commitsDir) {
         queueSyncWrite(commitsDir, noteId, update);
       }
     }
