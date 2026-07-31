@@ -88,142 +88,206 @@
             Continue <v-remixicon name="riArrowRightLine" />
           </ui-button>
         </div>
-
-        <div
-          v-if="state.status?.hasLegacyData && !isMobileRuntime"
-          class="fixed z-20 bottom-[calc(var(--app-safe-area-bottom)+1.5rem)]"
-        >
-          <ui-button @click="openMigrationFlow">
-            <v-remixicon name="riSendPlaneFill" class="mr-1" />
-            Import from Beaver Notes (Legacy)
-          </ui-button>
-        </div>
       </div>
 
-      <!-- ── Path ── -->
+      <!-- ── Customize ── -->
       <div
-        v-else-if="step === 'path'"
+        v-else-if="step === 'customize'"
         class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
       >
-        <ui-card class="w-full max-w-lg max-h-[80dvh] flex flex-col">
+        <div
+          class="w-full max-w-lg bg-neutral-50 dark:bg-neutral-900 rounded-xl mobile:rounded-b-none border mobile:border-b-0 max-h-[80dvh] flex flex-col"
+        >
           <div
-            class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+            class="flex flex-col items-center gap-1.5 my-5 text-center shrink-0 px-6"
           >
             <h2
-              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              class="text-xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
             >
-              How do you want to begin?
+              Your starting defaults
             </h2>
             <p class="text-neutral-600 dark:text-neutral-400">
-              Start fresh or bring over your notes from another app.
+              Changed your mind? You can change these from Settings at any time.
             </p>
           </div>
 
-          <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
-            <ui-card
-              tag="button"
-              padding="p-0"
-              class="w-full text-left"
-              @click="chooseMode('fresh')"
-            >
-              <div class="flex items-center gap-4 p-4">
-                <div
-                  class="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
+          <div class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 px-6 pb-4">
+            <!-- Appearance -->
+            <div class="flex flex-col gap-2">
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                Appearance
+              </p>
+              <div
+                class="grid grid-cols-3 gap-3 w-full text-neutral-600 dark:text-neutral-300"
+              >
+                <button
+                  v-for="item in themes"
+                  :key="item.name"
+                  type="button"
+                  class="bg-input p-2 transition-all w-full rounded-lg"
+                  :class="fresh.theme === item.name ? 'ring-1 ring-primary' : ''"
+                  @click="selectTheme(item.name)"
                 >
-                  <v-remixicon name="riStarFill" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h3
-                    class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
-                  >
-                    Start fresh
-                  </h3>
+                  <img
+                    :src="item.img"
+                    :alt="item.label"
+                    class="w-full border-2 mb-1 rounded-lg"
+                  />
                   <p
-                    class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5"
+                    class="capitalize text-center text-sm text-neutral-800 dark:text-neutral-200"
                   >
-                    Pick your theme, language, and a few app defaults before
-                    opening Beaver Notes.
+                    {{ themeLabels[item.name] || item.label }}
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            <!-- Accent color -->
+            <div class="flex flex-row items-center justify-center gap-4">
+              <p
+                class="text-sm font-medium text-neutral-800 dark:text-neutral-200 w-full justify-center"
+              >
+                Accent color
+              </p>
+              <div class="w-full justify-center flex gap-2 right-0">
+                <button
+                  class="bg-red-500 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'red',
+                  }"
+                  @click="selectAccentColor('red')"
+                ></button>
+                <button
+                  class="bg-amber-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'light',
+                  }"
+                  @click="selectAccentColor('light')"
+                ></button>
+                <button
+                  class="bg-emerald-500 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'green',
+                  }"
+                  @click="selectAccentColor('green')"
+                ></button>
+                <button
+                  class="bg-blue-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'blue',
+                  }"
+                  @click="selectAccentColor('blue')"
+                ></button>
+                <button
+                  class="bg-purple-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'purple',
+                  }"
+                  @click="selectAccentColor('purple')"
+                ></button>
+                <button
+                  class="bg-pink-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'pink',
+                  }"
+                  @click="selectAccentColor('pink')"
+                ></button>
+                <button
+                  class="bg-neutral-400 p-2 w-8 h-8 rounded-full focus:ring-primary transition"
+                  :class="{
+                    'ring-2 ring-primary border': fresh.accentColor === 'neutral',
+                  }"
+                  @click="selectAccentColor('neutral')"
+                ></button>
+              </div>
+            </div>
+
+            <!-- Language -->
+            <div class="flex flex-col gap-2">
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                Language
+              </p>
+              <ui-select
+                :options="languages"
+                block
+                :model-value="fresh.language"
+                @update:model-value="selectLanguage"
+              />
+            </div>
+
+            <!-- App font -->
+            <div class="flex flex-col gap-2">
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                App font
+              </p>
+              <ui-select
+                :model-value="fresh.selectedFont"
+                class="w-full ob-font-select"
+                :search="true"
+                @update:model-value="selectFont"
+              >
+                <option
+                  v-for="font in fonts"
+                  :key="font.value"
+                  :value="font.value"
+                  :class="font.class"
+                >
+                  {{ font.label }}
+                </option>
+              </ui-select>
+            </div>
+
+            <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900">
+              <div class="flex flex-row gap-3 items-center justify-between">
+                <div class="min-w-0 flex-1">
+                  <p
+                    class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                  >
+                    Enable sounds
+                  </p>
+                  <p
+                    class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                  >
+                    Enable sounds for interactions around the app.
                   </p>
                 </div>
-                <v-remixicon
-                  name="riArrowRightLine"
-                  class="shrink-0 opacity-30"
+                <ui-switch
+                  :model-value="fresh.soundsEnabled"
+                  @update:model-value="selectSounds"
                 />
               </div>
-            </ui-card>
-
-            <ui-card
-              tag="button"
-              padding="p-0"
-              class="w-full text-left mobile:max-w-full mobile:rounded-t-[1.25rem] mobile:rounded-b-none mobile:border-x-0 mobile:border-b-0 mobile:shadow-sm"
-              @click="chooseMode('migration')"
-            >
-              <div class="flex items-center gap-4 p-4">
-                <div
-                  class="shrink-0 w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
-                >
-                  <v-remixicon name="riSendPlaneFill" />
-                </div>
-                <div class="flex-1 min-w-0">
-                  <h3
-                    class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
-                  >
-                    Import from apps
-                  </h3>
+              <div
+                v-if="isMobileRuntime"
+                class="flex flex-row gap-3 items-center justify-between"
+              >
+                <div class="min-w-0 flex-1">
                   <p
-                    class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5"
+                    class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
                   >
-                    Copy notes, folders, labels, etc. from your previous notes
-                    app.
+                    Spotlight indexing
+                  </p>
+                  <p
+                    class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+                  >
+                    Let iOS / macOS Spotlight index your notes so they can be
+                    found via system search.
                   </p>
                 </div>
-                <v-remixicon
-                  name="riArrowRightLine"
-                  class="shrink-0 opacity-30"
+                <ui-switch
+                  :model-value="fresh.spotlightEnabled"
+                  @update:model-value="selectSpotlight"
                 />
               </div>
-            </ui-card>
+            </div>
           </div>
 
-          <div class="mt-5 shrink-0">
-            <ui-button @click="curtainNavigate('welcome')">
+          <!-- Navigation -->
+          <div
+            class="mt-5 flex mobile:flex-col mobile:items-stretch mobile:w-full justify-between gap-3 shrink-0 px-6 pb-6 mobile:pb-4"
+          >
+            <ui-button @click="goToStep('welcome')">
               <v-remixicon name="riArrowLeftLine" /> Back
             </ui-button>
-          </div>
-        </ui-card>
-      </div>
-
-      <!-- ── Setup ── -->
-      <div
-        v-else-if="step === 'setup'"
-        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
-      >
-        <onboarding-setup-step
-          :fresh="fresh"
-          :themes="themes"
-          :theme-labels="themeLabels"
-          :accent-colors="accentColors"
-          :interface-sizes="interfaceSizes"
-          :fonts="fonts"
-          :languages="languages"
-          :sounds-enabled="fresh.soundsEnabled"
-          :spotlight-enabled="fresh.spotlightEnabled"
-          :is-mobile-runtime="isMobileRuntime"
-          @select-theme="selectTheme"
-          @select-accent="selectAccentColor"
-          @update-font="selectFont($event)"
-          @update-language="selectLanguage($event)"
-          @update-sounds="selectSounds($event)"
-          @update-spotlight="selectSpotlight($event)"
-        >
-          <template #back>
-            <ui-button
-              @click="curtainNavigate(isMobileRuntime ? 'welcome' : 'path')"
-            >
-              <v-remixicon name="riArrowLeftLine" /> Back
-            </ui-button>
-          </template>
-          <template #next>
             <ui-button
               variant="primary"
               :loading="state.savingPreferences"
@@ -233,8 +297,737 @@
                 Continue <v-remixicon name="riArrowRightLine" />
               </template>
             </ui-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Import ── -->
+      <div
+        v-else-if="step === 'import'"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
+      >
+        <ui-card
+          class="w-full max-w-lg mobile:max-w-full max-h-[80dvh] flex flex-col mobile:rounded-b-none mobile:border-b-0"
+        >
+          <!-- Pick source -->
+          <template v-if="importPhase === 'pick'">
+            <div
+              class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+            >
+              <h2
+                class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              >
+                Import from apps
+              </h2>
+              <p class="text-neutral-600 dark:text-neutral-400">
+                Bring your notes from another app, or skip for now.
+              </p>
+            </div>
+
+            <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
+              <ui-card
+                v-for="platform in visiblePlatforms"
+                :key="platform.id"
+                tag="button"
+                padding="p-0"
+                class="w-full text-left shrink-0"
+                @click="selectImportSource(platform.id)"
+              >
+                <div class="flex items-center gap-4 p-4">
+                  <div
+                    class="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
+                    :style="platform.iconBg ? { background: platform.iconBg } : {}"
+                    :class="platform.iconClass || ''"
+                  >
+                    <img
+                      v-if="platform.useLogoImg"
+                      :src="logoUrl"
+                      alt="Beaver Notes"
+                      class="w-6 h-6 object-contain"
+                    />
+                    <v-remixicon
+                      v-else
+                      :name="platform.icon"
+                      :class="platform.iconColor || ''"
+                    />
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                      <h3
+                        class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
+                      >
+                        {{ platform.label }}
+                      </h3>
+                      <span
+                        v-if="platform.badge"
+                        class="inline-flex items-center rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[0.65rem] font-bold uppercase tracking-wide px-2 py-0.5"
+                        >{{ platform.badge }}</span
+                      >
+                      <span
+                        v-if="platform.id === 'electron' && migrationSourceBadge"
+                        :class="migrationSourceBadgeClass"
+                        class="inline-flex items-center rounded-full text-[0.65rem] font-bold uppercase tracking-wide px-2 py-0.5"
+                        >{{ migrationSourceBadge }}</span
+                      >
+                    </div>
+                    <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                      {{ platform.description }}
+                    </p>
+                  </div>
+                  <v-remixicon name="riArrowRightLine" class="shrink-0 opacity-30" />
+                </div>
+              </ui-card>
+            </div>
+
+            <div class="mt-5 flex justify-between gap-4 shrink-0">
+              <ui-button @click="goToPreviousStep">
+                <v-remixicon name="riArrowLeftLine" /> Back
+              </ui-button>
+              <ui-button @click="skipImport">Skip for now</ui-button>
+            </div>
           </template>
-        </onboarding-setup-step>
+
+          <!-- Confirm source -->
+          <template v-else-if="importPhase === 'confirm'">
+            <div
+              class="flex flex-col items-center gap-2 my-8 text-center shrink-0 px-2"
+            >
+              <h2
+                class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              >
+                Import your notes from {{ migrationPlatformLabel }}
+              </h2>
+              <p class="text-neutral-600 dark:text-neutral-400 max-w-sm">
+                Your original data stays untouched. Notes, folders, labels,
+                settings, and assets will be copied over.
+              </p>
+            </div>
+
+            <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 px-4">
+              <!-- Legacy locked-note prompt -->
+              <template v-if="showLegacyLockedPrompt">
+                <ui-card class="bg-input">
+                  <div class="flex flex-col gap-3 p-4">
+                    <p
+                      class="text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+                    >
+                      Enter your old password
+                    </p>
+                    <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                      Your imported notes are locked. Enter your old Beaver
+                      Notes password to decrypt and re-encrypt them with the new
+                      system.
+                    </p>
+                    <ui-input
+                      v-model="legacyPasswordValue"
+                      type="password"
+                      placeholder="Old password"
+                      class="w-full"
+                      @keyup.enter="submitLegacyPassword"
+                    />
+                    <p
+                      v-if="state.legacyPasswordError"
+                      class="text-xs text-red-500 dark:text-red-400"
+                    >
+                      {{ state.legacyPasswordError }}
+                    </p>
+                  </div>
+                </ui-card>
+              </template>
+
+              <template v-else>
+                <div class="flex flex-col gap-2">
+                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                    {{ migrationSourceCopy }}
+                  </p>
+
+                  <ui-card
+                    v-if="migrationPlatform === 'evernote'"
+                    class="bg-input"
+                  >
+                    <div class="flex flex-col gap-2 p-4">
+                      <p
+                        class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                      >
+                        Evernote notebook
+                      </p>
+                      <ui-input
+                        :value="state.evernoteNotebookName"
+                        placeholder="Notebook name (optional)"
+                        class="w-full"
+                        @input="state.evernoteNotebookName = $event"
+                      />
+                    </div>
+                  </ui-card>
+
+                  <ui-card class="bg-input">
+                    <div class="flex flex-col gap-1 p-4">
+                      <p
+                        class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                      >
+                        What gets copied
+                      </p>
+                      <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                        {{ migrationWhatGetsCopied }}
+                      </p>
+                    </div>
+                  </ui-card>
+
+                  <ui-card
+                    v-if="
+                      migrationPlatform === 'electron' &&
+                      (state.status?.legacyDir ||
+                        state.status?.appDir ||
+                        customLegacyPath)
+                    "
+                    class="bg-input"
+                  >
+                    <div class="flex flex-col gap-4 p-4">
+                      <div v-if="customLegacyPath" class="flex flex-col gap-1">
+                        <span
+                          class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                        >
+                          Portable data folder
+                        </span>
+                        <code
+                          class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
+                        >
+                          {{ customLegacyPath }}
+                        </code>
+                      </div>
+                      <div v-else-if="state.status?.legacyDir" class="flex flex-col gap-1">
+                        <span
+                          class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                        >
+                          Beaver Notes (Legacy)
+                        </span>
+                        <code
+                          class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
+                        >
+                          {{ state.status.legacyDir }}
+                        </code>
+                      </div>
+                      <div v-if="state.status?.appDir" class="flex flex-col gap-1">
+                        <span
+                          class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                        >
+                          New Beaver Notes
+                        </span>
+                        <code
+                          class="text-xs font-mono break-all px-2 py-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300"
+                        >
+                          {{ state.status.appDir }}
+                        </code>
+                      </div>
+                    </div>
+                  </ui-card>
+
+                  <ui-card
+                    v-if="
+                      migrationPlatform === 'electron' &&
+                      !state.status?.hasLegacyData
+                    "
+                    class="bg-input"
+                  >
+                    <div class="flex items-center justify-between gap-4 p-4">
+                      <div>
+                        <p
+                          class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                        >
+                          Windows Portable
+                        </p>
+                        <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                          Using the portable version? Locate your data folder
+                          manually.
+                        </p>
+                      </div>
+                      <ui-button @click="browseForPortableData">Browse…</ui-button>
+                    </div>
+                  </ui-card>
+                </div>
+              </template>
+            </div>
+
+            <div class="mt-5 flex justify-between gap-4 shrink-0 px-4">
+              <ui-button @click="backToPick">
+                <v-remixicon name="riArrowLeftLine" /> Back
+              </ui-button>
+              <template v-if="!showLegacyLockedPrompt">
+                <ui-button
+                  variant="primary"
+                  :disabled="migrationActionDisabled"
+                  @click="runSelectedMigration"
+                >
+                  Start import <v-remixicon name="riArrowRightLine" />
+                </ui-button>
+              </template>
+              <template v-else>
+                <ui-button variant="secondary" @click="skipLegacyPassword">
+                  Skip for now
+                </ui-button>
+                <ui-button
+                  variant="primary"
+                  :loading="state.legacyPasswordLoading"
+                  @click="submitLegacyPassword"
+                >
+                  Decrypt notes
+                </ui-button>
+              </template>
+            </div>
+          </template>
+
+          <!-- Import running -->
+          <template v-else-if="importPhase === 'running'">
+            <div
+              class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+            >
+              <h2
+                class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              >
+                Importing from {{ migrationPlatformLabel }}
+              </h2>
+            </div>
+
+            <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 px-4">
+              <ui-card class="bg-input">
+                <div class="flex flex-col gap-3 p-4">
+                  <div class="flex items-center justify-between">
+                    <p
+                      class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                    >
+                      Importing…
+                    </p>
+                    <span class="text-xs font-bold text-primary"
+                      >{{ state.migrationProgress }}%</span
+                    >
+                  </div>
+                  <div
+                    class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
+                  >
+                    <div
+                      class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                      :style="{ width: state.migrationProgress + '%' }"
+                    ></div>
+                  </div>
+                  <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                    {{ state.migrationStatus }}
+                  </p>
+                  <p
+                    v-if="state.migrationCurrent"
+                    class="text-xs text-neutral-600 dark:text-neutral-400 opacity-80"
+                  >
+                    {{ state.migrationCurrent }}
+                  </p>
+                </div>
+              </ui-card>
+            </div>
+
+            <div class="mt-5 flex justify-between gap-4 shrink-0 px-4">
+              <ui-button disabled>
+                <v-remixicon name="riArrowLeftLine" /> Back
+              </ui-button>
+              <ui-button variant="primary" loading disabled />
+            </div>
+          </template>
+
+          <!-- Import done -->
+          <template v-else-if="importPhase === 'done'">
+            <div
+              class="flex flex-col items-center gap-2 my-8 text-center shrink-0"
+            >
+              <h2
+                class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              >
+                Import complete
+              </h2>
+              <p class="text-neutral-600 dark:text-neutral-400 max-w-sm">
+                Your notes from {{ migrationPlatformLabel }} are ready.
+              </p>
+            </div>
+
+            <div class="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0 px-4">
+              <ui-card class="bg-input">
+                <div class="flex flex-col gap-3 p-4">
+                  <div class="flex items-center justify-between">
+                    <p
+                      class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                    >
+                      Import complete
+                    </p>
+                    <span class="text-xs font-bold text-primary"
+                      >{{ state.migrationProgress }}%</span
+                    >
+                  </div>
+                  <div
+                    class="h-1.5 rounded-full bg-neutral-100 dark:bg-neutral-900 overflow-hidden"
+                  >
+                    <div
+                      class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                      :style="{ width: state.migrationProgress + '%' }"
+                    ></div>
+                  </div>
+                  <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                    {{ state.migrationStatus }}
+                  </p>
+                </div>
+              </ui-card>
+
+              <ui-card v-if="state.migrationResult" class="bg-input">
+                <div class="flex flex-col gap-1 p-4">
+                  <p
+                    class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                  >
+                    Import summary
+                  </p>
+                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                    Imported {{ state.migrationResult.imported || 0 }} notes
+                    across {{ state.migrationResult.folders || 0 }} folders.
+                  </p>
+                </div>
+              </ui-card>
+
+              <ui-card v-if="state.migrationIssuesText" class="bg-input">
+                <div class="flex flex-col gap-3 p-4">
+                  <div class="flex items-center justify-between gap-3">
+                    <p
+                      class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                    >
+                      Issues
+                    </p>
+                    <ui-button variant="secondary" @click="copyMigrationIssues">
+                      Copy to clipboard
+                    </ui-button>
+                  </div>
+                  <div
+                    class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                  >
+                    {{ state.migrationIssuesText }}
+                  </div>
+                </div>
+              </ui-card>
+            </div>
+
+            <div class="mt-5 flex justify-between gap-4 shrink-0 px-4">
+              <ui-button @click="goToPreviousStep">
+                <v-remixicon name="riArrowLeftLine" /> Back
+              </ui-button>
+              <ui-button variant="primary" @click="goToNextStep">
+                Continue <v-remixicon name="riArrowRightLine" />
+              </ui-button>
+            </div>
+          </template>
+        </ui-card>
+      </div>
+
+      <!-- ── Account ── -->
+      <div
+        v-else-if="step === 'account'"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
+      >
+        <ui-card
+          class="w-full max-w-lg mobile:max-w-full max-h-[80dvh] flex flex-col mobile:rounded-b-none mobile:border-b-0"
+        >
+          <!-- Signed in -->
+          <template v-if="accountStore.isAuthenticated">
+            <div
+              class="flex flex-col items-center gap-3 my-8 text-center shrink-0 px-2"
+            >
+              <div
+                class="shrink-0 w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
+              >
+                <v-remixicon name="riUserLine" size="24" />
+              </div>
+              <h2
+                class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              >
+                You're signed in
+              </h2>
+              <p class="text-sm text-neutral-600 dark:text-neutral-400 truncate">
+                {{
+                  accountStore.profile?.email ||
+                  accountStore.profile?.username ||
+                  translations.account?.signedInAs ||
+                  'Signed in'
+                }}
+              </p>
+            </div>
+
+            <div class="mt-5 flex justify-between gap-4 shrink-0 px-4 pb-4">
+              <ui-button @click="goToPreviousStep">
+                <v-remixicon name="riArrowLeftLine" /> Back
+              </ui-button>
+              <ui-button variant="primary" @click="goToNextStep">
+                Continue <v-remixicon name="riArrowRightLine" />
+              </ui-button>
+            </div>
+          </template>
+
+          <!-- Sign in -->
+          <template v-else>
+            <div
+              class="flex flex-col items-center gap-2 my-6 text-center shrink-0 px-2"
+            >
+              <div
+                class="shrink-0 w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center"
+              >
+                <v-remixicon name="riUserLine" size="24" />
+              </div>
+              <h2
+                class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+              >
+                {{ translations.account?.onboardingTitle || 'Sign in (optional)' }}
+              </h2>
+              <p
+                class="text-sm text-neutral-600 dark:text-neutral-400 max-w-sm leading-relaxed"
+              >
+                {{
+                  translations.account?.onboardingBody ||
+                  'A Beaver Account lets your notes follow you across devices with end-to-end encrypted cloud sync. Local-only mode stays fully working without one.'
+                }}
+              </p>
+            </div>
+
+            <ul
+              class="flex-1 min-h-0 overflow-y-auto px-2 space-y-2 text-sm text-neutral-700 dark:text-neutral-300"
+            >
+              <li class="flex items-start gap-3">
+                <v-remixicon
+                  name="riShieldCheckLine"
+                  class="mt-0.5 text-primary"
+                  size="18"
+                />
+                <span>{{
+                  translations.account?.onboardingBulletPrivacy ||
+                  'Zero-knowledge encryption — the server only sees encrypted blobs.'
+                }}</span>
+              </li>
+              <li class="flex items-start gap-3">
+                <v-remixicon
+                  name="riFingerprintLine"
+                  class="mt-0.5 text-primary"
+                  size="18"
+                />
+                <span>{{
+                  translations.account?.onboardingBulletAuth ||
+                  'Sign in with a passkey or a password. QuickConnect works across devices.'
+                }}</span>
+              </li>
+              <li class="flex items-start gap-3">
+                <v-remixicon
+                  name="riStarLine"
+                  class="mt-0.5 text-primary"
+                  size="18"
+                />
+                <span>{{
+                  translations.account?.onboardingBulletFree ||
+                  'A free account keeps your notes on this device only. Cloud sync is part of Basic and up.'
+                }}</span>
+              </li>
+            </ul>
+
+            <div class="flex flex-col gap-2 px-4 pb-3">
+              <ui-input
+                v-model="passkeyEmail"
+                type="email"
+                class="w-full"
+                :placeholder="
+                  translations.account?.emailPlaceholder || 'Email (optional)'
+                "
+                :aria-label="
+                  translations.account?.emailPlaceholder || 'Email (optional)'
+                "
+              />
+              <div class="flex gap-2">
+                <ui-button
+                  class="flex-1"
+                  :loading="accountStore.busy"
+                  :disabled="accountStore.busy"
+                  @click="handleSignInWithPasskey"
+                >
+                  <v-remixicon name="riFingerprintLine" class="mr-1" />
+                  {{ translations.account?.signIn || 'Sign in' }}
+                </ui-button>
+                <ui-button
+                  class="flex-1"
+                  variant="primary"
+                  :loading="accountStore.busy"
+                  :disabled="accountStore.busy"
+                  @click="handleSignUpWithPasskey"
+                >
+                  {{ translations.account?.createAccount || 'Create account' }}
+                </ui-button>
+              </div>
+
+              <div
+                class="border-t border-neutral-200 dark:border-neutral-700 px-1 pt-3"
+              >
+                <button
+                  class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+                  @click="showPasswordAuth = !showPasswordAuth"
+                >
+                  {{ showPasswordAuth ? '↑' : '↓' }}
+                  {{
+                    translations.account?.withPassword ||
+                    'Or sign in with password'
+                  }}
+                </button>
+                <div v-if="showPasswordAuth" class="mt-2 flex flex-col gap-2">
+                  <ui-input
+                    v-model="signInEmail"
+                    type="email"
+                    class="w-full"
+                    :placeholder="translations.account?.emailPlaceholder || 'Email'"
+                  />
+                  <ui-input
+                    v-model="signInPassword"
+                    type="password"
+                    class="w-full"
+                    :placeholder="
+                      translations.account?.passwordPlaceholder || 'Password'
+                    "
+                    @keyup.enter="handleSignInWithPassword"
+                  />
+                  <div class="flex gap-2">
+                    <ui-button
+                      class="flex-1"
+                      :loading="accountStore.busy"
+                      :disabled="accountStore.busy"
+                      @click="handleSignInWithPassword"
+                    >
+                      {{ translations.account?.signInWithPassword || 'Sign in' }}
+                    </ui-button>
+                    <ui-button
+                      class="flex-1"
+                      variant="primary"
+                      :loading="accountStore.busy"
+                      :disabled="accountStore.busy"
+                      @click="handleSignUpWithPassword"
+                    >
+                      {{
+                        translations.account?.createAccount || 'Create account'
+                      }}
+                    </ui-button>
+                  </div>
+                </div>
+              </div>
+
+              <p
+                v-if="accountStore.error"
+                class="text-sm text-red-500"
+                role="alert"
+              >
+                {{ accountStore.error }}
+              </p>
+            </div>
+
+            <div class="mt-5 flex justify-between gap-4 shrink-0 px-4 pb-4">
+              <ui-button @click="goToPreviousStep">
+                <v-remixicon name="riArrowLeftLine" /> Back
+              </ui-button>
+              <ui-button @click="goToNextStep">
+                {{ translations.account?.skip || 'Skip for now' }}
+              </ui-button>
+            </div>
+          </template>
+        </ui-card>
+      </div>
+
+      <!-- ── Sync ── -->
+      <div
+        v-else-if="step === 'sync'"
+        class="ob-screen flex flex-col items-center justify-center mobile:justify-end w-full"
+      >
+        <ui-card
+          class="w-full max-w-lg mobile:max-w-full max-h-[80dvh] flex flex-col mobile:rounded-b-none mobile:border-b-0"
+        >
+          <div class="flex flex-col items-center gap-2 my-8 text-center shrink-0">
+            <h2
+              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+            >
+              Sync folder
+            </h2>
+            <p class="text-neutral-600 dark:text-neutral-400">
+              Lets select a folder to sync your data with, you can skip this for
+              now and set it up later if you change your mind.
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0">
+            <div class="flex flex-col p-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p
+                    class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+                  >
+                    Folder
+                  </p>
+                  <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                    {{
+                      fresh.syncPath
+                        ? 'Beaver Notes sync with this folder.'
+                        : 'Choose a folder to sync with.'
+                    }}
+                  </p>
+                </div>
+                <ui-button @click="chooseSyncPath">
+                  {{ fresh.syncPath ? 'Change' : 'Choose folder' }}
+                </ui-button>
+              </div>
+
+              <div
+                v-if="fresh.syncPath"
+                class="flex items-center justify-between gap-3 mt-3"
+              >
+                <div
+                  class="rounded-lg bg-neutral-100 px-3 py-2 text-xs break-all text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                >
+                  {{ fresh.syncPath }}
+                </div>
+                <ui-button icon variant="danger" @click="clearSyncPath">
+                  <v-remixicon name="riDeleteBin6Line" />
+                </ui-button>
+              </div>
+            </div>
+
+            <button
+              class="flex items-center justify-between w-full px-4 py-3 text-left gap-2"
+              @click="toggleAutoSync"
+            >
+              <div>
+                <span
+                  class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200"
+                  >Automatic sync</span
+                >
+                <span
+                  class="block text-xs text-neutral-600 dark:text-neutral-400 mt-0.5"
+                >
+                  Lets you sync changes automatically when a folder is
+                  configured.
+                </span>
+              </div>
+              <ui-switch :model-value="fresh.autoSync" :disabled="!fresh.syncPath" />
+            </button>
+          </div>
+
+          <div
+            class="mt-5 flex mobile:flex-col-reverse justify-between gap-4 shrink-0"
+          >
+            <ui-button @click="goToPreviousStep">
+              <v-remixicon name="riArrowLeftLine" /> Back
+            </ui-button>
+            <ui-button
+              v-if="fresh.syncPath"
+              variant="primary"
+              :loading="state.savingPreferences"
+              @click="completeSyncStep"
+            >
+              <template v-if="!state.savingPreferences">
+                Continue <v-remixicon name="riArrowRightLine" />
+              </template>
+            </ui-button>
+            <ui-button v-else @click="completeSyncStep">Skip for now</ui-button>
+          </div>
+        </ui-card>
       </div>
 
       <!-- ── Encryption password ── -->
@@ -242,14 +1035,71 @@
         v-else-if="step === 'password'"
         class="ob-screen flex flex-col items-center justify-center w-full pt-8 pb-8"
       >
-        <onboarding-password-step
-          v-model="encryptionPassword"
-          :confirm-value="encryptionConfirmPassword"
-          :error="encryptionPasswordError"
-          :loading="encryptionPasswordLoading"
-          @update:confirm-value="encryptionConfirmPassword = $event"
+        <ui-card
+          class="w-full max-w-lg mobile:max-w-full max-h-[80dvh] flex flex-col mobile:rounded-b-none mobile:border-b-0"
         >
-          <template #next>
+          <div class="flex flex-col items-center gap-2 my-8 text-center shrink-0">
+            <h2
+              class="text-3xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
+            >
+              {{ translations.settings?.encryptionPassphrase || 'Encryption passphrase' }}
+            </h2>
+            <p class="text-neutral-600 dark:text-neutral-400">
+              {{
+                translations.onboarding?.passwordDescription ||
+                'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.'
+              }}
+            </p>
+          </div>
+
+          <div class="flex flex-col gap-3 overflow-y-auto flex-1 min-h-0 px-1">
+            <ui-input
+              v-model="encryptionPassword"
+              password
+              :placeholder="translations.settings?.password || 'Passphrase'"
+            />
+
+            <div class="h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+              <div
+                class="h-full rounded-full transition-all duration-300"
+                :class="strengthBarClass"
+                :style="{ width: strengthPercent + '%' }"
+              />
+            </div>
+            <p class="text-xs" :class="strengthTextClass">
+              {{ strengthLabel }}
+            </p>
+
+            <ui-input
+              v-model="encryptionConfirmPassword"
+              password
+              :placeholder="
+                translations.onboarding?.confirmPassword || 'Confirm passphrase'
+              "
+            />
+
+            <p
+              v-if="encryptionPasswordError"
+              class="text-xs text-red-500 dark:text-red-400 text-center"
+            >
+              {{ encryptionPasswordError }}
+            </p>
+
+            <div class="mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3">
+              <p class="text-xs text-amber-700 dark:text-amber-300">
+                <v-remixicon name="riErrorWarningLine" size="14" class="inline mr-1" />
+                {{
+                  translations.onboarding?.passwordWarning ||
+                  'This passphrase cannot be recovered if forgotten. Store it in a password manager.'
+                }}
+              </p>
+            </div>
+          </div>
+
+          <div class="mt-5 flex mobile:flex-col-reverse justify-between gap-4 shrink-0">
+            <ui-button @click="goToPreviousStep">
+              <v-remixicon name="riArrowLeftLine" /> Back
+            </ui-button>
             <ui-button
               variant="primary"
               :loading="encryptionPasswordLoading"
@@ -259,88 +1109,9 @@
                 Continue <v-remixicon name="riArrowRightLine" />
               </template>
             </ui-button>
-          </template>
-        </onboarding-password-step>
+          </div>
+        </ui-card>
       </div>
-
-      <!-- ── Sync ── -->
-      <OnboardingSyncStep
-        v-else-if="step === 'sync'"
-        :sync-path="fresh.syncPath"
-        :auto-sync="fresh.autoSync"
-        :saving-preferences="state.savingPreferences"
-        @choose-sync-path="chooseSyncPath"
-        @clear-sync-path="clearSyncPath"
-        @toggle-auto-sync="toggleAutoSync"
-        @finish-fresh-onboarding="finishFreshOnboarding"
-        @back="curtainNavigate('setup')"
-      />
-
-      <!-- ── Platform ── -->
-      <div
-        v-else-if="step === 'platform'"
-        class="ob-screen flex flex-col items-center justify-center w-full pt-8 pb-8"
-      >
-        <onboarding-platform-step
-          v-model="migrationPlatform"
-          :is-mac-o-s="isMacOS"
-          :logo-url="logoUrl"
-          @select="selectMigrationPlatform"
-        >
-          <template #back>
-            <ui-button @click="curtainNavigate('path')">
-              <v-remixicon name="riArrowLeftLine" /> Back
-            </ui-button>
-          </template>
-          <template #next>
-            <ui-button
-              variant="primary"
-              :disabled="!migrationPlatform"
-              @click="curtainNavigate('migration')"
-            >
-              Continue <v-remixicon name="riArrowRightLine" />
-            </ui-button>
-          </template>
-        </onboarding-platform-step>
-      </div>
-
-      <!-- ── Migration ── -->
-      <OnboardingMigrationStep
-        v-else-if="step === 'migration'"
-        :migration-platform-label="migrationPlatformLabel"
-        :migration-source-heading="migrationSourceHeading"
-        :migration-source-copy="migrationSourceCopy"
-        :migration-platform="migrationPlatform"
-        :migration-what-gets-copied="migrationWhatGetsCopied"
-        :migration-action-disabled="migrationActionDisabled"
-        :migrating="state.migrating"
-        :migration-done="state.migrationDone"
-        :migration-progress="state.migrationProgress"
-        :migration-status="state.migrationStatus"
-        :migration-current="state.migrationCurrent"
-        :migration-result="state.migrationResult"
-        :migration-issues-text="state.migrationIssuesText"
-        :status="state.status"
-        :custom-legacy-path="customLegacyPath"
-        :evernote-notebook-name="state.evernoteNotebookName"
-        @update:evernote-notebook-name="state.evernoteNotebookName = $event"
-        @run-migration="runSelectedMigration"
-        @copy-issues="copyMigrationIssues"
-        @browse-portable="browseForPortableData"
-        @back="curtainNavigate('platform')"
-        @continue="goToNextStep"
-      />
-
-      <!-- ── Legacy Password ── -->
-      <OnboardingLegacyPasswordStep
-        v-else-if="step === 'legacyPassword'"
-        v-model="legacyPasswordValue"
-        :error="state.legacyPasswordError"
-        :loading="state.legacyPasswordLoading"
-        @submit="submitLegacyPassword"
-        @skip="skipLegacyPassword"
-        @back="curtainNavigate('platform')"
-      />
 
       <!-- ── Finish ── -->
       <div
@@ -422,49 +1193,28 @@
 </template>
 
 <script>
-import { ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { useStorage } from '@/composable/storage';
 import { useImportExport } from '@/composable/useImportExport';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { usePasswordStore } from '@/store/passwd';
-import { backend, clipboard } from '@/lib/tauri-bridge';
+import { useAccountStore } from '@/store/account';
+import { clipboard } from '@/lib/tauri-bridge';
 import { useSounds } from '@/composable/useSounds';
+import { useTranslations } from '@/composable/useTranslations';
+import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
-import OnboardingSetupStep from '@/components/onboarding/OnboardingSetupStep.vue';
-import OnboardingPlatformStep from '@/components/onboarding/OnboardingPlatformStep.vue';
-import OnboardingSyncStep from '@/components/onboarding/OnboardingSyncStep.vue';
-import OnboardingPasswordStep from '@/components/onboarding/OnboardingPasswordStep.vue';
-import OnboardingMigrationStep from '@/components/onboarding/OnboardingMigrationStep.vue';
-import OnboardingLegacyPasswordStep from '@/components/onboarding/OnboardingLegacyPasswordStep.vue';
+import { CURTAIN_DURATIONS } from '@/utils/onboarding/index.js';
 
-const CURTAIN_DURATIONS = {
-  close: 1200,
-  hold: 900,
-  open: 1200,
-};
-
-const {
-  close: CURTAIN_CLOSE,
-  hold: CURTAIN_HOLD,
-  open: CURTAIN_OPEN,
-} = CURTAIN_DURATIONS;
+const { hold: CURTAIN_HOLD, open: CURTAIN_OPEN } = CURTAIN_DURATIONS;
 
 export default {
   name: 'AppOnboarding',
-  components: {
-    OnboardingSetupStep,
-    OnboardingPlatformStep,
-    OnboardingSyncStep,
-    OnboardingMigrationStep,
-    OnboardingLegacyPasswordStep,
-    OnboardingPasswordStep,
-  },
 
   setup() {
-    const route = useRoute();
     const router = useRouter();
     const settingsStorage = useStorage('settings');
     const store = useStore();
@@ -473,6 +1223,10 @@ export default {
     const isMacOS =
       typeof window !== 'undefined' &&
       window.navigator.platform.toLowerCase().includes('mac');
+
+    const { translations } = useTranslations();
+    const accountStore = useAccountStore();
+    const passwordStore = usePasswordStore();
 
     const { runImportSource } = useImportExport({
       clipboard,
@@ -483,7 +1237,6 @@ export default {
     });
 
     const flow = useOnboardingFlow({
-      route,
       router,
       store,
       noteStore,
@@ -492,16 +1245,24 @@ export default {
       runImportSource,
     });
 
+    // Recycle the Settings account orchestration — the sign-in handlers and
+    // refs live in useSettingsAccount, errors surface through the onboarding
+    // toast via showDialogAlert.
+    const account = useSettingsAccount({
+      dialog: { alert() {}, confirm() {} },
+      translations,
+      showDialogAlert: (msg) => {
+        flow.state.error = msg;
+      },
+    });
+
     const curtainOpen = ref(false);
-    let curtainLocked = false;
-    let hasCurtainPlayed = false;
     const { play } = useSounds();
 
     const prefersReducedMotion = () =>
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-    const passwordStore = usePasswordStore();
     const legacyPasswordValue = ref('');
 
     async function submitLegacyPassword() {
@@ -510,16 +1271,12 @@ export default {
         legacyPasswordValue.value,
         passwordStore
       );
-      if (result.success) {
-        legacyPasswordValue.value = '';
-        await curtainNavigate('migration');
-      }
+      if (result.success) legacyPasswordValue.value = '';
     }
 
-    async function skipLegacyPassword() {
+    function skipLegacyPassword() {
       legacyPasswordValue.value = '';
       flow.handleLegacyPasswordSkip();
-      await curtainNavigate('migration');
     }
 
     // ── Intro curtain on first load ────────────────────────────────────
@@ -527,11 +1284,8 @@ export default {
     // once with a slow retract animation synced to the intro sound.
     (async function playIntroCurtain() {
       if (prefersReducedMotion()) {
-        hasCurtainPlayed = true;
         return;
       }
-
-      curtainLocked = true;
 
       // Brief pause before the reveal
       await new Promise((r) => setTimeout(r, CURTAIN_HOLD));
@@ -541,29 +1295,66 @@ export default {
       curtainOpen.value = true;
 
       await new Promise((r) => setTimeout(r, CURTAIN_OPEN));
-      hasCurtainPlayed = true;
-      curtainLocked = false;
     })();
 
-    async function curtainNavigate(targetStep) {
-      if (curtainLocked) return;
+    // ── Passphrase strength meter ──────────────────────────────────────
+    function assessStrength(pw) {
+      if (!pw) return { level: 0, label: '', percent: 0 };
+      const len = pw.length;
+      if (len < 6)
+        return {
+          level: 0,
+          label: 'Too short',
+          percent: Math.max(8, len * 4),
+        };
 
-      const actualStep =
-        targetStep === 'migration' && flow.state.legacyHasLockedNotes
-          ? 'legacyPassword'
-          : targetStep;
+      let score = 0;
+      if (len >= 8) score += 1;
+      if (len >= 12) score += 1;
+      if (len >= 16) score += 1;
+      if (/[a-z]/.test(pw) && /[A-Z]/.test(pw)) score += 1;
+      if (/\d/.test(pw)) score += 1;
+      if (/[^a-zA-Z0-9]/.test(pw)) score += 1;
 
-      // Curtain only plays on first load — subsequent navigation is instant
-      flow.goToStep(actualStep);
+      if (score <= 1) return { level: 1, label: 'Weak', percent: 25 };
+      if (score === 2) return { level: 2, label: 'Fair', percent: 50 };
+      if (score <= 4) return { level: 3, label: 'Good', percent: 75 };
+      return { level: 4, label: 'Strong', percent: 100 };
     }
 
+    const strength = computed(() => assessStrength(flow.encryptionPassword));
+    const strengthPercent = computed(() => strength.value.percent);
+    const strengthLabel = computed(() => strength.value.label);
+    const strengthBarClass = computed(() => {
+      const level = strength.value.level;
+      if (level === 0) return 'bg-red-400';
+      if (level === 1) return 'bg-orange-400';
+      if (level === 2) return 'bg-yellow-400';
+      if (level === 3) return 'bg-lime-400';
+      return 'bg-green-400';
+    });
+    const strengthTextClass = computed(() => {
+      const level = strength.value.level;
+      if (level === 0) return 'text-red-500';
+      if (level === 1) return 'text-orange-500';
+      if (level === 2) return 'text-yellow-600';
+      if (level === 3) return 'text-lime-600';
+      return 'text-green-600';
+    });
+
     return {
+      translations,
+      accountStore,
       ...flow,
+      ...account,
       curtainOpen,
-      curtainNavigate,
       legacyPasswordValue,
       submitLegacyPassword,
       skipLegacyPassword,
+      strengthPercent,
+      strengthLabel,
+      strengthBarClass,
+      strengthTextClass,
     };
   },
 };

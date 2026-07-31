@@ -10,13 +10,12 @@ import {
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
 import { DEFAULT_UI_FONT_STACK, getSettingSync } from '@/composable/settings';
+import { useAccountStore } from '@/store/account';
 import {
   applyOnboardingSyncPreferences,
   applyOnboardingFreshPreferences,
   getOnboardingMigrationStatus,
-  ONBOARDING_ACCENT_COLORS,
   ONBOARDING_FONTS,
-  ONBOARDING_INTERFACE_SIZES,
   markOnboardingCompleted,
   ONBOARDING_LANGUAGES,
   ONBOARDING_THEMES,
@@ -24,6 +23,7 @@ import {
   probeCustomMigrationPath,
   runOnboardingMigration,
   runOnboardingMigrationFromPath,
+  ENTRANCE_DELAYS,
 } from '@/utils/onboarding/index.js';
 import { setupEncryption } from '@/utils/crypto/encryption.js';
 import {
@@ -31,13 +31,12 @@ import {
   migrateLegacyLockedNotes,
 } from '@/utils/migration/legacyElectron.js';
 import {
+  ALL_PLATFORMS,
   ONBOARDING_IMPORT_SOURCE_MAP,
   PLATFORM_LABELS,
-  PLATFORM_ICONS,
   getMigrationSourceCopy,
   getMigrationWhatGetsCopied,
 } from '@/utils/onboarding/platforms.js';
-import { ENTRANCE_DELAYS } from '@/utils/onboarding/index.js';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import lightImg from '@/assets/images/light.png';
@@ -46,7 +45,6 @@ import systemImg from '@/assets/images/system.png';
 import logoUrl from '@/assets/images/logo-transparent.png';
 
 export function useOnboardingFlow({
-  route,
   router,
   store,
   noteStore,
@@ -56,18 +54,17 @@ export function useOnboardingFlow({
 }) {
   const { translations } = useTranslations();
   const theme = useTheme();
+  const accountStore = useAccountStore();
 
   //  Wizard state
 
   const step = ref('welcome');
-  const completionMode = ref('fresh');
-  const selectedMode = ref(null);
+  const importPhase = ref('pick');
   const migrationPlatform = ref(null);
-
-  const getLegacyDir = () => customLegacyPath.value || state.status?.legacyDir;
-
   const customLegacyPath = ref(null);
   const customLegacyStatus = ref(null);
+
+  const getLegacyDir = () => customLegacyPath.value || state.status?.legacyDir;
 
   // Entrance animation flags
   const logoIn = ref(false);
@@ -92,7 +89,6 @@ export function useOnboardingFlow({
     evernoteNotebookName: '',
     legacyHasLockedNotes: false,
     legacyLockedNoteCount: 0,
-    legacyPasswordPrompt: false,
     legacyPasswordLoading: false,
     legacyPasswordError: '',
   });
@@ -162,9 +158,6 @@ export function useOnboardingFlow({
     ...item,
     img: themeImages[item.name],
   }));
-  const accentColors = ONBOARDING_ACCENT_COLORS;
-  const accentColorNames = accentColors.map(({ name }) => name);
-  const interfaceSizes = ONBOARDING_INTERFACE_SIZES;
   const fonts = ONBOARDING_FONTS;
   const languages = ONBOARDING_LANGUAGES;
 
@@ -188,25 +181,18 @@ export function useOnboardingFlow({
       window.navigator.platform.toLowerCase().includes('mac'),
   );
 
-  const onboardingSubtitle = computed(
-    () =>
-      translations.value.onboarding?.subtitle ||
-      'Configure everything just the way you like it, or import your existing notes from Beaver Notes (Legacy).',
+  const visiblePlatforms = computed(() =>
+    ALL_PLATFORMS.filter((platform) => !platform.macOnly || isMacOS.value),
   );
 
-  const completionEyebrow = computed(() =>
-    completionMode.value === 'migration' ? 'Migration complete' : 'All set',
-  );
-  const completionTitle = computed(() =>
-    completionMode.value === 'migration'
-      ? 'Your notes are ready'
-      : 'Your app is ready',
-  );
-  const completionSubtitle = computed(() =>
-    completionMode.value === 'migration'
-      ? 'Your data has been copied into the new Beaver Notes app. Everything is ready when you open it.'
-      : 'Your defaults are already applied. Open a clean app and start writing.',
-  );
+  // Linear flow — the sync step is skipped when the account provides cloud
+  // sync (authenticated on a paid plan).
+  const activeFlow = computed(() => {
+    const flow = ['welcome', 'customize', 'import', 'account'];
+    if (!accountStore.canUseCloudSync) flow.push('sync');
+    flow.push('password', 'finish');
+    return flow;
+  });
 
   const migrationDetectionCopy = computed(() => {
     if (customLegacyStatus.value?.hasLegacyData) {
@@ -225,32 +211,10 @@ export function useOnboardingFlow({
     () => PLATFORM_LABELS[migrationPlatform.value] || 'legacy',
   );
 
-  const migrationPlatformIcon = computed(
-    () => PLATFORM_ICONS[migrationPlatform.value] || null,
-  );
-
-  const migrationSourceHeading = computed(() =>
-    migrationPlatform.value === 'electron' ? '' : 'Import source',
-  );
-
   const migrationSourceCopy = computed(() => {
     const copy = getMigrationSourceCopy(migrationPlatform.value);
     if (copy === null) return migrationDetectionCopy.value;
     return copy;
-  });
-
-  const migrationSourceBadge = computed(() => {
-    if (migrationPlatform.value !== 'electron') return '';
-    if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
-      return 'Ready';
-    return '';
-  });
-
-  const migrationSourceBadgeClass = computed(() => {
-    if (migrationPlatform.value !== 'electron') return '';
-    if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
-      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-    return 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400';
   });
 
   const migrationWhatGetsCopied = computed(() =>
@@ -268,27 +232,27 @@ export function useOnboardingFlow({
     return false;
   });
 
-  const activeFlow = computed(() => {
-    if (selectedMode.value === 'fresh')
-      return isMobileRuntime
-        ? ['welcome', 'setup', 'password', 'sync', 'finish']
-        : ['welcome', 'path', 'setup', 'password', 'sync', 'finish'];
-    if (selectedMode.value === 'migration') {
-      const base = ['welcome', 'path', 'platform', 'password'];
-      const tail =
-        migrationPlatform.value === 'electron' && state.legacyHasLockedNotes
-          ? ['legacyPassword', 'migration', 'finish']
-          : ['migration', 'finish'];
-      return [...base, ...tail];
-    }
-    return isMobileRuntime ? ['welcome', 'setup'] : ['welcome', 'path'];
+  const migrationSourceBadge = computed(() => {
+    if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
+      return 'Ready';
+    return '';
   });
+
+  const migrationSourceBadgeClass = computed(() => {
+    if (state.status?.hasLegacyData || customLegacyStatus.value?.hasLegacyData)
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    return 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400';
+  });
+
+  const showLegacyLockedPrompt = computed(
+    () =>
+      importPhase.value === 'confirm' &&
+      migrationPlatform.value === 'electron' &&
+      state.legacyHasLockedNotes,
+  );
 
   //  Navigation
 
-  const setStep = (s) => {
-    step.value = s;
-  };
   const goToStep = (s) => {
     step.value = s;
   };
@@ -304,35 +268,43 @@ export function useOnboardingFlow({
       step.value = activeFlow.value[i + 1];
   };
 
-  const chooseMode = (mode) => {
-    selectedMode.value = mode;
-    setStep(mode === 'fresh' ? 'setup' : 'platform');
-  };
-
-  const startFreshFlow = () => chooseMode('fresh');
-
   const handlePrimaryContinue = () => {
-    if (isMobileRuntime) {
-      startFreshFlow();
-      return;
-    }
-    setStep('path');
+    goToStep('customize');
   };
 
-  const openMigrationFlow = async () => {
-    selectedMode.value = 'migration';
-    migrationPlatform.value = 'electron';
-    const dir = getLegacyDir();
-    if (dir) {
-      const lockedInfo = await detectLegacyLockedNotes(dir);
-      state.legacyHasLockedNotes = lockedInfo.hasLocked;
-      state.legacyLockedNoteCount = lockedInfo.count;
-    }
-    setStep('platform');
+  //  Import
+
+  const resetImport = () => {
+    importPhase.value = 'pick';
+    migrationPlatform.value = null;
+    customLegacyPath.value = null;
+    customLegacyStatus.value = null;
+    state.legacyHasLockedNotes = false;
+    state.legacyLockedNoteCount = 0;
+    state.migrationDone = false;
+    state.migrationProgress = 0;
+    state.migrationStatus = '';
+    state.migrationCurrent = '';
+    state.migrationResult = null;
+    state.migrationIssuesText = '';
+    state.evernoteNotebookName = '';
   };
 
-  const selectMigrationPlatform = async (platform) => {
+  const skipImport = () => {
+    resetImport();
+    goToNextStep();
+  };
+
+  const backToPick = () => {
+    importPhase.value = 'pick';
+    migrationPlatform.value = null;
+    state.legacyHasLockedNotes = false;
+    state.legacyLockedNoteCount = 0;
+  };
+
+  async function selectImportSource(platform) {
     migrationPlatform.value = platform;
+    importPhase.value = 'confirm';
     if (platform === 'electron') {
       const dir = getLegacyDir();
       if (dir) {
@@ -341,7 +313,233 @@ export function useOnboardingFlow({
         state.legacyLockedNoteCount = lockedInfo.count;
       }
     }
-  };
+  }
+
+  async function refreshStatus() {
+    state.error = '';
+    state.status = await getOnboardingMigrationStatus();
+    if (state.status?.hasLegacyData && state.status?.legacyDir) {
+      const lockedInfo = await detectLegacyLockedNotes(state.status.legacyDir);
+      state.legacyHasLockedNotes = lockedInfo.hasLocked;
+      state.legacyLockedNoteCount = lockedInfo.count;
+    }
+  }
+
+  async function browseForPortableData() {
+    state.error = '';
+    try {
+      const {
+        canceled,
+        filePaths: [dir],
+      } = await openDialog({
+        title:
+          translations.value.onboarding?.locatePortableData ||
+          'Locate Beaver Notes portable data folder',
+        properties: ['openDirectory'],
+        useScopedStorage: true,
+      });
+      if (canceled || !dir) return;
+      const probed = await probeCustomMigrationPath(dir);
+      customLegacyPath.value = dir;
+      customLegacyStatus.value = probed;
+      if (probed?.hasLegacyData) {
+        const lockedInfo = await detectLegacyLockedNotes(dir);
+        state.legacyHasLockedNotes = lockedInfo.hasLocked;
+        state.legacyLockedNoteCount = lockedInfo.count;
+      }
+    } catch (e) {
+      state.error = e?.message || String(e);
+    }
+  }
+
+  async function migrateLegacyData() {
+    state.error = '';
+    state.migrating = true;
+    state.migrationDone = false;
+    state.migrationProgress = 0;
+    state.migrationStatus =
+      translations.value.onboarding?.startingImport || 'Starting import…';
+    state.migrationCurrent = '';
+    state.migrationResult = null;
+    state.migrationIssuesText = '';
+    importPhase.value = 'running';
+
+    try {
+      const steps = [
+        'Copying notes…',
+        'Copying folders…',
+        'Copying labels…',
+        'Copying assets…',
+        'Migrating settings…',
+      ];
+      const ticker = setInterval(() => {
+        if (state.migrationProgress < 85) {
+          state.migrationProgress = Math.min(
+            state.migrationProgress + Math.floor(Math.random() * 8) + 2,
+            85,
+          );
+          state.migrationStatus =
+            steps[
+              Math.min(
+                Math.floor(state.migrationProgress / 20),
+                steps.length - 1,
+              )
+            ];
+        }
+      }, 300);
+
+      if (customLegacyStatus.value?.hasLegacyData && customLegacyPath.value) {
+        await runOnboardingMigrationFromPath(customLegacyPath.value);
+      } else {
+        await runOnboardingMigration();
+      }
+      clearInterval(ticker);
+      state.migrationProgress = 100;
+      state.migrationStatus =
+        translations.value.onboarding?.allDone || 'All done!';
+      state.migrationDone = true;
+      importPhase.value = 'done';
+    } catch (e) {
+      state.error = e?.message || String(e);
+      importPhase.value = 'confirm';
+    } finally {
+      state.migrating = false;
+    }
+  }
+
+  function handleImportProgress({ done, total, current }) {
+    state.migrationProgress = total
+      ? Math.max(5, Math.round((done / total) * 100))
+      : 10;
+    state.migrationStatus = total
+      ? `Importing ${done} of ${total}…`
+      : 'Importing…';
+    state.migrationCurrent = current || '';
+  }
+
+  async function runImporterWithProgress(sourceKey, options = {}) {
+    return runImportSource(sourceKey, {
+      ...options,
+      onProgress: ({ done, total, current }) => {
+        handleImportProgress({ done, total, current });
+        options.onProgress?.({ done, total, current });
+      },
+    });
+  }
+
+  async function runSelectedMigration() {
+    if (migrationPlatform.value === 'electron') {
+      await migrateLegacyData();
+      return;
+    }
+
+    state.error = '';
+    state.migrating = true;
+    state.migrationDone = false;
+    state.migrationProgress = 0;
+    state.migrationStatus =
+      translations.value.onboarding?.startingImport || 'Starting import…';
+    state.migrationCurrent = '';
+    state.migrationResult = null;
+    state.migrationIssuesText = '';
+    importPhase.value = 'running';
+
+    try {
+      const sourceKey = ONBOARDING_IMPORT_SOURCE_MAP[migrationPlatform.value];
+      const result = sourceKey
+        ? await runImporterWithProgress(sourceKey, {
+            notebookName: state.evernoteNotebookName?.trim() || null,
+          })
+        : null;
+
+      if (!result) return;
+
+      state.migrationProgress = 100;
+      state.migrationStatus =
+        translations.value.onboarding?.allDone || 'All done!';
+      state.migrationResult = result;
+      state.migrationIssuesText = (result.errors || [])
+        .map(
+          (issue) =>
+            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`,
+        )
+        .join('\n');
+      state.migrationDone = true;
+      importPhase.value = 'done';
+    } catch (e) {
+      state.error = e?.message || String(e);
+      importPhase.value = 'confirm';
+    } finally {
+      state.migrating = false;
+    }
+  }
+
+  async function handleLegacyPasswordSubmit(password, passwordStore) {
+    state.legacyPasswordLoading = true;
+    state.legacyPasswordError = '';
+    let migratedCount = 0;
+
+    try {
+      const dir = getLegacyDir();
+      if (!dir) {
+        state.legacyHasLockedNotes = false;
+        return { success: true, migratedCount };
+      }
+
+      migratedCount = await migrateLegacyLockedNotes(dir, password, (pw) =>
+        passwordStore.setAppPassword(pw),
+      );
+      state.legacyHasLockedNotes = false;
+      return { success: true, migratedCount };
+    } catch (e) {
+      console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
+      state.legacyPasswordError = e?.message || 'Incorrect password';
+      return {
+        success: false,
+        migratedCount,
+        error: state.legacyPasswordError,
+      };
+    } finally {
+      state.legacyPasswordLoading = false;
+    }
+  }
+
+  function handleLegacyPasswordSkip() {
+    state.legacyPasswordError = '';
+    state.legacyHasLockedNotes = false;
+  }
+
+  async function copyMigrationIssues() {
+    if (!state.migrationIssuesText) return;
+    try {
+      await clipboard.writeText(state.migrationIssuesText);
+    } catch (error) {
+      state.error = error?.message || String(error);
+    }
+  }
+
+  //  Fresh preferences
+
+  async function applyFreshAndGo(target) {
+    state.error = '';
+    state.savingPreferences = true;
+    try {
+      await applyOnboardingFreshPreferences(fresh, { theme });
+      goToStep(target);
+    } catch (e) {
+      state.error = e?.message || String(e);
+    } finally {
+      state.savingPreferences = false;
+    }
+  }
+
+  async function prepareFreshWorkspace() {
+    await applyFreshAndGo('import');
+  }
+
+  async function useDefaultPreferences() {
+    await applyFreshAndGo('password');
+  }
 
   //  Appearance
 
@@ -353,6 +551,7 @@ export function useOnboardingFlow({
   const selectAccentColor = (color) => {
     fresh.accentColor = color;
     const root = document.documentElement;
+    const accentColorNames = ['red', 'light', 'green', 'blue', 'purple', 'pink', 'neutral'];
     root.classList.forEach((cls) => {
       if (accentColorNames.includes(cls)) root.classList.remove(cls);
     });
@@ -379,6 +578,64 @@ export function useOnboardingFlow({
   const selectZoomLevel = (zoomLevel) => {
     fresh.zoomLevel = zoomLevel;
   };
+
+  //  Sync
+
+  async function chooseSyncPath() {
+    state.error = '';
+    try {
+      const {
+        canceled,
+        filePaths: [dir],
+      } = await openDialog({
+        title:
+          translations.value.onboarding?.chooseSyncFolder ||
+          'Choose a sync folder',
+        properties: ['openDirectory'],
+        useScopedStorage: true,
+      });
+      if (canceled || !dir) return;
+      fresh.syncPath = dir;
+    } catch (error) {
+      state.error = error?.message || String(error);
+    }
+  }
+
+  function clearSyncPath() {
+    fresh.syncPath = '';
+    fresh.autoSync = false;
+  }
+
+  function toggleAutoSync() {
+    if (!fresh.syncPath) return;
+    fresh.autoSync = !fresh.autoSync;
+  }
+
+  async function completeSyncStep() {
+    state.error = '';
+    state.savingPreferences = true;
+    try {
+      await applyOnboardingSyncPreferences(fresh);
+      goToStep('password');
+    } catch (e) {
+      state.error = e?.message || String(e);
+    } finally {
+      state.savingPreferences = false;
+    }
+  }
+
+  async function completeAndOpenWorkspace() {
+    state.error = '';
+    state.openingWorkspace = true;
+    try {
+      await markOnboardingCompleted(settingsStorage);
+      await openOnboardingWorkspace({ store, noteStore, router });
+    } catch (e) {
+      state.error = e?.message || String(e);
+    } finally {
+      state.openingWorkspace = false;
+    }
+  }
 
   //  Confetti
 
@@ -428,294 +685,6 @@ export function useOnboardingFlow({
     }, 3800);
   }
 
-  //  Async actions
-
-  async function refreshStatus() {
-    state.error = '';
-    state.status = await getOnboardingMigrationStatus();
-    if (state.status?.hasLegacyData && state.status?.legacyDir) {
-      const lockedInfo = await detectLegacyLockedNotes(state.status.legacyDir);
-      state.legacyHasLockedNotes = lockedInfo.hasLocked;
-      state.legacyLockedNoteCount = lockedInfo.count;
-    }
-  }
-
-  async function prepareFreshWorkspace() {
-    state.error = '';
-    state.savingPreferences = true;
-    try {
-      await applyOnboardingFreshPreferences(fresh, { theme });
-      if (!selectedMode.value) selectedMode.value = 'fresh';
-      setStep('password');
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.savingPreferences = false;
-    }
-  }
-
-  async function useDefaultPreferences() {
-    await prepareFreshWorkspace();
-  }
-
-  async function browseForPortableData() {
-    state.error = '';
-    try {
-      const {
-        canceled,
-        filePaths: [dir],
-      } = await openDialog({
-        title:
-          translations.value.onboarding?.locatePortableData ||
-          'Locate Beaver Notes portable data folder',
-        properties: ['openDirectory'],
-        useScopedStorage: true,
-      });
-      if (canceled || !dir) return;
-      const probed = await probeCustomMigrationPath(dir);
-      customLegacyPath.value = dir;
-      customLegacyStatus.value = probed;
-      if (probed?.hasLegacyData) {
-        const lockedInfo = await detectLegacyLockedNotes(dir);
-        state.legacyHasLockedNotes = lockedInfo.hasLocked;
-        state.legacyLockedNoteCount = lockedInfo.count;
-      }
-    } catch (e) {
-      state.error = e?.message || String(e);
-    }
-  }
-
-  async function migrateLegacyData() {
-    state.error = '';
-    state.migrating = true;
-    state.migrationDone = false;
-    state.migrationProgress = 0;
-    state.migrationStatus =
-      translations.value.onboarding?.startingImport || 'Starting import…';
-    state.migrationCurrent = '';
-    state.migrationResult = null;
-    state.migrationIssuesText = '';
-
-    try {
-      const steps = [
-        'Copying notes…',
-        'Copying folders…',
-        'Copying labels…',
-        'Copying assets…',
-        'Migrating settings…',
-      ];
-      const ticker = setInterval(() => {
-        if (state.migrationProgress < 85) {
-          state.migrationProgress = Math.min(
-            state.migrationProgress + Math.floor(Math.random() * 8) + 2,
-            85,
-          );
-          state.migrationStatus =
-            steps[
-              Math.min(
-                Math.floor(state.migrationProgress / 20),
-                steps.length - 1,
-              )
-            ];
-        }
-      }, 300);
-
-      if (customLegacyStatus.value?.hasLegacyData && customLegacyPath.value) {
-        await runOnboardingMigrationFromPath(customLegacyPath.value);
-      } else {
-        await runOnboardingMigration();
-      }
-      clearInterval(ticker);
-      state.migrationProgress = 100;
-      state.migrationStatus =
-        translations.value.onboarding?.allDone || 'All done!';
-      completionMode.value = 'migration';
-      state.migrationDone = true;
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.migrating = false;
-    }
-  }
-
-  function handleImportProgress({ done, total, current }) {
-    state.migrationProgress = total
-      ? Math.max(5, Math.round((done / total) * 100))
-      : 10;
-    state.migrationStatus = total
-      ? `Importing ${done} of ${total}…`
-      : 'Importing…';
-    state.migrationCurrent = current || '';
-  }
-
-  async function runImporterWithProgress(sourceKey, options = {}) {
-    return runImportSource(sourceKey, {
-      ...options,
-      onProgress: ({ done, total, current }) => {
-        handleImportProgress({ done, total, current });
-        options.onProgress?.({ done, total, current });
-      },
-    });
-  }
-
-  async function runSelectedMigration() {
-    if (migrationPlatform.value === 'electron') {
-      await migrateLegacyData();
-      return;
-    }
-
-    state.error = '';
-    state.migrating = true;
-    state.migrationDone = false;
-    state.migrationProgress = 0;
-    state.migrationStatus =
-      translations.value.onboarding?.startingImport || 'Starting import…';
-    state.migrationCurrent = '';
-    state.migrationResult = null;
-    state.migrationIssuesText = '';
-
-    try {
-      const sourceKey = ONBOARDING_IMPORT_SOURCE_MAP[migrationPlatform.value];
-      const result = sourceKey
-        ? await runImporterWithProgress(sourceKey, {
-            notebookName: state.evernoteNotebookName?.trim() || null,
-          })
-        : null;
-
-      if (!result) return;
-
-      state.migrationProgress = 100;
-      state.migrationStatus =
-        translations.value.onboarding?.allDone || 'All done!';
-      state.migrationResult = result;
-      state.migrationIssuesText = (result.errors || [])
-        .map(
-          (issue) =>
-            `${issue.title || 'Untitled'}: ${issue.reason || 'Unknown error'}`,
-        )
-        .join('\n');
-      completionMode.value = 'migration';
-      state.migrationDone = true;
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.migrating = false;
-    }
-  }
-
-  async function handleLegacyPasswordSubmit(password, passwordStore) {
-    state.legacyPasswordLoading = true;
-    state.legacyPasswordError = '';
-    let migratedCount = 0;
-
-    try {
-      const dir = getLegacyDir();
-      if (!dir) {
-        state.legacyPasswordPrompt = false;
-        return { success: true, migratedCount };
-      }
-
-      migratedCount = await migrateLegacyLockedNotes(dir, password, (pw) =>
-        passwordStore.setAppPassword(pw),
-      );
-      state.legacyPasswordPrompt = false;
-      state.legacyHasLockedNotes = false;
-      return { success: true, migratedCount };
-    } catch (e) {
-      console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
-      state.legacyPasswordError = e?.message || 'Incorrect password';
-      return {
-        success: false,
-        migratedCount,
-        error: state.legacyPasswordError,
-      };
-    } finally {
-      state.legacyPasswordLoading = false;
-    }
-  }
-
-  function handleLegacyPasswordSkip() {
-    state.legacyPasswordPrompt = false;
-    state.legacyPasswordError = '';
-    state.legacyHasLockedNotes = false;
-  }
-
-  async function copyMigrationIssues() {
-    if (!state.migrationIssuesText) return;
-    try {
-      await clipboard.writeText(state.migrationIssuesText);
-    } catch (error) {
-      state.error = error?.message || String(error);
-    }
-  }
-
-  async function chooseSyncPath() {
-    state.error = '';
-    try {
-      const {
-        canceled,
-        filePaths: [dir],
-      } = await openDialog({
-        title:
-          translations.value.onboarding?.chooseSyncFolder ||
-          'Choose a sync folder',
-        properties: ['openDirectory'],
-        useScopedStorage: true,
-      });
-      if (canceled || !dir) return;
-      fresh.syncPath = dir;
-    } catch (error) {
-      state.error = error?.message || String(error);
-    }
-  }
-
-  function clearSyncPath() {
-    fresh.syncPath = '';
-    fresh.autoSync = false;
-  }
-
-  function toggleAutoSync() {
-    if (!fresh.syncPath) return;
-    fresh.autoSync = !fresh.autoSync;
-  }
-
-  async function finishFreshOnboarding() {
-    state.error = '';
-    state.savingPreferences = true;
-    try {
-      await applyOnboardingSyncPreferences(fresh);
-      selectedMode.value = 'fresh';
-      completionMode.value = 'fresh';
-      setStep('finish');
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.savingPreferences = false;
-    }
-  }
-
-  async function completeAndOpenWorkspace() {
-    state.error = '';
-    state.openingWorkspace = true;
-    try {
-      await markOnboardingCompleted(settingsStorage);
-      await openOnboardingWorkspace({ store, noteStore, router });
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.openingWorkspace = false;
-    }
-  }
-
-  function applyRouteEntry() {
-    const mode = route.query.mode;
-    const targetStep = route.query.step;
-    if (mode !== 'migration') return;
-    selectedMode.value = 'migration';
-    migrationPlatform.value = 'electron';
-    setStep(targetStep === 'migration' ? 'migration' : 'platform');
-  }
-
   //  Lifecycle
 
   watch(step, async (next) => {
@@ -728,12 +697,6 @@ export function useOnboardingFlow({
       launchConfetti();
     }
   });
-
-  watch(
-    () => route.query,
-    () => applyRouteEntry(),
-    { immediate: true },
-  );
 
   onMounted(async () => {
     if (prefersReducedMotion()) {
@@ -783,6 +746,7 @@ export function useOnboardingFlow({
   return {
     // State
     step,
+    importPhase,
     state,
     fresh,
     confettiPieces,
@@ -796,8 +760,6 @@ export function useOnboardingFlow({
 
     // Static config
     themes,
-    accentColors,
-    interfaceSizes,
     fonts,
     languages,
     logoUrl,
@@ -806,28 +768,23 @@ export function useOnboardingFlow({
     isDark,
     isMobileRuntime,
     isMacOS,
-    onboardingSubtitle,
-    completionEyebrow,
-    completionTitle,
-    completionSubtitle,
-    migrationDetectionCopy,
+    visiblePlatforms,
     migrationPlatformLabel,
-    migrationPlatformIcon,
-    migrationSourceHeading,
     migrationSourceCopy,
     migrationWhatGetsCopied,
     migrationActionDisabled,
+    migrationSourceBadge,
+    migrationSourceBadgeClass,
+    showLegacyLockedPrompt,
 
     // Navigation
-    setStep,
     goToStep,
     goToPreviousStep,
     goToNextStep,
-    chooseMode,
-    startFreshFlow,
     handlePrimaryContinue,
-    openMigrationFlow,
-    selectMigrationPlatform,
+    skipImport,
+    backToPick,
+    selectImportSource,
 
     // Appearance
     selectTheme,
@@ -838,22 +795,20 @@ export function useOnboardingFlow({
     selectSpotlight,
     selectZoomLevel,
 
+    // Actions
     refreshStatus,
     prepareFreshWorkspace,
     useDefaultPreferences,
-    migrateLegacyData,
     runSelectedMigration,
     browseForPortableData,
     copyMigrationIssues,
     chooseSyncPath,
     clearSyncPath,
     toggleAutoSync,
-    finishFreshOnboarding,
+    completeSyncStep,
     completeAndOpenWorkspace,
     handleLegacyPasswordSubmit,
     handleLegacyPasswordSkip,
-    migrationSourceBadge,
-    migrationSourceBadgeClass,
 
     // Encryption password
     encryptionPassword,
