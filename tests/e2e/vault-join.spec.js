@@ -1,4 +1,6 @@
 import { expect } from '@wdio/globals';
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 /**
  * Vault-join onboarding test.
@@ -30,14 +32,18 @@ const KEY_PARAMS_FIXTURE = {
   },
 };
 
+const DEV_URL = 'http://127.0.0.1:5173/';
+
 describe('Vault join', () => {
-  /** Seed `<syncPath>/BeaverNotesSync/keyParams.json` for the run. */
+  /**
+   * Seed `<syncPath>/BeaverNotesSync/keyParams.json` for the run. Runs in the
+   * WDIO Node process, so it must use Node fs — the Vite `@/` alias and Tauri
+   * IPC are unavailable outside the WebView.
+   */
   async function seedSyncFolder() {
-    const { writeFile, ensureDir } = await import('@/lib/native/fs');
-    const path = await import('path');
     const syncPath = process.env.E2E_SYNC_PATH || '/tmp/beaver-e2e-sync';
     const subDir = path.join(syncPath, 'BeaverNotesSync');
-    await ensureDir(subDir);
+    await mkdir(subDir, { recursive: true });
     await writeFile(
       path.join(subDir, 'keyParams.json'),
       JSON.stringify(KEY_PARAMS_FIXTURE)
@@ -51,7 +57,7 @@ describe('Vault join', () => {
    * sync (type folder, continue) → password.
    */
   async function driveToPasswordStep(syncPath) {
-    await browser.url('/');
+    await browser.url(DEV_URL);
     await browser.$('[data-testid="onboarding-welcome-continue"]').click();
 
     await browser.$('[data-testid="onboarding-customize-next"]').click();
@@ -60,8 +66,10 @@ describe('Vault join', () => {
 
     await browser.$('[data-testid="onboarding-account-skip"]').click();
 
+    // data-testid falls through to the ui-input wrapper div; type into the
+    // native input element inside it.
     const syncPathInput = await browser.$(
-      '[data-testid="onboarding-sync-path"]'
+      '[data-testid="onboarding-sync-path"] input'
     );
     await syncPathInput.setValue(syncPath);
 
@@ -72,9 +80,11 @@ describe('Vault join', () => {
     const syncPath = await seedSyncFolder();
     await driveToPasswordStep(syncPath);
 
+    // Join-mode heading text pins that detection actually fired, and the
+    // password field is the join-mode-only input.
     await expect(
       browser.$('[data-testid="vault-join-heading"]')
-    ).toBeDisplayed();
+    ).toHaveTextContaining('Join existing vault');
     await expect(
       browser.$('[data-testid="vault-join-password"]')
     ).toBeDisplayed();
@@ -89,8 +99,13 @@ describe('Vault join', () => {
     ).toBeDisplayed();
     await browser.$('[data-testid="vault-start-fresh"]').click();
 
+    // The join-mode-only controls are genuinely removed in create mode, so
+    // their absence proves the mode flipped.
     await expect(
-      browser.$('[data-testid="vault-join-heading"]')
+      browser.$('[data-testid="vault-join-password"]')
+    ).not.toBeDisplayed();
+    await expect(
+      browser.$('[data-testid="vault-start-fresh"]')
     ).not.toBeDisplayed();
   });
 });
