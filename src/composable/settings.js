@@ -63,11 +63,6 @@ const settingDefs = {
     defaultValue: false,
     parse: (value) => value === true || value === 'true',
   },
-  autoSync: {
-    legacyKey: 'autoSync',
-    defaultValue: false,
-    parse: (value) => value === true || value === 'true',
-  },
   todayDateFormat: {
     legacyKey: 'todayDateFormat',
     defaultValue: 'DD-MM-YYYY',

@@ -12,7 +12,6 @@ import { appendUpdate, getSnapshot } from '@/lib/native/yjs.js';
 import { readDir as readSyncDir } from '@/lib/native/fs';
 import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
 import { getSyncPath } from '@/utils/sync/path.js';
-import { getSettingSync } from '@/composable/settings';
 import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
@@ -79,25 +78,23 @@ async function persistWorkspace(update) {
     // Update lost despite retries — console.error in retryWrite documents it
   }
   try {
-    if (getSettingSync('autoSync')) {
-      const syncPath = await getSyncPath();
-      if (syncPath) {
-        const commitsDir = await ensureCommitsDir(syncPath);
+    const syncPath = await getSyncPath();
+    if (syncPath) {
+      const commitsDir = await ensureCommitsDir(syncPath);
 
-        if (!snapshotWritten) {
-          const files = await readSyncDir(commitsDir).catch(() => []);
-          const hasWorkspaceFiles = files.some(
-            (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta')
-          );
-          if (!hasWorkspaceFiles) {
-            const fullState = Y.encodeStateAsUpdate(getWorkspaceDoc());
-            await writeYjsSnapshot(commitsDir, META_DOC_ID, fullState, encryptJSON);
-          }
-          snapshotWritten = true;
+      if (!snapshotWritten) {
+        const files = await readSyncDir(commitsDir).catch(() => []);
+        const hasWorkspaceFiles = files.some(
+          (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta')
+        );
+        if (!hasWorkspaceFiles) {
+          const fullState = Y.encodeStateAsUpdate(getWorkspaceDoc());
+          await writeYjsSnapshot(commitsDir, META_DOC_ID, fullState, encryptJSON);
         }
-
-        queueSyncWrite(commitsDir, META_DOC_ID, update);
+        snapshotWritten = true;
       }
+
+      queueSyncWrite(commitsDir, META_DOC_ID, update);
     }
   } catch {
     // Sync folder write failure is non-fatal — the update is already in SQLite

@@ -988,27 +988,6 @@
                       </ui-button>
                     </div>
                   </div>
-
-                  <button
-                    class="flex items-center justify-between w-full px-4 py-3 text-left gap-2"
-                    @click="toggleAutoSync"
-                  >
-                    <div>
-                      <span
-                        class="block text-sm font-semibold text-neutral-800 dark:text-neutral-200"
-                        >Automatic sync</span
-                      >
-                      <span
-                        class="block text-xs text-neutral-600 dark:text-neutral-400 mt-0.5"
-                      >
-                        Sync changes automatically when a folder is configured.
-                      </span>
-                    </div>
-                    <ui-switch
-                      :model-value="fresh.autoSync"
-                      :disabled="!fresh.syncPath"
-                    />
-                  </button>
                 </template>
 
                 <!-- Password -->

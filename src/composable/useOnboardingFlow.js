@@ -113,7 +113,6 @@ export function useOnboardingFlow({
     zoomLevel: 1.0,
     selectedFont: DEFAULT_UI_FONT_STACK,
     syncPath: '',
-    autoSync: false,
     soundsEnabled: true,
     spotlightEnabled: false,
   });
@@ -632,12 +631,6 @@ export function useOnboardingFlow({
 
   function clearSyncPath() {
     fresh.syncPath = '';
-    fresh.autoSync = false;
-  }
-
-  function toggleAutoSync() {
-    if (!fresh.syncPath) return;
-    fresh.autoSync = !fresh.autoSync;
   }
 
   async function completeSyncStep() {
@@ -854,7 +847,6 @@ export function useOnboardingFlow({
     copyMigrationIssues,
     chooseSyncPath,
     clearSyncPath,
-    toggleAutoSync,
     completeSyncStep,
     completeAndOpenWorkspace,
     handleLegacyPasswordSubmit,

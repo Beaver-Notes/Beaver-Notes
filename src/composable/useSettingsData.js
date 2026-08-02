@@ -3,7 +3,7 @@ import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
-import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
+import { forceSyncNow } from '@/utils/sync';
 import { listen } from '@tauri-apps/api/event';
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
@@ -73,7 +73,6 @@ export function useSettingsData({
   const appStore = useAppStore();
   const advancedSettings = ref(getSettingSync('advancedSettings'));
   const spellcheckEnabled = ref(getSettingSync('spellcheckEnabled'));
-  const autoSync = ref(getSettingSync('autoSync'));
   const selectedFont = ref(getSettingSync('selectedFont'));
   const selectedLanguage = ref(getSettingSync('selectedLanguage'));
   const directionPreference = ref(
@@ -403,22 +402,6 @@ export function useSettingsData({
     });
   }
 
-  const handleAutoSyncChange = () => {
-    if (!defaultPath.value || defaultPath.value.trim() === '') {
-      autoSync.value = false;
-      showAlert(translations.value.settings.emptyPathWarn);
-      return;
-    }
-
-    void setSetting('autoSync', autoSync.value);
-    if (autoSync.value) {
-      forceSyncNow().catch(() => {});
-      setPeriodicSyncEnabled(true);
-    } else {
-      setPeriodicSyncEnabled(false);
-    }
-  };
-
   const toggleAdvancedSettings = () => {
     void setSetting('advancedSettings', advancedSettings.value);
   };
@@ -500,7 +483,6 @@ export function useSettingsData({
     defaultPath,
     advancedSettings,
     spellcheckEnabled,
-    autoSync,
     selectedFont,
     selectedLanguage,
     directionPreference,
@@ -518,7 +500,6 @@ export function useSettingsData({
     chooseDefaultPath,
     clearPath,
     nukeAppDebugOnly,
-    handleAutoSyncChange,
     syncProgress,
     registerSyncProgressListener,
     unregisterSyncProgressListener,

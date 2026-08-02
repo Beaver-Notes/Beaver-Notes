@@ -439,6 +439,10 @@ export function useAppShell() {
     ]);
 
     if (!hasData && !onboardingCompleted) {
+      // First run: initialize the sync engine before entering onboarding so a
+      // post-onboarding sync (path set + initial pull) has a live engine. With
+      // no sync folder configured yet the engine's cycles are no-ops.
+      initAppSync();
       retrieved.value = true;
       if (route.name !== ONBOARDING_ROUTE_NAME) {
         await router.replace('/onboarding');
@@ -487,9 +491,9 @@ export function useAppShell() {
     }
 
     // Always initialize the engine so runtime sync config (Settings "Sync now",
-    // autoSync toggle, path pick) works without an app restart. Only the initial
-    // pull and periodic sync are gated behind autoSync.
-    initAppSync({ autoSync: Boolean(getSettingSync('autoSync')) });
+    // transport, path pick) works without an app restart. Autosync is always
+    // on — periodic sync runs whenever the app is visible.
+    initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
   };
 
@@ -599,9 +603,7 @@ export function useAppShell() {
       // Flush cloud push before going to background
       getSyncEngine()?.flush().catch(() => {});
     }
-    getSyncEngine()?.setPeriodicSyncEnabled(
-      !document.hidden && Boolean(getSettingSync('autoSync'))
-    );
+    getSyncEngine()?.setPeriodicSyncEnabled(!document.hidden);
   }
 
   onUnmounted(() => {

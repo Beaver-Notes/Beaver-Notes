@@ -37,25 +37,6 @@
             </div>
           </div>
         </div>
-        <div
-          v-if="state.syncPath"
-          class="border-t border-neutral-200 dark:border-neutral-700 flex gap-3 px-4 py-3.5 flex-row items-center justify-between gap-6"
-        >
-          <div class="min-w-0 flex-1">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.settings.autoSync || 'Auto sync' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Automatically sync notes to the sync folder whenever a change is
-              detected.
-            </p>
-          </div>
-          <ui-switch v-model="autoSync" @change="handleAutoSyncChange" />
-        </div>
 
         <div
           v-if="cloudSync.isAuthenticated"
@@ -573,10 +554,8 @@ export default {
     const {
       state,
       defaultPath,
-      autoSync,
       chooseDefaultPath,
       clearPath,
-      handleAutoSyncChange,
       syncProgress,
       exportData,
       importData,
@@ -620,10 +599,8 @@ export default {
       translations,
       state,
       defaultPath,
-      autoSync,
       chooseDefaultPath,
       clearPath,
-      handleAutoSyncChange,
       syncProgress,
       cloudSync,
       SYNC_TRANSPORT,

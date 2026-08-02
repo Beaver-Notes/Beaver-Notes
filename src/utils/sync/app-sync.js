@@ -13,12 +13,13 @@ function passphraseProvider() {
 }
 
 /**
- * Build and start the app sync engine. The engine itself is always
- * initialized — callers (Settings "Sync now", autoSync toggles) may
- * forceSyncNow at any time and must not hit a null engine. Only the
- * initial pull and periodic sync are gated behind autoSync.
+ * Build and start the app sync engine. Autosync is always on: the engine is
+ * initialized unconditionally so callers (Settings "Sync now", transport
+ * changes) may forceSyncNow at any time without hitting a null engine, and
+ * the initial pull plus periodic sync always run. Without a configured sync
+ * folder a sync cycle is a no-op.
  */
-export function initAppSync({ autoSync = false } = {}) {
+export function initAppSync() {
   initSyncEngine({
     transports: {
       local: new LocalFolderTransport({ passphraseProvider }),
@@ -42,12 +43,10 @@ export function initAppSync({ autoSync = false } = {}) {
     },
   });
 
-  if (autoSync) {
-    getSyncEngine()
-      .forceSyncNow()
-      .catch((err) => console.warn('[sync] initial sync failed:', err));
-    getSyncEngine().setPeriodicSyncEnabled(true);
-  }
+  getSyncEngine()
+    .forceSyncNow()
+    .catch((err) => console.warn('[sync] initial sync failed:', err));
+  getSyncEngine().setPeriodicSyncEnabled(true);
 
   return getSyncEngine();
 }

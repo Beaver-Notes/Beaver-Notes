@@ -7,7 +7,6 @@ import {
   compactUpdates,
 } from '@/lib/native/yjs.js';
 import { getCommitsDir } from '@/utils/sync/sync-repository.js';
-import { getSettingSync } from '@/composable/settings';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
   getDeviceId,
@@ -87,11 +86,9 @@ async function persistUpdate(noteId, update) {
     //
   }
   try {
-    if (getSettingSync('autoSync')) {
-      const commitsDir = await getCommitsDir();
-      if (commitsDir) {
-        queueSyncWrite(commitsDir, noteId, update);
-      }
+    const commitsDir = await getCommitsDir();
+    if (commitsDir) {
+      queueSyncWrite(commitsDir, noteId, update);
     }
   } catch {
     //

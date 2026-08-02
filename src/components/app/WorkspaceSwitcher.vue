@@ -132,7 +132,7 @@ function clearSettingsLocalStorage() {
     'theme', 'selectedLanguage', 'directionPreference', 'color-scheme',
     'zoomLevel', 'selected-font', 'selected-font-code', 'selected-dark-text',
     'visibility-menubar', 'spellcheckEnabled', 'reducedMotion', 'highContrast',
-    'advanced-settings', 'autoSync', 'todayDateFormat', 'timeFormat',
+    'advanced-settings', 'todayDateFormat', 'timeFormat',
     'collapsibleHeading', 'openLastEdited', 'openAfterCreation', 'soundsEnabled',
     'spotlightEnabled', 'toolbarConfig', 'onboardingCompleted',
   ];
