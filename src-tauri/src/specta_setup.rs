@@ -79,6 +79,8 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::sync_decrypt_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_key_ready)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::encryption_reconcile_key_params)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_adopt_key_params)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::encryption_has_remote_key_params)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_hash)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_compare)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::passwd_record_failure)(&mut types),

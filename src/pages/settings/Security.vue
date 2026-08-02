@@ -244,11 +244,12 @@ const encryptionProgressLabel = computed(() => {
   }
 });
 
-function showDialogAlert(message) {
+function showDialogAlert(message, onConfirm) {
   dialog.alert({
     title: translations.value.settings.alertTitle || 'Alert',
     body: message,
     okText: translations.value.dialog?.close || 'Close',
+    ...(onConfirm ? { onConfirm } : {}),
   });
 }
 
@@ -304,9 +305,9 @@ async function importVaultFromSync() {
             }
             showDialogAlert(
               translations.value.settings?.vaultImported ||
-                'Vault imported. The app will reload.'
+                'Vault imported. The app will reload.',
+              () => window.location.reload()
             );
-            window.location.reload();
           } catch (e) {
             showDialogAlert(e?.message || 'Failed to import the vault.');
           }

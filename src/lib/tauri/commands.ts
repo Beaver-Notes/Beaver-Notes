@@ -61,6 +61,8 @@ const commandAliases = {
   'sync:decryptPayload': 'sync_decrypt_payload',
   'sync:keyReady': 'sync_key_ready',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
+  'encryption:adoptKeyParams': 'encryption_adopt_key_params',
+  'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
   'encryption:rotateKey': 'encryption_rotate_key',
   'encryption:generateRecoveryCode': 'encryption_generate_recovery_code',
   'encryption:recoverWithCode': 'encryption_recover_with_code',

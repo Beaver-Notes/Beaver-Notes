@@ -19,4 +19,15 @@ describe('invokeCommand payload normalization', () => {
       expect.objectContaining({ path: '/tmp/commits/note.yjs.json' })
     );
   });
+
+  it('maps vault-join commands to their snake_case Rust names', async () => {
+    await invokeCommand('encryption:adoptKeyParams', { passphrase: 'pw' });
+    expect(invoke).toHaveBeenCalledWith(
+      'encryption_adopt_key_params',
+      expect.objectContaining({ passphrase: 'pw' })
+    );
+
+    await invokeCommand('encryption:hasRemoteKeyParams');
+    expect(invoke).toHaveBeenCalledWith('encryption_has_remote_key_params', {});
+  });
 });
