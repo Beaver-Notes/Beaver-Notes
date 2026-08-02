@@ -89,7 +89,11 @@
               Use defaults
             </template>
           </ui-button>
-          <ui-button variant="primary" @click="handlePrimaryContinue">
+          <ui-button
+            variant="primary"
+            data-testid="onboarding-welcome-continue"
+            @click="handlePrimaryContinue"
+          >
             Continue <v-remixicon name="riArrowRightLine" />
           </ui-button>
         </div>
@@ -987,6 +991,13 @@
                         <v-remixicon name="riDeleteBin6Line" />
                       </ui-button>
                     </div>
+
+                    <ui-input
+                      v-model="fresh.syncPath"
+                      class="mt-3"
+                      data-testid="onboarding-sync-path"
+                      placeholder="Or type a folder path"
+                    />
                   </div>
                 </template>
 
@@ -996,6 +1007,7 @@
                     class="flex flex-col items-center gap-2 text-center mb-1"
                   >
                     <h2
+                      data-testid="vault-join-heading"
                       class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                     >
                       {{
@@ -1067,6 +1079,7 @@
                     <ui-input
                       v-model="encryptionPassword"
                       password
+                      data-testid="vault-join-password"
                       :placeholder="
                         translations.settings?.password || 'Vault password'
                       "
@@ -1076,6 +1089,7 @@
                     <button
                       class="mt-1 text-xs text-primary hover:underline"
                       type="button"
+                      data-testid="vault-start-fresh"
                       :disabled="encryptionPasswordLoading"
                       @click="startFreshVault"
                     >
@@ -1127,6 +1141,7 @@
                 :variant="btn.variant"
                 :disabled="btn.disabled"
                 :loading="btn.loading"
+                :data-testid="btn.testid"
                 @click="btn.onClick"
               >
                 <template v-if="!btn.loading">
@@ -1339,6 +1354,7 @@ export default {
             label: 'Continue',
             icon: 'riArrowRightLine',
             variant: 'primary',
+            testid: 'onboarding-customize-next',
             loading: flow.state.savingPreferences,
             onClick: flow.prepareFreshWorkspace,
           },
@@ -1349,7 +1365,12 @@ export default {
         const phase = flow.importPhase.value;
         if (phase === 'pick') {
           return [
-            { key: 'skip', label: 'Skip for now', onClick: flow.skipImport },
+            {
+              key: 'skip',
+              label: 'Skip for now',
+              testid: 'onboarding-import-skip',
+              onClick: flow.skipImport,
+            },
           ];
         }
         if (phase === 'confirm') {
@@ -1422,6 +1443,7 @@ export default {
           {
             key: 'skip',
             label: t?.account?.skip || 'Skip for now',
+            testid: 'onboarding-account-skip',
             onClick: flow.goToNextStep,
           },
         ];
@@ -1435,6 +1457,7 @@ export default {
               label: 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
+              testid: 'onboarding-sync-next',
               loading: flow.state.savingPreferences,
               onClick: flow.completeSyncStep,
             },
