@@ -1,7 +1,7 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::atomic::Ordering,
+    sync::{atomic::Ordering, Condvar, Mutex},
 };
 
 use aes_gcm::{
@@ -42,6 +42,11 @@ pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
 pub(crate) const STREAM_CHUNK_SIZE: usize = 256 * 1024;
 pub(crate) const SYNC_ROOT_DIR: &str = "BeaverNotesSync";
 pub(crate) const PROTOCOL_VERSION: u8 = 4;
+/// Envelope version written for binary sync payloads (raw Yjs update bytes).
+/// v5 encrypts the raw bytes directly instead of embedding the update as a
+/// giant JSON number array inside an encrypted JSON object (which cost ~950ms
+/// per multi-MB sync file). v4 envelopes are still decrypted for compat.
+pub(crate) const SYNC_PAYLOAD_VERSION: u8 = 5;
 pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
 /// AAD binding for note-content encryption. Fixed domain string: it proves the
 /// ciphertext is genuine note content (and not forged/moved across contexts).
@@ -102,12 +107,14 @@ pub(crate) struct EncryptionManifest {
 const MASTER_KEY_FILE: &str = "master.key";
 
 fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
+    let _t = crate::shared::speed_log::scope("keys.derive_kek_pbkdf2");
     let mut key = [0_u8; 32];
     pbkdf2_hmac::<Sha256>(passphrase.as_bytes(), salt, PBKDF2_ITERATIONS, &mut key);
     key
 }
 
 pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 32], AppError> {
+    let _t = crate::shared::speed_log::scope("keys.derive_kek_argon2id");
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         Version::V0x13,
@@ -154,6 +161,20 @@ pub(crate) fn random_nonce() -> [u8; 12] {
     let mut nonce = [0_u8; 12];
     rand::thread_rng().fill_bytes(&mut nonce);
     nonce
+}
+
+/// Force-initialize the lazily-initialized crypto stack (thread-local CSPRNG
+/// seeding and AES-GCM cipher setup) so the first real encrypt/decrypt on the
+/// user-visible path doesn't pay a one-time cold-start cost. Called during
+/// bootstrap and at unlock; the first `yjs_append` then reuses warm state.
+pub(crate) fn prewarm_crypto() {
+    let _t = crate::shared::speed_log::scope("keys.prewarm_crypto");
+    let key = random_key();
+    let nonce = random_nonce();
+    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
+    if let Ok(encrypted) = cipher.encrypt(Nonce::from_slice(&nonce), &b"beaver-notes-prewarm"[..]) {
+        let _ = cipher.decrypt(Nonce::from_slice(&nonce), encrypted.as_slice());
+    }
 }
 
 pub(crate) fn derive_chunk_nonce(seed: &[u8; 12], chunk_index: u64, key: &[u8; 32]) -> [u8; 12] {
@@ -277,12 +298,64 @@ pub(crate) fn aead_decrypt_json(
     Ok(serde_json::from_slice(&plaintext)?)
 }
 
+/// Encrypt a raw byte payload (e.g. a Yjs binary update) with
+/// XChaCha20-Poly1305. Returns `(iv_hex, enc_base64)` — the same envelope
+/// layout as `aead_encrypt_json` but without the serde_json round-trip, so
+/// multi-MB sync payloads avoid parsing a huge JSON number array.
+pub(crate) fn aead_encrypt_bytes(
+    key: &[u8; 32],
+    plaintext: &[u8],
+    aad: &str,
+) -> Result<(String, String), AppError> {
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| AppError::Crypto("Invalid sync key length".into()))?;
+    let nonce_arr = xnonce();
+    let nonce = GenericArray::from(nonce_arr);
+    let ciphertext = cipher
+        .encrypt(
+            &nonce,
+            Payload {
+                msg: plaintext,
+                aad: aad.as_bytes(),
+            },
+        )
+        .map_err(|_| AppError::Crypto("AEAD encryption failed".into()))?;
+    Ok((hex::encode(nonce_arr), BASE64.encode(ciphertext)))
+}
+
+/// Decrypt a raw byte payload. Returns the plaintext bytes. Version is checked
+/// by the caller (v4 envelopes decrypt via `aead_decrypt_json`).
+pub(crate) fn aead_decrypt_bytes(
+    key: &[u8; 32],
+    iv_hex: &str,
+    enc_b64: &str,
+    aad: &str,
+) -> Result<Vec<u8>, AppError> {
+    let cipher = XChaCha20Poly1305::new_from_slice(key)
+        .map_err(|_| AppError::Crypto("Invalid sync key length".into()))?;
+    let nonce_arr: [u8; 24] = hex::decode(iv_hex.trim())?
+        .try_into()
+        .map_err(|_| AppError::Crypto("Invalid nonce length".into()))?;
+    let nonce = GenericArray::from(nonce_arr);
+    let ciphertext = BASE64.decode(enc_b64.trim())?;
+    cipher
+        .decrypt(
+            &nonce,
+            Payload {
+                msg: &ciphertext,
+                aad: aad.as_bytes(),
+            },
+        )
+        .map_err(|_| AppError::WrongPassword)
+}
+
 pub(crate) fn encrypt_json_for_storage(
     key: &[u8; 32],
     value: &Value,
     aad: &str,
     key_id: Option<&str>,
 ) -> Result<StoredJsonEnvelope, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.encrypt_json_for_storage");
     let envelope = aead_encrypt_json(key, value, aad)?;
     Ok(StoredJsonEnvelope {
         ae: 4,
@@ -298,6 +371,7 @@ pub(crate) fn decrypt_json_from_storage(
     value: &Value,
     aad: &str,
 ) -> Result<Option<Value>, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.decrypt_json_from_storage");
     let Some(obj) = value.as_object() else {
         return Ok(None);
     };
@@ -479,11 +553,14 @@ pub(crate) fn write_encryption_manifest(
     Ok(())
 }
 
+/// Create a fresh encryption manifest for a scope. Derives the KEK once and
+/// returns it along with the manifest and items key so the caller can populate
+/// the key ring without re-running the KDF.
 pub(crate) fn create_encryption_manifest(
     scope: &str,
     password_check: &str,
     passphrase: &str,
-) -> Result<(EncryptionManifest, [u8; 32]), AppError> {
+) -> Result<(EncryptionManifest, [u8; 32], [u8; 32]), AppError> {
     let salt = random_key();
     let kek = derive_kek_argon2id(passphrase, &salt)?;
     let data_key = random_key();
@@ -503,7 +580,7 @@ pub(crate) fn create_encryption_manifest(
         previous_keys: Vec::new(),
         recovery_kek: None,
     };
-    Ok((manifest, data_key))
+    Ok((manifest, data_key, kek))
 }
 
 /// Generate a random 256-bit recovery code and wrap the active items key with
@@ -525,14 +602,15 @@ pub(crate) fn recover_key_from_code(
     manifest: &EncryptionManifest,
     code_hex: &str,
 ) -> Result<[u8; 32], AppError> {
-    let wrapped = manifest
-        .recovery_kek
-        .as_ref()
-        .ok_or_else(|| AppError::Other("No recovery code has been generated for this manifest.".into()))?;
+    let wrapped = manifest.recovery_kek.as_ref().ok_or_else(|| {
+        AppError::Other("No recovery code has been generated for this manifest.".into())
+    })?;
     let mut recovery = [0u8; 32];
     let decoded = hex::decode(code_hex.trim())?;
     if decoded.len() != 32 {
-        return Err(AppError::Other("Recovery code must be 64 hex characters.".into()));
+        return Err(AppError::Other(
+            "Recovery code must be 64 hex characters.".into(),
+        ));
     }
     recovery.copy_from_slice(&decoded);
     let raw = decrypt_bytes_with_key(&recovery, wrapped)?;
@@ -544,12 +622,17 @@ pub(crate) fn recover_key_from_code(
     Ok(key)
 }
 
+/// Unwrap the items key from the manifest and return it together with the KEK
+/// derived from `passphrase`. Returning the KEK lets callers populate the key
+/// ring (and cache `master_key_cache`) without re-running the KDF — Argon2id is
+/// expensive (~200ms) and only needs to run once per unlock.
 pub(crate) fn unlock_key_from_manifest(
     manifest: &EncryptionManifest,
     passphrase: &str,
     expected_scope: &str,
     password_check: &str,
-) -> Result<[u8; 32], AppError> {
+) -> Result<([u8; 32], [u8; 32]), AppError> {
+    let _t = crate::shared::speed_log::scope("keys.unlock_key_from_manifest");
     if manifest.scope != expected_scope {
         return Err(AppError::Crypto(format!(
             "Unexpected encryption scope: {}",
@@ -576,11 +659,16 @@ pub(crate) fn unlock_key_from_manifest(
     }
     let mut out = [0_u8; 32];
     out.copy_from_slice(&key[..32]);
-    Ok(out)
+    Ok((out, kek))
 }
 
 pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
-    Ok(state.crypto.session.read().map_err(AppError::from)?.app_data_key)
+    Ok(state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .app_data_key)
 }
 
 /// Generate a random hex key ID (16 hex chars = 8 bytes).
@@ -632,8 +720,9 @@ pub(crate) fn populate_key_ring(
 /// Old notes encrypted with the previous key remain decryptable via `items_keys`
 /// and `key_for_id`.
 pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
-    // 1. KEK + current key must be present (app must be unlocked). Copy them out
-    //    so we can release the lock before doing disk I/O / crypto.
+    let _t = crate::shared::speed_log::scope("keys.rotate_items_key");
+    // KEK + current key must be present (app must be unlocked). Copy them out so
+    // we can release the lock before doing disk I/O / crypto.
     let (kek, current_key_id, current_key) = {
         let s = state.crypto.session.read().map_err(AppError::from)?;
         let kek = s.master_key_cache.ok_or_else(|| {
@@ -650,13 +739,12 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
         (kek, s.current_items_key_id.clone(), current_key)
     };
 
-    // 2. Load the on-disk manifest.
     let manifest_path = app_encryption_manifest_path(app, state)?;
     let mut manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Crypto("Encryption manifest is missing".into()))?;
 
-    // 3. Wrap the outgoing key with the KEK and push it into the manifest's
-    //    previous-keys list (persistent storage).
+    // Wrap the outgoing key with the KEK and push it into the manifest's
+    // previous-keys list (persistent storage).
     let wrapped_old = encrypt_bytes_with_key(&kek, &current_key)?;
     manifest.previous_keys.push(PreviousWrappedKey {
         id: current_key_id.clone(),
@@ -664,34 +752,30 @@ pub(crate) fn rotate_items_key(app: &AppHandle, state: &AppState) -> Result<(), 
         cipher: wrapped_old.cipher,
     });
 
-    // 4. Keep the old key in the in-memory ring so it can be looked up during
-    //    this session without needing to unwrap it from the manifest.
+    // Keep the old key in the in-memory ring so it can be looked up during this
+    // session without needing to unwrap it from the manifest.
     state
-        .crypto.session
+        .crypto
+        .session
         .write()
         .map_err(AppError::from)?
         .items_keys
         .insert(current_key_id, current_key);
 
-    // 5. Generate a new key and key ID.
     let new_key = random_key();
     let new_key_id = generate_key_id();
 
-    // 6. Wrap the new key with the KEK.
     let wrapped_new = encrypt_bytes_with_key(&kek, &new_key)?;
 
-    // 7. Update manifest.
     manifest.wrapped_key = wrapped_new;
     manifest.current_key_id = new_key_id.clone();
 
-    // 8. Update in-memory state.
     {
         let mut s = state.crypto.session.write().map_err(AppError::from)?;
         s.app_data_key = Some(new_key);
         s.current_items_key_id = new_key_id;
     }
 
-    // 9. Persist the updated manifest.
     write_encryption_manifest(&manifest_path, &manifest)?;
 
     Ok(())
@@ -716,6 +800,7 @@ pub(crate) fn encrypt_note_content_for_storage(
     state: &AppState,
     content: &serde_json::Value,
 ) -> Result<serde_json::Value, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.encrypt_note_content");
     if note_content_is_native_encrypted(content) {
         return Ok(content.clone());
     }
@@ -725,9 +810,9 @@ pub(crate) fn encrypt_note_content_for_storage(
         )
     })?;
     let key_id = state
-        .crypto.session
+        .crypto
+        .session
         .read()
-
         .map_err(AppError::from)?
         .current_items_key_id
         .clone();
@@ -747,6 +832,7 @@ pub(crate) fn decrypt_native_note_content(
     state: &AppState,
     content: &serde_json::Value,
 ) -> Result<Option<serde_json::Value>, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.decrypt_note_content");
     if !note_content_is_native_encrypted(content) {
         return Ok(Some(content.clone()));
     }
@@ -802,6 +888,7 @@ pub(crate) fn encrypt_note_row_for_storage(
     key: &str,
     value: serde_json::Value,
 ) -> Result<serde_json::Value, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.encrypt_note_row");
     use serde_json::Value;
     if !note_row_needs_encryption(key, &value) {
         return Ok(value);
@@ -830,6 +917,7 @@ pub(crate) fn decrypt_note_row_from_storage(
     key: &str,
     value: serde_json::Value,
 ) -> Result<serde_json::Value, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.decrypt_note_row");
     use serde_json::Value;
     if !note_row_needs_encryption(key, &value) {
         return Ok(value);
@@ -846,7 +934,53 @@ pub(crate) fn decrypt_note_row_from_storage(
     Ok(Value::Object(note))
 }
 
+/// Master-key resolution state. `Loading` means a thread is currently inside
+/// the (slow) Keychain/file read; concurrent cold callers wait on
+/// `MASTER_KEY_CONDVAR` and reuse the single result instead of issuing several
+/// Keychain IPC round-trips (each of which costs seconds on macOS).
+enum MasterKeyState {
+    Pending,
+    Loading,
+    Ready(Vec<u8>),
+}
+
+static MASTER_KEY_STATE: Mutex<MasterKeyState> = Mutex::new(MasterKeyState::Pending);
+static MASTER_KEY_CONDVAR: Condvar = Condvar::new();
+
 pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("keys.read_master_key");
+    let mut state = MASTER_KEY_STATE
+        .lock()
+        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
+    loop {
+        match &*state {
+            MasterKeyState::Ready(key) => return Ok(key.clone()),
+            MasterKeyState::Pending => break,
+            MasterKeyState::Loading => {
+                state = MASTER_KEY_CONDVAR
+                    .wait(state)
+                    .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
+            }
+        }
+    }
+    *state = MasterKeyState::Loading;
+    drop(state);
+
+    let result = read_master_key_from_store();
+
+    let mut state = MASTER_KEY_STATE
+        .lock()
+        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
+    match &result {
+        Ok(key) => *state = MasterKeyState::Ready(key.clone()),
+        // Transient Keychain failures retry next call.
+        Err(_) => *state = MasterKeyState::Pending,
+    }
+    MASTER_KEY_CONDVAR.notify_all();
+    result
+}
+
+fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
     if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
         if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
             if let Ok(stored) = entry.get_password() {
@@ -868,7 +1002,7 @@ pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
 pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
     let app_dir = dirs::data_local_dir()
         .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-        .join("com.beaver-notes.beaver-notes");
+        .join("com.beavernotes.beaver-notes");
     let key_path = app_dir.join(MASTER_KEY_FILE);
 
     if key_path.exists() {

@@ -31,6 +31,7 @@ const commandAliases = {
   'fs:readdir': 'fs_readdir',
   'fs:stat': 'fs_stat',
   'fs:unlink': 'fs_unlink',
+  'fs:remove': 'fs_remove',
   'fs:mkdir': 'fs_mkdir',
   'storage:store': 'storage_get_store',
   'storage:replace': 'storage_replace',
@@ -108,6 +109,7 @@ const commandAliases = {
   'yjs:append': 'yjs_append',
   'yjs:getUpdates': 'yjs_get_updates',
   'yjs:getSnapshot': 'yjs_get_snapshot',
+  'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
   'yjs:delete': 'yjs_delete',
   'workspace:list': 'workspace_list',
@@ -166,6 +168,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'fs:stat':
     case 'fs:unlink':
     case 'fs:readData':
+    case 'fs:remove':
       return {
         ...withKeyVariants('path', payload?.path ?? payload),
         ...(payload?.skipDecryption != null
@@ -273,7 +276,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('payload', payload);
     case 'sync:encryptPayload':
       return {
-        ...withKeyVariants('json', payload?.json),
+        ...withKeyVariants('meta', payload?.meta),
+        ...withKeyVariants('data', payload?.data),
         ...withKeyVariants('aad', payload?.aad),
       };
     case 'sync:decryptPayload':
@@ -327,6 +331,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('noteId', payload);
     case 'yjs:getSnapshot':
       return withKeyVariants('noteId', payload);
+    case 'yjs:getSnapshots':
+      return withKeyVariants('noteIds', payload);
     case 'yjs:compact':
       return {
         ...withKeyVariants('noteId', payload?.noteId),

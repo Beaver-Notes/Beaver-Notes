@@ -211,6 +211,7 @@ pub fn run() {
             commands::yjs::yjs_append,
             commands::yjs::yjs_get_updates,
             commands::yjs::yjs_get_snapshot,
+            commands::yjs::yjs_get_snapshots,
             commands::yjs::yjs_compact,
             commands::yjs::yjs_delete,
             commands::workspace::workspace_list,

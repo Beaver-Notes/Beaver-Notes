@@ -11,6 +11,7 @@ import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
 import { syncDeletedAssets } from '@/composable/useWorkspaceYjs';
+import { speed } from '@/utils/speed.js';
 
 const SYNC_INTERVAL_MS = 10000;
 
@@ -87,6 +88,7 @@ export class SyncEngine {
   }
 
   async _runCycle(_force = false) {
+    const t = speed('sync_cycle');
     this.syncing = true;
     this.pending = false;
 
@@ -170,6 +172,7 @@ export class SyncEngine {
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
       outcome = { ok: false, err };
     } finally {
+      t?.end();
       if (outcome.ok) this.syncResolve?.();
       else this.syncReject?.(outcome.err);
       this.syncResolve = null;

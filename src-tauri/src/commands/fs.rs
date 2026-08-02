@@ -146,6 +146,7 @@ pub(crate) fn fs_write_file(
     mode: Option<u32>,
     skip_asset_encryption: Option<bool>,
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("fs.fs_write_file");
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "write file")?;
     if let Some(parent) = path.parent() {

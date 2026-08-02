@@ -1,5 +1,6 @@
 import MiniSearch from 'minisearch';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { speed } from '@/utils/speed.js';
 
 const searchIndex = new MiniSearch({
   fields: ['title', 'searchText', 'labelsText'],
@@ -54,5 +55,8 @@ export function removeSearchEntry(id) {
 
 export function searchNotesIndex(query) {
   if (!query?.trim()) return [];
-  return searchIndex.search(query).map((result) => result.id).filter(Boolean);
+  const t = speed('search_notes_index');
+  const result = searchIndex.search(query).map((result) => result.id).filter(Boolean);
+  t?.end();
+  return result;
 }

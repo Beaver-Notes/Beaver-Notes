@@ -6,10 +6,17 @@ import {
   syncDecryptPayload,
   syncKeyReady,
 } from '@/lib/native/security.js';
+import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
 import { ENCRYPTED_ASSET_EXT } from './constants.js';
 
 // Encryption now runs entirely in Rust. The renderer never sees the items key:
 // it only asks the backend to encrypt/decrypt payloads with an AAD binding.
+//
+// Sync payloads carry the Yjs update as raw bytes: the JS layer sends the update
+// as base64 (`data`) alongside a small `meta` object (`{device, ts, seq,
+// noteId}`), and the backend encrypts the raw bytes directly. This avoids the
+// old `update: Array.from(bytes)` + JSON.stringify/serde round-trip on a huge
+// number array, which cost ~950ms per multi-MB sync file.
 
 export async function ensureSyncKeyReadyForWrite() {
   const ready = await syncKeyReady().catch(() => false);
@@ -22,10 +29,13 @@ export async function ensureSyncKeyReadyForWrite() {
   return true;
 }
 
-export async function encryptJSON(obj, aad = '') {
-  if (!isEncryptionEnabled()) return JSON.stringify(obj);
+export async function encryptJSON(payload, aad = '') {
+  const { update, ...meta } = payload || {};
+  if (!isEncryptionEnabled()) {
+    return JSON.stringify({ ...meta, update: bufToBase64(update) });
+  }
   await ensureSyncKeyReadyForWrite();
-  return syncEncryptPayload(JSON.stringify(obj), aad);
+  return syncEncryptPayload(JSON.stringify(meta), bufToBase64(update), aad);
 }
 
 export class SyncCryptoError extends Error {
@@ -47,10 +57,10 @@ export async function decryptJSON(raw, aad = '') {
     return raw;
   }
 
-  if (parsed && parsed.v === 4) {
+  if (parsed && (parsed.v === 4 || parsed.v === 5)) {
     try {
-      const plain = await syncDecryptPayload(raw, aad);
-      return JSON.parse(plain);
+      const res = await syncDecryptPayload(raw, aad);
+      return { ...res.meta, update: base64ToBuf(res.update) };
     } catch (e) {
       const msg = String(e?.message ?? e);
       if (msg.includes('KEY_LOCKED')) {
@@ -66,6 +76,9 @@ export async function decryptJSON(raw, aad = '') {
     }
   }
 
+  if (parsed && typeof parsed.update === 'string') {
+    return { ...parsed, update: base64ToBuf(parsed.update) };
+  }
   return parsed;
 }
 

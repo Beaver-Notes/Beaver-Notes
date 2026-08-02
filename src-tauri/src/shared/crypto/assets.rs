@@ -22,6 +22,7 @@ pub(crate) fn encrypt_asset_bytes_with_key(
     plain: &[u8],
     key: &[u8; 32],
 ) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.encrypt_asset_bytes");
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let nonce_seed = random_nonce();
     let nonce = derive_chunk_nonce(&nonce_seed, 0, key);
@@ -38,6 +39,7 @@ pub(crate) fn decrypt_asset_bytes_with_key(
     encrypted: &[u8],
     key: &[u8; 32],
 ) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.decrypt_asset_bytes");
     if encrypted.len() < 4 + 12 + 16 {
         return Ok(encrypted.to_vec());
     }
@@ -96,6 +98,7 @@ pub(crate) fn encrypt_asset_streaming(
     output_path: &Path,
     key: &[u8; 32],
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("assets.encrypt_asset_streaming");
     let input = File::open(input_path)?;
     let output = File::create(output_path)?;
     let mut reader = BufReader::with_capacity(STREAM_CHUNK_SIZE, input);
@@ -137,6 +140,7 @@ pub(crate) fn decrypt_asset_streaming(
     output_path: &Path,
     key: &[u8; 32],
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("assets.decrypt_asset_streaming");
     let input = File::open(input_path)?;
     let mut reader = BufReader::with_capacity(STREAM_CHUNK_SIZE + 32, input);
 
@@ -218,8 +222,6 @@ pub(crate) fn decrypt_asset_streaming(
     Ok(())
 }
 
-// ── Yjs blob encryption ─────────────────────────────────────────────────────
-//
 // Yjs binary updates and snapshots stored in SQLite are encrypted at rest when
 // app encryption is enabled.  A 4-byte magic prefix (`BNY1`) distinguishes
 // encrypted blobs from legacy unencrypted ones so reads are backwards-compatible.
@@ -229,6 +231,7 @@ pub(crate) const YJS_MAGIC: &[u8; 4] = b"BNY1";
 /// Encrypt a raw Yjs binary blob for at-rest storage in SQLite.
 /// Returns `BNY1 || nonce(12) || ciphertext`.
 pub(crate) fn encrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.encrypt_yjs_blob");
     if data.is_empty() {
         return Ok(data.to_vec());
     }
@@ -246,6 +249,7 @@ pub(crate) fn encrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, A
 /// Legacy unencrypted blobs (no `BNY1` prefix) are returned as-is so
 /// existing databases continue to work without a migration pass.
 pub(crate) fn decrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.decrypt_yjs_blob");
     if data.len() < 4 + 12 {
         return Ok(data.to_vec());
     }

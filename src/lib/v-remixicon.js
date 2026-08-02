@@ -166,6 +166,7 @@ import {
   RiFingerprintLine,
   RiQrCodeLine,
   RiShieldStarLine,
+  RiDatabase2Line,
 } from '@remixicon/vue';
 
 const RemixIcons = {
@@ -334,7 +335,8 @@ const RemixIcons = {
   riComputerLine: RiComputerLine,
   riFingerprintLine: RiFingerprintLine,
   riQrCodeLine: RiQrCodeLine,
-  riShieldStarLine: RiShieldStarLine
+  riShieldStarLine: RiShieldStarLine,
+  riDatabase2Line: RiDatabase2Line,
 };
 
 const customIconPaths = {

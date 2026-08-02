@@ -7,7 +7,9 @@ use std::{
 };
 
 use http::{
-    header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
+    header::{
+        ACCESS_CONTROL_ALLOW_ORIGIN, ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
+    },
     Response, StatusCode,
 };
 use keyring::Entry;
@@ -15,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use specta_typescript::Any;
+use zeroize::Zeroize;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::FilePath;
@@ -31,6 +34,8 @@ pub(crate) use crypto::*;
 
 mod error;
 pub(crate) use error::*;
+
+pub(crate) mod speed_log;
 
 mod state;
 pub(crate) use state::*;
@@ -260,6 +265,10 @@ impl DbState {
 /// Snapshot of the app-encryption session. Lives behind a single `RwLock` in
 /// `AppState` so the items-key ring, current key id, cached KEK, loaded data
 /// key, and active flag are always mutated/observed atomically (no TOCTOU).
+///
+/// All key material is scrubbed when the session is dropped or reset (lock),
+/// so the DEK/KEK/ring are zeroized from memory instead of lingering in the
+/// heap after a lock or app shutdown.
 #[derive(Default, Debug)]
 pub(crate) struct CryptoSession {
     /// Items data key (decrypted). Present only while the app is unlocked.
@@ -274,6 +283,21 @@ pub(crate) struct CryptoSession {
     pub(crate) master_key_cache: Option<[u8; 32]>,
     /// Whether app encryption is enabled (a manifest exists).
     pub(crate) active: bool,
+}
+
+impl Drop for CryptoSession {
+    fn drop(&mut self) {
+        if let Some(key) = self.app_data_key.as_mut() {
+            key.zeroize();
+        }
+        for key in self.items_keys.values_mut() {
+            key.zeroize();
+        }
+        if let Some(key) = self.master_key_cache.as_mut() {
+            key.zeroize();
+        }
+        self.current_items_key_id.zeroize();
+    }
 }
 
 pub(crate) struct AppState {
@@ -569,7 +593,6 @@ pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, App
     Ok(pool)
 }
 
-/// Swap the active data pool to a different workspace's database.
 pub(crate) fn swap_data_pool(
     app: &AppHandle,
     state: &AppState,
@@ -602,7 +625,6 @@ pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool,
     Ok(pool)
 }
 
-/// Swap the active settings pool to a different workspace's database.
 pub(crate) fn swap_settings_pool(
     app: &AppHandle,
     state: &AppState,
@@ -1067,6 +1089,7 @@ pub(crate) fn cached_or_decrypted_asset(
     transient_passphrase: Option<&str>,
     path: &Path,
 ) -> Result<PathBuf, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.cached_or_decrypted_asset");
     let raw = fs::read(path)?;
     if !is_encrypted_asset_buffer(&raw) {
         return Ok(path.to_path_buf());
@@ -1084,12 +1107,13 @@ pub(crate) fn cached_or_decrypted_asset(
         let manifest_path = app_encryption_manifest_path(app, app_state.inner())?;
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("App encryption manifest is missing.".into()))?;
-        unlock_key_from_manifest(
+        let (key, _kek) = unlock_key_from_manifest(
             &manifest,
             passphrase,
             APP_ENCRYPTION_SCOPE,
             APP_PASSWORD_CHECK,
-        )?
+        )?;
+        key
     } else {
         current_app_key(app_state.inner())?.ok_or_else(|| {
             AppError::Other("App encryption is locked. Unlock before opening encrypted assets.".into())
@@ -1159,10 +1183,31 @@ pub(crate) fn protocol_response(
     path: &Path,
     bytes: Vec<u8>,
 ) -> Response<Vec<u8>> {
-    Response::builder()
+    protocol_response_with_range(status, path, bytes, None)
+}
+
+/// Response for a custom-protocol asset request. When `content_range` is set
+/// the body is a byte range and the reply is a `206 Partial Content` with
+/// `Content-Range`; `Accept-Ranges: bytes` is always advertised so the
+/// renderer can issue range requests for media (e.g. `audio`/`video` seeking
+/// and `ReadableStream`-based readers) without loading whole decrypted files
+/// into memory.
+pub(crate) fn protocol_response_with_range(
+    status: StatusCode,
+    path: &Path,
+    bytes: Vec<u8>,
+    content_range: Option<String>,
+) -> Response<Vec<u8>> {
+    let mut builder = Response::builder()
         .status(status)
         .header(CONTENT_TYPE, content_type_for_path(path))
         .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
+        .header(ACCEPT_RANGES, "bytes")
+        .header(CONTENT_LENGTH, bytes.len().to_string());
+    if let Some(cr) = content_range {
+        builder = builder.header(CONTENT_RANGE, cr);
+    }
+    builder
         .body(bytes)
         .unwrap_or_else(|_| {
             let mut r = Response::new(Vec::new());

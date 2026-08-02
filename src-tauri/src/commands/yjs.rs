@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use tauri::{AppHandle, State};
 
 use crate::shared::*;
@@ -45,6 +47,21 @@ pub(crate) fn yjs_get_snapshot(
   let key = yjs_encryption_key(&state)?;
   let result = crate::db::yjs_get_snapshot(&pool, &note_id, key)?;
   Ok(result)
+}
+
+/// Return the fresh merged Yjs snapshot for many notes in a single round-trip
+/// (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
+/// are included in the result map.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn yjs_get_snapshots(
+  app: AppHandle,
+  note_ids: Vec<String>,
+  state: State<'_, AppState>,
+) -> Result<HashMap<String, Vec<u8>>, AppError> {
+  let pool = data_pool(&app, &state)?;
+  let key = yjs_encryption_key(&state)?;
+  crate::db::yjs_get_snapshots(&pool, &note_ids, key)
 }
 
 /// Return every stored Yjs update for a note, oldest first.

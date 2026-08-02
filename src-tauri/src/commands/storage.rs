@@ -116,6 +116,7 @@ fn storage_aad(row_key: &str) -> String {
 }
 
 fn encrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Value, AppError> {
+    let _t = crate::shared::speed_log::scope("storage.encrypt_store_row");
     let Some(key) = current_app_key(state)? else {
         return Ok(value);
     };
@@ -138,6 +139,7 @@ fn encrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Va
 }
 
 fn decrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Value, AppError> {
+    let _t = crate::shared::speed_log::scope("storage.decrypt_store_row");
     let Some(key) = current_app_key(state)? else {
         return Ok(value);
     };

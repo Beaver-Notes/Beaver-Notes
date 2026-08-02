@@ -55,7 +55,7 @@ export async function flushPendingSyncWritesTo(writeFn) {
 }
 
 export function queueSyncWrite(commitsDir, noteId, update) {
-  pendingSyncWrites.push({ commitsDir, noteId, update: Array.from(update) });
+  pendingSyncWrites.push({ commitsDir, noteId, update: new Uint8Array(update) });
 }
 
 export async function flushPendingSyncWrites() {

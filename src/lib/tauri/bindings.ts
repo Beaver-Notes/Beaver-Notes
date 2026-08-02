@@ -95,13 +95,22 @@ export const commands = {
 	 *  Encrypt a sync payload (commit / snapshot / genesis) with the items key using
 	 *  XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
 	 *  stem) so it cannot be swapped between sync entries.
+	 * 
+	 *  The Yjs update is passed as base64-encoded raw bytes (`data`) rather than a
+	 *  JSON number array, so multi-MB payloads never hit a serde_json round-trip on
+	 *  a huge array (the previous ~950ms cost). `meta` (device/ts/seq/noteId) is
+	 *  stored inside the encrypted envelope so it round-trips with the payload.
 	 */
-	syncEncryptPayload: (json: string, aad: string) => typedError<string, AppError>(__TAURI_INVOKE("sync_encrypt_payload", { json, aad })),
+	syncEncryptPayload: (meta: string, data: string, aad: string) => typedError<string, AppError>(__TAURI_INVOKE("sync_encrypt_payload", { meta, data, aad })),
 	/**
 	 *  Decrypt a sync payload. Returns `DECRYPT_FAILED` on authentication failure
 	 *  (wrong passphrase or tampered AAD) and `KEY_LOCKED` when the key is absent.
+	 * 
+	 *  Returns the decrypted update as base64 raw bytes plus the meta object, so the
+	 *  renderer never reconstructs a giant number array. v4 envelopes (update stored
+	 *  as a JSON number array) are decoded for backward compatibility.
 	 */
-	syncDecryptPayload: (enc: string, aad: string) => typedError<string, AppError>(__TAURI_INVOKE("sync_decrypt_payload", { enc, aad })),
+	syncDecryptPayload: (enc: string, aad: string) => typedError<SyncDecryptedPayload, AppError>(__TAURI_INVOKE("sync_decrypt_payload", { enc, aad })),
 	syncKeyReady: () => __TAURI_INVOKE<boolean>("sync_key_ready"),
 	/**
 	 *  Keep the local manifest and the shared `keyParams.json` in the sync folder
@@ -175,6 +184,12 @@ export const commands = {
 	 *  the caller must replay history and re-cache it via `yjs_save_snapshot`.
 	 */
 	yjsGetSnapshot: (noteId: string) => typedError<number[], AppError>(__TAURI_INVOKE("yjs_get_snapshot", { noteId })),
+	/**
+	 *  Return the fresh merged Yjs snapshot for many notes in a single round-trip
+	 *  (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
+	 *  are included in the result map.
+	 */
+	yjsGetSnapshots: (noteIds: string[]) => typedError<{ [key in string]: number[] }, AppError>(__TAURI_INVOKE("yjs_get_snapshots", { noteIds })),
 	/**
 	 *  Delete all existing updates for a note and replace them with a single
 	 *  compressed Yjs state vector (snapshot).  Keeps the row count bounded.
@@ -314,6 +329,18 @@ export type SaveDialogResult = {
 
 export type SearchResult = {
 	ids: string[],
+};
+
+export type SyncDecryptedPayload = {
+	meta: SyncMeta,
+	update: string,
+};
+
+export type SyncMeta = {
+	device: string,
+	ts: number,
+	seq?: number | null,
+	noteId: string,
 };
 
 export type UpdateInfo = {

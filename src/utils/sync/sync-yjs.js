@@ -168,7 +168,7 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON) {
     ts,
     seq,
     noteId,
-    update: Array.from(update),
+    update,
   };
   const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
   const fileName = yjsFileName(noteId, ts, seq);
@@ -186,7 +186,7 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON) {
     device: deviceId,
     ts,
     noteId: docId,
-    update: Array.from(state),
+    update: state,
   };
   const encrypted = await encryptJSON(payload, `${docId}-snapshot-${ts}`);
   const fileName = yjsSnapshotFileName(docId, ts);

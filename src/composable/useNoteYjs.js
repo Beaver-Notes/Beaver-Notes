@@ -16,6 +16,7 @@ import {
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
 import { getHocuspocusSync } from './useHocuspocusSync.js';
+import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from './yjs-shared.js';
 import { registerActiveDoc, unregisterActiveDoc } from './yjs-shared.js';
@@ -53,10 +54,12 @@ async function seedFromTipJson(ydoc, contentJson) {
   // replaying individual updates for backwards compatibility.
 
 async function loadStateIntoDoc(newDoc, noteId) {
+  const t = speed('yjs_load_snapshot');
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
       Y.applyUpdate(newDoc, toUint8Array(snapshot));
+      t?.end();
       return;
     }
   } catch (err) {
@@ -69,6 +72,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
   }
+  t?.end();
 }
 
   // Persist a Yjs update to SQLite and optionally queue it for the sync folder.
@@ -124,6 +128,7 @@ export function useNoteYjs() {
   }
 
   async function load(noteId, initialContent, initialTitle) {
+    const t = speed('yjs_load_note');
     // Flush any pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);
@@ -189,6 +194,7 @@ export function useNoteYjs() {
     registerActiveDoc(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
+    t?.end();
   }
 
   function getTitle() {
