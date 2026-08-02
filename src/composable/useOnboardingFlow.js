@@ -128,7 +128,12 @@ export function useOnboardingFlow({
 
   async function detectVaultJoin() {
     vaultJoinMode.value = false;
-    if (!fresh.syncPath) return;
+    let syncPath = fresh.syncPath;
+    if (!syncPath) {
+      const { getSyncPath } = await import('@/utils/sync/path.js');
+      syncPath = await getSyncPath().catch(() => '');
+    }
+    if (!syncPath) return;
     try {
       if (accountStore.isAuthenticated) {
         const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
@@ -245,13 +250,14 @@ export function useOnboardingFlow({
     ALL_PLATFORMS.filter((platform) => !platform.macOnly || isMacOS.value),
   );
 
-  // Linear flow — the sync step is skipped when the account provides cloud
-  // sync (authenticated on a paid plan).
+  // Linear flow — every user configures a sync folder, cloud sync included.
+  // The sync folder is the local mirror/cache (commits dir + cached key
+  // params); the cloud is an additional transport on top of it, so there is no
+  // folder-less cloud onboarding. Skipping the step for paid users left them
+  // without a folder, which silently disabled both cloud sync and vault-join
+  // detection.
   const activeFlow = computed(() => {
-    const flow = ['welcome', 'customize', 'import', 'account'];
-    if (!accountStore.canUseCloudSync) flow.push('sync');
-    flow.push('password', 'finish');
-    return flow;
+    return ['welcome', 'customize', 'import', 'account', 'sync', 'password', 'finish'];
   });
 
   // True while the current step lives inside the persistent wizard frame
