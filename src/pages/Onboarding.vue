@@ -999,47 +999,91 @@
                       class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                     >
                       {{
-                        translations.settings?.encryptionPassphrase ||
-                        'Encryption passphrase'
+                        flow.vaultJoinMode
+                          ? 'Join existing vault'
+                          : (translations.settings?.encryptionPassphrase ||
+                              'Encryption passphrase')
                       }}
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       {{
-                        translations.onboarding?.passwordDescription ||
-                        'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.'
+                        flow.vaultJoinMode
+                          ? 'This sync source has an existing encrypted vault. Enter its password to join.'
+                          : (translations.onboarding?.passwordDescription ||
+                              'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.')
                       }}
                     </p>
                   </div>
 
-                  <ui-input
-                    v-model="encryptionPassword"
-                    password
-                    :placeholder="
-                      translations.settings?.password || 'Passphrase'
-                    "
-                  />
-
-                  <div
-                    class="h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
-                  >
-                    <div
-                      class="h-full rounded-full transition-all duration-300"
-                      :class="strengthBarClass"
-                      :style="{ width: strengthPercent + '%' }"
+                  <template v-if="!flow.vaultJoinMode">
+                    <ui-input
+                      v-model="encryptionPassword"
+                      password
+                      :placeholder="
+                        translations.settings?.password || 'Passphrase'
+                      "
                     />
-                  </div>
-                  <p class="text-xs" :class="strengthTextClass">
-                    {{ strengthLabel }}
-                  </p>
 
-                  <ui-input
-                    v-model="encryptionConfirmPassword"
-                    password
-                    :placeholder="
-                      translations.onboarding?.confirmPassword ||
-                      'Confirm passphrase'
-                    "
-                  />
+                    <div
+                      class="h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+                    >
+                      <div
+                        class="h-full rounded-full transition-all duration-300"
+                        :class="strengthBarClass"
+                        :style="{ width: strengthPercent + '%' }"
+                      />
+                    </div>
+                    <p class="text-xs" :class="strengthTextClass">
+                      {{ strengthLabel }}
+                    </p>
+
+                    <ui-input
+                      v-model="encryptionConfirmPassword"
+                      password
+                      :placeholder="
+                        translations.onboarding?.confirmPassword ||
+                        'Confirm passphrase'
+                      "
+                    />
+
+                    <div
+                      class="mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3"
+                    >
+                      <p class="text-xs text-amber-700 dark:text-amber-300">
+                        <v-remixicon
+                          name="riErrorWarningLine"
+                          size="14"
+                          class="inline mr-1"
+                        />
+                        {{
+                          translations.onboarding?.passwordWarning ||
+                          'This passphrase cannot be recovered if forgotten. Store it in a password manager.'
+                        }}
+                      </p>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <ui-input
+                      v-model="encryptionPassword"
+                      password
+                      :placeholder="
+                        translations.settings?.password || 'Vault password'
+                      "
+                      autofocus
+                    />
+
+                    <button
+                      class="mt-1 text-xs text-primary hover:underline"
+                      type="button"
+                      @click="flow.startFreshVault"
+                    >
+                      {{
+                        translations.onboarding?.startFresh ||
+                        'Start fresh with a new vault instead'
+                      }}
+                    </button>
+                  </template>
 
                   <p
                     v-if="encryptionPasswordError"
@@ -1047,22 +1091,6 @@
                   >
                     {{ encryptionPasswordError }}
                   </p>
-
-                  <div
-                    class="mt-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3"
-                  >
-                    <p class="text-xs text-amber-700 dark:text-amber-300">
-                      <v-remixicon
-                        name="riErrorWarningLine"
-                        size="14"
-                        class="inline mr-1"
-                      />
-                      {{
-                        translations.onboarding?.passwordWarning ||
-                        'This passphrase cannot be recovered if forgotten. Store it in a password manager.'
-                      }}
-                    </p>
-                  </div>
                 </template>
               </div>
             </Transition>
@@ -1428,7 +1456,9 @@ export default {
             icon: 'riArrowRightLine',
             variant: 'primary',
             loading: flow.encryptionPasswordLoading.value,
-            onClick: flow.setupEncryptionPassword,
+            onClick: flow.vaultJoinMode.value
+              ? flow.adoptVaultPassword
+              : flow.setupEncryptionPassword,
           },
         ];
       }

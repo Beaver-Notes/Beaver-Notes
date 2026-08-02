@@ -123,6 +123,57 @@ export function useOnboardingFlow({
   const encryptionPasswordError = ref('');
   const encryptionPasswordLoading = ref(false);
 
+  //  Join-existing-vault state (auto-detected from the chosen sync source)
+  const vaultJoinMode = ref(false);
+
+  async function detectVaultJoin() {
+    vaultJoinMode.value = false;
+    if (!fresh.syncPath) return;
+    try {
+      if (accountStore.isAuthenticated) {
+        const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+        await fetchCloudKeyParams({ force: true }).catch(() => {});
+      }
+      const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
+      vaultJoinMode.value = await hasRemoteVaultKeyParams();
+    } catch (e) {
+      console.warn('[onboarding] vault-join detection failed:', e);
+      vaultJoinMode.value = false;
+    }
+  }
+
+  async function adoptVaultPassword() {
+    encryptionPasswordError.value = '';
+    const t = translations.value;
+    const pw = encryptionPassword.value;
+    if (!pw) {
+      encryptionPasswordError.value =
+        t?.settings?.invalidPassword || 'Please enter the vault password.';
+      return;
+    }
+    encryptionPasswordLoading.value = true;
+    try {
+      const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
+      const result = await adoptVaultKey(pw);
+      if (!result.ok) {
+        encryptionPasswordError.value =
+          result.error || 'Failed to join this vault.';
+        return;
+      }
+      goToNextStep();
+    } catch (e) {
+      encryptionPasswordError.value = e?.message || String(e);
+    } finally {
+      encryptionPasswordLoading.value = false;
+    }
+  }
+
+  function startFreshVault() {
+    vaultJoinMode.value = false;
+    encryptionPassword.value = '';
+    encryptionConfirmPassword.value = '';
+  }
+
   async function setupEncryptionPassword() {
     encryptionPasswordError.value = '';
     const t = translations.value;
@@ -638,6 +689,7 @@ export function useOnboardingFlow({
     state.savingPreferences = true;
     try {
       await applyOnboardingSyncPreferences(fresh);
+      await detectVaultJoin();
       goToStep('password');
     } catch (e) {
       state.error = e?.message || String(e);
@@ -858,6 +910,10 @@ export function useOnboardingFlow({
     encryptionPasswordError,
     encryptionPasswordLoading,
     setupEncryptionPassword,
+    vaultJoinMode,
+    detectVaultJoin,
+    adoptVaultPassword,
+    startFreshVault,
 
     // Step progress
     trackedSteps,
