@@ -172,6 +172,7 @@ export function useOnboardingFlow({
     vaultJoinMode.value = false;
     encryptionPassword.value = '';
     encryptionConfirmPassword.value = '';
+    encryptionPasswordError.value = '';
   }
 
   async function setupEncryptionPassword() {

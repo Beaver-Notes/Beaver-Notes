@@ -999,7 +999,7 @@
                       class="text-2xl font-semibold tracking-tight text-neutral-800 dark:text-neutral-200"
                     >
                       {{
-                        flow.vaultJoinMode
+                        vaultJoinMode
                           ? 'Join existing vault'
                           : (translations.settings?.encryptionPassphrase ||
                               'Encryption passphrase')
@@ -1007,7 +1007,7 @@
                     </h2>
                     <p class="text-neutral-600 dark:text-neutral-400">
                       {{
-                        flow.vaultJoinMode
+                        vaultJoinMode
                           ? 'This sync source has an existing encrypted vault. Enter its password to join.'
                           : (translations.onboarding?.passwordDescription ||
                               'Encryption is built into Beaver Notes. Set a passphrase to protect every note and asset on this device.')
@@ -1015,7 +1015,7 @@
                     </p>
                   </div>
 
-                  <template v-if="!flow.vaultJoinMode">
+                  <template v-if="!vaultJoinMode">
                     <ui-input
                       v-model="encryptionPassword"
                       password
@@ -1076,7 +1076,8 @@
                     <button
                       class="mt-1 text-xs text-primary hover:underline"
                       type="button"
-                      @click="flow.startFreshVault"
+                      :disabled="encryptionPasswordLoading"
+                      @click="startFreshVault"
                     >
                       {{
                         translations.onboarding?.startFresh ||
