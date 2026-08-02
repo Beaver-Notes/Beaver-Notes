@@ -483,15 +483,13 @@ pub(crate) fn read_key_params(
     Ok(Some(serde_json::from_str(&raw)?))
 }
 
-/// Adopt shared key params: derive the same items key every other device uses
-/// from the passphrase + the published (public) salt, update the in-memory key,
-/// and rewrite the local manifest so future local unlocks stay consistent.
-pub(crate) fn adopt_key_params(
-    app: &AppHandle,
-    state: &AppState,
+/// Derive the items key from shared key params: KEK = Argon2id(passphrase, salt),
+/// then unwrap `wrapped_items_key`. Pure and unit-testable. Returns the KEK too
+/// so callers can populate the key ring without re-running the KDF.
+pub(crate) fn derive_items_key_from_params(
     params: &KeyParams,
     passphrase: &str,
-) -> Result<(), AppError> {
+) -> Result<([u8; 32], [u8; 32]), AppError> {
     let salt = hex::decode(params.salt_hex.trim())?;
     let kek = derive_kek_argon2id(passphrase, &salt)?;
     let items_key = decrypt_bytes_with_key(&kek, &params.wrapped_items_key)
@@ -503,6 +501,34 @@ pub(crate) fn adopt_key_params(
     }
     let mut key = [0u8; 32];
     key.copy_from_slice(&items_key[..32]);
+    Ok((key, kek))
+}
+
+/// True when the shared key params belong to a vault different from the local
+/// manifest (or no local manifest exists).
+pub(crate) fn remote_params_differ(
+    params: &KeyParams,
+    local_manifest: Option<&EncryptionManifest>,
+) -> bool {
+    match local_manifest {
+        Some(m) => {
+            m.wrapped_key.nonce != params.wrapped_items_key.nonce
+                || m.wrapped_key.cipher != params.wrapped_items_key.cipher
+        }
+        None => true,
+    }
+}
+
+/// Adopt shared key params: derive the same items key every other device uses
+/// from the passphrase + the published (public) salt, update the in-memory key,
+/// and rewrite the local manifest so future local unlocks stay consistent.
+pub(crate) fn adopt_key_params(
+    app: &AppHandle,
+    state: &AppState,
+    params: &KeyParams,
+    passphrase: &str,
+) -> Result<(), AppError> {
+    let (key, kek) = derive_items_key_from_params(params, passphrase)?;
 
     {
         let mut s = state.crypto.session.write().map_err(AppError::from)?;
@@ -526,6 +552,7 @@ pub(crate) fn adopt_key_params(
         previous_keys: Vec::new(),
         recovery_kek: None,
     };
+    populate_key_ring(state, &manifest, &kek)?;
     write_encryption_manifest(&app_encryption_manifest_path(app, state)?, &manifest)?;
     Ok(())
 }
@@ -1075,5 +1102,75 @@ pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
         Err(AppError::Other(format!(
             "[safeStorage] Unsupported blob key: {key}"
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_params(passphrase: &str) -> (KeyParams, [u8; 32]) {
+        let (manifest, data_key, _) =
+            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, passphrase)
+                .expect("create manifest");
+        let params = KeyParams {
+            version: PROTOCOL_VERSION,
+            kdf: "argon2id".to_string(),
+            salt_hex: manifest
+                .argon2_salt_hex
+                .clone()
+                .unwrap_or(manifest.salt_hex.clone()),
+            argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
+            argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
+            argon2_parallelism: manifest.argon2_parallelism.unwrap_or(ARGON2_PARALLELISM),
+            wrapped_items_key: manifest.wrapped_key.clone(),
+        };
+        (params, data_key)
+    }
+
+    #[test]
+    fn derive_items_key_with_correct_passphrase_matches_manifest_key() {
+        let (params, data_key) = sample_params("correct horse battery staple");
+        let (key, _kek) = derive_items_key_from_params(&params, "correct horse battery staple")
+            .expect("derive");
+        assert_eq!(key, data_key);
+    }
+
+    #[test]
+    fn derive_items_key_with_wrong_passphrase_errors() {
+        let (params, _) = sample_params("correct horse battery staple");
+        assert!(matches!(
+            derive_items_key_from_params(&params, "wrong passphrase"),
+            Err(AppError::WrongPassword)
+        ));
+    }
+
+    #[test]
+    fn remote_params_differ_without_local_manifest_is_true() {
+        let (params, _) = sample_params("pw");
+        assert!(remote_params_differ(&params, None));
+    }
+
+    #[test]
+    fn remote_params_differ_false_when_matching_manifest() {
+        let (manifest, _, _) = create_encryption_manifest(
+            APP_ENCRYPTION_SCOPE,
+            APP_PASSWORD_CHECK,
+            "pw",
+        )
+        .expect("create manifest");
+        let params = KeyParams {
+            version: PROTOCOL_VERSION,
+            kdf: "argon2id".to_string(),
+            salt_hex: manifest
+                .argon2_salt_hex
+                .clone()
+                .unwrap_or(manifest.salt_hex.clone()),
+            argon2_memory_kib: manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
+            argon2_iterations: manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
+            argon2_parallelism: manifest.argon2_parallelism.unwrap_or(ARGON2_PARALLELISM),
+            wrapped_items_key: manifest.wrapped_key.clone(),
+        };
+        assert!(!remote_params_differ(&params, Some(&manifest)));
     }
 }
