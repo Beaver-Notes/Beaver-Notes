@@ -6,6 +6,8 @@ import {
   decryptNotePayload,
   clearDecryptedCaches,
   reconcileSyncKeyParams,
+  adoptKeyParams,
+  hasRemoteKeyParams,
   generateRecoveryCode as generateRecoveryCodeNative,
   recoverWithCode,
 } from '@/lib/native/security.js';
@@ -77,6 +79,10 @@ export async function setupEncryption(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     reconcileSyncKeyParams().catch(() => {});
+    const vaultKeyParamsUrl = '@/utils/sync/vault-key-params.js';
+    import(/* @vite-ignore */ vaultKeyParamsUrl)
+      .then((m) => m.publishCloudKeyParams())
+      .catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -98,11 +104,39 @@ export async function verifyPassphrase(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     reconcileSyncKeyParams(passphrase).catch(() => {});
+    const vaultKeyParamsUrl = '@/utils/sync/vault-key-params.js';
+    import(/* @vite-ignore */ vaultKeyParamsUrl)
+      .then((m) => m.publishCloudKeyParams())
+      .catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] verify failed:', err);
     return { ok: false, error: err?.message || String(err) };
   }
+}
+
+export async function adoptVaultKey(passphrase) {
+  if (!passphrase?.trim()) {
+    return { ok: false, error: 'Enter the vault passphrase.' };
+  }
+
+  try {
+    const result = await adoptKeyParams(passphrase);
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || 'Unable to join this vault.' };
+    }
+    state.enabled = !!result?.state?.enabled;
+    state.loaded = !!result?.state?.unlocked;
+    persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    return { ok: true };
+  } catch (err) {
+    console.error('[encryption] vault adopt failed:', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+export async function hasRemoteVaultKeyParams() {
+  return hasRemoteKeyParams();
 }
 
 export async function tryRestoreKeyFromSafeStorage() {

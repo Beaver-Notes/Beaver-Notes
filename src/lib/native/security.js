@@ -103,6 +103,14 @@ export function reconcileSyncKeyParams(passphrase) {
   return backend.invoke('encryption:reconcileKeyParams', { passphrase });
 }
 
+export function adoptKeyParams(passphrase) {
+  return backend.invoke('encryption:adoptKeyParams', { passphrase });
+}
+
+export function hasRemoteKeyParams() {
+  return backend.invoke('encryption:hasRemoteKeyParams');
+}
+
 export function decryptAssetStream(path) {
   return backend.invoke('assetCrypto:decryptAssetStream', path);
 }
