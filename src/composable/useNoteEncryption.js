@@ -11,6 +11,7 @@ import {
   isBiometricAvailable,
   authenticateWithBiometrics,
 } from '@/lib/native/biometric';
+import { speed } from '@/utils/speed.js';
 
 export function useNoteEncryption({ noteId }) {
   const dialog = useDialog();
@@ -18,6 +19,7 @@ export function useNoteEncryption({ noteId }) {
   const { translations } = useTranslations();
 
   async function unlockAppEncryption() {
+    const t_ = speed('note_unlock_encryption');
     const biometricOk = await isBiometricAvailable();
     if (biometricOk) {
       try {
@@ -31,6 +33,7 @@ export function useNoteEncryption({ noteId }) {
               noteStore.data[noteId.value] = decrypted;
             }
           }
+          t_?.end();
           return;
         }
       } catch {

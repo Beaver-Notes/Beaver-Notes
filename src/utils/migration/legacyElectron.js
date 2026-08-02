@@ -14,18 +14,15 @@ import {
 } from '@/lib/native/security.js';
 import {
   ALGO_AES_GCM,
+  ALGO_PBKDF2,
   ENVELOPE_VERSION,
   NOTE_ENVELOPE_VERSION_ARGON2,
+  HASH_SHA_256,
   IV_LENGTH_BYTES,
+  PBKDF2_ITERATIONS,
   SALT_LENGTH_BYTES,
 } from '@/utils/crypto/constants.js';
-import {
-  bufToBase64,
-  bufToHex,
-  hexToBuf,
-  base64ToBuf,
-  deriveAesGcmKeyFromPassphrase,
-} from '@/utils/crypto/codec.js';
+import { bufToBase64, bufToHex, hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 
 // Legacy per-note encryption functions kept only for migration.
 const LEGACY_CRYPTOJS_PREFIX = 'U2FsdGVk';
@@ -38,6 +35,28 @@ async function _noteKeyArgon2(password, saltBuf) {
   return crypto.subtle.importKey(
     'raw',
     raw,
+    { name: ALGO_AES_GCM, length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function _noteKeyPbkdf2(password, saltBuf) {
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    ALGO_PBKDF2,
+    false,
+    ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    {
+      name: ALGO_PBKDF2,
+      salt: saltBuf,
+      iterations: PBKDF2_ITERATIONS,
+      hash: HASH_SHA_256,
+    },
+    keyMaterial,
     { name: ALGO_AES_GCM, length: 256 },
     false,
     ['encrypt', 'decrypt']
@@ -98,10 +117,7 @@ export async function decryptNoteWithPassword(ciphertext, password) {
   }
 
   if (parsed?.v === ENVELOPE_VERSION) {
-    const key = await deriveAesGcmKeyFromPassphrase(
-      password,
-      hexToBuf(parsed.salt)
-    );
+    const key = await _noteKeyPbkdf2(password, hexToBuf(parsed.salt));
     let buf;
     try {
       buf = await crypto.subtle.decrypt(

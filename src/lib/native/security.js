@@ -87,8 +87,8 @@ export function decryptNotePayload(payload) {
   return backend.invoke('encryption:decryptNotePayload', payload);
 }
 
-export function syncEncryptPayload(json, aad) {
-  return backend.invoke('sync:encryptPayload', { json, aad });
+export function syncEncryptPayload(meta, data, aad) {
+  return backend.invoke('sync:encryptPayload', { meta, data, aad });
 }
 
 export function syncDecryptPayload(enc, aad) {

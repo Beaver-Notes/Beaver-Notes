@@ -44,6 +44,11 @@ import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import logoUrl from '@/assets/images/logo-transparent.png';
 
+// Steps that live inside the persistent wizard frame (fixed card / bottom
+// sheet). 'welcome' and 'finish' are full-screen hero steps and are not
+// part of this set.
+const WIZARD_STEPS = ['customize', 'import', 'account', 'sync', 'password'];
+
 export function useOnboardingFlow({
   router,
   store,
@@ -63,6 +68,10 @@ export function useOnboardingFlow({
   const migrationPlatform = ref(null);
   const customLegacyPath = ref(null);
   const customLegacyStatus = ref(null);
+
+  // Tracks whether the last navigation moved forward or backward through
+  // the flow, so the wizard body can slide the right direction.
+  const navDirection = ref('forward');
 
   const getLegacyDir = () => customLegacyPath.value || state.status?.legacyDir;
 
@@ -194,6 +203,11 @@ export function useOnboardingFlow({
     return flow;
   });
 
+  // True while the current step lives inside the persistent wizard frame
+  // (fixed card on desktop / bottom sheet on mobile), as opposed to the
+  // full-screen welcome/finish hero steps.
+  const isCardStep = computed(() => WIZARD_STEPS.includes(step.value));
+
   const migrationDetectionCopy = computed(() => {
     if (customLegacyStatus.value?.hasLegacyData) {
       return 'Custom folder verified — ready to import.';
@@ -253,19 +267,26 @@ export function useOnboardingFlow({
 
   //  Navigation
 
+  // Every other nav helper routes through this, so direction tracking
+  // (used to pick the slide-in animation) lives in one place.
   const goToStep = (s) => {
+    const oldIndex = activeFlow.value.indexOf(step.value);
+    const newIndex = activeFlow.value.indexOf(s);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      navDirection.value = newIndex >= oldIndex ? 'forward' : 'backward';
+    }
     step.value = s;
   };
 
   const goToPreviousStep = () => {
     const i = activeFlow.value.indexOf(step.value);
-    if (i > 0) step.value = activeFlow.value[i - 1];
+    if (i > 0) goToStep(activeFlow.value[i - 1]);
   };
 
   const goToNextStep = () => {
     const i = activeFlow.value.indexOf(step.value);
     if (i >= 0 && i < activeFlow.value.length - 1)
-      step.value = activeFlow.value[i + 1];
+      goToStep(activeFlow.value[i + 1]);
   };
 
   const handlePrimaryContinue = () => {
@@ -551,7 +572,15 @@ export function useOnboardingFlow({
   const selectAccentColor = (color) => {
     fresh.accentColor = color;
     const root = document.documentElement;
-    const accentColorNames = ['red', 'light', 'green', 'blue', 'purple', 'pink', 'neutral'];
+    const accentColorNames = [
+      'red',
+      'light',
+      'green',
+      'blue',
+      'purple',
+      'pink',
+      'neutral',
+    ];
     root.classList.forEach((cls) => {
       if (accentColorNames.includes(cls)) root.classList.remove(cls);
     });
@@ -741,7 +770,26 @@ export function useOnboardingFlow({
 
   onUnmounted(() => timers.forEach(clearTimeout));
 
-  //  Public API
+  const trackedSteps = computed(() =>
+    activeFlow.value.filter((s) => s !== 'welcome' && s !== 'finish'),
+  );
+
+  const showStepProgress = computed(() =>
+    trackedSteps.value.includes(step.value),
+  );
+
+  const currentStepNumber = computed(() => {
+    const index = trackedSteps.value.indexOf(step.value);
+    return index !== -1 ? index + 1 : 0;
+  });
+
+  const totalStepCount = computed(() => trackedSteps.value.length);
+
+  const stepProgressPercent = computed(() =>
+    totalStepCount.value > 0
+      ? Math.round((currentStepNumber.value / totalStepCount.value) * 100)
+      : 0,
+  );
 
   return {
     // State
@@ -757,6 +805,7 @@ export function useOnboardingFlow({
     migrationPlatform,
     customLegacyPath,
     customLegacyStatus,
+    navDirection,
 
     // Static config
     themes,
@@ -768,6 +817,7 @@ export function useOnboardingFlow({
     isDark,
     isMobileRuntime,
     isMacOS,
+    isCardStep,
     visiblePlatforms,
     migrationPlatformLabel,
     migrationSourceCopy,
@@ -816,5 +866,12 @@ export function useOnboardingFlow({
     encryptionPasswordError,
     encryptionPasswordLoading,
     setupEncryptionPassword,
+
+    // Step progress
+    trackedSteps,
+    showStepProgress,
+    currentStepNumber,
+    totalStepCount,
+    stepProgressPercent,
   };
 }

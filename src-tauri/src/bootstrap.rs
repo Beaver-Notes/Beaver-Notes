@@ -479,97 +479,144 @@ pub(crate) fn run_legacy_store_data_migration_from_path(
 }
 
 pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::Builder<Wry> {
-    builder
-        .register_asynchronous_uri_scheme_protocol("assets", move |ctx, request, responder| {
-            let app = ctx.app_handle().clone();
-            let path = match resolve_asset_path_from_protocol_url(
+    register_asset_protocol(register_asset_protocol(builder, "assets"), "file-assets")
+}
+
+fn register_asset_protocol(
+    builder: tauri::Builder<Wry>,
+    scheme: &'static str,
+) -> tauri::Builder<Wry> {
+    builder.register_asynchronous_uri_scheme_protocol(scheme, move |ctx, request, responder| {
+        let app = ctx.app_handle().clone();
+        let path = match resolve_asset_path_from_protocol_url(
+            &app,
+            request.uri().to_string().as_str(),
+            scheme,
+        ) {
+            Ok(path) => path,
+            Err(_) => {
+                responder.respond(protocol_response(
+                    StatusCode::BAD_REQUEST,
+                    Path::new("asset.bin"),
+                    Vec::new(),
+                ));
+                return;
+            }
+        };
+        let (asset_cache_dir, transient_passphrase) = {
+            let state = app.state::<AppState>();
+            let transient_passphrase = state
+                .security
+                .transient_passphrase
+                .lock()
+                .ok()
+                .map(|value| value.clone())
+                .filter(|value| !value.is_empty());
+            (state.files.asset_cache_dir.clone(), transient_passphrase)
+        };
+        let range = request
+            .headers()
+            .get(http::header::RANGE)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        std::thread::spawn(move || {
+            let response = serve_asset(
                 &app,
-                request.uri().to_string().as_str(),
-                "assets",
-            ) {
-                Ok(path) => path,
-                Err(_) => {
-                    responder.respond(protocol_response(
-                        StatusCode::BAD_REQUEST,
-                        Path::new("asset.bin"),
-                        Vec::new(),
-                    ));
-                    return;
-                }
-            };
-            let (asset_cache_dir, transient_passphrase) = {
-                let state = app.state::<AppState>();
-                let transient_passphrase = state
-                    .security.transient_passphrase
-                    .lock()
-                    .ok()
-                    .map(|value| value.clone())
-                    .filter(|value| !value.is_empty());
-                (state.files.asset_cache_dir.clone(), transient_passphrase)
-            };
-            std::thread::spawn(move || {
-                let response = match cached_or_decrypted_asset(
-                    &app,
-                    &asset_cache_dir,
-                    transient_passphrase.as_deref(),
-                    &path,
-                )
-                .and_then(|resolved| {
-                    fs::read(&resolved)
-                        .map_err(|e| AppError::Other(e.to_string()))
-                        .map(|bytes| (resolved, bytes))
-                }) {
-                    Ok((resolved, bytes)) => protocol_response(StatusCode::OK, &resolved, bytes),
-                    Err(_) => protocol_response(StatusCode::NOT_FOUND, &path, Vec::new()),
-                };
-                responder.respond(response);
-            });
-        })
-        .register_asynchronous_uri_scheme_protocol("file-assets", move |ctx, request, responder| {
-            let app = ctx.app_handle().clone();
-            let path = match resolve_asset_path_from_protocol_url(
-                &app,
-                request.uri().to_string().as_str(),
-                "file-assets",
-            ) {
-                Ok(path) => path,
-                Err(_) => {
-                    responder.respond(protocol_response(
-                        StatusCode::BAD_REQUEST,
-                        Path::new("asset.bin"),
-                        Vec::new(),
-                    ));
-                    return;
-                }
-            };
-            let (asset_cache_dir, transient_passphrase) = {
-                let state = app.state::<AppState>();
-                let transient_passphrase = state
-                    .security.transient_passphrase
-                    .lock()
-                    .ok()
-                    .map(|value| value.clone())
-                    .filter(|value| !value.is_empty());
-                (state.files.asset_cache_dir.clone(), transient_passphrase)
-            };
-            std::thread::spawn(move || {
-                let response = match cached_or_decrypted_asset(
-                    &app,
-                    &asset_cache_dir,
-                    transient_passphrase.as_deref(),
-                    &path,
-                )
-                .and_then(|resolved| {
-                    fs::read(&resolved)
-                        .map_err(|e| AppError::Other(e.to_string()))
-                        .map(|bytes| (resolved, bytes))
-                }) {
-                    Ok((resolved, bytes)) => protocol_response(StatusCode::OK, &resolved, bytes),
-                    Err(_) => protocol_response(StatusCode::NOT_FOUND, &path, Vec::new()),
-                };
-                responder.respond(response);
-            });
-        })
+                &asset_cache_dir,
+                transient_passphrase.as_deref(),
+                &path,
+                range.as_deref(),
+            );
+            responder.respond(response);
+        });
+    })
+}
+
+/// Serve a cached-or-decrypted asset over the custom protocol, honoring HTTP
+/// byte-range requests. Requests without a `Range` header get the full file;
+/// range requests get only the requested slice (`206 Partial Content`), so
+/// media elements and streaming readers never force a whole decrypted asset
+/// into memory. Unsatisfiable ranges yield `416` with `Content-Range: bytes */N`.
+fn serve_asset(
+    app: &AppHandle,
+    asset_cache_dir: &Path,
+    transient_passphrase: Option<&str>,
+    path: &Path,
+    range: Option<&str>,
+) -> http::Response<Vec<u8>> {
+    let _t = crate::shared::speed_log::scope("assets.serve_asset");
+    let resolved = match cached_or_decrypted_asset(app, asset_cache_dir, transient_passphrase, path)
+    {
+        Ok(resolved) => resolved,
+        Err(_) => return protocol_response(StatusCode::NOT_FOUND, path, Vec::new()),
+    };
+    let total = fs::metadata(&resolved).map(|meta| meta.len()).unwrap_or(0);
+    match range.map(|value| parse_byte_range(value, total)).unwrap_or(Ok(None)) {
+        Ok(None) => match fs::read(&resolved) {
+            Ok(bytes) => protocol_response_with_range(StatusCode::OK, &resolved, bytes, None),
+            Err(_) => protocol_response(StatusCode::NOT_FOUND, path, Vec::new()),
+        },
+        Ok(Some((start, end))) => {
+            let len = (end - start + 1) as usize;
+            let mut bytes = vec![0u8; len];
+            let read = (|| -> std::io::Result<()> {
+                use std::io::{Read, Seek, SeekFrom};
+                let mut file = fs::File::open(&resolved)?;
+                file.seek(SeekFrom::Start(start))?;
+                file.read_exact(&mut bytes)?;
+                Ok(())
+            })();
+            match read {
+                Ok(()) => protocol_response_with_range(
+                    StatusCode::PARTIAL_CONTENT,
+                    &resolved,
+                    bytes,
+                    Some(format!("bytes {}-{}/{}", start, end, total)),
+                ),
+                Err(_) => protocol_response(StatusCode::NOT_FOUND, path, Vec::new()),
+            }
+        }
+        Err(()) => protocol_response_with_range(
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            path,
+            Vec::new(),
+            Some(format!("bytes */{}", total)),
+        ),
+    }
+}
+
+/// Parse a single `Range: bytes=...` header value against a known length.
+/// Returns `Ok(None)` for no-range requests, `Ok(Some((start, end)))` with an
+/// inclusive end for satisfiable ranges, and `Err(())` for unsatisfiable ones.
+fn parse_byte_range(header: &str, total: u64) -> Result<Option<(u64, u64)>, ()> {
+    if total == 0 {
+        return Err(());
+    }
+    let spec = header.strip_prefix("bytes=").ok_or(())?;
+    let (start, end) = spec.split_once('-').ok_or(())?;
+    let range = if start.is_empty() {
+        // Suffix range: last `end` bytes.
+        let suffix_len: u64 = end.parse().map_err(|_| ())?;
+        if suffix_len == 0 {
+            return Err(());
+        }
+        (total.saturating_sub(suffix_len), total - 1)
+    } else {
+        let start: u64 = start.parse().map_err(|_| ())?;
+        if start >= total {
+            return Err(());
+        }
+        if end.is_empty() {
+            (start, total - 1)
+        } else {
+            let end: u64 = end.parse().map_err(|_| ())?;
+            if end < start {
+                return Err(());
+            }
+            (start, end.min(total - 1))
+        }
+    };
+    Ok(Some(range))
 }
 
 /// Migrate flat data.db and settings.db into the workspaces layout.
@@ -577,6 +624,7 @@ pub(crate) fn register_asset_protocols(builder: tauri::Builder<Wry>) -> tauri::B
 /// `settings.db` → `workspaces/default/settings.db`.
 /// Creates `workspaces.json` at the app root with the default workspace.
 fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("bootstrap.migrate_to_workspace_layout");
     let app_dir = crate::shared::app_storage_dir(app, state)?;
     let ws_root = app_dir.join(crate::shared::WORKSPACES_DIR);
     let marker = app_dir.join(".workspace-migrated");
@@ -593,12 +641,10 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
 
     fs::create_dir_all(&default_ws_dir)?;
 
-    // Move existing data.db into the default workspace
     if old_data_db.exists() {
         fs::rename(&old_data_db, default_ws_dir.join("data.db"))?;
     }
 
-    // Move existing settings.db into the default workspace
     if old_settings_db.exists() {
         fs::rename(&old_settings_db, default_ws_dir.join("settings.db"))?;
     }
@@ -669,6 +715,7 @@ fn ensure_default_workspace_in_registry(
 }
 
 pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("bootstrap.setup_app");
     let state = app.state::<AppState>();
 
     // ── Workspace migration (must run BEFORE any settings_pool call) ──────
@@ -681,6 +728,14 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     );
     grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
     fs::create_dir_all(&state.files.asset_cache_dir)?;
+
+    // Warm the Keychain-backed master key on a background thread so the
+    // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
+    // in-memory cache instead of a ~2.5s cold Keychain read on the startup path.
+    std::thread::spawn(|| {
+        let _ = read_master_key();
+    });
+    prewarm_crypto();
 
     *state.updater.lock().map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
         auto_update_enabled: commands::updates::load_auto_update_enabled(app.handle())
@@ -747,4 +802,45 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
         s.active = manifest_path.exists();
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_byte_range;
+
+    #[test]
+    fn range_absent_returns_none() {
+        assert_eq!(parse_byte_range("", 100), Err(()));
+        assert_eq!(parse_byte_range("garbage", 100), Err(()));
+    }
+
+    #[test]
+    fn range_full_file() {
+        assert_eq!(parse_byte_range("bytes=0-", 100), Ok(Some((0, 99))));
+        assert_eq!(parse_byte_range("bytes=0-99", 100), Ok(Some((0, 99))));
+    }
+
+    #[test]
+    fn range_middle_slice() {
+        assert_eq!(parse_byte_range("bytes=10-20", 100), Ok(Some((10, 20))));
+    }
+
+    #[test]
+    fn range_open_ended_clamps_to_length() {
+        assert_eq!(parse_byte_range("bytes=90-999", 100), Ok(Some((90, 99))));
+    }
+
+    #[test]
+    fn range_suffix() {
+        assert_eq!(parse_byte_range("bytes=-25", 100), Ok(Some((75, 99))));
+        assert_eq!(parse_byte_range("bytes=-0", 100), Err(()));
+    }
+
+    #[test]
+    fn range_unsatisfiable() {
+        assert_eq!(parse_byte_range("bytes=100-", 100), Err(()));
+        assert_eq!(parse_byte_range("bytes=100-200", 100), Err(()));
+        assert_eq!(parse_byte_range("bytes=20-10", 100), Err(()));
+        assert_eq!(parse_byte_range("bytes=0-", 0), Err(()));
+    }
 }

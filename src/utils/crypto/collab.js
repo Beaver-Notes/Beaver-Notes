@@ -1,5 +1,4 @@
 /**
- * E2E encryption helpers for note collaboration.
  * Uses AES-256-GCM via Web Crypto API (native, no dependencies).
  *
  * The collaboration key is a hex-encoded 32-byte AES key fetched from
@@ -20,7 +19,6 @@ function hexToBytes(hex) {
 /**
  * Import a hex-encoded collaboration key as a CryptoKey.
  * @param {string} hexKey - 64-char hex string (32 bytes)
- * @returns {Promise<CryptoKey>}
  */
 export async function importCollabKey(hexKey) {
   const keyBytes = hexToBytes(hexKey);
@@ -31,9 +29,6 @@ export async function importCollabKey(hexKey) {
 }
 
 /**
- * Encrypt a Uint8Array payload with AES-256-GCM.
- * @param {CryptoKey} key - The collaboration CryptoKey
- * @param {Uint8Array} plaintext - The data to encrypt
  * @param {string} [aad] - Optional Additional Authenticated Data (e.g., noteId)
  * @returns {Promise<Uint8Array>} - IV (12 bytes) + ciphertext
  */
@@ -45,7 +40,6 @@ export async function encryptUpdate(key, plaintext, aad) {
     key,
     plaintext
   );
-  // Prepend IV to ciphertext
   const result = new Uint8Array(iv.length + ciphertext.byteLength);
   result.set(iv, 0);
   result.set(new Uint8Array(ciphertext), iv.length);
@@ -53,11 +47,8 @@ export async function encryptUpdate(key, plaintext, aad) {
 }
 
 /**
- * Decrypt a Uint8Array payload encrypted with AES-256-GCM.
- * @param {CryptoKey} key - The collaboration CryptoKey
  * @param {Uint8Array} data - IV (12 bytes) + ciphertext
  * @param {string} [aad] - Optional Additional Authenticated Data (must match encryption)
- * @returns {Promise<Uint8Array>} - Decrypted plaintext
  */
 export async function decryptUpdate(key, data, aad) {
   const iv = data.slice(0, IV_LENGTH);
@@ -73,8 +64,6 @@ export async function decryptUpdate(key, data, aad) {
 
 /**
  * Check if a hex string looks like a valid collaboration key (64 hex chars).
- * @param {string} hex
- * @returns {boolean}
  */
 export function isValidCollabKey(hex) {
   return typeof hex === 'string' && /^[0-9a-f]{64}$/i.test(hex);

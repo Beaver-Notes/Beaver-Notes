@@ -1,7 +1,8 @@
 use std::{fs, path::PathBuf, time::{Duration, SystemTime}};
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use bcrypt::{hash, verify, DEFAULT_COST};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 
@@ -207,6 +208,7 @@ pub(crate) fn encryption_submit_password(
     password: String,
     create_if_missing: Option<bool>,
 ) -> Result<EncryptionSubmitResult, AppError> {
+    let _t = crate::shared::speed_log::scope("security.encryption_submit_password");
     let create_if_missing = create_if_missing.unwrap_or(true);
 
     assert_not_locked(state.inner())?;
@@ -215,24 +217,22 @@ pub(crate) fn encryption_submit_password(
     if manifest_path.exists() {
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("Encryption manifest is missing.".into()))?;
-        let key = unlock_key_from_manifest(
+        // Derive the KEK once: unlock returns it alongside the items key so the
+        // key ring can be populated without re-running Argon2id.
+        let (key, kek) = unlock_key_from_manifest(
             &manifest,
             &password,
             APP_ENCRYPTION_SCOPE,
             APP_PASSWORD_CHECK,
         )?;
-        // Populate items-key ring and cache the KEK for future rotations.
-        let kek = derive_kek_from_manifest(&manifest, &password)?;
         populate_key_ring(state.inner(), &manifest, &kek)?;
         let mut s = state.crypto.session.write()?;
         s.app_data_key = Some(key);
         s.active = true;
     } else if create_if_missing {
-        let (manifest, key) =
+        let (manifest, key, kek) =
             create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
         write_encryption_manifest(&manifest_path, &manifest)?;
-        // Store the initial key ID and cache the KEK.
-        let kek = derive_kek_from_manifest(&manifest, &password)?;
         populate_key_ring(state.inner(), &manifest, &kek)?;
         let mut s = state.crypto.session.write()?;
         s.app_data_key = Some(key);
@@ -264,12 +264,11 @@ pub(crate) fn encryption_enable(
     state: State<AppState>,
     password: String,
 ) -> Result<(), AppError> {
-    let (manifest, key) =
+    let (manifest, key, kek) =
         create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     write_encryption_manifest(&manifest_path, &manifest)?;
     // Cache the KEK and populate the key ring so rotation works later.
-    let kek = derive_kek_from_manifest(&manifest, &password)?;
     populate_key_ring(state.inner(), &manifest, &kek)?;
     let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
@@ -284,18 +283,18 @@ pub(crate) fn encryption_unlock(
     state: State<AppState>,
     password: String,
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("security.encryption_unlock");
     assert_not_locked(state.inner())?;
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     let manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Other("Encryption is not enabled.".into()))?;
-    let key = unlock_key_from_manifest(
+    let (key, kek) = unlock_key_from_manifest(
         &manifest,
         &password,
         APP_ENCRYPTION_SCOPE,
         APP_PASSWORD_CHECK,
     )?;
     // Populate items-key ring and cache the KEK for future rotations.
-    let kek = derive_kek_from_manifest(&manifest, &password)?;
     populate_key_ring(state.inner(), &manifest, &kek)?;
     let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
@@ -380,26 +379,61 @@ pub(crate) fn encryption_decrypt_note_payload(
     Ok(Some(serde_json::to_string(&value)?))
 }
 
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SyncDecryptedPayload {
+    pub(crate) meta: SyncMeta,
+    pub(crate) update: String,
+}
+
+#[derive(Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SyncMeta {
+    pub(crate) device: String,
+    pub(crate) ts: i64,
+    #[serde(default)]
+    pub(crate) seq: Option<i64>,
+    pub(crate) note_id: String,
+}
+
 /// Encrypt a sync payload (commit / snapshot / genesis) with the items key using
 /// XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
 /// stem) so it cannot be swapped between sync entries.
+///
+/// The Yjs update is passed as base64-encoded raw bytes (`data`) rather than a
+/// JSON number array, so multi-MB payloads never hit a serde_json round-trip on
+/// a huge array (the previous ~950ms cost). `meta` (device/ts/seq/noteId) is
+/// stored inside the encrypted envelope so it round-trips with the payload.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn sync_encrypt_payload(
     _app: AppHandle,
     state: State<AppState>,
-    json: String,
+    meta: String,
+    data: String,
     aad: String,
 ) -> Result<String, AppError> {
+    let _t = crate::shared::speed_log::scope("security.sync_encrypt_payload");
     let key = current_app_key(state.inner())?
         .ok_or_else(|| AppError::Other("Encryption is enabled but locked.".into()))?;
-    let value: Value = serde_json::from_str(&json)?;
-    let envelope = aead_encrypt_json(&key, &value, &aad)?;
+    let bytes = BASE64.decode(data)?;
+    let (iv, enc) = aead_encrypt_bytes(&key, &bytes, &aad)?;
+    let meta: SyncMeta = serde_json::from_str(&meta)?;
+    let envelope = serde_json::json!({
+        "v": SYNC_PAYLOAD_VERSION,
+        "meta": serde_json::to_value(&meta)?,
+        "iv": iv,
+        "enc": enc,
+    });
     Ok(serde_json::to_string(&envelope)?)
 }
 
 /// Decrypt a sync payload. Returns `DECRYPT_FAILED` on authentication failure
 /// (wrong passphrase or tampered AAD) and `KEY_LOCKED` when the key is absent.
+///
+/// Returns the decrypted update as base64 raw bytes plus the meta object, so the
+/// renderer never reconstructs a giant number array. v4 envelopes (update stored
+/// as a JSON number array) are decoded for backward compatibility.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn sync_decrypt_payload(
@@ -407,18 +441,63 @@ pub(crate) fn sync_decrypt_payload(
     state: State<AppState>,
     enc: String,
     aad: String,
-) -> Result<String, AppError> {
-    let envelope: SyncEnvelope = serde_json::from_str(&enc)?;
-    if envelope.v != PROTOCOL_VERSION {
-        return Err(AppError::Other(format!("Unsupported envelope version: {}", envelope.v)));
-    }
+) -> Result<SyncDecryptedPayload, AppError> {
+    let _t = crate::shared::speed_log::scope("security.sync_decrypt_payload");
+    let envelope: Value = serde_json::from_str(&enc)?;
+    let v = envelope
+        .get("v")
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as u8;
     let key = match current_app_key(state.inner())? {
         Some(key) => key,
         None => return Err(AppError::Other("KEY_LOCKED".into())),
     };
-    match aead_decrypt_json(&key, &envelope, &aad) {
-        Ok(value) => Ok(serde_json::to_string(&value)?),
-        Err(_) => Err(AppError::Other("DECRYPT_FAILED".into())),
+    let iv = envelope
+        .get("iv")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+    let enc_str = envelope
+        .get("enc")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string();
+
+    if v == SYNC_PAYLOAD_VERSION {
+        let bytes = aead_decrypt_bytes(&key, &iv, &enc_str, &aad)
+            .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+        let meta: SyncMeta = serde_json::from_value(
+            envelope
+                .get("meta")
+                .cloned()
+                .unwrap_or(Value::Null),
+        )
+        .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+        Ok(SyncDecryptedPayload {
+            meta,
+            update: BASE64.encode(bytes),
+        })
+    } else if v == PROTOCOL_VERSION {
+        let legacy = SyncEnvelope { v, iv, enc: enc_str };
+        let value = aead_decrypt_json(&key, &legacy, &aad)
+            .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+        let meta: SyncMeta = serde_json::from_value(value.clone())
+            .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+        let update_arr = value
+            .get("update")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+        let bytes: Vec<u8> = update_arr
+            .iter()
+            .filter_map(|n| n.as_u64().map(|u| u as u8))
+            .collect();
+        Ok(SyncDecryptedPayload {
+            meta,
+            update: BASE64.encode(bytes),
+        })
+    } else {
+        Err(AppError::Other(format!("Unsupported envelope version: {}", v)))
     }
 }
 
@@ -605,16 +684,16 @@ pub(crate) fn asset_crypto_set_passphrase(
     state: State<AppState>,
     passphrase: String,
 ) -> Result<(), AppError> {
-    *state.security.transient_passphrase.lock()? = passphrase;
-    *state.crypto.asset_key_cache.lock()? = None;
+    state.security.set_transient_passphrase(passphrase);
+    state.crypto.clear_asset_key_cache();
     Ok(())
 }
 
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn asset_crypto_clear_passphrase(state: State<AppState>) -> Result<(), AppError> {
-    state.security.transient_passphrase.lock()?.clear();
-    *state.crypto.asset_key_cache.lock()? = None;
+    state.security.clear_transient_passphrase();
+    state.crypto.clear_asset_key_cache();
     Ok(())
 }
 
@@ -716,6 +795,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<String, AppError> {
+    let _t = crate::shared::speed_log::scope("security.encryption_decrypt_asset_stream");
     let path_buf = PathBuf::from(path.clone());
     let state_inner = state.inner();
 
@@ -762,6 +842,7 @@ pub(crate) async fn encryption_encrypt_asset_stream(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("security.encryption_encrypt_asset_stream");
     let path_buf = PathBuf::from(path.clone());
     let state_inner = state.inner();
 
