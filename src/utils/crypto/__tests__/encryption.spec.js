@@ -5,6 +5,7 @@ vi.mock('@/lib/native/security.js', () => ({
   hasRemoteKeyParams: vi.fn(),
   getEncryptionState: vi.fn(() => Promise.resolve({ enabled: true, unlocked: true })),
   submitEncryptionPassword: vi.fn(),
+  reconcileSyncKeyParams: vi.fn(() => Promise.resolve()),
   syncEncryptPayload: vi.fn(),
   syncDecryptPayload: vi.fn(),
   syncKeyReady: vi.fn(),
@@ -19,8 +20,14 @@ vi.mock('@/utils/sync/vault-key-params.js', () => ({
   publishCloudKeyParams: vi.fn(() => Promise.resolve(false)),
 }));
 
-import { adoptVaultKey, hasRemoteVaultKeyParams } from '@/utils/crypto/encryption.js';
-import { adoptKeyParams, hasRemoteKeyParams } from '@/lib/native/security.js';
+import {
+  adoptVaultKey,
+  hasRemoteVaultKeyParams,
+  setupEncryption,
+  verifyPassphrase,
+} from '@/utils/crypto/encryption.js';
+import { adoptKeyParams, hasRemoteKeyParams, submitEncryptionPassword } from '@/lib/native/security.js';
+import { publishCloudKeyParams } from '@/utils/sync/vault-key-params.js';
 
 describe('adoptVaultKey', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -51,5 +58,23 @@ describe('hasRemoteVaultKeyParams', () => {
     hasRemoteKeyParams.mockResolvedValue(true);
     await expect(hasRemoteVaultKeyParams()).resolves.toBe(true);
     expect(hasRemoteKeyParams).toHaveBeenCalled();
+  });
+});
+
+describe('cloud key params publish on encryption lifecycle', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('publishes cloud key params after setupEncryption succeeds', async () => {
+    submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
+    const res = await setupEncryption('a-passphrase');
+    expect(res.ok).toBe(true);
+    await vi.waitFor(() => expect(publishCloudKeyParams).toHaveBeenCalled());
+  });
+
+  it('publishes cloud key params after verifyPassphrase succeeds', async () => {
+    submitEncryptionPassword.mockResolvedValue({ ok: true, state: { enabled: true, unlocked: true } });
+    const res = await verifyPassphrase('a-passphrase');
+    expect(res.ok).toBe(true);
+    await vi.waitFor(() => expect(publishCloudKeyParams).toHaveBeenCalled());
   });
 });

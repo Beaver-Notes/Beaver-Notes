@@ -108,6 +108,11 @@ export class SyncEngine {
         syncPassphrase = null;
       }
       try {
+        const { fetchCloudKeyParams } = await import('./vault-key-params.js');
+        await fetchCloudKeyParams().catch(() => {});
+      } catch {
+      }
+      try {
         const { reconcileSyncKeyParams } = await import('@/lib/native/security.js');
         await reconcileSyncKeyParams(syncPassphrase || undefined);
       } catch (e) {

@@ -57,6 +57,10 @@ vi.mock('@/lib/native/security.js', () => ({
   reconcileSyncKeyParams: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('../vault-key-params.js', () => ({
+  fetchCloudKeyParams: vi.fn(() => Promise.resolve(null)),
+}));
+
 describe('SyncEngine mutex', () => {
   let engine;
   let mockLocalTransport;

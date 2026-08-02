@@ -80,6 +80,25 @@ export async function deleteRemoteUpdates(keys) {
   return result || { deleted: 0 };
 }
 
+/**
+ * Fetch a single stored blob by key.
+ * @param {string} key
+ * @returns {Promise<string | null>} base64 blob, or null when the key is absent.
+ */
+export async function fetchUpdate(key) {
+  const client = getClient();
+  try {
+    const result = await client.get(
+      `/yjs/updates/${encodeURIComponent(key)}`,
+      { timeoutMs: 15000 }
+    );
+    return result?.data ?? null;
+  } catch (e) {
+    if (e?.status === 404) return null;
+    throw e;
+  }
+}
+
 function getDeviceLabel() {
   try {
     const platform = typeof navigator !== 'undefined' ? navigator.platform : 'Unknown';

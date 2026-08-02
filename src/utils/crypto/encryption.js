@@ -79,8 +79,7 @@ export async function setupEncryption(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     reconcileSyncKeyParams().catch(() => {});
-    const vaultKeyParamsUrl = '@/utils/sync/vault-key-params.js';
-    import(/* @vite-ignore */ vaultKeyParamsUrl)
+    import('@/utils/sync/vault-key-params.js')
       .then((m) => m.publishCloudKeyParams())
       .catch(() => {});
     return { ok: true };
@@ -104,8 +103,7 @@ export async function verifyPassphrase(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     reconcileSyncKeyParams(passphrase).catch(() => {});
-    const vaultKeyParamsUrl = '@/utils/sync/vault-key-params.js';
-    import(/* @vite-ignore */ vaultKeyParamsUrl)
+    import('@/utils/sync/vault-key-params.js')
       .then((m) => m.publishCloudKeyParams())
       .catch(() => {});
     return { ok: true };
