@@ -621,6 +621,55 @@ pub(crate) fn encryption_reconcile_key_params(
     Ok(())
 }
 
+/// Join an existing vault by adopting the shared key params found in the sync
+/// source. Unlike `encryption_reconcile_key_params`, this works with an inactive
+/// session (a fresh joining device has no manifest yet). Wrong passphrase returns
+/// `WrongPassword` without touching any vault state.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn encryption_adopt_key_params(
+    app: AppHandle,
+    state: State<AppState>,
+    passphrase: String,
+) -> Result<EncryptionSubmitResult, AppError> {
+    assert_not_locked(state.inner())?;
+    let params = read_key_params(&app, state.inner())?.ok_or_else(|| {
+        AppError::Other("No shared key params found in the sync source.".into())
+    })?;
+    adopt_key_params(&app, state.inner(), &params, &passphrase)?;
+    {
+        let mut s = state.crypto.session.write()?;
+        s.active = true;
+    }
+    {
+        let mut f = state.security.failure_count.lock()?;
+        *f = 0;
+        *state.security.lockout_until.lock()? = None;
+    }
+    Ok(EncryptionSubmitResult {
+        ok: true,
+        error: None,
+        state: encryption_get_state(app, state)?,
+    })
+}
+
+/// True when the configured sync source holds vault key params that differ from
+/// this device's local manifest (or when no local manifest exists).
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn encryption_has_remote_key_params(
+    app: AppHandle,
+    state: State<AppState>,
+) -> Result<bool, AppError> {
+    let Some(params) = read_key_params(&app, state.inner())? else {
+        return Ok(false);
+    };
+    let local_manifest = app_encryption_manifest_path(&app, state.inner())
+        .ok()
+        .and_then(|p| load_encryption_manifest(&p).ok().flatten());
+    Ok(remote_params_differ(&params, local_manifest.as_ref()))
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {

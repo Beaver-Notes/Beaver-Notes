@@ -176,6 +176,8 @@ pub fn run() {
             commands::security::sync_decrypt_payload,
             commands::security::sync_key_ready,
             commands::security::encryption_reconcile_key_params,
+            commands::security::encryption_adopt_key_params,
+            commands::security::encryption_has_remote_key_params,
             commands::security::encryption_generate_recovery_code,
             commands::security::encryption_recover_with_code,
             commands::security::passwd_hash,
