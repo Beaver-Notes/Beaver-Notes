@@ -450,8 +450,26 @@ export function useAppShell() {
       return;
     }
 
-    restoreEncryptionKeys(); // non-blocking — key derives in background
+    // Derive/restore the encryption key BEFORE reading any note data. Note
+    // blobs are encrypted at rest when the vault is enabled, so loading them
+    // before the items key is available would hand ciphertext to the Yjs
+    // decoder (which aborts on invalid UTF-8).
+    await restoreEncryptionKeys();
 
+    if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
+      // Encryption is configured but the key could not be restored (no stored
+      // passphrase / safe storage unavailable). Loading note data now would
+      // yield garbage (or fail closed server-side), so defer until the user
+      // unlocks via the encryption gate. handleEncryptionUnlocked() runs the
+      // remainder of the init afterwards.
+      retrieved.value = true;
+      return;
+    }
+
+    await finishWorkspaceInit();
+  };
+
+  const finishWorkspaceInit = async () => {
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',
       null
@@ -495,6 +513,17 @@ export function useAppShell() {
     // on — periodic sync runs whenever the app is visible.
     initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
+  };
+
+  // Runs when the user unlocks the app via the encryption gate. The gate is
+  // only reachable when a configured vault could not be auto-unlocked, so this
+  // is the deferred remainder of initializeWorkspace().
+  const handleEncryptionUnlocked = () => {
+    appEncryptionGate.show = false;
+    finishWorkspaceInit().catch((err) => {
+      console.error('[app] workspace init after unlock failed:', err);
+      retrieved.value = true;
+    });
   };
 
   onMounted(async () => {
@@ -736,6 +765,7 @@ export function useAppShell() {
     syncLockBannerCopy,
     appEncryptionGate,
     refreshEncryptionGate,
+    handleEncryptionUnlocked,
     updateBanner,
     appEncryptionMigrationBanner,
     appEncryptionMigrationBannerCopy,

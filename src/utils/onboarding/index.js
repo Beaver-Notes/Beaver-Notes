@@ -164,6 +164,23 @@ export async function markOnboardingCompleted(settingsStorage) {
 export async function openOnboardingWorkspace({ store, noteStore, router }) {
   await getSyncPath();
 
+  // Derive/restore the encryption key before reading any Yjs data, mirroring
+  // useAppShell's initializeWorkspace. Note blobs are encrypted at rest when
+  // the vault is enabled, so decoding them without the key would feed
+  // ciphertext to the Yjs decoder (which aborts on invalid UTF-8) or fail
+  // closed server-side.
+  const { tryRestoreKeyFromSafeStorage, encryptionIsConfigured, isKeyLoaded } =
+    await import('@/utils/crypto/encryption.js');
+  await tryRestoreKeyFromSafeStorage();
+  if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
+    // Vault configured on this device but the key couldn't be restored (e.g.
+    // safe storage unavailable). Defer the workspace load to the shell's
+    // encryption gate, which appears right after onboarding completes and
+    // re-runs the init once unlocked.
+    await router.replace('/');
+    return;
+  }
+
   // Initialize the workspace Y.Doc — same sequence as useAppShell's
   // initializeWorkspace so Pinia gets hydrated from Yjs.
   const { loadWorkspaceDoc, observeWorkspace } = await import('@/composable/useWorkspaceYjs.js');

@@ -10,7 +10,7 @@
   <app-command-prompt />
   <app-encryption-gate
     v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
-    @unlocked="appEncryptionGate.show = false"
+    @unlocked="handleEncryptionUnlocked"
   />
   <div
     v-if="appEncryptionGate.show && appEncryptionGate.deriving"

@@ -8,7 +8,7 @@ use serde_json::{Map, Value};
 use yrs::updates::decoder::Decode;
 use yrs::{ReadTxn, Transact};
 
-use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, AppError};
+use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, is_encrypted_yjs_blob, AppError};
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
@@ -386,27 +386,33 @@ pub(crate) fn yjs_get_updates(
             Ok((id, blob))
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
-    rows.filter_map(|r| {
-        let (id, blob) = match r {
+    let mut result = Vec::new();
+    for row in rows {
+        let (id, blob) = match row {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("[yjs_get_updates] skipping corrupt row: {e}");
-                return None;
+                continue;
             }
         };
-        let decrypted = match key {
+        match key {
             Some(k) => match decrypt_yjs_blob(&k, &blob) {
-                Ok(d) => d,
+                Ok(d) => result.push((id, d)),
                 Err(e) => {
                     eprintln!("[yjs_get_updates] skipping undecryptable row {id}: {e}");
-                    return None;
                 }
             },
-            None => blob,
-        };
-        Some(Ok((id, decrypted)))
-    })
-    .collect()
+            None if is_encrypted_yjs_blob(&blob) => {
+                // Encrypted at rest but no key is available: fail closed so the
+                // ciphertext is never handed to the Yjs decoder (which aborts on
+                // invalid UTF-8) or built into a partial snapshot that would
+                // shadow the encrypted rows.
+                return Err(AppError::EncryptionLocked);
+            }
+            None => result.push((id, blob)),
+        }
+    }
+    Ok(result)
 }
 
 /// Return a single merged Yjs state snapshot for a note, computed with the
@@ -425,6 +431,7 @@ pub(crate) fn yjs_get_snapshot(
         if !cached.is_empty() && !snapshot_is_stale(pool, note_id, cached_updated_at)? {
             return match key {
                 Some(k) => Ok(decrypt_yjs_blob(&k, &cached)?),
+                None if is_encrypted_yjs_blob(&cached) => Err(AppError::EncryptionLocked),
                 None => Ok(cached),
             };
         }
@@ -432,6 +439,11 @@ pub(crate) fn yjs_get_snapshot(
     let rows = yjs_get_updates(pool, note_id, key)?;
     if rows.is_empty() {
         return Ok(Vec::new());
+    }
+    // Defense in depth: `yjs_get_updates` fails closed on encrypted rows without
+    // a key, but never hand ciphertext to the Yjs decoder regardless.
+    if key.is_none() && rows.iter().any(|(_, blob)| is_encrypted_yjs_blob(blob)) {
+        return Err(AppError::EncryptionLocked);
     }
     let doc = yrs::Doc::new();
     {
@@ -510,7 +522,7 @@ pub(crate) fn yjs_get_snapshots(
             let stale = latest
                 .get(note_id)
                 .is_some_and(|&t| t > *updated_at);
-            !data.is_empty() && !stale
+            !data.is_empty() && !stale && (key.is_some() || !is_encrypted_yjs_blob(data))
         })
         .map(|(note_id, data, _)| {
             let bytes = match key {
@@ -524,13 +536,22 @@ pub(crate) fn yjs_get_snapshots(
         result.insert(note_id, bytes);
     }
 
-    // Rebuild stale/missing snapshots individually (rare).
+    // Rebuild stale/missing snapshots individually (rare). A note whose data is
+    // encrypted but whose key is unavailable is skipped so one locked note never
+    // fails the whole batch.
     for id in note_ids {
-        if !result.contains_key(id) {
-            let snapshot = yjs_get_snapshot(pool, id, key)?;
-            if !snapshot.is_empty() {
+        if result.contains_key(id) {
+            continue;
+        }
+        match yjs_get_snapshot(pool, id, key) {
+            Ok(snapshot) if !snapshot.is_empty() => {
                 result.insert(id.clone(), snapshot);
             }
+            Ok(_) => {}
+            Err(AppError::EncryptionLocked) => {
+                eprintln!("[yjs_get_snapshots] skipping locked note {id}");
+            }
+            Err(e) => return Err(e),
         }
     }
     Ok(result)

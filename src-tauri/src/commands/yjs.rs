@@ -5,14 +5,18 @@ use tauri::{AppHandle, State};
 use crate::shared::*;
 
 /// Extract the current app encryption key, if encryption is active and unlocked.
-/// Returns `None` when encryption is not configured or is locked (blobs stored
-/// in plaintext in that case).
+/// Returns `None` only when encryption is NOT configured (blobs stored in
+/// plaintext in that case). When encryption is configured but the items key is
+/// not loaded (session not yet unlocked), returns `EncryptionLocked` instead of
+/// silently falling back to plaintext: reading ciphertext as plaintext would
+/// feed garbage to the Yjs decoder (which aborts on invalid UTF-8), and writing
+/// plaintext would interleave plaintext among encrypted rows.
 fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
   let session = state.crypto.session.read()?;
   if !session.active {
     return Ok(None);
   }
-  Ok(session.app_data_key)
+  Ok(Some(current_app_key(state)?.ok_or(AppError::EncryptionLocked)?))
 }
 
 /// Append a single Yjs binary update for a note.  Updates are stored as
