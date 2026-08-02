@@ -262,7 +262,7 @@ export default {
       NodeRangeSelection,
     ];
     if (typeof window === 'undefined' || window.innerWidth >= 768) {
-      exts.push(Commands);
+      exts.push(Commands.configure({ id: props.id }));
     }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 

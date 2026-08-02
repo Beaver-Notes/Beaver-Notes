@@ -24,6 +24,7 @@ export default Extension.create({
 
   addOptions() {
     return {
+      id: '',
       suggestion: {
         char: '/',
         pluginKey: new PluginKey('commands-menu'),
@@ -53,6 +54,7 @@ export default Extension.create({
                   ...props,
                   editor: props.editor,
                   range: props.range,
+                  id: this.options.id,
                   command: ({ editor, range, props }) => {
                     runCommand({ editor, range, props });
                   },

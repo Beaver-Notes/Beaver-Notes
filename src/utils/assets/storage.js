@@ -3,6 +3,7 @@ import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
+import { speed } from '@/utils/speed.js';
 
 function sourceFileName(file) {
   if (typeof file === 'string') {
@@ -66,6 +67,10 @@ async function createFileDestination(file, id) {
 }
 
 export async function saveFile(file, id) {
+  if (!id) {
+    throw new Error('Cannot save file asset: missing note id');
+  }
+  const t = speed('asset_save_file');
   try {
     const contentUint8Array = await readFileAsBytes(file);
     const { fileName, destPath } = await createFileDestination(file, id);
@@ -75,6 +80,7 @@ export async function saveFile(file, id) {
       path: destPath,
       skipAssetEncryption: !isEncryptionEnabled(),
     });
+    t?.end();
     return { fileName, relativePath };
   } catch (error) {
     console.error(error);
