@@ -171,7 +171,6 @@ import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useUiState } from '@/composable/useUiState';
-import { useStorage } from '@/composable/storage';
 import { useStore } from '@/store';
 import { addCloseHandler } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/composable/useNotePersistence';
@@ -209,7 +208,6 @@ export default {
     const route = useRoute();
     const store = useStore();
     const router = useRouter();
-    const storage = useStorage();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const appStore = useAppStore();
@@ -402,16 +400,16 @@ export default {
 
         if (!noteId) return;
 
-        storage.get(`notes.${noteId}`).then((data) => {
-          if (!data || data.id === '') {
-            router.push('/');
-          } else {
-            store.activeNoteId = data.id;
-            localStorage.setItem('lastNoteEdit', noteId);
-          }
-        });
-
+        // Check the Pinia note store (source of truth) instead of the legacy
+        // KV table which post-migration / synced notes never write to.
         const currentNote = noteStore.getById(noteId);
+        if (!currentNote || !currentNote.id) {
+          router.push('/');
+        } else {
+          store.activeNoteId = currentNote.id;
+          localStorage.setItem('lastNoteEdit', noteId);
+        }
+
         const seedContent = currentNote?.content;
         const seedTitle = currentNote?.title || '';
         yjsLoad(noteId, seedContent, seedTitle).catch((err) => {

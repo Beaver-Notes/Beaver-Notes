@@ -209,6 +209,9 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
 
   // Trigger an initial sync so a new client pulling from an existing sync
   // folder gets all remote data (workspace meta + note content + assets).
-  // Autosync is always on, so this runs even when the user skipped folder setup.
+  // The first call may race with persistSecureBlobInBackground (the passphrase
+  // blob is written async after adoptVaultKey), so schedule a delayed retry
+  // to cover the case where the first cycle cannot decrypt yet.
   forceSyncNow().catch(() => {});
+  setTimeout(() => forceSyncNow().catch(() => {}), 2000);
 }
