@@ -333,6 +333,7 @@
   />
   <history-panel
     v-if="showHistory"
+    :note-id="id"
     @close="$emit('toggle-history')"
   />
   <online-users-panel
