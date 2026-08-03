@@ -5,6 +5,7 @@ import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
 import { initAppSync } from '@/utils/sync/app-sync.js';
+import { getSyncEngine } from '@/utils/sync/engine.js';
 
 // Re-export the legacy/Electron migration helpers under stable onboarding names.
 export {
@@ -201,17 +202,33 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
     return;
   }
 
+  // Initialize the sync engine and pull remote data BEFORE navigating so
+  // notes from the sync folder / cloud are already visible on first render.
+  // The engine must exist before forceSyncNow() can do anything; without it
+  // the old code silently skipped the pull (engine was null).
+  initAppSync();
+  const engine = getSyncEngine();
+  if (engine) {
+    try {
+      await engine.forceSyncNow();
+    } catch (e) {
+      console.warn('[onboarding] initial sync pull failed:', e);
+    }
+    // The first sync cycle may fail to decrypt because
+    // persistSecureBlobInBackground (called by adoptVaultKey) is
+    // fire-and-forget and the passphrase blob might not be in safe
+    // storage yet.  Retry once after a short delay.
+    setTimeout(() => engine.forceSyncNow().catch(() => {}), 2000);
+  }
+
+  // Re-hydrate Pinia from the now-populated Yjs workspace doc so note
+  // metadata (titles, folders, labels, etc.) reflects the pulled data.
+  await writeStoresFromWorkspace();
+  await store.retrieve();
+
   const [latestNote] = [...noteStore.notes].sort(
     (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
   );
 
   await router.replace(latestNote ? `/note/${latestNote.id}` : '/');
-
-  // Trigger an initial sync so a new client pulling from an existing sync
-  // folder gets all remote data (workspace meta + note content + assets).
-  // The first call may race with persistSecureBlobInBackground (the passphrase
-  // blob is written async after adoptVaultKey), so schedule a delayed retry
-  // to cover the case where the first cycle cannot decrypt yet.
-  forceSyncNow().catch(() => {});
-  setTimeout(() => forceSyncNow().catch(() => {}), 2000);
 }
