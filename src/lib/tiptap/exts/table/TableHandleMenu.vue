@@ -146,7 +146,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { getTranslations } from '@/utils/getTranslations';
 import { getTable, getRowCells, getColumnCells, selectLastCell, TABLE_COLOR_SWATCHES, TABLE_ALIGN_OPTIONS } from './tiptap-table-utils.js';
-import { moveTableRow, moveTableColumn, CellSelection, selectedRect } from '@tiptap/pm/tables';
+import { moveTableRow, moveTableColumn } from '@tiptap/pm/tables';
 
 export default {
   props: {
@@ -199,37 +199,30 @@ export default {
     ]);
 
     const mergeOrSplitState = computed(() => {
-      if (!props.editor) return 'default';
-      const { selection } = props.editor.state;
-      if (selection instanceof CellSelection) {
-        const rect = selectedRect(props.editor.state);
-        if (rect.width * rect.height > 1) return 'merge';
-      }
+      if (!props.editor) return 'merge';
       const isRow = props.orientation === 'row';
       const idx = isRow ? props.state?.rowIndex : props.state?.colIndex;
       const tp = props.state?.blockPos;
-      if (idx == null || tp == null) return 'default';
+      if (idx == null || tp == null) return 'merge';
       const table = getTable(props.editor, tp);
-      if (!table) return 'default';
+      if (!table) return 'merge';
       const cells = isRow
         ? getRowCells(props.editor, idx, tp).cells
         : getColumnCells(props.editor, idx, tp).cells;
       const merged = cells.find(
         (c) => (c.node?.attrs.colspan ?? 1) > 1 || (c.node?.attrs.rowspan ?? 1) > 1
       );
-      return merged ? 'split' : 'default';
+      return merged ? 'split' : 'merge';
     });
 
     const mergeOrSplitIcon = computed(() => {
-      if (mergeOrSplitState.value === 'merge') return 'riMergeCellsHorizontal';
-      if (mergeOrSplitState.value === 'split') return 'riSplitCellsVertical';
-      return 'riSplitCellsHorizontal';
+      return mergeOrSplitState.value === 'split' ? 'riSplitCellsVertical' : 'riMergeCellsHorizontal';
     });
 
     const mergeOrSplitLabel = computed(() => {
-      if (mergeOrSplitState.value === 'merge') return t?.menu?.mergeCells || 'Merge cells';
-      if (mergeOrSplitState.value === 'split') return t?.menu?.splitCell || 'Split cell';
-      return t?.menu?.mergeOrSplit || 'Merge or Split';
+      return mergeOrSplitState.value === 'split'
+        ? (t?.menu?.splitCell || 'Split cell')
+        : (t?.menu?.mergeCells || 'Merge cells');
     });
 
     function mergeOrSplit() {
