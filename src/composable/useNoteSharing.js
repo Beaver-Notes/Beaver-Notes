@@ -6,6 +6,9 @@ import {
   inviteCollaborator as apiInvite,
   listCollaborators as apiList,
   removeCollaborator as apiRemove,
+  generateInviteLink as apiGenerateLink,
+  listInviteLinks as apiListLinks,
+  revokeInviteLink as apiRevokeLink,
 } from '@/lib/api/collaboration';
 
 export function useNoteSharing() {
@@ -14,6 +17,8 @@ export function useNoteSharing() {
   const loading = ref(false);
   const error = ref('');
   const key = ref(null);
+  const inviteLinks = ref([]);
+  const linkLoading = ref(false);
 
   async function fetchCollaborators(noteId) {
     if (!accountStore.isAuthenticated) return;
@@ -91,15 +96,44 @@ export function useNoteSharing() {
     }
   }
 
+  async function fetchLinks(noteId) {
+    linkLoading.value = true;
+    try {
+      inviteLinks.value = await apiListLinks(noteId);
+    } finally {
+      linkLoading.value = false;
+    }
+  }
+
+  async function generateLink(noteId, options = {}) {
+    const result = await apiGenerateLink(noteId, {
+      role: options.role || 'editor',
+      requireApproval: options.requireApproval || false,
+      expiresIn: options.expiresIn || null,
+    });
+    inviteLinks.value.unshift(result);
+    return result;
+  }
+
+  async function revokeLink(noteId, linkId) {
+    await apiRevokeLink(noteId, linkId);
+    inviteLinks.value = inviteLinks.value.filter((l) => l.id !== linkId);
+  }
+
   return {
     collaborators,
     loading,
     error,
     key,
+    inviteLinks,
+    linkLoading,
     fetchCollaborators,
     ensureKey,
     getKey,
     invite,
     remove,
+    fetchLinks,
+    generateLink,
+    revokeLink,
   };
 }
