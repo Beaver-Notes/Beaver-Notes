@@ -4,7 +4,7 @@ import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
-import { forceSyncNow } from '@/utils/sync';
+import { initAppSync } from '@/utils/sync/app-sync.js';
 
 // Re-export the legacy/Electron migration helpers under stable onboarding names.
 export {
