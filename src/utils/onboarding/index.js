@@ -4,7 +4,7 @@ import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
-import { forceSyncNow } from '@/utils/sync';
+import { initAppSync } from '@/utils/sync/app-sync.js';
 
 // Re-export the legacy/Electron migration helpers under stable onboarding names.
 export {
@@ -207,8 +207,12 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
 
   await router.replace(latestNote ? `/note/${latestNote.id}` : '/');
 
-  // Trigger an initial sync so a new client pulling from an existing sync
-  // folder gets all remote data (workspace meta + note content + assets).
-  // Autosync is always on, so this runs even when the user skipped folder setup.
-  forceSyncNow().catch(() => {});
+  // (Re-)initialize the sync engine so it picks up the post-adoption state
+  // (sync path set, vault key adopted, passphrase persisted).  The engine was
+  // originally created during the first-run path of useAppShell, but the sync
+  // path and vault key weren't configured yet.  Calling initAppSync() replaces
+  // the engine singleton with one that reflects the current state and triggers
+  // an initial sync pull.  Autosync is always on, so periodic sync continues
+  // running even when the user skipped folder setup.
+  initAppSync();
 }
