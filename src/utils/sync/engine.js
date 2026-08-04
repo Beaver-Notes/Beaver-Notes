@@ -92,13 +92,18 @@ export class SyncEngine {
     this.syncing = true;
     this.pending = false;
 
+    console.log('[sync] _runCycle start', { force: _force });
+
     let outcome;
     try {
       const syncPath = await getSyncPath();
       const activeTransportNames = this.getActiveTransports();
       const hasLocal = activeTransportNames.includes('local');
 
+      console.log('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
+
       if (!syncPath && hasLocal) {
+        console.log('[sync] no syncPath + local only → skip');
         outcome = { ok: true };
         return;
       }
@@ -143,7 +148,9 @@ export class SyncEngine {
 
       for (const name of activeTransportNames) {
         const transport = this.transports[name];
+        console.log(`[sync] ${name} pull start`);
         const { updates } = await transport.pull(cursors);
+        console.log(`[sync] ${name} pull got ${updates.length} updates`);
         for (const upd of updates) {
           applyRemote(upd.noteId, upd.update);
           await appendUpdate(upd.noteId, upd.update, upd.device);
@@ -157,9 +164,11 @@ export class SyncEngine {
 
       for (const name of activeTransportNames) {
         const transport = this.transports[name];
+        console.log(`[sync] ${name} push start`);
         const { cursorsDelta } = await transport.push(cursors, {
           force: this._forceFlush,
         });
+        console.log(`[sync] ${name} push done`);
         if (mergeCursorDelta(cursors, cursorsDelta)) {
           await this._saveCursors(cursors);
         }
@@ -175,8 +184,10 @@ export class SyncEngine {
       }
 
       outcome = { ok: true };
+      console.log('[sync] cycle complete ok');
     } catch (err) {
       console.error('[sync] Sync failed:', err);
+      console.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
       outcome = { ok: false, err };
     } finally {

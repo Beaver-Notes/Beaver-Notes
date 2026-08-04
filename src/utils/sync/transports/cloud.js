@@ -140,7 +140,7 @@ export class CloudTransport extends Transport {
     const want = t === 'remote' || t === 'both';
     if (!want) return false;
     const { isAuth, plan } = this.getAccountState();
-    return isAuth && (plan === 'basic' || plan === 'pro');
+    return isAuth && (plan === 'basic' || plan === 'pro' || plan === 'enterprise');
   }
 
   _throttled() {

@@ -88,7 +88,7 @@
         </div>
 
         <div
-          v-if="state.syncPath"
+          v-if="state.syncPath || (cloudSync.isAuthenticated && cloudSync.isPaid)"
           class="border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between gap-3 px-4 py-3.5"
         >
           <p class="text-xs text-neutral-500 dark:text-neutral-400">
