@@ -53,7 +53,14 @@ export async function pushUpdates(updates) {
 export async function pullUpdates(cursors) {
   const client = getClient();
 
-  const result = await client.post('/yjs/pull', { after: cursors || {} }, {
+  const validCursors = {};
+  for (const [key, val] of Object.entries(cursors || {})) {
+    if (val && typeof val === 'object' && typeof val.ts === 'number' && typeof val.seq === 'number') {
+      validCursors[key] = val;
+    }
+  }
+
+  const result = await client.post('/yjs/pull', { after: validCursors }, {
     timeoutMs: 30000,
   });
 
