@@ -226,10 +226,7 @@ export class SyncEngine {
 }
 
 export function forceSyncNow() {
-  if (!engine) {
-    console.warn('[sync] engine not initialized — skipping forceSyncNow');
-    return Promise.resolve();
-  }
+  if (!engine) return Promise.resolve();
   return engine.forceSyncNow();
 }
 

@@ -2,6 +2,7 @@ import { computed, ref } from 'vue';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types.js';
+import { forceSyncNow } from '@/utils/sync';
 
 export function useSyncTransport() {
   const accountStore = useAccountStore();
@@ -52,6 +53,9 @@ export function useSyncTransport() {
     }
     transport.value = value;
     await setSetting('syncTransport', value);
+    if (accountStore.isAuthenticated) {
+      forceSyncNow().catch(() => {});
+    }
   }
 
   return {
