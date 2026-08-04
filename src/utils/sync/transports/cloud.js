@@ -26,8 +26,12 @@ export class CloudTransport extends Transport {
   async pull(cursors) {
     if (!this._remoteAllowed()) return { updates: [], cursorsDelta: {} };
 
+    console.log('[sync] cloud pull cursors:', JSON.stringify(cursors));
     const { decryptJSON } = await import('../crypto.js');
-    const remoteUpdates = await remotePullUpdates(cursors).catch(() => []);
+    const remoteUpdates = await remotePullUpdates(cursors).catch((err) => {
+      console.error('[sync] cloud pull error:', err?.status, err?.message, err?.body);
+      return [];
+    });
 
     const updates = [];
     for (const upd of remoteUpdates) {
