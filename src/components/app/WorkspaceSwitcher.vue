@@ -1,5 +1,5 @@
 <template>
-  <div class="workspace-switcher workspace-feature-gated">
+  <div v-if="isAuthenticated" class="workspace-switcher workspace-feature-gated">
     <div v-if="expanded" class="px-3 mb-3">
       <ui-popover placement="bottom-start">
         <template #trigger>
@@ -159,6 +159,7 @@ export default {
     const activeRole = computed(
       () => workspaceStore.activeWorkspace?.role ?? null
     );
+    const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isPaid = computed(() => accountStore.isPaidPlan);
 
     onMounted(async () => {
@@ -223,6 +224,7 @@ export default {
       activeId,
       activeName,
       activeRole,
+      isAuthenticated,
       isPaid,
       switchWorkspace,
       promptCreate,

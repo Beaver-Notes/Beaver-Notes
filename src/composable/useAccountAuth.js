@@ -396,11 +396,14 @@ export function useAccountAuth() {
       await clearAllAccountStorage();
       currentToken = null;
       resetApiClient();
-      setStatus('anonymous');
-      accountStore.setProfile(null);
-      accountStore.setSubscription(null);
-      accountStore.setDevices([]);
-      accountStore.setActiveSessions([]);
+      accountStore.removeAccount(accountStore.activeAccountId);
+      if (accountStore.accounts.length === 0) {
+        setStatus('anonymous');
+        accountStore.setProfile(null);
+        accountStore.setSubscription(null);
+        accountStore.setDevices([]);
+        accountStore.setActiveSessions([]);
+      }
     } catch (err) {
       setAuthError(normalizeError(err));
       throw err;
