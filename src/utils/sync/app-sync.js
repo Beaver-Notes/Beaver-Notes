@@ -39,6 +39,7 @@ export function initAppSync() {
     getActiveTransports: () => {
       const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
       if (transport === SYNC_TRANSPORT.FOLDER) return ['local'];
+      if (transport === SYNC_TRANSPORT.REMOTE) return ['cloud'];
       return ['local', 'cloud'];
     },
   });

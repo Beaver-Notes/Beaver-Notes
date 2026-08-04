@@ -20,6 +20,10 @@ let fetchController = null;
 export function useCloudWorkspaces() {
   const accountStore = useAccountStore();
 
+  function activeBaseUrl() {
+    return accountStore.serverUrl;
+  }
+
   const activeWorkspace = computed(() =>
     workspaces.value.find((w) => w.id === activeId.value) ?? null
   );
@@ -34,7 +38,7 @@ export function useCloudWorkspaces() {
     if (fetchController) fetchController.abort();
     fetchController = new AbortController();
     try {
-      const raw = await apiGetWorkspaces({ signal: fetchController.signal });
+      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl(), signal: fetchController.signal });
       workspaces.value = normalizeWorkspaceList(raw);
       if (!activeId.value && workspaces.value.length > 0) {
         activeId.value = workspaces.value[0].id;
@@ -51,7 +55,7 @@ export function useCloudWorkspaces() {
   async function createWorkspace(name) {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
     try {
-      const raw = await apiCreateWorkspace(name);
+      const raw = await apiCreateWorkspace(name, { baseUrl: activeBaseUrl() });
       const ws = {
         id: raw.id,
         name: raw.name || name,
@@ -77,7 +81,7 @@ export function useCloudWorkspaces() {
       activeId.value = workspaces.value[0]?.id ?? null;
     }
     try {
-      await apiDeleteWorkspace(id);
+      await apiDeleteWorkspace(id, { baseUrl: activeBaseUrl() });
     } catch (err) {
       workspaces.value = previous;
       error.value = err?.message || 'Failed to delete workspace';
@@ -94,17 +98,17 @@ export function useCloudWorkspaces() {
 
   async function addMember(workspaceId, identifier, role = 'editor') {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
-    return apiAddMember(workspaceId, identifier, role);
+    return apiAddMember(workspaceId, identifier, role, { baseUrl: activeBaseUrl() });
   }
 
   async function removeMember(workspaceId, userId) {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
-    return apiRemoveMember(workspaceId, userId);
+    return apiRemoveMember(workspaceId, userId, { baseUrl: activeBaseUrl() });
   }
 
   async function joinWorkspace(token) {
     if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
-    const raw = await apiJoinWorkspace(token);
+    const raw = await apiJoinWorkspace(token, { baseUrl: activeBaseUrl() });
     await fetchWorkspaces();
     return raw;
   }

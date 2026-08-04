@@ -492,7 +492,7 @@
   </div>
 </template>
 <script>
-import { computed, ref } from 'vue';
+import { computed, ref, onMounted } from 'vue';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsData } from '@/composable/useSettingsData';
@@ -502,6 +502,8 @@ import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/composable/storage';
+import { useAccountStore } from '@/store/account';
+import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
 import { forceSyncNow } from '@/utils/sync';
@@ -514,6 +516,7 @@ export default {
     const passwordStore = usePasswordStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
+    const accountStore = useAccountStore();
     const isMacOS = computed(() =>
       window.navigator.platform.toLowerCase().includes('mac')
     );
@@ -569,6 +572,20 @@ export default {
     });
 
     const cloudSync = useSettingsCloudSync();
+
+    onMounted(() => {
+      if (accountStore.isAuthenticated && !accountStore.subscription) {
+        getAccount({ baseUrl: accountStore.serverUrl })
+          .then((data) => {
+            if (data) {
+              accountStore.setProfile(data.profile);
+              accountStore.setSubscription(data.subscription);
+              accountStore.setDevices(data.devices || []);
+            }
+          })
+          .catch(() => {});
+      }
+    });
 
     const {
       activeImportIssuesText,

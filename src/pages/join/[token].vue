@@ -60,11 +60,13 @@
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { joinViaInviteLink } from '@/lib/api/collaboration';
+import { useAccountStore } from '@/store/account';
 
 export default {
   setup() {
     const route = useRoute();
     const router = useRouter();
+    const accountStore = useAccountStore();
     const loading = ref(false);
     const error = ref(null);
     const success = ref(false);
@@ -74,7 +76,9 @@ export default {
       loading.value = true;
       error.value = null;
       try {
-        result.value = await joinViaInviteLink(route.params.token);
+        result.value = await joinViaInviteLink(route.params.token, {
+          baseUrl: accountStore.serverUrl,
+        });
         success.value = true;
       } catch (err) {
         error.value = err.response?.data?.message || 'Failed to join. The link may be invalid or expired.';

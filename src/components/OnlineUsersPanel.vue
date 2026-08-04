@@ -63,13 +63,16 @@ import { computed } from 'vue';
 
 export default {
   props: {
-    peers: { type: Map, default: () => new Map() },
+    peers: { type: [Map, Object], default: () => ({}) },
     localColor: { type: String, default: '#3B82F6' },
     localName: { type: String, default: 'Anonymous' },
   },
   emits: ['close'],
   setup(props) {
-    const peerList = computed(() => [...props.peers.values()]);
+    const peerList = computed(() => {
+      if (props.peers instanceof Map) return [...props.peers.values()];
+      return Object.values(props.peers);
+    });
 
     function getInitials(name) {
       if (!name) return '?';
