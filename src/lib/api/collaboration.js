@@ -39,32 +39,33 @@ export async function removeCollaborator(noteId, userId, { baseUrl, signal } = {
   );
 }
 
-export async function generateInviteLink(noteId, { role, requireApproval, expiresIn } = {}) {
-  const client = getClient();
+export async function generateInviteLink(noteId, { role, requireApproval, expiresIn, baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
   const response = await client.post(`/collaboration/links/${encodeURIComponent(noteId)}`, {
     role,
     requireApproval,
     expiresIn,
-  });
+  }, { signal });
   return response.data;
 }
 
-export async function listInviteLinks(noteId) {
-  const client = getClient();
-  const response = await client.get(`/collaboration/links/${encodeURIComponent(noteId)}`);
+export async function listInviteLinks(noteId, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  const response = await client.get(`/collaboration/links/${encodeURIComponent(noteId)}`, { signal });
   return response.data.links || [];
 }
 
-export async function revokeInviteLink(noteId, linkId) {
-  const client = getClient();
+export async function revokeInviteLink(noteId, linkId, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
   const response = await client.delete(
-    `/collaboration/links/${encodeURIComponent(noteId)}/${encodeURIComponent(linkId)}`
+    `/collaboration/links/${encodeURIComponent(noteId)}/${encodeURIComponent(linkId)}`,
+    { signal }
   );
   return response.data;
 }
 
-export async function joinViaInviteLink(token) {
-  const client = getClient();
-  const response = await client.post(`/collaboration/join/${encodeURIComponent(token)}`);
+export async function joinViaInviteLink(token, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  const response = await client.post(`/collaboration/join/${encodeURIComponent(token)}`, {}, { signal });
   return response.data;
 }

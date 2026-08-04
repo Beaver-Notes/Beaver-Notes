@@ -20,12 +20,16 @@ export function useNoteSharing() {
   const inviteLinks = ref([]);
   const linkLoading = ref(false);
 
+  function activeBaseUrl() {
+    return accountStore.serverUrl;
+  }
+
   async function fetchCollaborators(noteId) {
     if (!accountStore.isAuthenticated) return;
     loading.value = true;
     error.value = '';
     try {
-      const raw = await apiList(noteId);
+      const raw = await apiList(noteId, { baseUrl: activeBaseUrl() });
       collaborators.value = Array.isArray(raw)
         ? raw.map((inv) => ({
             userId: inv.userId || inv.user_id,
@@ -46,7 +50,7 @@ export function useNoteSharing() {
   async function ensureKey(noteId) {
     if (!accountStore.isAuthenticated) return null;
     try {
-      const raw = await apiCreateKey(noteId);
+      const raw = await apiCreateKey(noteId, { baseUrl: activeBaseUrl() });
       if (raw?.key) {
         key.value = raw.key;
       }
@@ -60,7 +64,7 @@ export function useNoteSharing() {
   async function getKey(noteId) {
     if (!accountStore.isAuthenticated) return null;
     try {
-      const raw = await apiGetKey(noteId);
+      const raw = await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
       if (raw?.key) {
         key.value = raw.key;
       }
@@ -74,7 +78,7 @@ export function useNoteSharing() {
   async function invite(noteId, identifier, role = 'editor') {
     if (!accountStore.isAuthenticated) throw new Error('Not authenticated');
     try {
-      const result = await apiInvite(noteId, identifier, role);
+      const result = await apiInvite(noteId, identifier, role, { baseUrl: activeBaseUrl() });
       await fetchCollaborators(noteId);
       return result;
     } catch (err) {
@@ -88,7 +92,7 @@ export function useNoteSharing() {
     const previous = collaborators.value.slice();
     collaborators.value = collaborators.value.filter((c) => c.userId !== userId);
     try {
-      await apiRemove(noteId, userId);
+      await apiRemove(noteId, userId, { baseUrl: activeBaseUrl() });
     } catch (err) {
       collaborators.value = previous;
       error.value = err?.message || 'Failed to remove collaborator';
@@ -99,7 +103,7 @@ export function useNoteSharing() {
   async function fetchLinks(noteId) {
     linkLoading.value = true;
     try {
-      inviteLinks.value = await apiListLinks(noteId);
+      inviteLinks.value = await apiListLinks(noteId, { baseUrl: activeBaseUrl() });
     } finally {
       linkLoading.value = false;
     }
@@ -110,13 +114,14 @@ export function useNoteSharing() {
       role: options.role || 'editor',
       requireApproval: options.requireApproval || false,
       expiresIn: options.expiresIn || null,
+      baseUrl: activeBaseUrl(),
     });
     inviteLinks.value.unshift(result);
     return result;
   }
 
   async function revokeLink(noteId, linkId) {
-    await apiRevokeLink(noteId, linkId);
+    await apiRevokeLink(noteId, linkId, { baseUrl: activeBaseUrl() });
     inviteLinks.value = inviteLinks.value.filter((l) => l.id !== linkId);
   }
 

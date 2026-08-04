@@ -603,6 +603,7 @@ export default {
       awareness,
       presence,
       showOnlineUsers,
+      isShared,
       accountStore,
     };
   },

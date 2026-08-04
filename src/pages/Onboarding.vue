@@ -789,6 +789,27 @@
                       </p>
                     </div>
 
+                    <div class="flex flex-col gap-2">
+                      <p
+                        class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400"
+                      >
+                        {{
+                          translations.account?.server || 'Server'
+                        }}
+                      </p>
+                      <ui-input
+                        v-model="draftServerUrl"
+                        class="w-full"
+                        :placeholder="defaultServerUrl"
+                      />
+                      <p class="text-xs text-neutral-400 dark:text-neutral-500">
+                        {{
+                          translations.account?.serverHint ||
+                          'Default works with Beaver Cloud. Change this for a self-hosted instance.'
+                        }}
+                      </p>
+                    </div>
+
                     <ul
                       class="space-y-2 text-sm text-neutral-700 dark:text-neutral-300"
                     >
@@ -1297,6 +1318,30 @@ export default {
       },
     });
 
+    async function ensureServerUrl() {
+      const url = (account.draftServerUrl.value || '').trim();
+      if (url && url !== accountStore.serverUrl) {
+        await account.saveServerUrl();
+      }
+    }
+
+    const handleSignInWithPasskey = async () => {
+      await ensureServerUrl();
+      await account.handleSignInWithPasskey();
+    };
+    const handleSignUpWithPasskey = async () => {
+      await ensureServerUrl();
+      await account.handleSignUpWithPasskey();
+    };
+    const handleSignInWithPassword = async () => {
+      await ensureServerUrl();
+      await account.handleSignInWithPassword();
+    };
+    const handleSignUpWithPassword = async () => {
+      await ensureServerUrl();
+      await account.handleSignUpWithPassword();
+    };
+
     const curtainOpen = ref(false);
     const { play } = useSounds();
 
@@ -1556,8 +1601,14 @@ export default {
     return {
       translations,
       accountStore,
+      draftServerUrl: account.draftServerUrl,
+      defaultServerUrl: account.defaultServerUrl,
       ...flow,
       ...account,
+      handleSignInWithPasskey,
+      handleSignUpWithPasskey,
+      handleSignInWithPassword,
+      handleSignUpWithPassword,
       curtainOpen,
       legacyPasswordValue,
       submitLegacyPassword,

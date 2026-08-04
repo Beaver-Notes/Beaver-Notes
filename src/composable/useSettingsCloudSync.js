@@ -39,16 +39,12 @@ export function useSettingsCloudSync() {
 
   return {
     transport,
-    canUseCloud: accountStore.canUseCloudSync,
-    isAuthenticated: accountStore.isAuthenticated,
-    isPaid: accountStore.isPaidPlan,
-    plan: accountStore.subscription?.plan ?? null,
-    get description() {
-      return transport.description;
-    },
-    get options() {
-      return TRANSPORT_OPTIONS;
-    },
+    get canUseCloud() { return accountStore.canUseCloudSync; },
+    get isAuthenticated() { return accountStore.isAuthenticated; },
+    get isPaid() { return accountStore.isPaidPlan; },
+    get plan() { return accountStore.subscription?.plan ?? null; },
+    get description() { return transport.description; },
+    get options() { return TRANSPORT_OPTIONS; },
     selectTransport,
   };
 }

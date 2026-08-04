@@ -95,7 +95,10 @@ export class SyncEngine {
     let outcome;
     try {
       const syncPath = await getSyncPath();
-      if (!syncPath) {
+      const activeTransportNames = this.getActiveTransports();
+      const hasLocal = activeTransportNames.includes('local');
+
+      if (!syncPath && hasLocal) {
         outcome = { ok: true };
         return;
       }
@@ -119,18 +122,18 @@ export class SyncEngine {
         console.warn('[sync] key-params reconcile failed:', e);
       }
 
-      try {
-        const syncDir = path.join(syncPath, SYNC_ROOT_DIR);
-        const localDir = await getAppDirectory();
-        await syncAssets(localDir, syncDir, (progress) => {
-          try { emit('sync:progress', progress); } catch {}
-        });
-      } catch {
+      if (syncPath) {
+        try {
+          const syncDir = path.join(syncPath, SYNC_ROOT_DIR);
+          const localDir = await getAppDirectory();
+          await syncAssets(localDir, syncDir, (progress) => {
+            try { emit('sync:progress', progress); } catch {}
+          });
+        } catch {
+        }
       }
 
-      const activeTransportNames = this.getActiveTransports();
-
-      if (activeTransportNames.includes('local')) {
+      if (hasLocal) {
         await this.transports.local.seedOnce().catch(() => {});
       }
 
@@ -162,7 +165,7 @@ export class SyncEngine {
         }
       }
 
-      if (activeTransportNames.includes('local')) {
+      if (hasLocal) {
         await this.transports.local.compact().catch(() => {});
       }
 
