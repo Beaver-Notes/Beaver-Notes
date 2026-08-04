@@ -29,7 +29,8 @@
             :class="ws.id === activeId ? 'text-primary font-medium' : 'text-neutral-600 dark:text-neutral-400'"
             @click="switchWorkspace(ws.id)"
           >
-            <v-remixicon name="riFolderLine" size="14" class="shrink-0" />
+            <v-remixicon v-if="!ws.emoji" name="riFolderLine" size="14" class="shrink-0" />
+            <span v-else class="shrink-0 text-sm">{{ ws.emoji }}</span>
             <span class="truncate">{{ ws.name }}</span>
             <span
               v-if="ws.role && ws.role !== 'owner'"
@@ -84,7 +85,8 @@
             :class="ws.id === activeId ? 'text-primary font-medium' : 'text-neutral-600 dark:text-neutral-400'"
             @click="switchWorkspace(ws.id)"
           >
-            <v-remixicon name="riFolderLine" size="14" class="shrink-0" />
+            <v-remixicon v-if="!ws.emoji" name="riFolderLine" size="14" class="shrink-0" />
+            <span v-else class="shrink-0 text-sm">{{ ws.emoji }}</span>
             <span class="truncate">{{ ws.name }}</span>
             <v-remixicon
               v-if="ws.id === activeId"
