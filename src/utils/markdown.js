@@ -55,19 +55,22 @@ function getMarkRenderers() {
 }
 
 async function copyLocalAsset(fileName, directoryPath, id, subDir) {
-  const fullSource = path.join(directoryPath, subDir, fileName);
-  const assetsDir = path.join(await getAppDirectory(), subDir, id);
-  const dest = path.join(assetsDir, fileName);
-  try {
-    await backend.invoke('fs:copy', { path: fullSource, dest });
-    return `${subDir}://${id}/${fileName}`;
-  } catch (error) {
-    console.error(
-      'Error copying ' + subDir + ' asset ' + fileName + ':',
-      error
-    );
-    return null;
+  // Check new canonical dir first, then legacy subdirectories
+  const candidates = subDir === 'assets'
+    ? ['assets', 'notes-assets', 'file-assets']
+    : [subDir, 'assets'];
+  for (const dir of candidates) {
+    const fullSource = path.join(directoryPath, dir, fileName);
+    const assetsDir = path.join(await getAppDirectory(), 'assets', id);
+    const dest = path.join(assetsDir, fileName);
+    try {
+      await backend.invoke('fs:copy', { path: fullSource, dest });
+      return `assets://${id}/${fileName}`;
+    } catch {
+      // try next candidate
+    }
   }
+  return null;
 }
 
 function getFileTypeFromExtension(fileName) {
@@ -164,7 +167,7 @@ registerMarkdownHandler({
             fileName,
             directoryPath,
             id,
-            'notes-assets'
+            'assets'
           );
           if (newSrc) node.attrs.src = newSrc;
         });
@@ -212,7 +215,7 @@ registerMarkdownHandler({
                 fileName,
                 directoryPath,
                 id,
-                'file-assets'
+                'assets'
               );
               if (newSrc) newNode.attrs.src = newSrc;
             });
@@ -347,11 +350,9 @@ function toIsoString(timestamp) {
 export function resolveAssetSrc(src, _noteId) {
   if (!src) return null;
   if (/^https?:\/\//i.test(src)) return { type: 'remote', filename: src };
-  const m1 = src.match(/^assets:\/\/([^/]+)\/(.+)$/);
-  if (m1) return { type: 'notes-assets', assetNoteId: m1[1], filename: m1[2] };
-  const m2 = src.match(/^file-assets:\/\/([^/]+)\/(.+)$/);
-  if (m2) return { type: 'file-assets', assetNoteId: m2[1], filename: m2[2] };
-  return { type: 'notes-assets', filename: src };
+  const m1 = src.match(/^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/);
+  if (m1) return { type: 'assets', assetNoteId: m1[1], filename: m1[2] };
+  return { type: 'assets', filename: src };
 }
 
 export function resolveAssetOutputPath(src, noteId) {
@@ -359,9 +360,7 @@ export function resolveAssetOutputPath(src, noteId) {
   if (!resolved?.filename) return src || '';
   if (resolved.type === 'remote') return resolved.filename;
   const assetNoteId = resolved.assetNoteId || noteId;
-  return resolved.type === 'notes-assets'
-    ? `assets/${assetNoteId}/${resolved.filename}`
-    : `file-assets/${assetNoteId}/${resolved.filename}`;
+  return `assets/${assetNoteId}/${resolved.filename}`;
 }
 
 export function getFootnoteNumber(attrs = {}, ctx) {

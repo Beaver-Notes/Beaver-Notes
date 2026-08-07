@@ -283,9 +283,8 @@ pub(crate) fn encrypt_asset(
     state: &AppState,
     target_path: &Path,
     input: &[u8],
-    skip: bool,
 ) -> Result<Vec<u8>, AppError> {
-    if skip || !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
+    if !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
     let manifest_path = app_encryption_manifest_path(app, state)?;

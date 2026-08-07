@@ -26,7 +26,7 @@ export const MAX_COMMITS_BEFORE_COMPACT = 200;
 
 // ─── Asset Types ─────────────────────────────────────────────────────────────
 
-export const ASSET_TYPES = Object.freeze(['notes-assets', 'file-assets']);
+export const ASSET_TYPES = Object.freeze(['assets']);
 
 // ─── Storage Keys ────────────────────────────────────────────────────────────
 

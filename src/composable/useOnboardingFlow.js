@@ -9,7 +9,7 @@ import {
 } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
-import { DEFAULT_UI_FONT_STACK, getSettingSync } from '@/composable/settings';
+import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/composable/settings';
 import { useAccountStore } from '@/store/account';
 import {
   applyOnboardingSyncPreferences,
@@ -26,6 +26,8 @@ import {
   ENTRANCE_DELAYS,
 } from '@/utils/onboarding/index.js';
 import { setupEncryption } from '@/utils/crypto/encryption.js';
+import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
+import { setSyncPath } from '@/utils/sync/path.js';
 import {
   detectLegacyLockedNotes,
   migrateLegacyLockedNotes,
@@ -250,14 +252,11 @@ export function useOnboardingFlow({
     ALL_PLATFORMS.filter((platform) => !platform.macOnly || isMacOS.value),
   );
 
-  // Linear flow — every user configures a sync folder, cloud sync included.
-  // The sync folder is the local mirror/cache (commits dir + cached key
-  // params); the cloud is an additional transport on top of it, so there is no
-  // folder-less cloud onboarding. Skipping the step for paid users left them
-  // without a folder, which silently disabled both cloud sync and vault-join
-  // detection.
+  // Paid accounts use cloud sync directly and do not need a folder selection.
   const activeFlow = computed(() => {
-    return ['welcome', 'customize', 'import', 'account', 'sync', 'password', 'finish'];
+    const flow = ['welcome', 'customize', 'import', 'account', 'password', 'finish'];
+    if (!accountStore.canUseCloudSync) flow.splice(4, 0, 'sync');
+    return flow;
   });
 
   // True while the current step lives inside the persistent wizard frame
@@ -345,6 +344,18 @@ export function useOnboardingFlow({
     if (i >= 0 && i < activeFlow.value.length - 1)
       goToStep(activeFlow.value[i + 1]);
   };
+
+  async function completeAccountStep() {
+    if (accountStore.isAuthenticated) {
+      const transport = getOnboardingSyncTransport({
+        isAuthenticated: true,
+        isPaidPlan: accountStore.isPaidPlan,
+      });
+      await setSetting('syncTransport', transport);
+      if (transport === 'remote') await setSyncPath('');
+    }
+    goToNextStep();
+  }
 
   const handlePrimaryContinue = () => {
     goToStep('customize');
@@ -883,6 +894,7 @@ export function useOnboardingFlow({
     goToStep,
     goToPreviousStep,
     goToNextStep,
+    completeAccountStep,
     handlePrimaryContinue,
     skipImport,
     backToPick,

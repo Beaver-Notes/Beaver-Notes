@@ -83,6 +83,11 @@ async function readBody(response) {
   }
 }
 
+async function readBodyBinary(response) {
+  const buf = await response.arrayBuffer();
+  return new Uint8Array(buf);
+}
+
 function normalizeError(status, body) {
   if (body && typeof body === 'object') {
     if (body.error && body.message) {
@@ -120,6 +125,7 @@ export function createApiClient({
       signal,
       auth = true,
       contentType,
+      responseType,
     } = options;
 
     const url = buildUrl(base, path, query);
@@ -170,6 +176,14 @@ export function createApiClient({
 
     if (response.status === 204) return null;
 
+    if (responseType === 'arraybuffer') {
+      if (!response.ok) {
+        const body2 = await readBody(response).catch(() => null);
+        throw normalizeError(response.status, body2);
+      }
+      return readBodyBinary(response);
+    }
+
     const body2 = await readBody(response).catch(() => null);
 
     if (!response.ok) {
@@ -190,6 +204,8 @@ export function createApiClient({
     baseUrl: base,
     get: (path, options) =>
       request('GET', path, { ...options, auth: options?.auth !== false }),
+    getBinary: (path, options) =>
+      request('GET', path, { ...options, auth: options?.auth !== false, responseType: 'arraybuffer' }),
     post: (path, body, options) =>
       request('POST', path, {
         ...options,

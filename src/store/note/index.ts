@@ -326,16 +326,14 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     try {
       const appDirectory = await getAppDirectory();
       if (appDirectory) {
-        for (const assetType of ['notes-assets', 'file-assets']) {
-          const assetDir = path.join(appDirectory, assetType, id);
-          try {
-            const files = await readDir(assetDir);
-            if (files?.length) await trackDeletedAssets(assetType, id, files);
-          } catch {
-            // Asset folder may not exist — that's fine
-          }
-          await removePath(path.join(appDirectory, assetType, id));
+        const assetDir = path.join(appDirectory, 'assets', id);
+        try {
+          const files = await readDir(assetDir);
+          if (files?.length) await trackDeletedAssets('assets', id, files);
+        } catch {
+          // Asset folder may not exist — that's fine
         }
+        await removePath(assetDir);
       }
     } catch (fileError) {
       console.warn('Error removing note files:', fileError);

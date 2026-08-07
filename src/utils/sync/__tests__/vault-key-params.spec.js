@@ -9,8 +9,8 @@ vi.mock('@/lib/native/fs', () => ({
   pathExists: vi.fn(() => Promise.resolve(true)),
 }));
 vi.mock('../remote-yjs.js', () => ({
-  pushUpdates: vi.fn(() => Promise.resolve({ stored: 1 })),
-  pullUpdates: vi.fn(() => Promise.resolve([])),
+  pushUpdates: vi.fn(() => Promise.resolve({ stored: 1, sizeBytes: 0 })),
+  pullUpdates: vi.fn(() => Promise.resolve({})),
   fetchUpdate: vi.fn(),
 }));
 vi.mock('@/composable/settings', () => ({
@@ -18,6 +18,9 @@ vi.mock('@/composable/settings', () => ({
 }));
 vi.mock('@/store/account', () => ({
   useAccountStore: () => ({ isAuthenticated: true, subscription: { plan: 'pro' } }),
+}));
+vi.mock('@/store/workspace.ts', () => ({
+  useWorkspaceStore: () => ({ activeId: 'ws-123' }),
 }));
 vi.mock('@/lib/api/types', () => ({
   SYNC_TRANSPORT: { FOLDER: 'folder', REMOTE: 'remote', BOTH: 'both' },
@@ -54,9 +57,10 @@ describe('publishCloudKeyParams', () => {
     const ok = await publishCloudKeyParams();
     expect(ok).toBe(true);
     expect(readData).toHaveBeenCalledWith('/sync/BeaverNotesSync/keyParams.json');
-    expect(pushUpdates).toHaveBeenCalledWith([
-      { key: RESERVED_KEY_PARAMS_KEY, data: 'eyJrZXkiOiJ2YWx1ZSJ9' },
-    ]);
+    expect(pushUpdates).toHaveBeenCalledWith('ws-123', [{
+      noteId: '__vault__',
+      updates: [{ key: RESERVED_KEY_PARAMS_KEY, data: 'eyJrZXkiOiJ2YWx1ZSJ9' }],
+    }]);
   });
 });
 
@@ -72,7 +76,9 @@ describe('fetchCloudKeyParams', () => {
 
   it('falls back to a pull scan when the GET fails', async () => {
     fetchUpdate.mockRejectedValue(new Error('boom'));
-    pullUpdates.mockResolvedValue([{ key: RESERVED_KEY_PARAMS_KEY, data: 'eyJrZXkiOiJ2YWx1ZSJ9' }]);
+    pullUpdates.mockResolvedValue({
+      __vault__: [{ key: RESERVED_KEY_PARAMS_KEY, data: 'eyJrZXkiOiJ2YWx1ZSJ9' }],
+    });
     const ok = await fetchCloudKeyParams();
     expect(ok).toBe(true);
     expect(writeFile).toHaveBeenCalledWith('/sync/BeaverNotesSync/keyParams.json', '{"key":"value"}');
@@ -80,7 +86,7 @@ describe('fetchCloudKeyParams', () => {
 
   it('returns null when no blob exists', async () => {
     fetchUpdate.mockResolvedValue(null);
-    pullUpdates.mockResolvedValue([]);
+    pullUpdates.mockResolvedValue({});
     await expect(fetchCloudKeyParams()).resolves.toBeNull();
   });
 });

@@ -23,7 +23,7 @@ pub(crate) fn sync_external_temp_file(
     let raw = fs::read(temp_file)?;
     let existing = fs::read(original_path)?;
     let payload = if is_encrypted_asset_buffer(&existing) {
-        encrypt_asset(app, &state, original_path, &raw, false)?
+        encrypt_asset(app, &state, original_path, &raw)?
     } else {
         raw
     };
@@ -109,7 +109,11 @@ pub(crate) fn open_file_external(
 ) -> Result<String, AppError> {
     let mut src = src;
     if src.starts_with("file-assets:") && !src.starts_with("file-assets://") {
-        src = src.replacen("file-assets:", "file-assets://", 1);
+        src = src.replacen("file-assets:", "assets://", 1);
+    }
+    // Normalize legacy file-assets:// to assets://
+    if src.starts_with("file-assets://") {
+        src = src.replacen("file-assets://", "assets://", 1);
     }
 
     let full_path = resolve_asset_path_from_uri(&app, &src).unwrap_or_else(|_| PathBuf::from(&src));

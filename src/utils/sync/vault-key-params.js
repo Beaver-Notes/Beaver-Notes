@@ -5,6 +5,7 @@ import { getSettingSync } from '@/composable/settings';
 import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT, canUseCloudSync } from '@/lib/api/types';
 import { pushUpdates, pullUpdates, fetchUpdate } from './remote-yjs.js';
+import { useWorkspaceStore } from '@/store/workspace.ts';
 
 export const RESERVED_KEY_PARAMS_KEY = '__key_params__.json';
 const KEY_PARAMS_SUBDIR = 'BeaverNotesSync';
@@ -33,7 +34,15 @@ export async function publishCloudKeyParams() {
   if (!exists) return false;
   const b64 = await readData(p).catch(() => null);
   if (!b64) return false;
-  await pushUpdates([{ key: RESERVED_KEY_PARAMS_KEY, data: b64 }]);
+
+  const workspaceStore = useWorkspaceStore();
+  const workspaceId = workspaceStore.activeId;
+  if (!workspaceId) return false;
+
+  await pushUpdates(workspaceId, [{
+    noteId: '__vault__',
+    updates: [{ key: RESERVED_KEY_PARAMS_KEY, data: b64 }],
+  }]);
   return true;
 }
 
@@ -49,8 +58,16 @@ export async function fetchCloudKeyParams({ force = false } = {}) {
   }
   if (!raw) {
     try {
-      const updates = await pullUpdates({});
-      raw = updates.find((u) => u.key === RESERVED_KEY_PARAMS_KEY)?.data ?? null;
+      const workspaceStore = useWorkspaceStore();
+      const workspaceId = workspaceStore.activeId;
+      if (workspaceId) {
+        const notesResult = await pullUpdates(workspaceId, [{
+          noteId: '__vault__',
+          cursors: {},
+        }]);
+        const updates = notesResult['__vault__'] || [];
+        raw = updates.find((u) => u.key === RESERVED_KEY_PARAMS_KEY)?.data ?? null;
+      }
     } catch (e) {
       console.warn('[vault-key-params] pull scan failed:', e);
     }

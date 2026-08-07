@@ -184,16 +184,16 @@ describe('SyncEngine periodic timer', () => {
     vi.useRealTimers();
   });
 
-  it('starts timer when enabled', async () => {
-    engine.setPeriodicSyncEnabled(true);
-    await vi.advanceTimersByTimeAsync(10001);
+  it('starts pull timer when enabled', async () => {
+    engine.startPullTimer();
+    await vi.advanceTimersByTimeAsync(30001);
     expect(mockLocalTransport.pull).toHaveBeenCalled();
   });
 
-  it('stops timer when disabled', () => {
-    engine.setPeriodicSyncEnabled(true);
-    engine.setPeriodicSyncEnabled(false);
-    vi.advanceTimersByTime(10001);
+  it('stops pull timer when disabled', () => {
+    engine.startPullTimer();
+    engine.stopPullTimer();
+    vi.advanceTimersByTime(30001);
     expect(true).toBe(true);
   });
 });

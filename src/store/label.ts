@@ -38,7 +38,9 @@ export const useLabelStore = defineStore('label', {
 
         const validName = name.slice(0, 50);
 
-        this.data.push(validName);
+        if (!this.data.includes(validName)) {
+          this.data.push(validName);
+        }
 
         syncLabel(validName);
         resolve(validName);
@@ -47,8 +49,7 @@ export const useLabelStore = defineStore('label', {
 
     async delete(id: string) {
       try {
-        const labelIndex = this.data.indexOf(id);
-        if (labelIndex === -1) return null;
+        if (!this.data.includes(id)) return null;
 
         const noteStore = useNoteStore();
 
@@ -61,7 +62,7 @@ export const useLabelStore = defineStore('label', {
           }
         }
 
-        this.data.splice(labelIndex, 1);
+        this.data = this.data.filter((label) => label !== id);
 
         if (this.colors[id]) {
           delete this.colors[id];

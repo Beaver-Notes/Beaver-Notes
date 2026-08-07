@@ -35,10 +35,8 @@ export function clearAssetPassphrase() {
   return backend.invoke('assetCrypto:clearAppPassphrase');
 }
 
-export function migrateAssetEncryption(encryptAtRest) {
-  return backend.invoke('assetCrypto:migrateDir', {
-    encryptAtRest,
-  });
+export function migrateAssetEncryption() {
+  return backend.invoke('assetCrypto:migrateDir');
 }
 
 export function getEncryptionState() {
@@ -162,38 +160,29 @@ function isIgnoredAssetEntry(name) {
 }
 
 export async function listAssetFiles(appDirectory) {
-  const roots = ['notes-assets', 'file-assets'];
   const files = [];
+  const rootDir = path.join(appDirectory, 'assets');
+  const noteDirs = await readDir(rootDir).catch(() => []);
 
-  for (const root of roots) {
-    const rootDir = path.join(appDirectory, root);
-    const noteDirs = await readDir(rootDir).catch(() => []);
+  for (const noteDir of noteDirs) {
+    if (isIgnoredAssetEntry(noteDir)) continue;
+    const fullNoteDir = path.join(rootDir, noteDir);
+    const assetNames = await readDir(fullNoteDir).catch(() => []);
 
-    for (const noteDir of noteDirs) {
-      if (isIgnoredAssetEntry(noteDir)) continue;
-      const fullNoteDir = path.join(rootDir, noteDir);
-      const assetNames = await readDir(fullNoteDir).catch(() => []);
-
-      for (const assetName of assetNames) {
-        if (isIgnoredAssetEntry(assetName)) continue;
-        files.push(path.join(fullNoteDir, assetName));
-      }
+    for (const assetName of assetNames) {
+      if (isIgnoredAssetEntry(assetName)) continue;
+      files.push(path.join(fullNoteDir, assetName));
     }
   }
 
   return files;
 }
 
-export async function rewriteAssetFile(
-  filePath,
-  { skipAssetEncryption = false } = {}
-) {
+export async function rewriteAssetFile(filePath) {
   const base64 = await readData(filePath);
   if (!base64) return false;
 
-  await writeFile(filePath, base64ToUint8Array(base64), {
-    skipAssetEncryption,
-  });
+  await writeFile(filePath, base64ToUint8Array(base64));
   return true;
 }
 

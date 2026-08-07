@@ -1465,7 +1465,7 @@ export default {
               label: 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
-              onClick: flow.goToNextStep,
+               onClick: flow.goToNextStep,
             },
           ];
         }
@@ -1480,7 +1480,7 @@ export default {
               label: 'Continue',
               icon: 'riArrowRightLine',
               variant: 'primary',
-              onClick: flow.goToNextStep,
+               onClick: flow.completeAccountStep,
             },
           ];
         }

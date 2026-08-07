@@ -42,7 +42,11 @@ export const useWorkspaceStore = defineStore('workspace', {
           storageUsedBytes: w.storageUsedBytes,
           createdAt: w.createdAt,
         }));
-        this.activeId = cloud.activeId.value;
+        if (cloud.activeId.value) {
+          this.activeId = cloud.activeId.value;
+        } else if (this.workspaces.length > 0 && !this.activeId) {
+          this.activeId = this.workspaces[0].id;
+        }
       } finally {
         this.loading = false;
       }

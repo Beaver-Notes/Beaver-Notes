@@ -63,7 +63,7 @@ export default {
 
     async function resolveFilePath(src) {
       const normalized = normalizeSrc(src);
-      const match = normalized.match(/^file-assets:\/\/([^/]+)\/(.+)$/);
+      const match = normalized.match(/^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/);
       if (!match) return null;
       const [, noteId, rest] = match;
       const appDir = await getAppDirectory();
@@ -71,13 +71,13 @@ export default {
       try {
         decoded = decodeURIComponent(rest);
       } catch {}
-      return `${appDir}/file-assets/${noteId}/${decoded}`;
+      return `${appDir}/assets/${noteId}/${decoded}`;
     }
 
     async function checkFileExists() {
       try {
         const src = String(props.node.attrs.src || '');
-        if (!src.startsWith('file-assets://')) {
+        if (!src.startsWith('assets://') && !src.startsWith('file-assets://')) {
           missing.value = false;
           return;
         }
@@ -94,14 +94,15 @@ export default {
         const src = encodeURI(normalizeSrc(props.node.attrs.src));
         if (isMobileRuntime()) {
           const appDir = await getAppDirectory();
-          const [, noteId, ...rest] = src
-            .replace('file-assets://', '')
-            .split('/');
-          const relativePath = rest
-            .map((segment) => decodeURIComponent(segment))
-            .join('/');
-          const filePath = `${appDir}/file-assets/${noteId}/${relativePath}`;
-          await shareFileViaNative(filePath);
+          const normalized = normalizeSrc(props.node.attrs.src);
+          const match = normalized.match(/^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/);
+          if (match) {
+            const [, noteId, rest] = match;
+            let decoded = rest;
+            try { decoded = decodeURIComponent(rest); } catch {}
+            const filePath = `${appDir}/assets/${noteId}/${decoded}`;
+            await shareFileViaNative(filePath);
+          }
         } else {
           await openFileExternal(src);
         }
@@ -148,9 +149,7 @@ export default {
         const base64 = await readData(src);
         if (!base64) return;
 
-        await writeFile(filePath, base64ToUint8Array(base64), {
-          skipAssetEncryption: true,
-        });
+        await writeFile(filePath, base64ToUint8Array(base64));
       } catch (error) {
         console.error('[FileEmbed] Failed to download file:', error);
       }

@@ -36,7 +36,7 @@ pub(crate) fn fs_copy(
         fs::create_dir_all(parent)?;
     }
     let raw = fs::read(&src_path)?;
-    let payload = encrypt_asset(&app, &state, &final_dest, &raw, false)?;
+    let payload = encrypt_asset(&app, &state, &final_dest, &raw)?;
     fs::write(final_dest, payload)?;
     Ok(())
 }
@@ -56,7 +56,7 @@ fn copy_dir_recursive(
             copy_dir_recursive(app, state, &src_path, &dest_path)?;
         } else {
             let raw = fs::read(&src_path)?;
-            let payload = encrypt_asset(app, state, &dest_path, &raw, false)?;
+            let payload = encrypt_asset(app, state, &dest_path, &raw)?;
             fs::write(dest_path, payload)?;
         }
     }
@@ -144,7 +144,6 @@ pub(crate) fn fs_write_file(
     path: String,
     data: Vec<u8>,
     mode: Option<u32>,
-    skip_asset_encryption: Option<bool>,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("fs.fs_write_file");
     let path = PathBuf::from(path);
@@ -152,13 +151,7 @@ pub(crate) fn fs_write_file(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let payload = encrypt_asset(
-        &app,
-        &state,
-        &path,
-        &data,
-        skip_asset_encryption.unwrap_or(false),
-    )?;
+    let payload = encrypt_asset(&app, &state, &path, &data)?;
     let mut file = fs::File::create(&path)?;
     file.write_all(&payload)?;
     #[cfg(unix)]
@@ -198,6 +191,18 @@ pub(crate) fn fs_read_file(
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "read file")?;
     Ok(fs::read_to_string(path)?)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn fs_read_file_binary(
+    app: AppHandle,
+    state: State<AppState>,
+    path: String,
+) -> Result<Vec<u8>, AppError> {
+    let path = PathBuf::from(path);
+    assert_path_access(&app, &state, &path, "read file binary")?;
+    Ok(fs::read(path)?)
 }
 
 #[tauri::command]

@@ -182,6 +182,23 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
     return;
   }
 
+  // Consolidate legacy asset directories (notes-assets/ + file-assets/ → assets/)
+  // AFTER key restoration so encrypt_asset() can write encrypted files.
+  const { consolidateAssets } = await import('@/utils/migration/consolidateAssets.js');
+  await consolidateAssets();
+
+  // Re-encrypt any assets that were written during import (Phase 4) before the
+  // encryption manifest existed. consolidateAssets() only handles files in legacy
+  // dirs; this covers files already in assets/ that were copied unencrypted.
+  if (await encryptionIsConfigured()) {
+    try {
+      const { migrateAssetEncryption } = await import('@/lib/native/security.js');
+      await migrateAssetEncryption();
+    } catch (e) {
+      console.warn('[onboarding] post-import asset re-encryption failed:', e);
+    }
+  }
+
   // Initialize the workspace Y.Doc — same sequence as useAppShell's
   // initializeWorkspace so Pinia gets hydrated from Yjs.
   const { loadWorkspaceDoc, observeWorkspace } = await import('@/composable/useWorkspaceYjs.js');
@@ -206,6 +223,15 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
   // notes from the sync folder / cloud are already visible on first render.
   // The engine must exist before forceSyncNow() can do anything; without it
   // the old code silently skipped the pull (engine was null).
+  try {
+    const { useAccountStore } = await import('@/store/account');
+    const { useWorkspaceStore } = await import('@/store/workspace.ts');
+    if (useAccountStore().isAuthenticated) {
+      await useWorkspaceStore().retrieve();
+    }
+  } catch (err) {
+    console.warn('[onboarding] pre-sync workspace retrieve failed:', err);
+  }
   initAppSync();
   const engine = getSyncEngine();
   if (engine) {

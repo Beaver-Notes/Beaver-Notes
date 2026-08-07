@@ -511,6 +511,35 @@ export function useAppShell() {
     // Always initialize the engine so runtime sync config (Settings "Sync now",
     // transport, path pick) works without an app restart. Autosync is always
     // on — periodic sync runs whenever the app is visible.
+    try {
+      const { useAccountStore } = await import('@/store/account');
+      const { useWorkspaceStore } = await import('@/store/workspace.ts');
+      const accountStore = useAccountStore();
+      // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
+      // useAccountAuth components which may not have mounted yet.
+      if (!accountStore.isAuthenticated) {
+        const { loadSessionToken } = await import('@/composable/useAccountStorage');
+        const token = await loadSessionToken().catch(() => null);
+        if (token) {
+          accountStore.setStatus('authenticated');
+        }
+      }
+      if (accountStore.isAuthenticated) {
+        // Fetch profile/subscription so _remoteAllowed has plan info for sync
+        import('@/lib/api/account').then(({ getAccount }) => {
+          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
+            if (data) {
+              accountStore.setProfile(data.profile);
+              accountStore.setSubscription(data.subscription);
+              accountStore.setDevices(data.devices || []);
+            }
+          }).catch(() => {});
+        }).catch(() => {});
+        await useWorkspaceStore().retrieve();
+      }
+    } catch (err) {
+      console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
+    }
     initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
   };
@@ -631,15 +660,19 @@ export function useAppShell() {
     if (document.hidden) {
       // Flush cloud push before going to background
       getSyncEngine()?.flush().catch(() => {});
+      getSyncEngine()?.stopPullTimer();
+    } else {
+      // App returned to foreground — pull remote changes and restart pull timer
+      getSyncEngine()?.notifyForeground();
+      getSyncEngine()?.startPullTimer();
     }
-    getSyncEngine()?.setPeriodicSyncEnabled(!document.hidden);
   }
 
   onUnmounted(() => {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    getSyncEngine()?.setPeriodicSyncEnabled(false);
+    getSyncEngine()?.stopPullTimer();
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())

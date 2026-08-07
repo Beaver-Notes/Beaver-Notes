@@ -24,6 +24,7 @@ const commandAliases = {
   'fs:pathExists': 'fs_path_exists',
   'fs:readFile': 'fs_read_file',
   'fs:readData': 'fs_read_data',
+  'fs:readFileBinary': 'fs_read_file_binary',
   'fs:writeFile': 'fs_write_file',
   'fs:copy': 'fs_copy',
   'fs:isFile': 'fs_is_file',
@@ -170,6 +171,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'fs:stat':
     case 'fs:unlink':
     case 'fs:readData':
+    case 'fs:readFileBinary':
     case 'fs:remove':
       return {
         ...withKeyVariants('path', payload?.path ?? payload),
@@ -236,9 +238,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'assetCrypto:setAppPassphrase':
       return withKeyVariants('passphrase', payload);
     case 'assetCrypto:migrateDir':
-      return {
-        ...withKeyVariants('encrypt_at_rest', payload?.encryptAtRest),
-      };
+      return {};
     case 'encryption:getState':
       return {};
     case 'encryption:submitPassword':

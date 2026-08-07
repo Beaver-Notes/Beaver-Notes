@@ -1,7 +1,12 @@
 import { getSyncPath } from './path.js';
 import { SYNC_ROOT_DIR, STORAGE_KEY } from './constants.js';
 import { syncAssets } from './sync-assets.js';
-import { flushPendingSyncWrites } from './pending-writes.js';
+import {
+  flushPendingSyncWrites,
+  setCloudBuffer,
+  setSyncTrigger,
+  hasPendingWrites,
+} from './pending-writes.js';
 import { mergeCursorDelta } from './transports/transport.js';
 import { applyRemote } from '@/composable/useNoteYjs.js';
 import { appendUpdate } from '@/lib/native/yjs.js';
@@ -12,8 +17,11 @@ import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
 import { syncDeletedAssets } from '@/composable/useWorkspaceYjs';
 import { speed } from '@/utils/speed.js';
+import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
+import { fetchCloudKeyParams } from './vault-key-params.js';
+import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 
-const SYNC_INTERVAL_MS = 10000;
+const PULL_ONLY_INTERVAL_MS = 30_000;
 
 let engine = null;
 
@@ -38,19 +46,23 @@ export class SyncEngine {
     this.syncReject = null;
     this.pendingWaiters = [];
 
-    this.periodicTimer = null;
-    this.periodicEnabled = false;
-
     this._forceFlush = false;
+    this._foregroundWake = false;
+    this._pullOnlyMode = false;
+    this._pullTimer = null;
+
+    setSyncTrigger(() => this.enqueueSync());
   }
 
-  enqueueSync(force = false) {
+  enqueueSync(force = false, pullOnly = false) {
     if (this.syncing) {
       this.pending = true;
+      if (pullOnly) this._pullOnlyMode = true;
       return new Promise((resolve, reject) => {
         this.pendingWaiters.push({ resolve, reject });
       });
     }
+    this._pullOnlyMode = pullOnly;
     return new Promise((resolve, reject) => {
       this.syncResolve = resolve;
       this.syncReject = reject;
@@ -62,12 +74,32 @@ export class SyncEngine {
     return this.enqueueSync(true);
   }
 
-  setPeriodicSyncEnabled(enabled) {
-    this.periodicEnabled = Boolean(enabled);
-    if (this.periodicEnabled) {
-      this._schedulePeriodicSync();
-    } else {
-      this._stopPeriodicSync();
+  /**
+   * Signal that the app returned from a hidden state.
+   * Triggers a pull to pick up remote changes made while backgrounded.
+   */
+  notifyForeground() {
+    this._foregroundWake = true;
+    this.enqueueSync(true);
+  }
+
+  /**
+   * Start the pull-only periodic timer. Fires every PULL_ONLY_INTERVAL_MS
+   * to pull remote changes from other devices. Only pulls — does not push.
+   */
+  startPullTimer() {
+    if (this._pullTimer !== null) return;
+    this._pullTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      if (this.syncing) return;
+      this.enqueueSync(false, true).catch(() => {});
+    }, PULL_ONLY_INTERVAL_MS);
+  }
+
+  stopPullTimer() {
+    if (this._pullTimer !== null) {
+      clearInterval(this._pullTimer);
+      this._pullTimer = null;
     }
   }
 
@@ -91,14 +123,25 @@ export class SyncEngine {
     const t = speed('sync_cycle');
     this.syncing = true;
     this.pending = false;
+    this._forceFlush = _force;
 
-    console.log('[sync] _runCycle start', { force: _force });
+    const isForegroundWake = this._foregroundWake;
+    this._foregroundWake = false;
+    const pullOnly = this._pullOnlyMode;
+    this._pullOnlyMode = false;
+
+    const shouldPull = _force || isForegroundWake || pullOnly || hasPendingWrites();
+    const shouldPush = !pullOnly;
+    console.log('[sync] _runCycle start', { force: _force, foregroundWake: isForegroundWake, pullOnly, shouldPull, shouldPush });
 
     let outcome;
     try {
       const syncPath = await getSyncPath();
       const activeTransportNames = this.getActiveTransports();
       const hasLocal = activeTransportNames.includes('local');
+
+      const cloudOnly = activeTransportNames.length === 1 && activeTransportNames[0] === 'cloud';
+      setCloudBuffer(cloudOnly ? this.transports.cloud.getCloudBuffer() : null);
 
       console.log('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
@@ -110,18 +153,15 @@ export class SyncEngine {
 
       let syncPassphrase = null;
       try {
-        const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
         syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
       } catch {
         syncPassphrase = null;
       }
       try {
-        const { fetchCloudKeyParams } = await import('./vault-key-params.js');
         await fetchCloudKeyParams().catch(() => {});
       } catch {
       }
       try {
-        const { reconcileSyncKeyParams } = await import('@/lib/native/security.js');
         await reconcileSyncKeyParams(syncPassphrase || undefined);
       } catch (e) {
         console.warn('[sync] key-params reconcile failed:', e);
@@ -141,37 +181,64 @@ export class SyncEngine {
       if (hasLocal) {
         await this.transports.local.seedOnce().catch(() => {});
       }
+      if (activeTransportNames.includes('cloud')) {
+        await this.transports.cloud.seedOnce().catch(() => {});
+      }
 
       await flushPendingSyncWrites();
 
       const cursors = await this._loadCursors();
 
-      for (const name of activeTransportNames) {
-        const transport = this.transports[name];
-        console.log(`[sync] ${name} pull start`);
-        const { updates } = await transport.pull(cursors);
-        console.log(`[sync] ${name} pull got ${updates.length} updates`);
-        for (const upd of updates) {
-          applyRemote(upd.noteId, upd.update);
-          await appendUpdate(upd.noteId, upd.update, upd.device);
-          const delta = {};
-          delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
-          if (mergeCursorDelta(cursors, delta)) {
+      // Only pull when there's a reason: forced sync, foreground wake, or pending local writes.
+      // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
+      if (shouldPull) {
+        for (const name of activeTransportNames) {
+          const transport = this.transports[name];
+          console.log(`[sync] ${name} pull start`);
+          const { updates } = await transport.pull(cursors);
+          console.log(`[sync] ${name} pull got ${updates.length} updates`);
+          let cursorsDirty = false;
+          for (const upd of updates) {
+            applyRemote(upd.noteId, upd.update);
+            await appendUpdate(upd.noteId, upd.update, upd.device);
+            const delta = {};
+            delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
+            if (mergeCursorDelta(cursors, delta)) {
+              cursorsDirty = true;
+            }
+          }
+          if (cursorsDirty) {
             await this._saveCursors(cursors);
           }
         }
+      } else {
+        console.log('[sync] pull skipped — nothing to sync');
       }
 
-      for (const name of activeTransportNames) {
-        const transport = this.transports[name];
-        console.log(`[sync] ${name} push start`);
-        const { cursorsDelta } = await transport.push(cursors, {
-          force: this._forceFlush,
-        });
-        console.log(`[sync] ${name} push done`);
-        if (mergeCursorDelta(cursors, cursorsDelta)) {
-          await this._saveCursors(cursors);
+      if (shouldPush) {
+        for (const name of activeTransportNames) {
+          const transport = this.transports[name];
+          console.log(`[sync] ${name} push start`);
+          const pushResult = await transport.push(cursors, {
+            force: this._forceFlush,
+          });
+          console.log(`[sync] ${name} push done`, { pushed: pushResult.pushed });
+          if (pushResult.cursorsDelta && mergeCursorDelta(cursors, pushResult.cursorsDelta)) {
+            await this._saveCursors(cursors);
+          }
         }
+      } else {
+        console.log('[sync] push skipped — pull-only mode');
+      }
+
+      if (activeTransportNames.includes('cloud')) {
+        console.log('[sync] cloud syncAssets start');
+        await this.transports.cloud.syncAssets((progress) => {
+          try { emit('sync:progress', progress); } catch {}
+        }).catch((err) => {
+          console.warn('[sync] cloud asset sync failed:', err?.message);
+        });
+        console.log('[sync] cloud syncAssets done');
       }
 
       if (hasLocal) {
@@ -219,21 +286,6 @@ export class SyncEngine {
   async _saveCursors(cursors) {
     return this.storage.set(STORAGE_KEY.SYNC_CURSORS, cursors, 'settings');
   }
-
-  _schedulePeriodicSync() {
-    if (this.periodicTimer !== null) return;
-    this.periodicTimer = setInterval(() => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      this.forceSyncNow().catch(() => {});
-    }, SYNC_INTERVAL_MS);
-  }
-
-  _stopPeriodicSync() {
-    if (this.periodicTimer !== null) {
-      clearInterval(this.periodicTimer);
-      this.periodicTimer = null;
-    }
-  }
 }
 
 export function forceSyncNow() {
@@ -241,9 +293,19 @@ export function forceSyncNow() {
   return engine.forceSyncNow();
 }
 
-export function setPeriodicSyncEnabled(enabled) {
+export function notifyForeground() {
   if (!engine) return;
-  return engine.setPeriodicSyncEnabled(enabled);
+  return engine.notifyForeground();
+}
+
+export function startPullTimer() {
+  if (!engine) return;
+  return engine.startPullTimer();
+}
+
+export function stopPullTimer() {
+  if (!engine) return;
+  return engine.stopPullTimer();
 }
 
 export function trackDeletedAssets(assetType, noteId, fileNames) {

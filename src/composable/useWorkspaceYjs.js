@@ -10,8 +10,7 @@
 import * as Y from 'yjs';
 import { appendUpdate, getSnapshot } from '@/lib/native/yjs.js';
 import { readDir as readSyncDir } from '@/lib/native/fs';
-import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
-import { getSyncPath } from '@/utils/sync/path.js';
+import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
@@ -78,9 +77,8 @@ async function persistWorkspace(update) {
     // Update lost despite retries — console.error in retryWrite documents it
   }
   try {
-    const syncPath = await getSyncPath();
-    if (syncPath) {
-      const commitsDir = await ensureCommitsDir(syncPath);
+    const commitsDir = await getCommitsDir();
+    if (commitsDir) {
 
       if (!snapshotWritten) {
         const files = await readSyncDir(commitsDir).catch(() => []);

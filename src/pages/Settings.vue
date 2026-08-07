@@ -83,22 +83,22 @@ const isMobileHeaderStuck = ref(false);
 
 const settings = computed(() => ({
   Settings: {
-    name: translations.value.settings.general,
+    name: translations.value.settings.general || 'General',
     icon: 'riWindowLine',
     path: '/settings',
   },
   'Settings-Appearance': {
-    name: translations.value.settings.appearance,
+    name: translations.value.settings.appearance || 'Appearance',
     icon: 'riBrush3Fill',
     path: '/settings/appearance',
   },
   'Settings-Security': {
-    name: translations.value.settings.security,
+    name: translations.value.settings.security || 'Security',
     icon: 'riShieldLine',
     path: '/settings/security',
   },
   'Settings-Account': {
-    name: translations.value.settings.account,
+    name: translations.value.settings.account || 'Account',
     icon: 'riUserLine',
     path: '/settings/account',
   },
@@ -113,12 +113,12 @@ const settings = computed(() => ({
     path: '/settings/labels',
   },
   'Settings-Shortcuts': {
-    name: translations.value.settings.shortcuts,
+    name: translations.value.settings.shortcuts || 'Shortcuts',
     icon: 'riKeyboardLine',
     path: '/settings/shortcuts',
   },
   'Settings-About': {
-    name: translations.value.settings.about,
+    name: translations.value.settings.about || 'About',
     icon: 'riInformationLine',
     path: '/settings/about',
   },

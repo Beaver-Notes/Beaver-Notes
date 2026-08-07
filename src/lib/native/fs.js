@@ -20,6 +20,10 @@ export function readFile(path) {
   return backend.invoke('fs:readFile', path);
 }
 
+export function readFileBinary(path) {
+  return backend.invoke('fs:readFileBinary', path);
+}
+
 export function readData(path, options = {}) {
   return backend.invoke('fs:readData', { path, ...options });
 }

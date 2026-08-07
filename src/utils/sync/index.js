@@ -1,6 +1,8 @@
 export {
   forceSyncNow,
-  setPeriodicSyncEnabled,
+  notifyForeground,
+  startPullTimer,
+  stopPullTimer,
   trackDeletedAssets,
 } from './engine.js';
 export { queueSyncWrite } from './pending-writes.js';

@@ -36,16 +36,10 @@ export async function exportMD(noteId, noteTitle, editor) {
   const folderPath = path.join(filePaths[0], safeName);
   await ensureDir(folderPath);
   await writeFile(path.join(folderPath, `${safeName}.md`), markdown);
-  const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
-  const notesAssetsDest = path.join(folderPath, 'assets');
-  const fileAssetsDest = path.join(folderPath, 'file-assets');
-  await ensureDir(notesAssetsDest);
-  await ensureDir(fileAssetsDest);
+  const assetsSource = path.join(appDirectory, 'assets', noteId);
+  const assetsDest = path.join(folderPath, 'assets');
+  await ensureDir(assetsDest);
   try {
-    await copyPath(noteAssetsSource, notesAssetsDest);
-  } catch {}
-  try {
-    await copyPath(fileAssetsSource, fileAssetsDest);
+    await copyPath(assetsSource, assetsDest);
   } catch {}
 }

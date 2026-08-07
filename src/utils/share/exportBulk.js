@@ -78,12 +78,8 @@ export async function copyNoteAssetDirectories(
   if (!appDirectory) return;
 
   await copyExportAssetDir(
-    path.join(appDirectory, 'notes-assets', noteId),
+    path.join(appDirectory, 'assets', noteId),
     path.join(outputDir, 'assets', noteId)
-  );
-  await copyExportAssetDir(
-    path.join(appDirectory, 'file-assets', noteId),
-    path.join(outputDir, 'file-assets', noteId)
   );
 }
 
@@ -99,10 +95,8 @@ function buildHtmlInlineFallback(node) {
 }
 
 function normalizeAssetPath(url) {
-  const m1 = url.match(/^file-assets:\/\/(.+)$/);
-  if (m1) return `file-assets/${m1[1]}`;
-  const m2 = url.match(/^assets:\/\/(.+)$/);
-  if (m2) return `assets/${m2[1]}`;
+  const m1 = url.match(/^(?:assets|file-assets):\/\/(.+)$/);
+  if (m1) return `assets/${m1[1]}`;
   return url;
 }
 
@@ -709,14 +703,8 @@ export async function inlineImages(clone, _noteId) {
       if (normalized.startsWith('assets/')) {
         filePath = path.join(
           appDir,
-          'notes-assets',
+          'assets',
           normalized.replace('assets/', '')
-        );
-      } else if (normalized.startsWith('file-assets/')) {
-        filePath = path.join(
-          appDir,
-          'file-assets',
-          normalized.replace('file-assets/', '')
         );
       }
 

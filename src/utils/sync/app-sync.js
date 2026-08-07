@@ -47,7 +47,10 @@ export function initAppSync() {
   getSyncEngine()
     .forceSyncNow()
     .catch((err) => console.warn('[sync] initial sync failed:', err));
-  getSyncEngine().setPeriodicSyncEnabled(true);
+
+  // Start pull-only timer: polls for remote changes every 30s when visible.
+  // Push remains event-driven (on edit, on foreground wake, on manual trigger).
+  getSyncEngine().startPullTimer();
 
   return getSyncEngine();
 }

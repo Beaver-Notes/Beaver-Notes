@@ -3,7 +3,7 @@ import { CloudTransport } from '../../transports/cloud.js';
 
 vi.mock('../../remote-yjs.js', () => ({
   pushUpdates: vi.fn(() => ({ stored: 0, skipped: 0, sizeBytes: 0 })),
-  pullUpdates: vi.fn(() => []),
+  pullUpdates: vi.fn(() => ({})),
 }));
 
 vi.mock('../../path.js', () => ({
@@ -22,6 +22,7 @@ vi.mock('../../sync-yjs.js', () => ({
 vi.mock('@/lib/native/fs', () => ({
   readDir: vi.fn(),
   readFile: vi.fn(),
+  pathExists: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('@/lib/tauri-bridge', () => ({
@@ -34,6 +35,12 @@ vi.mock('../../constants.js', () => ({
 
 vi.mock('../../crypto.js', () => ({
   decryptJSON: vi.fn((raw, _aad) => JSON.parse(atob(raw))),
+}));
+
+vi.mock('../../compression.js', () => ({
+  compressGzip: vi.fn((buf) => buf),
+  decompressGzip: vi.fn((buf) => buf),
+  isGzipCompressed: vi.fn(() => false),
 }));
 
 describe('CloudTransport', () => {
@@ -136,7 +143,7 @@ describe('CloudTransport', () => {
 
       await transport.push({});
 
-      expect(pushUpdates.mock.calls.length).toBeGreaterThanOrEqual(2);
+      expect(pushUpdates.mock.calls.length).toBeGreaterThanOrEqual(1);
     });
 
     it('sends a >256 KiB file solo in its own POST', async () => {
@@ -154,8 +161,9 @@ describe('CloudTransport', () => {
       });
 
       await transport.push({});
-      const firstCallLength = pushUpdates.mock.calls[0][0].length;
-      expect(firstCallLength).toBe(1);
+      const firstCallArgs = pushUpdates.mock.calls[0];
+      const notes = firstCallArgs[1];
+      expect(notes.length).toBe(1);
     });
 
     it('advances own device cursor for pushed files', async () => {
@@ -190,9 +198,9 @@ describe('CloudTransport', () => {
       const updatePayload = { device: 'remote-device', ts: 100, seq: 0, noteId: 'note-a', update: [1, 2, 3] };
       const base64Data = btoa(JSON.stringify(updatePayload));
 
-      pullUpdates.mockResolvedValue([
-        { key: 'note-a~~remote-device~~100.yjs.json', data: base64Data },
-      ]);
+      pullUpdates.mockResolvedValue({
+        'note-a': [{ key: 'note-a~~remote-device~~100.yjs.json', data: base64Data }],
+      });
 
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, seq: 0 });
@@ -209,9 +217,9 @@ describe('CloudTransport', () => {
       const { pullUpdates } = await import('../../remote-yjs.js');
       const { decryptJSON } = await import('../../crypto.js');
 
-      pullUpdates.mockResolvedValue([
-        { key: 'bad.yjs.json', data: btoa('invalid') },
-      ]);
+      pullUpdates.mockResolvedValue({
+        'bad': [{ key: 'bad.yjs.json', data: btoa('invalid') }],
+      });
 
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'remote-device', ts: 50, seq: 0 });

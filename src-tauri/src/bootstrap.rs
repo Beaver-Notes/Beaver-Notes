@@ -247,7 +247,7 @@ fn import_json_file_into_pool(
 }
 
 #[cfg(desktop)]
-fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), AppError> {
+fn copy_directory_missing(app: &AppHandle, state: &AppState, source: &Path, target: &Path) -> Result<(), AppError> {
     fs::create_dir_all(target)?;
 
     for entry in fs::read_dir(source)? {
@@ -256,9 +256,11 @@ fn copy_directory_missing(source: &Path, target: &Path) -> Result<(), AppError> 
         let target_path = target.join(entry.file_name());
 
         if source_path.is_dir() {
-            copy_directory_missing(&source_path, &target_path)?;
+            copy_directory_missing(app, state, &source_path, &target_path)?;
         } else if !target_path.exists() {
-            fs::copy(&source_path, &target_path)?;
+            let raw = fs::read(&source_path)?;
+            let payload = encrypt_asset(app, state, &target_path, &raw)?;
+            fs::write(&target_path, payload)?;
         }
     }
 
@@ -328,7 +330,7 @@ pub(crate) fn dir_has_any_legacy_content(path: &Path) -> bool {
         || [SETTINGS_STORE, AUTH_STORE]
             .iter()
             .any(|name| path.join(name).exists())
-        || ["notes-assets", "file-assets"]
+        || ["notes-assets", "file-assets", "assets"]
             .iter()
             .any(|name| path.join(name).exists())
 }
@@ -409,9 +411,37 @@ fn run_migration_core(
     for folder in ["notes-assets", "file-assets"] {
         let old = old_dir.join(folder);
         if old.exists() {
-            copy_directory_missing(&old, &new_dir.join(folder))?;
+            // Copy all legacy asset subdirs into the consolidated `assets/` directory
+            let dest = new_dir.join("assets");
+            copy_directory_missing(app, state, &old, &dest)?;
             copied_asset_dirs.push(folder.to_string());
         }
+    }
+    // Also check if the source already uses the consolidated `assets/` dir.
+    // Skip notes-assets/ and file-assets/ inside it — those are already handled
+    // by the loop above and copying them would create nested duplicates.
+    let old_assets = old_dir.join("assets");
+    if old_assets.exists() {
+        let dest_assets = new_dir.join("assets");
+        fs::create_dir_all(&dest_assets)?;
+        for entry in fs::read_dir(&old_assets)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == "notes-assets" || name_str == "file-assets" {
+                continue;
+            }
+            let src = entry.path();
+            let dst = dest_assets.join(&name);
+            if src.is_dir() {
+                copy_directory_missing(app, state, &src, &dst)?;
+            } else if !dst.exists() {
+                let raw = fs::read(&src)?;
+                let payload = encrypt_asset(app, state, &dst, &raw)?;
+                fs::write(&dst, payload)?;
+            }
+        }
+        copied_asset_dirs.push("assets".to_string());
     }
 
     let _ = import_legacy_auth_blobs(app, &old_dir.join(AUTH_STORE));

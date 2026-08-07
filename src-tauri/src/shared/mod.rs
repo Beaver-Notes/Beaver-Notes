@@ -839,8 +839,8 @@ pub(crate) fn path_for_name(
     }
 }
 
-fn asset_roots(app_dir: &Path) -> [PathBuf; 2] {
-    [app_dir.join("notes-assets"), app_dir.join("file-assets")]
+fn asset_roots(app_dir: &Path) -> [PathBuf; 1] {
+    [app_dir.join("assets")]
 }
 
 pub(crate) fn is_local_asset_path(app: &AppHandle, target_path: &Path) -> bool {
@@ -885,8 +885,7 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
     }
 
     let root_name = match scheme {
-        "assets" => "notes-assets",
-        "file-assets" => "file-assets",
+        "assets" | "file-assets" => "assets",
         _ => {
             return Err(AppError::Other(format!("Unsupported asset scheme: {scheme}")));
         }

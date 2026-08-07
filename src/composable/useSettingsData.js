@@ -215,12 +215,8 @@ export function useSettingsData({
       await ensureDir(folderPath);
       await writeJson(path.join(folderPath, 'data.json'), { data });
       await copyPath(
-        path.join(appDirectory, 'notes-assets'),
+        path.join(appDirectory, 'assets'),
         path.join(folderPath, 'assets')
-      );
-      await copyPath(
-        path.join(appDirectory, 'file-assets'),
-        path.join(folderPath, 'file-assets')
       );
 
       if (!folderPath.includes('gvfs')) {
@@ -299,11 +295,7 @@ export function useSettingsData({
 
         await copyPath(
           path.join(dirPath, 'assets'),
-          path.join(appDirectory, 'notes-assets')
-        );
-        await copyPath(
-          path.join(dirPath, 'file-assets'),
-          path.join(appDirectory, 'file-assets')
+          path.join(appDirectory, 'assets')
         );
       };
 
@@ -375,8 +367,7 @@ export function useSettingsData({
           const appDirectory = await getEffectiveAppDirectory().catch(() => '');
 
           const cleanupPaths = [
-            appDirectory ? path.join(appDirectory, 'notes-assets') : '',
-            appDirectory ? path.join(appDirectory, 'file-assets') : '',
+            appDirectory ? path.join(appDirectory, 'assets') : '',
             appDirectory ? path.join(appDirectory, 'app-crypto') : '',
           ].filter(Boolean);
 

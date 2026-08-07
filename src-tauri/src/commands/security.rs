@@ -84,53 +84,31 @@ fn collect_asset_files(root: &PathBuf, files: &mut Vec<PathBuf>) -> Result<(), A
 pub(crate) async fn asset_crypto_migrate_dir(
     app: AppHandle,
     state: State<'_, AppState>,
-    encrypt_at_rest: bool,
 ) -> Result<AssetMigrationResult, AppError> {
     let app_dir = app_storage_dir(&app, state.inner())?;
     assert_path_access(&app, state.inner(), &app_dir, "migrate asset encryption")?;
 
     let mut files = Vec::new();
-    for root in ["notes-assets", "file-assets"] {
-        collect_asset_files(&app_dir.join(root), &mut files)?;
-    }
+    collect_asset_files(&app_dir.join("assets"), &mut files)?;
 
     let total = files.len() as u32;
     let mut processed: u32 = 0;
     let mut failed_paths = Vec::new();
     let mut failed_reasons = Vec::new();
-    let batch_size = 4usize;
+    let batch_size = 64usize;
 
     let state_inner = state.inner();
-    let encrypt = encrypt_at_rest;
 
     for chunk in files.chunks(batch_size) {
         for path in chunk {
             let current = path.to_string_lossy().to_string();
             let result: Result<(), AppError> = (|| {
                 let raw = fs::read(path)?;
-                if encrypt {
-                    // Enabling: decrypt first (in case it was encrypted with a stale key),
-                    // then re-encrypt with the current key.
-                    let plain = decrypt_asset(&app, &state_inner, path, &raw)?;
-                    let payload = encrypt_asset(&app, &state_inner, path, &plain, false)?;
-                    fs::write(path, payload)?;
-                } else {
-                    // Disabling: try to decrypt to plaintext. If decryption fails
-                    // (e.g. asset was encrypted with an old, lost key), leave it
-                    // encrypted and move on — the manifest is about to be removed anyway.
-                    match decrypt_asset(&app, &state_inner, path, &raw) {
-                        Ok(plain) => {
-                            let payload = encrypt_asset(&app, &state_inner, path, &plain, true)?;
-                            fs::write(path, payload)?;
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "[asset-migration] skipping undecryptable asset (left encrypted): {} | error: {}",
-                                current, e
-                            );
-                        }
-                    }
-                }
+                // Decrypt with old key (in case it was encrypted with a stale key),
+                // then re-encrypt with the current key.
+                let plain = decrypt_asset(&app, &state_inner, path, &raw)?;
+                let payload = encrypt_asset(&app, &state_inner, path, &plain)?;
+                fs::write(path, payload)?;
                 Ok(())
             })();
             match result {

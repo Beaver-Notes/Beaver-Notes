@@ -143,6 +143,7 @@ pub fn run() {
             commands::fs::fs_write_file,
             commands::fs::fs_mkdir,
             commands::fs::fs_read_file,
+            commands::fs::fs_read_file_binary,
             commands::fs::fs_readdir,
             commands::fs::fs_stat,
             commands::fs::fs_unlink,

@@ -1,7 +1,8 @@
 <template>
-  <div
-    class="fixed top-0 right-0 w-80 h-full bg-white dark:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-700 z-50 flex flex-col"
-  >
+  <transition name="slide-right">
+    <div
+      class="fixed top-0 right-0 w-80 h-full bg-white dark:bg-neutral-800 border-l border-neutral-200 dark:border-neutral-700 z-50 flex flex-col"
+    >
     <div
       class="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700"
     >
@@ -47,6 +48,7 @@
       </div>
     </div>
   </div>
+  </transition>
 </template>
 
 <script>
@@ -98,3 +100,19 @@ export default {
   },
 };
 </script>
+<style>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform var(--motion-base) var(--ease-standard);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-right-enter-active,
+  .slide-right-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+</style>

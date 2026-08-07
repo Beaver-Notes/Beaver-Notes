@@ -47,8 +47,7 @@ export async function getCommitsDir() {
 
     const remoteAllowed =
       transportSetting === SYNC_TRANSPORT.REMOTE &&
-      accountStore.isAuthenticated &&
-      isPaidPlan(accountStore.subscription?.plan);
+      accountStore.isAuthenticated;
 
     if (remoteAllowed) {
       const { getAppDirectory } = await import('@/lib/native/app');

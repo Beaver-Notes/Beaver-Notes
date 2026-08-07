@@ -1,7 +1,8 @@
 <template>
-  <div
-    class="fixed top-0 right-0 z-50 h-full w-full max-w-5xl bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 shadow-2xl flex flex-col rounded-l-xl overflow-hidden"
-  >
+  <transition name="slide-right">
+    <div
+      class="fixed top-0 right-0 z-50 h-full w-full max-w-5xl bg-white dark:bg-neutral-900 border-l border-neutral-200 dark:border-neutral-700 shadow-2xl flex flex-col rounded-l-xl overflow-hidden"
+    >
     <!-- Header Bar -->
     <div class="flex items-center justify-between px-5 py-3 border-b border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-850">
       <div class="flex items-center gap-3">
@@ -121,7 +122,7 @@
         enter-active-class="transition-all duration-200 ease-out"
         enter-from-class="translate-x-full opacity-0"
         enter-to-class="translate-x-0 opacity-100"
-        leave-active-class="transition-all duration-150 ease-in"
+        leave-active-class="transition-[transform,opacity] duration-150 ease-out"
         leave-from-class="translate-x-0 opacity-100"
         leave-to-class="translate-x-full opacity-0"
       >
@@ -273,6 +274,7 @@
       </div>
     </div>
   </div>
+  </transition>
 </template>
 
 <script>
@@ -524,3 +526,19 @@ export default {
   },
 };
 </script>
+<style>
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform var(--motion-slow) var(--ease-standard);
+}
+.slide-right-enter-from,
+.slide-right-leave-to {
+  transform: translateX(100%);
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide-right-enter-active,
+  .slide-right-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
+</style>

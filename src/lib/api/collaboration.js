@@ -46,13 +46,13 @@ export async function generateInviteLink(noteId, { role, requireApproval, expire
     requireApproval,
     expiresIn,
   }, { signal });
-  return response.data;
+  return response;
 }
 
 export async function listInviteLinks(noteId, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   const response = await client.get(`/collaboration/links/${encodeURIComponent(noteId)}`, { signal });
-  return response.data.links || [];
+  return response?.links || [];
 }
 
 export async function revokeInviteLink(noteId, linkId, { baseUrl, signal } = {}) {
@@ -61,11 +61,11 @@ export async function revokeInviteLink(noteId, linkId, { baseUrl, signal } = {})
     `/collaboration/links/${encodeURIComponent(noteId)}/${encodeURIComponent(linkId)}`,
     { signal }
   );
-  return response.data;
+  return response;
 }
 
 export async function joinViaInviteLink(token, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   const response = await client.post(`/collaboration/join/${encodeURIComponent(token)}`, {}, { signal });
-  return response.data;
+  return response;
 }

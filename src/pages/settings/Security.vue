@@ -419,7 +419,7 @@ async function migrateAssetsForEncryption() {
   });
 
   try {
-    const result = await migrateAssetEncryption(true);
+    const result = await migrateAssetEncryption();
     updateEncryptionProgress({
       phase,
       processed: result.processed,

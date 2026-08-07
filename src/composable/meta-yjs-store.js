@@ -76,6 +76,21 @@ export async function writeStoresFromWorkspace() {
     yLabels.push(missingLabels);
   }
 
+  // Deduplicate the Y.Array if duplicates somehow accumulated
+  const seen = new Set();
+  const deduped = [];
+  for (let i = 0; i < yLabels.length; i++) {
+    const name = yLabels.get(i);
+    if (!seen.has(name)) {
+      seen.add(name);
+      deduped.push(name);
+    }
+  }
+  if (deduped.length !== yLabels.length) {
+    yLabels.delete(0, yLabels.length);
+    yLabels.push(deduped);
+  }
+
   const missingColors = Object.entries(kvColors).filter(
     ([k]) => !yLabelColors.has(k)
   );
@@ -112,7 +127,7 @@ export async function writeStoresFromWorkspace() {
   folderStore._rebuildIndex();
 
   // Labels
-  labelStore.data = yLabels.toArray();
+  labelStore.data = [...new Set(yLabels.toArray())];
   labelStore.colors = yMapToObj(yLabelColors);
 
   // Note metadata (preserve content kept in memory separately)

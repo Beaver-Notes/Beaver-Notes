@@ -31,7 +31,7 @@
         "
         :aria-label="translations.sidebar.addNotes"
         data-testid="add-note-button"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
+        class="transition-[width,height,padding,gap] duration-200 ease-[var(--ease-snappy)] text-white bg-primary dark:bg-primary/50 hover:bg-primary/90 dark:hover:bg-primary/60 rounded-xl flex items-center justify-center overflow-hidden"
         :class="expanded ? 'px-4 gap-2 h-10 w-full' : 'p-0 w-9 h-9'"
         @click="addNote"
       >
@@ -61,7 +61,7 @@
             : undefined
         "
         :aria-label="translations.sidebar.newFolder || 'New Folder'"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
@@ -82,7 +82,7 @@
 
     <nav class="flex flex-col gap-1 px-3 shrink-0 relative">
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[var(--ease-snappy)]"
+        class="absolute left-0 w-1 bg-primary rounded-r-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
         :style="pillStyle"
       />
 
@@ -95,7 +95,7 @@
         "
         :aria-label="translations.sidebar.notes"
         data-testid="nav-notes-button"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isAllNotesActive
@@ -129,7 +129,7 @@
         "
         :aria-label="translations.sidebar.archive"
         data-testid="nav-archive-button"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
+        class="transition-[width,padding,gap] duration-200 ease-[var(--ease-snappy)] rounded-lg flex items-center h-9 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           isArchiveActive
@@ -155,7 +155,7 @@
       </button>
     </nav>
 
-    <ExpandTransition>
+    <transition name="fade-fast">
       <div
         v-show="expanded"
         class="mt-5 px-3 flex-1 min-h-0 overflow-y-auto scrollbar-none flex flex-col"
@@ -209,7 +209,7 @@
           </p>
         </div>
       </div>
-    </ExpandTransition>
+    </transition>
 
     <div v-if="!expanded" class="flex-grow" />
 
@@ -217,7 +217,7 @@
       class="flex flex-col items-center gap-1 px-3 pb-4 pt-3 border-t border-neutral-200/50 dark:border-neutral-800/50 shrink-0 relative"
     >
       <div
-        class="absolute left-0 w-1 bg-primary rounded-r-full transition-all duration-200 ease-[var(--ease-snappy)]"
+        class="absolute left-0 w-1 bg-primary rounded-r-full transition-[top,height,opacity] duration-200 ease-[var(--ease-snappy)]"
         :style="footerPillStyle"
       />
 
@@ -228,7 +228,7 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleSync"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
         :class="[
           expanded ? 'w-full px-3' : 'justify-center w-9',
           { '!text-primary': spinning },
@@ -258,7 +258,7 @@
             : undefined
         "
         :aria-label="translations.sidebar.toggleDarkTheme"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
+        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9 text-neutral-500 dark:text-neutral-400 overflow-hidden"
         :class="expanded ? 'w-full px-3' : 'justify-center w-9'"
         @click="theme.setTheme(theme.isDark() ? 'light' : 'dark')"
       >
@@ -287,7 +287,7 @@
         "
         :aria-label="translations.settings.title"
         to="/settings"
-        class="transition-all duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
+        class="transition-[width,padding] duration-200 ease-[var(--ease-snappy)] rounded-lg hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 flex items-center h-9"
         active-class="text-primary bg-primary/10"
         :class="[
           !isSettingsActive
