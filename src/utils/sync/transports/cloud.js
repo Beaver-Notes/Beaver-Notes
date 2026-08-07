@@ -147,6 +147,28 @@ export class CloudTransport extends Transport {
             allUpdates.push(...updates);
           }
         }
+      } else {
+        // Cloud-only mode: discover noteIds from workspace Yjs doc
+        try {
+          const workspaceDoc = getWorkspaceDoc();
+          const notesMap = workspaceDoc.getMap('notes');
+          const noteIds = Array.from(notesMap.keys()).filter(
+            (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+          );
+          if (noteIds.length > 0) {
+            console.log('[sync] cloud pull: cloud-only mode, pulling', noteIds.length, 'notes from workspace doc');
+            const notes = noteIds.map((noteId) => ({ noteId, cursors: {} }));
+            const batchResult = await remotePullUpdates(workspaceId, notes).catch((err) => {
+              console.error('[sync] cloud batch pull error:', err?.status, err?.message);
+              return {};
+            });
+            for (const [noteId, updates] of Object.entries(batchResult)) {
+              allUpdates.push(...updates);
+            }
+          }
+        } catch (err) {
+          console.warn('[sync] cloud pull: workspace doc discovery failed:', err?.message);
+        }
       }
       // Cloud-only mode with no cursors and no commits dir: skip (will get updates on next push)
     }
