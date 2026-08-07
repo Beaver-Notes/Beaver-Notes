@@ -27,6 +27,15 @@ describe('invokeCommand payload normalization', () => {
       expect.objectContaining({ passphrase: 'pw' })
     );
 
+    await invokeCommand('encryption:adoptKeyParams', {
+      passphrase: 'pw',
+      keyParams: '{"version":3}',
+    });
+    expect(invoke).toHaveBeenCalledWith(
+      'encryption_adopt_key_params',
+      expect.objectContaining({ passphrase: 'pw', keyParams: '{"version":3}' })
+    );
+
     await invokeCommand('encryption:hasRemoteKeyParams');
     expect(invoke).toHaveBeenCalledWith('encryption_has_remote_key_params', {});
   });

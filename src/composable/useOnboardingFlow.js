@@ -130,19 +130,26 @@ export function useOnboardingFlow({
 
   async function detectVaultJoin() {
     vaultJoinMode.value = false;
-    let syncPath = fresh.syncPath;
-    if (!syncPath) {
-      const { getSyncPath } = await import('@/utils/sync/path.js');
-      syncPath = await getSyncPath().catch(() => '');
-    }
-    if (!syncPath) return;
     try {
+      let detected = false;
       if (accountStore.isAuthenticated) {
         const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-        await fetchCloudKeyParams({ force: true }).catch(() => {});
+        const { detectRemoteVaultJoin } = await import(
+          '@/utils/onboarding/remote-vault-join.js'
+        );
+        detected = await detectRemoteVaultJoin({
+          fetchCloudKeyParams,
+          hasRemoteVaultKeyParams: async () => {
+            const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
+            return hasRemoteVaultKeyParams();
+          },
+        }).catch(() => {});
       }
-      const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
-      vaultJoinMode.value = await hasRemoteVaultKeyParams();
+      if (!detected) {
+        const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
+        detected = await hasRemoteVaultKeyParams();
+      }
+      vaultJoinMode.value = detected;
     } catch (e) {
       console.warn('[onboarding] vault-join detection failed:', e);
       vaultJoinMode.value = false;
@@ -160,8 +167,39 @@ export function useOnboardingFlow({
     }
     encryptionPasswordLoading.value = true;
     try {
+      const { useWorkspaceStore } = await import('@/store/workspace.ts');
+      const workspaceId = useWorkspaceStore().activeId;
+      const { getFetchedCloudKeyParams, deriveVaultPassphraseProof } =
+        await import('@/utils/sync/vault-key-params.js');
+      const fetched = getFetchedCloudKeyParams();
+      const { completeRemoteVaultJoin } = await import(
+        '@/utils/onboarding/remote-vault-join.js'
+      );
+      if (workspaceId && vaultJoinMode.value && fetched) {
+        const { getApiClient } = await import('@/lib/api/client');
+        const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
+        const { challenge } = await getApiClient({ baseUrl: accountStore.serverUrl })
+          .createVaultChallenge(workspaceId);
+        const result = await completeRemoteVaultJoin({
+          workspaceId,
+          passphrase: pw,
+          proofBlob: fetched.proofBlob,
+          paramsBlob: fetched.paramsBlob,
+          challenge,
+          deriveProof: deriveVaultPassphraseProof,
+          verify: (id, proof, challenge) =>
+            getApiClient({ baseUrl: accountStore.serverUrl }).verifyVaultPassphrase(id, proof, challenge),
+          adopt: adoptVaultKey,
+        });
+        if (!result?.ok) {
+          encryptionPasswordError.value = result?.error || 'Failed to join this vault.';
+          return;
+        }
+        goToNextStep();
+        return;
+      }
       const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
-      const result = await adoptVaultKey(pw);
+      const result = await adoptVaultKey(pw, fetched?.paramsBlob);
       if (!result.ok) {
         encryptionPasswordError.value =
           result.error || 'Failed to join this vault.';
@@ -353,6 +391,7 @@ export function useOnboardingFlow({
       });
       await setSetting('syncTransport', transport);
       if (transport === 'remote') await setSyncPath('');
+      await detectVaultJoin();
     }
     goToNextStep();
   }

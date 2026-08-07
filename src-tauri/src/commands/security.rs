@@ -609,11 +609,23 @@ pub(crate) fn encryption_adopt_key_params(
     app: AppHandle,
     state: State<AppState>,
     passphrase: String,
+    key_params: Option<String>,
 ) -> Result<EncryptionSubmitResult, AppError> {
     assert_not_locked(state.inner())?;
-    let params = read_key_params(&app, state.inner())?.ok_or_else(|| {
-        AppError::Other("No shared key params found in the sync source.".into())
-    })?;
+    let params = match key_params {
+        Some(raw) => {
+            let json = if raw.trim_start().starts_with('{') {
+                raw
+            } else {
+                String::from_utf8(BASE64.decode(raw.trim())?)
+                    .map_err(|err| AppError::Other(err.to_string()))?
+            };
+            serde_json::from_str(&json)?
+        }
+        None => read_key_params(&app, state.inner())?.ok_or_else(|| {
+            AppError::Other("No shared key params found in the sync source.".into())
+        })?,
+    };
     adopt_key_params(&app, state.inner(), &params, &passphrase)?;
     {
         let mut s = state.crypto.session.write()?;

@@ -101,8 +101,11 @@ export function reconcileSyncKeyParams(passphrase) {
   return backend.invoke('encryption:reconcileKeyParams', { passphrase });
 }
 
-export function adoptKeyParams(passphrase) {
-  return backend.invoke('encryption:adoptKeyParams', { passphrase });
+export function adoptKeyParams(passphrase, keyParams) {
+  return backend.invoke(
+    'encryption:adoptKeyParams',
+    keyParams == null ? { passphrase } : { passphrase, keyParams },
+  );
 }
 
 export function hasRemoteKeyParams() {

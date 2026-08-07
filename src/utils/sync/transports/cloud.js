@@ -2,13 +2,16 @@ import { Transport } from './transport.js';
 import {
   pushUpdates as remotePushUpdates,
   pullUpdates as remotePullUpdates,
+  getRemoteState,
+  claimInitialization,
+  uploadInitializationSnapshot,
+  completeInitialization,
 } from '../remote-yjs.js';
 import {
   listRemoteAssets,
   uploadAsset,
   batchUploadAssets,
   downloadAsset,
-  deleteRemoteAsset,
   encodeAssetKey,
   decodeAssetKey,
   presignBatchUpload,
@@ -35,6 +38,62 @@ const CLOUD_PUSH_MIN_INTERVAL_MS = 30_000;
 const CLOUD_PUSH_MAX_BATCH_BYTES = 256 * 1024;
 const CLOUD_PUSH_MAX_FILES_PER_POST = 50;
 
+function acknowledgedCheckpoints(result, noteIds) {
+  if (result?.checkpoints && typeof result.checkpoints === 'object') return result.checkpoints;
+  if (result?.checkpoint && noteIds.length === 1) return { [noteIds[0]]: result.checkpoint };
+  return {};
+}
+
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function malformedRemoteUpdate() {
+  const error = new Error('Remote update payload is malformed');
+  error.code = 'unlock-required';
+  return error;
+}
+
+function toUpdateBytes(value) {
+  if (value instanceof Uint8Array) return new Uint8Array(value);
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (Array.isArray(value) && value.every((byte) => isNonNegativeInteger(byte) && byte <= 255)) {
+    return new Uint8Array(value);
+  }
+  return null;
+}
+
+function validateCheckpoint(checkpoint) {
+  if (checkpoint?.deviceId) {
+    return typeof checkpoint.deviceId === 'string' && checkpoint.deviceId.length > 0 &&
+      isNonNegativeInteger(checkpoint.ts) && isNonNegativeInteger(checkpoint.sequence);
+  }
+  return checkpoint && typeof checkpoint === 'object' && Object.entries(checkpoint).every(([deviceId, value]) =>
+    typeof deviceId === 'string' && deviceId.length > 0 && value &&
+    isNonNegativeInteger(value.ts) && isNonNegativeInteger(value.sequence));
+}
+
+function checkpointMap(checkpoint) {
+  return checkpoint?.deviceId
+    ? { [checkpoint.deviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence } }
+    : checkpoint;
+}
+
+function isAuthoritativelyEmpty(state) {
+  return isValidRemoteState(state) && state.status === 'empty' && state.documents.length === 0;
+}
+
+function isValidRemoteState(state) {
+  const recognizedStatuses = new Set(['empty', 'initializing', 'initialized', 'recovering']);
+  return state && recognizedStatuses.has(state.status) && Array.isArray(state.documents);
+}
+
+function malformedRemoteState() {
+  const error = new Error('Remote sync state payload is malformed');
+  error.code = 'sync-state-invalid';
+  return error;
+}
+
 export class CloudTransport extends Transport {
   constructor({ passphraseProvider, getTransportSetting, getAccountState }) {
     super();
@@ -45,6 +104,7 @@ export class CloudTransport extends Transport {
     this._cloudBuffer = [];
     this._serverProbeComplete = false;
     this._failedDownloads = new Map();
+    this._seedPromise = null;
   }
 
   getCloudBuffer() {
@@ -96,110 +156,75 @@ export class CloudTransport extends Transport {
       return { updates: [], cursorsDelta: {} };
     }
 
-    // Group cursor keys by noteId: "yjs-{deviceId}" cursors are workspace-level,
-    // but we need per-note pulls. Extract noteIds from cursor keys that contain them.
-    // Cursor format: "yjs-{deviceId}" (legacy) or "{noteId}:{deviceId}" (new)
-    const noteCursors = {};
-    for (const [key, val] of Object.entries(cursors)) {
-      const parts = key.split(':');
-      if (parts.length === 2) {
-        const [noteId, deviceId] = parts;
-        if (!noteCursors[noteId]) noteCursors[noteId] = {};
-        noteCursors[noteId][deviceId] = val;
-      } else if (parts.length === 1 && parts[0].startsWith('yjs-')) {
-        // Legacy cursor format — no noteId context, skip (will get full pull)
-      }
+    const noteCursors = Object.fromEntries(Object.entries(cursors[workspaceId] || {}));
+    const state = await getRemoteState(workspaceId);
+    if (!isValidRemoteState(state)) throw malformedRemoteState();
+    for (const document of state.documents) {
+      if (document.noteId) noteCursors[document.noteId] ||= {};
     }
 
-    const allUpdates = [];
-
-    if (Object.keys(noteCursors).length > 0) {
-      // Batch pull using note-scoped cursors — single request for all notes
-      const notes = Object.entries(noteCursors).map(([noteId, cursors]) => ({ noteId, cursors }));
-      const batchResult = await remotePullUpdates(workspaceId, notes).catch((err) => {
-        console.error('[sync] cloud batch pull error:', err?.status, err?.message);
-        return {};
-      });
-      for (const [noteId, updates] of Object.entries(batchResult)) {
-        allUpdates.push(...updates);
+    const notes = Object.entries(noteCursors).map(([noteId, noteCursor]) => ({
+      noteId,
+      checkpoint: noteCursor || {},
+    }));
+    const result = await remotePullUpdates(workspaceId, notes);
+    const updates = [];
+    const cursorsDelta = {};
+    let hasMore = false;
+    for (const [noteId] of Object.entries(noteCursors)) {
+      const page = result.notes?.[noteId] || { updates: [], hasMore: false };
+      if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
+      for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
+      if (page.nextCheckpoint) {
+        const checkpoint = page.nextCheckpoint;
+        if (!validateCheckpoint(checkpoint)) throw malformedRemoteUpdate();
+        cursorsDelta[workspaceId] ||= {};
+        cursorsDelta[workspaceId][noteId] = checkpointMap(checkpoint);
       }
-    } else {
-      // No note-scoped cursors — pull all notes (initial sync or legacy cursor format)
-      // Try to discover noteIds from the commits directory (folder sync mode)
-      const commitsDir = await getCommitsDir();
-      if (commitsDir) {
-        const files = await readDir(commitsDir).catch(() => []);
-        const noteIds = new Set();
-        for (const file of files) {
-          if (!file.endsWith(YJS_UPDATE_EXT) || file === '._seeded') continue;
-          const parsed = parseSyncFilename(file);
-          if (parsed?.docId) noteIds.add(parsed.docId);
-        }
-
-        // Batch pull all discovered notes — single request
-        if (noteIds.size > 0) {
-          const notes = [...noteIds].map((noteId) => ({ noteId, cursors: {} }));
-          const batchResult = await remotePullUpdates(workspaceId, notes).catch((err) => {
-            console.error('[sync] cloud batch pull error:', err?.status, err?.message);
-            return {};
-          });
-          for (const [noteId, updates] of Object.entries(batchResult)) {
-            allUpdates.push(...updates);
-          }
-        }
-      } else {
-        // Cloud-only mode: discover noteIds from workspace Yjs doc
-        try {
-          const workspaceDoc = getWorkspaceDoc();
-          const notesMap = workspaceDoc.getMap('notes');
-          const noteIds = Array.from(notesMap.keys()).filter(
-            (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
-          );
-          if (noteIds.length > 0) {
-            console.log('[sync] cloud pull: cloud-only mode, pulling', noteIds.length, 'notes from workspace doc');
-            const notes = noteIds.map((noteId) => ({ noteId, cursors: {} }));
-            const batchResult = await remotePullUpdates(workspaceId, notes).catch((err) => {
-              console.error('[sync] cloud batch pull error:', err?.status, err?.message);
-              return {};
-            });
-            for (const [noteId, updates] of Object.entries(batchResult)) {
-              allUpdates.push(...updates);
-            }
-          }
-        } catch (err) {
-          console.warn('[sync] cloud pull: workspace doc discovery failed:', err?.message);
-        }
-      }
-      // Cloud-only mode with no cursors and no commits dir: skip (will get updates on next push)
+      hasMore ||= page.hasMore === true;
     }
 
     const { decryptJSON } = await import('../crypto.js');
 
-    const updates = [];
-    for (const upd of allUpdates) {
+    const decodedUpdates = [];
+    for (const upd of updates) {
       let payload, parsed;
       try {
         const raw = atob(upd.data);
         parsed = parseSyncFilename(upd.key);
+        if (!parsed || parsed.docId !== upd._noteId ||
+          typeof parsed.device !== 'string' || parsed.device.length === 0 ||
+          !isNonNegativeInteger(parsed.ts) || !isNonNegativeInteger(parsed.seq)) {
+          throw malformedRemoteUpdate();
+        }
         const aadSuffix = parsed?.isSnapshot
           ? `${parsed.docId}-snapshot-${parsed.ts}`
           : `${parsed.docId}-${parsed.ts}`;
         payload = await decryptJSON(raw, aadSuffix);
-      } catch {
-        continue;
+      } catch (caughtError) {
+        const errorCode = caughtError?.code === 'DECRYPT_FAILED' ? 'DECRYPT_FAILED' : null;
+        const error = new Error(errorCode || 'Remote update cannot be decrypted');
+        error.code = 'unlock-required';
+        throw error;
       }
-      if (!payload?.device || !payload?.noteId || !payload?.update) continue;
+      const payloadSequence = payload?.sequence ?? payload?.seq;
+      const updateBytes = toUpdateBytes(payload?.update);
+      if (!payload || payload.noteId !== upd._noteId || payload.device !== parsed.device ||
+        !isNonNegativeInteger(payload.ts) || payload.ts !== parsed.ts ||
+        !isNonNegativeInteger(payloadSequence) || payloadSequence !== parsed.seq || !updateBytes) {
+        throw malformedRemoteUpdate();
+      }
 
-      updates.push({
+      decodedUpdates.push({
         noteId: payload.noteId,
-        update: new Uint8Array(payload.update),
+        update: updateBytes,
         device: payload.device,
         ts: payload.ts,
-        seq: parsed?.seq ?? payload.seq ?? 0,
+        seq: payloadSequence,
       });
     }
 
-    return { updates, cursorsDelta: {} };
+    return { updates: decodedUpdates, cursorsDelta, hasMore };
   }
 
   async push(cursors, opts = {}) {
@@ -220,9 +245,18 @@ export class CloudTransport extends Transport {
       return { updates: [], cursorsDelta: {}, pushed: 0, throttled: true };
     }
 
+    const ownDeviceId = getSyncDeviceId();
+    const remoteCursor = cursors[workspaceId] || {};
+    const ownCursor = Object.values(remoteCursor).reduce((latest, note) => {
+      const candidate = note?.[ownDeviceId];
+      return candidate && (candidate.ts > latest.ts || (candidate.ts === latest.ts && candidate.sequence > latest.sequence))
+        ? { ts: candidate.ts, sequence: candidate.sequence }
+        : latest;
+    }, { ts: 0, sequence: 0 });
+
     // First push of the session: if server is empty, seed with local state
-    if (!this._serverProbeComplete) {
-      this._serverProbeComplete = true;
+    // A prior cursor means this is a stale-server check, not an initial seed.
+    if (!this._serverProbeComplete && ownCursor.ts === 0 && ownCursor.sequence === 0) {
       try {
         const seeded = await this.seedCloudOnce();
         if (seeded) {
@@ -230,45 +264,62 @@ export class CloudTransport extends Transport {
         }
       } catch (err) {
         console.warn('[sync] cloud push: seedCloudOnce failed:', err?.message);
+        if (err?.code === 'sync-state-invalid') throw err;
       }
     }
-
-    const ownDeviceId = getSyncDeviceId();
-    const ownCursorKey = `yjs-${ownDeviceId}`;
-    const ownCursor = cursors[ownCursorKey] || { ts: 0, seq: 0 };
 
     // Cloud-only mode: push from in-memory buffer (no disk files)
     if (this._cloudBuffer.length > 0) {
       const { encryptJSON } = await import('../crypto.js');
-      const batch = this._cloudBuffer.splice(0);
+      const nextSequences = new Map();
+      const batch = this._cloudBuffer.map((item) => ({
+        ...item,
+        sequence: (nextSequences.get(item.noteId) ?? remoteCursor[item.noteId]?.[ownDeviceId]?.sequence ?? 0) + 1,
+      }));
+      for (const item of batch) nextSequences.set(item.noteId, item.sequence);
       const notesMap = new Map();
-      for (const { noteId, update } of batch) {
+      for (const { noteId, update, sequence } of batch) {
         if (!notesMap.has(noteId)) notesMap.set(noteId, []);
         const ts = Date.now();
         const encrypted = await encryptJSON({
           device: ownDeviceId,
           ts,
-          seq: 0,
+          sequence,
           noteId,
           update,
         }, `${noteId}-${ts}`);
         notesMap.get(noteId).push({
-          key: `${noteId}~~${ownDeviceId}~~${ts}~~0${YJS_UPDATE_EXT}`,
+          key: `${noteId}~~${ownDeviceId}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`,
           data: encrypted,
+          deviceId: ownDeviceId,
+          ts,
+          sequence,
         });
       }
 
       const notes = [...notesMap.entries()].map(([noteId, updates]) => ({ noteId, updates }));
       const result = await remotePushUpdates(workspaceId, notes);
-      const totalPushed = result.stored || 0;
-      const ts = Date.now();
+      const totalPushed = (result.accepted || 0) + (result.duplicate || 0);
 
       console.log('[sync] cloud push (cloud-only) totalPushed:', totalPushed);
       this._lastPushedAt = Date.now();
 
       const cursorsDelta = {};
-      if (ts > ownCursor.ts) {
-        cursorsDelta[ownCursorKey] = { ts, seq: 0 };
+      const checkpoints = acknowledgedCheckpoints(result, [...notesMap.keys()]);
+      for (const [noteId, checkpoint] of Object.entries(checkpoints)) {
+        if (checkpoint?.deviceId !== ownDeviceId) continue;
+        cursorsDelta[workspaceId] ||= {};
+        cursorsDelta[workspaceId][noteId] = {
+          [ownDeviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence },
+        };
+      }
+      const acknowledged = new Set();
+      for (const item of batch) {
+        const checkpoint = checkpoints[item.noteId];
+        if (checkpoint && item.sequence <= checkpoint.sequence) acknowledged.add(item);
+      }
+      for (let index = this._cloudBuffer.length - 1; index >= 0; index--) {
+        if (acknowledged.has(batch[index])) this._cloudBuffer.splice(index, 1);
       }
       return { updates: [], cursorsDelta, pushed: totalPushed };
     }
@@ -299,14 +350,18 @@ export class CloudTransport extends Transport {
     for (const [noteId, files] of allFilesByNoteId) {
       const filtered = files.filter(({ parsed }) =>
         parsed.device === ownDeviceId &&
-        (parsed.ts > ownCursor.ts || (parsed.ts === ownCursor.ts && (parsed.seq ?? 0) > ownCursor.seq))
+        (() => {
+          const noteCursor = remoteCursor[parsed.docId]?.[ownDeviceId] || { ts: 0, sequence: 0 };
+          return parsed.ts > noteCursor.ts || (parsed.ts === noteCursor.ts && (parsed.seq ?? 0) > noteCursor.sequence);
+        })()
       );
       if (filtered.length > 0) filesByNoteId.set(noteId, filtered);
     }
 
     let totalPushed = 0;
     let pushCursorTs = ownCursor.ts;
-    let pushCursorSeq = ownCursor.seq;
+    let pushCursorSeq = ownCursor.sequence;
+    let acknowledgedCheckpoint = null;
 
     // Collect all note updates for batch push
     let batchNotes = [];
@@ -329,7 +384,13 @@ export class CloudTransport extends Transport {
           break;
         }
 
-        noteUpdates.push({ key: file, data: typeof raw === 'string' ? raw : raw.toString() });
+        noteUpdates.push({
+          key: file,
+          data: typeof raw === 'string' ? raw : raw.toString(),
+          deviceId: parsed.device,
+          ts: parsed.ts,
+          sequence: parsed.seq ?? 0,
+        });
         batchBytes += fileBytes;
 
         if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
@@ -350,26 +411,28 @@ export class CloudTransport extends Transport {
     if (batchNotes.length > 0) {
       try {
         const result = await remotePushUpdates(workspaceId, batchNotes);
-        totalPushed = result.stored || 0;
+        totalPushed = (result.accepted || 0) + (result.duplicate || 0);
+        acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
         console.log('[sync] cloud push result:', JSON.stringify(result));
       } catch (e) {
         console.error('[sync] cloud push error:', e?.status, e?.message);
+        throw e;
       }
     } else if (ownCursor.ts > 0 && allFilesByNoteId.size > 0 && !this._serverProbeComplete) {
       console.log('[sync] cloud push: cursor stale check — cursor:', JSON.stringify(ownCursor), 'files:', allFilesByNoteId.size);
       // Cursor says "already pushed" but server might be empty (reset, data loss).
       // Probe once: pull with empty cursor for first note. If server returns nothing, it's empty.
-      const probeNoteId = allFilesByNoteId.keys().next().value;
+      let probePush = false;
       try {
-        const probe = await remotePullUpdates(workspaceId, [{
-          noteId: probeNoteId,
-          cursors: {},
-        }]);
-        // Probe succeeded — mark complete so we don't retry
-        this._serverProbeComplete = true;
-        const hasData = probe && Object.values(probe).some((arr) => arr?.length > 0);
-        console.log('[sync] cloud push: probe result — hasData:', hasData, 'keys:', probe ? Object.keys(probe) : 'null');
-        if (!hasData) {
+        const state = await getRemoteState(workspaceId);
+        if (!isValidRemoteState(state)) {
+          throw malformedRemoteState();
+        }
+        const serverEmpty = isAuthoritativelyEmpty(state);
+        console.log('[sync] cloud push: probe state — empty:', serverEmpty, 'status:', state?.status);
+        if (!serverEmpty) {
+          this._serverProbeComplete = true;
+        } else {
           console.log('[sync] cloud push: probe found empty server, resetting stale cursor');
           pushCursorTs = 0;
           pushCursorSeq = 0;
@@ -381,7 +444,7 @@ export class CloudTransport extends Transport {
               let raw;
               try { raw = await readFile(path.join(commitsDir, file)); } catch { continue; }
               if (!raw) continue;
-              noteUpdates.push({ key: file, data: typeof raw === 'string' ? raw : raw.toString() });
+               noteUpdates.push({ key: file, data: typeof raw === 'string' ? raw : raw.toString(), deviceId: parsed.device, ts: parsed.ts, sequence: parsed.seq ?? 0 });
               if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
                 pushCursorTs = parsed.ts;
                 pushCursorSeq = parsed.seq ?? 0;
@@ -390,16 +453,21 @@ export class CloudTransport extends Transport {
             if (noteUpdates.length > 0) batchNotes.push({ noteId, updates: noteUpdates });
           }
           if (batchNotes.length > 0) {
-            const result = await remotePushUpdates(workspaceId, batchNotes);
-            totalPushed = result.stored || 0;
-            if (totalPushed > 0) {
-              this._probeResetCursor = true;
-              pushCursorTs = Date.now();
-              pushCursorSeq = 0;
+            let result;
+            try {
+              probePush = true;
+              result = await remotePushUpdates(workspaceId, batchNotes);
+            } catch (error) {
+              throw error;
             }
+            totalPushed = (result.accepted || 0) + (result.duplicate || 0);
+            acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
+            this._serverProbeComplete = true;
           }
         }
       } catch (e) {
+        if (probePush) throw e;
+        if (e?.code === 'sync-state-invalid') throw e;
         console.log('[sync] cloud push: probe failed:', e?.status, e?.message);
         // Server unreachable — will retry next cycle (don't set _serverProbeComplete)
       }
@@ -409,9 +477,12 @@ export class CloudTransport extends Transport {
     this._lastPushedAt = Date.now();
 
     const cursorsDelta = {};
-    if (this._probeResetCursor || pushCursorTs > ownCursor.ts || (pushCursorTs === ownCursor.ts && pushCursorSeq > ownCursor.seq)) {
-      cursorsDelta[ownCursorKey] = { ts: pushCursorTs, seq: pushCursorSeq };
-      this._probeResetCursor = false;
+    for (const [noteId, checkpoint] of Object.entries(acknowledgedCheckpoint || {})) {
+      if (checkpoint?.deviceId !== ownDeviceId) continue;
+      cursorsDelta[workspaceId] ||= {};
+      cursorsDelta[workspaceId][noteId] = {
+        [ownDeviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence },
+      };
     }
 
     return { updates: [], cursorsDelta, pushed: totalPushed };
@@ -450,28 +521,52 @@ export class CloudTransport extends Transport {
    * Pushes snapshots for the workspace doc and all notes.
    */
   async seedCloudOnce() {
+    if (this._seedPromise) return this._seedPromise;
+    this._seedPromise = this._seedCloudOnce();
+    try {
+      return await this._seedPromise;
+    } finally {
+      this._seedPromise = null;
+    }
+  }
+
+  async _seedCloudOnce() {
     if (!this._remoteAllowed()) return false;
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) return false;
 
-    // Check if server already has data — only seed when empty
+    // The state endpoint is authoritative; do not infer workspace state from a note.
     try {
-      const probe = await remotePullUpdates(workspaceId, [{
-        noteId: '__probe__',
-        cursors: {},
-      }]);
-      const hasData = probe && Object.values(probe).some((arr) => arr?.length > 0);
-      if (hasData) return false;
-    } catch {
+      const state = await getRemoteState(workspaceId);
+      if (!isValidRemoteState(state)) throw malformedRemoteState();
+      if (!isAuthoritativelyEmpty(state)) {
+        this._serverProbeComplete = true;
+        return false;
+      }
+    } catch (err) {
+      if (err?.code === 'sync-state-invalid') throw err;
       return false;
     }
 
-    console.log('[sync] cloud seed: server empty, pushing initial state');
+    let claim;
+    try {
+      claim = await claimInitialization(workspaceId);
+    } catch (err) {
+      if (err?.status === 409) {
+        this._serverProbeComplete = true;
+        return false;
+      }
+      throw err;
+    }
+    if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
+
+    console.log('[sync] cloud seed: claimed server initialization');
     const { encryptJSON } = await import('../crypto.js');
     const ownDeviceId = getSyncDeviceId();
     const ts = Date.now();
     const batchNotes = [];
+    const snapshots = [];
 
     // Seed workspace doc
     try {
@@ -490,11 +585,15 @@ export class CloudTransport extends Transport {
           updates: [{
             key: `${META_DOC_ID}~~${ownDeviceId}~~${ts}~~0${YJS_UPDATE_EXT}`,
             data: encrypted,
+            deviceId: ownDeviceId,
+            ts,
+            sequence: 0,
           }],
         });
+        snapshots.push({ noteId: META_DOC_ID, data: encrypted });
       }
     } catch (err) {
-      console.warn('[sync] cloud seed: workspace doc failed:', err);
+      throw new Error('cloud seed: workspace doc failed', { cause: err });
     }
 
     // Seed all notes
@@ -535,30 +634,52 @@ export class CloudTransport extends Transport {
               updates: [{
                 key: `${noteId}~~${ownDeviceId}~~${noteTs}~~0${YJS_UPDATE_EXT}`,
                 data: encrypted,
+                deviceId: ownDeviceId,
+                ts: noteTs,
+                sequence: 0,
               }],
             });
+            snapshots.push({ noteId, data: encrypted });
           }
         } finally {
           doc.destroy();
         }
       } catch (err) {
-        console.warn('[sync] cloud seed: note failed:', noteId, err);
+        throw new Error(`cloud seed: note failed: ${noteId}`, { cause: err });
       }
     }
 
     if (batchNotes.length === 0) {
-      console.log('[sync] cloud seed: nothing to push');
-      return false;
+      throw new Error('cloud seed: nothing to push');
     }
 
     console.log(`[sync] cloud seed: pushing ${batchNotes.length} docs`);
     try {
       const result = await remotePushUpdates(workspaceId, batchNotes);
-      const stored = result.stored || 0;
-      console.log('[sync] cloud seed: pushed', stored, 'updates');
-      this._lastPushedAt = Date.now();
+      const stored = (result.accepted || 0) + (result.duplicate || 0);
+      if (stored !== batchNotes.reduce((total, note) => total + note.updates.length, 0)) {
+        throw new Error('cloud seed: journal upload incomplete');
+      }
+
+      const documents = [];
+      for (const snapshot of snapshots) {
+        const uploaded = await uploadInitializationSnapshot(
+          workspaceId, claim.token, snapshot.noteId, 1, snapshot.data,
+        );
+        if (uploaded?.key !== `yjs/${workspaceId}/${snapshot.noteId}/1.yjs`) {
+          throw new Error(`cloud seed: snapshot verification failed: ${snapshot.noteId}`);
+        }
+        documents.push({
+          noteId: snapshot.noteId,
+          snapshotGeneration: 1,
+          snapshotKey: uploaded.key,
+          checkpointTs: 0,
+          checkpointSequence: 0,
+        });
+      }
 
       // Seed assets via direct R2 upload (presigned URLs)
+      const requiredAssetKeys = [];
       try {
         const { getAppDirectory } = await import('@/lib/native/app');
         const appDir = await getAppDirectory();
@@ -580,6 +701,7 @@ export class CloudTransport extends Transport {
           }
 
           if (assetKeys.length > 0) {
+            requiredAssetKeys.push(...assetKeys);
             const PRESIGN_CHUNK = 200;
             const allUrls = [];
             for (let i = 0; i < assetKeys.length; i += PRESIGN_CHUNK) {
@@ -589,6 +711,9 @@ export class CloudTransport extends Transport {
               allUrls.push(...urls);
             }
             console.log(`[sync] cloud seed: ${allUrls.length} presigned URLs for ${assetKeys.length} assets`);
+            if (allUrls.length !== assetKeys.length) {
+              throw new Error('cloud seed: asset presign incomplete');
+            }
             if (allUrls.length > 0) {
               const CONCURRENT = 5;
               let uploaded = 0;
@@ -600,29 +725,37 @@ export class CloudTransport extends Transport {
                   try {
                     const data = await readFileBinary(file.localPath);
                     const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
-                    if (!bytes || bytes.byteLength === 0) return;
-                    await fetch(url, {
+                    if (!bytes || bytes.byteLength === 0) throw new Error('empty asset');
+                    const response = await fetch(url, {
                       method: 'PUT',
                       body: bytes,
                       headers: { 'Content-Type': 'application/octet-stream' },
                     });
+                    if (!response.ok) throw new Error(`asset upload returned ${response.status}`);
                     uploaded++;
                   } catch (err) {
-                    console.warn('[sync] cloud seed: asset upload failed:', assetKey, err?.message);
+                    throw new Error(`cloud seed: asset upload failed: ${assetKey}`, { cause: err });
                   }
                 }));
                 console.log(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, allUrls.length)}/${allUrls.length} assets`);
               }
-              if (uploaded > 0) {
-                await confirmSeed(assetKeys);
-                console.log('[sync] cloud seed: confirmed', uploaded, 'assets');
+              if (uploaded !== assetKeys.length || allUrls.length !== assetKeys.length) {
+                throw new Error('cloud seed: asset upload incomplete');
+              }
+              const confirmation = await confirmSeed(assetKeys);
+              if (confirmation?.verified !== assetKeys.length || confirmation?.total !== assetKeys.length) {
+                throw new Error('cloud seed: asset verification incomplete');
               }
             }
           }
         }
       } catch (err) {
-        console.warn('[sync] cloud seed: asset upload failed:', err?.message);
+        throw err;
       }
+
+      await completeInitialization(workspaceId, claim.token, 1, documents, requiredAssetKeys);
+      this._serverProbeComplete = true;
+      this._lastPushedAt = Date.now();
 
       return stored > 0;
     } catch (err) {

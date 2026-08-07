@@ -81,6 +81,8 @@ describe('SyncEngine mutex', () => {
       push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
       seedOnce: vi.fn(() => Promise.resolve()),
       compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
     };
 
     engine = new SyncEngine({
@@ -103,8 +105,8 @@ describe('SyncEngine mutex', () => {
     mockCloudTransport.pull.mockReturnValue({ updates: [], cursorsDelta: {} });
     mockCloudTransport.push.mockReturnValue({ updates: [], cursorsDelta: {}, pushed: 0 });
 
-    const promise1 = engine.enqueueSync();
-    const promise2 = engine.enqueueSync();
+    const promise1 = engine.enqueueSync(true);
+    const promise2 = engine.enqueueSync(true);
 
     // Yield to event loop so _runCycle and its re-run complete
     await new Promise((r) => setTimeout(r, 0));
@@ -122,7 +124,7 @@ describe('SyncEngine mutex', () => {
       () => new Promise((r) => { pullResolves.push(r); })
     );
 
-    const first = engine.enqueueSync();
+    const first = engine.enqueueSync(true);
 
     // Yield to event loop so _runCycle reaches pull
     await new Promise((r) => setTimeout(r, 0));
@@ -144,8 +146,8 @@ describe('SyncEngine mutex', () => {
   it('rejects coalesced callers with the same error', async () => {
     mockLocalTransport.pull.mockRejectedValue(new Error('sync fail'));
 
-    const promise1 = engine.enqueueSync();
-    const promise2 = engine.enqueueSync();
+    const promise1 = engine.enqueueSync(true);
+    const promise2 = engine.enqueueSync(true);
 
     await expect(promise1).rejects.toThrow('sync fail');
     await expect(promise2).rejects.toThrow('sync fail');
@@ -173,6 +175,7 @@ describe('SyncEngine periodic timer', () => {
           push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
           seedOnce: vi.fn(() => Promise.resolve()),
           compact: vi.fn(() => Promise.resolve()),
+          syncAssets: vi.fn(() => Promise.resolve()),
         },
       },
       storage: { get: vi.fn(() => ({})), set: vi.fn() },
@@ -199,8 +202,135 @@ describe('SyncEngine periodic timer', () => {
 });
 
 describe('SyncEngine cursor persistence', () => {
-  it('writes cursors when cursor changed mid-cycle', async () => {
-    expect(true).toBe(true);
+  it('applies and saves each remote page before requesting the next page', async () => {
+    const storage = { get: vi.fn(() => ({})), set: vi.fn() };
+    const order = [];
+    let page = 0;
+    const cloud = {
+      pull: vi.fn(async () => {
+        order.push('pull');
+        page++;
+        return page === 1
+          ? { updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, seq: 1 }], cursorsDelta: { workspace: { note: { device: { ts: 1, sequence: 1 } } } }, hasMore: true }
+          : { updates: [{ noteId: 'note', update: new Uint8Array([2]), device: 'device', ts: 2, seq: 2 }], cursorsDelta: { workspace: { note: { device: { ts: 2, sequence: 2 } } } }, hasMore: false };
+      }),
+      push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
+      seedOnce: vi.fn(() => Promise.resolve()),
+      compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
+    };
+    const local = { pull: vi.fn(() => ({ updates: [], cursorsDelta: {} })), push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })), seedOnce: vi.fn(() => Promise.resolve()), compact: vi.fn(() => Promise.resolve()) };
+    const current = new SyncEngine({
+      transports: { local, cloud }, storage,
+      getActiveTransports: () => ['cloud'],
+    });
+
+    await current.enqueueSync(true);
+
+    expect(storage.set).toHaveBeenCalledTimes(2);
+    expect(order).toEqual(['pull', 'pull']);
+  });
+
+  it('persists a pull delta and sends it on the next pull without replaying the update', async () => {
+    let savedCursors = {};
+    const storage = {
+      get: vi.fn(() => savedCursors),
+      set: vi.fn((_key, value) => { savedCursors = value; }),
+    };
+    const pulls = [];
+    let pullCount = 0;
+    const cloud = {
+      pull: vi.fn((cursors) => {
+        pulls.push(structuredClone(cursors));
+        pullCount++;
+        const checkpoint = cursors.workspace?.note?.device;
+        return pullCount === 1
+          ? {
+            updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 10, seq: 2 }],
+            cursorsDelta: { workspace: { note: { device: { ts: 10, sequence: 2 } } } },
+          }
+          : checkpoint?.ts === 10 && checkpoint.sequence === 2
+            ? { updates: [], cursorsDelta: {} }
+            : { updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 10, seq: 2 }], cursorsDelta: {} };
+      }),
+      push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
+      seedOnce: vi.fn(() => Promise.resolve()),
+      compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
+    };
+    const current = new SyncEngine({
+      transports: { cloud }, storage,
+      getActiveTransports: () => ['cloud'],
+    });
+
+    await current.enqueueSync(true);
+    await current.enqueueSync(true);
+
+    expect(storage.set).toHaveBeenCalledWith(
+      expect.anything(),
+      { workspace: { note: { device: { ts: 10, sequence: 2 } } } },
+      'settings'
+    );
+    expect(pulls[1]).toEqual({ workspace: { note: { device: { ts: 10, sequence: 2 } } } });
+    expect(cloud.pull).toHaveBeenNthCalledWith(2, {
+      workspace: { note: { device: { ts: 10, sequence: 2 } } },
+    });
+    expect(pulls).toHaveLength(2);
+  });
+
+  it('does not report complete when a push fails after bounded retries', async () => {
+    vi.clearAllMocks();
+    const { emit } = await import('@tauri-apps/api/event');
+    const push = vi.fn(() => Promise.reject(new Error('offline')));
+    const current = new SyncEngine({
+      transports: { local: { pull: vi.fn(() => ({ updates: [], cursorsDelta: {} })), push, seedOnce: vi.fn(() => Promise.resolve()), compact: vi.fn(() => Promise.resolve()) } },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local'],
+    });
+
+    await expect(current.enqueueSync(true)).rejects.toThrow('offline');
+    expect(push).toHaveBeenCalledTimes(3);
+    expect(emit).toHaveBeenCalledWith('sync:status', { status: 'retrying' });
+    expect(emit).not.toHaveBeenCalledWith('sync:status', { status: 'complete' });
+  });
+
+  it('does not report complete when cloud sync state is malformed', async () => {
+    const { emit } = await import('@tauri-apps/api/event');
+    const current = new SyncEngine({
+      transports: {
+        cloud: {
+          pull: vi.fn(() => Promise.reject(Object.assign(new Error('Remote sync state payload is malformed'), {
+            code: 'sync-state-invalid',
+          }))),
+          push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
+          seedOnce: vi.fn(() => Promise.resolve()),
+          compact: vi.fn(() => Promise.resolve()),
+          syncAssets: vi.fn(() => Promise.resolve()),
+          getCloudBuffer: vi.fn(() => []),
+        },
+      },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['cloud'],
+    });
+
+    await expect(current.enqueueSync(true)).rejects.toThrow('Remote sync state payload is malformed');
+    expect(emit).toHaveBeenCalledWith('sync:status', { status: 'offline' });
+    expect(emit).not.toHaveBeenCalledWith('sync:status', { status: 'complete' });
+  });
+
+  it('emits explicit sync status events without payloads', async () => {
+    const { emit } = await import('@tauri-apps/api/event');
+    const current = new SyncEngine({
+      transports: { local: { pull: vi.fn(() => ({ updates: [], cursorsDelta: {} })), push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })), seedOnce: vi.fn(() => Promise.resolve()), compact: vi.fn(() => Promise.resolve()) } },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local'],
+    });
+    await current.enqueueSync(true);
+
+    expect(emit).toHaveBeenCalledWith('sync:status', { status: 'syncing' });
+    expect(emit).toHaveBeenCalledWith('sync:status', { status: 'complete' });
   });
 });
 
@@ -225,6 +355,8 @@ describe('SyncEngine flush', () => {
       push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
       seedOnce: vi.fn(() => Promise.resolve()),
       compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
     };
   });
 

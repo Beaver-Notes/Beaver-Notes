@@ -34,6 +34,25 @@ export function initSyncEngine(deps) {
   return engine;
 }
 
+function mergeCursors(cursors, delta, remote) {
+  if (!remote) return mergeCursorDelta(cursors, delta);
+  let changed = false;
+  for (const [workspaceId, notes] of Object.entries(delta || {})) {
+    cursors[workspaceId] ||= {};
+    for (const [noteId, devices] of Object.entries(notes || {})) {
+      cursors[workspaceId][noteId] ||= {};
+      for (const [deviceId, value] of Object.entries(devices || {})) {
+        const previous = cursors[workspaceId][noteId][deviceId];
+        if (!previous || value.ts > previous.ts || (value.ts === previous.ts && value.sequence > previous.sequence)) {
+          cursors[workspaceId][noteId][deviceId] = value;
+          changed = true;
+        }
+      }
+    }
+  }
+  return changed;
+}
+
 export class SyncEngine {
   constructor({ transports, storage, getActiveTransports }) {
     this.transports = transports;
@@ -47,6 +66,7 @@ export class SyncEngine {
     this.pendingWaiters = [];
 
     this._forceFlush = false;
+    this._pendingForce = false;
     this._foregroundWake = false;
     this._pullOnlyMode = false;
     this._pullTimer = null;
@@ -57,6 +77,7 @@ export class SyncEngine {
   enqueueSync(force = false, pullOnly = false) {
     if (this.syncing) {
       this.pending = true;
+      if (force || this._forceFlush) this._pendingForce = true;
       if (pullOnly) this._pullOnlyMode = true;
       return new Promise((resolve, reject) => {
         this.pendingWaiters.push({ resolve, reject });
@@ -124,6 +145,7 @@ export class SyncEngine {
     this.syncing = true;
     this.pending = false;
     this._forceFlush = _force;
+    try { emit('sync:status', { status: 'syncing' }); } catch {}
 
     const isForegroundWake = this._foregroundWake;
     this._foregroundWake = false;
@@ -157,13 +179,15 @@ export class SyncEngine {
       } catch {
         syncPassphrase = null;
       }
+      let fetchedCloudParams = false;
       try {
-        await fetchCloudKeyParams().catch(() => {});
+        fetchedCloudParams = (await fetchCloudKeyParams()) === true;
       } catch {
       }
       try {
         await reconcileSyncKeyParams(syncPassphrase || undefined);
       } catch (e) {
+        if (fetchedCloudParams) throw e;
         console.warn('[sync] key-params reconcile failed:', e);
       }
 
@@ -195,20 +219,26 @@ export class SyncEngine {
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
           console.log(`[sync] ${name} pull start`);
-          const { updates } = await transport.pull(cursors);
-          console.log(`[sync] ${name} pull got ${updates.length} updates`);
-          let cursorsDirty = false;
-          for (const upd of updates) {
-            applyRemote(upd.noteId, upd.update);
-            await appendUpdate(upd.noteId, upd.update, upd.device);
-            const delta = {};
-            delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
-            if (mergeCursorDelta(cursors, delta)) {
-              cursorsDirty = true;
+          let hasMore = true;
+          while (hasMore) {
+            const pullResult = await transport.pull(cursors);
+            const { updates } = pullResult;
+            console.log(`[sync] ${name} pull got ${updates.length} updates`);
+            let cursorsDirty = false;
+            for (const upd of updates) {
+              applyRemote(upd.noteId, upd.update);
+              await appendUpdate(upd.noteId, upd.update, upd.device);
+              if (name !== 'cloud') {
+                const delta = {};
+                delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
+                if (mergeCursorDelta(cursors, delta)) cursorsDirty = true;
+              }
             }
-          }
-          if (cursorsDirty) {
-            await this._saveCursors(cursors);
+            if (name === 'cloud' && pullResult.cursorsDelta) {
+              cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
+            }
+            if (cursorsDirty) await this._saveCursors(cursors);
+            hasMore = pullResult.hasMore === true;
           }
         }
       } else {
@@ -219,11 +249,18 @@ export class SyncEngine {
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
           console.log(`[sync] ${name} push start`);
-          const pushResult = await transport.push(cursors, {
-            force: this._forceFlush,
-          });
+          let pushResult;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              pushResult = await transport.push(cursors, { force: this._forceFlush });
+              break;
+            } catch (err) {
+              if (attempt === 2) throw err;
+              try { emit('sync:status', { status: 'retrying' }); } catch {}
+            }
+          }
           console.log(`[sync] ${name} push done`, { pushed: pushResult.pushed });
-          if (pushResult.cursorsDelta && mergeCursorDelta(cursors, pushResult.cursorsDelta)) {
+          if (pushResult.cursorsDelta && mergeCursors(cursors, pushResult.cursorsDelta, name === 'cloud')) {
             await this._saveCursors(cursors);
           }
         }
@@ -251,11 +288,15 @@ export class SyncEngine {
       }
 
       outcome = { ok: true };
+      try { emit('sync:status', { status: 'complete' }); } catch {}
       console.log('[sync] cycle complete ok');
     } catch (err) {
       console.error('[sync] Sync failed:', err);
       console.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
+      const status = err?.code === 'unlock-required' ? 'unlock-required' :
+        err?.status === 401 || err?.status === 403 ? 'authorization-failed' : 'offline';
+      try { emit('sync:status', { status }); } catch {}
       outcome = { ok: false, err };
     } finally {
       t?.end();
@@ -274,7 +315,9 @@ export class SyncEngine {
 
       if (this.pending) {
         this.pending = false;
-        this._runCycle(false);
+        const pendingForce = this._pendingForce;
+        this._pendingForce = false;
+        this._runCycle(pendingForce);
       }
     }
   }

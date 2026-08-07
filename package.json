@@ -32,6 +32,7 @@
     "test:e2e": "bash scripts/run-e2e.sh",
     "test:e2e:install": "cargo install tauri-webdriver-automation || true",
     "test": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest run",
+    "test:sync": "yarn vitest run src/utils/sync/__tests__/remote-bootstrap.spec.js",
     "test:watch": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest",
     "lint": "oxlint --vue-plugin --max-warnings 0",
     "typecheck": "vue-tsc --noEmit",

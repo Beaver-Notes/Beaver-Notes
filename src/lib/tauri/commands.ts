@@ -292,6 +292,11 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {};
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);
+    case 'encryption:adoptKeyParams':
+      return {
+        ...withKeyVariants('passphrase', payload?.passphrase),
+        ...(payload?.keyParams != null ? withKeyVariants('keyParams', payload.keyParams) : {}),
+      };
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':

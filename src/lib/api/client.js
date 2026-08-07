@@ -222,6 +222,29 @@ export function createApiClient({
       }),
     delete: (path, options) =>
       request('DELETE', path, { ...options, auth: options?.auth !== false }),
+    getVaultKeyParams: (workspaceId, options) =>
+      request('GET', `/vault/${encodeURIComponent(workspaceId)}/key-params`, {
+        ...options,
+        auth: options?.auth !== false,
+      }),
+    publishVaultKeyParams: (workspaceId, body, options) =>
+      request('PUT', `/vault/${encodeURIComponent(workspaceId)}/key-params`, {
+        ...options,
+        body,
+        auth: options?.auth !== false,
+      }),
+    createVaultChallenge: (workspaceId, options) =>
+      request('POST', `/vault/${encodeURIComponent(workspaceId)}/challenge`, {
+        ...options,
+        body: {},
+        auth: options?.auth !== false,
+      }),
+    verifyVaultPassphrase: (workspaceId, passphraseProof, challenge, options) =>
+      request('POST', `/vault/${encodeURIComponent(workspaceId)}/verify`, {
+        ...options,
+        body: { passphraseProof, challenge },
+        auth: options?.auth !== false,
+      }),
     raw: request,
   };
 }

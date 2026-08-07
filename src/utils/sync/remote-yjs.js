@@ -49,15 +49,15 @@ function chunkItems(items, getItemSize) {
 }
 
 /**
- * Push local Yjs updates to the remote server.
- * Supports single or multiple notes. Automatically chunks large payloads.
+ * Push local Yjs updates to the remote server using the durable identity
+ * contract. The transport supplies deviceId, sequence, and ts per update.
  * @param {string} workspaceId
  * @param {Array<{noteId: string, updates: Array<{key: string, data: string}>}>} notes
- * @returns {Promise<{stored: number, sizeBytes: number}>}
+ * @returns {Promise<{accepted: number, duplicate: number, checkpoints: Object}>}
  */
 export async function pushUpdates(workspaceId, notes) {
   if (!notes || notes.length === 0) {
-    return { stored: 0, sizeBytes: 0 };
+    return { accepted: 0, duplicate: 0, checkpoints: {} };
   }
 
   const client = getClient();
@@ -65,8 +65,9 @@ export async function pushUpdates(workspaceId, notes) {
 
   const chunks = chunkItems(notes, (n) => JSON.stringify(n).length);
 
-  let totalStored = 0;
-  let totalSizeBytes = 0;
+  let accepted = 0;
+  let duplicate = 0;
+  const checkpoints = {};
 
   for (const chunk of chunks) {
     const result = await client.post('/yjs/push-batch', { workspaceId, notes: chunk }, {
@@ -76,11 +77,19 @@ export async function pushUpdates(workspaceId, notes) {
       },
       timeoutMs: 60000,
     });
-    totalStored += result?.stored || 0;
-    totalSizeBytes += result?.sizeBytes || 0;
+    accepted += Number(result?.accepted) || 0;
+    duplicate += Number(result?.duplicate) || 0;
+    const acknowledged = result?.checkpoints && typeof result.checkpoints === 'object'
+      ? result.checkpoints
+      : result?.checkpoint && chunk.length === 1
+        ? { [chunk[0].noteId]: result.checkpoint }
+        : {};
+    for (const [noteId, checkpoint] of Object.entries(acknowledged)) {
+      checkpoints[noteId] = checkpoint;
+    }
   }
 
-  return { stored: totalStored, sizeBytes: totalSizeBytes };
+  return { accepted, duplicate, checkpoints };
 }
 
 /**
@@ -88,20 +97,16 @@ export async function pushUpdates(workspaceId, notes) {
  * Supports single or multiple notes. Automatically chunks large payloads.
  * @param {string} workspaceId
  * @param {Array<{noteId: string, cursors: Object}>} notes
- * @returns {Promise<Object>} { [noteId]: Array<{key: string, data: string}> }
+ * @returns {Promise<Object>} { notes: { [noteId]: { updates: Array<{key: string, data: string}>, nextCheckpoint?: Object, hasMore?: boolean } } }
  */
 export async function pullUpdates(workspaceId, notes) {
   const client = getClient();
 
-  const payload = notes.map(({ noteId, cursors }) => {
-    const validCursors = {};
-    for (const [key, val] of Object.entries(cursors || {})) {
-      if (val && typeof val === 'object' && typeof val.ts === 'number' && typeof val.seq === 'number') {
-        validCursors[key] = val;
-      }
-    }
-    return { noteId, after: validCursors };
-  });
+  const payload = notes.map(({ noteId, checkpoint, limit = 500 }) => ({
+    noteId,
+    checkpoint: checkpoint || null,
+    limit,
+  }));
 
   const chunks = chunkItems(payload, (n) => JSON.stringify(n).length);
   const mergedResult = {};
@@ -110,12 +115,53 @@ export async function pullUpdates(workspaceId, notes) {
     const result = await client.post('/yjs/pull-batch', { workspaceId, notes: chunk }, {
       timeoutMs: 60000,
     });
-    if (result?.notes) {
-      Object.assign(mergedResult, result.notes);
-    }
+    if (result?.notes) Object.assign(mergedResult, result.notes);
   }
 
-  return mergedResult;
+  return { notes: mergedResult };
+}
+
+export async function getRemoteState(workspaceId) {
+  if (typeof workspaceId !== 'string' || workspaceId.length === 0) {
+    const error = new Error('Workspace ID is required to fetch remote sync state');
+    error.code = 'sync-state-invalid';
+    throw error;
+  }
+  const client = getClient();
+  const state = await client.get(`/sync/state?workspaceId=${encodeURIComponent(workspaceId)}`, {
+    timeoutMs: 15000,
+  });
+  const statuses = new Set(['empty', 'initializing', 'initialized', 'recovering']);
+  if (!state || !statuses.has(state.status) || !Array.isArray(state.documents)) {
+    const error = new Error('Remote sync state payload is malformed');
+    error.code = 'sync-state-invalid';
+    throw error;
+  }
+  return state;
+}
+
+export async function claimInitialization(workspaceId) {
+  return getClient().post('/sync/initialize/claim', { workspaceId }, { timeoutMs: 15000 });
+}
+
+export async function uploadInitializationSnapshot(workspaceId, token, noteId, generation, data) {
+  return getClient().post('/sync/initialize/snapshot', {
+    workspaceId,
+    token,
+    noteId,
+    generation,
+    data,
+  }, { timeoutMs: 60000 });
+}
+
+export async function completeInitialization(workspaceId, token, generation, documents, assets = []) {
+  return getClient().post('/sync/initialize/complete', {
+    workspaceId,
+    token,
+    generation,
+    documents,
+    assets,
+  }, { timeoutMs: 30000 });
 }
 
 /**
@@ -156,6 +202,21 @@ export async function fetchUpdate(key) {
   } catch (e) {
     if (e?.status === 404) return null;
     throw e;
+  }
+}
+
+/**
+ * List all distinct noteIds stored on the server for a workspace.
+ * @param {string} workspaceId
+ * @returns {Promise<string[]>}
+ */
+export async function listRemoteNoteIds(workspaceId) {
+  try {
+    const result = await getRemoteState(workspaceId);
+    return result?.documents?.map((document) => document.noteId).filter(Boolean) || [];
+  } catch (e) {
+    console.warn('[sync] listRemoteNoteIds failed:', e?.message);
+    return [];
   }
 }
 

@@ -113,13 +113,15 @@ export async function verifyPassphrase(passphrase) {
   }
 }
 
-export async function adoptVaultKey(passphrase) {
+export async function adoptVaultKey(passphrase, keyParams) {
   if (!passphrase?.trim()) {
     return { ok: false, error: 'Enter the vault passphrase.' };
   }
 
   try {
-    const result = await adoptKeyParams(passphrase);
+    const result = await (keyParams == null
+      ? adoptKeyParams(passphrase)
+      : adoptKeyParams(passphrase, keyParams));
     if (!result?.ok) {
       return { ok: false, error: result?.error || 'Unable to join this vault.' };
     }
