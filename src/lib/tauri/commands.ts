@@ -29,6 +29,7 @@ const commandAliases = {
   'fs:copy': 'fs_copy',
   'fs:isFile': 'fs_is_file',
   'fs:access': 'fs_access',
+  'fs:downloadUrl': 'fs_download_url',
   'fs:readdir': 'fs_readdir',
   'fs:stat': 'fs_stat',
   'fs:unlink': 'fs_unlink',

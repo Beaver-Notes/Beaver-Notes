@@ -67,6 +67,8 @@ dirs = "5"
 lru = "0.12"
 yrs = "0.27"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
+reqwest = { version = "0.13", features = ["rustls", "stream"], default-features = false }
+futures-util = "0.3"
 http = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 urlencoding = "2"

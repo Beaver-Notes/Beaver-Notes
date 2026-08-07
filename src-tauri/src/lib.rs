@@ -150,6 +150,7 @@ pub fn run() {
             commands::fs::fs_read_data,
             commands::fs::fs_is_file,
             commands::fs::fs_access,
+            commands::fs::fs_download_url,
             commands::storage::storage_get_store,
             commands::storage::storage_replace,
             commands::storage::storage_get,

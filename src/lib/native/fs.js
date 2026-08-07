@@ -40,6 +40,10 @@ export function isFile(path) {
   return backend.invoke('fs:isFile', path);
 }
 
+export function downloadUrl(url, dest) {
+  return backend.invoke('fs:downloadUrl', { url, dest });
+}
+
 export function removePath(path) {
   return backend.invoke('fs:remove', path);
 }

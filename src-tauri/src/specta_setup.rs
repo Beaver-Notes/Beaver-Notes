@@ -51,6 +51,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::fs::fs_read_data)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_is_file)(&mut types),
                 specta::_fn_datatype!(crate::commands::fs::fs_access)(&mut types),
+                specta::_fn_datatype!(crate::commands::fs::fs_download_url)(&mut types),
                 // ── KV storage ───────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::storage::storage_get_store)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_replace)(&mut types),

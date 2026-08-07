@@ -19,7 +19,7 @@ import { parseSyncFilename } from '../sync-yjs.js';
 import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
 import { writeInitialSnapshots } from './seed.js';
 import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
-import { readDir, readFile, readFileBinary, writeFile as writeFs, ensureDir, pathExists } from '@/lib/native/fs';
+import { readDir, readFile, readFileBinary, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
@@ -845,7 +845,8 @@ export class CloudTransport extends Transport {
 
       console.log(`[sync] batch download: ${allUrls.length}/${keys.length} presigned URLs`);
 
-      const CONCURRENT = 5;
+      const CONCURRENT = 3;
+      const RETRY_DELAYS = [2000, 4000, 8000];
       for (let i = 0; i < allUrls.length; i += CONCURRENT) {
         const batch = allUrls.slice(i, i + CONCURRENT);
         await Promise.all(batch.map(async ({ assetKey, url }) => {
@@ -856,24 +857,32 @@ export class CloudTransport extends Transport {
             console.log('[sync] skipping repeatedly failed download:', assetKey);
             return;
           }
-          try {
-            const resp = await fetch(url, { method: 'GET' });
-            if (!resp.ok) {
+          for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+            try {
+              await ensureDir(path.dirname(op.dest)).catch(() => {});
+              const bytesWritten = await downloadUrl(url, op.dest);
+              if (!bytesWritten || bytesWritten === 0) {
+                this._failedDownloads.set(assetKey, failures + 1);
+                return;
+              }
+              this._failedDownloads.delete(assetKey);
+              return;
+            } catch (err) {
+              const msg = err?.message || '';
+              if (msg.includes('status 429') && attempt < RETRY_DELAYS.length) {
+                const waitMs = RETRY_DELAYS[attempt];
+                console.warn('[sync] download 429, retrying in', waitMs, 'ms:', assetKey);
+                await new Promise((r) => setTimeout(r, waitMs));
+                continue;
+              }
+              if (attempt < RETRY_DELAYS.length) {
+                await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+                continue;
+              }
+              console.warn('[sync] streaming download failed:', assetKey, msg);
               this._failedDownloads.set(assetKey, failures + 1);
               return;
             }
-            const buf = await resp.arrayBuffer();
-            const data = new Uint8Array(buf);
-            if (data.byteLength === 0) {
-              this._failedDownloads.set(assetKey, failures + 1);
-              return;
-            }
-            await ensureDir(path.dirname(op.dest)).catch(() => {});
-            await writeFs(op.dest, data);
-            this._failedDownloads.delete(assetKey);
-          } catch (err) {
-            console.warn('[sync] presign download failed:', assetKey, err?.message);
-            this._failedDownloads.set(assetKey, failures + 1);
           }
         }));
         processed += batch.length;

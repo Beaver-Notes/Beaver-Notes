@@ -10,6 +10,8 @@ use tauri::{AppHandle, State};
 
 use crate::shared::{RawJson, *};
 
+const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024; // 64 KB
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn fs_copy(
@@ -288,4 +290,54 @@ pub(crate) fn fs_access(
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "access check")?;
     Ok(path.exists())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn fs_download_url(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    url: String,
+    dest: String,
+) -> Result<u64, AppError> {
+    let dest_path = PathBuf::from(&dest);
+    assert_path_access(&app, &state, &dest_path, "download destination")?;
+
+    if let Some(parent) = dest_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| AppError::Other(format!("Failed to create HTTP client: {e}")))?;
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| AppError::Other(format!("Download request failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Err(AppError::Other(format!(
+            "Download failed with status {}",
+            resp.status()
+        )));
+    }
+
+    let mut file = fs::File::create(&dest_path)?;
+    let mut total: u64 = 0;
+    let mut stream = resp.bytes_stream();
+
+    use futures_util::StreamExt;
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result
+            .map_err(|e| AppError::Other(format!("Download stream error: {e}")))?;
+        file.write_all(&chunk)?;
+        total += chunk.len() as u64;
+    }
+
+    file.flush()?;
+    Ok(total)
 }
