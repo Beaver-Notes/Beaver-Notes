@@ -12,6 +12,7 @@ import {
   encodeAssetKey,
   decodeAssetKey,
   presignBatchUpload,
+  presignGetBatch,
   confirmSeed,
 } from '../remote-assets.js';
 import { parseSyncFilename } from '../sync-yjs.js';
@@ -817,31 +818,100 @@ export class CloudTransport extends Transport {
       }
     }
 
-    const DOWNLOAD_DELAY_MS = 500;
+    const DOWNLOAD_DELAY_MS = 1000;
     const DOWNLOAD_BACKOFF_THRESHOLD = 5;
-    for (const op of others) {
-      try {
-        if (op.type === 'download') {
-          const failures = this._failedDownloads.get(op.flatKey) || 0;
+    const downloads = others.filter((op) => op.type === 'download');
+    const removes = others.filter((op) => op.type === 'remove-local');
+
+    // Batch-download via presigned GET URLs (no server proxy, no rate limits)
+    if (downloads.length > 0) {
+      const PRESIGN_CHUNK = 200;
+      const allUrls = [];
+      const downloadMap = new Map();
+      for (const op of downloads) {
+        downloadMap.set(op.flatKey, op);
+      }
+
+      const keys = downloads.map((op) => op.flatKey);
+      for (let i = 0; i < keys.length; i += PRESIGN_CHUNK) {
+        const chunk = keys.slice(i, i + PRESIGN_CHUNK);
+        try {
+          const urls = await presignGetBatch(chunk);
+          allUrls.push(...urls);
+        } catch (err) {
+          console.warn('[sync] presign-get-batch failed:', err?.message);
+        }
+      }
+
+      console.log(`[sync] batch download: ${allUrls.length}/${keys.length} presigned URLs`);
+
+      const CONCURRENT = 5;
+      for (let i = 0; i < allUrls.length; i += CONCURRENT) {
+        const batch = allUrls.slice(i, i + CONCURRENT);
+        await Promise.all(batch.map(async ({ assetKey, url }) => {
+          const op = downloadMap.get(assetKey);
+          if (!op) return;
+          const failures = this._failedDownloads.get(assetKey) || 0;
           if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) {
-            console.log('[sync] skipping repeatedly failed download:', op.flatKey);
-            processed++;
-            onProgress?.({ phase: 'assets', processed, total });
-            continue;
+            console.log('[sync] skipping repeatedly failed download:', assetKey);
+            return;
           }
-          const data = await downloadAsset(op.flatKey);
-          if (data) {
+          try {
+            const resp = await fetch(url, { method: 'GET' });
+            if (!resp.ok) {
+              this._failedDownloads.set(assetKey, failures + 1);
+              return;
+            }
+            const buf = await resp.arrayBuffer();
+            const data = new Uint8Array(buf);
+            if (data.byteLength === 0) {
+              this._failedDownloads.set(assetKey, failures + 1);
+              return;
+            }
             await ensureDir(path.dirname(op.dest)).catch(() => {});
             await writeFs(op.dest, data);
-            this._failedDownloads.delete(op.flatKey);
-          } else {
+            this._failedDownloads.delete(assetKey);
+          } catch (err) {
+            console.warn('[sync] presign download failed:', assetKey, err?.message);
+            this._failedDownloads.set(assetKey, failures + 1);
+          }
+        }));
+        processed += batch.length;
+        onProgress?.({ phase: 'assets', processed, total });
+        if (i + CONCURRENT < allUrls.length) {
+          await new Promise((r) => setTimeout(r, DOWNLOAD_DELAY_MS));
+        }
+      }
+
+      // Fallback for any keys that didn't get presigned URLs
+      for (const op of downloads) {
+        if (!allUrls.find((u) => u.assetKey === op.flatKey)) {
+          const failures = this._failedDownloads.get(op.flatKey) || 0;
+          if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) continue;
+          try {
+            const data = await downloadAsset(op.flatKey);
+            if (data) {
+              await ensureDir(path.dirname(op.dest)).catch(() => {});
+              await writeFs(op.dest, data);
+              this._failedDownloads.delete(op.flatKey);
+            } else {
+              this._failedDownloads.set(op.flatKey, failures + 1);
+            }
+          } catch (err) {
+            console.warn('[sync] fallback download failed:', op.flatKey, err?.message);
             this._failedDownloads.set(op.flatKey, failures + 1);
           }
           await new Promise((r) => setTimeout(r, DOWNLOAD_DELAY_MS));
-        } else if (op.type === 'remove-local') {
-          const { removePath } = await import('@/lib/native/fs');
-          await removePath(op.src).catch(() => {});
+          processed++;
+          onProgress?.({ phase: 'assets', processed, total });
         }
+      }
+    }
+
+    for (const op of removes) {
+      try {
+        const { removePath } = await import('@/lib/native/fs');
+        await removePath(op.src).catch(() => {});
       } catch (err) {
         console.warn('[sync] asset op failed:', op.type, op.flatKey, err?.message);
       }

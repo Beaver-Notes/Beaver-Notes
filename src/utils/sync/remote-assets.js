@@ -187,3 +187,14 @@ export async function confirmSeed(assetKeys) {
   const client = getClient();
   return client.post('/assets/confirm-seed', { keys: assetKeys }, { timeoutMs: 30000 });
 }
+
+/**
+ * Get presigned GET URLs for batch direct-from-R2 download.
+ * @param {string[]} assetKeys - flat keys
+ * @returns {Promise<Array<{assetKey: string, url: string, sizeBytes: number}>>}
+ */
+export async function presignGetBatch(assetKeys) {
+  const client = getClient();
+  const result = await client.post('/assets/presign-get-batch', { keys: assetKeys }, { timeoutMs: 30000 });
+  return result?.urls || [];
+}
