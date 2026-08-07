@@ -99,7 +99,7 @@ CREATE INDEX IF NOT EXISTS idx_yjs_updates_pull
   ON yjs_doc_updates(workspace_id, note_id, ts, clock);
 ```
 
-Register migration `002-sync-protocol.sql` using the existing migration loader. Preserve existing rows and initialize their workspace state as `initialized` only when existing Yjs data is present; otherwise use `empty`.
+Register migration `002-sync-protocol.sql` using the existing migration loader. Preserve existing rows and initialize their workspace state as `initialized` only when existing Yjs data is present; otherwise use `empty`. Before creating `idx_yjs_update_identity`, deterministically retain the earliest row for each duplicate `(workspace_id, note_id, device_id, clock)` identity and delete later duplicates so the migration succeeds against the current prototype database.
 
 - [ ] **Step 4: Implement idempotent persistence and continuation queries**
 
