@@ -65,6 +65,9 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         signInPassword.value
       );
       signInPassword.value = '';
+      if (accountStore.isAuthenticated) {
+        auth.triggerSeed().catch(() => {});
+      }
     } catch (err) {
       // error already on the store
     }
@@ -85,6 +88,9 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         signInPassword.value
       );
       signInPassword.value = '';
+      if (accountStore.isAuthenticated) {
+        auth.triggerSeed().catch(() => {});
+      }
     } catch (err) {
       // error already on the store
     }
@@ -94,6 +100,9 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     clearError();
     try {
       await auth.signInWithPasskey(passkeyEmail.value?.trim() || null);
+      if (accountStore.isAuthenticated) {
+        auth.triggerSeed().catch(() => {});
+      }
     } catch (err) {
       // error already on the store
     }
@@ -103,6 +112,9 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     clearError();
     try {
       await auth.signUpWithPasskey(passkeyEmail.value?.trim() || null);
+      if (accountStore.isAuthenticated) {
+        auth.triggerSeed().catch(() => {});
+      }
     } catch (err) {
       // error already on the store
     }
@@ -274,5 +286,6 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     cancelDeleteAccount,
     confirmDeleteAccount,
     clearError,
+    triggerSeed: auth.triggerSeed,
   };
 }

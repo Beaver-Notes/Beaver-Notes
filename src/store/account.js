@@ -18,6 +18,8 @@ export const useAccountStore = defineStore('account', {
     activeSessions: [],
     error: '',
     busy: false,
+    seedStatus: 'idle',
+    seedProgress: { total: 0, uploaded: 0, phase: '' },
   }),
 
   getters: {
@@ -155,6 +157,14 @@ export const useAccountStore = defineStore('account', {
 
     switchWorkspace(workspaceId) {
       this.activeWorkspaceId = workspaceId;
+    },
+
+    setSeedStatus(status) {
+      this.seedStatus = status;
+    },
+
+    setSeedProgress(progress) {
+      this.seedProgress = progress;
     },
   },
 });

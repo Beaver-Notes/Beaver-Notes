@@ -6,11 +6,15 @@ import {
   claimInitialization,
   uploadInitializationSnapshot,
   completeInitialization,
+  getSnapshotUrls,
+  createWorkspace,
+  getWorkspaces,
 } from '../remote-yjs.js';
 import {
   listRemoteAssets,
   uploadAsset,
   batchUploadAssets,
+  seedBatchUploadAssets,
   downloadAsset,
   encodeAssetKey,
   decodeAssetKey,
@@ -83,6 +87,10 @@ function isAuthoritativelyEmpty(state) {
   return isValidRemoteState(state) && state.status === 'empty' && state.documents.length === 0;
 }
 
+function isStalledInit(state) {
+  return isValidRemoteState(state) && state.status === 'initializing' && state.documents.length === 0;
+}
+
 function isValidRemoteState(state) {
   const recognizedStatuses = new Set(['empty', 'initializing', 'initialized', 'recovering']);
   return state && recognizedStatuses.has(state.status) && Array.isArray(state.documents);
@@ -140,6 +148,25 @@ export class CloudTransport extends Transport {
         }));
         workspaceStore.activeId = workspaceStore.activeId || list[0].id;
         this._cachedWorkspaceId = list[0].id;
+      } else {
+        // No workspaces — auto-create one
+        console.log('[sync] cloud: no workspaces found, creating default workspace');
+        const profile = accountStore.profile;
+        const orgId = accountStore.activeOrgId || profile?.organizationId;
+        if (!orgId) {
+          console.warn('[sync] cloud: no orgId available, cannot create workspace');
+          return null;
+        }
+        try {
+          const created = await createWorkspace('Default', orgId);
+          if (created?.id) {
+            workspaceStore.activeId = created.id;
+            this._cachedWorkspaceId = created.id;
+            console.log('[sync] cloud: created workspace', created.id);
+          }
+        } catch (createErr) {
+          console.warn('[sync] cloud: failed to create workspace:', createErr?.message);
+        }
       }
     } catch (err) {
       console.warn('[sync] cloud: direct workspace fetch failed:', err?.status, err?.message);
@@ -157,8 +184,27 @@ export class CloudTransport extends Transport {
     }
 
     const noteCursors = Object.fromEntries(Object.entries(cursors[workspaceId] || {}));
-    const state = await getRemoteState(workspaceId);
+    let state;
+    try {
+      state = await getRemoteState(workspaceId);
+    } catch (e) {
+      // 404 means the workspace has no sync state yet (brand new workspace).
+      // 403 means user is not a workspace member — workspace may be stale.
+      // In both cases, reset and let the push phase try to create/fetch a valid workspace.
+      if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
+        console.log('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
+        const workspaceStore = useWorkspaceStore();
+        workspaceStore.activeId = null;
+        this._cachedWorkspaceId = null;
+        return { updates: [], cursorsDelta: {} };
+      }
+      throw e;
+    }
     if (!isValidRemoteState(state)) throw malformedRemoteState();
+    // If the server is empty or has a stalled init, allow the push phase to re-seed.
+    if (isAuthoritativelyEmpty(state) || isStalledInit(state)) {
+      this._serverProbeComplete = false;
+    }
     for (const document of state.documents) {
       if (document.noteId) noteCursors[document.noteId] ||= {};
     }
@@ -254,9 +300,9 @@ export class CloudTransport extends Transport {
         : latest;
     }, { ts: 0, sequence: 0 });
 
-    // First push of the session: if server is empty, seed with local state
-    // A prior cursor means this is a stale-server check, not an initial seed.
-    if (!this._serverProbeComplete && ownCursor.ts === 0 && ownCursor.sequence === 0) {
+    // If the push phase hasn't probed the server yet, try seeding.
+    // seedCloudOnce() checks the server state and only proceeds if empty/stalled.
+    if (!this._serverProbeComplete) {
       try {
         const seeded = await this.seedCloudOnce();
         if (seeded) {
@@ -290,7 +336,7 @@ export class CloudTransport extends Transport {
         }, `${noteId}-${ts}`);
         notesMap.get(noteId).push({
           key: `${noteId}~~${ownDeviceId}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`,
-          data: encrypted,
+          data: btoa(encrypted),
           deviceId: ownDeviceId,
           ts,
           sequence,
@@ -364,8 +410,13 @@ export class CloudTransport extends Transport {
     let acknowledgedCheckpoint = null;
 
     // Collect all note updates for batch push
+    const PUSH_VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
     let batchNotes = [];
     for (const [noteId, files] of filesByNoteId) {
+      if (!PUSH_VALID_NOTE_ID_RE.test(noteId)) {
+        console.warn('[sync] cloud push: skipping note with invalid ID:', noteId.slice(0, 80));
+        continue;
+      }
       const noteUpdates = [];
       let batchBytes = 0;
 
@@ -385,8 +436,8 @@ export class CloudTransport extends Transport {
         }
 
         noteUpdates.push({
-          key: file,
-          data: typeof raw === 'string' ? raw : raw.toString(),
+          key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.seq ?? 0}${YJS_UPDATE_EXT}`,
+          data: btoa(typeof raw === 'string' ? raw : raw.toString()),
           deviceId: parsed.device,
           ts: parsed.ts,
           sequence: parsed.seq ?? 0,
@@ -415,7 +466,7 @@ export class CloudTransport extends Transport {
         acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
         console.log('[sync] cloud push result:', JSON.stringify(result));
       } catch (e) {
-        console.error('[sync] cloud push error:', e?.status, e?.message);
+        console.error('[sync] cloud push error:', e?.status, e?.message, JSON.stringify(e?.body) || '');
         throw e;
       }
     } else if (ownCursor.ts > 0 && allFilesByNoteId.size > 0 && !this._serverProbeComplete) {
@@ -424,7 +475,26 @@ export class CloudTransport extends Transport {
       // Probe once: pull with empty cursor for first note. If server returns nothing, it's empty.
       let probePush = false;
       try {
-        const state = await getRemoteState(workspaceId);
+        let state;
+        try {
+          state = await getRemoteState(workspaceId);
+        } catch (stateErr) {
+          // 404 = workspace has no sync state yet, treat as empty
+          // 403 = user is not a workspace member, reset workspace
+          if (stateErr?.status === 404 || stateErr?.statusCode === 404) {
+            console.log('[sync] cloud push: probe got 404 — treating as empty workspace');
+            state = { status: 'empty', documents: [] };
+          } else if (stateErr?.status === 403 || stateErr?.statusCode === 403) {
+            console.log('[sync] cloud push: probe got 403 — resetting workspace');
+            const workspaceStore = useWorkspaceStore();
+            workspaceStore.activeId = null;
+            this._cachedWorkspaceId = null;
+            this._serverProbeComplete = true;
+            return { updates: [], cursorsDelta: {}, pushed: 0 };
+          } else {
+            throw stateErr;
+          }
+        }
         if (!isValidRemoteState(state)) {
           throw malformedRemoteState();
         }
@@ -444,7 +514,7 @@ export class CloudTransport extends Transport {
               let raw;
               try { raw = await readFile(path.join(commitsDir, file)); } catch { continue; }
               if (!raw) continue;
-               noteUpdates.push({ key: file, data: typeof raw === 'string' ? raw : raw.toString(), deviceId: parsed.device, ts: parsed.ts, sequence: parsed.seq ?? 0 });
+               noteUpdates.push({ key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.seq ?? 0}${YJS_UPDATE_EXT}`, data: btoa(typeof raw === 'string' ? raw : raw.toString()), deviceId: parsed.device, ts: parsed.ts, sequence: parsed.seq ?? 0 });
               if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
                 pushCursorTs = parsed.ts;
                 pushCursorSeq = parsed.seq ?? 0;
@@ -522,7 +592,7 @@ export class CloudTransport extends Transport {
    */
   async seedCloudOnce() {
     if (this._seedPromise) return this._seedPromise;
-    this._seedPromise = this._seedCloudOnce();
+    this._seedPromise = this._seedCloudOptimized();
     try {
       return await this._seedPromise;
     } finally {
@@ -537,10 +607,12 @@ export class CloudTransport extends Transport {
     if (!workspaceId) return false;
 
     // The state endpoint is authoritative; do not infer workspace state from a note.
+    // Also recover from stalled initialization (status=initializing with 0 documents)
+    // where the init token expired before the first device could complete the seed.
     try {
       const state = await getRemoteState(workspaceId);
       if (!isValidRemoteState(state)) throw malformedRemoteState();
-      if (!isAuthoritativelyEmpty(state)) {
+      if (!isAuthoritativelyEmpty(state) && !isStalledInit(state)) {
         this._serverProbeComplete = true;
         return false;
       }
@@ -554,10 +626,21 @@ export class CloudTransport extends Transport {
       claim = await claimInitialization(workspaceId);
     } catch (err) {
       if (err?.status === 409) {
-        this._serverProbeComplete = true;
-        return false;
+        try {
+          const { resetInitialization } = await import('../remote-yjs.js');
+          await resetInitialization(workspaceId);
+          console.log('[sync] cloud seed: reset stuck initialization, retrying claim');
+          claim = await claimInitialization(workspaceId);
+        } catch (resetErr) {
+          if (resetErr?.status === 409) {
+            this._serverProbeComplete = true;
+            return false;
+          }
+          throw resetErr;
+        }
+      } else {
+        throw err;
       }
-      throw err;
     }
     if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
 
@@ -584,13 +667,13 @@ export class CloudTransport extends Transport {
           noteId: META_DOC_ID,
           updates: [{
             key: `${META_DOC_ID}~~${ownDeviceId}~~${ts}~~0${YJS_UPDATE_EXT}`,
-            data: encrypted,
+            data: btoa(encrypted),
             deviceId: ownDeviceId,
             ts,
             sequence: 0,
           }],
         });
-        snapshots.push({ noteId: META_DOC_ID, data: encrypted });
+        snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted) });
       }
     } catch (err) {
       throw new Error('cloud seed: workspace doc failed', { cause: err });
@@ -599,8 +682,10 @@ export class CloudTransport extends Transport {
     // Seed all notes
     const workspaceDoc = getWorkspaceDoc();
     const notesMap = workspaceDoc.getMap('notes');
+    const VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
     const noteIds = Array.from(notesMap.keys()).filter(
       (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+        && VALID_NOTE_ID_RE.test(id)
     );
 
     for (const noteId of noteIds) {
@@ -633,13 +718,13 @@ export class CloudTransport extends Transport {
               noteId,
               updates: [{
                 key: `${noteId}~~${ownDeviceId}~~${noteTs}~~0${YJS_UPDATE_EXT}`,
-                data: encrypted,
+                data: btoa(encrypted),
                 deviceId: ownDeviceId,
                 ts: noteTs,
                 sequence: 0,
               }],
             });
-            snapshots.push({ noteId, data: encrypted });
+            snapshots.push({ noteId, data: btoa(encrypted) });
           }
         } finally {
           doc.destroy();
@@ -653,11 +738,33 @@ export class CloudTransport extends Transport {
       throw new Error('cloud seed: nothing to push');
     }
 
-    console.log(`[sync] cloud seed: pushing ${batchNotes.length} docs`);
+    const SEED_BATCH_SIZE = 50;
+    let totalStored = 0;
+    if (batchNotes.length > 0 && batchNotes[0].updates.length > 0) {
+      const first = batchNotes[0].updates[0];
+      console.log('[sync] cloud seed: first update key:', first.key, 'noteId:', batchNotes[0].noteId, 'deviceId:', first.deviceId, 'ts:', first.ts, 'seq:', first.sequence, 'dataLen:', first.data?.length);
+    }
+    console.log(`[sync] cloud seed: pushing ${batchNotes.length} docs in batches of ${SEED_BATCH_SIZE}`);
     try {
-      const result = await remotePushUpdates(workspaceId, batchNotes);
-      const stored = (result.accepted || 0) + (result.duplicate || 0);
-      if (stored !== batchNotes.reduce((total, note) => total + note.updates.length, 0)) {
+      for (let i = 0; i < batchNotes.length; i += SEED_BATCH_SIZE) {
+        const chunk = batchNotes.slice(i, i + SEED_BATCH_SIZE);
+        try {
+          const result = await remotePushUpdates(workspaceId, chunk);
+          totalStored += (result.accepted || 0) + (result.duplicate || 0);
+          console.log(`[sync] cloud seed: batch ${Math.floor(i / SEED_BATCH_SIZE) + 1} accepted ${result.accepted || 0}, duplicate ${result.duplicate || 0}`);
+        } catch (batchErr) {
+          const isMalformed = batchErr?.status === 400 || batchErr?.statusCode === 400
+            || batchErr?.body?.error === 'malformed_update_key'
+            || (batchErr?.message || '').includes('malformed_update_key');
+          if (isMalformed) {
+            console.warn('[sync] cloud seed: skipping malformed batch', Math.floor(i / SEED_BATCH_SIZE) + 1, batchErr?.body || batchErr?.message);
+            continue;
+          }
+          console.error('[sync] cloud seed: batch', Math.floor(i / SEED_BATCH_SIZE) + 1, 'failed:', batchErr?.status, batchErr?.message, JSON.stringify(batchErr?.body || batchErr?.response) || '');
+          throw batchErr;
+        }
+      }
+      if (totalStored !== batchNotes.reduce((total, note) => total + note.updates.length, 0)) {
         throw new Error('cloud seed: journal upload incomplete');
       }
 
@@ -702,20 +809,29 @@ export class CloudTransport extends Transport {
 
           if (assetKeys.length > 0) {
             requiredAssetKeys.push(...assetKeys);
+            let toUploadKeys = assetKeys;
+            try {
+              const remote = new Set(await listRemoteAssets());
+              const missing = assetKeys.filter((k) => !remote.has(k));
+              console.log(`[sync] cloud seed: ${assetKeys.length} local assets, ${assetKeys.length - missing.length} already on server, ${missing.length} to upload`);
+              if (missing.length < assetKeys.length) toUploadKeys = missing;
+            } catch (err) {
+              console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
+            }
             const PRESIGN_CHUNK = 200;
             const allUrls = [];
-            for (let i = 0; i < assetKeys.length; i += PRESIGN_CHUNK) {
-              const chunk = assetKeys.slice(i, i + PRESIGN_CHUNK);
-              console.log(`[sync] cloud seed: presigning ${chunk.length} assets (${i}/${assetKeys.length})`);
+            for (let i = 0; i < toUploadKeys.length; i += PRESIGN_CHUNK) {
+              const chunk = toUploadKeys.slice(i, i + PRESIGN_CHUNK);
+              console.log(`[sync] cloud seed: presigning ${chunk.length} assets (${i}/${toUploadKeys.length})`);
               const urls = await presignBatchUpload(chunk);
               allUrls.push(...urls);
             }
-            console.log(`[sync] cloud seed: ${allUrls.length} presigned URLs for ${assetKeys.length} assets`);
-            if (allUrls.length !== assetKeys.length) {
+            console.log(`[sync] cloud seed: ${allUrls.length} presigned URLs for ${toUploadKeys.length} assets`);
+            if (allUrls.length !== toUploadKeys.length) {
               throw new Error('cloud seed: asset presign incomplete');
             }
             if (allUrls.length > 0) {
-              const CONCURRENT = 5;
+              const CONCURRENT = 2;
               let uploaded = 0;
               for (let i = 0; i < allUrls.length; i += CONCURRENT) {
                 const batch = allUrls.slice(i, i + CONCURRENT);
@@ -739,11 +855,11 @@ export class CloudTransport extends Transport {
                 }));
                 console.log(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, allUrls.length)}/${allUrls.length} assets`);
               }
-              if (uploaded !== assetKeys.length || allUrls.length !== assetKeys.length) {
+              if (uploaded !== toUploadKeys.length || allUrls.length !== toUploadKeys.length) {
                 throw new Error('cloud seed: asset upload incomplete');
               }
-              const confirmation = await confirmSeed(assetKeys);
-              if (confirmation?.verified !== assetKeys.length || confirmation?.total !== assetKeys.length) {
+              const confirmation = await confirmSeed(toUploadKeys);
+              if (confirmation?.verified !== toUploadKeys.length || confirmation?.total !== toUploadKeys.length) {
                 throw new Error('cloud seed: asset verification incomplete');
               }
             }
@@ -757,11 +873,286 @@ export class CloudTransport extends Transport {
       this._serverProbeComplete = true;
       this._lastPushedAt = Date.now();
 
-      return stored > 0;
+      return totalStored > 0;
     } catch (err) {
       console.error('[sync] cloud seed: push failed:', err?.status, err?.message);
       return false;
     }
+  }
+
+  async _seedCloudOptimized(onProgress) {
+    if (!this._remoteAllowed()) return false;
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return false;
+
+    try {
+      const state = await getRemoteState(workspaceId);
+      if (!isValidRemoteState(state)) throw malformedRemoteState();
+      if (!isAuthoritativelyEmpty(state) && !isStalledInit(state)) {
+        this._serverProbeComplete = true;
+        return false;
+      }
+    } catch (err) {
+      if (err?.code === 'sync-state-invalid') throw err;
+      // 403 = workspace not accessible, try to create a new one
+      if (err?.status === 403 || err?.statusCode === 403) {
+        console.log('[sync] cloud seed: workspace not accessible, resetting');
+        const workspaceStore = useWorkspaceStore();
+        workspaceStore.activeId = null;
+        this._cachedWorkspaceId = null;
+        const newWorkspaceId = await this._ensureWorkspace();
+        if (!newWorkspaceId || newWorkspaceId === workspaceId) return false;
+        return this._seedCloudOptimized(onProgress);
+      }
+      return false;
+    }
+
+    let claim;
+    try {
+      claim = await claimInitialization(workspaceId);
+    } catch (err) {
+      if (err?.status === 409) {
+        try {
+          const { resetInitialization } = await import('../remote-yjs.js');
+          await resetInitialization(workspaceId);
+          console.log('[sync] cloud seed: reset stuck initialization, retrying claim');
+          claim = await claimInitialization(workspaceId);
+        } catch (resetErr) {
+          if (resetErr?.status === 409) {
+            this._serverProbeComplete = true;
+            return false;
+          }
+          throw resetErr;
+        }
+      } else {
+        throw err;
+      }
+    }
+    if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
+
+    try {
+    console.log('[sync] cloud seed: claimed server initialization');
+    const { encryptJSON } = await import('../crypto.js');
+    const ownDeviceId = getSyncDeviceId();
+    const ts = Date.now();
+    const snapshots = [];
+    const noteIds = [];
+
+    const workspaceDoc = getWorkspaceDoc();
+    const wsState = Y.encodeStateAsUpdate(workspaceDoc);
+    if (wsState.byteLength > 0) {
+      const encrypted = await encryptJSON({
+        device: ownDeviceId,
+        ts,
+        seq: 0,
+        noteId: META_DOC_ID,
+        update: Array.from(wsState),
+      }, `${META_DOC_ID}-${ts}`);
+      snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted) });
+      noteIds.push(META_DOC_ID);
+    }
+
+    const notesMap = workspaceDoc.getMap('notes');
+    const VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
+    const allNoteIds = Array.from(notesMap.keys()).filter(
+      (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+        && VALID_NOTE_ID_RE.test(id)
+    );
+
+    for (const noteId of allNoteIds) {
+      try {
+        const doc = new Y.Doc();
+        try {
+          let loaded = false;
+          try {
+            const snapshot = await getSnapshot(noteId);
+            if (snapshot && snapshot.length > 0) {
+              Y.applyUpdate(doc, toUint8Array(snapshot));
+              loaded = true;
+            }
+          } catch {}
+          if (!loaded) {
+            const updates = await getUpdates(noteId);
+            applyUpdatesToDoc(doc, updates);
+          }
+          const state = Y.encodeStateAsUpdate(doc);
+          if (state.byteLength > 0) {
+            const noteTs = ts + snapshots.length;
+            const encrypted = await encryptJSON({
+              device: ownDeviceId,
+              ts: noteTs,
+              seq: 0,
+              noteId,
+              update: Array.from(state),
+            }, `${noteId}-${noteTs}`);
+            snapshots.push({ noteId, data: btoa(encrypted) });
+            noteIds.push(noteId);
+          }
+        } finally {
+          doc.destroy();
+        }
+      } catch (err) {
+        console.warn('[sync] cloud seed: skipping note', noteId, err);
+      }
+    }
+
+    if (snapshots.length === 0) {
+      throw new Error('cloud seed: nothing to push');
+    }
+
+    console.log(`[sync] cloud seed: uploading ${snapshots.length} snapshots via presigned URLs`);
+    if (onProgress) onProgress({ phase: 'presign', uploaded: 0, total: snapshots.length });
+
+    const { urls, generation } = await getSnapshotUrls(workspaceId, claim.token, noteIds);
+    if (!urls || Object.keys(urls).length !== snapshots.length) {
+      throw new Error('cloud seed: presign incomplete');
+    }
+
+    const CONCURRENT = 4;
+    let uploaded = 0;
+    const documents = [];
+
+    for (let i = 0; i < snapshots.length; i += CONCURRENT) {
+      const batch = snapshots.slice(i, i + CONCURRENT);
+      await Promise.all(batch.map(async ({ noteId, data }) => {
+        const { url, key } = urls[noteId];
+        const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+        const response = await fetch(url, {
+          method: 'PUT',
+          body: bytes,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+        if (!response.ok) throw new Error(`snapshot upload failed: ${response.status}`);
+        uploaded++;
+        documents.push({
+          noteId,
+          snapshotGeneration: generation,
+          snapshotKey: key,
+          checkpointTs: 0,
+          checkpointSequence: 0,
+        });
+      }));
+      console.log(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
+      if (onProgress) onProgress({ phase: 'snapshots', uploaded: Math.min(i + CONCURRENT, snapshots.length), total: snapshots.length });
+    }
+
+    console.log('[sync] cloud seed: seeding assets');
+    if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: 0 });
+
+    const requiredAssetKeys = [];
+    try {
+      const { getAppDirectory } = await import('@/lib/native/app');
+      const appDir = await getAppDirectory();
+      if (appDir) {
+        const assetKeys = [];
+        const assetFiles = [];
+        for (const assetType of ASSET_TYPES) {
+          const localBase = `${appDir}/${assetType}`;
+          const noteDirIds = await readDir(localBase).catch(() => []);
+          for (const nid of noteDirIds) {
+            const noteDir = `${localBase}/${nid}`;
+            const files = await readDir(noteDir).catch(() => []);
+            for (const file of files) {
+              const flatKey = encodeAssetKey(assetType, nid, file);
+              assetKeys.push(flatKey);
+              assetFiles.push({ key: flatKey, localPath: `${noteDir}/${file}` });
+            }
+          }
+        }
+
+        if (assetKeys.length > 0) {
+          requiredAssetKeys.push(...assetKeys);
+          let toUploadKeys = assetKeys;
+          try {
+            const remote = new Set(await listRemoteAssets());
+            const missing = assetKeys.filter((k) => !remote.has(k));
+            console.log(`[sync] cloud seed: ${assetKeys.length} local assets, ${assetKeys.length - missing.length} already on server, ${missing.length} to upload`);
+            if (missing.length < assetKeys.length) toUploadKeys = missing;
+          } catch (err) {
+            console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
+          }
+          if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: toUploadKeys.length });
+
+          // Build size-based batches: group assets to stay under MAX_BATCH_BYTES
+          const MAX_BATCH_BYTES = 10 * 1024 * 1024; // 10MB per batch
+          const assetEntries = [];
+          for (const assetKey of toUploadKeys) {
+            const file = assetFiles.find(f => f.key === assetKey);
+            if (!file) continue;
+            try {
+              const data = await readFileBinary(file.localPath);
+              const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
+              if (bytes && bytes.byteLength > 0) {
+                assetEntries.push({ key: assetKey, data: bytes, size: bytes.byteLength });
+              }
+            } catch (err) {
+              console.warn('[sync] cloud seed: skipping asset', assetKey, err?.message);
+            }
+          }
+
+          // Sort by size ascending — pack small files together, large files get their own batch
+          assetEntries.sort((a, b) => a.size - b.size);
+
+          const batches = [];
+          let currentBatch = [];
+          let currentSize = 0;
+          for (const entry of assetEntries) {
+            if (entry.size > MAX_BATCH_BYTES) {
+              // Large file — upload solo
+              if (currentBatch.length > 0) {
+                batches.push(currentBatch);
+                currentBatch = [];
+                currentSize = 0;
+              }
+              batches.push([entry]);
+            } else if (currentSize + entry.size > MAX_BATCH_BYTES) {
+              // Would overflow — start new batch
+              batches.push(currentBatch);
+              currentBatch = [entry];
+              currentSize = entry.size;
+            } else {
+              currentBatch.push(entry);
+              currentSize += entry.size;
+            }
+          }
+          if (currentBatch.length > 0) batches.push(currentBatch);
+
+          console.log(`[sync] cloud seed: ${assetEntries.length} assets in ${batches.length} batches`);
+
+          // Upload batches
+          let assetsUploaded = 0;
+          for (let bi = 0; bi < batches.length; bi++) {
+            const batch = batches[bi];
+            try {
+              const result = await seedBatchUploadAssets(batch);
+              assetsUploaded += (result.uploaded || 0) + (result.skipped || 0);
+            } catch (err) {
+              console.warn(`[sync] cloud seed: batch ${bi + 1} failed:`, err?.message);
+            }
+            if (onProgress) onProgress({ phase: 'assets', uploaded: assetsUploaded, total: toUploadKeys.length });
+          }
+        }
+      }
+    } catch (err) {
+      throw err;
+    }
+
+    console.log('[sync] cloud seed: completing initialization');
+    if (onProgress) onProgress({ phase: 'finalizing', uploaded: snapshots.length, total: snapshots.length });
+
+    await completeInitialization(workspaceId, claim.token, generation, documents, requiredAssetKeys);
+    this._serverProbeComplete = true;
+    this._lastPushedAt = Date.now();
+
+    console.log('[sync] cloud seed: completed successfully');
+    if (onProgress) onProgress({ phase: 'done', uploaded: snapshots.length, total: snapshots.length });
+
+    return snapshots.length > 0;
+  } catch (err) {
+    console.error('[sync] cloud seed: optimized seed failed:', err?.status, err?.message);
+    return false;
+  }
   }
 
   async compact() {
@@ -770,6 +1161,22 @@ export class CloudTransport extends Transport {
 
   async syncAssets(onProgress) {
     if (!this._remoteAllowed()) return;
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return;
+    try {
+      const state = await getRemoteState(workspaceId);
+      if (state?.status !== 'initialized') {
+        console.log(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'} — skipping asset sync (seed handles assets)`);
+        return;
+      }
+    } catch (e) {
+      if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
+        console.log('[sync] syncAssets: workspace not accessible — skipping asset sync');
+        return;
+      }
+      throw e;
+    }
 
     const { getAppDirectory } = await import('@/lib/native/app');
     const appDir = await getAppDirectory();
@@ -851,7 +1258,8 @@ export class CloudTransport extends Transport {
 
     onProgress?.({ phase: 'assets-scan', processed: 0, total });
 
-    const BATCH_MAX_BYTES = 5 * 1024 * 1024;
+    const BATCH_MAX_BYTES = 10 * 1024 * 1024;
+    const BATCH_MAX_ITEMS = 20;
     const BATCH_DELAY_MS = 500;
     const INDIVIDUAL_DELAY_MS = 1500;
 
@@ -882,7 +1290,8 @@ export class CloudTransport extends Transport {
           console.warn('[sync] oversized asset, solo batch:', op.flatKey, `${(itemBytes / 1048576).toFixed(1)}MB`);
           continue;
         }
-        if (currentBatch.length > 0 && currentBytes + itemBytes > BATCH_MAX_BYTES) {
+        if (currentBatch.length > 0
+          && (currentBytes + itemBytes > BATCH_MAX_BYTES || currentBatch.length >= BATCH_MAX_ITEMS)) {
           batches.push(currentBatch);
           currentBatch = [];
           currentBytes = 0;
@@ -1099,7 +1508,11 @@ export class CloudTransport extends Transport {
     }
     const state = this.getAccountState();
     console.log('[sync] _remoteAllowed: isAuth=', state.isAuth, 'plan=', state.plan);
-    return state.isAuth;
+    if (!state.isAuth) return false;
+    const subPlan = state.subscription?.plan ?? state.plan;
+    if (subPlan && subPlan !== 'free') return true;
+    console.log('[sync] _remoteAllowed: cloud sync not available for plan', subPlan);
+    return false;
   }
 
   _throttled() {

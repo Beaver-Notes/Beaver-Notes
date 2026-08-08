@@ -227,6 +227,57 @@
           </ui-button>
         </div>
 
+        <!-- Seeding Progress -->
+        <div
+          v-if="accountStore.seedStatus === 'seeding'"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <div class="flex items-center gap-3 mb-3">
+            <div class="animate-spin">
+              <v-remixicon name="riLoader4Line" class="text-primary" size="18" />
+            </div>
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+              {{ seedPhaseLabel }}
+            </p>
+          </div>
+          <div class="space-y-2">
+            <div class="flex justify-between text-xs text-neutral-600 dark:text-neutral-400">
+              <span>{{ seedPhaseLabel }}</span>
+              <span>{{ accountStore.seedProgress.uploaded }} / {{ accountStore.seedProgress.total }}</span>
+            </div>
+            <div class="h-1.5 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden">
+              <div
+                class="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+                :style="{ width: seedProgressPercent + '%' }"
+              ></div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-else-if="accountStore.seedStatus === 'done'"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <div class="flex items-center gap-2">
+            <v-remixicon name="riCheckLine" class="text-green-600 dark:text-green-400" size="18" />
+            <p class="text-sm font-medium text-green-700 dark:text-green-300">
+              Cloud sync ready
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-else-if="accountStore.seedStatus === 'error'"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <div class="flex items-center gap-2">
+            <v-remixicon name="riErrorWarningLine" class="text-red-600 dark:text-red-400" size="18" />
+            <p class="text-sm font-medium text-red-700 dark:text-red-300">
+              Sync setup failed
+            </p>
+          </div>
+        </div>
+
         <div
           class="border-t border-neutral-200 dark:border-neutral-700 flex flex-row items-center gap-3 px-4 py-3.5"
         >
@@ -489,19 +540,42 @@
 </template>
 
 <script>
+import { computed } from 'vue';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
+import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
 
 export default {
   setup() {
     const dialog = useDialog();
     const { translations } = useTranslations();
+    const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
+
+    const seedPhaseLabel = computed(() => {
+      const phase = accountStore.seedProgress?.phase;
+      if (phase === 'presign') return 'Preparing...';
+      if (phase === 'snapshots') return 'Uploading notes...';
+      if (phase === 'assets') return 'Uploading assets...';
+      if (phase === 'finalizing') return 'Finalizing...';
+      if (phase === 'done') return 'Complete';
+      return 'Setting up...';
+    });
+
+    const seedProgressPercent = computed(() => {
+      const { uploaded, total } = accountStore.seedProgress || {};
+      if (!total) return 0;
+      return Math.min(100, Math.round((uploaded / total) * 100));
+    });
+
     return {
       translations,
       PLAN_NAMES,
+      accountStore,
+      seedPhaseLabel,
+      seedProgressPercent,
       ...account,
     };
   },

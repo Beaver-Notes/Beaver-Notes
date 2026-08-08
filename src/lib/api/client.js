@@ -260,6 +260,8 @@ export function getApiClient(overrides) {
 
 export function resetApiClient() {
   defaultClient = null;
+  // Also reset the sync module's cached client so it picks up the new server URL
+  import('@/utils/sync/remote-yjs.js').then((m) => m.resetSyncApiClient?.()).catch(() => {});
 }
 
 export { DEFAULT_API_URL };

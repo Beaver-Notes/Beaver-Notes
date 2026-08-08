@@ -121,17 +121,20 @@ export function useAccountAuth() {
         if (data.profile) {
           await saveCachedProfile(data.profile);
         }
+        if (data.organizations?.length > 0) {
+          const org = data.organizations[0];
+          accountStore.activeOrgId = org.id;
+          if (org.workspaces?.length > 0) {
+            accountStore.activeWorkspaceId = org.workspaces[0].id;
+          }
+        }
       }
       return data;
     } catch (err) {
       if (err && err.status === 401) {
-        await clearAllAccountStorage();
-        currentToken = null;
-        resetApiClient();
-        setStatus('anonymous');
-        accountStore.setProfile(null);
-        accountStore.setSubscription(null);
-        accountStore.setDevices([]);
+        // Don't nuke auth state on profile fetch 401 — it may be a wrong
+        // server URL or transient issue. The token is still valid.
+        console.warn('[auth] fetchProfile 401 — keeping auth state, token may still be valid');
       } else {
         console.error('[auth] fetchProfile failed:', err);
       }
@@ -431,6 +434,54 @@ export function useAccountAuth() {
     return true;
   }
 
+  async function triggerSeed(onProgress) {
+    // Skip if no cloud sync is configured
+    if (!accountStore.isAuthenticated) return false;
+    if (!accountStore.isPaidPlan) return false;
+
+    const transportSetting = await import('@/composable/settings').then(
+      (m) => m.getSettingSync('syncTransport')
+    );
+    if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {
+      return false;
+    }
+
+    try {
+      const { getSyncEngine, initSyncEngine } = await import('@/utils/sync/engine.js');
+
+      // Wait up to 5s for the sync engine to initialize (it may start after auth)
+      let engine = getSyncEngine();
+      for (let i = 0; i < 50 && !engine; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+        engine = getSyncEngine();
+      }
+
+      // If the engine still isn't initialized, initialize it now
+      if (!engine) {
+        console.log('[auth] sync engine not found, initializing now');
+        const { initAppSync } = await import('@/utils/sync/app-sync.js');
+        engine = initAppSync();
+      }
+      if (!engine) {
+        console.log('[auth] sync engine could not be initialized, skipping seed');
+        return false;
+      }
+
+      accountStore.setSeedStatus('seeding');
+      // Trigger a force sync — this will handle seeding through the
+      // proper serialized path (seedCloudOnce) in the normal sync cycle.
+      await engine.forceSyncNow();
+      if (accountStore.seedStatus === 'seeding') {
+        accountStore.setSeedStatus('done');
+      }
+      return true;
+    } catch (err) {
+      console.error('[auth] seed failed:', err);
+      accountStore.setSeedStatus('error');
+      return false;
+    }
+  }
+
   onMounted(() => {
     hydrate().catch((err) => console.error('[auth] hydrate failed:', err));
   });
@@ -452,5 +503,6 @@ export function useAccountAuth() {
     deleteAccount,
     hydrate,
     deriveDeviceLabel,
+    triggerSeed,
   };
 }

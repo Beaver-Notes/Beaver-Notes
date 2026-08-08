@@ -124,6 +124,23 @@ export async function batchUploadAssets(items) {
 }
 
 /**
+ * Batch-upload assets during seed (higher limits, no rate limit).
+ * @param {Array<{key: string, data: Uint8Array}>} items
+ * @returns {Promise<{results: Array, uploaded: number, skipped: number}>}
+ */
+export async function seedBatchUploadAssets(items) {
+  const client = getClient();
+  const payload = {
+    assets: items.map((item) => ({
+      key: item.key,
+      data: uint8ArrayToBase64(item.data),
+    })),
+  };
+  const result = await client.post('/assets/seed-batch', payload, { timeoutMs: 300000 });
+  return result || { results: [], uploaded: 0, skipped: 0 };
+}
+
+/**
  * Download an asset from the server.
  * @param {string} flatKey - encoded key
  * @returns {Promise<Uint8Array|null>} raw file bytes, or null if not found

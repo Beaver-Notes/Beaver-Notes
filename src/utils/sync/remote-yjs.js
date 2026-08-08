@@ -13,17 +13,34 @@
 
 import { getApiClient } from '@/lib/api/client.js';
 import { getSyncDeviceId } from './sync-repository.js';
+import { useAccountStore } from '@/store/account';
 
 const MAX_BATCH_BODY_BYTES = 5 * 1024 * 1024; // 5MB safe limit per request
 const MAX_BATCH_ITEMS = 50; // server-side array length limit
 
 let apiClient = null;
+let lastServerUrl = null;
 
 function getClient() {
-  if (!apiClient) {
-    apiClient = getApiClient();
+  let serverUrl;
+  try {
+    const accountStore = useAccountStore();
+    serverUrl = accountStore?.serverUrl;
+  } catch {
+    serverUrl = undefined;
   }
+
+  if (apiClient && serverUrl === lastServerUrl) {
+    return apiClient;
+  }
+  lastServerUrl = serverUrl;
+  apiClient = getApiClient(serverUrl ? { baseUrl: serverUrl } : undefined);
   return apiClient;
+}
+
+export function resetSyncApiClient() {
+  apiClient = null;
+  lastServerUrl = null;
 }
 
 function chunkItems(items, getItemSize) {
@@ -144,6 +161,10 @@ export async function claimInitialization(workspaceId) {
   return getClient().post('/sync/initialize/claim', { workspaceId }, { timeoutMs: 15000 });
 }
 
+export async function resetInitialization(workspaceId) {
+  return getClient().post('/sync/initialize/reset', { workspaceId }, { timeoutMs: 15000 });
+}
+
 export async function uploadInitializationSnapshot(workspaceId, token, noteId, generation, data) {
   return getClient().post('/sync/initialize/snapshot', {
     workspaceId,
@@ -162,6 +183,22 @@ export async function completeInitialization(workspaceId, token, generation, doc
     documents,
     assets,
   }, { timeoutMs: 30000 });
+}
+
+export async function getSnapshotUrls(workspaceId, token, noteIds) {
+  return getClient().post('/sync/initialize/snapshot-urls', {
+    workspaceId,
+    token,
+    noteIds,
+  }, { timeoutMs: 30000 });
+}
+
+export async function createWorkspace(name, orgId) {
+  return getClient().post('/workspaces', { name, orgId }, { timeoutMs: 15000 });
+}
+
+export async function getWorkspaces() {
+  return getClient().get('/workspaces', { timeoutMs: 15000 });
 }
 
 /**

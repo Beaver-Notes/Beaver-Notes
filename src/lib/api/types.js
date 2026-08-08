@@ -162,12 +162,25 @@ export function normalizeSession(raw) {
 
 export function normalizeAccountResponse(raw) {
   if (!isObject(raw)) return null;
+  const organizations = Array.isArray(raw.organizations)
+    ? raw.organizations.map((org) => ({
+        id: org.id,
+        name: org.name || org.nameEncrypted,
+        slug: org.slug,
+        role: org.role || 'owner',
+        subscription: org.subscription ? normalizeSubscription(org.subscription) : null,
+        workspaces: Array.isArray(org.workspaces)
+          ? org.workspaces.map(normalizeWorkspace).filter(Boolean)
+          : [],
+      }))
+    : [];
   return {
     profile: normalizeProfile(raw.user || raw.profile),
     subscription: normalizeSubscription(raw.subscription),
     devices: Array.isArray(raw.devices)
       ? raw.devices.map(normalizeDevice).filter(Boolean)
       : [],
+    organizations,
   };
 }
 
