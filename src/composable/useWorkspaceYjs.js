@@ -10,22 +10,19 @@
 import * as Y from 'yjs';
 import { appendUpdate, getSnapshot } from '@/lib/native/yjs.js';
 import { readDir as readSyncDir } from '@/lib/native/fs';
-import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
-import { getSyncPath } from '@/utils/sync/path.js';
-import { getSettingSync } from '@/composable/settings';
+import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
-import { registerActiveDoc } from '@/composable/useNoteYjs.js';
+import { registerActiveDoc } from './yjs-shared.js';
 import {
   getDeviceId,
   objToYMap,
 } from '@/utils/yjs-helpers.js';
-import {
-  getWorkspaceDoc,
-  META_DOC_ID,
-} from './meta-yjs-doc.js';
+import { getWorkspaceDoc, META_DOC_ID } from './meta-yjs-doc.js';
+import { getHocuspocusSync } from './useHocuspocusSync.js';
+import { useWorkspaceStore } from '@/store/workspace';
 
 // Re-export store hydration so consumers keep a single import path
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-yjs-store.js';
@@ -80,25 +77,22 @@ async function persistWorkspace(update) {
     // Update lost despite retries — console.error in retryWrite documents it
   }
   try {
-    if (getSettingSync('autoSync')) {
-      const syncPath = await getSyncPath();
-      if (syncPath) {
-        const commitsDir = await ensureCommitsDir(syncPath);
+    const commitsDir = await getCommitsDir();
+    if (commitsDir) {
 
-        if (!snapshotWritten) {
-          const files = await readSyncDir(commitsDir).catch(() => []);
-          const hasWorkspaceFiles = files.some(
-            (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta')
-          );
-          if (!hasWorkspaceFiles) {
-            const fullState = Y.encodeStateAsUpdate(getWorkspaceDoc());
-            await writeYjsSnapshot(commitsDir, META_DOC_ID, fullState, encryptJSON);
-          }
-          snapshotWritten = true;
+      if (!snapshotWritten) {
+        const files = await readSyncDir(commitsDir).catch(() => []);
+        const hasWorkspaceFiles = files.some(
+          (f) => f.endsWith(YJS_UPDATE_EXT) && f.startsWith('meta')
+        );
+        if (!hasWorkspaceFiles) {
+          const fullState = Y.encodeStateAsUpdate(getWorkspaceDoc());
+          await writeYjsSnapshot(commitsDir, META_DOC_ID, fullState, encryptJSON);
         }
-
-        queueSyncWrite(commitsDir, META_DOC_ID, update);
+        snapshotWritten = true;
       }
+
+      queueSyncWrite(commitsDir, META_DOC_ID, update);
     }
   } catch {
     // Sync folder write failure is non-fatal — the update is already in SQLite
@@ -132,6 +126,11 @@ export async function loadWorkspaceDoc() {
   }
 
   registerActiveDoc(META_DOC_ID, doc);
+
+  const hocuspocus = getHocuspocusSync();
+  const workspaceStore = useWorkspaceStore();
+  const wsId = workspaceStore.activeId;
+  if (wsId) hocuspocus.joinMetaRoom(wsId);
 
   return doc;
 }

@@ -1,5 +1,6 @@
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
+use rayon::prelude::*;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, OptionalExtension};
@@ -7,7 +8,7 @@ use serde_json::{Map, Value};
 use yrs::updates::decoder::Decode;
 use yrs::{ReadTxn, Transact};
 
-use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, AppError};
+use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, is_encrypted_yjs_blob, AppError};
 
 pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
@@ -46,7 +47,7 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
               tokenize = 'unicode61 remove_diacritics 1'
             );
             CREATE INDEX IF NOT EXISTS idx_kv_notes_prefix
-              ON kv(key) WHERE key LIKE 'notes.%';",
+              ON kv(key);",
         )
         .map_err(|e| AppError::Other(e.to_string()))?;
     }
@@ -61,6 +62,7 @@ fn migrate(conn: &rusqlite::Connection, from: i64) -> Result<(), AppError> {
 }
 
 pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
+    let _t = crate::shared::speed_log::scope("db.open_pool");
     std::fs::create_dir_all(path.parent().unwrap_or(path))?;
     let manager = SqliteConnectionManager::file(path).with_flags(
         rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE | rusqlite::OpenFlags::SQLITE_OPEN_CREATE,
@@ -93,6 +95,7 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
 // ─── Basic KV operations ─────────────────────────────────────────────────────
 
 pub(crate) fn db_get(pool: &DbPool, key: &str) -> Result<Option<String>, AppError> {
+    let _t = crate::shared::speed_log::scope("db.db_get");
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.query_row("SELECT value FROM kv WHERE key = ?1", params![key], |row| {
         row.get(0)
@@ -102,6 +105,7 @@ pub(crate) fn db_get(pool: &DbPool, key: &str) -> Result<Option<String>, AppErro
 }
 
 pub(crate) fn db_set(pool: &DbPool, key: &str, value: &str) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("db.db_set");
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     conn.execute(
         "INSERT OR REPLACE INTO kv (key, value) VALUES (?1, ?2)",
@@ -138,6 +142,7 @@ pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
 }
 
 pub(crate) fn db_all(pool: &DbPool) -> Result<Map<String, Value>, AppError> {
+    let _t = crate::shared::speed_log::scope("db.db_all");
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare("SELECT key, value FROM kv")
@@ -209,6 +214,7 @@ pub(crate) fn fts_delete(pool: &DbPool, id: &str) -> Result<(), AppError> {
 /// partial words (e.g. "rustac" matching "rustacean") work while the user types.
 /// Returns at most `limit` results (default 200).
 pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec<String>, AppError> {
+    let _t = crate::shared::speed_log::scope("db.fts_search");
     if query.trim().is_empty() {
         return Ok(vec![]);
     }
@@ -257,6 +263,7 @@ pub(crate) fn fts_search(pool: &DbPool, query: &str, limit: usize) -> Result<Vec
 /// launch after the table is created, and available as a Tauri command for
 /// maintenance / after a bulk import.
 pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, AppError> {
+    let _t = crate::shared::speed_log::scope("db.fts_rebuild");
     fn extract_text(value: &Value) -> String {
         let mut parts = Vec::new();
         fn visit(node: &Value, parts: &mut Vec<String>) {
@@ -329,9 +336,12 @@ pub(crate) fn fts_rebuild(pool: &DbPool) -> Result<usize, AppError> {
 // ─── Yjs note-content helpers ─────────────────────────────────────────────────
 
 /// Append a Yjs binary update for a note. The raw update is kept (append-only
-/// so every peer's version is preserved). The cached snapshot is invalidated so
-/// `yjs_get_snapshot` rebuilds it lazily; `yjs_compact` refreshes it eagerly on
-/// note switch.
+/// so every peer's version is preserved). The snapshot cache is NOT folded here:
+/// rebuilding it on every write would cost a full decrypt + CRDT merge +
+/// re-encrypt of the whole note state per keystroke-flush. Instead
+/// `yjs_get_snapshot` rebuilds lazily only when it detects the cached snapshot
+/// is stale (any update newer than the snapshot's `updated_at`), so steady-state
+/// writes stay O(1) while reads remain O(1) when the snapshot is fresh.
 ///
 /// When `key` is `Some`, the stored blob is encrypted at rest.
 pub(crate) fn yjs_append(
@@ -341,6 +351,7 @@ pub(crate) fn yjs_append(
     device: &str,
     key: Option<[u8; 32]>,
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_append");
     // Encrypt the blob for storage (no-op when key is None).
     let stored = match key {
         Some(k) => encrypt_yjs_blob(&k, blob)?,
@@ -352,11 +363,6 @@ pub(crate) fn yjs_append(
         rusqlite::params![note_id, stored, device, chrono::Utc::now().timestamp_millis()],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
-    // Fold the new update into the cached snapshot incrementally so that
-    // repeated reads (yjs_get_snapshot) stay O(1) without requiring a full
-    // compaction via yjs_compact.  If no snapshot exists yet, fold_snapshot
-    // is a no-op and yjs_get_snapshot will build it lazily on the next read.
-    fold_snapshot(pool, note_id, blob, key)?;
     Ok(())
 }
 
@@ -368,6 +374,7 @@ pub(crate) fn yjs_get_updates(
     note_id: &str,
     key: Option<[u8; 32]>,
 ) -> Result<Vec<(i64, Vec<u8>)>, AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_get_updates");
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
         .prepare("SELECT id, data FROM note_content WHERE note_id = ?1 ORDER BY id ASC")
@@ -379,42 +386,52 @@ pub(crate) fn yjs_get_updates(
             Ok((id, blob))
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
-    rows.filter_map(|r| {
-        let (id, blob) = match r {
+    let mut result = Vec::new();
+    for row in rows {
+        let (id, blob) = match row {
             Ok(v) => v,
             Err(e) => {
                 eprintln!("[yjs_get_updates] skipping corrupt row: {e}");
-                return None;
+                continue;
             }
         };
-        let decrypted = match key {
+        match key {
             Some(k) => match decrypt_yjs_blob(&k, &blob) {
-                Ok(d) => d,
+                Ok(d) => result.push((id, d)),
                 Err(e) => {
                     eprintln!("[yjs_get_updates] skipping undecryptable row {id}: {e}");
-                    return None;
                 }
             },
-            None => blob,
-        };
-        Some(Ok((id, decrypted)))
-    })
-    .collect()
+            None if is_encrypted_yjs_blob(&blob) => {
+                // Encrypted at rest but no key is available: fail closed so the
+                // ciphertext is never handed to the Yjs decoder (which aborts on
+                // invalid UTF-8) or built into a partial snapshot that would
+                // shadow the encrypted rows.
+                return Err(AppError::EncryptionLocked);
+            }
+            None => result.push((id, blob)),
+        }
+    }
+    Ok(result)
 }
 
 /// Return a single merged Yjs state snapshot for a note, computed with the
 /// `yrs` CRDT engine (wire-compatible with the JS `yjs` library). The result is
-/// cached in `yjs_snapshots`, so repeated reads are O(1) regardless of edit
-/// history length. When `key` is `Some`, the snapshot is decrypted before return.
+/// cached in `yjs_snapshots`, so reads are O(1) as long as the cached snapshot
+/// is fresh (no update newer than it). When the cache is stale — an update was
+/// appended since the snapshot was written — it is rebuilt from history once and
+/// re-cached. When `key` is `Some`, the snapshot is decrypted before return.
 pub(crate) fn yjs_get_snapshot(
     pool: &DbPool,
     note_id: &str,
     key: Option<[u8; 32]>,
 ) -> Result<Vec<u8>, AppError> {
-    if let Some(cached) = read_snapshot(pool, note_id)? {
-        if !cached.is_empty() {
+    let _t = crate::shared::speed_log::scope("db.yjs_get_snapshot");
+    if let Some((cached, cached_updated_at)) = read_snapshot(pool, note_id)? {
+        if !cached.is_empty() && !snapshot_is_stale(pool, note_id, cached_updated_at)? {
             return match key {
                 Some(k) => Ok(decrypt_yjs_blob(&k, &cached)?),
+                None if is_encrypted_yjs_blob(&cached) => Err(AppError::EncryptionLocked),
                 None => Ok(cached),
             };
         }
@@ -422,6 +439,11 @@ pub(crate) fn yjs_get_snapshot(
     let rows = yjs_get_updates(pool, note_id, key)?;
     if rows.is_empty() {
         return Ok(Vec::new());
+    }
+    // Defense in depth: `yjs_get_updates` fails closed on encrypted rows without
+    // a key, but never hand ciphertext to the Yjs decoder regardless.
+    if key.is_none() && rows.iter().any(|(_, blob)| is_encrypted_yjs_blob(blob)) {
+        return Err(AppError::EncryptionLocked);
     }
     let doc = yrs::Doc::new();
     {
@@ -434,9 +456,105 @@ pub(crate) fn yjs_get_snapshot(
     let snapshot = doc
         .transact_mut()
         .encode_state_as_update_v1(&yrs::StateVector::default());
-    // Store the snapshot encrypted (fold_snapshot handles encryption internally).
+    // Store the snapshot encrypted (write_snapshot handles encryption internally).
     write_snapshot(pool, note_id, &snapshot, key)?;
     Ok(snapshot)
+}
+
+/// Return the fresh merged Yjs snapshot for many notes in a single pass
+/// (one SQL query for the snapshot cache, one for the latest update timestamp),
+/// avoiding the N+1 IPC/SQL round-trips of calling `yjs_get_snapshot` per note.
+/// Notes whose cache is stale or missing are rebuilt individually via
+/// `yjs_get_snapshot` (rare). When `key` is `Some`, snapshots are decrypted.
+pub(crate) fn yjs_get_snapshots(
+    pool: &DbPool,
+    note_ids: &[String],
+    key: Option<[u8; 32]>,
+) -> Result<HashMap<String, Vec<u8>>, AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_get_snapshots");
+    let mut result = HashMap::new();
+    if note_ids.is_empty() {
+        return Ok(result);
+    }
+    let placeholders = note_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT note_id, data, updated_at FROM yjs_snapshots WHERE note_id IN ({placeholders})"
+        ))
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map(rusqlite::params_from_iter(note_ids.iter()), |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Vec<u8>>(1)?,
+                row.get::<_, i64>(2)?,
+            ))
+        })
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let snapshots = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+
+    let mut stmt = conn
+        .prepare(&format!(
+            "SELECT note_id, MAX(created_at) FROM note_content WHERE note_id IN ({placeholders}) GROUP BY note_id"
+        ))
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let rows = stmt
+        .query_map(rusqlite::params_from_iter(note_ids.iter()), |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    let latest: HashMap<String, i64> = rows
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .into_iter()
+        .collect();
+
+    // Decrypt all cached snapshots in parallel. AES-GCM is independent per
+    // blob, so this scales with cores; on a 100+ note vault this is the bulk
+    // of the `yjs_get_snapshots` cost.
+    let decrypted: Vec<(String, Vec<u8>)> = snapshots
+        .par_iter()
+        .filter(|(note_id, data, updated_at)| {
+            let stale = latest
+                .get(note_id)
+                .is_some_and(|&t| t > *updated_at);
+            !data.is_empty() && !stale && (key.is_some() || !is_encrypted_yjs_blob(data))
+        })
+        .map(|(note_id, data, _)| {
+            let bytes = match key {
+                Some(k) => decrypt_yjs_blob(&k, data)?,
+                None => data.clone(),
+            };
+            Ok((note_id.clone(), bytes))
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    for (note_id, bytes) in decrypted {
+        result.insert(note_id, bytes);
+    }
+
+    // Rebuild stale/missing snapshots individually (rare). A note whose data is
+    // encrypted but whose key is unavailable is skipped so one locked note never
+    // fails the whole batch.
+    for id in note_ids {
+        if result.contains_key(id) {
+            continue;
+        }
+        match yjs_get_snapshot(pool, id, key) {
+            Ok(snapshot) if !snapshot.is_empty() => {
+                result.insert(id.clone(), snapshot);
+            }
+            Ok(_) => {}
+            Err(AppError::EncryptionLocked) => {
+                eprintln!("[yjs_get_snapshots] skipping locked note {id}");
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    Ok(result)
 }
 
 /// Replace all updates for a note with a single compressed snapshot, and keep
@@ -448,6 +566,7 @@ pub(crate) fn yjs_compact(
     snapshot: &[u8],
     key: Option<[u8; 32]>,
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_compact");
     // Encrypt the snapshot for storage.
     let stored = match key {
         Some(k) => encrypt_yjs_blob(&k, snapshot)?,
@@ -488,16 +607,33 @@ pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
 
 // ─── Yjs snapshot cache helpers (yrs-backed) ───────────────────────────────────
 
-fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<Vec<u8>>, AppError> {
+fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let mut stmt = conn
-        .prepare("SELECT data FROM yjs_snapshots WHERE note_id = ?1")
+        .prepare("SELECT data, updated_at FROM yjs_snapshots WHERE note_id = ?1")
         .map_err(|e| AppError::Other(e.to_string()))?;
     let row = stmt
-        .query_row(rusqlite::params![note_id], |r| r.get::<_, Vec<u8>>(0))
+        .query_row(rusqlite::params![note_id], |r| {
+            Ok((r.get::<_, Vec<u8>>(0)?, r.get::<_, i64>(1)?))
+        })
         .optional()
         .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(row)
+}
+
+/// True when any stored update for `note_id` is newer than the cached snapshot
+/// (`updated_at`), meaning the snapshot must be rebuilt before it can be served.
+fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> Result<bool, AppError> {
+    let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let latest: Option<i64> = conn
+        .query_row(
+            "SELECT MAX(created_at) FROM note_content WHERE note_id = ?1",
+            rusqlite::params![note_id],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(latest.is_some_and(|latest| latest > snapshot_updated_at))
 }
 
 fn write_snapshot(
@@ -517,42 +653,5 @@ fn write_snapshot(
         rusqlite::params![note_id, stored, chrono::Utc::now().timestamp_millis()],
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
-    Ok(())
-}
-
-/// Fold a single update into the cached merged snapshot (O(1) on read). If no
-/// snapshot exists yet, the fold is skipped — `yjs_get_snapshot` will build it
-/// from history lazily on the next read. The `blob` parameter is always raw
-/// (unencrypted); the existing snapshot is decrypted internally when `key` is
-/// provided, and the merged result is encrypted before writing back.
-fn fold_snapshot(
-    pool: &DbPool,
-    note_id: &str,
-    blob: &[u8],
-    key: Option<[u8; 32]>,
-) -> Result<(), AppError> {
-    let Some(existing_encrypted) = read_snapshot(pool, note_id)? else {
-        return Ok(());
-    };
-    if existing_encrypted.is_empty() {
-        return Ok(());
-    }
-    // Decrypt the existing snapshot so the CRDT merge sees raw Yjs data.
-    let existing = match key {
-        Some(k) => decrypt_yjs_blob(&k, &existing_encrypted)?,
-        None => existing_encrypted,
-    };
-    let doc = yrs::Doc::new();
-    doc.transact_mut()
-        .apply_update(yrs::Update::decode_v1(&existing).map_err(|e| AppError::Other(e.to_string()))?)
-        .map_err(|e| AppError::Other(e.to_string()))?;
-    doc.transact_mut()
-        .apply_update(yrs::Update::decode_v1(blob).map_err(|e| AppError::Other(e.to_string()))?)
-        .map_err(|e| AppError::Other(e.to_string()))?;
-    let snapshot = doc
-        .transact_mut()
-        .encode_state_as_update_v1(&yrs::StateVector::default());
-    // write_snapshot encrypts internally when key is provided.
-    write_snapshot(pool, note_id, &snapshot, key)?;
     Ok(())
 }

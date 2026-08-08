@@ -8,6 +8,9 @@ const SettingsShortcuts = () => import('./pages/settings/Shortcuts.vue');
 const SettingsAbout = () => import('./pages/settings/About.vue');
 const SettingsLabels = () => import('./pages/settings/Labels.vue');
 const SettingsSecurity = () => import('./pages/settings/Security.vue');
+const SettingsAccount = () => import('./pages/settings/Account.vue');
+const SettingsData = () => import('./pages/settings/Data.vue');
+const JoinNote = () => import('./pages/join/[token].vue');
 
 const APP_NAME = 'Beaver Notes';
 
@@ -21,6 +24,7 @@ const routeTitles = {
   'Settings-About': `About — ${APP_NAME}`,
   'Settings-Labels': `Labels — ${APP_NAME}`,
   'Settings-Security': `Security — ${APP_NAME}`,
+  'Settings-Data': `Data — ${APP_NAME}`,
   Onboarding: `Welcome — ${APP_NAME}`,
 };
 
@@ -61,6 +65,11 @@ const routes = [
         component: SettingsAppearance,
       },
       {
+        path: 'account',
+        name: 'Settings-Account',
+        component: SettingsAccount,
+      },
+      {
         path: 'shortcuts',
         name: 'Settings-Shortcuts',
         component: SettingsShortcuts,
@@ -80,7 +89,18 @@ const routes = [
         name: 'Settings-Security',
         component: SettingsSecurity,
       },
+      {
+        path: 'data',
+        name: 'Settings-Data',
+        component: SettingsData,
+      },
     ],
+  },
+  {
+    path: '/join/:token',
+    name: 'JoinNote',
+    component: JoinNote,
+    meta: { guest: true },
   },
   {
     // Catch-all route for footnote links

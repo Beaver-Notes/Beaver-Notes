@@ -238,21 +238,14 @@ async function processRustImportNote(note, state) {
     }
   }
 
-  const noteAssetDir = path.join(appDirectory, 'notes-assets', id);
+  const noteAssetDir = path.join(appDirectory, 'assets', id);
   await ensureDir(noteAssetDir);
-
-  const fileAssetDir = path.join(appDirectory, 'file-assets', id);
-  await ensureDir(fileAssetDir);
 
   for (const resource of note.resources || []) {
     try {
       const data = base64ToUint8Array(resource.data || '');
       await writeFile(
         path.join(noteAssetDir, resource.filename || resource.hash),
-        data
-      );
-      await writeFile(
-        path.join(fileAssetDir, resource.filename || resource.hash),
         data
       );
     } catch (error) {
@@ -470,7 +463,7 @@ export async function importNotion(
         if (await pathExists(assetDir)) {
           await copyDirectoryContents(
             assetDir,
-            path.join(resolvedAppDirectory, 'notes-assets', id)
+            path.join(resolvedAppDirectory, 'assets', id)
           );
         }
 
@@ -533,7 +526,7 @@ export async function importBear(
       if (await pathExists(assetDir)) {
         await copyDirectoryContents(
           assetDir,
-          path.join(resolvedAppDirectory, 'notes-assets', id)
+          path.join(resolvedAppDirectory, 'assets', id)
         );
       }
 

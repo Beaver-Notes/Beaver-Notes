@@ -1,3 +1,7 @@
+//! DEPRECATED: Legacy CryptoJS encryption format handlers.
+//! This module exists solely for one-time migration from Electron-era data.
+//! Remove after the migration window closes.
+
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, KeyIvInit};
 use aes::Aes256;
 use cbc::Decryptor;

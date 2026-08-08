@@ -285,7 +285,7 @@
             <button
               v-for="c in textColors"
               :key="c"
-              class="w-7 h-7 rounded-lg border border-neutral-100 dark:border-neutral-800 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+              class="w-7 h-7 rounded-lg border border-neutral-100 dark:border-neutral-800 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
               :style="{ backgroundColor: c + '22' }"
               @click="setTextColor(c)"
             >
@@ -315,7 +315,7 @@
               v-for="c in highlighterColors"
               :key="c"
               :class="[
-                'w-7 h-7 rounded-lg hover:scale-105 active:scale-95 transition-all shadow-sm border border-black/5',
+                'w-7 h-7 rounded-lg hover:scale-105 active:scale-95 transition-transform shadow-sm border border-black/5',
                 c,
               ]"
               @click="setHighlightColor(c)"

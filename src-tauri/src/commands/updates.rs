@@ -85,6 +85,7 @@ fn save_auto_update_enabled(app: &AppHandle, enabled: bool) -> Result<(), AppErr
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn check_for_updates(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -195,6 +196,7 @@ pub(crate) async fn check_for_updates(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn download_update(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -267,6 +269,7 @@ pub(crate) async fn download_update(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn install_update(state: State<AppState>) -> Result<(), AppError> {
     if !standalone() {
         return Err(AppError::Other(managed_err("Updates are managed by")));
@@ -284,11 +287,13 @@ pub(crate) fn install_update(state: State<AppState>) -> Result<(), AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_installation_source() -> InstallationSource {
     source().clone()
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn toggle_auto_update(
     app: AppHandle,
     state: State<AppState>,
@@ -303,6 +308,7 @@ pub(crate) fn toggle_auto_update(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_auto_update_status(state: State<AppState>) -> Result<bool, AppError> {
     if !standalone() {
         return Ok(false);
@@ -311,6 +317,7 @@ pub(crate) fn get_auto_update_status(state: State<AppState>) -> Result<bool, App
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn is_update_downloading(state: State<AppState>) -> Result<bool, AppError> {
     if !standalone() {
         return Ok(false);
@@ -319,6 +326,7 @@ pub(crate) fn is_update_downloading(state: State<AppState>) -> Result<bool, AppE
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_update_info(state: State<AppState>) -> Result<UpdateInfo, AppError> {
     if !standalone() {
         return Ok(UpdateInfo {

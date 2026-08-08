@@ -1,0 +1,1521 @@
+import { Transport } from './transport.js';
+import {
+  pushUpdates as remotePushUpdates,
+  pullUpdates as remotePullUpdates,
+  getRemoteState,
+  claimInitialization,
+  uploadInitializationSnapshot,
+  completeInitialization,
+  getSnapshotUrls,
+  createWorkspace,
+  getWorkspaces,
+} from '../remote-yjs.js';
+import {
+  listRemoteAssets,
+  uploadAsset,
+  batchUploadAssets,
+  seedBatchUploadAssets,
+  downloadAsset,
+  encodeAssetKey,
+  decodeAssetKey,
+  presignBatchUpload,
+  presignGetBatch,
+  confirmSeed,
+} from '../remote-assets.js';
+import { parseSyncFilename } from '../sync-yjs.js';
+import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
+import { writeInitialSnapshots } from './seed.js';
+import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
+import { readDir, readFile, readFileBinary, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
+import { path } from '@/lib/tauri-bridge';
+import { localAssetName } from '../crypto.js';
+import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
+import { mergeIntoMap } from '@/composable/useWorkspaceYjs';
+import { useWorkspaceStore } from '@/store/workspace.ts';
+import * as Y from 'yjs';
+import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
+import { toUint8Array, applyUpdatesToDoc } from '@/utils/yjs-helpers.js';
+import { META_DOC_ID } from '@/composable/meta-yjs-doc.js';
+
+const CLOUD_PUSH_MIN_INTERVAL_MS = 30_000;
+const CLOUD_PUSH_MAX_BATCH_BYTES = 256 * 1024;
+const CLOUD_PUSH_MAX_FILES_PER_POST = 50;
+
+function acknowledgedCheckpoints(result, noteIds) {
+  if (result?.checkpoints && typeof result.checkpoints === 'object') return result.checkpoints;
+  if (result?.checkpoint && noteIds.length === 1) return { [noteIds[0]]: result.checkpoint };
+  return {};
+}
+
+function isNonNegativeInteger(value) {
+  return Number.isInteger(value) && value >= 0;
+}
+
+function malformedRemoteUpdate() {
+  const error = new Error('Remote update payload is malformed');
+  error.code = 'unlock-required';
+  return error;
+}
+
+function toUpdateBytes(value) {
+  if (value instanceof Uint8Array) return new Uint8Array(value);
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (Array.isArray(value) && value.every((byte) => isNonNegativeInteger(byte) && byte <= 255)) {
+    return new Uint8Array(value);
+  }
+  return null;
+}
+
+function validateCheckpoint(checkpoint) {
+  if (checkpoint?.deviceId) {
+    return typeof checkpoint.deviceId === 'string' && checkpoint.deviceId.length > 0 &&
+      isNonNegativeInteger(checkpoint.ts) && isNonNegativeInteger(checkpoint.sequence);
+  }
+  return checkpoint && typeof checkpoint === 'object' && Object.entries(checkpoint).every(([deviceId, value]) =>
+    typeof deviceId === 'string' && deviceId.length > 0 && value &&
+    isNonNegativeInteger(value.ts) && isNonNegativeInteger(value.sequence));
+}
+
+function checkpointMap(checkpoint) {
+  return checkpoint?.deviceId
+    ? { [checkpoint.deviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence } }
+    : checkpoint;
+}
+
+function isAuthoritativelyEmpty(state) {
+  return isValidRemoteState(state) && state.status === 'empty' && state.documents.length === 0;
+}
+
+function isStalledInit(state) {
+  return isValidRemoteState(state) && state.status === 'initializing' && state.documents.length === 0;
+}
+
+function isValidRemoteState(state) {
+  const recognizedStatuses = new Set(['empty', 'initializing', 'initialized', 'recovering']);
+  return state && recognizedStatuses.has(state.status) && Array.isArray(state.documents);
+}
+
+function malformedRemoteState() {
+  const error = new Error('Remote sync state payload is malformed');
+  error.code = 'sync-state-invalid';
+  return error;
+}
+
+export class CloudTransport extends Transport {
+  constructor({ passphraseProvider, getTransportSetting, getAccountState }) {
+    super();
+    this.passphraseProvider = passphraseProvider;
+    this.getTransportSetting = getTransportSetting;
+    this.getAccountState = getAccountState;
+    this._lastPushedAt = 0;
+    this._cloudBuffer = [];
+    this._serverProbeComplete = false;
+    this._failedDownloads = new Map();
+    this._seedPromise = null;
+  }
+
+  getCloudBuffer() {
+    return this._cloudBuffer;
+  }
+
+  _getWorkspaceId() {
+    const workspaceStore = useWorkspaceStore();
+    return workspaceStore.activeId;
+  }
+
+  async _ensureWorkspace() {
+    const workspaceStore = useWorkspaceStore();
+    if (workspaceStore.activeId) return workspaceStore.activeId;
+    // Check cached value to avoid re-fetching every cycle
+    if (this._cachedWorkspaceId) return this._cachedWorkspaceId;
+    try {
+      const { useAccountStore } = await import('@/store/account');
+      const accountStore = useAccountStore();
+      if (!accountStore.isAuthenticated) return null;
+      const { getApiClient } = await import('@/lib/api/client');
+      const client = getApiClient({ baseUrl: accountStore.serverUrl });
+      const raw = await client.get('/workspaces');
+      const list = raw?.workspaces ?? [];
+      if (list.length > 0) {
+        workspaceStore.workspaces = list.map((w) => ({
+          id: w.id,
+          name: w.name,
+          role: w.role,
+          ownerId: w.ownerId,
+          storageUsedBytes: w.storageUsedBytes,
+          createdAt: w.createdAt,
+        }));
+        workspaceStore.activeId = workspaceStore.activeId || list[0].id;
+        this._cachedWorkspaceId = list[0].id;
+      } else {
+        // No workspaces — auto-create one
+        console.log('[sync] cloud: no workspaces found, creating default workspace');
+        const profile = accountStore.profile;
+        const orgId = accountStore.activeOrgId || profile?.organizationId;
+        if (!orgId) {
+          console.warn('[sync] cloud: no orgId available, cannot create workspace');
+          return null;
+        }
+        try {
+          const created = await createWorkspace('Default', orgId);
+          if (created?.id) {
+            workspaceStore.activeId = created.id;
+            this._cachedWorkspaceId = created.id;
+            console.log('[sync] cloud: created workspace', created.id);
+          }
+        } catch (createErr) {
+          console.warn('[sync] cloud: failed to create workspace:', createErr?.message);
+        }
+      }
+    } catch (err) {
+      console.warn('[sync] cloud: direct workspace fetch failed:', err?.status, err?.message);
+    }
+    return workspaceStore.activeId || this._cachedWorkspaceId;
+  }
+
+  async pull(cursors) {
+    if (!this._remoteAllowed()) return { updates: [], cursorsDelta: {} };
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) {
+      console.log('[sync] cloud pull: no active workspace');
+      return { updates: [], cursorsDelta: {} };
+    }
+
+    const noteCursors = Object.fromEntries(Object.entries(cursors[workspaceId] || {}));
+    let state;
+    try {
+      state = await getRemoteState(workspaceId);
+    } catch (e) {
+      // 404 means the workspace has no sync state yet (brand new workspace).
+      // 403 means user is not a workspace member — workspace may be stale.
+      // In both cases, reset and let the push phase try to create/fetch a valid workspace.
+      if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
+        console.log('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
+        const workspaceStore = useWorkspaceStore();
+        workspaceStore.activeId = null;
+        this._cachedWorkspaceId = null;
+        return { updates: [], cursorsDelta: {} };
+      }
+      throw e;
+    }
+    if (!isValidRemoteState(state)) throw malformedRemoteState();
+    // If the server is empty or has a stalled init, allow the push phase to re-seed.
+    if (isAuthoritativelyEmpty(state) || isStalledInit(state)) {
+      this._serverProbeComplete = false;
+    }
+    for (const document of state.documents) {
+      if (document.noteId) noteCursors[document.noteId] ||= {};
+    }
+
+    const notes = Object.entries(noteCursors).map(([noteId, noteCursor]) => ({
+      noteId,
+      checkpoint: noteCursor || {},
+    }));
+    const result = await remotePullUpdates(workspaceId, notes);
+    const updates = [];
+    const cursorsDelta = {};
+    let hasMore = false;
+    for (const [noteId] of Object.entries(noteCursors)) {
+      const page = result.notes?.[noteId] || { updates: [], hasMore: false };
+      if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
+      for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
+      if (page.nextCheckpoint) {
+        const checkpoint = page.nextCheckpoint;
+        if (!validateCheckpoint(checkpoint)) throw malformedRemoteUpdate();
+        cursorsDelta[workspaceId] ||= {};
+        cursorsDelta[workspaceId][noteId] = checkpointMap(checkpoint);
+      }
+      hasMore ||= page.hasMore === true;
+    }
+
+    const { decryptJSON } = await import('../crypto.js');
+
+    const decodedUpdates = [];
+    for (const upd of updates) {
+      let payload, parsed;
+      try {
+        const raw = atob(upd.data);
+        parsed = parseSyncFilename(upd.key);
+        if (!parsed || parsed.docId !== upd._noteId ||
+          typeof parsed.device !== 'string' || parsed.device.length === 0 ||
+          !isNonNegativeInteger(parsed.ts) || !isNonNegativeInteger(parsed.seq)) {
+          throw malformedRemoteUpdate();
+        }
+        const aadSuffix = parsed?.isSnapshot
+          ? `${parsed.docId}-snapshot-${parsed.ts}`
+          : `${parsed.docId}-${parsed.ts}`;
+        payload = await decryptJSON(raw, aadSuffix);
+      } catch (caughtError) {
+        const errorCode = caughtError?.code === 'DECRYPT_FAILED' ? 'DECRYPT_FAILED' : null;
+        const error = new Error(errorCode || 'Remote update cannot be decrypted');
+        error.code = 'unlock-required';
+        throw error;
+      }
+      const payloadSequence = payload?.sequence ?? payload?.seq;
+      const updateBytes = toUpdateBytes(payload?.update);
+      if (!payload || payload.noteId !== upd._noteId || payload.device !== parsed.device ||
+        !isNonNegativeInteger(payload.ts) || payload.ts !== parsed.ts ||
+        !isNonNegativeInteger(payloadSequence) || payloadSequence !== parsed.seq || !updateBytes) {
+        throw malformedRemoteUpdate();
+      }
+
+      decodedUpdates.push({
+        noteId: payload.noteId,
+        update: updateBytes,
+        device: payload.device,
+        ts: payload.ts,
+        seq: payloadSequence,
+      });
+    }
+
+    return { updates: decodedUpdates, cursorsDelta, hasMore };
+  }
+
+  async push(cursors, opts = {}) {
+    if (!this._remoteAllowed()) {
+      console.log('[sync] cloud push: _remoteAllowed=false');
+      return { updates: [], cursorsDelta: {}, pushed: 0 };
+    }
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) {
+      console.log('[sync] cloud push: no active workspace');
+      return { updates: [], cursorsDelta: {}, pushed: 0 };
+    }
+
+    const force = opts?.force === true;
+    if (!force && this._throttled()) {
+      console.log('[sync] cloud push: throttled');
+      return { updates: [], cursorsDelta: {}, pushed: 0, throttled: true };
+    }
+
+    const ownDeviceId = getSyncDeviceId();
+    const remoteCursor = cursors[workspaceId] || {};
+    const ownCursor = Object.values(remoteCursor).reduce((latest, note) => {
+      const candidate = note?.[ownDeviceId];
+      return candidate && (candidate.ts > latest.ts || (candidate.ts === latest.ts && candidate.sequence > latest.sequence))
+        ? { ts: candidate.ts, sequence: candidate.sequence }
+        : latest;
+    }, { ts: 0, sequence: 0 });
+
+    // If the push phase hasn't probed the server yet, try seeding.
+    // seedCloudOnce() checks the server state and only proceeds if empty/stalled.
+    if (!this._serverProbeComplete) {
+      try {
+        const seeded = await this.seedCloudOnce();
+        if (seeded) {
+          console.log('[sync] cloud push: server seeded from local state');
+        }
+      } catch (err) {
+        console.warn('[sync] cloud push: seedCloudOnce failed:', err?.message);
+        if (err?.code === 'sync-state-invalid') throw err;
+      }
+    }
+
+    // Cloud-only mode: push from in-memory buffer (no disk files)
+    if (this._cloudBuffer.length > 0) {
+      const { encryptJSON } = await import('../crypto.js');
+      const nextSequences = new Map();
+      const batch = this._cloudBuffer.map((item) => ({
+        ...item,
+        sequence: (nextSequences.get(item.noteId) ?? remoteCursor[item.noteId]?.[ownDeviceId]?.sequence ?? 0) + 1,
+      }));
+      for (const item of batch) nextSequences.set(item.noteId, item.sequence);
+      const notesMap = new Map();
+      for (const { noteId, update, sequence } of batch) {
+        if (!notesMap.has(noteId)) notesMap.set(noteId, []);
+        const ts = Date.now();
+        const encrypted = await encryptJSON({
+          device: ownDeviceId,
+          ts,
+          sequence,
+          noteId,
+          update,
+        }, `${noteId}-${ts}`);
+        notesMap.get(noteId).push({
+          key: `${noteId}~~${ownDeviceId}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`,
+          data: btoa(encrypted),
+          deviceId: ownDeviceId,
+          ts,
+          sequence,
+        });
+      }
+
+      const notes = [...notesMap.entries()].map(([noteId, updates]) => ({ noteId, updates }));
+      const result = await remotePushUpdates(workspaceId, notes);
+      const totalPushed = (result.accepted || 0) + (result.duplicate || 0);
+
+      console.log('[sync] cloud push (cloud-only) totalPushed:', totalPushed);
+      this._lastPushedAt = Date.now();
+
+      const cursorsDelta = {};
+      const checkpoints = acknowledgedCheckpoints(result, [...notesMap.keys()]);
+      for (const [noteId, checkpoint] of Object.entries(checkpoints)) {
+        if (checkpoint?.deviceId !== ownDeviceId) continue;
+        cursorsDelta[workspaceId] ||= {};
+        cursorsDelta[workspaceId][noteId] = {
+          [ownDeviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence },
+        };
+      }
+      const acknowledged = new Set();
+      for (const item of batch) {
+        const checkpoint = checkpoints[item.noteId];
+        if (checkpoint && item.sequence <= checkpoint.sequence) acknowledged.add(item);
+      }
+      for (let index = this._cloudBuffer.length - 1; index >= 0; index--) {
+        if (acknowledged.has(batch[index])) this._cloudBuffer.splice(index, 1);
+      }
+      return { updates: [], cursorsDelta, pushed: totalPushed };
+    }
+
+    // Folder sync mode: read from commits directory
+    const commitsDir = await getCommitsDir();
+    if (!commitsDir) {
+      return { updates: [], cursorsDelta: {}, pushed: 0 };
+    }
+
+    const allFiles = await readDir(commitsDir).catch(() => []);
+    const pushedFiles = allFiles.filter((f) => f.endsWith(YJS_UPDATE_EXT) && f !== '._seeded');
+    console.log('[sync] cloud push commitsDir:', commitsDir, '| files:', pushedFiles.length, '/', allFiles.length, '| cursor:', JSON.stringify(ownCursor));
+
+    // Build full file map (all devices, for probe check)
+    const allFilesByNoteId = new Map();
+    for (const file of pushedFiles) {
+      const parsed = parseSyncFilename(file);
+      if (!parsed) continue;
+      if (!allFilesByNoteId.has(parsed.docId)) {
+        allFilesByNoteId.set(parsed.docId, []);
+      }
+      allFilesByNoteId.get(parsed.docId).push({ file, parsed });
+    }
+
+    // Filter by cursor (current device only)
+    let filesByNoteId = new Map();
+    for (const [noteId, files] of allFilesByNoteId) {
+      const filtered = files.filter(({ parsed }) =>
+        parsed.device === ownDeviceId &&
+        (() => {
+          const noteCursor = remoteCursor[parsed.docId]?.[ownDeviceId] || { ts: 0, sequence: 0 };
+          return parsed.ts > noteCursor.ts || (parsed.ts === noteCursor.ts && (parsed.seq ?? 0) > noteCursor.sequence);
+        })()
+      );
+      if (filtered.length > 0) filesByNoteId.set(noteId, filtered);
+    }
+
+    let totalPushed = 0;
+    let pushCursorTs = ownCursor.ts;
+    let pushCursorSeq = ownCursor.sequence;
+    let acknowledgedCheckpoint = null;
+
+    // Collect all note updates for batch push
+    const PUSH_VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
+    let batchNotes = [];
+    for (const [noteId, files] of filesByNoteId) {
+      if (!PUSH_VALID_NOTE_ID_RE.test(noteId)) {
+        console.warn('[sync] cloud push: skipping note with invalid ID:', noteId.slice(0, 80));
+        continue;
+      }
+      const noteUpdates = [];
+      let batchBytes = 0;
+
+      for (const { file, parsed } of files) {
+        let raw;
+        try {
+          raw = await readFile(path.join(commitsDir, file));
+        } catch {
+          continue;
+        }
+        if (!raw) continue;
+
+        const fileBytes = raw.byteLength ?? raw.length ?? 0;
+
+        if (batchBytes + fileBytes > CLOUD_PUSH_MAX_BATCH_BYTES && noteUpdates.length > 0) {
+          break;
+        }
+
+        noteUpdates.push({
+          key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.seq ?? 0}${YJS_UPDATE_EXT}`,
+          data: btoa(typeof raw === 'string' ? raw : raw.toString()),
+          deviceId: parsed.device,
+          ts: parsed.ts,
+          sequence: parsed.seq ?? 0,
+        });
+        batchBytes += fileBytes;
+
+        if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
+          pushCursorTs = parsed.ts;
+          pushCursorSeq = parsed.seq ?? 0;
+        }
+
+        if (noteUpdates.length >= CLOUD_PUSH_MAX_FILES_PER_POST) break;
+      }
+
+      if (noteUpdates.length > 0) {
+        batchNotes.push({ noteId, updates: noteUpdates });
+      }
+    }
+
+    // Single batch push for all notes
+    console.log('[sync] cloud push batchNotes:', batchNotes.length, '| notes total updates:', batchNotes.reduce((s, n) => s + n.updates.length, 0));
+    if (batchNotes.length > 0) {
+      try {
+        const result = await remotePushUpdates(workspaceId, batchNotes);
+        totalPushed = (result.accepted || 0) + (result.duplicate || 0);
+        acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
+        console.log('[sync] cloud push result:', JSON.stringify(result));
+      } catch (e) {
+        console.error('[sync] cloud push error:', e?.status, e?.message, JSON.stringify(e?.body) || '');
+        throw e;
+      }
+    } else if (ownCursor.ts > 0 && allFilesByNoteId.size > 0 && !this._serverProbeComplete) {
+      console.log('[sync] cloud push: cursor stale check — cursor:', JSON.stringify(ownCursor), 'files:', allFilesByNoteId.size);
+      // Cursor says "already pushed" but server might be empty (reset, data loss).
+      // Probe once: pull with empty cursor for first note. If server returns nothing, it's empty.
+      let probePush = false;
+      try {
+        let state;
+        try {
+          state = await getRemoteState(workspaceId);
+        } catch (stateErr) {
+          // 404 = workspace has no sync state yet, treat as empty
+          // 403 = user is not a workspace member, reset workspace
+          if (stateErr?.status === 404 || stateErr?.statusCode === 404) {
+            console.log('[sync] cloud push: probe got 404 — treating as empty workspace');
+            state = { status: 'empty', documents: [] };
+          } else if (stateErr?.status === 403 || stateErr?.statusCode === 403) {
+            console.log('[sync] cloud push: probe got 403 — resetting workspace');
+            const workspaceStore = useWorkspaceStore();
+            workspaceStore.activeId = null;
+            this._cachedWorkspaceId = null;
+            this._serverProbeComplete = true;
+            return { updates: [], cursorsDelta: {}, pushed: 0 };
+          } else {
+            throw stateErr;
+          }
+        }
+        if (!isValidRemoteState(state)) {
+          throw malformedRemoteState();
+        }
+        const serverEmpty = isAuthoritativelyEmpty(state);
+        console.log('[sync] cloud push: probe state — empty:', serverEmpty, 'status:', state?.status);
+        if (!serverEmpty) {
+          this._serverProbeComplete = true;
+        } else {
+          console.log('[sync] cloud push: probe found empty server, resetting stale cursor');
+          pushCursorTs = 0;
+          pushCursorSeq = 0;
+          filesByNoteId = allFilesByNoteId;
+          batchNotes = [];
+          for (const [noteId, files] of filesByNoteId) {
+            const noteUpdates = [];
+            for (const { file, parsed } of files) {
+              let raw;
+              try { raw = await readFile(path.join(commitsDir, file)); } catch { continue; }
+              if (!raw) continue;
+               noteUpdates.push({ key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.seq ?? 0}${YJS_UPDATE_EXT}`, data: btoa(typeof raw === 'string' ? raw : raw.toString()), deviceId: parsed.device, ts: parsed.ts, sequence: parsed.seq ?? 0 });
+              if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
+                pushCursorTs = parsed.ts;
+                pushCursorSeq = parsed.seq ?? 0;
+              }
+            }
+            if (noteUpdates.length > 0) batchNotes.push({ noteId, updates: noteUpdates });
+          }
+          if (batchNotes.length > 0) {
+            let result;
+            try {
+              probePush = true;
+              result = await remotePushUpdates(workspaceId, batchNotes);
+            } catch (error) {
+              throw error;
+            }
+            totalPushed = (result.accepted || 0) + (result.duplicate || 0);
+            acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
+            this._serverProbeComplete = true;
+          }
+        }
+      } catch (e) {
+        if (probePush) throw e;
+        if (e?.code === 'sync-state-invalid') throw e;
+        console.log('[sync] cloud push: probe failed:', e?.status, e?.message);
+        // Server unreachable — will retry next cycle (don't set _serverProbeComplete)
+      }
+    }
+
+    console.log('[sync] cloud push totalPushed:', totalPushed, '| cursor:', JSON.stringify({ ts: pushCursorTs, seq: pushCursorSeq }));
+    this._lastPushedAt = Date.now();
+
+    const cursorsDelta = {};
+    for (const [noteId, checkpoint] of Object.entries(acknowledgedCheckpoint || {})) {
+      if (checkpoint?.deviceId !== ownDeviceId) continue;
+      cursorsDelta[workspaceId] ||= {};
+      cursorsDelta[workspaceId][noteId] = {
+        [ownDeviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence },
+      };
+    }
+
+    return { updates: [], cursorsDelta, pushed: totalPushed };
+  }
+
+  async seedOnce() {
+    // Cloud-only mode: skip disk-based seeding
+    if (this._cloudBuffer) return;
+
+    const commitsDir = await getCommitsDir();
+    if (!commitsDir) return;
+
+    try {
+      const files = await readDir(commitsDir).catch(() => []);
+      if (files.some((f) => f === '._seeded')) return;
+
+      const { writeFile: writeFs } = await import('@/lib/native/fs');
+      const { path: tauriPath } = await import('@/lib/tauri-bridge');
+      const wroteMarker = await writeFs(
+        tauriPath.join(commitsDir, '._seeded'), ''
+      ).then(() => true, () => false);
+      if (!wroteMarker) return;
+
+      const hasYjsFiles = files.some((f) => f.endsWith(YJS_UPDATE_EXT));
+      if (!hasYjsFiles) {
+        await writeInitialSnapshots(commitsDir);
+      }
+    } catch {
+      // best-effort
+    }
+  }
+
+  /**
+   * Seed the cloud with the initial Yjs state from SQLite.
+   * Called on first sync when the server has no data yet.
+   * Pushes snapshots for the workspace doc and all notes.
+   */
+  async seedCloudOnce() {
+    if (this._seedPromise) return this._seedPromise;
+    this._seedPromise = this._seedCloudOptimized();
+    try {
+      return await this._seedPromise;
+    } finally {
+      this._seedPromise = null;
+    }
+  }
+
+  async _seedCloudOnce() {
+    if (!this._remoteAllowed()) return false;
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return false;
+
+    // The state endpoint is authoritative; do not infer workspace state from a note.
+    // Also recover from stalled initialization (status=initializing with 0 documents)
+    // where the init token expired before the first device could complete the seed.
+    try {
+      const state = await getRemoteState(workspaceId);
+      if (!isValidRemoteState(state)) throw malformedRemoteState();
+      if (!isAuthoritativelyEmpty(state) && !isStalledInit(state)) {
+        this._serverProbeComplete = true;
+        return false;
+      }
+    } catch (err) {
+      if (err?.code === 'sync-state-invalid') throw err;
+      return false;
+    }
+
+    let claim;
+    try {
+      claim = await claimInitialization(workspaceId);
+    } catch (err) {
+      if (err?.status === 409) {
+        try {
+          const { resetInitialization } = await import('../remote-yjs.js');
+          await resetInitialization(workspaceId);
+          console.log('[sync] cloud seed: reset stuck initialization, retrying claim');
+          claim = await claimInitialization(workspaceId);
+        } catch (resetErr) {
+          if (resetErr?.status === 409) {
+            this._serverProbeComplete = true;
+            return false;
+          }
+          throw resetErr;
+        }
+      } else {
+        throw err;
+      }
+    }
+    if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
+
+    console.log('[sync] cloud seed: claimed server initialization');
+    const { encryptJSON } = await import('../crypto.js');
+    const ownDeviceId = getSyncDeviceId();
+    const ts = Date.now();
+    const batchNotes = [];
+    const snapshots = [];
+
+    // Seed workspace doc
+    try {
+      const workspaceDoc = getWorkspaceDoc();
+      const state = Y.encodeStateAsUpdate(workspaceDoc);
+      if (state.byteLength > 0) {
+        const encrypted = await encryptJSON({
+          device: ownDeviceId,
+          ts,
+          seq: 0,
+          noteId: META_DOC_ID,
+          update: Array.from(state),
+        }, `${META_DOC_ID}-${ts}`);
+        batchNotes.push({
+          noteId: META_DOC_ID,
+          updates: [{
+            key: `${META_DOC_ID}~~${ownDeviceId}~~${ts}~~0${YJS_UPDATE_EXT}`,
+            data: btoa(encrypted),
+            deviceId: ownDeviceId,
+            ts,
+            sequence: 0,
+          }],
+        });
+        snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted) });
+      }
+    } catch (err) {
+      throw new Error('cloud seed: workspace doc failed', { cause: err });
+    }
+
+    // Seed all notes
+    const workspaceDoc = getWorkspaceDoc();
+    const notesMap = workspaceDoc.getMap('notes');
+    const VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
+    const noteIds = Array.from(notesMap.keys()).filter(
+      (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+        && VALID_NOTE_ID_RE.test(id)
+    );
+
+    for (const noteId of noteIds) {
+      try {
+        const doc = new Y.Doc();
+        try {
+          let loaded = false;
+          try {
+            const snapshot = await getSnapshot(noteId);
+            if (snapshot && snapshot.length > 0) {
+              Y.applyUpdate(doc, toUint8Array(snapshot));
+              loaded = true;
+            }
+          } catch {}
+          if (!loaded) {
+            const updates = await getUpdates(noteId);
+            applyUpdatesToDoc(doc, updates);
+          }
+          const state = Y.encodeStateAsUpdate(doc);
+          if (state.byteLength > 0) {
+            const noteTs = ts + batchNotes.length;
+            const encrypted = await encryptJSON({
+              device: ownDeviceId,
+              ts: noteTs,
+              seq: 0,
+              noteId,
+              update: Array.from(state),
+            }, `${noteId}-${noteTs}`);
+            batchNotes.push({
+              noteId,
+              updates: [{
+                key: `${noteId}~~${ownDeviceId}~~${noteTs}~~0${YJS_UPDATE_EXT}`,
+                data: btoa(encrypted),
+                deviceId: ownDeviceId,
+                ts: noteTs,
+                sequence: 0,
+              }],
+            });
+            snapshots.push({ noteId, data: btoa(encrypted) });
+          }
+        } finally {
+          doc.destroy();
+        }
+      } catch (err) {
+        throw new Error(`cloud seed: note failed: ${noteId}`, { cause: err });
+      }
+    }
+
+    if (batchNotes.length === 0) {
+      throw new Error('cloud seed: nothing to push');
+    }
+
+    const SEED_BATCH_SIZE = 50;
+    let totalStored = 0;
+    if (batchNotes.length > 0 && batchNotes[0].updates.length > 0) {
+      const first = batchNotes[0].updates[0];
+      console.log('[sync] cloud seed: first update key:', first.key, 'noteId:', batchNotes[0].noteId, 'deviceId:', first.deviceId, 'ts:', first.ts, 'seq:', first.sequence, 'dataLen:', first.data?.length);
+    }
+    console.log(`[sync] cloud seed: pushing ${batchNotes.length} docs in batches of ${SEED_BATCH_SIZE}`);
+    try {
+      for (let i = 0; i < batchNotes.length; i += SEED_BATCH_SIZE) {
+        const chunk = batchNotes.slice(i, i + SEED_BATCH_SIZE);
+        try {
+          const result = await remotePushUpdates(workspaceId, chunk);
+          totalStored += (result.accepted || 0) + (result.duplicate || 0);
+          console.log(`[sync] cloud seed: batch ${Math.floor(i / SEED_BATCH_SIZE) + 1} accepted ${result.accepted || 0}, duplicate ${result.duplicate || 0}`);
+        } catch (batchErr) {
+          const isMalformed = batchErr?.status === 400 || batchErr?.statusCode === 400
+            || batchErr?.body?.error === 'malformed_update_key'
+            || (batchErr?.message || '').includes('malformed_update_key');
+          if (isMalformed) {
+            console.warn('[sync] cloud seed: skipping malformed batch', Math.floor(i / SEED_BATCH_SIZE) + 1, batchErr?.body || batchErr?.message);
+            continue;
+          }
+          console.error('[sync] cloud seed: batch', Math.floor(i / SEED_BATCH_SIZE) + 1, 'failed:', batchErr?.status, batchErr?.message, JSON.stringify(batchErr?.body || batchErr?.response) || '');
+          throw batchErr;
+        }
+      }
+      if (totalStored !== batchNotes.reduce((total, note) => total + note.updates.length, 0)) {
+        throw new Error('cloud seed: journal upload incomplete');
+      }
+
+      const documents = [];
+      for (const snapshot of snapshots) {
+        const uploaded = await uploadInitializationSnapshot(
+          workspaceId, claim.token, snapshot.noteId, 1, snapshot.data,
+        );
+        if (uploaded?.key !== `yjs/${workspaceId}/${snapshot.noteId}/1.yjs`) {
+          throw new Error(`cloud seed: snapshot verification failed: ${snapshot.noteId}`);
+        }
+        documents.push({
+          noteId: snapshot.noteId,
+          snapshotGeneration: 1,
+          snapshotKey: uploaded.key,
+          checkpointTs: 0,
+          checkpointSequence: 0,
+        });
+      }
+
+      // Seed assets via direct R2 upload (presigned URLs)
+      const requiredAssetKeys = [];
+      try {
+        const { getAppDirectory } = await import('@/lib/native/app');
+        const appDir = await getAppDirectory();
+        if (appDir) {
+          const assetKeys = [];
+          const assetFiles = [];
+          for (const assetType of ASSET_TYPES) {
+            const localBase = `${appDir}/${assetType}`;
+            const noteIds = await readDir(localBase).catch(() => []);
+            for (const noteId of noteIds) {
+              const noteDir = `${localBase}/${noteId}`;
+              const files = await readDir(noteDir).catch(() => []);
+              for (const file of files) {
+                const flatKey = encodeAssetKey(assetType, noteId, file);
+                assetKeys.push(flatKey);
+                assetFiles.push({ key: flatKey, localPath: `${noteDir}/${file}` });
+              }
+            }
+          }
+
+          if (assetKeys.length > 0) {
+            requiredAssetKeys.push(...assetKeys);
+            let toUploadKeys = assetKeys;
+            try {
+              const remote = new Set(await listRemoteAssets());
+              const missing = assetKeys.filter((k) => !remote.has(k));
+              console.log(`[sync] cloud seed: ${assetKeys.length} local assets, ${assetKeys.length - missing.length} already on server, ${missing.length} to upload`);
+              if (missing.length < assetKeys.length) toUploadKeys = missing;
+            } catch (err) {
+              console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
+            }
+            const PRESIGN_CHUNK = 200;
+            const allUrls = [];
+            for (let i = 0; i < toUploadKeys.length; i += PRESIGN_CHUNK) {
+              const chunk = toUploadKeys.slice(i, i + PRESIGN_CHUNK);
+              console.log(`[sync] cloud seed: presigning ${chunk.length} assets (${i}/${toUploadKeys.length})`);
+              const urls = await presignBatchUpload(chunk);
+              allUrls.push(...urls);
+            }
+            console.log(`[sync] cloud seed: ${allUrls.length} presigned URLs for ${toUploadKeys.length} assets`);
+            if (allUrls.length !== toUploadKeys.length) {
+              throw new Error('cloud seed: asset presign incomplete');
+            }
+            if (allUrls.length > 0) {
+              const CONCURRENT = 2;
+              let uploaded = 0;
+              for (let i = 0; i < allUrls.length; i += CONCURRENT) {
+                const batch = allUrls.slice(i, i + CONCURRENT);
+                await Promise.all(batch.map(async ({ assetKey, url }) => {
+                  const file = assetFiles.find(f => f.key === assetKey);
+                  if (!file) return;
+                  try {
+                    const data = await readFileBinary(file.localPath);
+                    const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
+                    if (!bytes || bytes.byteLength === 0) throw new Error('empty asset');
+                    const response = await fetch(url, {
+                      method: 'PUT',
+                      body: bytes,
+                      headers: { 'Content-Type': 'application/octet-stream' },
+                    });
+                    if (!response.ok) throw new Error(`asset upload returned ${response.status}`);
+                    uploaded++;
+                  } catch (err) {
+                    throw new Error(`cloud seed: asset upload failed: ${assetKey}`, { cause: err });
+                  }
+                }));
+                console.log(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, allUrls.length)}/${allUrls.length} assets`);
+              }
+              if (uploaded !== toUploadKeys.length || allUrls.length !== toUploadKeys.length) {
+                throw new Error('cloud seed: asset upload incomplete');
+              }
+              const confirmation = await confirmSeed(toUploadKeys);
+              if (confirmation?.verified !== toUploadKeys.length || confirmation?.total !== toUploadKeys.length) {
+                throw new Error('cloud seed: asset verification incomplete');
+              }
+            }
+          }
+        }
+      } catch (err) {
+        throw err;
+      }
+
+      await completeInitialization(workspaceId, claim.token, 1, documents, requiredAssetKeys);
+      this._serverProbeComplete = true;
+      this._lastPushedAt = Date.now();
+
+      return totalStored > 0;
+    } catch (err) {
+      console.error('[sync] cloud seed: push failed:', err?.status, err?.message);
+      return false;
+    }
+  }
+
+  async _seedCloudOptimized(onProgress) {
+    if (!this._remoteAllowed()) return false;
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return false;
+
+    try {
+      const state = await getRemoteState(workspaceId);
+      if (!isValidRemoteState(state)) throw malformedRemoteState();
+      if (!isAuthoritativelyEmpty(state) && !isStalledInit(state)) {
+        this._serverProbeComplete = true;
+        return false;
+      }
+    } catch (err) {
+      if (err?.code === 'sync-state-invalid') throw err;
+      // 403 = workspace not accessible, try to create a new one
+      if (err?.status === 403 || err?.statusCode === 403) {
+        console.log('[sync] cloud seed: workspace not accessible, resetting');
+        const workspaceStore = useWorkspaceStore();
+        workspaceStore.activeId = null;
+        this._cachedWorkspaceId = null;
+        const newWorkspaceId = await this._ensureWorkspace();
+        if (!newWorkspaceId || newWorkspaceId === workspaceId) return false;
+        return this._seedCloudOptimized(onProgress);
+      }
+      return false;
+    }
+
+    let claim;
+    try {
+      claim = await claimInitialization(workspaceId);
+    } catch (err) {
+      if (err?.status === 409) {
+        try {
+          const { resetInitialization } = await import('../remote-yjs.js');
+          await resetInitialization(workspaceId);
+          console.log('[sync] cloud seed: reset stuck initialization, retrying claim');
+          claim = await claimInitialization(workspaceId);
+        } catch (resetErr) {
+          if (resetErr?.status === 409) {
+            this._serverProbeComplete = true;
+            return false;
+          }
+          throw resetErr;
+        }
+      } else {
+        throw err;
+      }
+    }
+    if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
+
+    try {
+    console.log('[sync] cloud seed: claimed server initialization');
+    const { encryptJSON } = await import('../crypto.js');
+    const ownDeviceId = getSyncDeviceId();
+    const ts = Date.now();
+    const snapshots = [];
+    const noteIds = [];
+
+    const workspaceDoc = getWorkspaceDoc();
+    const wsState = Y.encodeStateAsUpdate(workspaceDoc);
+    if (wsState.byteLength > 0) {
+      const encrypted = await encryptJSON({
+        device: ownDeviceId,
+        ts,
+        seq: 0,
+        noteId: META_DOC_ID,
+        update: Array.from(wsState),
+      }, `${META_DOC_ID}-${ts}`);
+      snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted) });
+      noteIds.push(META_DOC_ID);
+    }
+
+    const notesMap = workspaceDoc.getMap('notes');
+    const VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
+    const allNoteIds = Array.from(notesMap.keys()).filter(
+      (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+        && VALID_NOTE_ID_RE.test(id)
+    );
+
+    for (const noteId of allNoteIds) {
+      try {
+        const doc = new Y.Doc();
+        try {
+          let loaded = false;
+          try {
+            const snapshot = await getSnapshot(noteId);
+            if (snapshot && snapshot.length > 0) {
+              Y.applyUpdate(doc, toUint8Array(snapshot));
+              loaded = true;
+            }
+          } catch {}
+          if (!loaded) {
+            const updates = await getUpdates(noteId);
+            applyUpdatesToDoc(doc, updates);
+          }
+          const state = Y.encodeStateAsUpdate(doc);
+          if (state.byteLength > 0) {
+            const noteTs = ts + snapshots.length;
+            const encrypted = await encryptJSON({
+              device: ownDeviceId,
+              ts: noteTs,
+              seq: 0,
+              noteId,
+              update: Array.from(state),
+            }, `${noteId}-${noteTs}`);
+            snapshots.push({ noteId, data: btoa(encrypted) });
+            noteIds.push(noteId);
+          }
+        } finally {
+          doc.destroy();
+        }
+      } catch (err) {
+        console.warn('[sync] cloud seed: skipping note', noteId, err);
+      }
+    }
+
+    if (snapshots.length === 0) {
+      throw new Error('cloud seed: nothing to push');
+    }
+
+    console.log(`[sync] cloud seed: uploading ${snapshots.length} snapshots via presigned URLs`);
+    if (onProgress) onProgress({ phase: 'presign', uploaded: 0, total: snapshots.length });
+
+    const { urls, generation } = await getSnapshotUrls(workspaceId, claim.token, noteIds);
+    if (!urls || Object.keys(urls).length !== snapshots.length) {
+      throw new Error('cloud seed: presign incomplete');
+    }
+
+    const CONCURRENT = 4;
+    let uploaded = 0;
+    const documents = [];
+
+    for (let i = 0; i < snapshots.length; i += CONCURRENT) {
+      const batch = snapshots.slice(i, i + CONCURRENT);
+      await Promise.all(batch.map(async ({ noteId, data }) => {
+        const { url, key } = urls[noteId];
+        const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+        const response = await fetch(url, {
+          method: 'PUT',
+          body: bytes,
+          headers: { 'Content-Type': 'application/octet-stream' },
+        });
+        if (!response.ok) throw new Error(`snapshot upload failed: ${response.status}`);
+        uploaded++;
+        documents.push({
+          noteId,
+          snapshotGeneration: generation,
+          snapshotKey: key,
+          checkpointTs: 0,
+          checkpointSequence: 0,
+        });
+      }));
+      console.log(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
+      if (onProgress) onProgress({ phase: 'snapshots', uploaded: Math.min(i + CONCURRENT, snapshots.length), total: snapshots.length });
+    }
+
+    console.log('[sync] cloud seed: seeding assets');
+    if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: 0 });
+
+    const requiredAssetKeys = [];
+    try {
+      const { getAppDirectory } = await import('@/lib/native/app');
+      const appDir = await getAppDirectory();
+      if (appDir) {
+        const assetKeys = [];
+        const assetFiles = [];
+        for (const assetType of ASSET_TYPES) {
+          const localBase = `${appDir}/${assetType}`;
+          const noteDirIds = await readDir(localBase).catch(() => []);
+          for (const nid of noteDirIds) {
+            const noteDir = `${localBase}/${nid}`;
+            const files = await readDir(noteDir).catch(() => []);
+            for (const file of files) {
+              const flatKey = encodeAssetKey(assetType, nid, file);
+              assetKeys.push(flatKey);
+              assetFiles.push({ key: flatKey, localPath: `${noteDir}/${file}` });
+            }
+          }
+        }
+
+        if (assetKeys.length > 0) {
+          requiredAssetKeys.push(...assetKeys);
+          let toUploadKeys = assetKeys;
+          try {
+            const remote = new Set(await listRemoteAssets());
+            const missing = assetKeys.filter((k) => !remote.has(k));
+            console.log(`[sync] cloud seed: ${assetKeys.length} local assets, ${assetKeys.length - missing.length} already on server, ${missing.length} to upload`);
+            if (missing.length < assetKeys.length) toUploadKeys = missing;
+          } catch (err) {
+            console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
+          }
+          if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: toUploadKeys.length });
+
+          // Build size-based batches: group assets to stay under MAX_BATCH_BYTES
+          const MAX_BATCH_BYTES = 10 * 1024 * 1024; // 10MB per batch
+          const assetEntries = [];
+          for (const assetKey of toUploadKeys) {
+            const file = assetFiles.find(f => f.key === assetKey);
+            if (!file) continue;
+            try {
+              const data = await readFileBinary(file.localPath);
+              const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
+              if (bytes && bytes.byteLength > 0) {
+                assetEntries.push({ key: assetKey, data: bytes, size: bytes.byteLength });
+              }
+            } catch (err) {
+              console.warn('[sync] cloud seed: skipping asset', assetKey, err?.message);
+            }
+          }
+
+          // Sort by size ascending — pack small files together, large files get their own batch
+          assetEntries.sort((a, b) => a.size - b.size);
+
+          const batches = [];
+          let currentBatch = [];
+          let currentSize = 0;
+          for (const entry of assetEntries) {
+            if (entry.size > MAX_BATCH_BYTES) {
+              // Large file — upload solo
+              if (currentBatch.length > 0) {
+                batches.push(currentBatch);
+                currentBatch = [];
+                currentSize = 0;
+              }
+              batches.push([entry]);
+            } else if (currentSize + entry.size > MAX_BATCH_BYTES) {
+              // Would overflow — start new batch
+              batches.push(currentBatch);
+              currentBatch = [entry];
+              currentSize = entry.size;
+            } else {
+              currentBatch.push(entry);
+              currentSize += entry.size;
+            }
+          }
+          if (currentBatch.length > 0) batches.push(currentBatch);
+
+          console.log(`[sync] cloud seed: ${assetEntries.length} assets in ${batches.length} batches`);
+
+          // Upload batches
+          let assetsUploaded = 0;
+          for (let bi = 0; bi < batches.length; bi++) {
+            const batch = batches[bi];
+            try {
+              const result = await seedBatchUploadAssets(batch);
+              assetsUploaded += (result.uploaded || 0) + (result.skipped || 0);
+            } catch (err) {
+              console.warn(`[sync] cloud seed: batch ${bi + 1} failed:`, err?.message);
+            }
+            if (onProgress) onProgress({ phase: 'assets', uploaded: assetsUploaded, total: toUploadKeys.length });
+          }
+        }
+      }
+    } catch (err) {
+      throw err;
+    }
+
+    console.log('[sync] cloud seed: completing initialization');
+    if (onProgress) onProgress({ phase: 'finalizing', uploaded: snapshots.length, total: snapshots.length });
+
+    await completeInitialization(workspaceId, claim.token, generation, documents, requiredAssetKeys);
+    this._serverProbeComplete = true;
+    this._lastPushedAt = Date.now();
+
+    console.log('[sync] cloud seed: completed successfully');
+    if (onProgress) onProgress({ phase: 'done', uploaded: snapshots.length, total: snapshots.length });
+
+    return snapshots.length > 0;
+  } catch (err) {
+    console.error('[sync] cloud seed: optimized seed failed:', err?.status, err?.message);
+    return false;
+  }
+  }
+
+  async compact() {
+    // no-op — server handles compaction
+  }
+
+  async syncAssets(onProgress) {
+    if (!this._remoteAllowed()) return;
+
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return;
+    try {
+      const state = await getRemoteState(workspaceId);
+      if (state?.status !== 'initialized') {
+        console.log(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'} — skipping asset sync (seed handles assets)`);
+        return;
+      }
+    } catch (e) {
+      if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
+        console.log('[sync] syncAssets: workspace not accessible — skipping asset sync');
+        return;
+      }
+      throw e;
+    }
+
+    const { getAppDirectory } = await import('@/lib/native/app');
+    const appDir = await getAppDirectory();
+    if (!appDir) {
+      console.log('[sync] syncAssets: no appDir');
+      return;
+    }
+
+    console.log('[sync] syncAssets appDir:', appDir);
+
+    const deletedAssets = yMapToObj(getWorkspaceDoc().getMap('deletedAssets'));
+    let deletedAssetsDirty = false;
+
+    const remoteKeys = await listRemoteAssets();
+    const remoteMap = new Map();
+    for (const key of remoteKeys) {
+      const decoded = decodeAssetKey(key);
+      if (decoded) remoteMap.set(key, decoded);
+    }
+
+    const ops = [];
+
+    for (const assetType of ASSET_TYPES) {
+      const localBase = path.join(appDir, assetType);
+      await ensureDir(localBase).catch(() => {});
+
+      const localNoteIds = await readDir(localBase)
+        .then((e) => e.filter((n) => n && !n.startsWith('.')))
+        .catch((e) => { console.log('[sync] syncAssets readDir failed:', assetType, e?.message); return []; });
+
+      console.log('[sync] syncAssets', assetType, 'noteIds:', localNoteIds.length);
+
+      for (const noteId of localNoteIds) {
+        const localNoteDir = path.join(localBase, noteId);
+        const localFiles = await readDir(localNoteDir)
+          .then((e) => e.filter((f) => f && !f.startsWith('.')))
+          .catch(() => []);
+
+        for (const file of localFiles) {
+          const assetKey = `${assetType}/${noteId}/${file}`;
+          const flatKey = encodeAssetKey(assetType, noteId, file);
+
+          if (deletedAssets[assetKey]) {
+            ops.push({ type: 'remove-local', src: path.join(localNoteDir, file) });
+            continue;
+          }
+
+          if (!remoteMap.has(flatKey)) {
+            ops.push({
+              type: 'upload',
+              flatKey,
+              src: path.join(localNoteDir, file),
+            });
+          }
+        }
+      }
+
+      const remoteForType = [...remoteMap.values()].filter((d) => d.type === assetType);
+      for (const decoded of remoteForType) {
+        const localNoteDir = path.join(appDir, assetType, decoded.noteId);
+        const localFile = localAssetName(decoded.filename);
+        const localPath = path.join(localNoteDir, localFile);
+
+        const exists = await pathExists(localPath);
+        if (!exists) {
+          ops.push({
+            type: 'download',
+            flatKey: encodeAssetKey(assetType, decoded.noteId, decoded.filename),
+            dest: path.join(localNoteDir, localAssetName(decoded.filename)),
+          });
+        }
+      }
+    }
+
+    const total = ops.length;
+    console.log('[sync] syncAssets total ops:', total, '| remote:', remoteKeys.length);
+    if (total === 0) return;
+    let processed = 0;
+
+    onProgress?.({ phase: 'assets-scan', processed: 0, total });
+
+    const BATCH_MAX_BYTES = 10 * 1024 * 1024;
+    const BATCH_MAX_ITEMS = 20;
+    const BATCH_DELAY_MS = 500;
+    const INDIVIDUAL_DELAY_MS = 1500;
+
+    const uploads = ops.filter((op) => op.type === 'upload');
+    const others = ops.filter((op) => op.type !== 'upload');
+
+    const batches = [];
+    let currentBatch = [];
+    let currentBytes = 0;
+    for (const op of uploads) {
+      try {
+        const rawData = await readFileBinary(op.src);
+        const data = rawData instanceof Uint8Array
+          ? rawData
+          : new Uint8Array(Array.isArray(rawData) ? rawData : Array.from(rawData));
+        if (!data || data.byteLength === 0) {
+          console.warn('[sync] asset read empty:', op.flatKey);
+          continue;
+        }
+        const itemBytes = data.byteLength;
+        if (itemBytes > BATCH_MAX_BYTES) {
+          if (currentBatch.length > 0) {
+            batches.push(currentBatch);
+            currentBatch = [];
+            currentBytes = 0;
+          }
+          batches.push([{ key: op.flatKey, data }]);
+          console.warn('[sync] oversized asset, solo batch:', op.flatKey, `${(itemBytes / 1048576).toFixed(1)}MB`);
+          continue;
+        }
+        if (currentBatch.length > 0
+          && (currentBytes + itemBytes > BATCH_MAX_BYTES || currentBatch.length >= BATCH_MAX_ITEMS)) {
+          batches.push(currentBatch);
+          currentBatch = [];
+          currentBytes = 0;
+        }
+        currentBatch.push({ key: op.flatKey, data });
+        currentBytes += itemBytes;
+      } catch (err) {
+        console.warn('[sync] asset read failed:', op.flatKey, err?.message);
+      }
+    }
+    if (currentBatch.length > 0) batches.push(currentBatch);
+
+    let batchNum = 0;
+    for (const batch of batches) {
+      batchNum++;
+      let result;
+      try {
+        result = await batchUploadAssets(batch);
+      } catch (err) {
+        const status = err?.status || err?.statusCode;
+        if (status === 429) {
+          await new Promise((r) => setTimeout(r, 5000));
+          try {
+            result = await batchUploadAssets(batch);
+          } catch (retryErr) {
+            console.warn('[sync] batch retry also failed:', retryErr?.message);
+          }
+        } else if (status === 413 || err?.message?.includes('too large')) {
+          if (batch.length > 1) {
+            const half = Math.ceil(batch.length / 2);
+            batches.splice(batchNum, 0, batch.slice(half));
+            batch.length = half;
+            batchNum--;
+            continue;
+          }
+          console.warn('[sync] single asset too large, skipping:', batch[0]?.key);
+        } else {
+          console.warn('[sync] batch upload failed:', err?.message || status);
+        }
+      }
+
+      if (result) {
+        const uploaded = result?.uploaded ?? 0;
+        const skipped = result?.skipped ?? 0;
+        console.log(`[sync] batch ${batchNum}/${batches.length}: uploaded=${uploaded} skipped=${skipped} items=${batch.length}`);
+      }
+
+      if (!result) {
+        // Request failed entirely — fall back to individual
+        console.log(`[sync] batch request failed, falling back to individual for ${batch.length} items`);
+        for (const item of batch) {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              await uploadAsset(item.key, item.data);
+              break;
+            } catch (e) {
+              const s = e?.status || e?.statusCode;
+              if (s === 429) {
+                const waitMs = INDIVIDUAL_DELAY_MS * Math.pow(2, attempt);
+                console.warn('[sync] individual 429, waiting', waitMs, 'ms:', item.key);
+                await new Promise((r) => setTimeout(r, waitMs));
+                continue;
+              }
+              console.warn('[sync] individual upload failed:', item.key, e?.message || s);
+              break;
+            }
+          }
+          await new Promise((r) => setTimeout(r, INDIVIDUAL_DELAY_MS));
+        }
+      } else if ((result?.uploaded ?? 0) === 0 && (result?.skipped ?? 0) === 0) {
+        // No uploads and no skips means errors — fall back to individual
+        const errorItems = result?.results?.filter((r) => r.status === 'error') ?? [];
+        console.log(`[sync] batch had ${errorItems.length} errors, falling back to individual for ${batch.length} items`);
+        for (const item of batch) {
+          try {
+            await uploadAsset(item.key, item.data);
+          } catch (e) {
+            console.warn('[sync] individual upload failed:', item.key, e?.message);
+          }
+          await new Promise((r) => setTimeout(r, INDIVIDUAL_DELAY_MS));
+        }
+      }
+
+      processed += batch.length;
+      onProgress?.({ phase: 'assets', processed, total });
+      if (batchNum < batches.length) {
+        await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
+      }
+    }
+
+    const DOWNLOAD_DELAY_MS = 1000;
+    const DOWNLOAD_BACKOFF_THRESHOLD = 5;
+    const downloads = others.filter((op) => op.type === 'download');
+    const removes = others.filter((op) => op.type === 'remove-local');
+
+    // Batch-download via presigned GET URLs (no server proxy, no rate limits)
+    if (downloads.length > 0) {
+      const PRESIGN_CHUNK = 200;
+      const allUrls = [];
+      const downloadMap = new Map();
+      for (const op of downloads) {
+        downloadMap.set(op.flatKey, op);
+      }
+
+      const keys = downloads.map((op) => op.flatKey);
+      for (let i = 0; i < keys.length; i += PRESIGN_CHUNK) {
+        const chunk = keys.slice(i, i + PRESIGN_CHUNK);
+        try {
+          const urls = await presignGetBatch(chunk);
+          allUrls.push(...urls);
+        } catch (err) {
+          console.warn('[sync] presign-get-batch failed:', err?.message);
+        }
+      }
+
+      console.log(`[sync] batch download: ${allUrls.length}/${keys.length} presigned URLs`);
+
+      const CONCURRENT = 3;
+      const RETRY_DELAYS = [2000, 4000, 8000];
+      for (let i = 0; i < allUrls.length; i += CONCURRENT) {
+        const batch = allUrls.slice(i, i + CONCURRENT);
+        await Promise.all(batch.map(async ({ assetKey, url }) => {
+          const op = downloadMap.get(assetKey);
+          if (!op) return;
+          const failures = this._failedDownloads.get(assetKey) || 0;
+          if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) {
+            console.log('[sync] skipping repeatedly failed download:', assetKey);
+            return;
+          }
+          for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+            try {
+              await ensureDir(path.dirname(op.dest)).catch(() => {});
+              const bytesWritten = await downloadUrl(url, op.dest);
+              if (!bytesWritten || bytesWritten === 0) {
+                this._failedDownloads.set(assetKey, failures + 1);
+                return;
+              }
+              this._failedDownloads.delete(assetKey);
+              return;
+            } catch (err) {
+              const msg = err?.message || '';
+              if (msg.includes('status 429') && attempt < RETRY_DELAYS.length) {
+                const waitMs = RETRY_DELAYS[attempt];
+                console.warn('[sync] download 429, retrying in', waitMs, 'ms:', assetKey);
+                await new Promise((r) => setTimeout(r, waitMs));
+                continue;
+              }
+              if (attempt < RETRY_DELAYS.length) {
+                await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+                continue;
+              }
+              console.warn('[sync] streaming download failed:', assetKey, msg);
+              this._failedDownloads.set(assetKey, failures + 1);
+              return;
+            }
+          }
+        }));
+        processed += batch.length;
+        onProgress?.({ phase: 'assets', processed, total });
+        if (i + CONCURRENT < allUrls.length) {
+          await new Promise((r) => setTimeout(r, DOWNLOAD_DELAY_MS));
+        }
+      }
+
+      // Fallback for any keys that didn't get presigned URLs
+      for (const op of downloads) {
+        if (!allUrls.find((u) => u.assetKey === op.flatKey)) {
+          const failures = this._failedDownloads.get(op.flatKey) || 0;
+          if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) continue;
+          try {
+            const data = await downloadAsset(op.flatKey);
+            if (data) {
+              await ensureDir(path.dirname(op.dest)).catch(() => {});
+              await writeFs(op.dest, data);
+              this._failedDownloads.delete(op.flatKey);
+            } else {
+              this._failedDownloads.set(op.flatKey, failures + 1);
+            }
+          } catch (err) {
+            console.warn('[sync] fallback download failed:', op.flatKey, err?.message);
+            this._failedDownloads.set(op.flatKey, failures + 1);
+          }
+          await new Promise((r) => setTimeout(r, DOWNLOAD_DELAY_MS));
+          processed++;
+          onProgress?.({ phase: 'assets', processed, total });
+        }
+      }
+    }
+
+    for (const op of removes) {
+      try {
+        const { removePath } = await import('@/lib/native/fs');
+        await removePath(op.src).catch(() => {});
+      } catch (err) {
+        console.warn('[sync] asset op failed:', op.type, op.flatKey, err?.message);
+      }
+      processed++;
+      onProgress?.({ phase: 'assets', processed, total });
+    }
+
+    onProgress?.({ phase: 'assets', processed: total, total });
+
+    if (deletedAssetsDirty) {
+      mergeIntoMap('deletedAssets', deletedAssets);
+    }
+  }
+
+  _remoteAllowed() {
+    const t = this.getTransportSetting();
+    const want = t === 'remote' || t === 'both';
+    if (!want) {
+      console.log('[sync] _remoteAllowed: transport setting is', JSON.stringify(t), '— not remote/both');
+      return false;
+    }
+    const state = this.getAccountState();
+    console.log('[sync] _remoteAllowed: isAuth=', state.isAuth, 'plan=', state.plan);
+    if (!state.isAuth) return false;
+    const subPlan = state.subscription?.plan ?? state.plan;
+    if (subPlan && subPlan !== 'free') return true;
+    console.log('[sync] _remoteAllowed: cloud sync not available for plan', subPlan);
+    return false;
+  }
+
+  _throttled() {
+    return Date.now() - this._lastPushedAt < CLOUD_PUSH_MIN_INTERVAL_MS;
+  }
+}

@@ -43,7 +43,8 @@ import {
   writeStoresFromWorkspace,
   backfillNotePreviews,
 } from './useWorkspaceYjs';
-import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
+import { getSyncEngine } from '@/utils/sync/engine.js';
+import { initAppSync } from '@/utils/sync/app-sync.js';
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -295,6 +296,7 @@ export function useAppShell() {
   // is not loaded (and could not be auto-restored). Forces unlock before use.
   const appEncryptionGate = reactive({
     show: false,
+    deriving: false,
   });
 
   const syncLockBannerCopy = computed(() => ({
@@ -397,7 +399,12 @@ export function useAppShell() {
 
   const restoreEncryptionKeys = async () => {
     await getSyncPath();
-    await tryRestoreKeyFromSafeStorage();
+    appEncryptionGate.deriving = true;
+    try {
+      await tryRestoreKeyFromSafeStorage();
+    } finally {
+      appEncryptionGate.deriving = false;
+    }
     await refreshEncryptionGate();
   };
 
@@ -432,6 +439,10 @@ export function useAppShell() {
     ]);
 
     if (!hasData && !onboardingCompleted) {
+      // First run: initialize the sync engine before entering onboarding so a
+      // post-onboarding sync (path set + initial pull) has a live engine. With
+      // no sync folder configured yet the engine's cycles are no-ops.
+      initAppSync();
       retrieved.value = true;
       if (route.name !== ONBOARDING_ROUTE_NAME) {
         await router.replace('/onboarding');
@@ -439,8 +450,26 @@ export function useAppShell() {
       return;
     }
 
+    // Derive/restore the encryption key BEFORE reading any note data. Note
+    // blobs are encrypted at rest when the vault is enabled, so loading them
+    // before the items key is available would hand ciphertext to the Yjs
+    // decoder (which aborts on invalid UTF-8).
     await restoreEncryptionKeys();
 
+    if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
+      // Encryption is configured but the key could not be restored (no stored
+      // passphrase / safe storage unavailable). Loading note data now would
+      // yield garbage (or fail closed server-side), so defer until the user
+      // unlocks via the encryption gate. handleEncryptionUnlocked() runs the
+      // remainder of the init afterwards.
+      retrieved.value = true;
+      return;
+    }
+
+    await finishWorkspaceInit();
+  };
+
+  const finishWorkspaceInit = async () => {
     const migrationStatus = await settingsStorage.get(
       'app_encryption_migration',
       null
@@ -479,13 +508,51 @@ export function useAppShell() {
       }
     }
 
-    // Trigger an initial sync so a new client pulling from an existing sync
-    // folder gets all remote data (workspace meta + note content + assets).
-    if (getSettingSync('autoSync')) {
-      forceSyncNow().catch((err) => console.warn('[sync] initial sync failed:', err));
-      setPeriodicSyncEnabled(true);
-      document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Always initialize the engine so runtime sync config (Settings "Sync now",
+    // transport, path pick) works without an app restart. Autosync is always
+    // on — periodic sync runs whenever the app is visible.
+    try {
+      const { useAccountStore } = await import('@/store/account');
+      const { useWorkspaceStore } = await import('@/store/workspace.ts');
+      const accountStore = useAccountStore();
+      // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
+      // useAccountAuth components which may not have mounted yet.
+      if (!accountStore.isAuthenticated) {
+        const { loadSessionToken } = await import('@/composable/useAccountStorage');
+        const token = await loadSessionToken().catch(() => null);
+        if (token) {
+          accountStore.setStatus('authenticated');
+        }
+      }
+      if (accountStore.isAuthenticated) {
+        // Fetch profile/subscription so _remoteAllowed has plan info for sync
+        import('@/lib/api/account').then(({ getAccount }) => {
+          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
+            if (data) {
+              accountStore.setProfile(data.profile);
+              accountStore.setSubscription(data.subscription);
+              accountStore.setDevices(data.devices || []);
+            }
+          }).catch(() => {});
+        }).catch(() => {});
+        await useWorkspaceStore().retrieve();
+      }
+    } catch (err) {
+      console.warn('[app] pre-sync auth/workspace hydrate failed:', err);
     }
+    initAppSync();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+  };
+
+  // Runs when the user unlocks the app via the encryption gate. The gate is
+  // only reachable when a configured vault could not be auto-unlocked, so this
+  // is the deferred remainder of initializeWorkspace().
+  const handleEncryptionUnlocked = () => {
+    appEncryptionGate.show = false;
+    finishWorkspaceInit().catch((err) => {
+      console.error('[app] workspace init after unlock failed:', err);
+      retrieved.value = true;
+    });
   };
 
   onMounted(async () => {
@@ -590,18 +657,24 @@ export function useAppShell() {
   });
 
   function handleVisibilityChange() {
-    // Pause the periodic pull while the app is backgrounded; resume when it
-    // returns to the foreground (only if autoSync is still enabled).
-    setPeriodicSyncEnabled(
-      !document.hidden && Boolean(getSettingSync('autoSync'))
-    );
+    if (document.hidden) {
+      // Flush cloud push before going to background
+      const engine = getSyncEngine();
+      if (engine) engine.flush().catch(() => {});
+      engine?.stopPullTimer();
+    } else {
+      // App returned to foreground — pull remote changes and restart pull timer
+      const engine = getSyncEngine();
+      if (engine) engine.notifyForeground().catch(() => {});
+      engine?.startPullTimer();
+    }
   }
 
   onUnmounted(() => {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    setPeriodicSyncEnabled(false);
+    getSyncEngine()?.stopPullTimer();
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
         .then((unlisten) => unlisten?.())
@@ -727,6 +800,7 @@ export function useAppShell() {
     syncLockBannerCopy,
     appEncryptionGate,
     refreshEncryptionGate,
+    handleEncryptionUnlocked,
     updateBanner,
     appEncryptionMigrationBanner,
     appEncryptionMigrationBannerCopy,

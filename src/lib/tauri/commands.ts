@@ -24,13 +24,16 @@ const commandAliases = {
   'fs:pathExists': 'fs_path_exists',
   'fs:readFile': 'fs_read_file',
   'fs:readData': 'fs_read_data',
+  'fs:readFileBinary': 'fs_read_file_binary',
   'fs:writeFile': 'fs_write_file',
   'fs:copy': 'fs_copy',
   'fs:isFile': 'fs_is_file',
   'fs:access': 'fs_access',
+  'fs:downloadUrl': 'fs_download_url',
   'fs:readdir': 'fs_readdir',
   'fs:stat': 'fs_stat',
   'fs:unlink': 'fs_unlink',
+  'fs:remove': 'fs_remove',
   'fs:mkdir': 'fs_mkdir',
   'storage:store': 'storage_get_store',
   'storage:replace': 'storage_replace',
@@ -52,7 +55,6 @@ const commandAliases = {
   'encryption:getState': 'encryption_get_state',
   'encryption:submitPassword': 'encryption_submit_password',
   'encryption:enable': 'encryption_enable',
-  'encryption:disable': 'encryption_disable',
   'encryption:unlock': 'encryption_unlock',
   'encryption:lock': 'encryption_lock',
   'encryption:encryptNotePayload': 'encryption_encrypt_note_payload',
@@ -61,6 +63,11 @@ const commandAliases = {
   'sync:decryptPayload': 'sync_decrypt_payload',
   'sync:keyReady': 'sync_key_ready',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
+  'encryption:adoptKeyParams': 'encryption_adopt_key_params',
+  'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
+  'encryption:rotateKey': 'encryption_rotate_key',
+  'encryption:generateRecoveryCode': 'encryption_generate_recovery_code',
+  'encryption:recoverWithCode': 'encryption_recover_with_code',
 
   'assetCrypto:decryptAssetStream': 'encryption_decrypt_asset_stream',
   'assetCrypto:encryptAssetStream': 'encryption_encrypt_asset_stream',
@@ -106,6 +113,7 @@ const commandAliases = {
   'yjs:append': 'yjs_append',
   'yjs:getUpdates': 'yjs_get_updates',
   'yjs:getSnapshot': 'yjs_get_snapshot',
+  'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
   'yjs:delete': 'yjs_delete',
   'workspace:list': 'workspace_list',
@@ -164,6 +172,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'fs:stat':
     case 'fs:unlink':
     case 'fs:readData':
+    case 'fs:readFileBinary':
+    case 'fs:remove':
       return {
         ...withKeyVariants('path', payload?.path ?? payload),
         ...(payload?.skipDecryption != null
@@ -229,9 +239,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'assetCrypto:setAppPassphrase':
       return withKeyVariants('passphrase', payload);
     case 'assetCrypto:migrateDir':
-      return {
-        ...withKeyVariants('encrypt_at_rest', payload?.encryptAtRest),
-      };
+      return {};
     case 'encryption:getState':
       return {};
     case 'encryption:submitPassword':
@@ -243,17 +251,15 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'encryption:enable':
       return withKeyVariants('password', payload);
-    case 'encryption:disable':
-      return {
-        ...withKeyVariants(
-          'remove_manifest',
-          payload?.removeManifest ?? payload?.remove_manifest ?? true
-        ),
-      };
     case 'encryption:unlock':
       return withKeyVariants('password', payload?.password);
     case 'encryption:lock':
       return {};
+    case 'encryption:rotateKey':
+    case 'encryption:generateRecoveryCode':
+      return {};
+    case 'encryption:recoverWithCode':
+      return withKeyVariants('code', payload?.code);
     case 'crypto:cacheDecryptedNote':
       return {
         ...withKeyVariants('note_id', payload?.noteId),
@@ -273,7 +279,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('payload', payload);
     case 'sync:encryptPayload':
       return {
-        ...withKeyVariants('json', payload?.json),
+        ...withKeyVariants('meta', payload?.meta),
+        ...withKeyVariants('data', payload?.data),
         ...withKeyVariants('aad', payload?.aad),
       };
     case 'sync:decryptPayload':
@@ -285,6 +292,11 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {};
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);
+    case 'encryption:adoptKeyParams':
+      return {
+        ...withKeyVariants('passphrase', payload?.passphrase),
+        ...(payload?.keyParams != null ? withKeyVariants('keyParams', payload.keyParams) : {}),
+      };
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':
@@ -327,6 +339,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('noteId', payload);
     case 'yjs:getSnapshot':
       return withKeyVariants('noteId', payload);
+    case 'yjs:getSnapshots':
+      return withKeyVariants('noteIds', payload);
     case 'yjs:compact':
       return {
         ...withKeyVariants('noteId', payload?.noteId),

@@ -9,9 +9,20 @@
   />
   <app-command-prompt />
   <app-encryption-gate
-    v-if="appEncryptionGate.show"
-    @unlocked="appEncryptionGate.show = false"
+    v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
+    @unlocked="handleEncryptionUnlocked"
   />
+  <div
+    v-if="appEncryptionGate.show && appEncryptionGate.deriving"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+  >
+    <div class="flex flex-col items-center gap-3">
+      <ui-spinner :size="36" />
+      <span class="text-sm text-neutral-500 dark:text-neutral-400">
+        Unlocking…
+      </span>
+    </div>
+  </div>
 
   <a
     href="#app-main"
@@ -124,13 +135,16 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
+import { getHocuspocusSync } from './composable/useHocuspocusSync';
+import { useAccountStore } from './store/account';
+import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import AppNavbar from './components/app/AppNavbar.vue';
 
 export default {
@@ -145,6 +159,18 @@ export default {
   setup() {
     const shell = useAppShell();
     const mainRef = ref(null);
+    const accountStore = useAccountStore();
+    const cloudWorkspaces = useCloudWorkspaces();
+
+    watch(
+      () => accountStore.isAuthenticated,
+      async (authenticated) => {
+        if (authenticated) {
+          await cloudWorkspaces.fetchWorkspaces();
+        }
+      },
+      { immediate: true }
+    );
 
     function skipToMain() {
       const main = document.getElementById('app-main');
@@ -154,6 +180,9 @@ export default {
     }
 
     onMounted(() => {
+      const hocuspocus = getHocuspocusSync();
+      hocuspocus.start();
+
       if (typeof window.requestIdleCallback === 'undefined') return;
       window.requestIdleCallback(
         () => {
@@ -163,6 +192,11 @@ export default {
         },
         { timeout: 2000 }
       );
+    });
+
+    onBeforeUnmount(() => {
+      const hocuspocus = getHocuspocusSync();
+      hocuspocus.stop();
     });
 
     return { ...shell, mainRef, skipToMain };

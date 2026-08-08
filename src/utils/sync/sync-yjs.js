@@ -90,7 +90,7 @@ function yjsSnapshotFileName(docId, ts) {
  * Because noteId / docId / deviceId may themselves contain dashes, we use an
  * unambiguous delimiter and split positionally from the right.
  */
-function parseSyncFilename(file) {
+export function parseSyncFilename(file) {
   if (!file.endsWith(YJS_UPDATE_EXT)) return null;
 
   // Strip extension
@@ -99,25 +99,30 @@ function parseSyncFilename(file) {
   const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
 
-  // 1. Timestamp is the final numeric segment.  If the segment before it is also
-  //    numeric (0-999), treat that as an optional sequence disambiguator.  The
-  //    two-numeric pattern uniquely identifies a seq (snapshot files never carry
-  //    a seq and device IDs are UUIDs, not 0-999 numbers).
+  // 1. Identify (ts, seq) from the final segments. A four-segment update has
+  //    an explicit sequence; unlike the legacy heuristic, it may exceed 999.
+  //    Snapshot files have a marker before the device and never carry a seq.
   const last = parts[parts.length - 1];
+  const lastNum = Number(last);
   const secondLast = parts.length >= 2 ? parts[parts.length - 2] : null;
-  const tsCandidate = Number(last);
-  if (!Number.isFinite(tsCandidate)) return null;
+  const secondLastNum = secondLast != null ? Number(secondLast) : NaN;
 
   let seq;
-  let ts = tsCandidate;
-  parts.pop();
+  let ts;
 
-  if (secondLast != null) {
-    const seqCandidate = Number(secondLast);
-    if (Number.isInteger(seqCandidate) && seqCandidate >= 0 && seqCandidate <= 999) {
-      seq = seqCandidate;
-      parts.pop();
-    }
+  if (parts.length >= 4 && parts[parts.length - 3] !== 'snapshot' &&
+    Number.isInteger(lastNum) && lastNum >= 0 && Number.isFinite(secondLastNum)) {
+    // Last segment is a sequence, second-to-last is the timestamp.
+    seq = lastNum;
+    ts = secondLastNum;
+    parts.pop();
+    parts.pop();
+  } else if (Number.isFinite(lastNum)) {
+    // Last segment is the ts.
+    ts = lastNum;
+    parts.pop();
+  } else {
+    return null;
   }
 
   // 2. Device id is the segment right before the timestamp (or seq)
@@ -158,7 +163,7 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON) {
     ts,
     seq,
     noteId,
-    update: Array.from(update),
+    update,
   };
   const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
   const fileName = yjsFileName(noteId, ts, seq);
@@ -176,7 +181,7 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON) {
     device: deviceId,
     ts,
     noteId: docId,
-    update: Array.from(state),
+    update: state,
   };
   const encrypted = await encryptJSON(payload, `${docId}-snapshot-${ts}`);
   const fileName = yjsSnapshotFileName(docId, ts);

@@ -20,6 +20,10 @@ export function readFile(path) {
   return backend.invoke('fs:readFile', path);
 }
 
+export function readFileBinary(path) {
+  return backend.invoke('fs:readFileBinary', path);
+}
+
 export function readData(path, options = {}) {
   return backend.invoke('fs:readData', { path, ...options });
 }
@@ -34,6 +38,10 @@ export function pathExists(path) {
 
 export function isFile(path) {
   return backend.invoke('fs:isFile', path);
+}
+
+export function downloadUrl(url, dest) {
+  return backend.invoke('fs:downloadUrl', { url, dest });
 }
 
 export function removePath(path) {

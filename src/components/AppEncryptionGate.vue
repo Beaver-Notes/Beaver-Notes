@@ -46,24 +46,42 @@
         {{ error }}
       </p>
 
-      <ui-button
-        variant="primary"
-        class="mt-4 w-full"
-        :loading="busy"
-        :disabled="!password || busy"
-        @click="unlock"
+      <div class="mt-4 flex flex-col gap-2">
+        <ui-button
+          variant="primary"
+          class="w-full"
+          :loading="busy"
+          :disabled="!password || busy"
+          @click="unlock"
+        >
+          {{ translations.settings?.unlock || 'Unlock' }}
+        </ui-button>
+        <ui-button
+          v-if="biometricAvailable"
+          variant="secondary"
+          class="w-full"
+          :loading="biometricBusy"
+          @click="unlockWithBiometrics"
+        >
+          {{ translations.settings?.unlockWithBiometrics || 'Unlock with Touch ID' }}
+        </ui-button>
+      </div>
+      <button
+        class="mt-3 text-xs text-neutral-400 dark:text-neutral-500 hover:text-primary transition-colors"
+        @click="recoverWithCode"
       >
-        {{ translations.settings?.unlock || 'Unlock' }}
-      </ui-button>
+        {{ translations.settings?.recoverWithCode || 'Forgot passphrase? Use recovery code' }}
+      </button>
     </div>
   </div>
 </template>
 
 <script>
 import { ref, onMounted, nextTick } from 'vue';
-import { verifyPassphrase } from '@/utils/crypto/encryption.js';
+import { verifyPassphrase, tryRestoreKeyFromSafeStorage, recoverWithRecoveryCode } from '@/utils/crypto/encryption.js';
 import { useTranslations } from '@/composable/useTranslations';
 import { useFocusTrap } from '@/composable/useFocusTrap';
+import { isBiometricAvailable, authenticateWithBiometrics } from '@/lib/native/biometric';
 
 export default {
   emits: ['unlocked'],
@@ -72,6 +90,8 @@ export default {
     const password = ref('');
     const error = ref('');
     const busy = ref(false);
+    const biometricBusy = ref(false);
+    const biometricAvailable = ref(false);
     const trapRef = ref(null);
     const { activate, deactivate } = useFocusTrap(trapRef);
 
@@ -95,11 +115,58 @@ export default {
       }
     }
 
-    onMounted(() => {
+    async function unlockWithBiometrics() {
+      biometricBusy.value = true;
+      error.value = '';
+      try {
+        await authenticateWithBiometrics('Unlock Beaver Notes');
+        const ok = await tryRestoreKeyFromSafeStorage();
+        if (ok) {
+          deactivate();
+          emit('unlocked');
+        } else {
+          error.value = 'Failed to retrieve stored passphrase.';
+        }
+      } catch (e) {
+        if (e?.message?.includes('userCancel') || e?.message?.includes('User canceled')) {
+          return;
+        }
+        error.value = e?.message || 'Biometric authentication failed.';
+      } finally {
+        biometricBusy.value = false;
+      }
+    }
+
+    async function recoverWithCode() {
+      const t = translations.value;
+      const code = prompt(t?.settings?.recoveryCodePrompt || 'Enter your 64-character recovery code:');
+      if (!code?.trim()) return;
+      busy.value = true;
+      error.value = '';
+      try {
+        const result = await recoverWithRecoveryCode(code.trim());
+        if (result.ok) {
+          deactivate();
+          emit('unlocked');
+        } else {
+          error.value = result.error || 'Invalid recovery code.';
+        }
+      } catch (e) {
+        error.value = e?.message || 'Invalid recovery code.';
+      } finally {
+        busy.value = false;
+      }
+    }
+
+    onMounted(async () => {
       nextTick(() => activate());
+      biometricAvailable.value = await isBiometricAvailable();
     });
 
-    return { password, error, busy, unlock, translations, trapRef };
+    return {
+      password, error, busy, unlock, translations, trapRef,
+      biometricAvailable, biometricBusy, unlockWithBiometrics, recoverWithCode,
+    };
   },
 };
 </script>

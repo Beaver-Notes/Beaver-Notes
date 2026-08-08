@@ -6,6 +6,10 @@ import {
   decryptNotePayload,
   clearDecryptedCaches,
   reconcileSyncKeyParams,
+  adoptKeyParams,
+  hasRemoteKeyParams,
+  generateRecoveryCode as generateRecoveryCodeNative,
+  recoverWithCode,
 } from '@/lib/native/security.js';
 import {
   loadSecureBlob,
@@ -18,6 +22,12 @@ const state = {
 };
 let _restoreInFlight = null;
 const BLOB_KEY = 'encryptionPassphraseBlob';
+
+function generateRandomPassphrase() {
+  const buf = new Uint8Array(32);
+  crypto.getRandomValues(buf);
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 async function refreshState() {
   const next = await getEncryptionState();
@@ -37,9 +47,13 @@ export function isKeyLoaded() {
 export async function ensureKeyReadyForWrite() {
   const next = await refreshState();
   if (!next?.enabled) {
-    throw new Error(
-      'Encryption is not configured. Complete onboarding to set up encryption.'
-    );
+    const result = await setupEncryption(generateRandomPassphrase());
+    if (!result.ok) {
+      throw new Error(
+        'Encryption setup failed: ' + (result.error || 'Unknown error')
+      );
+    }
+    return true;
   }
   if (next?.unlocked) return true;
 
@@ -50,7 +64,7 @@ export async function ensureKeyReadyForWrite() {
 
 export async function setupEncryption(passphrase) {
   if (!passphrase?.trim()) {
-    return { ok: false, error: 'Passphrase cannot be empty.' };
+    passphrase = generateRandomPassphrase();
   }
 
   try {
@@ -65,6 +79,9 @@ export async function setupEncryption(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     reconcileSyncKeyParams().catch(() => {});
+    import('@/utils/sync/vault-key-params.js')
+      .then((m) => m.publishCloudKeyParams())
+      .catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -86,11 +103,40 @@ export async function verifyPassphrase(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     reconcileSyncKeyParams(passphrase).catch(() => {});
+    import('@/utils/sync/vault-key-params.js')
+      .then((m) => m.publishCloudKeyParams())
+      .catch(() => {});
     return { ok: true };
   } catch (err) {
     console.error('[encryption] verify failed:', err);
     return { ok: false, error: err?.message || String(err) };
   }
+}
+
+export async function adoptVaultKey(passphrase, keyParams) {
+  if (!passphrase?.trim()) {
+    return { ok: false, error: 'Enter the vault passphrase.' };
+  }
+
+  try {
+    const result = await (keyParams == null
+      ? adoptKeyParams(passphrase)
+      : adoptKeyParams(passphrase, keyParams));
+    if (!result?.ok) {
+      return { ok: false, error: result?.error || 'Unable to join this vault.' };
+    }
+    state.enabled = !!result?.state?.enabled;
+    state.loaded = !!result?.state?.unlocked;
+    persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    return { ok: true };
+  } catch (err) {
+    console.error('[encryption] vault adopt failed:', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+export async function hasRemoteVaultKeyParams() {
+  return hasRemoteKeyParams();
 }
 
 export async function tryRestoreKeyFromSafeStorage() {
@@ -176,5 +222,27 @@ export async function lockEncryptionKey() {
 
 // Re-exports for sync/crypto.js
 export { encryptContent as encryptPayload, decryptContent as decryptPayload };
+
+export async function generateRecoveryCode() {
+  const result = await generateRecoveryCodeNative();
+  return result?.code || null;
+}
+
+export async function recoverWithRecoveryCode(code) {
+  if (!code || code.length !== 64) {
+    return { ok: false, error: 'Recovery code must be 64 hex characters.' };
+  }
+  try {
+    const result = await recoverWithCode(code);
+    if (result?.ok) {
+      state.enabled = !!result?.state?.enabled;
+      state.loaded = !!result?.state?.unlocked;
+      return { ok: true };
+    }
+    return { ok: false, error: result?.error || 'Recovery code is invalid.' };
+  } catch (err) {
+    return { ok: false, error: err?.message || String(err) };
+  }
+}
 
 void refreshState().catch(() => {});

@@ -14,22 +14,24 @@ use tauri::AppHandle;
 use super::keys::{current_app_key, derive_chunk_nonce, random_nonce, STREAM_CHUNK_SIZE};
 use super::super::{app_encryption_manifest_path, AppError, AppState, is_local_asset_path};
 
-pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA2";
-pub(crate) const ASSET_MAGIC_V3: &[u8; 4] = b"BNA3";
+pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA3";
+pub(crate) const ASSET_MAGIC_LEGACY_V2: &[u8; 4] = b"BNA2";
+pub(crate) const ASSET_MAGIC_LEGACY_V1: &[u8; 4] = b"BNA1";
 
 pub(crate) fn encrypt_asset_bytes_with_key(
     plain: &[u8],
     key: &[u8; 32],
 ) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.encrypt_asset_bytes");
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let iv = random_nonce();
-    let encrypted = cipher.encrypt(Nonce::from_slice(&iv), plain)?;
-    let (ciphertext, tag) = encrypted.split_at(encrypted.len().saturating_sub(16));
-    let mut output = Vec::with_capacity(4 + 12 + 16 + ciphertext.len());
+    let nonce_seed = random_nonce();
+    let nonce = derive_chunk_nonce(&nonce_seed, 0, key);
+    let encrypted = cipher.encrypt(Nonce::from_slice(&nonce), plain)?;
+    let mut output = Vec::with_capacity(4 + 12 + 4 + encrypted.len());
     output.extend_from_slice(ASSET_MAGIC);
-    output.extend_from_slice(&iv);
-    output.extend_from_slice(tag);
-    output.extend_from_slice(ciphertext);
+    output.extend_from_slice(&nonce_seed);
+    output.extend_from_slice(&(encrypted.len() as u32).to_le_bytes());
+    output.extend_from_slice(&encrypted);
     Ok(output)
 }
 
@@ -37,10 +39,46 @@ pub(crate) fn decrypt_asset_bytes_with_key(
     encrypted: &[u8],
     key: &[u8; 32],
 ) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.decrypt_asset_bytes");
     if encrypted.len() < 4 + 12 + 16 {
         return Ok(encrypted.to_vec());
     }
-    if &encrypted[..4] == ASSET_MAGIC || &encrypted[..4] == b"BNA1" {
+    let magic = &encrypted[..4];
+    if magic == ASSET_MAGIC {
+        let nonce_seed: &[u8; 12] = &encrypted[4..16]
+            .try_into()
+            .map_err(|_| AppError::Crypto("invalid BNA3 nonce seed".into()))?;
+        let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
+        let mut offset = 16usize;
+        let mut result = Vec::new();
+        let mut chunk_index = 0u64;
+        while offset + 4 <= encrypted.len() {
+            let chunk_len =
+                u32::from_le_bytes(encrypted[offset..offset + 4].try_into().unwrap()) as usize;
+            offset += 4;
+            if offset + chunk_len > encrypted.len() {
+                return Err(AppError::Crypto(format!(
+                    "BNA3 chunk {} extends past buffer (offset={}, len={}, buf={})",
+                    chunk_index,
+                    offset,
+                    chunk_len,
+                    encrypted.len()
+                )));
+            }
+            let aead = &encrypted[offset..offset + chunk_len];
+            let nonce = derive_chunk_nonce(nonce_seed, chunk_index, key);
+            let decrypted = cipher
+                .decrypt(Nonce::from_slice(&nonce), aead)
+                .map_err(|_| {
+                    AppError::Crypto(format!("BNA3 chunk {} decryption failed", chunk_index))
+                })?;
+            result.extend_from_slice(&decrypted);
+            offset += chunk_len;
+            chunk_index += 1;
+        }
+        return Ok(result);
+    }
+    if magic == ASSET_MAGIC_LEGACY_V2 || magic == ASSET_MAGIC_LEGACY_V1 {
         let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
         let iv = &encrypted[4..16];
         let tag = &encrypted[16..32];
@@ -60,13 +98,14 @@ pub(crate) fn encrypt_asset_streaming(
     output_path: &Path,
     key: &[u8; 32],
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("assets.encrypt_asset_streaming");
     let input = File::open(input_path)?;
     let output = File::create(output_path)?;
     let mut reader = BufReader::with_capacity(STREAM_CHUNK_SIZE, input);
     let mut writer = BufWriter::with_capacity(STREAM_CHUNK_SIZE, output);
 
     let nonce_seed = random_nonce();
-    writer.write_all(ASSET_MAGIC_V3)?;
+    writer.write_all(ASSET_MAGIC)?;
     writer.write_all(&nonce_seed)?;
 
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
@@ -101,6 +140,7 @@ pub(crate) fn decrypt_asset_streaming(
     output_path: &Path,
     key: &[u8; 32],
 ) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("assets.decrypt_asset_streaming");
     let input = File::open(input_path)?;
     let mut reader = BufReader::with_capacity(STREAM_CHUNK_SIZE + 32, input);
 
@@ -115,7 +155,7 @@ pub(crate) fn decrypt_asset_streaming(
         Err(e) => return Err(AppError::from(e)),
     }
 
-    if &magic != ASSET_MAGIC && &magic != ASSET_MAGIC_V3 {
+    if &magic != ASSET_MAGIC && &magic != ASSET_MAGIC_LEGACY_V2 {
         drop(reader);
         let data = fs::read(input_path)?;
         let plain = decrypt_asset_bytes_with_key(&data, key)?;
@@ -123,7 +163,7 @@ pub(crate) fn decrypt_asset_streaming(
         return Ok(());
     }
 
-    let is_v3 = &magic == ASSET_MAGIC_V3;
+    let is_v3 = &magic == ASSET_MAGIC;
 
     let mut nonce_seed = [0u8; 12];
     reader.read_exact(&mut nonce_seed)?;
@@ -182,8 +222,6 @@ pub(crate) fn decrypt_asset_streaming(
     Ok(())
 }
 
-// ── Yjs blob encryption ─────────────────────────────────────────────────────
-//
 // Yjs binary updates and snapshots stored in SQLite are encrypted at rest when
 // app encryption is enabled.  A 4-byte magic prefix (`BNY1`) distinguishes
 // encrypted blobs from legacy unencrypted ones so reads are backwards-compatible.
@@ -193,6 +231,7 @@ pub(crate) const YJS_MAGIC: &[u8; 4] = b"BNY1";
 /// Encrypt a raw Yjs binary blob for at-rest storage in SQLite.
 /// Returns `BNY1 || nonce(12) || ciphertext`.
 pub(crate) fn encrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.encrypt_yjs_blob");
     if data.is_empty() {
         return Ok(data.to_vec());
     }
@@ -210,6 +249,7 @@ pub(crate) fn encrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, A
 /// Legacy unencrypted blobs (no `BNY1` prefix) are returned as-is so
 /// existing databases continue to work without a migration pass.
 pub(crate) fn decrypt_yjs_blob(key: &[u8; 32], data: &[u8]) -> Result<Vec<u8>, AppError> {
+    let _t = crate::shared::speed_log::scope("assets.decrypt_yjs_blob");
     if data.len() < 4 + 12 {
         return Ok(data.to_vec());
     }
@@ -229,23 +269,22 @@ pub(crate) fn is_encrypted_yjs_blob(data: &[u8]) -> bool {
     data.len() >= 4 && &data[..4] == YJS_MAGIC
 }
 
+/// Checks if a buffer is an encrypted asset (all formats: BNA3, BNA2, BNA1).
 pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
-    (buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3))
-        || buffer.len() > 4 + 12 + 16 && &buffer[..4] == b"BNA1"
+    (buffer.len() > 4 + 12 + 4 && &buffer[..4] == ASSET_MAGIC)
+        || (buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC_LEGACY_V2)
+        || (buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC_LEGACY_V1)
 }
 
-pub(crate) fn is_encrypted_asset_v2(buffer: &[u8]) -> bool {
-    buffer.len() > 4 + 12 + 16 && (&buffer[..4] == ASSET_MAGIC || &buffer[..4] == ASSET_MAGIC_V3)
-}
+
 
 pub(crate) fn encrypt_asset(
     app: &AppHandle,
     state: &AppState,
     target_path: &Path,
     input: &[u8],
-    skip: bool,
 ) -> Result<Vec<u8>, AppError> {
-    if skip || !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
+    if !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
     let manifest_path = app_encryption_manifest_path(app, state)?;

@@ -59,7 +59,7 @@
       <button
         v-for="(entry, i) in visibleLabels"
         :key="entry.name"
-        class="flex-shrink-0 inline-block px-1.5 py-0.5 rounded-lg text-sm font-medium transition-all bg-primary/10 text-primary"
+        class="flex-shrink-0 inline-block px-1.5 py-0.5 rounded-lg text-sm font-medium transition-[opacity,box-shadow] bg-primary/10 text-primary"
         :class="[
           label === entry.name
             ? 'ring-1 ring-inset'

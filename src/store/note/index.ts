@@ -10,14 +10,15 @@ import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
 import {
-  indexNote,
-  removeNoteFromIndex,
-} from '@/lib/native/search';
-import {
   indexNoteForSpotlight,
-  deleteNoteFromSpotlight,
   reindexAllNotes,
 } from '@/utils/platform/spotlightSync.js';
+import {
+  buildSearchIndex,
+  removeSearchEntry,
+  searchNotesIndex,
+  upsertSearchEntry,
+} from '@/composable/useSearch.js';
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
@@ -104,7 +105,7 @@ export function getFolderContents(state: NoteState) {
 
 /**
  * Synchronous in-memory fallback search using the pre-computed `searchText`
- * field. Used when the FTS index hasn't been populated yet or for
+ * field. Used when the local search index hasn't been populated yet or for
  * callers that need a synchronous result.
  * For the primary search UI use `searchNotesSql` instead.
  */
@@ -113,9 +114,11 @@ export function searchNotes(state: NoteState) {
     const searchTerm = query.toLowerCase();
     return Object.values(state.data).filter((note) => {
       if (!note.id) return false;
+      const labels = Array.isArray(note.labels) ? note.labels.join(' ') : '';
       return (
         note.title.toLowerCase().includes(searchTerm) ||
-        (note.searchText || '').toLowerCase().includes(searchTerm)
+        (note.searchText || '').toLowerCase().includes(searchTerm) ||
+        labels.toLowerCase().includes(searchTerm)
       );
     });
   };
@@ -147,10 +150,10 @@ export interface NoteStoreThis {
 export async function searchNotesSql(this: NoteStoreThis, query: string): Promise<NoteData[]> {
   if (!query?.trim()) return [];
   try {
-    const { ids } = (await import('@/lib/native/search')).searchNotesFts(query) as any;
+    const ids = searchNotesIndex(query);
     return ids.map((id: string) => this.data[id]).filter(Boolean);
   } catch {
-    // FTS not yet available (first launch before rebuild) — fall back
+    // Index not yet available (first launch before rebuild) — fall back
     return this.searchNotes!(query);
   }
 }
@@ -164,6 +167,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
     // Data is already populated from the Yjs workspace doc via
     // writeStoresFromWorkspace().  No KV reads needed.
 
+    buildSearchIndex(this.data);
     reindexAllNotes(this.data);
     rebuildLinkIndexFromAll(this.data);
 
@@ -311,7 +315,7 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     // Clean up Yjs document updates
     deleteUpdates(id).catch(() => {});
 
-    removeNoteFromFts(id);
+    removeSearchEntry(id);
 
     removeNoteMeta(id);
     syncDeletedNoteIds(this.deletedIds);
@@ -322,16 +326,14 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     try {
       const appDirectory = await getAppDirectory();
       if (appDirectory) {
-        for (const assetType of ['notes-assets', 'file-assets']) {
-          const assetDir = path.join(appDirectory, assetType, id);
-          try {
-            const files = await readDir(assetDir);
-            if (files?.length) await trackDeletedAssets(assetType, id, files);
-          } catch {
-            // Asset folder may not exist — that's fine
-          }
-          await removePath(path.join(appDirectory, assetType, id));
+        const assetDir = path.join(appDirectory, 'assets', id);
+        try {
+          const files = await readDir(assetDir);
+          if (files?.length) await trackDeletedAssets('assets', id, files);
+        } catch {
+          // Asset folder may not exist — that's fine
         }
+        await removePath(assetDir);
       }
     } catch (fileError) {
       console.warn('Error removing note files:', fileError);
@@ -513,26 +515,21 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 // ── helpers (from helpers.js) ──
 
 /**
- * Silently sync a note into the FTS index after it is written to storage.
+ * Silently sync a note into the local search index after it is written to storage.
  * Uses the pre-computed `searchText` field so no content serialisation is needed.
  * Errors are swallowed — a stale index degrades gracefully to no results.
  */
-export function syncFtsIndex(note: NoteData): void {
+export function syncSearchIndex(note: NoteData): void {
   if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
-  indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
+  upsertSearchEntry(note);
 }
 
 export async function saveNote(id: string, noteData: NoteData): Promise<void> {
-  syncFtsIndex(noteData);
+  syncSearchIndex(noteData);
   indexNoteForSpotlight(noteData);
 }
 
 async function resolveFolderId(folderId: string | null | undefined): Promise<string | null> {
   if (folderId === undefined || folderId === null) return null;
   return useFolderStore().exists(folderId) ? folderId : null;
-}
-
-function removeNoteFromFts(id: string): void {
-  removeNoteFromIndex(id).catch(() => {});
-  deleteNoteFromSpotlight(id);
 }

@@ -105,4 +105,10 @@ export default {
   opacity: 0;
   transform: translateY(1rem);
 }
+@media (prefers-reduced-motion: reduce) {
+  .undo-banner-enter-active,
+  .undo-banner-leave-active {
+    transition-duration: 0.01ms;
+  }
+}
 </style>

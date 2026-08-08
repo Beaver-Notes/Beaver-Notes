@@ -1,22 +1,29 @@
+use std::collections::HashMap;
+
 use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
 /// Extract the current app encryption key, if encryption is active and unlocked.
-/// Returns `None` when encryption is not configured or is locked (blobs stored
-/// in plaintext in that case).
+/// Returns `None` only when encryption is NOT configured (blobs stored in
+/// plaintext in that case). When encryption is configured but the items key is
+/// not loaded (session not yet unlocked), returns `EncryptionLocked` instead of
+/// silently falling back to plaintext: reading ciphertext as plaintext would
+/// feed garbage to the Yjs decoder (which aborts on invalid UTF-8), and writing
+/// plaintext would interleave plaintext among encrypted rows.
 fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
   let session = state.crypto.session.read()?;
   if !session.active {
     return Ok(None);
   }
-  Ok(session.app_data_key)
+  Ok(Some(current_app_key(state)?.ok_or(AppError::EncryptionLocked)?))
 }
 
 /// Append a single Yjs binary update for a note.  Updates are stored as
 /// append-only BLOB rows so every peer's version is preserved.
 /// When app encryption is active the blob is encrypted before persisting.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_append(
   app: AppHandle,
   note_id: String,
@@ -34,6 +41,7 @@ pub(crate) fn yjs_append(
 /// (no stored update is newer than the snapshot). Returns an empty vector when
 /// the caller must replay history and re-cache it via `yjs_save_snapshot`.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_get_snapshot(
   app: AppHandle,
   note_id: String,
@@ -45,9 +53,25 @@ pub(crate) fn yjs_get_snapshot(
   Ok(result)
 }
 
+/// Return the fresh merged Yjs snapshot for many notes in a single round-trip
+/// (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
+/// are included in the result map.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn yjs_get_snapshots(
+  app: AppHandle,
+  note_ids: Vec<String>,
+  state: State<'_, AppState>,
+) -> Result<HashMap<String, Vec<u8>>, AppError> {
+  let pool = data_pool(&app, &state)?;
+  let key = yjs_encryption_key(&state)?;
+  crate::db::yjs_get_snapshots(&pool, &note_ids, key)
+}
+
 /// Return every stored Yjs update for a note, oldest first.
 /// The caller replays them into a Y.Doc to reconstruct the current state.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_get_updates(
   app: AppHandle,
   note_id: String,
@@ -62,6 +86,7 @@ pub(crate) fn yjs_get_updates(
 /// Delete all existing updates for a note and replace them with a single
 /// compressed Yjs state vector (snapshot).  Keeps the row count bounded.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_compact(
   app: AppHandle,
   note_id: String,
@@ -76,6 +101,7 @@ pub(crate) fn yjs_compact(
 
 /// Delete every Yjs update for a note.  Called when the note itself is deleted.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn yjs_delete(
   app: AppHandle,
   note_id: String,

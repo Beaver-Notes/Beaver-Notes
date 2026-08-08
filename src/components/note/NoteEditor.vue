@@ -62,6 +62,8 @@ import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
 import { offset } from '@floating-ui/dom';
 import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCursor from '@tiptap/extension-collaboration-cursor';
+import { CommentExtension } from '@sereneinserenade/tiptap-comment-extension';
 import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
@@ -82,6 +84,8 @@ export default {
     cursorPosition: { type: Number, default: 0 },
     note: { type: Object, default: () => ({}) },
     ydoc: { type: Object, default: null },
+    awareness: { type: Object, default: null },
+    userName: { type: String, default: 'Anonymous' },
   },
   emits: ['init', 'update', 'update:modelValue'],
   setup(props, { emit }) {
@@ -258,7 +262,7 @@ export default {
       NodeRangeSelection,
     ];
     if (typeof window === 'undefined' || window.innerWidth >= 768) {
-      exts.push(Commands);
+      exts.push(Commands.configure({ id: props.id }));
     }
     exts.push(appStore.setting.collapsibleHeading ? CollapseHeading : heading);
 
@@ -267,6 +271,24 @@ export default {
         Collaboration.configure({
           document: props.ydoc,
           field: 'content',
+        })
+      );
+      if (props.awareness) {
+        exts.push(
+          CollaborationCursor.configure({
+            provider: { awareness: props.awareness },
+            user: {
+              name: props.userName,
+              color: '#3B82F6',
+            },
+          })
+        );
+      }
+      exts.push(
+        CommentExtension.configure({
+          HTMLAttributes: {
+            class: 'comment-highlight',
+          },
         })
       );
     }
@@ -443,3 +465,11 @@ export default {
 </script>
 
 <style src="@/assets/css/editor.css"></style>
+
+<style>
+.comment-highlight {
+  background-color: rgba(255, 235, 59, 0.3);
+  border-bottom: 2px solid rgba(255, 235, 59, 0.6);
+  cursor: pointer;
+}
+</style>
