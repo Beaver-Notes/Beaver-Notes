@@ -90,7 +90,7 @@ function useAudioRecorder(props, backend, storage, path) {
 
         if (result?.filePath) {
           const filename = path.basename(result.filePath);
-          const audioPath = `file-assets://${props.id}/${filename}`;
+          const audioPath = `assets://${props.id}/${filename}`;
           props.editor.commands.setAudio(audioPath, filename);
         }
       } catch (error) {
@@ -107,7 +107,7 @@ function useAudioRecorder(props, backend, storage, path) {
       }
 
       const appDirectory = await getAppDirectory();
-      const assetsPath = path.join(appDirectory, 'file-assets', props.id);
+      const assetsPath = path.join(appDirectory, 'assets', props.id);
       await backend.invoke('fs:ensureDir', assetsPath);
 
       await startRecording({

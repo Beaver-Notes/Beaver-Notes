@@ -1,4 +1,4 @@
-import { LEGACY_CRYPTOJS_PREFIX } from '@/utils/crypto/noteCrypto';
+const LEGACY_CRYPTOJS_PREFIX = 'U2FsdGVk';
 
 export function unwrapLegacyData(raw) {
   if (raw && typeof raw === 'object' && raw.data && !raw.notes) {

@@ -68,6 +68,7 @@ const PDF_PAGE_MARGIN_PT: f64 =
     (A4_PT_W - (A4_CSS_W - 2.0 * PDF_PAGE_MARGIN_CSS_PX) * CSS_PX_TO_PT) / 2.0;
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn render_pdf(
     app: AppHandle,
     html: String,

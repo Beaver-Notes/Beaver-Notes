@@ -169,9 +169,7 @@ export default {
 
         if (!base64) return;
 
-        await writeFile(filePath, base64ToUint8Array(base64), {
-          skipAssetEncryption: true,
-        });
+        await writeFile(filePath, base64ToUint8Array(base64));
 
         return;
       }
@@ -179,9 +177,7 @@ export default {
       const response = await fetch(src);
       const payload = new Uint8Array(await response.arrayBuffer());
 
-      await writeFile(filePath, payload, {
-        skipAssetEncryption: true,
-      });
+      await writeFile(filePath, payload);
     }
 
     function setLayout(mode) {

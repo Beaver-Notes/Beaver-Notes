@@ -107,7 +107,7 @@ onMounted(() => {
 });
 
 const sortedLabels = computed(() =>
-  [...labelStore.data].sort((a, b) => a.localeCompare(b))
+  [...new Set(labelStore.data)].sort((a, b) => a.localeCompare(b))
 );
 
 function noteCountFor(name) {

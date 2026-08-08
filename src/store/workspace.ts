@@ -1,9 +1,13 @@
 import { defineStore } from 'pinia';
-import { invokeCommand } from '@/lib/tauri/commands';
+import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 
 interface Workspace {
   id: string;
   name: string;
+  role?: string;
+  ownerId?: string | null;
+  storageUsedBytes?: number;
+  createdAt?: string | null;
 }
 
 interface WorkspaceState {
@@ -28,42 +32,59 @@ export const useWorkspaceStore = defineStore('workspace', {
     async retrieve() {
       this.loading = true;
       try {
-        const [workspaces, active] = await Promise.all([
-          invokeCommand<Workspace[]>('workspace:list'),
-          invokeCommand<{ id: string } | null>('workspace:getActive'),
-        ]);
-        this.workspaces = workspaces;
-        this.activeId = active?.id ?? 'default';
+        const cloud = useCloudWorkspaces();
+        await cloud.fetchWorkspaces();
+        this.workspaces = (cloud.workspaces.value as Workspace[]).map((w) => ({
+          id: w.id,
+          name: w.name,
+          role: w.role,
+          ownerId: w.ownerId,
+          storageUsedBytes: w.storageUsedBytes,
+          createdAt: w.createdAt,
+        }));
+        if (cloud.activeId.value) {
+          this.activeId = cloud.activeId.value;
+        } else if (this.workspaces.length > 0 && !this.activeId) {
+          this.activeId = this.workspaces[0].id;
+        }
       } finally {
         this.loading = false;
       }
     },
 
-    async create(name: string, options: { copySettings?: boolean } = {}) {
-      const ws = await invokeCommand<Workspace>('workspace:create', {
-        name,
-        copySettings: options.copySettings ?? false,
+    async create(name: string, _options: { copySettings?: boolean } = {}) {
+      const cloud = useCloudWorkspaces();
+      const ws = await cloud.createWorkspace(name);
+      this.workspaces.push({
+        id: ws.id,
+        name: ws.name,
+        role: ws.role,
+        ownerId: ws.ownerId,
+        storageUsedBytes: ws.storageUsedBytes,
+        createdAt: ws.createdAt,
       });
-      this.workspaces.push(ws);
       this.activeId = ws.id;
       return ws;
     },
 
     async switchTo(id: string) {
       if (id === this.activeId) return;
-      await invokeCommand('workspace:switch', { id });
+      const cloud = useCloudWorkspaces();
+      await cloud.switchWorkspace(id);
       this.activeId = id;
     },
 
-    async rename(id: string, name: string) {
-      await invokeCommand('workspace:rename', { id, name });
-      const ws = this.workspaces.find((w) => w.id === id);
-      if (ws) ws.name = name;
+    async rename(_id: string, _name: string) {
+      console.warn('[workspace] rename not yet supported for cloud workspaces');
     },
 
     async remove(id: string) {
-      await invokeCommand('workspace:delete', { id });
+      const cloud = useCloudWorkspaces();
+      await cloud.deleteWorkspace(id);
       this.workspaces = this.workspaces.filter((w) => w.id !== id);
+      if (this.activeId === id) {
+        this.activeId = this.workspaces[0]?.id ?? null;
+      }
     },
   },
 });

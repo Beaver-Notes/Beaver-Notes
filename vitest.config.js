@@ -8,8 +8,8 @@ export default mergeConfig(
     test: {
       environment: 'happy-dom',
       globals: true,
-      setupFiles: ['tests/unit/setup.js'],
-      include: ['tests/unit/**/*.spec.js'],
+      setupFiles: ['src/test-setup.js'],
+      include: ['src/**/*.spec.js'],
       fileParallelism: false,
     },
   })

@@ -12,6 +12,10 @@ export function getSnapshot(noteId) {
   return backend.invoke('yjs:getSnapshot', noteId);
 }
 
+export function getSnapshots(noteIds) {
+  return backend.invoke('yjs:getSnapshots', noteIds);
+}
+
 export function compactUpdates(noteId, snapshot) {
   return backend.invoke('yjs:compact', { noteId, snapshot });
 }

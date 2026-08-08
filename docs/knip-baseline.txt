@@ -107,8 +107,6 @@ prewarmEditor               function  src/lib/tiptap/index.js:182:17
 linkIndex                             src/store/note/backlinks.js:4:14                            
 extractLinkNoteTargets      function  src/store/note/backlinks.js:11:17                           
 syncFtsIndex                function  src/store/note/helpers.js:16:17                             
-encryptStringOnWorker       function  src/utils/crypto/codec.js:131:23                            
-decryptStringOnWorker       function  src/utils/crypto/codec.js:146:23                            
 ALGO_HKDF                             src/utils/crypto/constants.js:9:14                          
 encryptPayload                        src/utils/crypto/encryption.js:178:28                       
 decryptPayload                        src/utils/crypto/encryption.js:178:62                       

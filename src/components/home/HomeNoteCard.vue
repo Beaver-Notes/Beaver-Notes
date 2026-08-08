@@ -348,87 +348,21 @@ onUnmounted(() => mobileQuery.removeEventListener('change', onMobileChange));
 useGroupTooltip();
 
 async function lockNote(note) {
-  const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
   try {
-    const hassharedKey = await passwordStore.retrieve();
-    if (!hassharedKey) {
-      dialog.prompt({
-        title: translations.value.card.enterPasswd,
-        okText: translations.value.card.setKey,
-        body: translations.value.settings.warning,
-        cancelText: translations.value.dialog.cancel,
-        placeholder: translations.value.card.password,
-        onConfirm: async (newKey) => {
-          if (newKey) {
-            try {
-              await passwordStore.setSharedKey(newKey);
-              await verifyPassphrase(newKey);
-              await noteStore.lockNote(note, newKey);
-            } catch {
-              showCardAlert(translations.value.card.keyFail);
-            }
-          } else {
-            showCardAlert(translations.value.card.keyFail);
-          }
-        },
-      });
-    } else {
-      dialog.prompt({
-        title: translations.value.card.enterPasswd,
-        body: translations.value.settings.warning,
-        icon: 'riLockLine',
-        okText: translations.value.card.lock,
-        cancelText: translations.value.dialog.cancel,
-        placeholder: translations.value.card.password,
-        onConfirm: async (enteredPassword) => {
-          const isValid = await passwordStore.isValidPassword(enteredPassword);
-          if (isValid) {
-            await noteStore.lockNote(note, enteredPassword);
-          } else {
-            play('error');
-            showCardAlert(translations.value.card.wrongPasswd);
-          }
-        },
-      });
-    }
+    await noteStore.lockNote(note);
   } catch (error) {
     console.error('Error locking note:', error);
   }
 }
 
 async function unlockNote(note) {
-  const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
-  dialog.prompt({
-    title: translations.value.card.enterPasswd,
-    body: translations.value.card.isLocked,
-    icon: 'riLockUnlockLine',
-    okText: translations.value.card.unlock,
-    cancelText: translations.value.dialog.cancel,
-    placeholder: translations.value.card.password,
-    onConfirm: async (enteredPassword) => {
-      try {
-        const hassharedKey = await passwordStore.retrieve();
-        if (!hassharedKey) {
-          await noteStore.unlockNote(note, enteredPassword);
-          await passwordStore.setSharedKey(enteredPassword);
-          await verifyPassphrase(enteredPassword);
-        } else {
-          const isValid = await passwordStore.isValidPassword(enteredPassword);
-          if (isValid) {
-            await noteStore.unlockNote(note, enteredPassword);
-          } else {
-            play('error');
-            showCardAlert(translations.value.card.wrongPasswd);
-          }
-        }
-      } catch {
-        play('error');
-        showCardAlert(translations.value.card.wrongPasswd);
-      }
-    },
-  });
+  try {
+    await noteStore.unlockNote(note);
+  } catch (error) {
+    console.error('Error unlocking note:', error);
+  }
 }
 
 async function deleteNote(note) {

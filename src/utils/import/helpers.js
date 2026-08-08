@@ -159,16 +159,13 @@ export async function prepareMarkdownStaging(
   assetDirs = []
 ) {
   const stagingRoot = path.join(appDirectory, '.import-staging', noteId);
-  const noteAssetsDir = path.join(stagingRoot, 'notes-assets');
-  const fileAssetsDir = path.join(stagingRoot, 'file-assets');
-  await ensureDir(noteAssetsDir);
-  await ensureDir(fileAssetsDir);
+  const assetsDir = path.join(stagingRoot, 'assets');
+  await ensureDir(assetsDir);
 
   for (const assetDir of assetDirs) {
     if (!(await pathExists(assetDir))) continue;
     try {
-      await copyPath(assetDir, noteAssetsDir);
-      await copyPath(assetDir, fileAssetsDir);
+      await copyPath(assetDir, assetsDir);
     } catch (error) {
       console.warn('Staging asset copy failed:', error);
     }
@@ -293,7 +290,7 @@ export async function importMarkdownFile({
   for (const assetDir of assetDirs) {
     await copyDirectoryContents(
       assetDir,
-      path.join(appDirectory, 'notes-assets', id)
+      path.join(appDirectory, 'assets', id)
     );
   }
 
@@ -371,11 +368,11 @@ export function resolveRelativeFileValue(value, noteId, resources = []) {
   if (source.startsWith('resource://')) {
     const hash = source.replace('resource://', '');
     const match = resources.find((resource) => resource.hash === hash);
-    return match ? `file-assets://${noteId}/${match.filename}` : source;
+    return match ? `assets://${noteId}/${match.filename}` : source;
   }
 
   const fileName = path.basename(source);
-  return `file-assets://${noteId}/${fileName}`;
+  return `assets://${noteId}/${fileName}`;
 }
 
 export function sanitizeFilename(name) {

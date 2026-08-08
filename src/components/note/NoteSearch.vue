@@ -68,7 +68,9 @@
 
         <!-- Replace All Button -->
         <ui-button
-          v-tooltip="translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'"
+          v-tooltip="
+            translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'
+          "
           :disabled="!state.replaceWith"
           @click="replaceAllText"
         >
@@ -95,6 +97,13 @@
         <ui-button :disabled="!state.query" @click="findNextResult">
           <v-remixicon
             name="riArrowDownLine"
+            class="dark:text-neutral-200 text-neutral-600"
+          />
+        </ui-button>
+
+        <ui-button @click="$emit('close')">
+          <v-remixicon
+            name="riCloseLine"
             class="dark:text-neutral-200 text-neutral-600"
           />
         </ui-button>
@@ -176,7 +185,7 @@
             />
           </ui-button>
 
-          <!-- Close Button (you'll need to emit this or handle closing) -->
+          <!-- Close Button -->
           <ui-button icon class="p-2" @click="$emit('close')">
             <v-remixicon
               name="riCloseLine"
@@ -320,7 +329,7 @@ export default {
       props.editor.commands.setTextSelection(position);
 
       const { node } = props.editor.view.domAtPos(
-        props.editor.state.selection.anchor
+        props.editor.state.selection.anchor,
       );
       if (node instanceof HTMLElement) {
         node.scrollIntoView({ behavior: 'smooth', block: 'center' });

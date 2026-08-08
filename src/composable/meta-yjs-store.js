@@ -4,7 +4,7 @@
  */
 
 import * as Y from 'yjs';
-import { getSnapshot } from '@/lib/native/yjs.js';
+import { getSnapshots } from '@/lib/native/yjs.js';
 import { useStorage } from '@/composable/storage';
 import { buildNotePreview, EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
@@ -76,6 +76,21 @@ export async function writeStoresFromWorkspace() {
     yLabels.push(missingLabels);
   }
 
+  // Deduplicate the Y.Array if duplicates somehow accumulated
+  const seen = new Set();
+  const deduped = [];
+  for (let i = 0; i < yLabels.length; i++) {
+    const name = yLabels.get(i);
+    if (!seen.has(name)) {
+      seen.add(name);
+      deduped.push(name);
+    }
+  }
+  if (deduped.length !== yLabels.length) {
+    yLabels.delete(0, yLabels.length);
+    yLabels.push(deduped);
+  }
+
   const missingColors = Object.entries(kvColors).filter(
     ([k]) => !yLabelColors.has(k)
   );
@@ -112,11 +127,12 @@ export async function writeStoresFromWorkspace() {
   folderStore._rebuildIndex();
 
   // Labels
-  labelStore.data = yLabels.toArray();
+  labelStore.data = [...new Set(yLabels.toArray())];
   labelStore.colors = yMapToObj(yLabelColors);
 
   // Note metadata (preserve content kept in memory separately)
   const notes = { ...noteStore.data };
+  const pendingPreviews = [];
   for (const [id, yNote] of doc.getMap('notes').entries()) {
     const meta = yMapToObj(yNote);
     const existing = notes[id] || {};
@@ -145,23 +161,7 @@ export async function writeStoresFromWorkspace() {
     } else {
       let previewContent = merged.content || existing.content;
       if (!previewContent) {
-        try {
-          const snapshot = await getSnapshot(id);
-          if (snapshot && snapshot.length > 0) {
-            const tmp = new Y.Doc();
-            Y.applyUpdate(
-              tmp,
-              snapshot instanceof Uint8Array
-                ? snapshot
-                : new Uint8Array(snapshot)
-            );
-            previewContent = yXmlFragmentToProsemirrorJSON(
-              tmp.getXmlFragment('content')
-            );
-          }
-        } catch (err) {
-          console.warn('[meta-yjs] preview load failed for', id, err);
-        }
+        pendingPreviews.push(id);
       }
 
       const { cardPreview, preview } = buildNotePreview({
@@ -175,6 +175,38 @@ export async function writeStoresFromWorkspace() {
     }
 
     notes[id] = merged;
+  }
+
+  // Batch-load Yjs snapshots for notes that have no in-memory content source
+  // (single round-trip instead of one IPC call per note).
+  if (pendingPreviews.length > 0) {
+    try {
+      const snapshots = await getSnapshots(pendingPreviews);
+      for (const id of pendingPreviews) {
+        const snapshot = snapshots?.[id];
+        if (!snapshot || snapshot.length === 0) continue;
+        const tmp = new Y.Doc();
+        Y.applyUpdate(
+          tmp,
+          snapshot instanceof Uint8Array ? snapshot : new Uint8Array(snapshot)
+        );
+        const content = yXmlFragmentToProsemirrorJSON(
+          tmp.getXmlFragment('content')
+        );
+        const merged = notes[id];
+        if (!merged) continue;
+        const { cardPreview, preview } = buildNotePreview({
+          content,
+          preview: merged.preview || merged.searchText,
+          searchText: merged.searchText,
+          hidden: false,
+        });
+        merged.cardPreview = cardPreview;
+        if (!merged.preview) merged.preview = preview;
+      }
+    } catch (err) {
+      console.warn('[meta-yjs] batch preview load failed', err);
+    }
   }
   noteStore.data = notes;
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
@@ -190,13 +222,28 @@ export async function writeStoresFromWorkspace() {
  */
 export async function backfillNotePreviews() {
   const noteStore = useNoteStore();
+  const needsSnapshot = [];
   for (const [id, note] of Object.entries(noteStore.data || {})) {
     if (!note || !id || note.isLocked) continue;
     if (note.cardPreview && note.cardPreview.blocks?.length) continue;
     if (isEncryptedContent(note.content)) continue;
+    needsSnapshot.push(id);
+  }
+  if (needsSnapshot.length === 0) return;
+
+  let snapshots = {};
+  try {
+    // Batch-load all missing previews in a single round-trip.
+    snapshots = await getSnapshots(needsSnapshot);
+  } catch (err) {
+    console.warn('[meta-yjs] preview backfill batch failed', err);
+    return;
+  }
+
+  for (const [id, snapshot] of Object.entries(snapshots)) {
+    const note = noteStore.data[id];
+    if (!note || !snapshot || snapshot.length === 0) continue;
     try {
-      const snapshot = await getSnapshot(id);
-      if (!snapshot || snapshot.length === 0) continue;
       const tmp = new Y.Doc();
       Y.applyUpdate(
         tmp,

@@ -3,7 +3,7 @@ import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
 import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
-import { forceSyncNow, setPeriodicSyncEnabled } from '@/utils/sync';
+import { forceSyncNow } from '@/utils/sync';
 import { listen } from '@tauri-apps/api/event';
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
@@ -73,7 +73,6 @@ export function useSettingsData({
   const appStore = useAppStore();
   const advancedSettings = ref(getSettingSync('advancedSettings'));
   const spellcheckEnabled = ref(getSettingSync('spellcheckEnabled'));
-  const autoSync = ref(getSettingSync('autoSync'));
   const selectedFont = ref(getSettingSync('selectedFont'));
   const selectedLanguage = ref(getSettingSync('selectedLanguage'));
   const directionPreference = ref(
@@ -201,10 +200,10 @@ export function useSettingsData({
       if (canceled) return;
 
       let data = await storage.store();
-      data.sharedKey = storage.get('sharedKey');
+      data.appPassword = storage.get('sharedKey');
       data.lockedNotes = JSON.parse(localStorage.getItem('lockedNotes'));
       await passwordStore.retrieve();
-      data.sharedKey = passwordStore.sharedKey;
+      data.appPassword = passwordStore.appPassword;
 
       if (state.withPassword) {
         data = await encryptSettings(JSON.stringify(data), state.password);
@@ -216,12 +215,8 @@ export function useSettingsData({
       await ensureDir(folderPath);
       await writeJson(path.join(folderPath, 'data.json'), { data });
       await copyPath(
-        path.join(appDirectory, 'notes-assets'),
+        path.join(appDirectory, 'assets'),
         path.join(folderPath, 'assets')
-      );
-      await copyPath(
-        path.join(appDirectory, 'file-assets'),
-        path.join(folderPath, 'file-assets')
       );
 
       if (!folderPath.includes('gvfs')) {
@@ -286,8 +281,8 @@ export function useSettingsData({
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        if (result.sharedKey) {
-          await passwordStore.importSharedKey(result.sharedKey);
+        if (result.appPassword) {
+          await passwordStore.importAppPassword(result.appPassword);
         }
 
         if (result.lockStatus !== null && result.lockStatus !== undefined) {
@@ -300,11 +295,7 @@ export function useSettingsData({
 
         await copyPath(
           path.join(dirPath, 'assets'),
-          path.join(appDirectory, 'notes-assets')
-        );
-        await copyPath(
-          path.join(dirPath, 'file-assets'),
-          path.join(appDirectory, 'file-assets')
+          path.join(appDirectory, 'assets')
         );
       };
 
@@ -376,8 +367,7 @@ export function useSettingsData({
           const appDirectory = await getEffectiveAppDirectory().catch(() => '');
 
           const cleanupPaths = [
-            appDirectory ? path.join(appDirectory, 'notes-assets') : '',
-            appDirectory ? path.join(appDirectory, 'file-assets') : '',
+            appDirectory ? path.join(appDirectory, 'assets') : '',
             appDirectory ? path.join(appDirectory, 'app-crypto') : '',
           ].filter(Boolean);
 
@@ -402,22 +392,6 @@ export function useSettingsData({
       },
     });
   }
-
-  const handleAutoSyncChange = () => {
-    if (!defaultPath.value || defaultPath.value.trim() === '') {
-      autoSync.value = false;
-      showAlert(translations.value.settings.emptyPathWarn);
-      return;
-    }
-
-    void setSetting('autoSync', autoSync.value);
-    if (autoSync.value) {
-      forceSyncNow().catch(() => {});
-      setPeriodicSyncEnabled(true);
-    } else {
-      setPeriodicSyncEnabled(false);
-    }
-  };
 
   const toggleAdvancedSettings = () => {
     void setSetting('advancedSettings', advancedSettings.value);
@@ -500,7 +474,6 @@ export function useSettingsData({
     defaultPath,
     advancedSettings,
     spellcheckEnabled,
-    autoSync,
     selectedFont,
     selectedLanguage,
     directionPreference,
@@ -518,7 +491,6 @@ export function useSettingsData({
     chooseDefaultPath,
     clearPath,
     nukeAppDebugOnly,
-    handleAutoSyncChange,
     syncProgress,
     registerSyncProgressListener,
     unregisterSyncProgressListener,

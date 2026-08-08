@@ -204,10 +204,10 @@ export function useNoteMenu(props) {
 
     const assets = {
       notesAssets: await encodeAssets(
-        path.join(appDirectory, 'notes-assets', props.id)
+        path.join(appDirectory, 'assets', props.id)
       ),
       fileAssets: await encodeAssets(
-        path.join(appDirectory, 'file-assets', props.id)
+        path.join(appDirectory, 'assets', props.id)
       ),
     };
 
@@ -287,8 +287,7 @@ export function useNoteMenu(props) {
       seen.add(zipPath);
       const nid = assetNoteId || fileAssetNoteId;
       const fname = assetFile || fileAssetFile;
-      const assetType = assetFile ? 'notes-assets' : 'file-assets';
-      const srcPath = path.join(appDir, assetType, nid, fname);
+      const srcPath = path.join(appDir, 'assets', nid, fname);
       try {
         const base64 = await readData(srcPath);
         if (base64) zip.file(zipPath, base64, { base64: true });

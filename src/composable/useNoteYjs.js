@@ -6,9 +6,7 @@ import {
   getSnapshot,
   compactUpdates,
 } from '@/lib/native/yjs.js';
-import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
-import { getSyncPath } from '@/utils/sync/path.js';
-import { getSettingSync } from '@/composable/settings';
+import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
   getDeviceId,
@@ -16,6 +14,11 @@ import {
   toUint8Array,
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
+import { getHocuspocusSync } from './useHocuspocusSync.js';
+import { speed } from '@/utils/speed.js';
+
+export { registerActiveDoc, applyRemote } from './yjs-shared.js';
+import { registerActiveDoc, unregisterActiveDoc } from './yjs-shared.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
@@ -36,21 +39,6 @@ async function retryWrite(fn, label) {
   }
 }
 
-const activeDocs = new Map();
-
-export function registerActiveDoc(noteId, doc) {
-  activeDocs.set(noteId, doc);
-}
-
-export function applyRemote(noteId, update) {
-  const target = activeDocs.get(noteId);
-  if (!target) return false;
-  target.transact(() => {
-    Y.applyUpdate(target, update);
-  }, 'sync');
-  return true;
-}
-
  // Convert TipTap JSON content to Yjs using the editor's own schema.
 
 async function seedFromTipJson(ydoc, contentJson) {
@@ -65,10 +53,12 @@ async function seedFromTipJson(ydoc, contentJson) {
   // replaying individual updates for backwards compatibility.
 
 async function loadStateIntoDoc(newDoc, noteId) {
+  const t = speed('yjs_load_snapshot');
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
       Y.applyUpdate(newDoc, toUint8Array(snapshot));
+      t?.end();
       return;
     }
   } catch (err) {
@@ -81,6 +71,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
   }
+  t?.end();
 }
 
   // Persist a Yjs update to SQLite and optionally queue it for the sync folder.
@@ -95,12 +86,9 @@ async function persistUpdate(noteId, update) {
     //
   }
   try {
-    if (getSettingSync('autoSync')) {
-      const syncPath = await getSyncPath();
-      if (syncPath) {
-        const commitsDir = await ensureCommitsDir(syncPath);
-        queueSyncWrite(commitsDir, noteId, update);
-      }
+    const commitsDir = await getCommitsDir();
+    if (commitsDir) {
+      queueSyncWrite(commitsDir, noteId, update);
     }
   } catch {
     //
@@ -136,7 +124,8 @@ export function useNoteYjs() {
     await persistUpdate(currentNoteId, merged);
   }
 
-  async function load(noteId, initialContent) {
+  async function load(noteId, initialContent, initialTitle) {
+    const t = speed('yjs_load_note');
     // Flush any pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);
@@ -153,7 +142,7 @@ export function useNoteYjs() {
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
+      unregisterActiveDoc(currentNoteId);
       currentDoc.destroy();
     }
 
@@ -175,16 +164,63 @@ export function useNoteYjs() {
       }
     }
 
+    // Seed title if the fragment is empty (first load from store)
+    const titleFrag = newDoc.getXmlFragment('title');
+    if (titleFrag.length === 0 && initialTitle) {
+      try {
+        newDoc.transact(() => {
+          const text = new Y.XmlText();
+          text.insert(0, initialTitle);
+          titleFrag.push([text]);
+        }, 'load');
+      } catch (e) {
+        console.error('[yjs] title seeding failed:', e);
+      }
+    }
+
     newDoc.on('update', (update, origin) => {
       if (origin === 'load' || origin === 'sync') return;
       pendingUpdates.push(update);
       scheduleFlush();
     });
 
+    const hocuspocus = getHocuspocusSync();
+    hocuspocus.joinNoteRoom(noteId, newDoc);
+
     currentDoc = newDoc;
-    activeDocs.set(noteId, newDoc);
+    registerActiveDoc(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
+    t?.end();
+  }
+
+  function getTitle() {
+    if (!currentDoc) return '';
+    const titleFrag = currentDoc.getXmlFragment('title');
+    return titleFrag.toJSON() || '';
+  }
+
+  function setTitle(title) {
+    if (!currentDoc) return;
+    const titleFrag = currentDoc.getXmlFragment('title');
+    currentDoc.transact(() => {
+      titleFrag.delete(0, titleFrag.length);
+      if (title) {
+        const text = new Y.XmlText();
+        text.insert(0, title);
+        titleFrag.push([text]);
+      }
+    });
+  }
+
+  function observeTitle(callback) {
+    if (!currentDoc) return () => {};
+    const titleFrag = currentDoc.getXmlFragment('title');
+    const handler = () => {
+      callback(titleFrag.toJSON() || '');
+    };
+    titleFrag.observe(handler);
+    return () => titleFrag.unobserve(handler);
   }
 
   onUnmounted(async () => {
@@ -204,10 +240,10 @@ export function useNoteYjs() {
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
+      unregisterActiveDoc(currentNoteId);
       currentDoc.destroy();
     }
   });
 
-  return { doc, ready, load };
+  return { doc, ready, load, getTitle, setTitle, observeTitle };
 }

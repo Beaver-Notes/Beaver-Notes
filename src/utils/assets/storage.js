@@ -1,8 +1,8 @@
 
-import { isEncryptionEnabled } from '@/utils/crypto/encryption.js';
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
+import { speed } from '@/utils/speed.js';
 
 function sourceFileName(file) {
   if (typeof file === 'string') {
@@ -59,22 +59,26 @@ async function createFileDestination(file, id) {
   const appDirectory = await getAppDirectory();
   const { ext, name } = path.parse(sourceFileName(file));
   const fileName = `${name}${ext}`;
-  const assetsPath = path.join(appDirectory, 'file-assets', id);
+  const assetsPath = path.join(appDirectory, 'assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);
   return { destPath, fileName };
 }
 
 export async function saveFile(file, id) {
+  if (!id) {
+    throw new Error('Cannot save file asset: missing note id');
+  }
+  const t = speed('asset_save_file');
   try {
     const contentUint8Array = await readFileAsBytes(file);
     const { fileName, destPath } = await createFileDestination(file, id);
-    const relativePath = `file-assets://${id}/${fileName}`;
+    const relativePath = `assets://${id}/${fileName}`;
     await backend.invoke('fs:writeFile', {
       data: contentUint8Array,
       path: destPath,
-      skipAssetEncryption: !isEncryptionEnabled(),
     });
+    t?.end();
     return { fileName, relativePath };
   } catch (error) {
     console.error(error);
@@ -93,7 +97,7 @@ async function createImageDestination(file, id, timestamp) {
   const appDirectory = await getAppDirectory();
   const { ext, name } = path.parse(sourceFileName(file));
   const fileName = `${await sha256Hex(name + timestamp)}${ext}`;
-  const assetsPath = path.join(appDirectory, 'notes-assets', id);
+  const assetsPath = path.join(appDirectory, 'assets', id);
   await backend.invoke('fs:ensureDir', assetsPath);
   const destPath = path.join(assetsPath, fileName);
   return { destPath, fileName };
@@ -106,7 +110,6 @@ async function copyImage(file, id, timestamp) {
   await backend.invoke('fs:writeFile', {
     data: content,
     path: destPath,
-    skipAssetEncryption: !isEncryptionEnabled(),
   });
 
   return { destPath, fileName };

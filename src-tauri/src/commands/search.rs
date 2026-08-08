@@ -3,7 +3,7 @@ use tauri::{AppHandle, State};
 
 use crate::shared::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SearchResult {
     pub(crate) ids: Vec<String>,
@@ -15,14 +15,15 @@ pub(crate) struct SearchResult {
 /// The frontend resolves full note objects from the in-memory store using these IDs,
 /// so this call never reads note content into Rust memory.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn search_notes(
     app: AppHandle,
     state: State<'_, AppState>,
     query: String,
-    limit: Option<usize>,
+    limit: Option<i64>,
 ) -> Result<SearchResult, AppError> {
     let pool = data_pool(&app, &state)?;
-    let ids = crate::db::fts_search(&pool, &query, limit.unwrap_or(200))?;
+    let ids = crate::db::fts_search(&pool, &query, limit.unwrap_or(200) as usize)?;
     Ok(SearchResult { ids })
 }
 
@@ -31,6 +32,7 @@ pub(crate) fn search_notes(
 /// `body` is a pre-extracted plain-text string built by the JS layer, so Rust
 /// never has to deserialise the full ProseMirror JSON.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn search_index_note(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -45,6 +47,7 @@ pub(crate) fn search_index_note(
 
 /// Remove a note from the FTS index. Call when a note is deleted.
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn search_remove_note(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -59,11 +62,12 @@ pub(crate) fn search_remove_note(
 /// Useful after a bulk import or first launch (the index will be empty until notes
 /// are individually saved / indexed after startup).
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn search_rebuild_index(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<usize, AppError> {
+) -> Result<u32, AppError> {
     let pool = data_pool(&app, &state)?;
-    let count = crate::db::fts_rebuild(&pool)?;
+    let count = crate::db::fts_rebuild(&pool)? as u32;
     Ok(count)
 }

@@ -32,3 +32,11 @@ function handleChange(event) {
   emits('change', event.target.checked);
 }
 </script>
+<style>
+@media (prefers-reduced-motion: reduce) {
+  .peer,
+  .peer::after {
+    transition-duration: 0.01ms !important;
+  }
+}
+</style>

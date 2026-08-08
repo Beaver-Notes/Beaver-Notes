@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod characterization {
-    use crate::shared::crypto::keys::derive_kek_argon2id;
+    use base64::Engine;
+    use crate::shared::crypto::keys::{
+        aead_decrypt_bytes, aead_encrypt_bytes, derive_kek_argon2id,
+    };
 
     /// Characterization vector for argon2id key derivation. The expected bytes
     /// were captured from the original `crypto.rs` before the module split and
@@ -54,6 +57,27 @@ mod characterization {
         assert!(is_encrypted_asset_buffer(&enc));
         let dec = decrypt_asset_bytes_with_key(&enc, &key).unwrap();
         assert_eq!(dec, plain);
+    }
+
+    /// Sync ciphertext must round-trip and reject any authenticated-byte change.
+    #[test]
+    fn sync_payload_authenticates_ciphertext() {
+        let key = [0x42u8; 32];
+        let aad = "remote-note-a-201";
+        let plaintext = b"yjs-update";
+        let (iv, enc) = aead_encrypt_bytes(&key, plaintext, aad).unwrap();
+
+        assert_eq!(aead_decrypt_bytes(&key, &iv, &enc, aad).unwrap(), plaintext);
+
+        let mut tampered = base64::engine::general_purpose::STANDARD
+            .decode(&enc)
+            .unwrap();
+        tampered[0] ^= 1;
+        let tampered = base64::engine::general_purpose::STANDARD.encode(tampered);
+        assert!(matches!(
+            aead_decrypt_bytes(&key, &iv, &tampered, aad),
+            Err(crate::shared::error::AppError::WrongPassword)
+        ));
     }
 
     /// Yjs blob round-trip.

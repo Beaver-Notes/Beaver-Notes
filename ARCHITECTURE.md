@@ -23,17 +23,23 @@ src-tauri/src/
   secure_blob.rs      # In-memory encrypted blob cache
   commands/
     app.rs            # App lifecycle commands (info, zoom, notifications)
-    fs.rs             # Filesystem operations
-    storage.rs        # KV storage commands (storage_get/set/delete)
-    security.rs       # Encryption, key derivation, password management
+    fs.rs             # Filesystem operations (asset encryption hooks)
+    storage.rs        # KV storage commands (storage_get/set/delete, ae:4 row crypto)
+    security.rs       # Encryption, key derivation, safe storage, lockout
     yjs.rs            # Yjs CRDT sync commands
     workspace.rs      # Multi-workspace CRUD
     dialogs.rs        # Native dialogs
     ...
   shared/
     mod.rs            # AppState, window helpers, constants
-    crypto.rs         # Encryption/decryption, key management, asset crypto
-    cache.rs          # LRU asset cache
+    state.rs          # CryptoSession, SecurityState, CacheState, FileState
+    crypto/
+      mod.rs          # Encryption module glue
+      keys.rs         # Key hierarchy: KDF, KEK/DEK, manifest, rotation, recovery
+      assets.rs       # BNA3 asset streaming + BNY1 Yjs blob crypto
+      legacy.rs       # CryptoJS (AES-CBC) legacy decryption — migration only
+    cache.rs          # LRU decrypted note/asset caches
+  secure_blob.rs      # Secure blob store (keyring + encrypted disk fallback)
 
 src/
   index.js            # Frontend entry
@@ -89,38 +95,59 @@ Both encode/decode the same binary format (`updates/v1`), ensuring wire compatib
 
 ## Encryption Architecture
 
+> Full, current reference: **[`docs/encryption.md`](docs/encryption.md)** (key hierarchy,
+> envelope formats, sequence diagrams, file index, known gaps).
+
 ### Layers
 
 | Layer | Algorithm | Scope |
 |-------|-----------|-------|
-| Note content at rest | AES-256-GCM | `note_content` + `yjs_snapshots` blobs (encrypted via `encrypt_yjs_blob`) |
-| Asset files | AES-256-CBC + HMAC-SHA256 | Images, attachments (encrypted via asset crypto) |
-| Sync payload | XChaCha20-Poly1305 | Cross-device sync transport encryption |
-| Key derivation | Argon2id | User passphrase → 256-bit key |
-| Password storage | PBKDF2 (100k iterations) | Password hash verification |
+| Note content at rest (Yjs) | AES-256-GCM (`BNY1`) | `note_content` + `yjs_snapshots` blobs |
+| Note/KV metadata | XChaCha20-Poly1305 (`ae:4` + per-row AAD) | `data.db` KV rows (`notes.<id>`, `labels`, …) |
+| Asset files | AES-256-GCM (`BNA3`, streamed chunks) | Images, attachments in `notes-assets`/`file-assets` |
+| Sync payload | XChaCha20-Poly1305 (`v4` + AAD) | Cross-device commits/snapshots |
+| Secure blobs | AES-256-GCM (OS keyring master key) | Passphrase auto-unlock, Beaver account session |
+| Collaboration | AES-256-GCM (WebCrypto, ML-KEM-derived key) | In-session collab updates |
+| Key derivation | Argon2id (16 MiB/2/2) | Passphrase → KEK (manifest v3+) |
+| Password storage | Bcrypt | Account-password hash verification |
 
 ### Key hierarchy
 
 ```
 User passphrase
-  └→ Argon2id → master key (256-bit)
-       ├→ KEK (key-encryption-key) → wraps/unwraps per-note item keys
-       ├→ Asset encryption key
-       └→ Sync encryption key
+  └→ Argon2id → KEK (key-encryption-key, memory only)
+       └→ AES-256-GCM wrap → Items key (DEK, random 32 B)
+            ├→ XChaCha20-Poly1305: note content (ae:3), KV rows (ae:4), sync (v4)
+            └→ AES-256-GCM: Yjs blobs (BNY1), assets (BNA3)
+Recovery code (256-bit) ── wraps DEK → recoveryKek (unlock without passphrase)
+OS keyring master key   ── AES-GCM → secure blobs
 ```
 
-### Important boundary
+One DEK encrypts everything; passphrase only unwraps the stored DEK, so
+passphrase changes re-wrap without re-encrypting data. Key rotation archives the
+old DEK into `previous_keys` (decryptable via `kid` lookups).
 
-**The `kv` table stores plaintext JSON** — note metadata (title, content ProseMirror JSON, timestamps) is NOT encrypted at rest. Only the Yjs binary blobs in `note_content`/`yjs_snapshots` are encrypted. If you assume "all data is encrypted", this is incorrect.
+### At-rest boundaries (important)
+
+- `data.db` KV rows are **encrypted** (`ae:4`) when app encryption is enabled and
+  the key is loaded; rows written while locked are plaintext and upgraded on read.
+- Note content lives in **Yjs CRDT blobs** (`BNY1`), not KV.
+- `settings.db`, the FTS5 search index, and the macOS Spotlight index are
+  **plaintext by design** (search trade-off).
+- The renderer never holds the KEK/DEK — all at-rest crypto runs in Rust.
 
 ### Encryption manifest
 
-An `EncryptionManifest` (stored in `settings.db` via the KV layer) tracks:
-- Manifest version (currently v4)
-- Scope (`app` or `sync`)
+Stored at `<appData>/app-crypto/manifest.v2.json` (format version 4). Tracks:
+- KDF parameters and salts (Argon2id)
 - Wrapped key envelopes (nonce + ciphertext)
-- Key rotation history (`previous_keys`)
-- Lockout state (rate-limiting after failed passphrase attempts)
+- `currentKeyId` + rotation history (`previous_keys`)
+- Recovery-key envelope (`recoveryKek`)
+- Scope (`app` or `sync`)
+
+A copy of the public KDF params + wrapped DEK is published to
+`<syncPath>/BeaverNotesSync/keyParams.json` so a second device can derive the
+same key from its passphrase.
 
 ## Database Schema
 

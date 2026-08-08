@@ -119,7 +119,7 @@
                     'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                       selectedCategory !== category.name,
                   }"
-                  class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-all duration-200"
+                  class="flex items-center gap-2 p-2 rounded-full text-xs font-medium transition-[background-color,color] duration-200"
                   @click="
                     selectedCategory =
                       selectedCategory === category.name ? null : category.name
@@ -379,7 +379,7 @@
               'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700':
                 selectedCategory !== category.name,
             }"
-            class="flex items-center gap-2 p-2.5 rounded-full text-xs font-medium transition-all duration-200"
+            class="flex items-center gap-2 p-2.5 rounded-full text-xs font-medium transition-[background-color,color] duration-200"
             @click="
               selectedCategory =
                 selectedCategory === category.name ? null : category.name

@@ -50,6 +50,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_audio_recorder::init())
+        .plugin(tauri_plugin_biometry::init())
         .manage(state);
 
     #[cfg(mobile)]
@@ -142,12 +143,14 @@ pub fn run() {
             commands::fs::fs_write_file,
             commands::fs::fs_mkdir,
             commands::fs::fs_read_file,
+            commands::fs::fs_read_file_binary,
             commands::fs::fs_readdir,
             commands::fs::fs_stat,
             commands::fs::fs_unlink,
             commands::fs::fs_read_data,
             commands::fs::fs_is_file,
             commands::fs::fs_access,
+            commands::fs::fs_download_url,
             commands::storage::storage_get_store,
             commands::storage::storage_replace,
             commands::storage::storage_get,
@@ -167,7 +170,6 @@ pub fn run() {
             commands::security::encryption_get_state,
             commands::security::encryption_submit_password,
             commands::security::encryption_enable,
-            commands::security::encryption_disable,
             commands::security::encryption_unlock,
             commands::security::encryption_lock,
             commands::security::encryption_encrypt_note_payload,
@@ -176,6 +178,10 @@ pub fn run() {
             commands::security::sync_decrypt_payload,
             commands::security::sync_key_ready,
             commands::security::encryption_reconcile_key_params,
+            commands::security::encryption_adopt_key_params,
+            commands::security::encryption_has_remote_key_params,
+            commands::security::encryption_generate_recovery_code,
+            commands::security::encryption_recover_with_code,
             commands::security::passwd_hash,
             commands::security::passwd_compare,
             commands::security::passwd_record_failure,
@@ -209,6 +215,7 @@ pub fn run() {
             commands::yjs::yjs_append,
             commands::yjs::yjs_get_updates,
             commands::yjs::yjs_get_snapshot,
+            commands::yjs::yjs_get_snapshots,
             commands::yjs::yjs_compact,
             commands::yjs::yjs_delete,
             commands::workspace::workspace_list,

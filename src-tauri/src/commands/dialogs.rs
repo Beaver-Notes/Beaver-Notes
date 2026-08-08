@@ -8,6 +8,7 @@ use tauri_plugin_dialog::{DialogExt, FilePath, MessageDialogButtons, MessageDial
 use crate::shared::*;
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn dialog_open(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -80,6 +81,7 @@ pub(crate) async fn dialog_open(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn dialog_message(
     app: AppHandle,
     props: MessageDialogOptions,
@@ -110,6 +112,7 @@ pub(crate) async fn dialog_message(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn dialog_save(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -172,6 +175,7 @@ pub(crate) async fn dialog_save(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn get_system_fonts() -> Result<Vec<String>, AppError> {
     #[cfg(target_os = "android")]
     {

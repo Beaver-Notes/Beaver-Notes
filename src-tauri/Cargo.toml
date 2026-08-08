@@ -60,21 +60,26 @@ rand = "0.8"
 hex = "0.4"
 base64 = "0.22"
 md5 = "0.7"
+zeroize = { version = "1", features = ["derive", "std"] }
 keyring = "2"
+rayon = "1"
 dirs = "5"
 lru = "0.12"
 yrs = "0.27"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
+reqwest = { version = "0.13", features = ["rustls", "stream"], default-features = false }
+futures-util = "0.3"
 http = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 urlencoding = "2"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 tauri-plugin-swipe-back-ios = "1.0.0"
+tauri-plugin-biometry = "0.2"
 tauri-plugin-app-icon = "0.1.0"
 tauri-plugin-scoped-storage = "=1.5.0"
-specta = "=2.0.0-rc.25"
+specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
-specta-typescript = "0.0.12"
+specta-typescript = { version = "0.0.12", features = ["serde"] }
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]

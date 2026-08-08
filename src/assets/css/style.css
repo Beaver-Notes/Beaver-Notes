@@ -300,8 +300,3 @@ html.prefers-reduced-motion .route-stage-leave-to {
   opacity: 1;
   transform: none;
 }
-
-/* Workspace feature gate — hidden until launch */
-.workspace-feature-gated {
-  display: none !important;
-}

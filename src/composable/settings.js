@@ -63,11 +63,6 @@ const settingDefs = {
     defaultValue: false,
     parse: (value) => value === true || value === 'true',
   },
-  autoSync: {
-    legacyKey: 'autoSync',
-    defaultValue: false,
-    parse: (value) => value === true || value === 'true',
-  },
   todayDateFormat: {
     legacyKey: 'todayDateFormat',
     defaultValue: 'DD-MM-YYYY',
@@ -121,6 +116,16 @@ const settingDefs = {
     legacyKey: 'onboardingCompleted',
     defaultValue: false,
     parse: (value) => value === true || value === 'true',
+  },
+  beaverAccountServerUrl: {
+    legacyKey: 'beaverAccountServerUrl',
+    defaultValue: 'https://api.beavernotes.com',
+    parse: String,
+  },
+  syncTransport: {
+    legacyKey: 'syncTransport',
+    defaultValue: 'folder',
+    parse: String,
   },
 };
 

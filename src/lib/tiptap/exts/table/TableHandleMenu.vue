@@ -58,6 +58,17 @@
 
     <div class="border-t border-neutral-100 dark:border-neutral-800 mx-2" />
 
+    <!-- Merge / Split -->
+    <button
+      class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm transition-colors text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+      @click="mergeOrSplit"
+    >
+      <v-remixicon :name="mergeOrSplitIcon" class="size-6 shrink-0 text-neutral-500 dark:text-neutral-400" />
+      <span>{{ mergeOrSplitLabel }}</span>
+    </button>
+
+    <div class="border-t border-neutral-100 dark:border-neutral-800 mx-2" />
+
     <!-- Move -->
     <div>
       <button
@@ -186,6 +197,39 @@ export default {
       { label: t?.editor?.table?.sortAsc || 'Sort ascending', icon: 'riSortAsc', run: () => sort('asc') },
       { label: t?.editor?.table?.sortDesc || 'Sort descending', icon: 'riSortDesc', run: () => sort('desc') },
     ]);
+
+    const mergeOrSplitState = computed(() => {
+      if (!props.editor) return 'merge';
+      const isRow = props.orientation === 'row';
+      const idx = isRow ? props.state?.rowIndex : props.state?.colIndex;
+      const tp = props.state?.blockPos;
+      if (idx == null || tp == null) return 'merge';
+      const table = getTable(props.editor, tp);
+      if (!table) return 'merge';
+      const cells = isRow
+        ? getRowCells(props.editor, idx, tp).cells
+        : getColumnCells(props.editor, idx, tp).cells;
+      const merged = cells.find(
+        (c) => (c.node?.attrs.colspan ?? 1) > 1 || (c.node?.attrs.rowspan ?? 1) > 1
+      );
+      return merged ? 'split' : 'merge';
+    });
+
+    const mergeOrSplitIcon = computed(() => {
+      return mergeOrSplitState.value === 'split' ? 'riSplitCellsVertical' : 'riMergeCellsHorizontal';
+    });
+
+    const mergeOrSplitLabel = computed(() => {
+      return mergeOrSplitState.value === 'split'
+        ? (t?.menu?.splitCell || 'Split cell')
+        : (t?.menu?.mergeCells || 'Merge cells');
+    });
+
+    function mergeOrSplit() {
+      if (!props.editor) return;
+      props.editor.chain().focus().mergeOrSplit().run();
+      close();
+    }
 
     function setBg(color) {
       if (!props.editor) return;
@@ -339,7 +383,8 @@ export default {
       t, menuRef, isHeaderActive, currentAlign,
       colorSwatches, alignOptions,
       moveItems, addItems, sortItems,
-      add, deleteRowColumn, deleteTable, duplicate, move, sort, toggleHeader, close,
+      mergeOrSplitIcon, mergeOrSplitLabel,
+      add, deleteRowColumn, deleteTable, duplicate, move, sort, toggleHeader, mergeOrSplit, close,
       setBg, setAlign,
     };
   },
