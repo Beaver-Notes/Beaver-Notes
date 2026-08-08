@@ -47,3 +47,5 @@ package-lock.json
 # Internal / should not be published
 tests/
 docs/superpowers/
+docs/*.md
+docs/**/*.md
