@@ -659,12 +659,14 @@ export function useAppShell() {
   function handleVisibilityChange() {
     if (document.hidden) {
       // Flush cloud push before going to background
-      getSyncEngine()?.flush().catch(() => {});
-      getSyncEngine()?.stopPullTimer();
+      const engine = getSyncEngine();
+      if (engine) engine.flush().catch(() => {});
+      engine?.stopPullTimer();
     } else {
       // App returned to foreground — pull remote changes and restart pull timer
-      getSyncEngine()?.notifyForeground();
-      getSyncEngine()?.startPullTimer();
+      const engine = getSyncEngine();
+      if (engine) engine.notifyForeground().catch(() => {});
+      engine?.startPullTimer();
     }
   }
 

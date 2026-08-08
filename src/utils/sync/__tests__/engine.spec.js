@@ -59,6 +59,8 @@ vi.mock('@/lib/native/security.js', () => ({
 
 vi.mock('../vault-key-params.js', () => ({
   fetchCloudKeyParams: vi.fn(() => Promise.resolve(null)),
+  cloudKeyParamsReachable: vi.fn(() => false),
+  publishCloudKeyParams: vi.fn(() => Promise.resolve()),
 }));
 
 describe('SyncEngine mutex', () => {

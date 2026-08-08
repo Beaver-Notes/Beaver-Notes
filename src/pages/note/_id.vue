@@ -264,7 +264,11 @@ export default {
       id,
       async (newId) => {
         if (newId && accountStore.isAuthenticated) {
-          await sharing.fetchCollaborators(newId);
+          try {
+            await sharing.fetchCollaborators(newId);
+          } catch {
+            // Errors handled internally by useNoteSharing
+          }
         }
       },
       { immediate: true }

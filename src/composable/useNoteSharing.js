@@ -19,6 +19,7 @@ export function useNoteSharing() {
   const key = ref(null);
   const inviteLinks = ref([]);
   const linkLoading = ref(false);
+  let fetchAbortController = null;
 
   function activeBaseUrl() {
     return accountStore.serverUrl;
@@ -26,10 +27,21 @@ export function useNoteSharing() {
 
   async function fetchCollaborators(noteId) {
     if (!accountStore.isAuthenticated) return;
+
+    // Cancel any in-flight request
+    if (fetchAbortController) {
+      fetchAbortController.abort();
+    }
+    fetchAbortController = new AbortController();
+    const { signal } = fetchAbortController;
+
     loading.value = true;
     error.value = '';
     try {
-      const raw = await apiList(noteId, { baseUrl: activeBaseUrl() });
+      const raw = await apiList(noteId, { baseUrl: activeBaseUrl(), signal });
+      // Check if request was cancelled
+      if (signal.aborted) return;
+
       collaborators.value = Array.isArray(raw)
         ? raw.map((inv) => ({
             userId: inv.userId || inv.user_id,
@@ -40,10 +52,22 @@ export function useNoteSharing() {
           }))
         : [];
     } catch (err) {
+      // Ignore abort errors (expected during navigation)
+      if (err?.name === 'AbortError' || signal.aborted) return;
+
+      // 403 means user is not invited — treat as "no collaborators" rather than error
+      if (err?.status === 403) {
+        collaborators.value = [];
+        return;
+      }
+
       error.value = err?.message || 'Failed to load collaborators';
       console.error('[useNoteSharing] fetchCollaborators failed:', err);
     } finally {
-      loading.value = false;
+      // Only reset loading if this request wasn't cancelled
+      if (!signal.aborted) {
+        loading.value = false;
+      }
     }
   }
 

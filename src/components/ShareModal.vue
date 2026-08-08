@@ -228,8 +228,16 @@ export default {
       () => props.modelValue,
       async (open) => {
         if (open && props.noteId) {
-          await sharing.fetchCollaborators(props.noteId);
-          await fetchLinks(props.noteId);
+          try {
+            await sharing.fetchCollaborators(props.noteId);
+          } catch {
+            // Errors handled internally by useNoteSharing
+          }
+          try {
+            await fetchLinks(props.noteId);
+          } catch {
+            // Link fetch errors are non-critical
+          }
         }
       }
     );

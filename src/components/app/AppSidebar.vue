@@ -8,6 +8,7 @@
       class="pt-5 px-3 mb-3 shrink-0"
       :class="expanded ? 'flex justify-end' : ''"
     >
+      <WorkspaceSwitcher :expanded="expanded" />
       <button
         v-tooltip:right="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
         :aria-label="expanded ? 'Collapse sidebar' : 'Expand sidebar'"
@@ -310,8 +311,6 @@
           </span>
         </transition>
       </router-link>
-
-      <WorkspaceSwitcher :expanded="expanded" />
     </div>
   </aside>
 </template>
@@ -398,7 +397,7 @@ export default {
     const isAllNotesActive = computed(
       () =>
         (route.path === '/' || route.name === 'Home') &&
-        route.query.archived !== 'true'
+        route.query.archived !== 'true',
     );
     const isArchiveActive = computed(() => route.query.archived === 'true');
 
@@ -447,7 +446,7 @@ export default {
       () => route.fullPath,
       () => {
         nextTick(() => calculatePillPositions());
-      }
+      },
     );
 
     function goHome() {
@@ -533,7 +532,7 @@ export default {
           'mod+shift+l': () =>
             theme.setTheme(theme.isDark() ? 'light' : 'dark'),
           'mod+shift+y': () => manualSync(),
-        })
+        }),
       );
     });
     onUnmounted(() => _unregSidebarShortcuts?.());
@@ -554,7 +553,7 @@ export default {
     function manualSync() {
       if (spinning.value) return;
       spinning.value = true;
-      forceSyncNow();
+      forceSyncNow().catch(() => {});
       setTimeout(() => {
         spinning.value = false;
         play('sync');

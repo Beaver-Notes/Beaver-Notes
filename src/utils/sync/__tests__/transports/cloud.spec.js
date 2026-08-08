@@ -485,7 +485,7 @@ describe('CloudTransport', () => {
       await transport.push({}, { force: true });
 
       expect(pushUpdates).toHaveBeenCalledTimes(2);
-      expect(pushUpdates.mock.calls[1][1][0].updates[0].data).toBe('encrypted');
+      expect(pushUpdates.mock.calls[1][1][0].updates[0].data).toBe(btoa('encrypted'));
     });
 
     it('returns the new empty push contract', async () => {
@@ -596,13 +596,32 @@ describe('CloudTransport', () => {
       expect(completeInitialization).not.toHaveBeenCalled();
     });
 
-    it.each(['initializing', 'initialized', 'recovering'])('does not seed a server in %s state', async (status) => {
+    it.each(['initialized', 'recovering'])('does not seed a server in %s state', async (status) => {
       const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
       getRemoteState.mockResolvedValue({ status, documents: [] });
 
       await expect(transport.seedCloudOnce()).resolves.toBe(false);
 
       expect(pushUpdates).not.toHaveBeenCalled();
+    });
+
+    it('seeds a server stuck in initializing with zero documents', async () => {
+      const { getRemoteState, pushUpdates, claimInitialization, uploadInitializationSnapshot, completeInitialization } = await import('../../remote-yjs.js');
+      getRemoteState.mockReset();
+      pushUpdates.mockReset();
+      claimInitialization.mockReset();
+      uploadInitializationSnapshot.mockReset();
+      completeInitialization.mockReset();
+      getRemoteState.mockResolvedValue({ status: 'initializing', documents: [] });
+      pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {} });
+      claimInitialization.mockResolvedValue({ token: 'claim-token' });
+      uploadInitializationSnapshot.mockResolvedValue({ key: 'yjs/workspace-1/meta/1.yjs' });
+      completeInitialization.mockResolvedValue({ ok: true });
+
+      await expect(transport.seedCloudOnce()).resolves.toBe(true);
+
+      expect(pushUpdates).toHaveBeenCalled();
+      expect(completeInitialization).toHaveBeenCalledTimes(1);
     });
 
     it('keeps the stale probe incomplete after a state query failure', async () => {

@@ -199,7 +199,9 @@ import {
   migrateAssetEncryption,
   onAssetMigrationProgress,
   rotateEncryptionKey,
+  reconcileSyncKeyParams,
 } from '@/lib/native/security';
+import { publishCloudKeyParams } from '@/utils/sync/vault-key-params.js';
 
 const { translations } = useTranslations();
 const dialog = useDialog();
@@ -562,6 +564,8 @@ async function rotateKey() {
   encryptionBusy.value = true;
   try {
     await rotateEncryptionKey();
+    reconcileSyncKeyParams().catch(() => {});
+    publishCloudKeyParams().catch(() => {});
     dialog.alert({
       title: translations.value.settings.keyRotated || 'Key Rotated',
       body: translations.value.settings.keyRotatedDesc ||

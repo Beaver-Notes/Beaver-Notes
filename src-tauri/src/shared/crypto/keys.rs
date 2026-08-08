@@ -428,12 +428,23 @@ pub(crate) fn sync_key_params_path(
 ) -> Result<Option<PathBuf>, AppError> {
     let sync_path =
         get_settings_value(app, state, "syncPath").and_then(|v| v.as_str().map(|s| s.to_string()));
-    let Some(sync_path) = sync_path else {
-        return Ok(None);
+    let base = if let Some(ref p) = sync_path {
+        if !p.is_empty() {
+            PathBuf::from(p)
+        } else {
+            // Cloud-only mode: fall back to the app data directory so
+            // keyParams.json is always reachable from the JS side too.
+            dirs::data_local_dir()
+                .map(|d| d.join("com.beavernotes.beaver-notes"))
+                .unwrap_or_default()
+        }
+    } else {
+        dirs::data_local_dir()
+            .map(|d| d.join("com.beavernotes.beaver-notes"))
+            .unwrap_or_default()
     };
     Ok(Some(
-        PathBuf::from(sync_path)
-            .join(SYNC_ROOT_DIR)
+        base.join(SYNC_ROOT_DIR)
             .join(SYNC_KEY_PARAMS_FILE),
     ))
 }

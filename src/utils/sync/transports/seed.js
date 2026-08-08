@@ -14,8 +14,10 @@ export async function writeInitialSnapshots(commitsDir) {
   await writeYjsSnapshot(commitsDir, META_DOC_ID, wsState, encryptJSON);
 
   const notesMap = workspaceDoc.getMap('notes');
+  const VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
   const noteIds = Array.from(notesMap.keys()).filter(
     (id) => typeof id === 'string' && id.trim().length > 0 && id !== 'undefined'
+      && VALID_NOTE_ID_RE.test(id)
   );
 
   await Promise.all(

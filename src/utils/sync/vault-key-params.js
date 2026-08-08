@@ -69,31 +69,32 @@ export function cloudKeyParamsReachable({ force = false } = {}) {
     transport === SYNC_TRANSPORT.REMOTE || transport === SYNC_TRANSPORT.BOTH;
   return Boolean(
     accountStore.isAuthenticated &&
-      canUseCloudSync(accountStore.subscription) &&
+      canUseCloudSync(accountStore.activeOrg?.subscription ?? accountStore.subscription) &&
       (force || wantsCloud)
   );
 }
 
 export async function publishCloudKeyParams() {
-  if (!cloudKeyParamsReachable()) return false;
+  if (!cloudKeyParamsReachable()) { console.log('[vault-key-params] publish: cloud not reachable'); return false; }
   const p = await localKeyParamsPath();
-  if (!p) return false;
+  if (!p) { console.log('[vault-key-params] publish: no local key params path'); return false; }
   const exists = await pathExists(p).catch(() => false);
-  if (!exists) return false;
+  if (!exists) { console.log('[vault-key-params] publish: key params file not found at', p); return false; }
   const b64 = await readData(p).catch(() => null);
-  if (!b64) return false;
+  if (!b64) { console.log('[vault-key-params] publish: could not read key params file'); return false; }
 
   const workspaceStore = useWorkspaceStore();
   const workspaceId = workspaceStore.activeId;
-  if (!workspaceId) return false;
+  if (!workspaceId) { console.log('[vault-key-params] publish: no active workspace'); return false; }
 
   const passphrase = await loadSecureBlob('encryptionPassphraseBlob').catch(() => null);
-  if (!passphrase) return false;
+  if (!passphrase) { console.log('[vault-key-params] publish: no passphrase in secure storage'); return false; }
   const accountStore = useAccountStore();
   const client = getApiClient({ baseUrl: accountStore.serverUrl });
   const { challenge } = await client.createVaultChallenge(workspaceId);
   const passphraseProof = await deriveVaultPassphraseProof(passphrase, workspaceId, b64, challenge);
   await client.publishVaultKeyParams(workspaceId, { keyParams: b64, passphraseProof, challenge });
+  console.log('[vault-key-params] publish: success for workspace', workspaceId);
   return true;
 }
 

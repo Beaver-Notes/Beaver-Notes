@@ -30,7 +30,8 @@ export function initAppSync() {
           const accountStore = useAccountStore();
           return {
             isAuth: accountStore.isAuthenticated,
-            plan: accountStore.subscription?.plan,
+            plan: accountStore.plan,
+            subscription: accountStore.activeOrg?.subscription ?? accountStore.subscription,
           };
         },
       }),

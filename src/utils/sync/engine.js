@@ -18,7 +18,7 @@ import { yMapToObj } from '@/utils/yjs-helpers.js';
 import { syncDeletedAssets } from '@/composable/useWorkspaceYjs';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
-import { fetchCloudKeyParams } from './vault-key-params.js';
+import { fetchCloudKeyParams, publishCloudKeyParams, cloudKeyParamsReachable } from './vault-key-params.js';
 import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
@@ -101,7 +101,7 @@ export class SyncEngine {
    */
   notifyForeground() {
     this._foregroundWake = true;
-    this.enqueueSync(true);
+    return this.enqueueSync(true);
   }
 
   /**
@@ -173,22 +173,31 @@ export class SyncEngine {
         return;
       }
 
-      let syncPassphrase = null;
-      try {
-        syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
-      } catch {
-        syncPassphrase = null;
-      }
-      let fetchedCloudParams = false;
-      try {
-        fetchedCloudParams = (await fetchCloudKeyParams()) === true;
-      } catch {
-      }
-      try {
-        await reconcileSyncKeyParams(syncPassphrase || undefined);
-      } catch (e) {
-        if (fetchedCloudParams) throw e;
-        console.warn('[sync] key-params reconcile failed:', e);
+      // Vault key params: reconcile and publish only on force/foreground cycles
+      if (_force || isForegroundWake) {
+        let syncPassphrase = null;
+        try {
+          syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
+        } catch {
+          syncPassphrase = null;
+        }
+        let fetchedRemote = false;
+        try {
+          const fetched = await fetchCloudKeyParams();
+          fetchedRemote = !!fetched;
+        } catch {
+        }
+        try {
+          await reconcileSyncKeyParams(syncPassphrase || undefined);
+        } catch (e) {
+          console.warn('[sync] key-params reconcile failed:', e);
+        }
+        // Only publish if the server doesn't already have key params.
+        // If we just fetched them, publishing would overwrite the vault owner's
+        // key params with this device's local key params (which may differ).
+        if (cloudKeyParamsReachable() && !fetchedRemote) {
+          publishCloudKeyParams().catch(() => {});
+        }
       }
 
       if (syncPath) {
@@ -215,13 +224,25 @@ export class SyncEngine {
 
       // Only pull when there's a reason: forced sync, foreground wake, or pending local writes.
       // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
+      let cloudBlocked = false;
       if (shouldPull) {
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
           console.log(`[sync] ${name} pull start`);
           let hasMore = true;
           while (hasMore) {
-            const pullResult = await transport.pull(cursors);
+            let pullResult;
+            try {
+              pullResult = await transport.pull(cursors);
+            } catch (e) {
+              if (e?.code === 'unlock-required') {
+                console.warn('[sync] pull deferred — encryption is locked or not configured');
+                try { emit('sync:status', { status: 'unlock-required' }); } catch {}
+                if (name === 'cloud') cloudBlocked = true;
+                break;
+              }
+              throw e;
+            }
             const { updates } = pullResult;
             console.log(`[sync] ${name} pull got ${updates.length} updates`);
             let cursorsDirty = false;
@@ -247,6 +268,10 @@ export class SyncEngine {
 
       if (shouldPush) {
         for (const name of activeTransportNames) {
+          if (cloudBlocked && name === 'cloud') {
+            console.log('[sync] cloud push skipped — pull deferred due to unlock-required');
+            continue;
+          }
           const transport = this.transports[name];
           console.log(`[sync] ${name} push start`);
           let pushResult;
@@ -268,7 +293,7 @@ export class SyncEngine {
         console.log('[sync] push skipped — pull-only mode');
       }
 
-      if (activeTransportNames.includes('cloud')) {
+      if (activeTransportNames.includes('cloud') && !cloudBlocked) {
         console.log('[sync] cloud syncAssets start');
         await this.transports.cloud.syncAssets((progress) => {
           try { emit('sync:progress', progress); } catch {}

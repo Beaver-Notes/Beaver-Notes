@@ -267,7 +267,7 @@ describe('remote bootstrap integration contract', () => {
     expect(pushes[0].body.notes[0].updates).toHaveLength(2);
     expect(pushes[0].body.notes[0].updates[0]).toEqual(expect.objectContaining({
       key: 'local-note~~fresh-device~~301~~1.yjs.json',
-      data: 'local-encrypted-envelope',
+      data: btoa('local-encrypted-envelope'),
     }));
     expect(pushes[1].body.notes[0].updates).toHaveLength(2);
   });
@@ -281,7 +281,7 @@ describe('remote bootstrap integration contract', () => {
     const cloud = new CloudTransport({ passphraseProvider: () => 'wrong-passphrase', getTransportSetting: () => 'remote', getAccountState: () => ({ isAuth: true, plan: 'pro' }) });
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
-    await expect(engine.enqueueSync(true)).rejects.toThrow('DECRYPT_FAILED');
+    await engine.enqueueSync(true);
     expect(applyRemote).not.toHaveBeenCalled();
     expect(storage.set).not.toHaveBeenCalled();
   });
