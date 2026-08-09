@@ -1145,6 +1145,15 @@ export class CloudTransport extends Transport {
     this._serverProbeComplete = true;
     this._lastPushedAt = Date.now();
 
+    // Publish vault key params so other devices can join the vault
+    try {
+      const { publishCloudKeyParams } = await import('../vault-key-params.js');
+      await publishCloudKeyParams();
+      console.log('[sync] cloud seed: vault key params published');
+    } catch (err) {
+      console.warn('[sync] cloud seed: vault key params publish failed:', err?.message);
+    }
+
     console.log('[sync] cloud seed: completed successfully');
     if (onProgress) onProgress({ phase: 'done', uploaded: snapshots.length, total: snapshots.length });
 

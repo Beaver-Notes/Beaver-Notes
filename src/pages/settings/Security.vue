@@ -262,8 +262,9 @@ async function importVaultFromSync() {
     const { fetchCloudKeyParams } = await import(
       '@/utils/sync/vault-key-params.js'
     );
-    await fetchCloudKeyParams({ force: true }).catch(() => {});
-    has = await hasRemoteVaultKeyParams();
+    const fetched = await fetchCloudKeyParams({ force: true }).catch(() => null);
+    // If fetch succeeded, vault exists. Otherwise fall back to native check.
+    has = fetched || await hasRemoteVaultKeyParams();
   } catch (e) {
     encryptionError.value = e?.message || 'Failed to check the sync source.';
     return;
