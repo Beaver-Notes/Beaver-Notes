@@ -158,8 +158,20 @@ export function getSettingSync(key) {
   return raw == null ? defaultValue : parse(raw);
 }
 
+function hasMirroredValue(key) {
+  const { legacyKey } = getSettingDef(key);
+  return localStorage.getItem(legacyKey) != null;
+}
+
 export async function getSetting(key) {
   const { defaultValue } = getSettingDef(key);
+
+  // Fast path: the value is mirrored to localStorage on every read/write, so a
+  // mirrored value can be returned without an IPC round-trip.
+  if (hasMirroredValue(key)) {
+    return getSettingSync(key);
+  }
+
   const value = await settingsStorage.get(key, null);
   if (value == null) {
     await settingsStorage.set(key, defaultValue);

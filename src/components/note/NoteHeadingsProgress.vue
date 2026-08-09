@@ -88,6 +88,7 @@
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
+import { transactionAffectsHeadings } from '@/lib/tiptap/exts/collapse-heading/headings-detect';
 
 export default {
   props: { editor: Object },
@@ -345,7 +346,8 @@ export default {
         removeEditorUpdate = null;
       }
       if (props.editor) {
-        const onUpdate = () => {
+        const onUpdate = ({ transaction }) => {
+          if (transaction && !transactionAffectsHeadings(transaction)) return;
           requestAnimationFrame(build);
         };
         props.editor.on('update', onUpdate);

@@ -6,18 +6,46 @@
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
 import { useStorage } from '@/composable/storage';
-import { buildNotePreview, EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
-import { extractTextFromContent } from '@/utils/note/serializer.js';
+import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
-import { yXmlFragmentToProsemirrorJSON } from '@tiptap/y-tiptap';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { saveNote } from '@/store/note/index';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { yMapToObj, toUint8Array } from '@/utils/yjs-helpers.js';
 import { getWorkspaceDoc } from './meta-yjs-doc.js';
+import {
+  mergeNoteEntry,
+  diffRemovedNoteIds,
+  shouldReadKv,
+} from './meta-yjs-merge.js';
 
 const storage = useStorage();
+
+function buildNotePreviewFromContent(merged, content) {
+  return buildNotePreview({
+    content,
+    preview: merged.preview || merged.searchText,
+    searchText: merged.searchText,
+    hidden: false,
+  });
+}
+
+// Lazy wrapper — @tiptap/y-tiptap pulls in prosemirror, which should not load
+// until a note actually needs a snapshot-based preview.
+let yXmlToJsonPromise = null;
+async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
+  if (!yXmlToJsonPromise) {
+    yXmlToJsonPromise = import('@tiptap/y-tiptap');
+  }
+  const mod = await yXmlToJsonPromise;
+  return mod.yXmlFragmentToProsemirrorJSON(xmlFragment);
+}
+
+// Once all KV entries have been merged into the workspace doc, subsequent
+// workspace changes can skip the KV reads entirely unless a locked /
+// encrypted note needs content reattached.
+let kvSeeded = false;
 
 /**
  * Push workspace-doc changes into the Pinia stores (one-way: doc -> store).
@@ -27,8 +55,13 @@ const storage = useStorage();
  * (notes, labels, folders, etc.). This function detects that and seeds the
  * Y.Doc from the KV stores so the Y.Doc becomes the source of truth going
  * forward.
+ *
+ * @param {Set<string>|undefined} [changedNoteIds] ids of notes whose meta
+ *   changed in this batch. When provided, only those notes are re-merged and
+ *   removed ids are evicted — the store map is not rebuilt wholesale. When
+ *   omitted, all notes are re-merged (initial hydration).
  */
-export async function writeStoresFromWorkspace() {
+export async function writeStoresFromWorkspace(changedNoteIds) {
   const doc = getWorkspaceDoc();
   const folderStore = useFolderStore();
   const labelStore = useLabelStore();
@@ -40,84 +73,109 @@ export async function writeStoresFromWorkspace() {
   const yFolders = doc.getMap('folders');
   const yNotes = doc.getMap('notes');
 
-  // Full KV collections — used both for seeding and for reattaching content
-  // (locked / app-encrypted notes keep ciphertext in KV).
-  const kvNotes = await storage.get('notes', {});
-  const kvLabels = await storage.get('labels', []);
-  const kvColors = await storage.get('labelColors', {});
-  const kvFolders = await storage.get('folders', {});
-
-  // Merge KV data into the Y.Doc by adding any entry that is *missing* from
-  // the doc. Unlike a one-time "seed if empty" guard, this is idempotent and
-  // also covers the case where the legacy migration populates KV *after* the
-  // doc was first seeded (e.g. initializeWorkspace ran at app start with a
-  // partial KV, then the legacy import added the rest). Without this, the
-  // newly-imported notes would never reach the doc and would be invisible.
-  const missingNotes = Object.entries(kvNotes).filter(
-    ([id]) => !yNotes.has(id)
-  );
-  if (missingNotes.length > 0) {
-    doc.transact(() => {
-      for (const [id, note] of missingNotes) {
-        const yNote = new Y.Map();
-        const { content: _c, ...meta } = note;
-        for (const [k, v] of Object.entries(meta)) {
-          yNote.set(k, v);
-        }
-        yNotes.set(id, yNote);
-      }
-    });
-  }
-
-  const missingLabels = kvLabels.filter(
-    (name) => !yLabels.toArray().includes(name)
-  );
-  if (missingLabels.length > 0) {
-    yLabels.push(missingLabels);
-  }
-
-  // Deduplicate the Y.Array if duplicates somehow accumulated
-  const seen = new Set();
-  const deduped = [];
-  for (let i = 0; i < yLabels.length; i++) {
-    const name = yLabels.get(i);
-    if (!seen.has(name)) {
-      seen.add(name);
-      deduped.push(name);
+  // Read KV only while seeding is incomplete or a changed note may need its
+  // content reattached (locked / app-encrypted notes keep content in KV).
+  const changedIds = changedNoteIds instanceof Set ? changedNoteIds : null;
+  const changedMetaById = {};
+  if (changedIds) {
+    for (const id of changedIds) {
+      const yNote = yNotes.get(id);
+      if (yNote) changedMetaById[id] = yMapToObj(yNote);
     }
   }
-  if (deduped.length !== yLabels.length) {
-    yLabels.delete(0, yLabels.length);
-    yLabels.push(deduped);
-  }
 
-  const missingColors = Object.entries(kvColors).filter(
-    ([k]) => !yLabelColors.has(k)
-  );
-  if (missingColors.length > 0) {
-    doc.transact(() => {
-      for (const [k, v] of missingColors) {
-        yLabelColors.set(k, v);
-      }
-    });
-  }
+  let kvNotes = {};
+  let kvLabels = [];
+  let kvColors = {};
+  let kvFolders = {};
+  if (shouldReadKv({ kvSeeded, changedMetaById, storeData: noteStore.data })) {
+    // Full KV collections — used both for seeding and for reattaching content
+    // (locked / app-encrypted notes keep ciphertext in KV).
+    kvNotes = await storage.get('notes', {});
+    kvLabels = await storage.get('labels', []);
+    kvColors = await storage.get('labelColors', {});
+    kvFolders = await storage.get('folders', {});
 
-  const missingFolders = Object.entries(kvFolders).filter(
-    ([id]) => !yFolders.has(id)
-  );
-  if (missingFolders.length > 0) {
-    doc.transact(() => {
-      for (const [id, folder] of missingFolders) {
-        const yFolder = new Y.Map();
-        for (const [k, v] of Object.entries(folder)) {
-          yFolder.set(k, v);
+    // Merge KV data into the Y.Doc by adding any entry that is *missing* from
+    // the doc. Unlike a one-time "seed if empty" guard, this is idempotent and
+    // also covers the case where the legacy migration populates KV *after* the
+    // doc was first seeded (e.g. initializeWorkspace ran at app start with a
+    // partial KV, then the legacy import added the rest). Without this, the
+    // newly-imported notes would never reach the doc and would be invisible.
+    const missingNotes = Object.entries(kvNotes).filter(
+      ([id]) => !yNotes.has(id)
+    );
+    if (missingNotes.length > 0) {
+      doc.transact(() => {
+        for (const [id, note] of missingNotes) {
+          const yNote = new Y.Map();
+          const { content: _c, ...meta } = note;
+          for (const [k, v] of Object.entries(meta)) {
+            yNote.set(k, v);
+          }
+          yNotes.set(id, yNote);
         }
-        yFolders.set(id, yFolder);
+      });
+    }
+
+    const missingLabels = kvLabels.filter(
+      (name) => !yLabels.toArray().includes(name)
+    );
+    if (missingLabels.length > 0) {
+      yLabels.push(missingLabels);
+    }
+
+    // Deduplicate the Y.Array if duplicates somehow accumulated
+    const seen = new Set();
+    const deduped = [];
+    for (let i = 0; i < yLabels.length; i++) {
+      const name = yLabels.get(i);
+      if (!seen.has(name)) {
+        seen.add(name);
+        deduped.push(name);
       }
-    });
+    }
+    if (deduped.length !== yLabels.length) {
+      yLabels.delete(0, yLabels.length);
+      yLabels.push(deduped);
+    }
+
+    const missingColors = Object.entries(kvColors).filter(
+      ([k]) => !yLabelColors.has(k)
+    );
+    if (missingColors.length > 0) {
+      doc.transact(() => {
+        for (const [k, v] of missingColors) {
+          yLabelColors.set(k, v);
+        }
+      });
+    }
+
+    const missingFolders = Object.entries(kvFolders).filter(
+      ([id]) => !yFolders.has(id)
+    );
+    if (missingFolders.length > 0) {
+      doc.transact(() => {
+        for (const [id, folder] of missingFolders) {
+          const yFolder = new Y.Map();
+          for (const [k, v] of Object.entries(folder)) {
+            yFolder.set(k, v);
+          }
+          yFolders.set(id, yFolder);
+        }
+      });
+    }
+
+    // Seeding is complete once nothing is missing from the doc.
+    const stillMissing =
+      Object.entries(kvNotes).some(([id]) => !yNotes.has(id)) ||
+      kvLabels.some((name) => !yLabels.toArray().includes(name)) ||
+      Object.entries(kvColors).some(([k]) => !yLabelColors.has(k)) ||
+      Object.entries(kvFolders).some(([id]) => !yFolders.has(id));
+    if (!stillMissing) kvSeeded = true;
   }
 
-  // Folders
+  // ── Folders (cheap, always rebuilt) ────────────────────────────────────
   const folders = {};
   for (const [id, yFolder] of yFolders.entries()) {
     folders[id] = yMapToObj(yFolder);
@@ -126,55 +184,57 @@ export async function writeStoresFromWorkspace() {
   folderStore.deletedIds = yMapToObj(doc.getMap('deletedFolderIds'));
   folderStore._rebuildIndex();
 
-  // Labels
+  // ── Labels (cheap, always rebuilt) ─────────────────────────────────────
   labelStore.data = [...new Set(yLabels.toArray())];
   labelStore.colors = yMapToObj(yLabelColors);
 
-  // Note metadata (preserve content kept in memory separately)
-  const notes = { ...noteStore.data };
+  // ── Note metadata (preserve content kept in memory separately) ────────
   const pendingPreviews = [];
-  for (const [id, yNote] of doc.getMap('notes').entries()) {
-    const meta = yMapToObj(yNote);
-    const existing = notes[id] || {};
-    const merged = { ...existing, ...meta };
-    const hidden = merged.isLocked || isEncryptedContent(merged.content);
 
-    // Locked / app-encrypted notes (and any note whose content was kept in
-    // the KV store rather than migrated into a per-note Yjs doc) store their
-    // content in the KV `notes.<id>` row. Reattach it here instead of letting
-    // it be dropped when the meta was seeded from the Y.Doc.
-    if (kvNotes[id]?.content && !merged.content) {
-      merged.content = kvNotes[id].content;
+  if (changedIds) {
+    // Incremental: re-merge only the changed notes and evict removed ones.
+    for (const id of changedIds) {
+      const yNote = yNotes.get(id);
+      if (!yNote) continue;
+      const meta = yMapToObj(yNote);
+      const existing = noteStore.data[id] || {};
+      const { note: merged, needsSnapshot } = mergeNoteEntry(
+        existing,
+        meta,
+        kvNotes[id]?.content
+      );
+      if (needsSnapshot) pendingPreviews.push(id);
+      noteStore.data[id] = merged;
     }
 
-    if (meta.preview && meta.preview.length > 0) merged.preview = meta.preview;
-
-    // Preserve the structured (styled) card preview that was persisted with
-    // the note; otherwise rebuild a RICH preview from the actual note content
-    // (not the flat text). Migrated notes keep their content in the per-note
-    // Yjs doc; notes whose content stayed in KV use `merged.content` (reattached
-    // above). The flat `preview`/`searchText` is only a last-resort fallback.
-    if (hidden) {
-      merged.cardPreview = EMPTY_CARD_PREVIEW;
-    } else if (existing.cardPreview) {
-      merged.cardPreview = existing.cardPreview;
-    } else {
-      let previewContent = merged.content || existing.content;
-      if (!previewContent) {
-        pendingPreviews.push(id);
-      }
-
-      const { cardPreview, preview } = buildNotePreview({
-        content: previewContent,
-        preview: merged.preview || meta.preview || meta.searchText,
-        searchText: merged.searchText || meta.searchText,
-        hidden: false,
-      });
-      merged.cardPreview = cardPreview;
-      if (!merged.preview) merged.preview = preview;
+    const removed = diffRemovedNoteIds(
+      Object.keys(noteStore.data),
+      new Set(yNotes.keys())
+    );
+    for (const id of removed) {
+      delete noteStore.data[id];
+    }
+  } else {
+    // Full hydration: merge every note in the doc.
+    for (const [id, yNote] of yNotes.entries()) {
+      const meta = yMapToObj(yNote);
+      const existing = noteStore.data[id] || {};
+      const { note: merged, needsSnapshot } = mergeNoteEntry(
+        existing,
+        meta,
+        kvNotes[id]?.content
+      );
+      if (needsSnapshot) pendingPreviews.push(id);
+      noteStore.data[id] = merged;
     }
 
-    notes[id] = merged;
+    const removed = diffRemovedNoteIds(
+      Object.keys(noteStore.data),
+      new Set(yNotes.keys())
+    );
+    for (const id of removed) {
+      delete noteStore.data[id];
+    }
   }
 
   // Batch-load Yjs snapshots for notes that have no in-memory content source
@@ -186,21 +246,13 @@ export async function writeStoresFromWorkspace() {
         const snapshot = snapshots?.[id];
         if (!snapshot || snapshot.length === 0) continue;
         const tmp = new Y.Doc();
-        Y.applyUpdate(
-          tmp,
-          snapshot instanceof Uint8Array ? snapshot : new Uint8Array(snapshot)
-        );
-        const content = yXmlFragmentToProsemirrorJSON(
+        Y.applyUpdate(tmp, toUint8Array(snapshot));
+        const content = await yXmlFragmentToProsemirrorJSON(
           tmp.getXmlFragment('content')
         );
-        const merged = notes[id];
+        const merged = noteStore.data[id];
         if (!merged) continue;
-        const { cardPreview, preview } = buildNotePreview({
-          content,
-          preview: merged.preview || merged.searchText,
-          searchText: merged.searchText,
-          hidden: false,
-        });
+        const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
         merged.cardPreview = cardPreview;
         if (!merged.preview) merged.preview = preview;
       }
@@ -208,7 +260,6 @@ export async function writeStoresFromWorkspace() {
       console.warn('[meta-yjs] batch preview load failed', err);
     }
   }
-  noteStore.data = notes;
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
 }
 
@@ -245,11 +296,8 @@ export async function backfillNotePreviews() {
     if (!note || !snapshot || snapshot.length === 0) continue;
     try {
       const tmp = new Y.Doc();
-      Y.applyUpdate(
-        tmp,
-        snapshot instanceof Uint8Array ? snapshot : new Uint8Array(snapshot)
-      );
-      const content = yXmlFragmentToProsemirrorJSON(
+      Y.applyUpdate(tmp, toUint8Array(snapshot));
+      const content = await yXmlFragmentToProsemirrorJSON(
         tmp.getXmlFragment('content')
       );
       if (!content || !content.content?.length) continue;

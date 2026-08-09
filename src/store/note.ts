@@ -5,6 +5,7 @@ import {
   getById,
   getByFolder,
   getNotesCountByFolder,
+  notesCountByFolder,
 } from './note/index';
 import {
   getFolderContents,
@@ -53,6 +54,7 @@ export const useNoteStore = defineStore('note', {
     getById,
     getByFolder,
     getNotesCountByFolder,
+    notesCountByFolder,
     getFolderContents,
     searchNotes,
     getNotesWithPath,

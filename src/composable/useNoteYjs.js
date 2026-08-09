@@ -143,6 +143,7 @@ export function useNoteYjs() {
         // non-critical
       }
       unregisterActiveDoc(currentNoteId);
+      getHocuspocusSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
     }
 
@@ -241,6 +242,7 @@ export function useNoteYjs() {
         // non-critical
       }
       unregisterActiveDoc(currentNoteId);
+      getHocuspocusSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
     }
   });

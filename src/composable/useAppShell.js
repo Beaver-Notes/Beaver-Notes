@@ -30,7 +30,7 @@ import {
   installUpdate,
   isUpdateManaged,
 } from '@/lib/native/updates';
-import { getStoredZoomLevel, setStoredZoomLevel } from './zoom';
+import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from './zoom';
 import {
   tryRestoreKeyFromSafeStorage,
   encryptionIsConfigured,
@@ -351,7 +351,7 @@ export function useAppShell() {
     }
     const configured = await encryptionIsConfigured();
     syncLockBanner.show = configured && !isKeyLoaded();
-    await refreshEncryptionGate();
+    await refreshEncryptionGate(configured);
   };
 
   const dismissAppEncryptionMigrationBanner = () => {
@@ -408,12 +408,15 @@ export function useAppShell() {
     await refreshEncryptionGate();
   };
 
-  const refreshEncryptionGate = async () => {
+  const refreshEncryptionGate = async (configuredOverride) => {
     if (route.name === ONBOARDING_ROUTE_NAME) {
       appEncryptionGate.show = false;
       return;
     }
-    const configured = await encryptionIsConfigured();
+    const configured =
+      configuredOverride !== undefined
+        ? configuredOverride
+        : await encryptionIsConfigured();
     appEncryptionGate.show = configured && !isKeyLoaded();
   };
 
@@ -771,7 +774,9 @@ export function useAppShell() {
     showImportDialog.value = false;
   }
 
-  setZoomLevel(getStoredZoomLevel());
+  if (!wasZoomAppliedAtBoot()) {
+    setZoomLevel(getStoredZoomLevel());
+  }
   setMenuVisibility(!getSettingSync('visibilityMenubar'));
 
   return {

@@ -70,6 +70,7 @@ export class SyncEngine {
     this._foregroundWake = false;
     this._pullOnlyMode = false;
     this._pullTimer = null;
+    this._idlePullBackoff = false;
 
     setSyncTrigger(() => this.enqueueSync());
   }
@@ -113,6 +114,14 @@ export class SyncEngine {
     this._pullTimer = setInterval(() => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (this.syncing) return;
+      // Idle backoff: if the previous pull-only cycle found no updates and
+      // there is nothing pending locally, skip this tick to avoid pulling the
+      // network every 30s for no reason. Detection still resumes on the next
+      // tick, so remote changes are picked up at worst one interval later.
+      if (this._idlePullBackoff) {
+        this._idlePullBackoff = false;
+        return;
+      }
       this.enqueueSync(false, true).catch(() => {});
     }, PULL_ONLY_INTERVAL_MS);
   }
@@ -154,6 +163,7 @@ export class SyncEngine {
 
     const shouldPull = _force || isForegroundWake || pullOnly || hasPendingWrites();
     const shouldPush = !pullOnly;
+    let gotUpdates = false;
     console.log('[sync] _runCycle start', { force: _force, foregroundWake: isForegroundWake, pullOnly, shouldPull, shouldPush });
 
     let outcome;
@@ -259,11 +269,18 @@ export class SyncEngine {
               cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
             }
             if (cursorsDirty) await this._saveCursors(cursors);
+            if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
           }
         }
       } else {
         console.log('[sync] pull skipped — nothing to sync');
+      }
+
+      // After a pull-only cycle with zero remote updates and nothing pending
+      // locally, arm the idle backoff so the next timer tick skips the pull.
+      if (pullOnly && !gotUpdates && !hasPendingWrites()) {
+        this._idlePullBackoff = true;
       }
 
       if (shouldPush) {

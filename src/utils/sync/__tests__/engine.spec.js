@@ -195,6 +195,37 @@ describe('SyncEngine periodic timer', () => {
     expect(mockLocalTransport.pull).toHaveBeenCalled();
   });
 
+  it('skips the next idle pull-only tick after a cycle with no updates', async () => {
+    engine.startPullTimer();
+    // First tick: pulls, finds nothing.
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(mockLocalTransport.pull).toHaveBeenCalledTimes(1);
+
+    // Second tick (idle, still nothing): the backoff should skip it.
+    mockLocalTransport.pull.mockClear();
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(mockLocalTransport.pull).not.toHaveBeenCalled();
+
+    // Third tick: pulls again.
+    await vi.advanceTimersByTimeAsync(30001);
+    expect(mockLocalTransport.pull).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not skip when the last pull-only cycle found updates', async () => {
+    mockLocalTransport.pull
+      .mockReturnValueOnce({
+        updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1 }],
+        cursorsDelta: {},
+      })
+      .mockReturnValue({ updates: [], cursorsDelta: {} });
+
+    engine.startPullTimer();
+    await vi.advanceTimersByTimeAsync(30001); // finds updates → no backoff armed
+    await vi.advanceTimersByTimeAsync(30001); // pulls (finds nothing → arms backoff)
+    await vi.advanceTimersByTimeAsync(30001); // skipped by backoff
+    expect(mockLocalTransport.pull.mock.calls.length).toBe(2);
+  });
+
   it('stops pull timer when disabled', () => {
     engine.startPullTimer();
     engine.stopPullTimer();

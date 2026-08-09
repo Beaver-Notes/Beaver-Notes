@@ -16,6 +16,7 @@ const loading = ref(false);
 const error = ref('');
 
 let fetchController = null;
+let fetchInFlight = null;
 
 export function useCloudWorkspaces() {
   const accountStore = useAccountStore();
@@ -33,23 +34,30 @@ export function useCloudWorkspaces() {
 
   async function fetchWorkspaces() {
     if (!isAuthenticated.value) return;
+    // Coalesce concurrent callers (e.g. App.vue mount + workspace store boot)
+    // into a single request instead of aborting and re-firing.
+    if (fetchInFlight) return fetchInFlight;
     loading.value = true;
     error.value = '';
     if (fetchController) fetchController.abort();
     fetchController = new AbortController();
-    try {
-      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl(), signal: fetchController.signal });
-      workspaces.value = normalizeWorkspaceList(raw);
-      if (!activeId.value && workspaces.value.length > 0) {
-        activeId.value = workspaces.value[0].id;
+    fetchInFlight = (async () => {
+      try {
+        const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl(), signal: fetchController.signal });
+        workspaces.value = normalizeWorkspaceList(raw);
+        if (!activeId.value && workspaces.value.length > 0) {
+          activeId.value = workspaces.value[0].id;
+        }
+      } catch (err) {
+        if (err?.name === 'AbortError') return;
+        error.value = err?.message || 'Failed to load workspaces';
+        console.error('[useCloudWorkspaces] fetchWorkspaces failed:', err);
+      } finally {
+        loading.value = false;
+        fetchInFlight = null;
       }
-    } catch (err) {
-      if (err?.name === 'AbortError') return;
-      error.value = err?.message || 'Failed to load workspaces';
-      console.error('[useCloudWorkspaces] fetchWorkspaces failed:', err);
-    } finally {
-      loading.value = false;
-    }
+    })();
+    return fetchInFlight;
   }
 
   async function createWorkspace(name) {

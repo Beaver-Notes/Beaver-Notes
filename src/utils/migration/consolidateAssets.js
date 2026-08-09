@@ -6,6 +6,7 @@
 
 import { backend, path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
+import { toUint8Array } from '@/utils/yjs-helpers.js';
 
 const LEGACY_DIR_NAMES = ['notes-assets', 'file-assets'];
 const ASSETS_DIR = 'assets';
@@ -118,10 +119,12 @@ async function rewriteAssetUrls() {
   for (const noteId of noteIds) {
     try {
       const updates = await getUpdates(noteId);
-      if (!updates || updates.byteLength === 0) continue;
+      if (!updates || updates.length === 0) continue;
 
       const doc = new Y.Doc();
-      Y.applyUpdate(doc, updates);
+      for (const u of updates) {
+        Y.applyUpdate(doc, toUint8Array(u));
+      }
 
       let changed = false;
       const visit = (item) => {

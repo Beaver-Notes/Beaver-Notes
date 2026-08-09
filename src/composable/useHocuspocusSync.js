@@ -5,7 +5,7 @@ import * as decoding from 'lib0/decoding'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { getWorkspaceDoc } from './meta-yjs-doc.js'
-import { registerActiveDoc } from './yjs-shared.js'
+import { registerActiveDoc, unregisterActiveDoc } from './yjs-shared.js'
 import {
   importCollabKey,
   encryptUpdate,
@@ -339,6 +339,18 @@ export function useHocuspocusSync() {
     }
   }
 
+  /**
+   * Leave a note's collaboration room and unregister its doc.
+   * Called when the note is closed/switched so stale rooms (and their
+   * destroyed Y.Docs) do not accumulate in `activeRooms` and get re-parsed on
+   * every inbound WebSocket message.
+   */
+  function leaveNoteRoom(noteId) {
+    const roomName = buildRoomName(getActiveWorkspaceId() || '', noteId)
+    activeRooms.delete(roomName)
+    unregisterActiveDoc(noteId)
+  }
+
   function joinMetaRoom(workspaceId) {
     const roomName = buildMetaRoomName(workspaceId)
     if (activeRooms.has(roomName)) return
@@ -486,6 +498,7 @@ export function useHocuspocusSync() {
     connect,
     disconnect,
     joinNoteRoom,
+    leaveNoteRoom,
     joinMetaRoom,
     handleWorkspaceSwitch,
     handleNoteSwitch,

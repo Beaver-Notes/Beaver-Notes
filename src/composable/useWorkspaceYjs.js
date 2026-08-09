@@ -19,6 +19,7 @@ import { registerActiveDoc } from './yjs-shared.js';
 import {
   getDeviceId,
   objToYMap,
+  toUint8Array,
 } from '@/utils/yjs-helpers.js';
 import { getWorkspaceDoc, META_DOC_ID } from './meta-yjs-doc.js';
 import { getHocuspocusSync } from './useHocuspocusSync.js';
@@ -117,7 +118,7 @@ export async function loadWorkspaceDoc() {
     if (snapshot && snapshot.length > 0) {
       Y.applyUpdate(
         doc,
-        snapshot instanceof Uint8Array ? snapshot : new Uint8Array(snapshot),
+        toUint8Array(snapshot),
         'load'
       );
     }
@@ -136,11 +137,23 @@ export async function loadWorkspaceDoc() {
 }
 
 let observerTimer = null;
+let pendingChangedNoteIds = new Set();
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
   if (observerAttached) return;
   doc.getMap('folders').observeDeep(() => schedule());
-  doc.getMap('notes').observeDeep(() => schedule());
+  doc.getMap('notes').observeDeep((events) => {
+    for (const event of events) {
+      if (event.path?.length === 1) {
+        pendingChangedNoteIds.add(event.path[0]);
+      } else if (event.target === doc.getMap('notes')) {
+        for (const key of event.keys?.keys() ?? []) {
+          pendingChangedNoteIds.add(key);
+        }
+      }
+    }
+    schedule();
+  });
   doc.getMap('deletedFolderIds').observeDeep(() => schedule());
   doc.getMap('deletedNoteIds').observeDeep(() => schedule());
   doc.getArray('labels').observeDeep(() => schedule());
@@ -149,7 +162,12 @@ export function observeWorkspace(callback, debounceMs = 150) {
 
   function schedule() {
     if (observerTimer) clearTimeout(observerTimer);
-    observerTimer = setTimeout(() => callback(), debounceMs);
+    observerTimer = setTimeout(() => {
+      observerTimer = null;
+      const changed = pendingChangedNoteIds;
+      pendingChangedNoteIds = new Set();
+      callback(changed);
+    }, debounceMs);
   }
 }
 

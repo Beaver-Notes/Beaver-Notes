@@ -4,7 +4,7 @@ import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
 import { trackDeletedAssets } from '@/utils/sync';
 import { deleteUpdates } from '@/lib/native/yjs.js';
-import { hydrateNote } from '@/utils/note/serializer.js';
+import { hydrateNote, extractTextFromContent } from '@/utils/note/serializer.js';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
@@ -20,6 +20,7 @@ import {
   upsertSearchEntry,
 } from '@/composable/useSearch.js';
 import { collectExpiredIds } from '@/utils/helpers/index.js';
+import { buildFolderCounts } from '../note-counts.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
@@ -85,6 +86,14 @@ export function getNotesCountByFolder(state: NoteState) {
     }
     return count;
   };
+}
+
+/**
+ * Precomputed note counts per folder, built once per data change instead of
+ * once per folder card. The Map is cached by Pinia until `state.data` changes.
+ */
+export function notesCountByFolder(state: NoteState): Map<string | null, number> {
+  return new Map(Object.entries(buildFolderCounts(Object.values(state.data))));
 }
 
 // ─── Search-related getters ──────────────────────────────────────────────────
@@ -285,6 +294,9 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
     });
     note.preview = preview;
     note.cardPreview = cardPreview;
+    // Refresh the flat search text from the current content so the in-memory
+    // search index does not serve stale matches after content edits.
+    note.searchText = extractTextFromContent(note.content) || note.searchText;
   }
 
   await saveNote(id, note);

@@ -141,17 +141,33 @@ function withKeyVariants(
   return { [key]: value, [snake]: value };
 }
 
-function normalizeBinaryData(data: unknown): number[] {
-  if (data == null) return [];
-  if (typeof data === 'string') return Array.from(textEncoder.encode(data));
-  if (data instanceof ArrayBuffer) return Array.from(new Uint8Array(data));
-  if (ArrayBuffer.isView(data)) {
-    return Array.from(
-      new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
-    );
+function normalizeBinaryData(data: unknown): string {
+  if (data == null) return '';
+  let bytes: Uint8Array;
+  if (typeof data === 'string') {
+    bytes = textEncoder.encode(data);
+  } else if (data instanceof ArrayBuffer) {
+    bytes = new Uint8Array(data);
+  } else if (ArrayBuffer.isView(data)) {
+    bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  } else if (Array.isArray(data)) {
+    bytes = new Uint8Array(data);
+  } else {
+    bytes = textEncoder.encode(String(data));
   }
-  if (Array.isArray(data)) return data;
-  return Array.from(textEncoder.encode(String(data)));
+  // base64 is far cheaper over the wire than a JSON number array (~33% vs
+  // 4-6x expansion), and matches the Rust side which decodes before use.
+  return bytesToBase64(bytes);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
 
 function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {

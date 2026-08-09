@@ -466,7 +466,11 @@ import { useDialog } from '@/composable/dialog';
 import { useRouter } from 'vue-router';
 import { backend } from '@/lib/tauri-bridge';
 import FolderTree from './FolderTree.vue';
-import emojis from 'emoji.json';
+import {
+  buildSkinToneMap,
+  isSkinToneVariant,
+  SKIN_TONE_SUFFIXES,
+} from '@/utils/helpers/skin-tones.js';
 
 const props = defineProps({
   folder: { type: Object, required: true },
@@ -535,28 +539,21 @@ const isRenaming = ref(false);
 
 const activeSkinToneBase = ref(null);
 
-const SKIN_TONE_SUFFIXES = [
-  ': light skin tone',
-  ': medium-light skin tone',
-  ': medium skin tone',
-  ': medium-dark skin tone',
-  ': dark skin tone',
-];
+// The full emoji dataset (~1 MB) is only needed when the customize modal's
+// picker is open. Load it lazily instead of paying for it on the Home route.
+const emojis = ref([]);
+const skinToneMap = ref({});
+let emojisLoaded = false;
 
-const skinToneMap = {};
-for (const e of emojis) {
-  for (const s of SKIN_TONE_SUFFIXES) {
-    if (e.name.endsWith(s)) {
-      const base = e.name.slice(0, -s.length);
-      if (!skinToneMap[base]) skinToneMap[base] = [];
-      skinToneMap[base].push(e);
-      break;
-    }
-  }
-}
-
-function isSkinToneVariant(name) {
-  return SKIN_TONE_SUFFIXES.some((s) => name.endsWith(s));
+function loadEmojis() {
+  if (emojisLoaded) return emojis.value;
+  emojisLoaded = true;
+  import('emoji.json').then((mod) => {
+    const data = mod.default || mod;
+    emojis.value = data;
+    skinToneMap.value = buildSkinToneMap(data);
+  });
+  return emojis.value;
 }
 
 function handleCardClick(event, folderId) {
@@ -609,12 +606,11 @@ const folderBaseColor = computed(
 );
 
 const itemCount = computed(() => {
-  return noteStore.notes.filter((note) => note.folderId === props.folder.id)
-    .length;
+  return noteStore.notesCountByFolder.get(props.folder.id) || 0;
 });
 
 const filteredEmojis = computed(() => {
-  let filtered = emojis;
+  let filtered = emojis.value;
 
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
@@ -673,6 +669,7 @@ function cancelRename() {
 }
 
 function openCustomizeModal() {
+  loadEmojis();
   newName.value = props.folder.name;
   showCustomizeModal.value = true;
   nextTick(() => {
@@ -691,7 +688,7 @@ function onModalClose() {
 }
 
 function selectEmoji(emoji) {
-  if (!searchQuery.value && skinToneMap[emoji.name]) {
+  if (!searchQuery.value && skinToneMap.value[emoji.name]) {
     activeSkinToneBase.value =
       activeSkinToneBase.value === emoji.name ? null : emoji.name;
     return;

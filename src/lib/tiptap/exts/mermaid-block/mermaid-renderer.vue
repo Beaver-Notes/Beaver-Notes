@@ -7,10 +7,11 @@
 </template>
 
 <script>
-import { defineComponent, ref, watch, nextTick, onMounted } from 'vue';
+import { defineComponent, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import mermaid from 'mermaid';
 import { useTheme } from '@/composable/theme';
 import { useTranslations } from '@/composable/useTranslations';
+import { createDebouncedLatest } from '@/utils/helpers/latest';
 
 export default defineComponent({
   name: 'MermaidChart',
@@ -49,13 +50,18 @@ export default defineComponent({
       });
     };
 
+    // Guard so a stale async render never overwrites a newer one
+    let renderSeq = 0;
+
     const renderDiagram = async () => {
+      const seq = ++renderSeq;
       if (!props.content || !elRef.value) return;
 
       const id = `mermaid-svg-${Math.floor(Math.random() * 1000000)}`;
 
       try {
         const { svg, bindFunctions } = await mermaid.render(id, props.content);
+        if (seq !== renderSeq) return;
 
         elRef.value.innerHTML = svg;
 
@@ -64,6 +70,7 @@ export default defineComponent({
           bindFunctions(elRef.value);
         }
       } catch (error) {
+        if (seq !== renderSeq) return;
         console.error('Mermaid render failed:', error);
         elRef.value.innerHTML = `<div class="error">${
           translations.value?.editor?.error || 'Invalid Syntax'
@@ -71,15 +78,21 @@ export default defineComponent({
       }
     };
 
-    onMounted(async () => {
+    const debouncedRender = createDebouncedLatest(renderDiagram, 400);
+
+    onMounted(() => {
       initializeMermaid();
       renderDiagram();
+    });
+
+    onUnmounted(() => {
+      renderSeq++;
     });
 
     watch(
       () => props.content,
       () => {
-        renderDiagram();
+        debouncedRender();
       }
     );
 
@@ -87,7 +100,7 @@ export default defineComponent({
       () => isDark(),
       () => {
         initializeMermaid();
-        renderDiagram();
+        debouncedRender();
       }
     );
 
