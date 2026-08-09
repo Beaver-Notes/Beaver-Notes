@@ -45,20 +45,41 @@ export async function saveSessionToken(token) {
     await clearSessionToken();
     return;
   }
-  if (!(await safeStorageAvailable())) {
-    throw new Error('OS keychain is not available on this device.');
+  // Try secure storage first, fall back to localStorage
+  if (await safeStorageAvailable()) {
+    const cipher = await encryptString(toBase64(token));
+    await storeSecureBlob(SESSION_BLOB_KEY, cipher);
+  } else {
+    console.warn('[accountStorage] safe storage unavailable, using localStorage');
+    try {
+      const cipher = await encryptString(toBase64(token));
+      localStorage.setItem(SESSION_BLOB_KEY, cipher);
+    } catch {
+      // Last resort: store as plain text (not ideal but functional)
+      localStorage.setItem(SESSION_BLOB_KEY + '_plain', token);
+    }
   }
-  const cipher = await encryptString(toBase64(token));
-  await storeSecureBlob(SESSION_BLOB_KEY, cipher);
 }
 
 export async function loadSessionToken() {
   try {
-    if (!(await safeStorageAvailable())) return null;
-    const cipher = await fetchSecureBlob(SESSION_BLOB_KEY);
-    if (!cipher) return null;
-    const plain = await decryptString(cipher);
-    return fromBase64(plain) || null;
+    // Try secure storage first
+    if (await safeStorageAvailable()) {
+      const cipher = await fetchSecureBlob(SESSION_BLOB_KEY);
+      if (cipher) {
+        const plain = await decryptString(cipher);
+        return fromBase64(plain) || null;
+      }
+    }
+    // Fall back to localStorage
+    const cipher = localStorage.getItem(SESSION_BLOB_KEY);
+    if (cipher) {
+      const plain = await decryptString(cipher);
+      return fromBase64(plain) || null;
+    }
+    // Last resort: plain text fallback
+    const plain = localStorage.getItem(SESSION_BLOB_KEY + '_plain');
+    return plain || null;
   } catch (err) {
     console.error('[accountStorage] loadSessionToken failed:', err);
     return null;
