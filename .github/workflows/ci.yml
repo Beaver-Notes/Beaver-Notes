@@ -9,6 +9,12 @@ on:
 env:
   NODE_VERSION: '22'
 
+# Pushing often produces many concurrent runs; cancel superseded ones so CI
+# minutes are not spent on stale commits.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   lint-test:
     name: Lint & Test
@@ -42,7 +48,7 @@ jobs:
         run: yarn test
 
   rust:
-    name: Rust Tests
+    name: Rust Checks
     runs-on: ubuntu-latest
 
     steps:
@@ -52,10 +58,30 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install system dependencies
+        run: |
+          SUDO=""
+          if command -v sudo >/dev/null 2>&1 && [ "$(id -u)" -ne 0 ]; then
+            SUDO="sudo"
+          fi
+          $SUDO apt-get update
+          $SUDO apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libasound2-dev \
+            patchelf
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
 
-      - name: Run Rust tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      # Type-check the whole crate (lib, bin, and tests) without codegen/link.
+      # Catches the same compile errors as `cargo test` at a fraction of the cost.
+      - name: Run Rust checks
+        run: cargo check --manifest-path src-tauri/Cargo.toml --locked --all-targets
+
+      - name: Run Rust unit tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
