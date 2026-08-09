@@ -266,6 +266,26 @@
           </div>
         </div>
 
+        <!-- Vault import prompt for existing apps -->
+        <div
+          v-if="showVaultImportPrompt"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                {{ translations.account?.vaultDetected || 'Vault detected' }}
+              </p>
+              <p class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+                {{ translations.account?.vaultDetectedBody || 'A vault was found in your sync source. Import it to unlock your notes.' }}
+               </p>
+            </div>
+            <ui-button size="sm" @click="importVaultDialog">
+              {{ translations.account?.importVault || 'Import' }}
+            </ui-button>
+          </div>
+        </div>
+
         <div
           v-else-if="accountStore.seedStatus === 'error'"
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
@@ -540,19 +560,111 @@
 </template>
 
 <script>
-import { computed } from 'vue';
+import { computed, ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useDialog } from '@/composable/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
+import { isKeyLoaded } from '@/utils/crypto/encryption.js';
 
 export default {
   setup() {
+    const router = useRouter();
     const dialog = useDialog();
     const { translations } = useTranslations();
     const accountStore = useAccountStore();
     const account = useSettingsAccount({ dialog, translations });
+
+    const showVaultImportPrompt = ref(false);
+
+    async function checkVaultImportNeeded() {
+      if (!accountStore.isAuthenticated) {
+        showVaultImportPrompt.value = false;
+        return;
+      }
+      // Already has encryption key loaded — no prompt needed
+      if (isKeyLoaded()) {
+        showVaultImportPrompt.value = false;
+        return;
+      }
+      try {
+        const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+        const { detectRemoteVaultJoin } = await import('@/utils/onboarding/remote-vault-join.js');
+        const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
+        const hasVault = await detectRemoteVaultJoin({
+          fetchCloudKeyParams,
+          hasRemoteVaultKeyParams,
+        }).catch(() => false);
+        showVaultImportPrompt.value = hasVault;
+      } catch {
+        showVaultImportPrompt.value = false;
+      }
+    }
+
+    function goToSecurity() {
+      router.push('/settings/security');
+    }
+
+    async function importVaultDialog() {
+      dialog.confirm({
+        title: translations.value.account?.importVaultTitle || 'Import vault from sync',
+        body: translations.value.account?.importVaultBody || 'Importing will replace this device\'s encryption key. Notes encrypted with a different key may no longer be readable.',
+        icon: 'riShieldKeyholeLine',
+        okText: translations.value.account?.importVault || 'Import',
+        cancelText: translations.value.dialog?.cancel || 'Cancel',
+        onConfirm: () => {
+          dialog.prompt({
+            title: translations.value.account?.vaultPasswordTitle || 'Enter vault password',
+            body: translations.value.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
+            icon: 'riLockLine',
+            okText: translations.value.account?.importVault || 'Import',
+            cancelText: translations.value.dialog?.cancel || 'Cancel',
+            placeholder: translations.value.settings?.password || 'Vault password',
+            onConfirm: async (pass) => {
+              if (!pass) {
+                dialog.alert({
+                  title: translations.value.settings?.alertTitle || 'Alert',
+                  body: translations.value.settings?.invalidPassword || 'Enter the vault password.',
+                  okText: translations.value.dialog?.close || 'Close',
+                });
+                return;
+              }
+              try {
+                const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
+                const res = await adoptVaultKey(pass);
+                if (!res.ok) {
+                  dialog.alert({
+                    title: translations.value.settings?.alertTitle || 'Alert',
+                    body: res.error || 'Failed to import the vault. Check the password.',
+                    okText: translations.value.dialog?.close || 'Close',
+                  });
+                  return;
+                }
+                showVaultImportPrompt.value = false;
+                dialog.alert({
+                  title: translations.value.account?.vaultImported || 'Vault imported',
+                  body: translations.value.account?.vaultImportedBody || 'The vault has been imported. The app will reload.',
+                  okText: translations.value.dialog?.close || 'Close',
+                  onConfirm: () => window.location.reload(),
+                });
+              } catch (e) {
+                dialog.alert({
+                  title: translations.value.settings?.alertTitle || 'Alert',
+                  body: e?.message || 'Failed to import the vault.',
+                  okText: translations.value.dialog?.close || 'Close',
+                });
+              }
+            },
+          });
+        },
+      });
+    }
+
+    onMounted(() => {
+      checkVaultImportNeeded();
+    });
 
     const seedPhaseLabel = computed(() => {
       const phase = accountStore.seedProgress?.phase;
@@ -576,6 +688,9 @@ export default {
       accountStore,
       seedPhaseLabel,
       seedProgressPercent,
+      showVaultImportPrompt,
+      goToSecurity,
+      importVaultDialog,
       ...account,
     };
   },

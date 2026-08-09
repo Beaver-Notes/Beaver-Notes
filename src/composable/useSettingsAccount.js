@@ -66,6 +66,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
       );
       signInPassword.value = '';
       if (accountStore.isAuthenticated) {
+        await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
     } catch (err) {
@@ -89,6 +90,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
       );
       signInPassword.value = '';
       if (accountStore.isAuthenticated) {
+        await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
     } catch (err) {
@@ -101,6 +103,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     try {
       await auth.signInWithPasskey(passkeyEmail.value?.trim() || null);
       if (accountStore.isAuthenticated) {
+        await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
     } catch (err) {
@@ -113,10 +116,38 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     try {
       await auth.signUpWithPasskey(passkeyEmail.value?.trim() || null);
       if (accountStore.isAuthenticated) {
+        await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
     } catch (err) {
       // error already on the store
+    }
+  }
+
+  async function detectAndPromptVaultJoin() {
+    try {
+      const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+      const { detectRemoteVaultJoin } = await import('@/utils/onboarding/remote-vault-join.js');
+      const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
+      const { isKeyLoaded } = await import('@/utils/crypto/encryption.js');
+
+      // If encryption key is already loaded, no need to prompt
+      if (isKeyLoaded()) return;
+
+      const hasVault = await detectRemoteVaultJoin({
+        fetchCloudKeyParams,
+        hasRemoteVaultKeyParams,
+      }).catch(() => false);
+
+      if (hasVault) {
+        dialog.alert({
+          title: translations.value.account?.vaultDetected || 'Vault detected',
+          body: translations.value.account?.vaultDetectedBody || 'A vault was found in your sync source. Go to Settings > Security > "Import vault from sync" to unlock your notes.',
+          okText: translations.value.dialog?.close || 'Close',
+        });
+      }
+    } catch (e) {
+      console.warn('[auth] vault detection failed:', e);
     }
   }
 
