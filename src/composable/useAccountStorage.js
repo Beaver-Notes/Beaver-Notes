@@ -45,18 +45,22 @@ export async function saveSessionToken(token) {
     await clearSessionToken();
     return;
   }
-  // Try secure storage first, fall back to localStorage
-  if (await safeStorageAvailable()) {
+  // Always save to localStorage as backup
+  try {
     const cipher = await encryptString(toBase64(token));
-    await storeSecureBlob(SESSION_BLOB_KEY, cipher);
-  } else {
-    console.warn('[accountStorage] safe storage unavailable, using localStorage');
+    localStorage.setItem(SESSION_BLOB_KEY, cipher);
+    localStorage.setItem(SESSION_BLOB_KEY + '_plain', token);
+  } catch {
+    // encryption failed, store plain text
+    localStorage.setItem(SESSION_BLOB_KEY + '_plain', token);
+  }
+  // Also save to secure storage if available
+  if (await safeStorageAvailable()) {
     try {
       const cipher = await encryptString(toBase64(token));
-      localStorage.setItem(SESSION_BLOB_KEY, cipher);
+      await storeSecureBlob(SESSION_BLOB_KEY, cipher);
     } catch {
-      // Last resort: store as plain text (not ideal but functional)
-      localStorage.setItem(SESSION_BLOB_KEY + '_plain', token);
+      // secure storage failed, localStorage backup is already saved
     }
   }
 }
@@ -65,17 +69,25 @@ export async function loadSessionToken() {
   try {
     // Try secure storage first
     if (await safeStorageAvailable()) {
-      const cipher = await fetchSecureBlob(SESSION_BLOB_KEY);
-      if (cipher) {
-        const plain = await decryptString(cipher);
-        return fromBase64(plain) || null;
+      try {
+        const cipher = await fetchSecureBlob(SESSION_BLOB_KEY);
+        if (cipher) {
+          const plain = await decryptString(cipher);
+          return fromBase64(plain) || null;
+        }
+      } catch {
+        // Fall through to localStorage
       }
     }
-    // Fall back to localStorage
+    // Try localStorage with decryption
     const cipher = localStorage.getItem(SESSION_BLOB_KEY);
     if (cipher) {
-      const plain = await decryptString(cipher);
-      return fromBase64(plain) || null;
+      try {
+        const plain = await decryptString(cipher);
+        return fromBase64(plain) || null;
+      } catch {
+        // Decryption failed, try plain text
+      }
     }
     // Last resort: plain text fallback
     const plain = localStorage.getItem(SESSION_BLOB_KEY + '_plain');
