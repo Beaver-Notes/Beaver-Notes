@@ -178,6 +178,17 @@ export function useOnboardingFlow({
       if (workspaceId && vaultJoinMode.value && fetched) {
         const { getApiClient } = await import('@/lib/api/client');
         const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
+        const { loadSessionToken } = await import('@/composable/useAccountStorage');
+        // Wait for session token to be available (may not be saved yet after sign-in)
+        let token = null;
+        for (let i = 0; i < 20 && !token; i++) {
+          token = await loadSessionToken();
+          if (!token) await new Promise(r => setTimeout(r, 250));
+        }
+        if (!token) {
+          encryptionPasswordError.value = 'Session token not available. Please try again.';
+          return;
+        }
         const { challenge } = await getApiClient({ baseUrl: accountStore.serverUrl })
           .createVaultChallenge(workspaceId);
         const result = await completeRemoteVaultJoin({

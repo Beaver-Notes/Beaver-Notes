@@ -105,6 +105,18 @@ export async function fetchCloudKeyParams({ force = false } = {}) {
   const workspaceId = workspaceStore.activeId;
   if (!workspaceId) return null;
 
+  // Ensure session token is available before making authenticated requests
+  const { loadSessionToken } = await import('@/composable/useAccountStorage');
+  let token = null;
+  for (let i = 0; i < 20 && !token; i++) {
+    token = await loadSessionToken();
+    if (!token) await new Promise(r => setTimeout(r, 250));
+  }
+  if (!token) {
+    console.warn('[vault-key-params] session token not available, skipping fetch');
+    return null;
+  }
+
   try {
     const accountStore = useAccountStore();
     const client = getApiClient({ baseUrl: accountStore.serverUrl });
