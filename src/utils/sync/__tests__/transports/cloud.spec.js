@@ -12,6 +12,10 @@ vi.mock('../../remote-yjs.js', () => ({
   claimInitialization: vi.fn(() => ({ token: 'claim-token' })),
   uploadInitializationSnapshot: vi.fn((workspaceId, _token, noteId) => ({ key: `yjs/${workspaceId}/${noteId}/1.yjs` })),
   completeInitialization: vi.fn(() => ({ ok: true })),
+  getSnapshotUrls: vi.fn((_workspaceId, _token, noteIds) => ({
+    urls: Object.fromEntries(noteIds.map((noteId) => [noteId, { url: 'https://seed.example/upload', key: `yjs/workspace-1/${noteId}/1.yjs` }])),
+    generation: 1,
+  })),
   listRemoteNoteIds: vi.fn(() => []),
 }));
 
@@ -64,11 +68,16 @@ describe('CloudTransport', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
     transport = new CloudTransport({
       passphraseProvider: vi.fn(() => 'mock-pass'),
       getTransportSetting: () => 'both',
       getAccountState: defaultAccountState,
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   describe('push throttle', () => {
@@ -529,6 +538,9 @@ describe('CloudTransport', () => {
     it('resets and pushes when the normalized stale-cursor probe is empty', async () => {
       await configureStaleCursorProbe();
       const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
+      // Force the seed path to fail (snapshot upload rejected) so the stale-cursor
+      // probe fallback runs and re-pushes local files to the empty server.
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 })));
       getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
       pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {} });
 
@@ -547,30 +559,40 @@ describe('CloudTransport', () => {
     });
 
     it('seeds an authoritative empty server', async () => {
-      const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
+      const { getRemoteState, getSnapshotUrls, completeInitialization } = await import('../../remote-yjs.js');
+      const fetchMock = vi.fn(async () => ({ ok: true }));
+      vi.stubGlobal('fetch', fetchMock);
       getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
-      pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {} });
+      getSnapshotUrls.mockResolvedValue({
+        urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
+        generation: 1,
+      });
+      completeInitialization.mockResolvedValue({ ok: true });
 
-      await transport.seedCloudOnce();
+      await expect(transport.seedCloudOnce()).resolves.toBe(true);
 
-      expect(pushUpdates).toHaveBeenCalled();
+      expect(getSnapshotUrls).toHaveBeenCalledWith('workspace-1', 'claim-token', ['meta']);
+      expect(fetchMock).toHaveBeenCalledWith('https://seed.example/upload', expect.objectContaining({ method: 'PUT' }));
+      expect(completeInitialization).toHaveBeenCalledTimes(1);
     });
 
     it('serializes concurrent seed attempts through one initialization claim', async () => {
-      const { getRemoteState, pushUpdates, claimInitialization, uploadInitializationSnapshot, completeInitialization } = await import('../../remote-yjs.js');
+      const { getRemoteState, claimInitialization, completeInitialization, getSnapshotUrls } = await import('../../remote-yjs.js');
       getRemoteState.mockReset();
-      pushUpdates.mockReset();
       claimInitialization.mockReset();
-      uploadInitializationSnapshot.mockReset();
       completeInitialization.mockReset();
+      getSnapshotUrls.mockReset();
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
       getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
-      pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {} });
+      getSnapshotUrls.mockResolvedValue({
+        urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
+        generation: 1,
+      });
+      completeInitialization.mockResolvedValue({ ok: true });
       let release;
       claimInitialization.mockImplementationOnce(() => new Promise((resolve) => {
         release = () => resolve({ token: 'claim-token' });
       }));
-      uploadInitializationSnapshot.mockResolvedValue({ key: 'yjs/workspace-1/meta/1.yjs' });
-      completeInitialization.mockResolvedValue({ ok: true });
 
       const first = transport.seedCloudOnce();
       const second = transport.seedCloudOnce();
@@ -579,18 +601,23 @@ describe('CloudTransport', () => {
       await Promise.all([first, second]);
 
       expect(claimInitialization).toHaveBeenCalledTimes(1);
+      expect(getSnapshotUrls).toHaveBeenCalledTimes(1);
       expect(completeInitialization).toHaveBeenCalledTimes(1);
     });
 
-    it('does not complete initialization after a failed journal upload', async () => {
-      const { getRemoteState, pushUpdates, claimInitialization, completeInitialization } = await import('../../remote-yjs.js');
+    it('does not complete initialization after a failed snapshot upload', async () => {
+      const { getRemoteState, claimInitialization, completeInitialization, getSnapshotUrls } = await import('../../remote-yjs.js');
       getRemoteState.mockReset();
-      pushUpdates.mockReset();
       claimInitialization.mockReset();
       completeInitialization.mockReset();
+      getSnapshotUrls.mockReset();
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 })));
       getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
       claimInitialization.mockResolvedValue({ token: 'claim-token' });
-      pushUpdates.mockRejectedValue(new Error('offline during seed'));
+      getSnapshotUrls.mockResolvedValue({
+        urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
+        generation: 1,
+      });
 
       await expect(transport.seedCloudOnce()).resolves.toBe(false);
       expect(completeInitialization).not.toHaveBeenCalled();
@@ -606,21 +633,23 @@ describe('CloudTransport', () => {
     });
 
     it('seeds a server stuck in initializing with zero documents', async () => {
-      const { getRemoteState, pushUpdates, claimInitialization, uploadInitializationSnapshot, completeInitialization } = await import('../../remote-yjs.js');
+      const { getRemoteState, claimInitialization, completeInitialization, getSnapshotUrls } = await import('../../remote-yjs.js');
       getRemoteState.mockReset();
-      pushUpdates.mockReset();
       claimInitialization.mockReset();
-      uploadInitializationSnapshot.mockReset();
       completeInitialization.mockReset();
+      getSnapshotUrls.mockReset();
+      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
       getRemoteState.mockResolvedValue({ status: 'initializing', documents: [] });
-      pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {} });
       claimInitialization.mockResolvedValue({ token: 'claim-token' });
-      uploadInitializationSnapshot.mockResolvedValue({ key: 'yjs/workspace-1/meta/1.yjs' });
+      getSnapshotUrls.mockResolvedValue({
+        urls: { meta: { url: 'https://seed.example/upload', key: 'yjs/workspace-1/meta/1.yjs' } },
+        generation: 1,
+      });
       completeInitialization.mockResolvedValue({ ok: true });
 
       await expect(transport.seedCloudOnce()).resolves.toBe(true);
 
-      expect(pushUpdates).toHaveBeenCalled();
+      expect(claimInitialization).toHaveBeenCalledTimes(1);
       expect(completeInitialization).toHaveBeenCalledTimes(1);
     });
 
