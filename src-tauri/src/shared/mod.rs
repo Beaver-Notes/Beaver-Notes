@@ -50,6 +50,7 @@ pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
     "beaverAccountSession",
     "beaverAccountProfile",
     "beaverAccountDeviceId",
+    "e2eIdentityKeypair",
 ];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 /// Consecutive failed passphrase attempts before the app-encryption unlock is

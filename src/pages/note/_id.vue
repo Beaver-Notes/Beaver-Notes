@@ -667,6 +667,7 @@ export default {
       showComments,
       toggleComments,
       commentStore,
+      onCommentActivated,
     };
   },
 };
