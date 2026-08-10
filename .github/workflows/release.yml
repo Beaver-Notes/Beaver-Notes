@@ -356,7 +356,7 @@ jobs:
             \( -name "*.dmg" -o -name "*.app.tar.gz" -o -name "*.sig" -o -name "latest.json" \) \
             -exec cp {} "$OUT"/ \;
 
-      # Linux release assets: binary tarball + updater signature
+      # Linux release assets: binary tarball + AppImage + updater signature
       - name: Stage Linux assets
         if: ${{ startsWith(matrix.id, 'linux-') }}
         shell: bash
@@ -371,27 +371,57 @@ jobs:
           OUT="release-assets"
           BIN_NAME="beaver-notes"
           BIN_PATH="src-tauri/target/${TARGET}/release/${BIN_NAME}"
-          TAR_NAME="Beaver-Notes-${VERSION}-${{ matrix.asset_suffix }}.tar.gz"
+          
+          # Determine architecture
+          if [[ "$TARGET" == *"x86_64"* ]]; then
+            ARCH="x86_64"
+          elif [[ "$TARGET" == *"aarch64"* ]]; then
+            ARCH="aarch64"
+          fi
+          
+          TAR_NAME="Beaver-Notes-${VERSION}-${ARCH}.tar.gz"
+          APPIMAGE_NAME="Beaver-Notes-${VERSION}-${ARCH}.AppImage"
 
           mkdir -p "$OUT"
 
-          # Create tarball from binary
-          mkdir -p portable-root
-          cp "$BIN_PATH" portable-root/
-          cp buildResources/icon.png portable-root/beaver-notes.png
+          # Create FHS tarball
+          mkdir -p "portable-root/bin"
+          mkdir -p "portable-root/lib/beaver-notes"
+          mkdir -p "portable-root/share/applications"
+          mkdir -p "portable-root/share/icons/hicolor/1024x1024/apps"
+          mkdir -p "portable-root/share/metainfo"
 
-          cat > portable-root/beaver-notes.desktop << 'DESKTOP'
+          cp "$BIN_PATH" "portable-root/lib/beaver-notes/"
+          cp -r src-tauri/target/${TARGET}/release/bundle/appimage/resources/* "portable-root/lib/beaver-notes/" 2>/dev/null || true
+          cp buildResources/icon.png "portable-root/share/icons/hicolor/1024x1024/apps/beaver-notes.png"
+          cp flatpak/com.beavernotes.beavernotes.metainfo.xml "portable-root/share/metainfo/"
+
+          # Create wrapper script
+          cat > "portable-root/bin/beaver-notes" << 'WRAPPER'
+          #!/bin/bash
+          exec "$(dirname "$0")/../lib/beaver-notes/beaver-notes" "$@"
+          WRAPPER
+          chmod +x "portable-root/bin/beaver-notes"
+
+          # Create desktop file
+          cat > "portable-root/share/applications/beaver-notes.desktop" << 'DESKTOP'
           [Desktop Entry]
           Name=Beaver Notes
-          Comment=A clean, native markdown notes app
-          Exec=beaver-notes
+          Comment=Open-source notes that live where you choose
+          Exec=beaver-notes %F
           Icon=beaver-notes
           Type=Application
           Categories=Utility;TextEditor;Office;
           MimeType=text/markdown;text/plain;
+          Terminal=false
+          StartupWMClass=beaver-notes
           DESKTOP
 
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
+
+          # Build AppImage
+          ./scripts/build-appimage.sh "$VERSION" "$ARCH"
+          mv "$APPIMAGE_NAME" "$OUT/"
 
           # Sign the tarball for updater
           yarn tauri signer sign \
