@@ -262,10 +262,14 @@ export async function passwordLogin(email, password, { baseUrl, signal } = {}) {
 export async function passwordRegister(
   email,
   password,
-  { baseUrl, signal } = {}
+  { baseUrl, signal, kemPublicKey } = {}
 ) {
   const client = getClient(baseUrl);
-  return client.post('/auth/register', { email, password }, { signal });
+  return client.post(
+    '/auth/register',
+    { email, password, kemPublicKey },
+    { signal }
+  );
 }
 
 export async function quickConnectInitiate({ baseUrl } = {}) {

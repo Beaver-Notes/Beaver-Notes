@@ -14,6 +14,7 @@ import {
 import { getApiClient, resetApiClient } from '@/lib/api/client';
 import * as authApi from '@/lib/api/auth';
 import * as accountApi from '@/lib/api/account';
+import { loadOrCreateIdentity, publishIdentity } from '@/utils/crypto/identity';
 
 function deriveDeviceLabel() {
   if (typeof navigator === 'undefined') return 'Unknown device';
@@ -171,6 +172,17 @@ export function useAccountAuth() {
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
     await fetchProfile();
+    // E2E identity: ensure a keypair exists and the server knows its public key
+    try {
+      const identity = await loadOrCreateIdentity();
+      const userKem = accountStore.profile?.kemPublicKey;
+      if (!userKem || userKem !== identity.publicKeyHex) {
+        await publishIdentity(identity);
+        await fetchProfile();
+      }
+    } catch (err) {
+      console.warn('[e2e] identity reconcile failed:', err?.message);
+    }
     return { token, user, subscription };
   }
 
@@ -268,8 +280,10 @@ export function useAccountAuth() {
       if (password.length < 12) {
         throw new Error('Password must be at least 12 characters.');
       }
+      const identity = await loadOrCreateIdentity();
       const result = await authApi.passwordRegister(normalizedEmail, password, {
         baseUrl: activeBaseUrl(),
+        kemPublicKey: identity.publicKeyHex,
       });
       await ensureDeviceId();
       return performSignIn(result || {});
