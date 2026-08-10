@@ -69,9 +69,9 @@ For stable builds, the [Downloads page](https://beavernotes.com/#/Download) has 
 2. Extract and install:
    ```bash
    tar -xzf Beaver-Notes-*.tar.gz
-   sudo cp -r Beaver-Notes-*/bin /usr/local/bin
-   sudo cp -r Beaver-Notes-*/lib /usr/local/lib
-   sudo cp -r Beaver-Notes-*/share /usr/local/share
+   sudo cp -r bin /usr/local/bin
+   sudo cp -r lib /usr/local/lib
+   sudo cp -r share /usr/local/share
    ```
 
 3. Update desktop database:

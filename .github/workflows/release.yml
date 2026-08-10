@@ -338,7 +338,7 @@ jobs:
         run: |
           yarn tauri build \
             --target "${{ matrix.tauri_target }}" \
-            --bundles app \
+            --no-bundle \
             --ci
 
       # macOS release assets: DMG plus updater files
@@ -377,6 +377,9 @@ jobs:
             ARCH="x86_64"
           elif [[ "$TARGET" == *"aarch64"* ]]; then
             ARCH="aarch64"
+          else
+            echo "::error::Unsupported architecture in target: $TARGET"
+            exit 1
           fi
           
           TAR_NAME="Beaver-Notes-${VERSION}-${ARCH}.tar.gz"
@@ -420,6 +423,7 @@ jobs:
           tar -czf "$OUT/$TAR_NAME" -C portable-root .
 
           # Build AppImage
+          chmod +x ./scripts/build-appimage.sh
           ./scripts/build-appimage.sh "$VERSION" "$ARCH"
           mv "$APPIMAGE_NAME" "$OUT/"
 

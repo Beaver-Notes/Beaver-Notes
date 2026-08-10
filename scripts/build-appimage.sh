@@ -31,9 +31,9 @@ TEMP_DIR=$(mktemp -d)
 tar -xzf "$TAR_FILE" -C "$TEMP_DIR"
 
 # Copy files to AppDir
-cp -r "$TEMP_DIR"/Beaver-Notes-*/bin/* AppDir/usr/bin/
-cp -r "$TEMP_DIR"/Beaver-Notes-*/lib/beaver-notes/* AppDir/usr/lib/beaver-notes/
-cp -r "$TEMP_DIR"/Beaver-Notes-*/share/* AppDir/usr/share/
+cp -r "$TEMP_DIR"/bin/* AppDir/usr/bin/
+cp -r "$TEMP_DIR"/lib/beaver-notes/* AppDir/usr/lib/beaver-notes/
+cp -r "$TEMP_DIR"/share/* AppDir/usr/share/
 
 rm -rf "$TEMP_DIR"
 
