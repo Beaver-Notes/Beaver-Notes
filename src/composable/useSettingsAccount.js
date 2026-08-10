@@ -3,7 +3,7 @@ import { useAccountStore } from '@/store/account';
 import { setSetting } from '@/composable/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
 
-export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
+export function useSettingsAccount({ dialog, translations }) {
   const accountStore = useAccountStore();
   const auth = useAccountAuth();
 
@@ -24,19 +24,6 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
 
   function clearError() {
     accountStore.setError('');
-  }
-
-  function showAlert(message, options = {}) {
-    if (showDialogAlert) {
-      showDialogAlert(message);
-    } else {
-      dialog.alert({
-        title: translations.value.settings?.alertTitle || 'Alert',
-        body: message,
-        okText: translations.value.dialog?.close || 'Close',
-        ...options,
-      });
-    }
   }
 
   async function saveServerUrl() {
@@ -69,7 +56,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -93,7 +80,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -106,7 +93,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -119,7 +106,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         await detectAndPromptVaultJoin();
         auth.triggerSeed().catch(() => {});
       }
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -159,7 +146,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         quickConnectSecret.value = result.secret || '';
         quickConnectExpiresAt.value = result.expiresAt || null;
       }
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -172,7 +159,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
         quickConnectSecret.value = '';
         quickConnectExpiresAt.value = null;
       }
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -188,7 +175,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     }
     try {
       await auth.authorizeQuickConnect(quickConnectCode.value.trim(), null);
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -207,7 +194,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
       onConfirm: async () => {
         try {
           await auth.signOut();
-        } catch (err) {
+        } catch {
           return false;
         }
         return true;
@@ -232,7 +219,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
       onConfirm: async () => {
         try {
           await auth.signOutEverywhere();
-        } catch (err) {
+        } catch {
           return false;
         }
         return true;
@@ -244,7 +231,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
     clearError();
     try {
       await auth.revokeDevice(deviceId);
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }
@@ -273,7 +260,7 @@ export function useSettingsAccount({ dialog, translations, showDialogAlert }) {
       await auth.deleteAccount(deletePassword.value);
       deletingAccount.value = false;
       deletePassword.value = '';
-    } catch (err) {
+    } catch {
       // error already on the store
     }
   }

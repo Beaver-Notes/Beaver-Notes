@@ -11,10 +11,11 @@ import {
   saveAccountDeviceId,
   clearAllAccountStorage,
 } from '@/composable/useAccountStorage';
-import { getApiClient, resetApiClient } from '@/lib/api/client';
+import { resetApiClient } from '@/lib/api/client';
 import * as authApi from '@/lib/api/auth';
 import * as accountApi from '@/lib/api/account';
 import { loadOrCreateIdentity, publishIdentity } from '@/utils/crypto/identity';
+import { logger } from '@/utils/logger';
 
 function deriveDeviceLabel() {
   if (typeof navigator === 'undefined') return 'Unknown device';
@@ -49,19 +50,6 @@ function deriveDeviceLabel() {
   return `${browser} on ${os}`;
 }
 
-function buildClient(baseUrl, token) {
-  return getApiClient(
-    baseUrl
-      ? {
-          baseUrl,
-          getToken: async () => token,
-        }
-      : {
-          getToken: async () => token,
-        }
-  );
-}
-
 function normalizeError(err) {
   if (!err) return 'Unknown error.';
   if (typeof err === 'string') return err;
@@ -71,7 +59,6 @@ function normalizeError(err) {
 
 export function useAccountAuth() {
   const accountStore = useAccountStore();
-  let currentToken = null;
 
   function activeBaseUrl() {
     return accountStore.serverUrl;
@@ -90,7 +77,6 @@ export function useAccountAuth() {
   }
 
   async function persistToken(token, profile) {
-    currentToken = token || null;
     if (token) {
       try {
         await saveSessionToken(token);
@@ -165,8 +151,6 @@ export function useAccountAuth() {
     }
     if (persist) {
       await persistToken(token, user);
-    } else {
-      currentToken = token;
     }
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
@@ -343,7 +327,6 @@ export function useAccountAuth() {
       console.warn('[auth] logout server call failed:', err);
     }
     await clearAllAccountStorage();
-    currentToken = null;
     resetApiClient();
     setStatus('anonymous');
     accountStore.setProfile(null);
@@ -411,7 +394,6 @@ export function useAccountAuth() {
     try {
       await accountApi.deleteAccount(password, { baseUrl: activeBaseUrl() });
       await clearAllAccountStorage();
-      currentToken = null;
       resetApiClient();
       accountStore.removeAccount(accountStore.activeAccountId);
       if (accountStore.accounts.length === 0) {
@@ -439,7 +421,6 @@ export function useAccountAuth() {
       }
       return false;
     }
-    currentToken = token;
     setStatus('authenticated');
     const cached = await loadCachedProfile();
     if (cached) accountStore.setProfile(cached);
@@ -448,7 +429,7 @@ export function useAccountAuth() {
     return true;
   }
 
-  async function triggerSeed(onProgress) {
+  async function triggerSeed(_onProgress) {
     // Skip if no cloud sync is configured
     if (!accountStore.isAuthenticated) return false;
     if (!accountStore.isPaidPlan) return false;
@@ -461,7 +442,7 @@ export function useAccountAuth() {
     }
 
     try {
-      const { getSyncEngine, initSyncEngine } = await import('@/utils/sync/engine.js');
+      const { getSyncEngine } = await import('@/utils/sync/engine.js');
 
       // Wait up to 5s for the sync engine to initialize (it may start after auth)
       let engine = getSyncEngine();
@@ -472,12 +453,12 @@ export function useAccountAuth() {
 
       // If the engine still isn't initialized, initialize it now
       if (!engine) {
-        console.log('[auth] sync engine not found, initializing now');
+        logger.info('[auth] sync engine not found, initializing now');
         const { initAppSync } = await import('@/utils/sync/app-sync.js');
         engine = initAppSync();
       }
       if (!engine) {
-        console.log('[auth] sync engine could not be initialized, skipping seed');
+        logger.info('[auth] sync engine could not be initialized, skipping seed');
         return false;
       }
 

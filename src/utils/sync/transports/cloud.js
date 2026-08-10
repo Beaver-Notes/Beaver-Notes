@@ -7,7 +7,6 @@ import {
   completeInitialization,
   getSnapshotUrls,
   createWorkspace,
-  getWorkspaces,
 } from '../remote-yjs.js';
 import {
   listRemoteAssets,
@@ -34,6 +33,7 @@ import * as Y from 'yjs';
 import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { toUint8Array, applyUpdatesToDoc } from '@/utils/yjs-helpers.js';
 import { META_DOC_ID } from '@/composable/meta-yjs-doc.js';
+import { logger } from '@/utils/logger';
 
 const CLOUD_PUSH_MIN_INTERVAL_MS = 30_000;
 const CLOUD_PUSH_MAX_BATCH_BYTES = 256 * 1024;
@@ -147,7 +147,7 @@ export class CloudTransport extends Transport {
         this._cachedWorkspaceId = list[0].id;
       } else {
         // No workspaces — auto-create one
-        console.log('[sync] cloud: no workspaces found, creating default workspace');
+        logger.info('[sync] cloud: no workspaces found, creating default workspace');
         const profile = accountStore.profile;
         const orgId = accountStore.activeOrgId || profile?.organizationId;
         if (!orgId) {
@@ -159,7 +159,7 @@ export class CloudTransport extends Transport {
           if (created?.id) {
             workspaceStore.activeId = created.id;
             this._cachedWorkspaceId = created.id;
-            console.log('[sync] cloud: created workspace', created.id);
+            logger.info('[sync] cloud: created workspace', created.id);
           }
         } catch (createErr) {
           console.warn('[sync] cloud: failed to create workspace:', createErr?.message);
@@ -176,7 +176,7 @@ export class CloudTransport extends Transport {
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) {
-      console.log('[sync] cloud pull: no active workspace');
+      logger.info('[sync] cloud pull: no active workspace');
       return { updates: [], cursorsDelta: {} };
     }
 
@@ -189,7 +189,7 @@ export class CloudTransport extends Transport {
       // 403 means user is not a workspace member — workspace may be stale.
       // In both cases, reset and let the push phase try to create/fetch a valid workspace.
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
-        console.log('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
+        logger.info('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
         this._cachedWorkspaceId = null;
@@ -272,19 +272,19 @@ export class CloudTransport extends Transport {
 
   async push(cursors, opts = {}) {
     if (!this._remoteAllowed()) {
-      console.log('[sync] cloud push: _remoteAllowed=false');
+      logger.info('[sync] cloud push: _remoteAllowed=false');
       return { updates: [], cursorsDelta: {}, pushed: 0 };
     }
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) {
-      console.log('[sync] cloud push: no active workspace');
+      logger.info('[sync] cloud push: no active workspace');
       return { updates: [], cursorsDelta: {}, pushed: 0 };
     }
 
     const force = opts?.force === true;
     if (!force && this._throttled()) {
-      console.log('[sync] cloud push: throttled');
+      logger.info('[sync] cloud push: throttled');
       return { updates: [], cursorsDelta: {}, pushed: 0, throttled: true };
     }
 
@@ -303,7 +303,7 @@ export class CloudTransport extends Transport {
       try {
         const seeded = await this.seedCloudOnce();
         if (seeded) {
-          console.log('[sync] cloud push: server seeded from local state');
+          logger.info('[sync] cloud push: server seeded from local state');
         }
       } catch (err) {
         console.warn('[sync] cloud push: seedCloudOnce failed:', err?.message);
@@ -344,7 +344,7 @@ export class CloudTransport extends Transport {
       const result = await remotePushUpdates(workspaceId, notes);
       const totalPushed = (result.accepted || 0) + (result.duplicate || 0);
 
-      console.log('[sync] cloud push (cloud-only) totalPushed:', totalPushed);
+      logger.info('[sync] cloud push (cloud-only) totalPushed:', totalPushed);
       this._lastPushedAt = Date.now();
 
       const cursorsDelta = {};
@@ -375,7 +375,7 @@ export class CloudTransport extends Transport {
 
     const allFiles = await readDir(commitsDir).catch(() => []);
     const pushedFiles = allFiles.filter((f) => f.endsWith(YJS_UPDATE_EXT) && f !== '._seeded');
-    console.log('[sync] cloud push commitsDir:', commitsDir, '| files:', pushedFiles.length, '/', allFiles.length, '| cursor:', JSON.stringify(ownCursor));
+    logger.info('[sync] cloud push commitsDir:', commitsDir, '| files:', pushedFiles.length, '/', allFiles.length, '| cursor:', JSON.stringify(ownCursor));
 
     // Build full file map (all devices, for probe check)
     const allFilesByNoteId = new Map();
@@ -455,19 +455,19 @@ export class CloudTransport extends Transport {
     }
 
     // Single batch push for all notes
-    console.log('[sync] cloud push batchNotes:', batchNotes.length, '| notes total updates:', batchNotes.reduce((s, n) => s + n.updates.length, 0));
+    logger.info('[sync] cloud push batchNotes:', batchNotes.length, '| notes total updates:', batchNotes.reduce((s, n) => s + n.updates.length, 0));
     if (batchNotes.length > 0) {
       try {
         const result = await remotePushUpdates(workspaceId, batchNotes);
         totalPushed = (result.accepted || 0) + (result.duplicate || 0);
         acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
-        console.log('[sync] cloud push result:', JSON.stringify(result));
+        logger.info('[sync] cloud push result:', JSON.stringify(result));
       } catch (e) {
         console.error('[sync] cloud push error:', e?.status, e?.message, JSON.stringify(e?.body) || '');
         throw e;
       }
     } else if (ownCursor.ts > 0 && allFilesByNoteId.size > 0 && !this._serverProbeComplete) {
-      console.log('[sync] cloud push: cursor stale check — cursor:', JSON.stringify(ownCursor), 'files:', allFilesByNoteId.size);
+      logger.info('[sync] cloud push: cursor stale check — cursor:', JSON.stringify(ownCursor), 'files:', allFilesByNoteId.size);
       // Cursor says "already pushed" but server might be empty (reset, data loss).
       // Probe once: pull with empty cursor for first note. If server returns nothing, it's empty.
       let probePush = false;
@@ -479,10 +479,10 @@ export class CloudTransport extends Transport {
           // 404 = workspace has no sync state yet, treat as empty
           // 403 = user is not a workspace member, reset workspace
           if (stateErr?.status === 404 || stateErr?.statusCode === 404) {
-            console.log('[sync] cloud push: probe got 404 — treating as empty workspace');
+            logger.info('[sync] cloud push: probe got 404 — treating as empty workspace');
             state = { status: 'empty', documents: [] };
           } else if (stateErr?.status === 403 || stateErr?.statusCode === 403) {
-            console.log('[sync] cloud push: probe got 403 — resetting workspace');
+            logger.info('[sync] cloud push: probe got 403 — resetting workspace');
             const workspaceStore = useWorkspaceStore();
             workspaceStore.activeId = null;
             this._cachedWorkspaceId = null;
@@ -496,11 +496,11 @@ export class CloudTransport extends Transport {
           throw malformedRemoteState();
         }
         const serverEmpty = isAuthoritativelyEmpty(state);
-        console.log('[sync] cloud push: probe state — empty:', serverEmpty, 'status:', state?.status);
+        logger.info('[sync] cloud push: probe state — empty:', serverEmpty, 'status:', state?.status);
         if (!serverEmpty) {
           this._serverProbeComplete = true;
         } else {
-          console.log('[sync] cloud push: probe found empty server, resetting stale cursor');
+          logger.info('[sync] cloud push: probe found empty server, resetting stale cursor');
           pushCursorTs = 0;
           pushCursorSeq = 0;
           filesByNoteId = allFilesByNoteId;
@@ -520,13 +520,8 @@ export class CloudTransport extends Transport {
             if (noteUpdates.length > 0) batchNotes.push({ noteId, updates: noteUpdates });
           }
           if (batchNotes.length > 0) {
-            let result;
-            try {
-              probePush = true;
-              result = await remotePushUpdates(workspaceId, batchNotes);
-            } catch (error) {
-              throw error;
-            }
+            probePush = true;
+            const result = await remotePushUpdates(workspaceId, batchNotes);
             totalPushed = (result.accepted || 0) + (result.duplicate || 0);
             acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
             this._serverProbeComplete = true;
@@ -535,12 +530,12 @@ export class CloudTransport extends Transport {
       } catch (e) {
         if (probePush) throw e;
         if (e?.code === 'sync-state-invalid') throw e;
-        console.log('[sync] cloud push: probe failed:', e?.status, e?.message);
+        logger.info('[sync] cloud push: probe failed:', e?.status, e?.message);
         // Server unreachable — will retry next cycle (don't set _serverProbeComplete)
       }
     }
 
-    console.log('[sync] cloud push totalPushed:', totalPushed, '| cursor:', JSON.stringify({ ts: pushCursorTs, seq: pushCursorSeq }));
+    logger.info('[sync] cloud push totalPushed:', totalPushed, '| cursor:', JSON.stringify({ ts: pushCursorTs, seq: pushCursorSeq }));
     this._lastPushedAt = Date.now();
 
     const cursorsDelta = {};
@@ -614,7 +609,7 @@ export class CloudTransport extends Transport {
       if (err?.code === 'sync-state-invalid') throw err;
       // 403 = workspace not accessible, try to create a new one
       if (err?.status === 403 || err?.statusCode === 403) {
-        console.log('[sync] cloud seed: workspace not accessible, resetting');
+        logger.info('[sync] cloud seed: workspace not accessible, resetting');
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
         this._cachedWorkspaceId = null;
@@ -633,7 +628,7 @@ export class CloudTransport extends Transport {
         try {
           const { resetInitialization } = await import('../remote-yjs.js');
           await resetInitialization(workspaceId);
-          console.log('[sync] cloud seed: reset stuck initialization, retrying claim');
+          logger.info('[sync] cloud seed: reset stuck initialization, retrying claim');
           claim = await claimInitialization(workspaceId);
         } catch (resetErr) {
           if (resetErr?.status === 409) {
@@ -649,7 +644,7 @@ export class CloudTransport extends Transport {
     if (!claim?.token) throw new Error('cloud seed: initialization claim missing token');
 
     try {
-    console.log('[sync] cloud seed: claimed server initialization');
+    logger.info('[sync] cloud seed: claimed server initialization');
     const { encryptJSON } = await import('../crypto.js');
     const ownDeviceId = getSyncDeviceId();
     const ts = Date.now();
@@ -718,7 +713,7 @@ export class CloudTransport extends Transport {
       throw new Error('cloud seed: nothing to push');
     }
 
-    console.log(`[sync] cloud seed: uploading ${snapshots.length} snapshots via presigned URLs`);
+    logger.info(`[sync] cloud seed: uploading ${snapshots.length} snapshots via presigned URLs`);
     if (onProgress) onProgress({ phase: 'presign', uploaded: 0, total: snapshots.length });
 
     const { urls, generation } = await getSnapshotUrls(workspaceId, claim.token, noteIds);
@@ -727,7 +722,6 @@ export class CloudTransport extends Transport {
     }
 
     const CONCURRENT = 4;
-    let uploaded = 0;
     const documents = [];
 
     for (let i = 0; i < snapshots.length; i += CONCURRENT) {
@@ -741,7 +735,6 @@ export class CloudTransport extends Transport {
           headers: { 'Content-Type': 'application/octet-stream' },
         });
         if (!response.ok) throw new Error(`snapshot upload failed: ${response.status}`);
-        uploaded++;
         documents.push({
           noteId,
           snapshotGeneration: generation,
@@ -750,112 +743,108 @@ export class CloudTransport extends Transport {
           checkpointSequence: 0,
         });
       }));
-      console.log(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
+      logger.info(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
       if (onProgress) onProgress({ phase: 'snapshots', uploaded: Math.min(i + CONCURRENT, snapshots.length), total: snapshots.length });
     }
 
-    console.log('[sync] cloud seed: seeding assets');
+    logger.info('[sync] cloud seed: seeding assets');
     if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: 0 });
 
     const requiredAssetKeys = [];
-    try {
-      const { getAppDirectory } = await import('@/lib/native/app');
-      const appDir = await getAppDirectory();
-      if (appDir) {
-        const assetKeys = [];
-        const assetFiles = [];
-        for (const assetType of ASSET_TYPES) {
-          const localBase = `${appDir}/${assetType}`;
-          const noteDirIds = await readDir(localBase).catch(() => []);
-          for (const nid of noteDirIds) {
-            const noteDir = `${localBase}/${nid}`;
-            const files = await readDir(noteDir).catch(() => []);
-            for (const file of files) {
-              const flatKey = encodeAssetKey(assetType, nid, file);
-              assetKeys.push(flatKey);
-              assetFiles.push({ key: flatKey, localPath: `${noteDir}/${file}` });
-            }
-          }
-        }
-
-        if (assetKeys.length > 0) {
-          requiredAssetKeys.push(...assetKeys);
-          let toUploadKeys = assetKeys;
-          try {
-            const remote = new Set(await listRemoteAssets());
-            const missing = assetKeys.filter((k) => !remote.has(k));
-            console.log(`[sync] cloud seed: ${assetKeys.length} local assets, ${assetKeys.length - missing.length} already on server, ${missing.length} to upload`);
-            if (missing.length < assetKeys.length) toUploadKeys = missing;
-          } catch (err) {
-            console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
-          }
-          if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: toUploadKeys.length });
-
-          // Build size-based batches: group assets to stay under MAX_BATCH_BYTES
-          const MAX_BATCH_BYTES = 10 * 1024 * 1024; // 10MB per batch
-          const assetEntries = [];
-          for (const assetKey of toUploadKeys) {
-            const file = assetFiles.find(f => f.key === assetKey);
-            if (!file) continue;
-            try {
-              const data = await readFileBinary(file.localPath);
-              const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
-              if (bytes && bytes.byteLength > 0) {
-                assetEntries.push({ key: assetKey, data: bytes, size: bytes.byteLength });
-              }
-            } catch (err) {
-              console.warn('[sync] cloud seed: skipping asset', assetKey, err?.message);
-            }
-          }
-
-          // Sort by size ascending — pack small files together, large files get their own batch
-          assetEntries.sort((a, b) => a.size - b.size);
-
-          const batches = [];
-          let currentBatch = [];
-          let currentSize = 0;
-          for (const entry of assetEntries) {
-            if (entry.size > MAX_BATCH_BYTES) {
-              // Large file — upload solo
-              if (currentBatch.length > 0) {
-                batches.push(currentBatch);
-                currentBatch = [];
-                currentSize = 0;
-              }
-              batches.push([entry]);
-            } else if (currentSize + entry.size > MAX_BATCH_BYTES) {
-              // Would overflow — start new batch
-              batches.push(currentBatch);
-              currentBatch = [entry];
-              currentSize = entry.size;
-            } else {
-              currentBatch.push(entry);
-              currentSize += entry.size;
-            }
-          }
-          if (currentBatch.length > 0) batches.push(currentBatch);
-
-          console.log(`[sync] cloud seed: ${assetEntries.length} assets in ${batches.length} batches`);
-
-          // Upload batches
-          let assetsUploaded = 0;
-          for (let bi = 0; bi < batches.length; bi++) {
-            const batch = batches[bi];
-            try {
-              const result = await seedBatchUploadAssets(batch);
-              assetsUploaded += (result.uploaded || 0) + (result.skipped || 0);
-            } catch (err) {
-              console.warn(`[sync] cloud seed: batch ${bi + 1} failed:`, err?.message);
-            }
-            if (onProgress) onProgress({ phase: 'assets', uploaded: assetsUploaded, total: toUploadKeys.length });
+    const { getAppDirectory } = await import('@/lib/native/app');
+    const appDir = await getAppDirectory();
+    if (appDir) {
+      const assetKeys = [];
+      const assetFiles = [];
+      for (const assetType of ASSET_TYPES) {
+        const localBase = `${appDir}/${assetType}`;
+        const noteDirIds = await readDir(localBase).catch(() => []);
+        for (const nid of noteDirIds) {
+          const noteDir = `${localBase}/${nid}`;
+          const files = await readDir(noteDir).catch(() => []);
+          for (const file of files) {
+            const flatKey = encodeAssetKey(assetType, nid, file);
+            assetKeys.push(flatKey);
+            assetFiles.push({ key: flatKey, localPath: `${noteDir}/${file}` });
           }
         }
       }
-    } catch (err) {
-      throw err;
+
+      if (assetKeys.length > 0) {
+        requiredAssetKeys.push(...assetKeys);
+        let toUploadKeys = assetKeys;
+        try {
+          const remote = new Set(await listRemoteAssets());
+          const missing = assetKeys.filter((k) => !remote.has(k));
+          logger.info(`[sync] cloud seed: ${assetKeys.length} local assets, ${assetKeys.length - missing.length} already on server, ${missing.length} to upload`);
+          if (missing.length < assetKeys.length) toUploadKeys = missing;
+        } catch (err) {
+          console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
+        }
+        if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: toUploadKeys.length });
+
+        // Build size-based batches: group assets to stay under MAX_BATCH_BYTES
+        const MAX_BATCH_BYTES = 10 * 1024 * 1024; // 10MB per batch
+        const assetEntries = [];
+        for (const assetKey of toUploadKeys) {
+          const file = assetFiles.find(f => f.key === assetKey);
+          if (!file) continue;
+          try {
+            const data = await readFileBinary(file.localPath);
+            const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
+            if (bytes && bytes.byteLength > 0) {
+              assetEntries.push({ key: assetKey, data: bytes, size: bytes.byteLength });
+            }
+          } catch (err) {
+            console.warn('[sync] cloud seed: skipping asset', assetKey, err?.message);
+          }
+        }
+
+        // Sort by size ascending — pack small files together, large files get their own batch
+        assetEntries.sort((a, b) => a.size - b.size);
+
+        const batches = [];
+        let currentBatch = [];
+        let currentSize = 0;
+        for (const entry of assetEntries) {
+          if (entry.size > MAX_BATCH_BYTES) {
+            // Large file — upload solo
+            if (currentBatch.length > 0) {
+              batches.push(currentBatch);
+              currentBatch = [];
+              currentSize = 0;
+            }
+            batches.push([entry]);
+          } else if (currentSize + entry.size > MAX_BATCH_BYTES) {
+            // Would overflow — start new batch
+            batches.push(currentBatch);
+            currentBatch = [entry];
+            currentSize = entry.size;
+          } else {
+            currentBatch.push(entry);
+            currentSize += entry.size;
+          }
+        }
+        if (currentBatch.length > 0) batches.push(currentBatch);
+
+        logger.info(`[sync] cloud seed: ${assetEntries.length} assets in ${batches.length} batches`);
+
+        // Upload batches
+        let assetsUploaded = 0;
+        for (let bi = 0; bi < batches.length; bi++) {
+          const batch = batches[bi];
+          try {
+            const result = await seedBatchUploadAssets(batch);
+            assetsUploaded += (result.uploaded || 0) + (result.skipped || 0);
+          } catch (err) {
+            console.warn(`[sync] cloud seed: batch ${bi + 1} failed:`, err?.message);
+          }
+          if (onProgress) onProgress({ phase: 'assets', uploaded: assetsUploaded, total: toUploadKeys.length });
+        }
+      }
     }
 
-    console.log('[sync] cloud seed: completing initialization');
+    logger.info('[sync] cloud seed: completing initialization');
     if (onProgress) onProgress({ phase: 'finalizing', uploaded: snapshots.length, total: snapshots.length });
 
     await completeInitialization(workspaceId, claim.token, generation, documents, requiredAssetKeys);
@@ -866,12 +855,12 @@ export class CloudTransport extends Transport {
     try {
       const { publishCloudKeyParams } = await import('../vault-key-params.js');
       await publishCloudKeyParams();
-      console.log('[sync] cloud seed: vault key params published');
+      logger.info('[sync] cloud seed: vault key params published');
     } catch (err) {
       console.warn('[sync] cloud seed: vault key params publish failed:', err?.message);
     }
 
-    console.log('[sync] cloud seed: completed successfully');
+    logger.info('[sync] cloud seed: completed successfully');
     if (onProgress) onProgress({ phase: 'done', uploaded: snapshots.length, total: snapshots.length });
 
     return snapshots.length > 0;
@@ -893,12 +882,12 @@ export class CloudTransport extends Transport {
     try {
       const state = await getRemoteState(workspaceId);
       if (state?.status !== 'initialized') {
-        console.log(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'} — skipping asset sync (seed handles assets)`);
+        logger.info(`[sync] syncAssets: workspace status ${state?.status ?? 'unknown'} — skipping asset sync (seed handles assets)`);
         return;
       }
     } catch (e) {
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
-        console.log('[sync] syncAssets: workspace not accessible — skipping asset sync');
+        logger.info('[sync] syncAssets: workspace not accessible — skipping asset sync');
         return;
       }
       throw e;
@@ -907,11 +896,11 @@ export class CloudTransport extends Transport {
     const { getAppDirectory } = await import('@/lib/native/app');
     const appDir = await getAppDirectory();
     if (!appDir) {
-      console.log('[sync] syncAssets: no appDir');
+      logger.info('[sync] syncAssets: no appDir');
       return;
     }
 
-    console.log('[sync] syncAssets appDir:', appDir);
+    logger.info('[sync] syncAssets appDir:', appDir);
 
     const deletedAssets = yMapToObj(getWorkspaceDoc().getMap('deletedAssets'));
     let deletedAssetsDirty = false;
@@ -931,9 +920,9 @@ export class CloudTransport extends Transport {
 
       const localNoteIds = await readDir(localBase)
         .then((e) => e.filter((n) => n && !n.startsWith('.')))
-        .catch((e) => { console.log('[sync] syncAssets readDir failed:', assetType, e?.message); return []; });
+        .catch((e) => { logger.info('[sync] syncAssets readDir failed:', assetType, e?.message); return []; });
 
-      console.log('[sync] syncAssets', assetType, 'noteIds:', localNoteIds.length);
+      logger.info('[sync] syncAssets', assetType, 'noteIds:', localNoteIds.length);
 
       for (const noteId of localNoteIds) {
         const localNoteDir = path.join(localBase, noteId);
@@ -978,7 +967,7 @@ export class CloudTransport extends Transport {
     }
 
     const total = ops.length;
-    console.log('[sync] syncAssets total ops:', total, '| remote:', remoteKeys.length);
+    logger.info('[sync] syncAssets total ops:', total, '| remote:', remoteKeys.length);
     if (total === 0) return;
     let processed = 0;
 
@@ -1062,12 +1051,12 @@ export class CloudTransport extends Transport {
       if (result) {
         const uploaded = result?.uploaded ?? 0;
         const skipped = result?.skipped ?? 0;
-        console.log(`[sync] batch ${batchNum}/${batches.length}: uploaded=${uploaded} skipped=${skipped} items=${batch.length}`);
+        logger.info(`[sync] batch ${batchNum}/${batches.length}: uploaded=${uploaded} skipped=${skipped} items=${batch.length}`);
       }
 
       if (!result) {
         // Request failed entirely — fall back to individual
-        console.log(`[sync] batch request failed, falling back to individual for ${batch.length} items`);
+        logger.info(`[sync] batch request failed, falling back to individual for ${batch.length} items`);
         for (const item of batch) {
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
@@ -1090,7 +1079,7 @@ export class CloudTransport extends Transport {
       } else if ((result?.uploaded ?? 0) === 0 && (result?.skipped ?? 0) === 0) {
         // No uploads and no skips means errors — fall back to individual
         const errorItems = result?.results?.filter((r) => r.status === 'error') ?? [];
-        console.log(`[sync] batch had ${errorItems.length} errors, falling back to individual for ${batch.length} items`);
+        logger.info(`[sync] batch had ${errorItems.length} errors, falling back to individual for ${batch.length} items`);
         for (const item of batch) {
           try {
             await uploadAsset(item.key, item.data);
@@ -1133,7 +1122,7 @@ export class CloudTransport extends Transport {
         }
       }
 
-      console.log(`[sync] batch download: ${allUrls.length}/${keys.length} presigned URLs`);
+      logger.info(`[sync] batch download: ${allUrls.length}/${keys.length} presigned URLs`);
 
       const CONCURRENT = 3;
       const RETRY_DELAYS = [2000, 4000, 8000];
@@ -1144,7 +1133,7 @@ export class CloudTransport extends Transport {
           if (!op) return;
           const failures = this._failedDownloads.get(assetKey) || 0;
           if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) {
-            console.log('[sync] skipping repeatedly failed download:', assetKey);
+            logger.info('[sync] skipping repeatedly failed download:', assetKey);
             return;
           }
           for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
@@ -1229,15 +1218,15 @@ export class CloudTransport extends Transport {
     const t = this.getTransportSetting();
     const want = t === 'remote' || t === 'both';
     if (!want) {
-      console.log('[sync] _remoteAllowed: transport setting is', JSON.stringify(t), '— not remote/both');
+      logger.info('[sync] _remoteAllowed: transport setting is', JSON.stringify(t), '— not remote/both');
       return false;
     }
     const state = this.getAccountState();
-    console.log('[sync] _remoteAllowed: isAuth=', state.isAuth, 'plan=', state.plan);
+    logger.info('[sync] _remoteAllowed: isAuth=', state.isAuth, 'plan=', state.plan);
     if (!state.isAuth) return false;
     const subPlan = state.subscription?.plan ?? state.plan;
     if (subPlan && subPlan !== 'free') return true;
-    console.log('[sync] _remoteAllowed: cloud sync not available for plan', subPlan);
+    logger.info('[sync] _remoteAllowed: cloud sync not available for plan', subPlan);
     return false;
   }
 

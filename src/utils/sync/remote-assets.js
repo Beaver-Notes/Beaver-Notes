@@ -12,8 +12,6 @@
 
 import { getApiClient } from '@/lib/api/client.js';
 
-const textEncoder = new TextEncoder();
-
 function uint8ArrayToBase64(data) {
   const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
   let binary = '';

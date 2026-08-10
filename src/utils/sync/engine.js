@@ -20,6 +20,7 @@ import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams, publishCloudKeyParams, cloudKeyParamsReachable } from './vault-key-params.js';
 import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
+import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
 
@@ -164,7 +165,7 @@ export class SyncEngine {
     const shouldPull = _force || isForegroundWake || pullOnly || hasPendingWrites();
     const shouldPush = !pullOnly;
     let gotUpdates = false;
-    console.log('[sync] _runCycle start', { force: _force, foregroundWake: isForegroundWake, pullOnly, shouldPull, shouldPush });
+    logger.info('[sync] _runCycle start', { force: _force, foregroundWake: isForegroundWake, pullOnly, shouldPull, shouldPush });
 
     let outcome;
     try {
@@ -175,10 +176,10 @@ export class SyncEngine {
       const cloudOnly = activeTransportNames.length === 1 && activeTransportNames[0] === 'cloud';
       setCloudBuffer(cloudOnly ? this.transports.cloud.getCloudBuffer() : null);
 
-      console.log('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
+      logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
       if (!syncPath && hasLocal) {
-        console.log('[sync] no syncPath + local only → skip');
+        logger.info('[sync] no syncPath + local only → skip');
         outcome = { ok: true };
         return;
       }
@@ -190,7 +191,7 @@ export class SyncEngine {
       if (activeTransportNames.includes('cloud')) {
         const keyReady = await syncKeyReady().catch(() => false);
         if (!keyReady && (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled()) {
-          console.log('[sync] encryption enabled but key not ready — deferring cycle');
+          logger.info('[sync] encryption enabled but key not ready — deferring cycle');
           try { emit('sync:status', { status: 'unlock-required' }); } catch {}
           outcome = { ok: true };
           return;
@@ -252,7 +253,7 @@ export class SyncEngine {
       if (shouldPull) {
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
-          console.log(`[sync] ${name} pull start`);
+          logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
           while (hasMore) {
             let pullResult;
@@ -268,27 +269,41 @@ export class SyncEngine {
               throw e;
             }
             const { updates } = pullResult;
-            console.log(`[sync] ${name} pull got ${updates.length} updates`);
+            logger.info(`[sync] ${name} pull got ${updates.length} updates`);
             let cursorsDirty = false;
+            let applyFailed = false;
             for (const upd of updates) {
-              applyRemote(upd.noteId, upd.update);
-              await appendUpdate(upd.noteId, upd.update, upd.device);
-              if (name !== 'cloud') {
-                const delta = {};
-                delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
-                if (mergeCursorDelta(cursors, delta)) cursorsDirty = true;
+              // Persist first, then apply to the doc — a remote-apply failure must not lose the update
+              try {
+                await appendUpdate(upd.noteId, upd.update, upd.device);
+                applyRemote(upd.noteId, upd.update);
+              } catch (err) {
+                applyFailed = true;
+                logger.warn('[sync] pull apply failed:', err?.message);
               }
             }
-            if (name === 'cloud' && pullResult.cursorsDelta) {
-              cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
+            // Only advance cursors once every update in the page is persisted and
+            // applied — advancing past an un-applied update would skip it on the
+            // next pull (data loss). Failed updates are re-pulled on the next cycle.
+            if (!applyFailed) {
+              if (name !== 'cloud') {
+                for (const upd of updates) {
+                  const delta = {};
+                  delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
+                  if (mergeCursorDelta(cursors, delta)) cursorsDirty = true;
+                }
+              }
+              if (name === 'cloud' && pullResult.cursorsDelta) {
+                cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
+              }
+              if (cursorsDirty) await this._saveCursors(cursors);
             }
-            if (cursorsDirty) await this._saveCursors(cursors);
             if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
           }
         }
       } else {
-        console.log('[sync] pull skipped — nothing to sync');
+        logger.info('[sync] pull skipped — nothing to sync');
       }
 
       // After a pull-only cycle with zero remote updates and nothing pending
@@ -300,11 +315,11 @@ export class SyncEngine {
       if (shouldPush) {
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
-            console.log('[sync] cloud push skipped — pull deferred due to unlock-required');
+            logger.info('[sync] cloud push skipped — pull deferred due to unlock-required');
             continue;
           }
           const transport = this.transports[name];
-          console.log(`[sync] ${name} push start`);
+          logger.info(`[sync] ${name} push start`);
           let pushResult;
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
@@ -316,23 +331,23 @@ export class SyncEngine {
               try { emit('sync:status', { status: 'retrying' }); } catch {}
             }
           }
-          console.log(`[sync] ${name} push done`, { pushed: pushResult.pushed });
+          logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
           if (pushResult.cursorsDelta && mergeCursors(cursors, pushResult.cursorsDelta, name === 'cloud')) {
             await this._saveCursors(cursors);
           }
         }
       } else {
-        console.log('[sync] push skipped — pull-only mode');
+        logger.info('[sync] push skipped — pull-only mode');
       }
 
       if (activeTransportNames.includes('cloud') && !cloudBlocked) {
-        console.log('[sync] cloud syncAssets start');
+        logger.info('[sync] cloud syncAssets start');
         await this.transports.cloud.syncAssets((progress) => {
           try { emit('sync:progress', progress); } catch {}
         }).catch((err) => {
           console.warn('[sync] cloud asset sync failed:', err?.message);
         });
-        console.log('[sync] cloud syncAssets done');
+        logger.info('[sync] cloud syncAssets done');
       }
 
       if (hasLocal) {
@@ -346,7 +361,7 @@ export class SyncEngine {
 
       outcome = { ok: true };
       try { emit('sync:status', { status: 'complete' }); } catch {}
-      console.log('[sync] cycle complete ok');
+      logger.info('[sync] cycle complete ok');
     } catch (err) {
       console.error('[sync] Sync failed:', err);
       console.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
