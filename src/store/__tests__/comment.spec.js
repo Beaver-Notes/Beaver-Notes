@@ -50,6 +50,18 @@ describe('comment store pending flow', () => {
     expect(s.comments[0].content).toBe('hello @alice');
   });
 
+  it('fetchThreads populates authorName from the collaborator store', async () => {
+    const { useCollaboratorStore } = await import('@/store/collaborator');
+    const collab = useCollaboratorStore();
+    collab.setCollaborators('n1', [{ userId: 'u1', username: 'alice', email: 'alice@example.com' }]);
+    listComments.mockResolvedValueOnce([
+      { id: 'c1', noteId: 'n1', threadId: 't1', authorId: 'u1', contentEncrypted: 'x', contentIv: 'y', resolved: false },
+    ]);
+    const s = useCommentStore();
+    await s.fetchThreads('n1');
+    expect(s.comments[0].authorName).toBe('alice');
+  });
+
   it('fetchThreads decrypts encrypted comment content', async () => {
     const { encryptComment } = await import('@/utils/crypto/comment-crypto');
     const { importCollabKey } = await import('@/utils/crypto/collab');
