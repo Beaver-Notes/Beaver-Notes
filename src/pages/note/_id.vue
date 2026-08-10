@@ -25,10 +25,9 @@
         </div>
         <div class="flex-1"></div>
         <note-actions
-          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showOnlineUsers, showComments, isShared }"
+          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showComments, isShared }"
           @toggle-search="showSearch = !showSearch"
           @toggle-history="showHistory = !showHistory"
-          @toggle-online-users="showOnlineUsers = !showOnlineUsers"
           @toggle-comments="toggleComments"
         />
       </div>
@@ -226,7 +225,6 @@ export default {
     const noteEditor = ref();
     const showSearch = shallowRef(false);
     const showHistory = ref(false);
-    const showOnlineUsers = ref(false);
     const showComments = ref(false);
     const commentStore = useCommentStore();
     const titleDiv = ref(null);
@@ -664,7 +662,6 @@ export default {
       ydoc,
       awareness,
       presence,
-      showOnlineUsers,
       isShared,
       accountStore,
       showComments,

@@ -390,11 +390,10 @@ export default {
     localColor: { type: String, default: '' },
     localName: { type: String, default: 'Anonymous' },
     showHistory: { type: Boolean, default: false },
-    showOnlineUsers: { type: Boolean, default: false },
     showComments: { type: Boolean, default: false },
     isShared: { type: Boolean, default: false },
   },
-  emits: ['toggle-search', 'toggle-history', 'toggle-online-users', 'toggle-comments'],
+  emits: ['toggle-search', 'toggle-history', 'toggle-comments'],
   setup(props) {
     const menu = useNoteMenu(props);
     const noteStore = useNoteStore();

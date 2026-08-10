@@ -167,7 +167,6 @@
 <script>
 import { ref, watch, onMounted } from 'vue';
 import { useNoteSharing } from '@/composable/useNoteSharing';
-import { useAccountStore } from '@/store/account';
 
 const AVATAR_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -196,7 +195,6 @@ export default {
   emits: ['update:modelValue'],
   setup(props) {
     const sharing = useNoteSharing();
-    const accountStore = useAccountStore();
     const inviteInput = ref('');
     const inviteRole = ref('editor');
     const inviting = ref(false);
