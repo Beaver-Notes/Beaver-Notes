@@ -269,7 +269,6 @@ export default {
           anchorTo: commentStore.pendingAnchorTo,
         });
         pendingComment.value = '';
-        commentStore.pendingThreadId = null;
       } catch (err) {
         console.error('[comment] Failed to add pending comment:', err);
       }

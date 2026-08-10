@@ -321,6 +321,12 @@ export default {
       commentStore.setActiveThread(commentId);
       showComments.value = true;
     }
+    watch(
+      () => commentStore.showSidebar,
+      (open) => {
+        if (open) showComments.value = true;
+      }
+    );
 
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =

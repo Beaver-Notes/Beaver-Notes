@@ -71,6 +71,9 @@ export const useCommentStore = defineStore('comment', () => {
       if (comment) {
         comments.value.push(comment);
       }
+      pendingThreadId.value = null;
+      pendingAnchorFrom.value = null;
+      pendingAnchorTo.value = null;
       return comment;
     } catch (err) {
       console.error('[comment] Failed to add comment:', err);
