@@ -188,6 +188,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { useCommentStore } from '@/store/comment';
 import { useTranslations } from '@/composable/useTranslations';
+import { useAccountStore } from '@/store/account';
 
 const PEER_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -201,6 +202,7 @@ export default {
   emits: ['close'],
   setup(props) {
     const commentStore = useCommentStore();
+    const accountStore = useAccountStore();
     const { translations } = useTranslations();
 
     const newComment = ref('');
@@ -251,7 +253,10 @@ export default {
       const content = newComment.value.trim();
       if (!content) return;
       try {
-        await commentStore.addComment(props.noteId, { content });
+        await commentStore.addComment(props.noteId, {
+          content,
+          baseUrl: accountStore.serverUrl,
+        });
         newComment.value = '';
       } catch (err) {
         console.error('[comment] Failed to add comment:', err);
@@ -267,6 +272,7 @@ export default {
           threadId: pendingThreadId.value,
           anchorFrom: commentStore.pendingAnchorFrom,
           anchorTo: commentStore.pendingAnchorTo,
+          baseUrl: accountStore.serverUrl,
         });
         pendingComment.value = '';
       } catch (err) {
@@ -282,6 +288,7 @@ export default {
           content,
           threadId,
           parentId: threadId,
+          baseUrl: accountStore.serverUrl,
         });
         replyInputs[threadId] = '';
       } catch (err) {
@@ -291,7 +298,9 @@ export default {
 
     async function toggleResolve(threadId) {
       try {
-        await commentStore.toggleResolve(threadId);
+        await commentStore.toggleResolve(threadId, {
+          baseUrl: accountStore.serverUrl,
+        });
       } catch (err) {
         console.error('[comment] Failed to toggle resolve:', err);
       }
@@ -300,7 +309,7 @@ export default {
     watch(
       () => props.noteId,
       (id) => {
-        if (id) commentStore.fetchThreads(id);
+        if (id) commentStore.fetchThreads(id, { baseUrl: accountStore.serverUrl });
       },
       { immediate: true }
     );

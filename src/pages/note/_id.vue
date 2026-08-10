@@ -301,7 +301,7 @@ export default {
     function toggleComments() {
       showComments.value = !showComments.value;
       if (showComments.value && isShared.value) {
-        commentStore.fetchThreads(id.value);
+        commentStore.fetchThreads(id.value, { baseUrl: accountStore.serverUrl });
       }
     }
     function closeComments() {
@@ -312,7 +312,7 @@ export default {
       () => [isShared.value, id.value],
       async ([shared, noteId]) => {
         if (shared && noteId && accountStore.isAuthenticated) {
-          commentStore.fetchThreads(noteId);
+          commentStore.fetchThreads(noteId, { baseUrl: accountStore.serverUrl });
         }
       },
       { immediate: true }

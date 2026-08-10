@@ -2,6 +2,7 @@ import Suggestion from './suggestion';
 import { useCollaboratorStore } from '@/store/collaborator';
 
 const props = {
+  labelKey: 'label',
   showAdd: false,
   onSelect: ({ item, command }) => {
     command({ id: item.id, label: item.label });
@@ -15,6 +16,7 @@ const UserMention = Suggestion({ name: 'userMention', props }).configure({
   suggestion: {
     char: '@',
     allowSpaces: false,
+    labelKey: 'label',
     items: ({ query }) => {
       const collaboratorStore = useCollaboratorStore();
       const q = query.toLowerCase();
