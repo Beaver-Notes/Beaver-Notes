@@ -2,7 +2,7 @@
 
 ## Reporting Security Issues
 
-To report or disclose a potential security-related issue in a Beaver project, please email the details to [danielerolli@proton.me](mailto:danielerolli@proton.me). Please include the following information, as much as possible:
+To report or disclose a potential security-related issue in a Beaver project, please email the details to [danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com). Please include the following information, as much as possible:
 
 1. Name of the repository affected.
 2. Summary of the issue and its potential impact.

@@ -64,7 +64,7 @@ Beaver Notes exists because people decided to build something better and kept sh
 
 If you want to get involved, whether that's code, translations, design, or just a well-written bug report, the [contributing guide](<https://docs.beavernotes.com/beaver%20notes%20(dev)/2025/01/03/How-to-contribute.html>) is a good place to start.
 
-The community is on [Reddit](https://www.reddit.com/r/BeaverNotes/), [Mastodon](https://mastodon.social/@Beavernotes), and [Bluesky](https://bsky.app/profile/beavernotes.com). For everything else: [danielerolli@proton.me](mailto:danielerolli@proton.me).
+The community is on [Reddit](https://www.reddit.com/r/BeaverNotes/), [Mastodon](https://mastodon.social/@Beavernotes), and [Bluesky](https://bsky.app/profile/beavernotes.com). For everything else: [danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com).
 
 ## Contributors
 

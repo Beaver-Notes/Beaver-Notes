@@ -5,7 +5,7 @@
   <project_license>MIT</project_license>
   <name>Beaver Notes</name>
   <developer_name>Daniele Rolli</developer_name>
-  <update_contact>danielerolli@proton.me</update_contact>
+  <update_contact>danielerolli@beavernotes.com</update_contact>
   <launchable type="desktop-id">com.beavernotes.beavernotes.desktop</launchable>
   <content_rating type="oars-1.1" />
   <summary>Private note taking app</summary>

@@ -35,7 +35,7 @@ First off, thank you for considering contributing to Beaver Notes. It's people l
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [danielerolli@proton.me](mailto:danielerolli@proton.me).
+This project and everyone participating in it is governed by the [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to [danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com).
 
 ## Getting Started
 
@@ -375,7 +375,7 @@ Use the appropriate issue template:
 
 ## Security
 
-Found a security vulnerability? **Do not open a public issue.** Email [danielerolli@proton.me](mailto:danielerolli@proton.me) with details. See [SECURITY.md](./SECURITY.md).
+Found a security vulnerability? **Do not open a public issue.** Email [danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com) with details. See [SECURITY.md](./SECURITY.md).
 
 ## License
 

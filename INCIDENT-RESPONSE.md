@@ -27,7 +27,7 @@ This plan covers:
 
 ### Phase 1: Detection and Assessment (0-24 hours)
 
-1. Identify the incident via security reports ([danielerolli@proton.me](mailto:danielerolli@proton.me)), GitHub issue reports, or dependency vulnerability alerts.
+1. Identify the incident via security reports ([danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com)), GitHub issue reports, or dependency vulnerability alerts.
 2. Assess severity: determine if user data is affected, assess exploitation difficulty, classify severity level.
 
 ### Phase 2: Containment (0-48 hours)
@@ -70,7 +70,7 @@ We support responsible disclosure and will not pursue legal action against secur
 
 | Contact | Details |
 |---------|---------|
-| Security Reports | [danielerolli@proton.me](mailto:danielerolli@proton.me) |
+| Security Reports | [danielerolli@beavernotes.com](mailto:danielerolli@beavernotes.com) |
 
 ## 7. Document Control
 
