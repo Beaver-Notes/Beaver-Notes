@@ -4,7 +4,6 @@ import {
   pullUpdates as remotePullUpdates,
   getRemoteState,
   claimInitialization,
-  uploadInitializationSnapshot,
   completeInitialization,
   getSnapshotUrls,
   createWorkspace,
@@ -18,9 +17,7 @@ import {
   downloadAsset,
   encodeAssetKey,
   decodeAssetKey,
-  presignBatchUpload,
   presignGetBatch,
-  confirmSeed,
 } from '../remote-assets.js';
 import { parseSyncFilename } from '../sync-yjs.js';
 import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';

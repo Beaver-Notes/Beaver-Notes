@@ -10,7 +10,6 @@ vi.mock('../../remote-yjs.js', () => ({
   pullUpdates: vi.fn(() => ({ notes: {} })),
   getRemoteState: vi.fn(() => ({ status: 'empty', documents: [] })),
   claimInitialization: vi.fn(() => ({ token: 'claim-token' })),
-  uploadInitializationSnapshot: vi.fn((workspaceId, _token, noteId) => ({ key: `yjs/${workspaceId}/${noteId}/1.yjs` })),
   completeInitialization: vi.fn(() => ({ ok: true })),
   getSnapshotUrls: vi.fn((_workspaceId, _token, noteIds) => ({
     urls: Object.fromEntries(noteIds.map((noteId) => [noteId, { url: 'https://seed.example/upload', key: `yjs/workspace-1/${noteId}/1.yjs` }])),
