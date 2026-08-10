@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { useAccountStore } from '@/store/account';
+import { useCollaboratorStore } from '@/store/collaborator';
 import {
   createCollaborationKey as apiCreateKey,
   getCollaborationKey as apiGetKey,
@@ -13,6 +14,7 @@ import {
 
 export function useNoteSharing() {
   const accountStore = useAccountStore();
+  const collaboratorStore = useCollaboratorStore();
   const collaborators = ref([]);
   const loading = ref(false);
   const error = ref('');
@@ -51,6 +53,7 @@ export function useNoteSharing() {
             invitedAt: inv.invitedAt || inv.invited_at || null,
           }))
         : [];
+      collaboratorStore.setCollaborators(noteId, collaborators.value);
     } catch (err) {
       // Ignore abort errors (expected during navigation)
       if (err?.name === 'AbortError' || signal.aborted) return;

@@ -55,7 +55,7 @@
             </span>
           </ui-list-item>
 
-          <hr v-if="isAuthenticated" class="border-t my-1 border-neutral-200 dark:border-neutral-700" />
+          <hr v-if="isAuthenticated" class="border-t my-1" />
 
           <ui-list-item
             v-for="s in shareActions"
@@ -85,18 +85,22 @@
         <v-remixicon name="riHistoryLine" />
       </button>
 
-      <presence-avatars v-if="showCollaboration" :peers="peers" class="mx-0.5" />
-
       <button
-        v-if="showCollaboration"
-        v-tooltip.group="'Online users'"
-        :aria-label="'Online users'"
-        :class="{ 'is-active': showOnlineUsers }"
+        v-if="isShared"
+        v-tooltip.group="translations.comments?.title || 'Comments'"
+        :aria-label="translations.comments?.title || 'Comments'"
+        :class="{ 'is-active': showComments }"
         class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
-        @click="$emit('toggle-online-users')"
+        @click="$emit('toggle-comments')"
       >
-        <v-remixicon name="riUserLine" />
+        <v-remixicon name="riChat3Line" />
       </button>
+
+      <presence-avatars
+        v-if="showCollaboration"
+        :peers="peers"
+        class="mx-0.5"
+      />
 
       <button
         v-tooltip.group="translations.menu.readerMode"
@@ -121,8 +125,12 @@
       <ui-popover>
         <template #trigger>
           <button
-            v-tooltip.group="translations.noteActions?.noteActions || 'Note actions'"
-            :aria-label="translations.noteActions?.noteActions || 'Note actions'"
+            v-tooltip.group="
+              translations.noteActions?.noteActions || 'Note actions'
+            "
+            :aria-label="
+              translations.noteActions?.noteActions || 'Note actions'
+            "
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riEqualizer3Line" />
@@ -140,7 +148,11 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isBookmarked ? translations.noteActions?.removeBookmark || 'Remove bookmark' : translations.noteActions?.bookmark || 'Bookmark' }}
+            {{
+              note.isBookmarked
+                ? translations.noteActions?.removeBookmark || 'Remove bookmark'
+                : translations.noteActions?.bookmark || 'Bookmark'
+            }}
           </span>
         </button>
 
@@ -155,7 +167,11 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isArchived ? (translations.noteActions?.unarchive || 'Unarchive') : (translations.noteActions?.archive || 'Archive') }}
+            {{
+              note.isArchived
+                ? translations.noteActions?.unarchive || 'Unarchive'
+                : translations.noteActions?.archive || 'Archive'
+            }}
           </span>
         </button>
 
@@ -218,7 +234,11 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ copyState === 1 ? (translations.noteActions?.copied || 'Copied!') : (translations.noteActions?.copyContent || 'Copy content') }}
+            {{
+              copyState === 1
+                ? translations.noteActions?.copied || 'Copied!'
+                : translations.noteActions?.copyContent || 'Copy content'
+            }}
           </span>
         </button>
       </ui-popover>
@@ -250,12 +270,15 @@
           <v-remixicon name="riHistoryLine" />
         </button>
         <button
-          v-if="isAuthenticated"
-          :aria-label="'Online users'"
-          class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
-          @click="$emit('toggle-online-users')"
+          v-if="isShared"
+          :aria-label="translations.comments?.title || 'Comments'"
+          class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
+          :class="showComments
+            ? 'bg-primary/10 text-primary dark:bg-secondary/10 dark:text-secondary'
+            : 'text-neutral-600 hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white'"
+          @click="$emit('toggle-comments')"
         >
-          <v-remixicon name="riUserLine" />
+          <v-remixicon name="riChat3Line" />
         </button>
         <button
           :aria-label="translations.menu.share"
@@ -309,7 +332,9 @@
       >
         <v-remixicon name="riUserSharedLine" />
         <span class="min-w-0 flex-1">
-          <span class="block text-sm font-medium">{{ translations.share?.collaborate || 'Collaborate' }}</span>
+          <span class="block text-sm font-medium">{{
+            translations.share?.collaborate || 'Collaborate'
+          }}</span>
         </span>
       </ui-list-item>
       <ui-list-item
@@ -327,21 +352,11 @@
     </ui-list>
   </ui-modal>
 
-  <share-modal
-    v-model="showShareModal"
-    :note-id="id"
-  />
+  <share-modal v-model="showShareModal" :note-id="id" />
   <history-panel
     v-if="showHistory"
     :note-id="id"
     @close="$emit('toggle-history')"
-  />
-  <online-users-panel
-    v-if="showOnlineUsers"
-    :peers="peers"
-    :local-color="localColor"
-    :local-name="localName"
-    @close="$emit('toggle-online-users')"
   />
 </template>
 
@@ -358,13 +373,11 @@ import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useAccountStore } from '@/store/account';
 import HistoryPanel from '@/components/HistoryPanel.vue';
 import PresenceAvatars from '@/components/PresenceAvatars.vue';
-import OnlineUsersPanel from '@/components/OnlineUsersPanel.vue';
 import ShareModal from '@/components/ShareModal.vue';
 export default {
   components: {
     HistoryPanel,
     PresenceAvatars,
-    OnlineUsersPanel,
     ShareModal,
   },
   props: {
@@ -378,9 +391,10 @@ export default {
     localName: { type: String, default: 'Anonymous' },
     showHistory: { type: Boolean, default: false },
     showOnlineUsers: { type: Boolean, default: false },
+    showComments: { type: Boolean, default: false },
     isShared: { type: Boolean, default: false },
   },
-  emits: ['toggle-search', 'toggle-history', 'toggle-online-users'],
+  emits: ['toggle-search', 'toggle-history', 'toggle-online-users', 'toggle-comments'],
   setup(props) {
     const menu = useNoteMenu(props);
     const noteStore = useNoteStore();
@@ -397,7 +411,7 @@ export default {
       return p instanceof Map ? p.size > 0 : Object.keys(p).length > 0;
     });
     const showCollaboration = computed(
-      () => isAuthenticated.value && (hasOnlinePeers.value || props.isShared)
+      () => isAuthenticated.value && hasOnlinePeers.value,
     );
 
     function lockNote() {
@@ -444,9 +458,8 @@ export default {
             cancelText: t.cancel || 'Cancel',
             placeholder: t.password || 'Password',
             onConfirm: async (enteredPassword) => {
-              const isValid = await passwordStore.isValidPassword(
-                enteredPassword
-              );
+              const isValid =
+                await passwordStore.isValidPassword(enteredPassword);
               if (isValid) {
                 await noteStore.lockNote(props.note.id, enteredPassword);
               } else {
@@ -556,6 +569,8 @@ input[type='number'] {
 }
 
 .editor-actions-mobile-shell {
-  transition: box-shadow 180ms ease, background-color 180ms ease;
+  transition:
+    box-shadow 180ms ease,
+    background-color 180ms ease;
 }
 </style>

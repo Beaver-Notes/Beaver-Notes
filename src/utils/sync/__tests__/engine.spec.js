@@ -55,6 +55,7 @@ vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
 
 vi.mock('@/lib/native/security.js', () => ({
   reconcileSyncKeyParams: vi.fn(() => Promise.resolve()),
+  syncKeyReady: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('../vault-key-params.js', () => ({

@@ -25,10 +25,11 @@
         </div>
         <div class="flex-1"></div>
         <note-actions
-          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showOnlineUsers, isShared }"
+          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showOnlineUsers, showComments, isShared }"
           @toggle-search="showSearch = !showSearch"
           @toggle-history="showHistory = !showHistory"
           @toggle-online-users="showOnlineUsers = !showOnlineUsers"
+          @toggle-comments="toggleComments"
         />
       </div>
     </template>
@@ -125,6 +126,7 @@
           "
           @init="editor = $event"
           @keyup.down="autoScroll"
+          @comment-activated="onCommentActivated"
         />
         <div
           v-if="yjsReady && !editor"
@@ -152,6 +154,11 @@
       v-if="editor"
       :editor="editor"
       class="mobile:hidden ipad:hidden"
+    />
+    <comment-sidebar
+      v-if="showComments && isShared"
+      :note-id="id"
+      @close="showComments = false"
     />
   </div>
 </template>
@@ -192,6 +199,8 @@ import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
+import { useCommentStore } from '@/store/comment';
+import CommentSidebar from '@/components/note/CommentSidebar.vue';
 
 export default {
   components: {
@@ -201,6 +210,7 @@ export default {
     NoteToolbar,
     NoteHeadingsProgress,
     NoteBacklinks,
+    CommentSidebar,
   },
   inheritAttrs: false,
   setup() {
@@ -217,6 +227,8 @@ export default {
     const showSearch = shallowRef(false);
     const showHistory = ref(false);
     const showOnlineUsers = ref(false);
+    const showComments = ref(false);
+    const commentStore = useCommentStore();
     const titleDiv = ref(null);
     const noteHistory = useNoteHistory();
     const sharing = useNoteSharing();
@@ -254,6 +266,17 @@ export default {
       presence.init();
     });
 
+    // Update presence when profile loads (profile may arrive after init)
+    watch(
+      () => accountStore.profile?.username,
+      (name) => {
+        if (name && awareness) {
+          presence.setLocalState({ name });
+        }
+      },
+      { immediate: true }
+    );
+
     onUnmounted(() => {
       presence.destroy();
     });
@@ -273,6 +296,31 @@ export default {
       },
       { immediate: true }
     );
+
+    // Comments — toggle sidebar + fetch threads when note becomes shared
+    function toggleComments() {
+      showComments.value = !showComments.value;
+      if (showComments.value && isShared.value) {
+        commentStore.fetchThreads(id.value);
+      }
+    }
+    watch(
+      () => [isShared.value, id.value],
+      async ([shared, noteId]) => {
+        if (shared && noteId && accountStore.isAuthenticated) {
+          commentStore.fetchThreads(noteId);
+        }
+      },
+      { immediate: true }
+    );
+    onUnmounted(() => {
+      commentStore.reset();
+    });
+    function onCommentActivated(commentId) {
+      if (!commentId) return;
+      commentStore.setActiveThread(commentId);
+      showComments.value = true;
+    }
 
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
@@ -609,6 +657,9 @@ export default {
       showOnlineUsers,
       isShared,
       accountStore,
+      showComments,
+      toggleComments,
+      commentStore,
     };
   },
 };

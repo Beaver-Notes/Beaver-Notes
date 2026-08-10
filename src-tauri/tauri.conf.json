@@ -79,6 +79,11 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["beaver-notes"]
+      }
+    },
     "updater": {
       "endpoints": [
         "https://github.com/Beaver-Notes/Beaver-Notes/releases/latest/download/latest.json"

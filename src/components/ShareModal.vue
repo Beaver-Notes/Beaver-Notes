@@ -122,6 +122,7 @@
           >
             {{ linkLoading ? 'Creating...' : 'Create Invite Link' }}
           </button>
+          <p v-if="linkError" class="text-xs text-red-500 mt-1">{{ linkError }}</p>
         </div>
 
         <div v-if="inviteLinks.length" class="mt-4 space-y-2">
@@ -166,6 +167,7 @@
 <script>
 import { ref, watch, onMounted } from 'vue';
 import { useNoteSharing } from '@/composable/useNoteSharing';
+import { useAccountStore } from '@/store/account';
 
 const AVATAR_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -194,6 +196,7 @@ export default {
   emits: ['update:modelValue'],
   setup(props) {
     const sharing = useNoteSharing();
+    const accountStore = useAccountStore();
     const inviteInput = ref('');
     const inviteRole = ref('editor');
     const inviting = ref(false);
@@ -202,14 +205,25 @@ export default {
     const linkExpiry = ref('null');
 
     function getInviteUrl(token) {
-      return `${window.location.origin}/join/${token}`;
+      return `beaver-notes://join/${token}`;
     }
 
+    const linkError = ref('');
+
     async function createLink() {
-      await generateLink(props.noteId, {
-        role: linkRole.value,
-        expiresIn: linkExpiry.value === 'null' ? null : parseInt(linkExpiry.value),
-      });
+      linkLoading.value = true;
+      linkError.value = '';
+      try {
+        await generateLink(props.noteId, {
+          role: linkRole.value,
+          expiresIn: linkExpiry.value === 'null' ? null : parseInt(linkExpiry.value),
+        });
+      } catch (err) {
+        linkError.value = err?.message || 'Failed to create invite link';
+        console.error('[ShareModal] createLink failed:', err);
+      } finally {
+        linkLoading.value = false;
+      }
     }
 
     function copyLink(token) {
@@ -277,6 +291,7 @@ export default {
       inviting,
       inviteLinks,
       linkLoading,
+      linkError,
       linkRole,
       linkExpiry,
       createLink,

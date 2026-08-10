@@ -166,6 +166,15 @@
         </button>
       </template>
 
+      <button
+        v-if="canComment"
+        v-tooltip.group="translations.comments?.title || 'Comment'"
+        class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+        @click="createCommentOnSelection"
+      >
+        <v-remixicon name="riChat3Line" class="size-6" />
+      </button>
+
       <ui-popover
         v-model:model-value="linkPopoverOpen"
         @show="onLinkPopoverShow"
@@ -331,6 +340,8 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
+import { useCommentStore } from '@/store/comment';
+import { useAccountStore } from '@/store/account';
 import { useRoute } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 
@@ -344,7 +355,27 @@ export default {
     const menu = useNoteMenu(props);
     const route = useRoute();
     const noteStore = useNoteStore();
+    const commentStore = useCommentStore();
+    const accountStore = useAccountStore();
     const { translations } = useTranslations();
+
+    const canComment = computed(() => {
+      const { editor } = props;
+      if (!editor) return false;
+      if (!accountStore.isAuthenticated) return false;
+      const { from, to } = editor.state.selection;
+      return from !== to;
+    });
+
+    function createCommentOnSelection() {
+      const { editor } = props;
+      if (!editor || !accountStore.isAuthenticated) return;
+      const { from, to } = editor.state.selection;
+      if (from === to) return;
+      const threadId = crypto.randomUUID();
+      editor.chain().focus().setComment(threadId).run();
+      commentStore.setPendingThread(threadId, from, to);
+    }
 
     // ── Link input state ────────────────────────────────────────────
     const linkInputValue = ref('');

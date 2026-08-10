@@ -87,7 +87,7 @@ export default {
     awareness: { type: Object, default: null },
     userName: { type: String, default: 'Anonymous' },
   },
-  emits: ['init', 'update', 'update:modelValue'],
+  emits: ['init', 'update', 'update:modelValue', 'comment-activated'],
   setup(props, { emit }) {
     const router = useRouter();
     const appStore = useAppStore();
@@ -288,6 +288,9 @@ export default {
         CommentExtension.configure({
           HTMLAttributes: {
             class: 'comment-highlight',
+          },
+          onCommentActivated: (commentId) => {
+            emit('comment-activated', commentId);
           },
         })
       );

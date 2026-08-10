@@ -14,10 +14,6 @@
               <h3 class="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                 Note History
               </h3>
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-emerald-700 bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/40 rounded-full">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                Auto-saved
-              </span>
               <span v-if="filteredCommits.length" class="text-xs text-neutral-400 dark:text-neutral-500">
                 Last edited {{ relativeTime(filteredCommits[0]?.createdAt) }}
               </span>

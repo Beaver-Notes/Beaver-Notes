@@ -8,12 +8,18 @@ mod menu;
 mod secure_blob;
 mod shared;
 
-use tauri::{Manager, RunEvent};
+use tauri::{Emitter, Listener, Manager, RunEvent};
 
 use crate::{
     bootstrap::{focus_main_window, queue_or_emit_file_open},
     shared::{clear_asset_cache, clear_external_open_dir, AppState},
 };
+
+fn emit_deep_link(app: &tauri::AppHandle, url: &str) {
+    if url.starts_with("beaver-notes://") {
+        let _ = app.emit("deep-link://received", url.to_string());
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -64,12 +70,14 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        builder = builder        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             focus_main_window(app);
             let state = app.state::<AppState>();
             for arg in args {
                 let lower = arg.to_lowercase();
-                if lower.ends_with(".bea")
+                if lower.starts_with("beaver-notes://") {
+                    emit_deep_link(app, &arg);
+                } else if lower.ends_with(".bea")
                     || lower.ends_with(".md")
                     || lower.ends_with(".mdx")
                     || lower.ends_with(".txt")
@@ -78,7 +86,8 @@ pub fn run() {
                     queue_or_emit_file_open(app, state.inner(), arg);
                 }
             }
-        }));
+        }))
+        .plugin(tauri_plugin_deep_link::init());
     }
 
     #[cfg(not(target_os = "android"))]
@@ -227,6 +236,15 @@ pub fn run() {
         ])
         .setup(|app| {
             bootstrap::setup_app(app)?;
+
+            // Listen for deep links when the app is already running (from tauri-plugin-deep-link)
+            let handle = app.handle().clone();
+            app.listen("deep-link://new-url", move |event| {
+                if let Some(url) = event.payload().strip_prefix('\"').and_then(|s| s.strip_suffix('"')) {
+                    emit_deep_link(&handle, url);
+                }
+            });
+
             Ok(())
         });
 
@@ -254,6 +272,11 @@ pub fn run() {
         RunEvent::Opened { urls } => {
             let state = app.state::<AppState>();
             for url in urls {
+                let url_str = url.to_string();
+                if url_str.starts_with("beaver-notes://") {
+                    emit_deep_link(app, &url_str);
+                    continue;
+                }
                 if let Ok(path) = url.to_file_path() {
                     let path = path.to_string_lossy().to_string();
                     let lower = path.to_lowercase();

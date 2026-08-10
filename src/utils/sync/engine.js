@@ -19,7 +19,7 @@ import { syncDeletedAssets } from '@/composable/useWorkspaceYjs';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams, publishCloudKeyParams, cloudKeyParamsReachable } from './vault-key-params.js';
-import { reconcileSyncKeyParams } from '@/lib/native/security.js';
+import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
 
@@ -183,6 +183,20 @@ export class SyncEngine {
         return;
       }
 
+      // Check encryption key readiness before attempting any sync operations.
+      // If encryption is enabled but the key hasn't been unlocked yet, all
+      // decrypt/encrypt calls would fail with KEY_LOCKED, producing noisy
+      // errors and deferred pulls. Skip the cycle gracefully instead.
+      if (activeTransportNames.includes('cloud')) {
+        const keyReady = await syncKeyReady().catch(() => false);
+        if (!keyReady && (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled()) {
+          console.log('[sync] encryption enabled but key not ready — deferring cycle');
+          try { emit('sync:status', { status: 'unlock-required' }); } catch {}
+          outcome = { ok: true };
+          return;
+        }
+      }
+
       // Vault key params: reconcile and publish only on force/foreground cycles
       if (_force || isForegroundWake) {
         let syncPassphrase = null;
@@ -297,6 +311,7 @@ export class SyncEngine {
               pushResult = await transport.push(cursors, { force: this._forceFlush });
               break;
             } catch (err) {
+              if (err?.code === 'unlock-required') throw err;
               if (attempt === 2) throw err;
               try { emit('sync:status', { status: 'retrying' }); } catch {}
             }

@@ -759,6 +759,14 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
     fs::create_dir_all(&state.files.asset_cache_dir)?;
 
+    // In dev mode (debug builds), skip the OS keychain entirely to avoid
+    // multiple system password prompts. The file-based fallback (master.key
+    // + encrypted secure_blobs.json) is used instead.
+    #[cfg(debug_assertions)]
+    {
+        KEYRING_AVAILABLE.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
     // Warm the Keychain-backed master key on a background thread so the
     // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
     // in-memory cache instead of a ~2.5s cold Keychain read on the startup path.

@@ -558,6 +558,30 @@ export function useAppShell() {
     });
   };
 
+  const handleDeepLink = async (payload) => {
+    try {
+      const raw = typeof payload === 'string' ? payload : payload?.url || payload?.path || '';
+      const path = raw.replace(/^beaver-notes:\/\//, '');
+      if (path.startsWith('join/')) {
+        const token = path.slice('join/'.length);
+        if (!token) return;
+        const { useAccountStore } = await import('@/store/account');
+        const accountStore = useAccountStore();
+        if (!accountStore.isAuthenticated) {
+          console.warn('[deep-link] Cannot join note: not authenticated');
+          return;
+        }
+        const { joinViaInviteLink } = await import('@/lib/api/collaboration');
+        const result = await joinViaInviteLink(token, { baseUrl: accountStore.serverUrl });
+        if (result?.noteId) {
+          router.push(`/note/${result.noteId}`);
+        }
+      }
+    } catch (err) {
+      console.error('[deep-link] Failed to handle deep link:', err);
+    }
+  };
+
   onMounted(async () => {
     document.body.style.zoom = state.zoomLevel;
 
@@ -590,7 +614,10 @@ export function useAppShell() {
         updateBanner.version = bannerData.version;
         updateBanner.show = true;
       }),
-      backend.listen('spellcheck-changed', () => {})
+      backend.listen('spellcheck-changed', () => {}),
+      backend.listen('deep-link://received', (_, payload) => {
+        handleDeepLink(payload);
+      })
     );
 
     try {

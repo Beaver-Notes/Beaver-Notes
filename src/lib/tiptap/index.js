@@ -13,6 +13,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import LabelSuggestion from './exts/label-suggestion';
+import UserMention from './exts/user-mention';
 import MathInline from './exts/math-inline';
 import MathBlock from './exts/math-block';
 import MermaidBlock from './exts/mermaid-block';
@@ -65,6 +66,7 @@ const defaultDirection = directionPreference === 'rtl' ? 'rtl' : 'ltr';
 function createBaseExtensions({ yjs = false } = {}) {
   return [
     LabelSuggestion,
+    UserMention,
     StarterKit.configure({
       heading: false,
       text: false,

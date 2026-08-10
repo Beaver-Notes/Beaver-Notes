@@ -29,6 +29,7 @@
     "audio-recorder:default",
     "biometry:default",
     "safe-area-insets-css:default",
-    "core:webview:default"
+    "core:webview:default",
+    "deep-link:default"
   ]
 }
