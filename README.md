@@ -58,6 +58,39 @@ yarn tauri dev
 
 For stable builds, the [Downloads page](https://beavernotes.com/#/Download) has installers for every platform. Package managers (AUR, Flatpak, Scoop, Brew) will track stable once v5 ships.
 
+## Linux Installation
+
+### Binary Tarball (Recommended)
+
+1. Download the appropriate tarball for your architecture:
+   - `Beaver-Notes-{version}-x86_64.tar.gz` for x86_64 systems
+   - `Beaver-Notes-{version}-aarch64.tar.gz` for ARM64 systems
+
+2. Extract and install:
+   ```bash
+   tar -xzf Beaver-Notes-*.tar.gz
+   sudo cp -r Beaver-Notes-*/bin /usr/local/bin
+   sudo cp -r Beaver-Notes-*/lib /usr/local/lib
+   sudo cp -r Beaver-Notes-*/share /usr/local/share
+   ```
+
+3. Update desktop database:
+   ```bash
+   sudo update-desktop-database
+   ```
+
+### AppImage
+
+1. Download the AppImage for your architecture
+2. Make it executable: `chmod +x Beaver-Notes-*.AppImage`
+3. Run it: `./Beaver-Notes-*.AppImage`
+
+### Flatpak
+
+```bash
+flatpak install flathub com.beavernotes.beavernotes
+```
+
 ## Contributing
 
 Beaver Notes exists because people decided to build something better and kept showing up. The contributors below translated strings, wrote code, caught bugs, improved docs, and packaged the app for platforms we'd have missed. That kind of work is what makes the difference between a project that goes somewhere and one that doesn't.
