@@ -79,6 +79,7 @@ export const ProfileShape = Object.freeze({
   emailHash: 'string?',
   email: 'string?',
   createdAt: 'string?',
+  kemPublicKey: 'string?',
 });
 
 export const SubscriptionShape = Object.freeze({
@@ -118,6 +119,7 @@ export function normalizeProfile(raw) {
     emailHash: raw.emailHash || raw.emailHmac || null,
     email: raw.email || null,
     createdAt: raw.createdAt || null,
+    kemPublicKey: raw.kemPublicKey ?? null,
   };
 }
 
