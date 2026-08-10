@@ -9,6 +9,7 @@ import {
 } from '@/lib/api/comments';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useCollaboratorStore } from '@/store/collaborator';
+import { useAccountStore } from '@/store/account';
 import { importCollabKey } from '@/utils/crypto/collab';
 import { encryptComment, decryptComment } from '@/utils/crypto/comment-crypto';
 
@@ -58,6 +59,12 @@ export const useCommentStore = defineStore('comment', () => {
     return importCollabKey(noteKeyHex);
   }
 
+  function resolveAuthorName(authorId) {
+    if (!authorId) return null;
+    const user = useCollaboratorStore().usernames.find((u) => u.id === authorId);
+    return user?.username || user?.label || null;
+  }
+
   function resolveMentions(content) {
     const collaboratorStore = useCollaboratorStore();
     const mentions = [];
@@ -93,6 +100,9 @@ export const useCommentStore = defineStore('comment', () => {
           }
         }
       }
+      for (const c of data) {
+        c.authorName = resolveAuthorName(c.authorId);
+      }
       comments.value = data;
     } catch (err) {
       console.error('[comment] Failed to fetch threads:', err);
@@ -123,6 +133,7 @@ export const useCommentStore = defineStore('comment', () => {
       const comment = response?.comment;
       if (comment) {
         comment.content = content;
+        comment.authorName = useAccountStore().profile?.username || resolveAuthorName(comment.authorId);
         comments.value.push(comment);
       }
       pendingThreadId.value = null;

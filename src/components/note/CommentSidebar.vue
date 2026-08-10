@@ -67,7 +67,7 @@
                     {{ getInitials(comment.authorName) }}
                   </div>
                   <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                    {{ comment.authorName }}
+                    {{ comment.authorName || 'Unknown' }}
                   </span>
                   <span class="text-xs text-neutral-500 ml-auto">
                     {{ formatDate(comment.createdAt) }}
@@ -134,7 +134,7 @@
                       {{ getInitials(comment.authorName) }}
                     </div>
                     <span class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-                      {{ comment.authorName }}
+                      {{ comment.authorName || 'Unknown' }}
                     </span>
                     <span class="text-xs text-neutral-500 ml-auto">
                       {{ formatDate(comment.createdAt) }}
