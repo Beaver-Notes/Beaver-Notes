@@ -298,6 +298,13 @@ export class SyncEngine {
               }
               if (cursorsDirty) await this._saveCursors(cursors);
             }
+            // A page that failed to apply must not be re-pulled with the same
+            // cursor in a tight loop — stop this cycle and let the next sync
+            // re-pull the page with the fresh cursor.
+            if (applyFailed) {
+              hasMore = false;
+              break;
+            }
             if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
           }
