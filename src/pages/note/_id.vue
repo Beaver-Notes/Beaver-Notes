@@ -158,7 +158,7 @@
     <comment-sidebar
       v-if="showComments && isShared"
       :note-id="id"
-      @close="showComments = false"
+      @close="closeComments"
     />
   </div>
 </template>
@@ -303,6 +303,10 @@ export default {
       if (showComments.value && isShared.value) {
         commentStore.fetchThreads(id.value);
       }
+    }
+    function closeComments() {
+      showComments.value = false;
+      commentStore.closeSidebar();
     }
     watch(
       () => [isShared.value, id.value],
