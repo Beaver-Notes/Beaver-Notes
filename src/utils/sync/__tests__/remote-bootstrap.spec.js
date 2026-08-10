@@ -124,6 +124,9 @@ const api = {
 };
 
 vi.mock('@/lib/api/client.js', () => ({ getApiClient: vi.fn(() => api) }));
+vi.mock('@/composable/useAccountStorage', () => ({
+  loadSessionToken: vi.fn(async () => 'test-token'),
+}));
 vi.mock('../sync-repository.js', () => ({
   getSyncDeviceId: vi.fn(() => 'fresh-device'),
   getCommitsDir: vi.fn(async () => '/commits'),

@@ -38,6 +38,9 @@ vi.mock('@/lib/api/client', () => ({
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
   loadSecureBlob: vi.fn(() => Promise.resolve('vault-passphrase')),
 }));
+vi.mock('@/composable/useAccountStorage', () => ({
+  loadSessionToken: vi.fn(() => Promise.resolve('test-token')),
+}));
 
 import {
   cloudKeyParamsReachable,
@@ -49,6 +52,7 @@ import { writeFile, readData } from '@/lib/native/fs';
 import { getSettingSync } from '@/composable/settings';
 import { getSyncPath } from '../path.js';
 import { getApiClient } from '@/lib/api/client';
+import { loadSessionToken } from '@/composable/useAccountStorage';
 
 describe('cloudKeyParamsReachable', () => {
   it('is true when authed, paid, and transport wants cloud', () => {
@@ -134,10 +138,7 @@ describe('fetchCloudKeyParams', () => {
   });
 
   it('does not block for the full timeout when no session token exists', async () => {
-    vi.mock('@/composable/useAccountStorage', () => ({
-      loadSessionToken: vi.fn(async () => null),
-    }));
-    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params');
+    loadSessionToken.mockResolvedValue(null);
     const start = Date.now();
     await fetchCloudKeyParams({ timeoutMs: 300 });
     const elapsed = Date.now() - start;
