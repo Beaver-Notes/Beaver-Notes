@@ -4,6 +4,8 @@ import { useCollaboratorStore } from '@/store/collaborator';
 import {
   createCollaborationKey as apiCreateKey,
   getCollaborationKey as apiGetKey,
+  listCollaboratorPublicKeys as apiListPublicKeys,
+  storeRecipients as apiStoreRecipients,
   inviteCollaborator as apiInvite,
   listCollaborators as apiList,
   removeCollaborator as apiRemove,
@@ -11,6 +13,16 @@ import {
   listInviteLinks as apiListLinks,
   revokeInviteLink as apiRevokeLink,
 } from '@/lib/api/collaboration';
+import { loadOrCreateIdentity } from '@/utils/crypto/identity';
+import {
+  wrapNoteKeyForRecipient,
+  unwrapNoteKey,
+} from '@/utils/crypto/note-key';
+import { isValidCollabKey } from '@/utils/crypto/collab';
+
+function bytesToHex(buf) {
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export function useNoteSharing() {
   const accountStore = useAccountStore();
@@ -102,6 +114,68 @@ export function useNoteSharing() {
     }
   }
 
+  async function fetchCollaboratorPublicKeys(noteId) {
+    try {
+      return await apiListPublicKeys(noteId, { baseUrl: activeBaseUrl() });
+    } catch (err) {
+      // First touch of a note: the caller may not be a collaborator yet.
+      // Listing invitations auto-grants the self-invitation, after which the
+      // public-keys endpoint (gated to collaborators) accepts the request.
+      if (err?.status !== 403) throw err;
+      await apiList(noteId, { baseUrl: activeBaseUrl() });
+      return apiListPublicKeys(noteId, { baseUrl: activeBaseUrl() });
+    }
+  }
+
+  async function ensureNoteKey(noteId, _collaborators = null) {
+    if (!accountStore.isAuthenticated) return null;
+
+    const identity = await loadOrCreateIdentity();
+
+    // 1. Recover an existing envelope for this user, if any.
+    try {
+      const raw = await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
+      if (raw?.wrappedKey) {
+        try {
+          const noteKeyHex = await unwrapNoteKey(identity.privateKeyHex, raw.wrappedKey);
+          if (noteKeyHex && isValidCollabKey(noteKeyHex)) {
+            key.value = noteKeyHex;
+            return noteKeyHex;
+          }
+        } catch (err) {
+          console.warn('[useNoteSharing] failed to unwrap note key envelope:', err);
+        }
+      }
+    } catch (err) {
+      if (err?.status !== 404) {
+        console.warn('[useNoteSharing] getKey failed:', err);
+      }
+    }
+
+    // 2. No usable envelope — provision a fresh note key for every keypair'd
+    //    collaborator (the owner is part of the collaborator set).
+    try {
+      const publicKeys = await fetchCollaboratorPublicKeys(noteId);
+      const keypairCollabs = Array.isArray(publicKeys?.collaborators)
+        ? publicKeys.collaborators.filter((c) => c?.kemPublicKey)
+        : [];
+      if (keypairCollabs.length === 0) return null;
+
+      const noteKeyHex = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
+      const recipients = [];
+      for (const c of keypairCollabs) {
+        const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, noteKeyHex);
+        recipients.push({ userId: c.userId, wrappedKey });
+      }
+      await apiStoreRecipients(noteId, recipients, { baseUrl: activeBaseUrl() });
+      key.value = noteKeyHex;
+      return noteKeyHex;
+    } catch (err) {
+      console.warn('[useNoteSharing] note-key provisioning failed:', err);
+      return null;
+    }
+  }
+
   async function invite(noteId, identifier, role = 'editor') {
     if (!accountStore.isAuthenticated) throw new Error('Not authenticated');
     try {
@@ -162,6 +236,7 @@ export function useNoteSharing() {
     fetchCollaborators,
     ensureKey,
     getKey,
+    ensureNoteKey,
     invite,
     remove,
     fetchLinks,

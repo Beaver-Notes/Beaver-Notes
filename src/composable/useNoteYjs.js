@@ -14,7 +14,9 @@ import {
   toUint8Array,
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
-import { getHocuspocusSync } from './useHocuspocusSync.js';
+import { getHocuspocusSync, setRoomKey } from './useHocuspocusSync.js';
+import { useNoteSharing } from './useNoteSharing.js';
+import { useWorkspaceStore } from '@/store/workspace';
 import { speed } from '@/utils/speed.js';
 
 export { registerActiveDoc, applyRemote } from './yjs-shared.js';
@@ -186,6 +188,17 @@ export function useNoteYjs() {
     });
 
     const hocuspocus = getHocuspocusSync();
+    try {
+      const workspaceStore = useWorkspaceStore();
+      const sharing = useNoteSharing();
+      const noteKeyHex = await sharing.ensureNoteKey(noteId, sharing.collaborators.value);
+      if (noteKeyHex && workspaceStore.activeId) {
+        const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
+        await setRoomKey(roomName, noteKeyHex);
+      }
+    } catch (err) {
+      console.warn('[yjs] note-key provisioning skipped:', err);
+    }
     hocuspocus.joinNoteRoom(noteId, newDoc);
 
     currentDoc = newDoc;
