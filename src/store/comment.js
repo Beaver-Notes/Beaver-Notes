@@ -7,6 +7,10 @@ import {
   deleteComment,
   resolveComment,
 } from '@/lib/api/comments';
+import { useNoteSharing } from '@/composable/useNoteSharing';
+import { useCollaboratorStore } from '@/store/collaborator';
+import { importCollabKey } from '@/utils/crypto/collab';
+import { encryptComment, decryptComment } from '@/utils/crypto/comment-crypto';
 
 export const useCommentStore = defineStore('comment', () => {
   const comments = ref([]);
@@ -48,10 +52,47 @@ export const useCommentStore = defineStore('comment', () => {
     threads.value.filter((t) => t.resolved)
   );
 
+  async function resolveNoteKey(noteId) {
+    const noteKeyHex = await useNoteSharing().ensureNoteKey(noteId);
+    if (!noteKeyHex) return null;
+    return importCollabKey(noteKeyHex);
+  }
+
+  function resolveMentions(content) {
+    const collaboratorStore = useCollaboratorStore();
+    const mentions = [];
+    const re = /@([\w.-]+)/g;
+    let match;
+    while ((match = re.exec(content)) !== null) {
+      const user = collaboratorStore.usernames.find(
+        (u) => u.username === match[1] || u.label === match[1]
+      );
+      if (user && !mentions.includes(user.id)) mentions.push(user.id);
+    }
+    return mentions;
+  }
+
   async function fetchThreads(noteId, { baseUrl } = {}) {
     loading.value = true;
     try {
       const data = await listComments(noteId, { baseUrl });
+      let key = null;
+      try {
+        key = await resolveNoteKey(noteId);
+      } catch (err) {
+        console.warn('[comment] No note key for decryption:', err);
+      }
+      if (key) {
+        for (const c of data) {
+          if (c.contentEncrypted && c.contentIv) {
+            try {
+              c.content = await decryptComment(key, c, noteId);
+            } catch (err) {
+              console.warn('[comment] Failed to decrypt comment', c.id, err);
+            }
+          }
+        }
+      }
       comments.value = data;
     } catch (err) {
       console.error('[comment] Failed to fetch threads:', err);
@@ -62,13 +103,26 @@ export const useCommentStore = defineStore('comment', () => {
 
   async function addComment(noteId, { content, threadId, anchorFrom, anchorTo, parentId, baseUrl } = {}) {
     try {
+      const noteKeyHex = await useNoteSharing().ensureNoteKey(noteId);
+      if (!noteKeyHex) {
+        console.warn('[comment] No note key; refusing to send plaintext comment');
+        throw new Error('No encryption key available for this note');
+      }
+      const key = await importCollabKey(noteKeyHex);
+      const { contentEncrypted, contentIv } = await encryptComment(
+        key,
+        content,
+        noteId
+      );
+      const mentions = resolveMentions(content);
       const response = await createComment(
         noteId,
-        { content, threadId, anchorFrom, anchorTo, parentId },
+        { contentEncrypted, contentIv, mentions, threadId, anchorFrom, anchorTo, parentId },
         { baseUrl }
       );
       const comment = response?.comment;
       if (comment) {
+        comment.content = content;
         comments.value.push(comment);
       }
       pendingThreadId.value = null;
@@ -83,7 +137,19 @@ export const useCommentStore = defineStore('comment', () => {
 
   async function editComment(commentId, content, { baseUrl } = {}) {
     try {
-      await updateComment(commentId, { content }, { baseUrl });
+      const noteId = comments.value.find((x) => x.id === commentId)?.noteId;
+      const noteKeyHex = await useNoteSharing().ensureNoteKey(noteId);
+      if (!noteKeyHex) {
+        console.warn('[comment] No note key; refusing to send plaintext edit');
+        throw new Error('No encryption key available for this note');
+      }
+      const key = await importCollabKey(noteKeyHex);
+      const { contentEncrypted, contentIv } = await encryptComment(
+        key,
+        content,
+        noteId
+      );
+      await updateComment(commentId, { contentEncrypted, contentIv }, { baseUrl });
       const c = comments.value.find((x) => x.id === commentId);
       if (c) c.content = content;
     } catch (err) {
