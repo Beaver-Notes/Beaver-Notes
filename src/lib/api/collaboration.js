@@ -24,11 +24,6 @@ export async function storeRecipients(noteId, recipients, { baseUrl, signal } = 
   return client.post(`/collaboration/keys/${encodeURIComponent(noteId)}/recipients`, { recipients }, { signal });
 }
 
-export async function storeRecipient(noteId, recipientUserId, wrappedKey, { baseUrl, signal } = {}) {
-  const client = getClient(baseUrl);
-  return client.post(`/collaboration/keys/${encodeURIComponent(noteId)}/recipient`, { recipientUserId, wrappedKey }, { signal });
-}
-
 export async function inviteCollaborator(noteId, identifier, role = 'editor', { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   const body = { role };

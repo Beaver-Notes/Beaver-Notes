@@ -191,7 +191,7 @@ export function useNoteYjs() {
     try {
       const workspaceStore = useWorkspaceStore();
       const sharing = useNoteSharing();
-      const noteKeyHex = await sharing.ensureNoteKey(noteId, sharing.collaborators.value);
+      const noteKeyHex = await sharing.ensureNoteKey(noteId);
       if (noteKeyHex && workspaceStore.activeId) {
         const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
         await setRoomKey(roomName, noteKeyHex);
