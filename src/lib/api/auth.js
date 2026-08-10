@@ -323,6 +323,11 @@ export async function verifySession({ baseUrl, signal } = {}) {
   return client.post('/auth/verify-session', {}, { signal });
 }
 
+export async function setKeypair(kemPublicKey, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post('/auth/keypair', { kemPublicKey }, { signal });
+}
+
 export const webauthn = {
   isAvailable: isWebAuthnAvailable,
   isConditionalMediationAvailable,
