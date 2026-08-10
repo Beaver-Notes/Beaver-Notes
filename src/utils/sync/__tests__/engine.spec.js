@@ -330,6 +330,41 @@ describe('SyncEngine cursor persistence', () => {
     expect(emit).not.toHaveBeenCalledWith('sync:status', { status: 'complete' });
   });
 
+  it('stops the pull loop when a page fails to apply despite hasMore:true', async () => {
+    const { applyRemote } = await import('@/composable/useNoteYjs.js');
+    applyRemote.mockImplementation(() => { throw new Error('apply boom'); });
+
+    const cloud = {
+      pull: vi.fn(() => ({
+        updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, seq: 1 }],
+        cursorsDelta: {},
+        hasMore: true,
+      })),
+      push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
+      seedOnce: vi.fn(() => Promise.resolve()),
+      compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
+    };
+    const storage = { get: vi.fn(() => ({})), set: vi.fn() };
+    const current = new SyncEngine({
+      transports: { cloud },
+      storage,
+      getActiveTransports: () => ['cloud'],
+    });
+
+    // Two forced cycles; each cycle must terminate after a single pull even
+    // though pull keeps reporting hasMore:true. Regression: previously the
+    // loop re-pulled the same page forever, wedging the engine.
+    await current.enqueueSync(true);
+    await current.enqueueSync(true);
+
+    expect(cloud.pull).toHaveBeenCalledTimes(2);
+    expect(storage.set).not.toHaveBeenCalled();
+    applyRemote.mockReset();
+    vi.clearAllMocks();
+  });
+
   it('does not report complete when cloud sync state is malformed', async () => {
     const { emit } = await import('@tauri-apps/api/event');
     const current = new SyncEngine({
