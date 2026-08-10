@@ -14,15 +14,7 @@ import {
   revokeInviteLink as apiRevokeLink,
 } from '@/lib/api/collaboration';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import {
-  wrapNoteKeyForRecipient,
-  unwrapNoteKey,
-} from '@/utils/crypto/note-key';
-import { isValidCollabKey } from '@/utils/crypto/collab';
-
-function bytesToHex(buf) {
-  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
-}
+import { provisionNoteKey } from '@/utils/crypto/note-key';
 
 export function useNoteSharing() {
   const accountStore = useAccountStore();
@@ -135,92 +127,25 @@ export function useNoteSharing() {
     // First touch of a note: the caller may not be a collaborator yet.
     // Listing invitations auto-grants the self-invitation, after which the
     // key endpoint (gated to collaborators) accepts the request.
-    let raw;
-    try {
-      raw = await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
-    } catch (err) {
-      if (err?.status === 403) {
-        try {
-          await apiList(noteId, { baseUrl: activeBaseUrl() });
-          raw = await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
-        } catch (err2) {
-          console.warn('[useNoteSharing] getKey failed:', err2);
-          return null;
-        }
-      } else {
-        console.warn('[useNoteSharing] getKey failed:', err);
-        return null;
+    const getKey = async () => {
+      try {
+        return await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
+      } catch (err) {
+        if (err?.status !== 403) throw err;
+        await apiList(noteId, { baseUrl: activeBaseUrl() });
+        return apiGetKey(noteId, { baseUrl: activeBaseUrl() });
       }
-    }
+    };
 
-    // Contract drift: if the endpoint ever returns the legacy `key` shape
-    // instead of `wrappedKey` + `noteHasKey`, the note may already have a key.
-    // Never rotate it — surface a graceful null so the note stays unencrypted
-    // for this client until an owner re-wraps them.
-    if (raw?.key !== undefined && raw?.wrappedKey === undefined) {
-      console.warn('[useNoteSharing] legacy key shape; refusing to rotate an existing note key');
-      return null;
-    }
-
-    // 1. The note already has a key. Recover this user's envelope, if any.
-    if (raw?.noteHasKey === true) {
-      if (raw?.wrappedKey) {
-        try {
-          const noteKeyHex = await unwrapNoteKey(identity.privateKeyHex, raw.wrappedKey);
-          if (noteKeyHex && isValidCollabKey(noteKeyHex)) {
-            key.value = noteKeyHex;
-            return noteKeyHex;
-          }
-        } catch (err) {
-          console.warn('[useNoteSharing] failed to unwrap note key envelope:', err);
-        }
-      }
-      // Late joiner (or unwrap failure): no usable envelope for this caller.
-      // Do NOT provision/rotate — an owner must re-wrap the existing key for us.
-      return null;
-    }
-
-    // 2. Fresh note — provision a new note key for every keypair'd
-    //    collaborator (the owner is part of the collaborator set).
-    try {
-      const publicKeys = await fetchCollaboratorPublicKeys(noteId);
-      const keypairCollabs = Array.isArray(publicKeys?.collaborators)
-        ? publicKeys.collaborators.filter((c) => c?.kemPublicKey)
-        : [];
-      if (keypairCollabs.length === 0) return null;
-
-      const noteKeyHex = bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
-      const recipients = [];
-      for (const c of keypairCollabs) {
-        const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, noteKeyHex);
-        recipients.push({ userId: c.userId, wrappedKey });
-      }
-      const stored = await apiStoreRecipients(noteId, recipients, { baseUrl: activeBaseUrl() });
-
-      // Concurrent provisioning: another client won the race and the server
-      // refused our envelopes. Recover the winner's key instead of diverging.
-      if (stored?.existing) {
-        try {
-          const winner = await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
-          if (winner?.wrappedKey) {
-            const winnerKey = await unwrapNoteKey(identity.privateKeyHex, winner.wrappedKey);
-            if (winnerKey && isValidCollabKey(winnerKey)) {
-              key.value = winnerKey;
-              return winnerKey;
-            }
-          }
-        } catch (err) {
-          console.warn('[useNoteSharing] failed to recover concurrently-provisioned note key:', err);
-        }
-        return null;
-      }
-
-      key.value = noteKeyHex;
-      return noteKeyHex;
-    } catch (err) {
-      console.warn('[useNoteSharing] note-key provisioning failed:', err);
-      return null;
-    }
+    const noteKeyHex = await provisionNoteKey({
+      getKey,
+      listPublicKeys: () => fetchCollaboratorPublicKeys(noteId),
+      storeRecipients: (recipients) =>
+        apiStoreRecipients(noteId, recipients, { baseUrl: activeBaseUrl() }),
+      identity,
+    });
+    if (noteKeyHex) key.value = noteKeyHex;
+    return noteKeyHex;
   }
 
   async function invite(noteId, identifier, role = 'editor') {
