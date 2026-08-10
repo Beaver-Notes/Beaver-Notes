@@ -144,7 +144,7 @@ pub(crate) fn fs_write_file(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-    data: String,
+    data: Vec<u8>,
     mode: Option<u32>,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("fs.fs_write_file");
@@ -153,7 +153,6 @@ pub(crate) fn fs_write_file(
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let data = BASE64.decode(data.trim())?;
     let payload = encrypt_asset(&app, &state, &path, &data)?;
     let mut file = fs::File::create(&path)?;
     file.write_all(&payload)?;

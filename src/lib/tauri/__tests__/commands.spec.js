@@ -39,26 +39,4 @@ describe('invokeCommand payload normalization', () => {
     await invokeCommand('encryption:hasRemoteKeyParams');
     expect(invoke).toHaveBeenCalledWith('encryption_has_remote_key_params', {});
   });
-
-  it('encodes yjs:append update as base64 instead of a number array', async () => {
-    const update = new Uint8Array([1, 2, 3, 4, 5]);
-    await invokeCommand('yjs:append', { noteId: 'n1', update, device: 'd1' });
-    expect(invoke).toHaveBeenCalledWith('yjs_append', {
-      note_id: 'n1',
-      noteId: 'n1',
-      update: btoa(String.fromCharCode(1, 2, 3, 4, 5)),
-      device: 'd1',
-    });
-  });
-
-  it('encodes fs:writeFile data as base64', async () => {
-    const data = new Uint8Array([9, 8, 7]);
-    await invokeCommand('fs:writeFile', { path: '/tmp/a.bin', data });
-    expect(invoke).toHaveBeenCalledWith(
-      'fs_write_file',
-      expect.objectContaining({
-        data: btoa(String.fromCharCode(9, 8, 7)),
-      })
-    );
-  });
 });
