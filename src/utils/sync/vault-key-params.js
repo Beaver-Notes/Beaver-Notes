@@ -98,7 +98,7 @@ export async function publishCloudKeyParams() {
   return true;
 }
 
-export async function fetchCloudKeyParams({ force = false } = {}) {
+export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
   fetchedCloudKeyParams = null;
   if (!cloudKeyParamsReachable({ force })) return null;
   const workspaceStore = useWorkspaceStore();
@@ -107,10 +107,11 @@ export async function fetchCloudKeyParams({ force = false } = {}) {
 
   // Ensure session token is available before making authenticated requests
   const { loadSessionToken } = await import('@/composable/useAccountStorage');
-  let token = null;
-  for (let i = 0; i < 20 && !token; i++) {
+  const deadline = Date.now() + (timeoutMs ?? 1000);
+  let token = await loadSessionToken();
+  while (!token && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 100));
     token = await loadSessionToken();
-    if (!token) await new Promise(r => setTimeout(r, 250));
   }
   if (!token) {
     console.warn('[vault-key-params] session token not available, skipping fetch');

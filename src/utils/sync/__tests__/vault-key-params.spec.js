@@ -132,4 +132,15 @@ describe('fetchCloudKeyParams', () => {
     expect(getSyncPath).toHaveBeenCalled();
     expect(getApiClient).toHaveBeenCalled();
   });
+
+  it('does not block for the full timeout when no session token exists', async () => {
+    vi.mock('@/composable/useAccountStorage', () => ({
+      loadSessionToken: vi.fn(async () => null),
+    }));
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params');
+    const start = Date.now();
+    await fetchCloudKeyParams({ timeoutMs: 300 });
+    const elapsed = Date.now() - start;
+    expect(elapsed).toBeLessThan(1500);
+  });
 });
