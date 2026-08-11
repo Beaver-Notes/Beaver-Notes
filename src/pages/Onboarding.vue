@@ -1309,7 +1309,6 @@
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useStorage } from '@/composable/storage';
-import { useImportExport } from '@/composable/useImportExport';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -1341,13 +1340,21 @@ export default {
     const accountStore = useAccountStore();
     const passwordStore = usePasswordStore();
 
-    const { runImportSource } = useImportExport({
-      clipboard,
-      folderStore,
-      isMacOS,
-      noteStore,
-      storage: settingsStorage,
-    });
+    // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
+    const importExportRef = ref(null);
+    async function runImportSource(...args) {
+      if (!importExportRef.value) {
+        const { useImportExport } = await import('@/composable/useImportExport');
+        importExportRef.value = useImportExport({
+          clipboard,
+          folderStore,
+          isMacOS,
+          noteStore,
+          storage: settingsStorage,
+        });
+      }
+      return importExportRef.value.runImportSource(...args);
+    }
 
     const flow = useOnboardingFlow({
       router,
