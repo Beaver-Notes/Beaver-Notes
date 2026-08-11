@@ -12,6 +12,7 @@ import {
   decryptUpdate,
   isValidCollabKey,
 } from '@/utils/crypto/collab'
+import { clearUnwrappedKeyCache } from '@/utils/crypto/note-key'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
@@ -446,6 +447,7 @@ export function useHocuspocusSync() {
     connected = false
     activeRooms.clear()
     collabKeys.clear()
+    clearUnwrappedKeyCache()
     pendingQueue.length = 0
   }
 

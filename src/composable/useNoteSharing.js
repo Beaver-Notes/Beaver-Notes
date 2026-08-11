@@ -14,7 +14,7 @@ import {
   revokeInviteLink as apiRevokeLink,
 } from '@/lib/api/collaboration';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import { provisionNoteKey } from '@/utils/crypto/note-key';
+import { provisionNoteKey, clearUnwrappedKeyCache } from '@/utils/crypto/note-key';
 
 export function useNoteSharing() {
   const accountStore = useAccountStore();
@@ -143,6 +143,7 @@ export function useNoteSharing() {
       storeRecipients: (recipients) =>
         apiStoreRecipients(noteId, recipients, { baseUrl: activeBaseUrl() }),
       identity,
+      noteId,
     });
     if (noteKeyHex) key.value = noteKeyHex;
     return noteKeyHex;
@@ -166,6 +167,7 @@ export function useNoteSharing() {
     collaborators.value = collaborators.value.filter((c) => c.userId !== userId);
     try {
       await apiRemove(noteId, userId, { baseUrl: activeBaseUrl() });
+      clearUnwrappedKeyCache(noteId);
     } catch (err) {
       collaborators.value = previous;
       error.value = err?.message || 'Failed to remove collaborator';

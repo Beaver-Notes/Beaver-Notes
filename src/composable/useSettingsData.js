@@ -27,7 +27,7 @@ import {
 import {
   ONBOARDING_LANGUAGE_CONFIG,
   getLanguageDirection,
-} from '@/utils/onboarding/index.js';
+} from '@/utils/i18n/languages.js';
 
 async function encryptSettings(plaintext, password) {
   const salt = crypto.getRandomValues(new Uint8Array(32));

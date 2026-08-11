@@ -1,6 +1,18 @@
 import { createMlKem768 } from 'mlkem';
 import { importCollabKey, isValidCollabKey } from './collab.js';
 
+// Cache for unwrapped note key hex values (noteId -> noteKeyHex)
+// Avoids repeated ML-KEM768 decap + AES-GCM unwrap on every access.
+const unwrappedKeyCache = new Map();
+
+export function clearUnwrappedKeyCache(noteId) {
+  if (noteId) {
+    unwrappedKeyCache.delete(noteId);
+  } else {
+    unwrappedKeyCache.clear();
+  }
+}
+
 async function bytesToHex(buf) { return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join(''); }
 function hexToBytes(hex) { const b = new Uint8Array(hex.length / 2); for (let i = 0; i < hex.length; i += 2) b[i / 2] = parseInt(hex.substring(i, i + 2), 16); return b; }
 
@@ -40,7 +52,11 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
  *
  * Returns the note key hex, or null (never provision/rotate on ambiguity).
  */
-export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients, identity, log = console }) {
+export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients, identity, noteId, log = console }) {
+  if (noteId && unwrappedKeyCache.has(noteId)) {
+    return unwrappedKeyCache.get(noteId);
+  }
+
   let raw;
   try {
     raw = await getKey();
@@ -66,6 +82,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
       try {
         const noteKeyHex = await unwrapNoteKey(identity.privateKeyHex, raw.wrappedKey);
         if (noteKeyHex && isValidCollabKey(noteKeyHex)) {
+          if (noteId) unwrappedKeyCache.set(noteId, noteKeyHex);
           return noteKeyHex;
         }
       } catch (err) {
@@ -102,6 +119,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
         if (winner?.wrappedKey) {
           const winnerKey = await unwrapNoteKey(identity.privateKeyHex, winner.wrappedKey);
           if (winnerKey && isValidCollabKey(winnerKey)) {
+            if (noteId) unwrappedKeyCache.set(noteId, winnerKey);
             return winnerKey;
           }
         }
@@ -111,6 +129,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
       return null;
     }
 
+    if (noteId) unwrappedKeyCache.set(noteId, noteKeyHex);
     return noteKeyHex;
   } catch (err) {
     log.warn?.('[provisionNoteKey] note-key provisioning failed:', err);
