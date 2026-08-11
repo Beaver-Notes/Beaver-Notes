@@ -14,6 +14,15 @@ export const ONBOARDING_LANGUAGE_CONFIG = {
   zh: { name: '简体中文', dir: 'ltr' },
 };
 
+export const ONBOARDING_LANGUAGES = Object.entries(
+  ONBOARDING_LANGUAGE_CONFIG
+).map(([code, { name }]) => ({
+  code,
+  name,
+  value: code,
+  text: name,
+}));
+
 export function getLanguageDirection(languageCode) {
   return ONBOARDING_LANGUAGE_CONFIG[languageCode]?.dir || 'ltr';
 }

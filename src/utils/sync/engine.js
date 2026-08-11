@@ -112,9 +112,14 @@ export class SyncEngine {
    */
   startPullTimer() {
     if (this._pullTimer !== null) return;
-    this._pullTimer = setInterval(() => {
+    this._pullTimer = setInterval(async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (this.syncing) return;
+      // Skip entirely when no syncPath is configured and only local transport
+      // is active — there is nothing to pull from.
+      const syncPath = await getSyncPath();
+      const transports = this.getActiveTransports();
+      if (!syncPath && transports.length === 1 && transports[0] === 'local') return;
       // Idle backoff: if the previous pull-only cycle found no updates and
       // there is nothing pending locally, skip this tick to avoid pulling the
       // network every 30s for no reason. Detection still resumes on the next

@@ -15,7 +15,7 @@ export {
   runLegacyMigrationFromPath as runOnboardingMigrationFromPath,
 } from '@/utils/migration/legacyElectron';
 
-export { ONBOARDING_LANGUAGE_CONFIG, getLanguageDirection } from '@/utils/i18n/languages.js';
+export { ONBOARDING_LANGUAGE_CONFIG, ONBOARDING_LANGUAGES, getLanguageDirection } from '@/utils/i18n/languages.js';
 
 // ─── Animation timing constants ──────────────────────────────────────────────
 
@@ -32,16 +32,7 @@ export const CURTAIN_DURATIONS = {
 };
 
 // ─── Language / theme config data ────────────────────────────────────────────
-// ONBOARDING_LANGUAGE_CONFIG is re-exported from @/utils/i18n/languages.js
-
-export const ONBOARDING_LANGUAGES = Object.entries(
-  ONBOARDING_LANGUAGE_CONFIG
-).map(([code, { name }]) => ({
-  code,
-  name,
-  value: code,
-  text: name,
-}));
+// ONBOARDING_LANGUAGE_CONFIG and ONBOARDING_LANGUAGES are re-exported from @/utils/i18n/languages.js
 
 export const ONBOARDING_THEMES = [
   { name: 'light', label: 'Light' },
