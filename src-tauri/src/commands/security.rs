@@ -761,17 +761,27 @@ pub(crate) fn asset_crypto_clear_passphrase(state: State<AppState>) -> Result<()
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn passwd_hash(password: String) -> Result<String, AppError> {
-    hash(password, DEFAULT_COST).map_err(|e| AppError::Other(e.to_string()))
+pub(crate) async fn passwd_hash(password: String) -> Result<String, AppError> {
+    let result = tokio::task::spawn_blocking(move || {
+        hash(password, DEFAULT_COST).map_err(|e| AppError::Other(e.to_string()))
+    })
+    .await
+    .map_err(to_error)??;
+    Ok(result)
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn passwd_compare(password: String, hash: String) -> Result<bool, AppError> {
+pub(crate) async fn passwd_compare(password: String, hash: String) -> Result<bool, AppError> {
     if hash.is_empty() {
         return Ok(false);
     }
-    verify(password, &hash).map_err(|e| AppError::Other(e.to_string()))
+    let result = tokio::task::spawn_blocking(move || {
+        verify(password, &hash).map_err(|e| AppError::Other(e.to_string()))
+    })
+    .await
+    .map_err(to_error)??;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -954,7 +964,7 @@ pub(crate) fn decrypt_legacy_cryptojs_note(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn derive_argon2_key(
+pub(crate) async fn derive_argon2_key(
     passphrase: String,
     salt: Option<String>,
 ) -> Result<String, AppError> {
@@ -966,6 +976,11 @@ pub(crate) fn derive_argon2_key(
             s.to_vec()
         }
     };
-    let key = crate::shared::derive_kek_argon2id(&passphrase, &salt)?;
-    Ok(hex::encode(key))
+    let passphrase_for_task = passphrase.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        crate::shared::derive_kek_argon2id(&passphrase_for_task, &salt)
+    })
+    .await
+    .map_err(to_error)??;
+    Ok(hex::encode(result))
 }
