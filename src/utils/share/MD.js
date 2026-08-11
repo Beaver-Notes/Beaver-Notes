@@ -6,6 +6,7 @@ import { openDialog } from '@/lib/native/dialog';
 import { copyPath, ensureDir, writeFile } from '@/lib/native/fs';
 import { tiptapToMarkdown, buildFrontmatter } from '@/utils/markdown';
 import { sanitizeFileName } from './exportBulk';
+import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 
 function getShareTranslations() {
   try {
@@ -31,6 +32,7 @@ export async function exportMD(noteId, noteTitle, editor) {
     useScopedStorage: true,
   });
   if (canceled) return;
+  await ensureKeyReadyForWrite();
   const appDirectory = await getAppDirectory();
   const safeName = sanitizeFileName(noteTitle);
   const folderPath = path.join(filePaths[0], safeName);

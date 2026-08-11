@@ -23,6 +23,7 @@ import {
   clearAssetPassphrase,
   clearSecureBlob,
 } from '@/lib/native/security.js';
+import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 
 import {
   ONBOARDING_LANGUAGE_CONFIG,
@@ -293,6 +294,7 @@ export function useSettingsData({
           localStorage.setItem('isLocked', JSON.stringify(result.isLocked));
         }
 
+        await ensureKeyReadyForWrite();
         await copyPath(
           path.join(dirPath, 'assets'),
           path.join(appDirectory, 'assets')

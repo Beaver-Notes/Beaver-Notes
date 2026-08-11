@@ -14,7 +14,7 @@ use crate::shared::*;
 fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
   let session = state.crypto.session.read()?;
   if !session.active {
-    return Ok(None);
+    return Err(AppError::EncryptionLocked);
   }
   Ok(Some(current_app_key(state)?.ok_or(AppError::EncryptionLocked)?))
 }

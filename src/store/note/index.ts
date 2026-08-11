@@ -6,7 +6,7 @@ import { trackDeletedAssets } from '@/utils/sync';
 import { deleteUpdates } from '@/lib/native/yjs.js';
 import { hydrateNote, extractTextFromContent } from '@/utils/note/serializer.js';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
-import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { isEncryptedContent, ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
 import {
@@ -224,6 +224,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
 
 export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<string, any> = {}): Promise<NoteData> {
   try {
+    await ensureKeyReadyForWrite();
     const folderId = await resolveFolderId(note.folderId);
     const id = note.id || nanoid();
     const newNote = {
@@ -256,6 +257,8 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
 
 export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<void> {
   if (!notes.length) return;
+
+  await ensureKeyReadyForWrite();
 
   for (const note of notes) {
     this.data[note.id] = hydrateNote(note);
@@ -340,6 +343,8 @@ export function patchLocal(this: NoteStoreThis, id: string, data: Record<string,
 export async function persist(this: NoteStoreThis, id: string): Promise<NoteData | null> {
   if (!this.data[id]) return null;
 
+  await ensureKeyReadyForWrite();
+
   const note = this.data[id];
   const contentChanged = note.content !== contentSignature.get(id);
 
@@ -379,6 +384,7 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
 
 export async function persistMeta(this: NoteStoreThis, id: string): Promise<NoteData | null> {
   if (!this.data[id]) return null;
+  await ensureKeyReadyForWrite();
   const note = this.data[id];
 
   // Skip content walks (preview, searchText) — content unchanged
@@ -566,6 +572,8 @@ export async function addLabel(this: NoteStoreThis, id: string, labelId: string)
 
     if (this.data[id].labels.includes(labelId)) return labelId;
 
+    await ensureKeyReadyForWrite();
+
     this.data[id] = hydrateNote({
       ...this.data[id],
       labels: [...this.data[id].labels, labelId],
@@ -591,6 +599,8 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 
     const idx = this.data[id].labels.indexOf(labelId);
     if (idx === -1) return;
+
+    await ensureKeyReadyForWrite();
 
     const labels = [...this.data[id].labels];
     labels.splice(idx, 1);

@@ -14,6 +14,7 @@ import { convertMarkdownToTiptap } from '@/utils/markdown';
 import { useNoteStore } from '@/store/note';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
+import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 import mime from 'mime';
 
 const _pendingImportNotes = [];
@@ -180,6 +181,7 @@ export async function listFilesRecursive(rootPath, extensions, options = {}) {
 export async function copyDirectoryContents(sourcePath, destPath) {
   if (!(await pathExists(sourcePath))) return;
   try {
+    await ensureKeyReadyForWrite();
     await ensureDir(destPath);
     await copyPath(sourcePath, destPath);
   } catch (error) {
@@ -199,6 +201,7 @@ export async function prepareMarkdownStaging(
   for (const assetDir of assetDirs) {
     if (!(await pathExists(assetDir))) continue;
     try {
+      await ensureKeyReadyForWrite();
       await copyPath(assetDir, assetsDir);
     } catch (error) {
       console.warn('Staging asset copy failed:', error);

@@ -11,6 +11,7 @@ import {
   sanitizeImageSource,
   sanitizeImportedHtml,
 } from '@/utils/note/contentSecurity.js';
+import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 import {
   stripExtension,
   stripNotionId,
@@ -246,6 +247,8 @@ async function processRustImportNote(note, state, appDirectory) {
 
   const noteAssetDir = path.join(appDirectory, 'assets', id);
   await ensureDir(noteAssetDir);
+
+  await ensureKeyReadyForWrite();
 
   const resourcePromises = (note.resources || []).map((resource) => {
     try {

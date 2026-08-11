@@ -21,7 +21,11 @@ import { ENCRYPTED_ASSET_EXT } from './constants.js';
 export async function ensureSyncKeyReadyForWrite() {
   const ready = await syncKeyReady().catch(() => false);
   if (!ready) {
-    if (!isEncryptionEnabled()) return false;
+    if (!isEncryptionEnabled()) {
+      throw new Error(
+        'Encryption is required for sync. Enable encryption in Settings.'
+      );
+    }
     throw new Error(
       'Encryption key is locked. Unlock encryption before syncing.'
     );
@@ -31,9 +35,6 @@ export async function ensureSyncKeyReadyForWrite() {
 
 export async function encryptJSON(payload, aad = '') {
   const { update, ...meta } = payload || {};
-  if (!isEncryptionEnabled()) {
-    return JSON.stringify({ ...meta, update: bufToBase64(update) });
-  }
   await ensureSyncKeyReadyForWrite();
   return syncEncryptPayload(JSON.stringify(meta), bufToBase64(update), aad);
 }

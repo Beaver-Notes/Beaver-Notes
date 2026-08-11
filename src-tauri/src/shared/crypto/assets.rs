@@ -12,7 +12,7 @@ use aes_gcm::{
 use tauri::AppHandle;
 
 use super::keys::{current_app_key, derive_chunk_nonce, random_nonce, STREAM_CHUNK_SIZE};
-use super::super::{app_encryption_manifest_path, AppError, AppState, is_local_asset_path};
+use super::super::{AppError, AppState, is_local_asset_path};
 
 pub(crate) const ASSET_MAGIC: &[u8; 4] = b"BNA3";
 pub(crate) const ASSET_MAGIC_LEGACY_V2: &[u8; 4] = b"BNA2";
@@ -293,10 +293,6 @@ pub(crate) fn encrypt_asset(
     input: &[u8],
 ) -> Result<Vec<u8>, AppError> {
     if !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
-        return Ok(input.to_vec());
-    }
-    let manifest_path = app_encryption_manifest_path(app, state)?;
-    if !manifest_path.exists() {
         return Ok(input.to_vec());
     }
     let key = current_app_key(state)?.ok_or(AppError::Other(

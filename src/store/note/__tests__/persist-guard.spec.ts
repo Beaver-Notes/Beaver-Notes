@@ -13,6 +13,7 @@ vi.mock('@/utils/note/serializer.js', () => ({
 
 vi.mock('@/utils/crypto/encryption.js', () => ({
   isEncryptedContent: vi.fn(() => false),
+  ensureKeyReadyForWrite: vi.fn(async () => true),
 }));
 
 vi.mock('@/store/note/backlinks', () => ({
