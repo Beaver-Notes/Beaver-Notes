@@ -434,10 +434,8 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const initializeWorkspace = async () => {
-    await hydrateSettingsStore();
-    await setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'));
-
-    const [hasData, onboardingCompleted] = await Promise.all([
+    const [, hasData, onboardingCompleted] = await Promise.all([
+      hydrateSettingsStore().then(() => setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'))),
       hasExistingWorkspaceData(),
       settingsStorage.get('onboardingCompleted', false),
     ]);
@@ -490,11 +488,13 @@ export function useAppShell(onboardingCompleted = true) {
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
 
-    // Post-process (FTS index, link index, lock migration, etc.) — the stores
-    // are now populated from Yjs, so retrieve() must NOT read from KV.
-    await store.retrieve();
-
+    // Make the UI visible before the heavier post-processing (FTS index,
+    // link index, lock migration, etc.) so the app feels responsive sooner.
     retrieved.value = true;
+
+    // Post-process — the stores are now populated from Yjs, so retrieve()
+    // must NOT read from KV.
+    await store.retrieve();
     await refreshSyncLockBanner();
 
     // One-time deferred backfill of card previews for notes that predate the
