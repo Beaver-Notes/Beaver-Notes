@@ -34,7 +34,7 @@ export const commands = {
 	fsEnsureDir: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_ensure_dir", { path })),
 	fsPathExists: (path: string) => typedError<boolean, AppError>(__TAURI_INVOKE("fs_path_exists", { path })),
 	fsRemove: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_remove", { path })),
-	fsWriteFile: (path: string, data: string, mode: number | null) => typedError<null, AppError>(__TAURI_INVOKE("fs_write_file", { path, data, mode })),
+	fsWriteFile: (path: string, data: number[], mode: number | null) => typedError<null, AppError>(__TAURI_INVOKE("fs_write_file", { path, data, mode })),
 	fsMkdir: (path: string, mode: number | null) => typedError<null, AppError>(__TAURI_INVOKE("fs_mkdir", { path, mode })),
 	fsReadFile: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("fs_read_file", { path })),
 	fsReadFileBinary: (path: string) => typedError<number[], AppError>(__TAURI_INVOKE("fs_read_file_binary", { path })),
@@ -50,9 +50,18 @@ export const commands = {
 	 *  Only used on startup / sync — intentionally loads everything.
 	 *  Note content is no longer encrypted at the KV layer; Yjs blobs are
 	 *  encrypted at rest in the note_content / yjs_snapshots tables instead.
+	 * 
+	 *  The heavy lifting (DB read + per-row decryption) is dispatched to a
+	 *  blocking thread pool so the Tauri event loop stays responsive.
 	 */
 	storageGetStore: (name: string) => typedError<RawJson, AppError>(__TAURI_INVOKE("storage_get_store", { name })),
-	/**  Replaces the entire store. Used by sync / import flows. */
+	/**
+	 *  Replaces the entire store. Used by sync / import flows.
+	 * 
+	 *  Optimised path: only rows whose content actually changed are re-encrypted
+	 *  and written.  Unchanged rows keep their existing DB envelope, avoiding
+	 *  expensive AES-GCM re-encryption and reducing I/O.
+	 */
 	storageReplace: (name: string, data: RawJson) => typedError<null, AppError>(__TAURI_INVOKE("storage_replace", { name, data })),
 	/**
 	 *  Gets a single value by dot-separated key.
@@ -92,8 +101,8 @@ export const commands = {
 	encryptionEnable: (password: string) => typedError<null, AppError>(__TAURI_INVOKE("encryption_enable", { password })),
 	encryptionUnlock: (password: string) => typedError<null, AppError>(__TAURI_INVOKE("encryption_unlock", { password })),
 	encryptionLock: () => typedError<null, AppError>(__TAURI_INVOKE("encryption_lock")),
-	encryptionEncryptNotePayload: (plainJson: string) => typedError<RawJson, AppError>(__TAURI_INVOKE("encryption_encrypt_note_payload", { plainJson })),
-	encryptionDecryptNotePayload: (payload: RawJson) => typedError<string | null, AppError>(__TAURI_INVOKE("encryption_decrypt_note_payload", { payload })),
+	encryptionEncryptNotePayload: (plainBytes: number[]) => typedError<RawJson, AppError>(__TAURI_INVOKE("encryption_encrypt_note_payload", { plainBytes })),
+	encryptionDecryptNotePayload: (payload: RawJson) => typedError<number[] | null, AppError>(__TAURI_INVOKE("encryption_decrypt_note_payload", { payload })),
 	/**
 	 *  Encrypt a sync payload (commit / snapshot / genesis) with the items key using
 	 *  XChaCha20-Poly1305. `aad` binds the ciphertext to its identity (e.g. the file
@@ -114,8 +123,17 @@ export const commands = {
 	 *  as a JSON number array) are decoded for backward compatibility.
 	 */
 	syncDecryptPayload: (enc: string, aad: string) => typedError<SyncDecryptedPayload, AppError>(__TAURI_INVOKE("sync_decrypt_payload", { enc, aad })),
-	syncDecryptBatch: (envelopes: string[], aads: string[]) => typedError<(SyncDecryptedPayload | null)[], AppError>(__TAURI_INVOKE("sync_decrypt_batch", { envelopes, aads })),
+	/**
+	 *  Batch-encrypt a list of sync payloads in parallel. All items must succeed;
+	 *  if any encryption fails the whole batch returns an error.
+	 */
 	syncEncryptBatch: (metas: string[], dataB64s: string[], aads: string[]) => typedError<string[], AppError>(__TAURI_INVOKE("sync_encrypt_batch", { metas, dataB64s, aads })),
+	/**
+	 *  Batch-decrypt a list of sync payloads in parallel. Each envelope is
+	 *  decrypted independently; failed items produce `None` in the result vec
+	 *  instead of aborting the whole batch.
+	 */
+	syncDecryptBatch: (envelopes: string[], aads: string[]) => typedError<(SyncDecryptedPayload | null)[], AppError>(__TAURI_INVOKE("sync_decrypt_batch", { envelopes, aads })),
 	syncKeyReady: () => __TAURI_INVOKE<boolean>("sync_key_ready"),
 	/**
 	 *  Keep the local manifest and the shared `keyParams.json` in the sync folder
@@ -165,38 +183,35 @@ export const commands = {
 	 *  Append a single Yjs binary update for a note.  Updates are stored as
 	 *  append-only BLOB rows so every peer's version is preserved.
 	 *  When app encryption is active the blob is encrypted before persisting.
-	 * 
-	 *  The update is sent as base64 rather than a JSON number array — multi-KB
-	 *  blobs would otherwise pay a serde_json round-trip on a huge array.
 	 */
-	yjsAppend: (noteId: string, update: string, device: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_append", { noteId, update, device })),
-	/**  Append multiple Yjs binary updates in a single IPC call.  All updates are inserted inside one SQLite transaction. */
-	yjsAppendBatch: (noteIds: string[], updates: string[], devices: string[]) => typedError<number, AppError>(__TAURI_INVOKE("yjs_append_batch", { noteIds, updates, devices })),
+	yjsAppend: (noteId: string, update: number[], device: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_append", { noteId, update, device })),
+	/**
+	 *  Append multiple Yjs binary updates in a single IPC call.
+	 *  All updates are inserted inside one SQLite transaction.
+	 */
+	yjsAppendBatch: (noteIds: string[], updates: number[][], devices: string[]) => typedError<number, AppError>(__TAURI_INVOKE("yjs_append_batch", { noteIds, updates, devices })),
 	/**
 	 *  Return every stored Yjs update for a note, oldest first.
 	 *  The caller replays them into a Y.Doc to reconstruct the current state.
-	 *  Each update is base64-encoded.
 	 */
-	yjsGetUpdates: (noteId: string) => typedError<string[], AppError>(__TAURI_INVOKE("yjs_get_updates", { noteId })),
+	yjsGetUpdates: (noteId: string) => typedError<number[][], AppError>(__TAURI_INVOKE("yjs_get_updates", { noteId })),
 	/**
 	 *  Return a cached merged Yjs state snapshot for a note when it is fresh
 	 *  (no stored update is newer than the snapshot). Returns an empty vector when
 	 *  the caller must replay history and re-cache it via `yjs_save_snapshot`.
-	 *  Encoded as base64 so the IPC payload is a string, not a JSON number array.
 	 */
-	yjsGetSnapshot: (noteId: string) => typedError<string, AppError>(__TAURI_INVOKE("yjs_get_snapshot", { noteId })),
+	yjsGetSnapshot: (noteId: string) => typedError<number[], AppError>(__TAURI_INVOKE("yjs_get_snapshot", { noteId })),
 	/**
 	 *  Return the fresh merged Yjs snapshot for many notes in a single round-trip
 	 *  (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
-	 *  are included in the result map. Snapshots are base64-encoded strings.
+	 *  are included in the result map.
 	 */
-	yjsGetSnapshots: (noteIds: string[]) => typedError<{ [key in string]: string }, AppError>(__TAURI_INVOKE("yjs_get_snapshots", { noteIds })),
+	yjsGetSnapshots: (noteIds: string[]) => typedError<{ [key in string]: number[] }, AppError>(__TAURI_INVOKE("yjs_get_snapshots", { noteIds })),
 	/**
 	 *  Delete all existing updates for a note and replace them with a single
 	 *  compressed Yjs state vector (snapshot).  Keeps the row count bounded.
-	 *  The snapshot is sent as base64.
 	 */
-	yjsCompact: (noteId: string, snapshot: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact", { noteId, snapshot })),
+	yjsCompact: (noteId: string, snapshot: number[]) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact", { noteId, snapshot })),
 	/**
 	 *  Read all updates for a note, merge them into a single snapshot via y-octo,
 	 *  replace the old rows with one compacted row, and keep the snapshot cache in
@@ -205,10 +220,17 @@ export const commands = {
 	yjsCompactBatch: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact_batch", { noteId })),
 	/**  Delete every Yjs update for a note.  Called when the note itself is deleted. */
 	yjsDelete: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_delete", { noteId })),
+	indexSave: (searchJson: string, linksJson: string, signaturesJson: string) => typedError<null, AppError>(__TAURI_INVOKE("index_save", { searchJson, linksJson, signaturesJson })),
+	indexLoad: () => typedError<{
+	searchJson: string,
+	linksJson: string,
+	signaturesJson: string,
+} | null, AppError>(__TAURI_INVOKE("index_load")),
 	/**
 	 *  Extract search index data from all notes in the data store.
+	 *  Runs off-main-thread via `spawn_blocking` so the UI stays responsive.
 	 *  Returns a flat array of `{ id, title, searchText, labelsText }` entries
-	 *  ready for MiniSearch on the JS side.
+	 *  ready for MiniSearch to consume on the JS side.
 	 */
 	searchExtractIndexData: () => typedError<SearchEntry[], AppError>(__TAURI_INVOKE("search_extract_index_data")),
 	/**  Return all registered workspaces. */
@@ -289,6 +311,12 @@ export type FileStat = {
 	ctimeMs: number | null,
 };
 
+export type IndexSnapshot = {
+	searchJson: string,
+	linksJson: string,
+	signaturesJson: string,
+};
+
 export type InstallationSource = "standalone" | "scoop" | "brew" | "linuxPackage" | "appStore";
 
 export type LegacyMigrationResult = {
@@ -330,13 +358,6 @@ export type OpenDialogOptions = {
  */
 export type RawJson = any;
 
-export type SearchEntry = {
-	id: string,
-	title: string,
-	searchText: string,
-	labelsText: string,
-};
-
 export type SaveDialogOptions = {
 	title: string | null,
 	defaultPath: string | null,
@@ -346,6 +367,13 @@ export type SaveDialogOptions = {
 export type SaveDialogResult = {
 	canceled: boolean,
 	filePath: string | null,
+};
+
+export type SearchEntry = {
+	id: string,
+	title: string,
+	searchText: string,
+	labelsText: string,
 };
 
 export type SyncDecryptedPayload = {

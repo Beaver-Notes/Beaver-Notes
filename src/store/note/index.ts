@@ -9,6 +9,7 @@ import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent, ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
+import { commands } from '@/lib/tauri/bindings';
 import {
   indexNoteForSpotlight,
   reindexAllNotes,
@@ -18,12 +19,16 @@ import {
   removeSearchEntry,
   searchNotesIndex,
   upsertSearchEntry,
+  getSearchIndexJSON,
+  loadSearchIndex,
 } from '@/composable/useSearch.js';
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
   rebuildLinkIndexFromAll,
+  getLinkIndexJSON,
+  loadLinkIndex,
 } from './backlinks';
 import {
   syncNoteMeta,
@@ -209,10 +214,55 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
     // writeStoresFromWorkspace().  No KV reads needed.
 
     initFolderCounts(this.data);
-    buildSearchIndex(this.data);
-    reindexAllNotes(this.data);
-    rebuildLinkIndexFromAll(this.data);
 
+    // Try to load persisted indexes
+    const snapshotResult = await commands.indexLoad();
+    if (snapshotResult.status === 'ok' && snapshotResult.data) {
+      const snapshot = snapshotResult.data;
+      loadSearchIndex(snapshot.searchJson);
+      loadLinkIndex(snapshot.linksJson);
+      const signatures = JSON.parse(snapshot.signaturesJson || '{}');
+
+      // Incremental patch: update only changed notes
+      for (const note of Object.values(this.data)) {
+        if (!note?.id) continue;
+        if (!signatures[note.id] || note.updatedAt > signatures[note.id]) {
+          upsertSearchEntry(note);
+          rebuildLinkIndexForNote(note.id, note.content);
+          signatures[note.id] = note.updatedAt;
+        }
+      }
+      // Remove deleted notes from indexes
+      for (const id of Object.keys(signatures)) {
+        if (!this.data[id]) {
+          removeSearchEntry(id);
+          removeNoteFromLinkIndex(id);
+          delete signatures[id];
+        }
+      }
+      // Persist updated indexes
+      await commands.indexSave(
+        getSearchIndexJSON(),
+        getLinkIndexJSON(),
+        JSON.stringify(signatures)
+      );
+    } else {
+      // Cold start: full rebuild
+      buildSearchIndex(this.data);
+      rebuildLinkIndexFromAll(this.data);
+      // Persist for next startup
+      const signatures: Record<string, number> = {};
+      for (const note of Object.values(this.data)) {
+        if (note?.id) signatures[note.id] = note.updatedAt;
+      }
+      await commands.indexSave(
+        getSearchIndexJSON(),
+        getLinkIndexJSON(),
+        JSON.stringify(signatures)
+      );
+    }
+
+    reindexAllNotes(this.data);
     return this.data;
   } catch (error) {
     console.error('Error retrieving notes:', error);
@@ -274,6 +324,17 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
   buildSearchIndex(this.data);
   rebuildLinkIndexFromAll(this.data);
   reindexAllNotes(this.data);
+
+  // Persist indexes for next startup
+  const signatures: Record<string, number> = {};
+  for (const note of Object.values(this.data)) {
+    if (note?.id) signatures[note.id] = note.updatedAt;
+  }
+  await commands.indexSave(
+    getSearchIndexJSON(),
+    getLinkIndexJSON(),
+    JSON.stringify(signatures)
+  );
 }
 
 export async function update(this: NoteStoreThis, id: string, data: Record<string, any> = {}): Promise<NoteData> {

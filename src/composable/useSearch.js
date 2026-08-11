@@ -60,3 +60,12 @@ export function searchNotesIndex(query) {
   t?.end();
   return result;
 }
+
+export function getSearchIndexJSON() {
+  return JSON.stringify(searchIndex.toJSON());
+}
+
+export function loadSearchIndex(json) {
+  searchIndex.removeAll();
+  searchIndex.import(JSON.parse(json));
+}

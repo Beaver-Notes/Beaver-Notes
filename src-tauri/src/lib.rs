@@ -227,6 +227,8 @@ pub fn run() {
             commands::yjs::yjs_compact,
             commands::yjs::yjs_compact_batch,
             commands::yjs::yjs_delete,
+            commands::index::index_save,
+            commands::index::index_load,
             commands::search::search_extract_index_data,
             commands::workspace::workspace_list,
             commands::workspace::workspace_get_active,
