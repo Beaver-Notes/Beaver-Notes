@@ -276,6 +276,14 @@ pub(crate) fn is_encrypted_asset_buffer(buffer: &[u8]) -> bool {
         || (buffer.len() > 4 + 12 + 16 && &buffer[..4] == ASSET_MAGIC_LEGACY_V1)
 }
 
+/// Checks if a 4-byte magic prefix and file size indicate an encrypted asset,
+/// without reading the file payload. Mirrors the size thresholds of
+/// [`is_encrypted_asset_buffer`].
+pub(crate) fn is_encrypted_asset_header(magic: &[u8; 4], file_size: u64) -> bool {
+    (file_size > 4 + 12 + 4 && magic == ASSET_MAGIC)
+        || (file_size > 4 + 12 + 16 && (magic == ASSET_MAGIC_LEGACY_V2 || magic == ASSET_MAGIC_LEGACY_V1))
+}
+
 
 
 pub(crate) fn encrypt_asset(

@@ -27,6 +27,7 @@ import {
 import {
   retrieve,
   add,
+  addMany,
   update,
   patchLocal,
   persist,
@@ -78,6 +79,7 @@ export const useNoteStore = defineStore('note', {
 
     // CRUD
     add,
+    addMany,
     update,
     patchLocal,
     persist,

@@ -4,7 +4,7 @@ import { readFile } from '@/lib/native/fs';
 import { useNoteStore } from '@/store/note';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
 import { htmlToTiptap } from './bulkImport';
-import { parseFrontmatter, addImportedNote, parseDateValue } from './helpers';
+import { parseFrontmatter, addImportedNote, flushImportedNotes, parseDateValue } from './helpers';
 
 export async function extractImportTitle(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -52,7 +52,7 @@ export async function importSingleMarkdown(filePath, folderId = null) {
     path.dirname(filePath)
   );
 
-  await addImportedNote(noteStore, {
+  addImportedNote(noteStore, {
     id,
     title,
     content,
@@ -81,7 +81,7 @@ export async function importSingleText(filePath, folderId = null) {
     ],
   };
 
-  await addImportedNote(noteStore, {
+  addImportedNote(noteStore, {
     id,
     title: fileName,
     content,
@@ -104,7 +104,7 @@ export async function importSingleHTML(filePath, folderId = null) {
 
   const content = await htmlToTiptap(raw, id, '');
 
-  await addImportedNote(noteStore, {
+  addImportedNote(noteStore, {
     id,
     title,
     content,
@@ -130,5 +130,7 @@ export async function importSingleFile(filePath, folderId = null) {
   if (!importer) {
     throw new Error(`Unsupported file format: .${ext}`);
   }
-  return importer(filePath, folderId);
+  const result = await importer(filePath, folderId);
+  await flushImportedNotes();
+  return result;
 }

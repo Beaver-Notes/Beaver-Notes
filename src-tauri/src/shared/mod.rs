@@ -1090,12 +1090,17 @@ pub(crate) fn cached_or_decrypted_asset(
     path: &Path,
 ) -> Result<PathBuf, AppError> {
     let _t = crate::shared::speed_log::scope("assets.cached_or_decrypted_asset");
-    let raw = fs::read(path)?;
-    if !is_encrypted_asset_buffer(&raw) {
+    let metadata = fs::metadata(path)?;
+    let file_size = metadata.len();
+
+    let mut magic = [0u8; 4];
+    fs::File::open(path)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))?;
+
+    if !is_encrypted_asset_header(&magic, file_size) {
         return Ok(path.to_path_buf());
     }
 
-    let metadata = fs::metadata(path)?;
     let cache_path = decrypted_cache_path(asset_cache_dir, path, &metadata)?;
     if cache_path.exists() {
         return Ok(cache_path);
@@ -1119,8 +1124,7 @@ pub(crate) fn cached_or_decrypted_asset(
             AppError::Other("App encryption is locked. Unlock before opening encrypted assets.".into())
         })?
     };
-    let plain = decrypt_asset_bytes_with_key(&raw, &key)?;
-    fs::write(&cache_path, plain)?;
+    decrypt_asset_streaming(path, &cache_path, &key)?;
     prune_asset_cache_dir(asset_cache_dir);
     Ok(cache_path)
 }

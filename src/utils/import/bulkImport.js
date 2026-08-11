@@ -23,6 +23,7 @@ import {
   copyDirectoryContents,
   prepareMarkdownStaging,
   addImportedNote,
+  flushImportedNotes,
   importMarkdownFile,
   parseDateValue,
   mergeLabels,
@@ -257,7 +258,7 @@ async function processRustImportNote(note, state) {
     resources: note.resources || [],
   });
 
-  await addImportedNote(noteStore, {
+  addImportedNote(noteStore, {
     id,
     title: note.title || 'Untitled',
     content,
@@ -313,6 +314,7 @@ export function startRustImport(source, onProgress) {
       unlistenProgress();
       unlistenComplete();
       await processing;
+      await flushImportedNotes();
 
       resolve({
         imported: state.imported,
@@ -410,6 +412,7 @@ export async function importObsidian(
     }
   }
 
+  await flushImportedNotes();
   return { imported, folders: createdFolderIds.size, errors };
 }
 
@@ -475,7 +478,7 @@ export async function importNotion(
         }
 
         const content = await htmlToTiptap(html, id, resolvedAppDirectory);
-        await addImportedNote(noteStore, {
+        addImportedNote(noteStore, {
           id,
           title,
           content,
@@ -496,6 +499,7 @@ export async function importNotion(
     }
   }
 
+  await flushImportedNotes();
   return { imported, folders: createdFolderIds.size, errors };
 }
 
@@ -537,7 +541,7 @@ export async function importBear(
         );
       }
 
-      await addImportedNote(noteStore, {
+      addImportedNote(noteStore, {
         id,
         title,
         content,
@@ -563,6 +567,7 @@ export async function importBear(
     }
   }
 
+  await flushImportedNotes();
   return { imported, folders: 0, errors };
 }
 
@@ -586,7 +591,7 @@ export async function importSimplenote(jsonPath, noteStore, onProgress) {
         path.dirname(jsonPath)
       );
 
-      await addImportedNote(noteStore, {
+      addImportedNote(noteStore, {
         id,
         title: titleLine.trim() || 'Untitled',
         content,
@@ -616,6 +621,7 @@ export async function importSimplenote(jsonPath, noteStore, onProgress) {
     }
   }
 
+  await flushImportedNotes();
   return { imported, folders: 0, errors };
 }
 
@@ -664,5 +670,6 @@ export async function importGenericMarkdown(
     }
   }
 
+  await flushImportedNotes();
   return { imported, folders: createdFolderIds.size, errors };
 }

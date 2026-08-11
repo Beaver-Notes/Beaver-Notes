@@ -1,5 +1,5 @@
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
-import { hydrateNote, decryptNoteForMemory } from '@/utils/note/serializer.js';
+import { batchDecryptNotesForMemory } from '@/utils/note/serializer.js';
 import { saveNote } from './index';
 
 interface EncryptionProgress {
@@ -20,30 +20,32 @@ export async function decryptAllNotesForAppEncryption(
   const { onProgress } = options;
   const entries = Object.entries(this.data).filter(([id]) => !!id);
   const total = entries.length;
-  let processed = 0;
   const failures: string[] = [];
 
-  for (const [id, note] of entries) {
-    try {
-      const wasEncrypted = isEncryptedContent(note.content);
-      const decrypted = await decryptNoteForMemory(note);
-      this.data[id] = hydrateNote(decrypted);
+  if (total === 0) return;
 
-      if (wasEncrypted && isEncryptedContent(decrypted.content)) {
-        failures.push(id);
-        console.error(
-          `[note] failed to decrypt app-encrypted note ${id} for migration`
-        );
-      }
-    } catch (error) {
+  const notes = entries.map(([id, note]) => ({ ...note, id }));
+  const decryptedNotes = await batchDecryptNotesForMemory(notes, {
+    onProgress: (progress: { processed: number; total: number; id: string }) => {
+      onProgress?.({
+        phase: 'decrypt',
+        processed: progress.processed,
+        total: progress.total,
+        id: progress.id,
+      });
+    },
+  });
+
+  for (let i = 0; i < entries.length; i++) {
+    const [id] = entries[i];
+    const decrypted = decryptedNotes[i];
+    this.data[id] = decrypted;
+
+    if (isEncryptedContent(decrypted.content)) {
       failures.push(id);
       console.error(
-        `[note] failed to normalize note ${id} before migration:`,
-        error
+        `[note] failed to decrypt app-encrypted note ${id} for migration`
       );
-    } finally {
-      processed += 1;
-      onProgress?.({ phase: 'decrypt', processed, total, id });
     }
   }
 

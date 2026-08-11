@@ -29,6 +29,7 @@ import {
   syncNoteMeta,
   removeNoteMeta,
   syncDeletedNoteIds,
+  transactWorkspace,
 } from '@/composable/useWorkspaceYjs';
 
 export interface NoteData {
@@ -183,6 +184,7 @@ export interface NoteStoreThis {
   persist(id: string): Promise<NoteData | null>;
   delete(id: string): Promise<string>;
   cleanupDeletedIds(days?: number): Promise<string[]>;
+  addMany?(notes: NoteData[]): Promise<void>;
 }
 
 export async function searchNotesSql(this: NoteStoreThis, query: string): Promise<NoteData[]> {
@@ -249,6 +251,25 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     console.error('Error adding note:', error);
     throw error;
   }
+}
+
+export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<void> {
+  if (!notes.length) return;
+
+  for (const note of notes) {
+    this.data[note.id] = hydrateNote(note);
+    incrementFolderCount(this.data[note.id].folderId);
+  }
+
+  transactWorkspace(() => {
+    for (const note of notes) {
+      syncNoteMeta(this.data[note.id]);
+    }
+  });
+
+  buildSearchIndex(this.data);
+  rebuildLinkIndexFromAll(this.data);
+  reindexAllNotes(this.data);
 }
 
 export async function update(this: NoteStoreThis, id: string, data: Record<string, any> = {}): Promise<NoteData> {

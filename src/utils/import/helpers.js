@@ -11,7 +11,33 @@ import {
 } from '@/lib/native/fs';
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
+import { useNoteStore } from '@/store/note';
 import mime from 'mime';
+
+const _pendingImportNotes = [];
+
+export function addImportedNote(noteStore, payload) {
+  _pendingImportNotes.push({
+    id: payload.id,
+    title: payload.title,
+    content: payload.content,
+    labels: payload.labels || [],
+    folderId: payload.folderId || null,
+    createdAt: payload.createdAt || Date.now(),
+    updatedAt: payload.updatedAt || Date.now(),
+    isBookmarked: false,
+    isArchived: false,
+    isLocked: false,
+    isFullWidth: false,
+  });
+}
+
+export async function flushImportedNotes() {
+  if (!_pendingImportNotes.length) return;
+  const notes = _pendingImportNotes.splice(0);
+  const noteStore = useNoteStore();
+  await noteStore.addMany(notes);
+}
 
 function parseScalarValue(value) {
   const trimmed = String(value || '').trim();
@@ -168,20 +194,6 @@ export async function prepareMarkdownStaging(
   return stagingRoot;
 }
 
-export async function addImportedNote(noteStore, payload) {
-  await noteStore.add({
-    id: payload.id,
-    title: payload.title,
-    content: payload.content,
-    labels: payload.labels || [],
-    folderId: payload.folderId || null,
-    createdAt: payload.createdAt || Date.now(),
-    updatedAt: payload.updatedAt || Date.now(),
-    isBookmarked: false,
-    isArchived: false,
-  });
-}
-
 export function extractBearTags(markdown) {
   const labels = new Set();
   let output = '';
@@ -273,7 +285,7 @@ export async function importMarkdownFile({
       : directoryPath;
   const { content } = await convertMarkdownToTiptap(body, id, stagingRoot);
 
-  await addImportedNote(noteStore, {
+  addImportedNote(noteStore, {
     id,
     title,
     content,
