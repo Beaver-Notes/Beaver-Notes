@@ -146,6 +146,7 @@ import { getHocuspocusSync } from './composable/useHocuspocusSync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import AppNavbar from './components/app/AppNavbar.vue';
+import { getSettingSync } from './composable/settings';
 
 export default {
   components: {
@@ -157,7 +158,8 @@ export default {
     AppEncryptionGate,
   },
   setup() {
-    const shell = useAppShell();
+    const onboardingCompleted = getSettingSync('onboardingCompleted');
+    const shell = useAppShell(onboardingCompleted);
     const mainRef = ref(null);
     const accountStore = useAccountStore();
     const cloudWorkspaces = useCloudWorkspaces();
@@ -180,8 +182,10 @@ export default {
     }
 
     onMounted(() => {
-      const hocuspocus = getHocuspocusSync();
-      hocuspocus.start();
+      if (onboardingCompleted) {
+        const hocuspocus = getHocuspocusSync();
+        hocuspocus.start();
+      }
 
       if (typeof window.requestIdleCallback === 'undefined') return;
       window.requestIdleCallback(
@@ -195,8 +199,10 @@ export default {
     });
 
     onBeforeUnmount(() => {
-      const hocuspocus = getHocuspocusSync();
-      hocuspocus.stop();
+      if (onboardingCompleted) {
+        const hocuspocus = getHocuspocusSync();
+        hocuspocus.stop();
+      }
     });
 
     return { ...shell, mainRef, skipToMain };

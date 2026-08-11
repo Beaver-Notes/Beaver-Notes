@@ -65,7 +65,7 @@ function applyDocumentSettings() {
   document.documentElement.classList.add(getSettingSync('colorScheme'));
 }
 
-export function useAppShell() {
+export function useAppShell(onboardingCompleted = true) {
   const { translations } = useTranslations();
   const theme = useTheme();
   const store = useStore();
@@ -585,6 +585,9 @@ export function useAppShell() {
 
   onMounted(async () => {
     document.body.style.zoom = state.zoomLevel;
+
+    // Skip heavy init for first-time users (onboarding not completed)
+    if (!onboardingCompleted) return;
 
     const platform = navigator.userAgent.toLowerCase();
     const isWindowsOrLinux =
