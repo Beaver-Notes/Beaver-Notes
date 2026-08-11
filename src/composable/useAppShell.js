@@ -434,6 +434,10 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const initializeWorkspace = async () => {
+    // Set retrieved immediately — the UI can render while we check onboarding state.
+    // This eliminates the white screen for both first-time and returning users.
+    retrieved.value = true;
+
     const [, hasData, onboardingCompleted] = await Promise.all([
       hydrateSettingsStore().then(() => setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'))),
       hasExistingWorkspaceData(),
@@ -445,7 +449,6 @@ export function useAppShell(onboardingCompleted = true) {
       // post-onboarding sync (path set + initial pull) has a live engine. With
       // no sync folder configured yet the engine's cycles are no-ops.
       initAppSync();
-      retrieved.value = true;
       if (route.name !== ONBOARDING_ROUTE_NAME) {
         await router.replace('/onboarding');
       }
@@ -487,10 +490,6 @@ export function useAppShell(onboardingCompleted = true) {
     await loadWorkspaceDoc();
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
-
-    // Make the UI visible before the heavier post-processing (FTS index,
-    // link index, lock migration, etc.) so the app feels responsive sooner.
-    retrieved.value = true;
 
     // Post-process — the stores are now populated from Yjs, so retrieve()
     // must NOT read from KV.
