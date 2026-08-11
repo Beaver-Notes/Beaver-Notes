@@ -41,7 +41,7 @@
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
-    <app-sidebar v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
+    <app-sidebar v-if="onboardingCompleted" v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
     <main
       id="app-main"
       ref="mainRef"
@@ -205,7 +205,7 @@ export default {
       }
     });
 
-    return { ...shell, mainRef, skipToMain };
+    return { ...shell, mainRef, skipToMain, onboardingCompleted };
   },
 };
 </script>
