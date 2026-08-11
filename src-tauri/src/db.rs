@@ -178,6 +178,41 @@ pub(crate) fn db_replace_all(pool: &DbPool, data: Map<String, Value>) -> Result<
     tx.commit().map_err(|e| AppError::Other(e.to_string()))
 }
 
+/// Apply a targeted diff: insert/update only rows in `upserts`, delete keys
+/// in `deletes`.  Runs in a single transaction so the store is never in an
+/// inconsistent intermediate state.
+pub(crate) fn db_apply_diff(
+    pool: &DbPool,
+    upserts: &Map<String, Value>,
+    deletes: &[String],
+) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("db.db_apply_diff");
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+
+    if !deletes.is_empty() {
+        let placeholders = deletes.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql = format!("DELETE FROM kv WHERE key IN ({placeholders})");
+        let params: Vec<&dyn rusqlite::types::ToSql> =
+            deletes.iter().map(|k| k as &dyn rusqlite::types::ToSql).collect();
+        tx.execute(&sql, params.as_slice())
+            .map_err(|e| AppError::Other(e.to_string()))?;
+    }
+
+    if !upserts.is_empty() {
+        let mut stmt = tx
+            .prepare("INSERT OR REPLACE INTO kv (key, value) VALUES (?1, ?2)")
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        for (key, value) in upserts {
+            let serialized = serde_json::to_string(value)?;
+            stmt.execute(params![key, serialized])
+                .map_err(|e| AppError::Other(e.to_string()))?;
+        }
+    }
+
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))
+}
+
 // ─── Yjs note-content helpers ─────────────────────────────────────────────────
 
 /// Append a Yjs binary update for a note. The raw update is kept (append-only

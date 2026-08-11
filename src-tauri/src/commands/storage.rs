@@ -138,6 +138,22 @@ fn encrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Va
     Ok(serde_json::to_value(envelope)?)
 }
 
+fn encrypt_store_row_with_key(
+    row_key: &str,
+    value: Value,
+    key: &[u8; 32],
+    key_id: &str,
+) -> Result<Value, AppError> {
+    let _t = crate::shared::speed_log::scope("storage.encrypt_store_row_with_key");
+    let envelope = encrypt_json_for_storage(
+        key,
+        &value,
+        &storage_aad(row_key),
+        if key_id.is_empty() { None } else { Some(&*key_id) },
+    )?;
+    Ok(serde_json::to_value(envelope)?)
+}
+
 fn decrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Value, AppError> {
     let _t = crate::shared::speed_log::scope("storage.decrypt_store_row");
     let Some(key) = current_app_key(state)? else {
@@ -152,13 +168,31 @@ fn load_store_root(
     name: &str,
     state: &AppState,
 ) -> Result<Value, AppError> {
+    let app_key = current_app_key(state)?;
+    let key_id = state
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
+    load_store_root_inner(pool, name, &app_key, &key_id)
+}
+
+/// Core store-load logic, parameterised by key material so it can be called
+/// from both sync (state-bearing) and async (`spawn_blocking`) paths.
+fn load_store_root_inner(
+    pool: &crate::db::DbPool,
+    name: &str,
+    app_key: &Option<[u8; 32]>,
+    key_id: &str,
+) -> Result<Value, AppError> {
     let flat = crate::db::db_all(pool)?;
 
     if name != DATA_STORE {
         return Ok(nested_store_value(flat));
     }
 
-    let app_key = current_app_key(state)?;
     let mut needs_migration = false;
     let mut plain = Map::new();
 
@@ -185,7 +219,12 @@ fn load_store_root(
     if needs_migration {
         let mut encrypted = Map::new();
         for (row_key, value) in plain.clone() {
-            encrypted.insert(row_key.clone(), encrypt_store_row(&row_key, value, state)?);
+            if let Some(ref key) = app_key {
+                encrypted.insert(
+                    row_key.clone(),
+                    encrypt_store_row_with_key(&row_key, value, key, key_id)?,
+                );
+            }
         }
         crate::db::db_replace_all(pool, encrypted)?;
     }
@@ -245,19 +284,37 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
 /// Only used on startup / sync — intentionally loads everything.
 /// Note content is no longer encrypted at the KV layer; Yjs blobs are
 /// encrypted at rest in the note_content / yjs_snapshots tables instead.
+///
+/// The heavy lifting (DB read + per-row decryption) is dispatched to a
+/// blocking thread pool so the Tauri event loop stays responsive.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_get_store(
+pub(crate) async fn storage_get_store(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
 ) -> Result<RawJson, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let root = load_store_root(&pool, &name, state.inner())?;
+    let app_key = current_app_key(state.inner())?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
+    let root = tokio::task::spawn_blocking(move || load_store_root_inner(&pool, &name, &app_key, &key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(root.into())
 }
 
 /// Replaces the entire store. Used by sync / import flows.
+///
+/// Optimised path: only rows whose content actually changed are re-encrypted
+/// and written.  Unchanged rows keep their existing DB envelope, avoiding
+/// expensive AES-GCM re-encryption and reducing I/O.
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn storage_replace(
@@ -267,19 +324,90 @@ pub(crate) fn storage_replace(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let mut flattened = flatten_store_value(data.0);
+    let incoming = flatten_store_value(data.0);
+
     if name == DATA_STORE {
-        let state_inner = state.inner();
-        let mut encrypted = Map::new();
-        for (key, value) in flattened {
-            encrypted.insert(key.clone(), encrypt_store_row(&key, value, state_inner)?);
+        let existing = crate::db::db_all(&pool)?;
+        let app_key = current_app_key(state.inner())?;
+        let key_id = state
+            .inner()
+            .crypto
+            .session
+            .read()
+            .map_err(AppError::from)?
+            .current_items_key_id
+            .clone();
+
+        let mut upserts = Map::new();
+        let mut delete_keys: Vec<String> = Vec::new();
+
+        // Rows to insert/update: incoming rows that differ from (or are absent in) existing.
+        for (key, plain_value) in &incoming {
+            let changed = match existing.get(key) {
+                Some(existing_envelope) => {
+                    // Decrypt the stored envelope and compare plaintext.
+                    let decrypted_existing = if let Some(ref k) = app_key {
+                        decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
+                            .unwrap_or_else(|| existing_envelope.clone())
+                    } else {
+                        existing_envelope.clone()
+                    };
+                    &decrypted_existing != plain_value
+                }
+                None => true, // new row
+            };
+            if changed {
+                if let Some(ref k) = app_key {
+                    upserts.insert(
+                        key.clone(),
+                        encrypt_store_row_with_key(
+                            key,
+                            plain_value.clone(),
+                            k,
+                            &key_id,
+                        )?,
+                    );
+                }
+            }
         }
-        flattened = encrypted;
-    }
-    crate::db::db_replace_all(&pool, flattened)?;
-    if name == SETTINGS_STORE {
+
+        // Rows to delete: keys in existing but not in incoming.
+        for key in existing.keys() {
+            if !incoming.contains_key(key) {
+                delete_keys.push(key.clone());
+            }
+        }
+
+        if !upserts.is_empty() || !delete_keys.is_empty() {
+            crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
+        }
+    } else {
+        // Settings store: no encryption, just diff against existing.
+        let existing = crate::db::db_all(&pool)?;
+        let mut upserts = Map::new();
+        let mut delete_keys: Vec<String> = Vec::new();
+
+        for (key, value) in &incoming {
+            let changed = match existing.get(key) {
+                Some(existing_value) => existing_value != value,
+                None => true,
+            };
+            if changed {
+                upserts.insert(key.clone(), value.clone());
+            }
+        }
+        for key in existing.keys() {
+            if !incoming.contains_key(key) {
+                delete_keys.push(key.clone());
+            }
+        }
+
+        if !upserts.is_empty() || !delete_keys.is_empty() {
+            crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
+        }
         invalidate_settings_cache(&state);
     }
+
     Ok(())
 }
 
