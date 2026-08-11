@@ -4,8 +4,6 @@ import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
 import { getSyncPath, setSyncPath } from '@/utils/sync/path';
-import { initAppSync } from '@/utils/sync/app-sync.js';
-import { getSyncEngine } from '@/utils/sync/engine.js';
 
 // Re-export the legacy/Electron migration helpers under stable onboarding names.
 export {
@@ -15,7 +13,12 @@ export {
   runLegacyMigrationFromPath as runOnboardingMigrationFromPath,
 } from '@/utils/migration/legacyElectron';
 
-export { ONBOARDING_LANGUAGE_CONFIG, ONBOARDING_LANGUAGES, getLanguageDirection } from '@/utils/i18n/languages.js';
+import { ONBOARDING_LANGUAGE_CONFIG } from '@/utils/i18n/languages.js';
+export { ONBOARDING_LANGUAGE_CONFIG, ONBOARDING_LANGUAGES } from '@/utils/i18n/languages.js';
+
+export function getLanguageDirection(languageCode) {
+  return ONBOARDING_LANGUAGE_CONFIG[languageCode]?.dir || 'ltr';
+}
 
 // ─── Animation timing constants ──────────────────────────────────────────────
 
