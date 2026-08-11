@@ -262,6 +262,7 @@ export function useHocuspocusSync() {
       if (msg.type === 'auth') {
         for (const [, room] of activeRooms) {
           room.readOnly = msg.readOnly === true
+          room.role = msg.role || (msg.readOnly ? 'viewer' : 'editor')
         }
       }
     } catch {
@@ -322,7 +323,7 @@ export function useHocuspocusSync() {
     const roomName = buildRoomName(workspaceId, noteId)
     if (activeRooms.has(roomName)) return
 
-    activeRooms.set(roomName, { doc, readOnly: false })
+    activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
     registerActiveDoc(noteId, doc)
 
     doc.on('update', (update, origin) => {
@@ -357,7 +358,7 @@ export function useHocuspocusSync() {
     if (activeRooms.has(roomName)) return
 
     const doc = getWorkspaceDoc()
-    activeRooms.set(roomName, { doc, readOnly: false })
+    activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
 
     doc.on('update', (update, origin) => {
       broadcastUpdate(update, origin, doc)
@@ -477,7 +478,7 @@ export function useHocuspocusSync() {
     if (!workspaceId) return
 
     const roomName = buildRoomName(workspaceId, noteId)
-    activeRooms.set(roomName, { doc, readOnly: false })
+    activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
 
     doc.on('update', (update, origin) => {
       broadcastUpdate(update, origin, doc)
@@ -494,6 +495,13 @@ export function useHocuspocusSync() {
     }
   }
 
+  function getRoomRole(noteId) {
+    const workspaceId = getActiveWorkspaceId()
+    if (!workspaceId) return 'editor'
+    const roomName = buildRoomName(workspaceId, noteId)
+    return activeRooms.get(roomName)?.role || 'editor'
+  }
+
   return {
     start,
     stop: disconnect,
@@ -504,6 +512,7 @@ export function useHocuspocusSync() {
     joinMetaRoom,
     handleWorkspaceSwitch,
     handleNoteSwitch,
+    getRoomRole,
     get connected() {
       return connected
     },

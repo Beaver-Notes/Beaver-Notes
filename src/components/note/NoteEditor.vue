@@ -63,6 +63,7 @@ import {
   dropFile,
   Commands,
 } from '@/lib/tiptap';
+import { canEdit } from '@/utils/permissions';
 import { NodeRangeSelection } from '@tiptap/extension-node-range';
 import { DragHandle } from '@tiptap/extension-drag-handle-vue-3';
 import { useAppStore } from '../../store/app';
@@ -94,6 +95,7 @@ export default {
     ydoc: { type: Object, default: null },
     awareness: { type: Object, default: null },
     userName: { type: String, default: 'Anonymous' },
+    role: { type: String, default: 'editor' },
   },
   emits: ['init', 'update', 'update:modelValue', 'comment-activated'],
   setup(props, { emit }) {
@@ -320,6 +322,7 @@ export default {
 
     const editor = useEditor({
       content: isYjs ? undefined : safeContent.value,
+      editable: canEdit(props.role),
       autofocus: props.cursorPosition,
       extensions: exts,
       editorProps: {

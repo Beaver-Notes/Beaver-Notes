@@ -118,6 +118,7 @@
           :awareness="awareness"
           :user-name="accountStore.profile?.username || 'Anonymous'"
           :note="note"
+          :role="roomRole"
           :cursor-position="note.lastCursorPosition"
           @update="
             autoScroll();
@@ -196,6 +197,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
+import { getHocuspocusSync } from '@/composable/useHocuspocusSync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
@@ -240,6 +242,9 @@ export default {
       () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
     );
     const { translations } = useTranslations();
+
+    const hocuspocus = getHocuspocusSync();
+    const roomRole = computed(() => hocuspocus.getRoomRole(id.value));
 
     // Yjs document management for note content
     const {
@@ -668,6 +673,7 @@ export default {
       toggleComments,
       commentStore,
       onCommentActivated,
+      roomRole,
     };
   },
 };
