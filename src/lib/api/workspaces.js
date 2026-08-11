@@ -66,6 +66,11 @@ export async function createWorkspace(name, { baseUrl, signal } = {}) {
   return client.post('/workspaces', payload, { signal });
 }
 
+export async function renameWorkspace(id, nameEncrypted, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.patch(`/workspaces/${encodeURIComponent(id)}`, { nameEncrypted }, { signal });
+}
+
 export async function deleteWorkspace(id, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   return client.delete(`/workspaces/${encodeURIComponent(id)}`, { signal });

@@ -1,6 +1,12 @@
 <template>
   <div class="note-editor mb-64">
     <slot v-bind="{ editor }" />
+    <presence-indicator
+      v-if="awareness"
+      :awareness="awareness"
+      :user-name="userName"
+      class="mb-2"
+    />
     <drag-handle
       v-if="editor && showDragHandle"
       :editor="editor"
@@ -68,6 +74,7 @@ import NoteBubbleMenu from './NoteBubbleMenu.vue';
 import TableHandle from '@/lib/tiptap/exts/table/TableHandle.vue';
 import TableSelectionOverlay from '@/lib/tiptap/exts/table/TableSelectionOverlay.vue';
 import TableExtendRowColumnButton from '@/lib/tiptap/exts/table/TableExtendRowColumnButton.vue';
+import PresenceIndicator from './PresenceIndicator.vue';
 
 export default {
   components: {
@@ -77,6 +84,7 @@ export default {
     TableHandle,
     TableSelectionOverlay,
     TableExtendRowColumnButton,
+    PresenceIndicator,
   },
   props: {
     modelValue: { type: [String, Object], default: '' },

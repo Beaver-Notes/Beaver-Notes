@@ -74,8 +74,11 @@ export const useWorkspaceStore = defineStore('workspace', {
       this.activeId = id;
     },
 
-    async rename(_id: string, _name: string) {
-      console.warn('[workspace] rename not yet supported for cloud workspaces');
+    async rename(id: string, name: string) {
+      const cloud = useCloudWorkspaces();
+      await cloud.renameWorkspace(id, name);
+      const ws = this.workspaces.find((w) => w.id === id);
+      if (ws) ws.name = name;
     },
 
     async remove(id: string) {

@@ -55,12 +55,15 @@
           Workspaces
         </div>
 
-        <button
+        <div
           v-for="ws in workspaces"
           :key="ws.id"
-          class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
-          @click="switchWorkspace(ws.id)"
+          class="group relative"
         >
+          <button
+            class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-sm"
+            @click="switchWorkspace(ws.id)"
+          >
           <span
             class="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-sm leading-none"
             :class="
@@ -97,7 +100,16 @@
             size="14"
             class="shrink-0 text-primary"
           />
-        </button>
+          </button>
+          <button
+            v-if="isPaid && (ws.role === 'owner' || ws.role === 'admin')"
+            class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+            @click.stop="promptRename(ws)"
+            aria-label="Rename workspace"
+          >
+            <v-remixicon name="riEditLine" size="12" class="text-neutral-400" />
+          </button>
+        </div>
 
         <div
           v-if="isPaid"
@@ -221,6 +233,27 @@ export default {
       });
     }
 
+    function promptRename(ws) {
+      emitter.emit('show-dialog', 'prompt', {
+        title: 'Rename Workspace',
+        placeholder: 'Workspace name',
+        okText: 'Rename',
+        password: false,
+        defaultValue: ws.name,
+        async onConfirm(name) {
+          if (!name || !name.trim()) return;
+          try {
+            await workspaceStore.rename(ws.id, name.trim());
+          } catch (err) {
+            emitter.emit('show-dialog', 'alert', {
+              title: 'Rename Failed',
+              description: err?.message || 'Failed to rename workspace.',
+            });
+          }
+        },
+      });
+    }
+
     function promptJoin() {
       emitter.emit('show-dialog', 'prompt', {
         title: 'Join Workspace',
@@ -258,6 +291,7 @@ export default {
       isPaid,
       switchWorkspace,
       promptCreate,
+      promptRename,
       promptJoin,
     };
   },

@@ -3,6 +3,7 @@ import { useAccountStore } from '@/store/account';
 import {
   getWorkspaces as apiGetWorkspaces,
   createWorkspace as apiCreateWorkspace,
+  renameWorkspace as apiRenameWorkspace,
   deleteWorkspace as apiDeleteWorkspace,
   addMember as apiAddMember,
   removeMember as apiRemoveMember,
@@ -97,6 +98,34 @@ export function useCloudWorkspaces() {
     }
   }
 
+  async function renameWorkspace(id, newName) {
+    if (!isPaid.value) throw new Error('Cloud workspaces require a paid plan');
+
+    const ws = workspaces.value.find((w) => w.id === id);
+    if (!ws) throw new Error('Workspace not found');
+
+    const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+    const { unwrapNoteKey } = await import('@/utils/crypto/note-key');
+    const { importCollabKey } = await import('@/utils/crypto/collab');
+    const { encryptName } = await import('@/utils/crypto/comment-crypto');
+
+    const identity = await loadOrCreateIdentity();
+    if (!identity?.privateKeyHex) throw new Error('Missing encryption identity');
+
+    const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
+    const wsData = raw.find((w) => w.id === id);
+    if (!wsData?.wrappedKey) throw new Error('Cannot decrypt workspace key');
+
+    const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wsData.wrappedKey);
+    const key = await importCollabKey(workspaceKeyHex);
+    const nameEncrypted = await encryptName(key, newName);
+
+    await apiRenameWorkspace(id, nameEncrypted, { baseUrl: activeBaseUrl() });
+
+    ws.name = newName;
+    return ws;
+  }
+
   async function switchWorkspace(id) {
     if (activeId.value === id) return;
     const previous = activeId.value;
@@ -131,6 +160,7 @@ export function useCloudWorkspaces() {
     isAuthenticated,
     fetchWorkspaces,
     createWorkspace,
+    renameWorkspace,
     deleteWorkspace,
     switchWorkspace,
     addMember,
