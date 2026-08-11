@@ -11,6 +11,8 @@ import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
 
+performance.mark('app:init');
+
 initializeThemeHandling();
 
 const isPhoneRuntime = backend.isPhoneRuntime();
@@ -60,3 +62,5 @@ const app = createApp(App);
 app.config.unwrapInjectedRef = true;
 
 app.use(router).use(createPinia()).use(compsUi).mount('#app');
+
+performance.mark('app:mounted');

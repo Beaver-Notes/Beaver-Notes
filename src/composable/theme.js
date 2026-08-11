@@ -49,8 +49,11 @@ function syncDocumentThemeSurface() {
 
     rootElement.style.colorScheme = resolvedDarkTheme.value ? 'dark' : 'light';
 
-    if (body && appBackground) {
-      body.style.backgroundColor = appBackground;
+    if (appBackground) {
+      rootElement.style.backgroundColor = appBackground;
+      if (body) {
+        body.style.backgroundColor = appBackground;
+      }
     }
 
     const meta = ensureThemeColorMeta();

@@ -434,12 +434,17 @@ export function useAppShell(onboardingCompleted = true) {
   };
 
   const initializeWorkspace = async () => {
+    performance.mark('init:start');
+
     // Set retrieved immediately — the UI can render while we check onboarding state.
     // This eliminates the white screen for both first-time and returning users.
     retrieved.value = true;
 
-    const [, hasData, onboardingCompleted] = await Promise.all([
-      hydrateSettingsStore().then(() => setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'))),
+    await hydrateSettingsStore();
+    setSetting('spellcheckEnabled', getSettingSync('spellcheckEnabled'));
+    performance.mark('init:settings');
+
+    const [hasData, onboardingCompleted] = await Promise.all([
       hasExistingWorkspaceData(),
       settingsStorage.get('onboardingCompleted', false),
     ]);
@@ -460,6 +465,7 @@ export function useAppShell(onboardingCompleted = true) {
     // before the items key is available would hand ciphertext to the Yjs
     // decoder (which aborts on invalid UTF-8).
     await restoreEncryptionKeys();
+    performance.mark('init:encryption');
 
     if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
       // Encryption is configured but the key could not be restored (no stored
@@ -488,12 +494,15 @@ export function useAppShell(onboardingCompleted = true) {
     // migration the doc may still be empty, so seed it from the KV stores
     // before wiring observers.
     await loadWorkspaceDoc();
+    performance.mark('init:workspace-doc');
     observeWorkspace(writeStoresFromWorkspace);
     await writeStoresFromWorkspace();
+    performance.mark('init:workspace-write');
 
     // Post-process — the stores are now populated from Yjs, so retrieve()
     // must NOT read from KV.
     await store.retrieve();
+    performance.mark('init:retrieve');
     await refreshSyncLockBanner();
 
     // One-time deferred backfill of card previews for notes that predate the
@@ -545,6 +554,15 @@ export function useAppShell(onboardingCompleted = true) {
     }
     initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    performance.mark('init:done');
+    const entries = performance.getEntriesByType('mark');
+    const measures = [];
+    for (let i = 1; i < entries.length; i++) {
+      measures.push(`${entries[i].name}: ${Math.round(entries[i].startTime - entries[i-1].startTime)}ms`);
+    }
+    console.log('[perf] Startup timeline:', measures.join(' → '));
+    console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
   };
 
   // Runs when the user unlocks the app via the encryption gate. The gate is
@@ -586,7 +604,10 @@ export function useAppShell(onboardingCompleted = true) {
     document.body.style.zoom = state.zoomLevel;
 
     // Skip heavy init for first-time users (onboarding not completed)
-    if (!onboardingCompleted) return;
+    if (!onboardingCompleted) {
+      retrieved.value = true;
+      return;
+    }
 
     const platform = navigator.userAgent.toLowerCase();
     const isWindowsOrLinux =
