@@ -222,11 +222,6 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
     setTimeout(() => engine.forceSyncNow().catch(() => {}), 2000);
   }
 
-  // Re-hydrate Pinia from the now-populated Yjs workspace doc so note
-  // metadata (titles, folders, labels, etc.) reflects the pulled data.
-  await writeStoresFromWorkspace();
-  await store.retrieve();
-
   const [latestNote] = [...noteStore.notes].sort(
     (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
   );
