@@ -1,5 +1,7 @@
 use std::{
+    borrow::Cow,
     fs,
+    io::{BufReader, Read, Seek, SeekFrom},
     path::{Path, PathBuf},
 };
 
@@ -562,6 +564,11 @@ fn register_asset_protocol(
     })
 }
 
+/// Maximum bytes to read for a non-range request.  Assets larger than this are
+/// capped so that a single full-file read cannot blow up the process heap.
+/// Range requests are unaffected — they only ever read the requested slice.
+const MAX_FULL_READ: u64 = 16 * 1024 * 1024; // 16 MiB
+
 /// Serve a cached-or-decrypted asset over the custom protocol, honoring HTTP
 /// byte-range requests. Requests without a `Range` header get the full file;
 /// range requests get only the requested slice (`206 Partial Content`), so
@@ -573,7 +580,7 @@ fn serve_asset(
     transient_passphrase: Option<&str>,
     path: &Path,
     range: Option<&str>,
-) -> http::Response<Vec<u8>> {
+) -> http::Response<Cow<'static, [u8]>> {
     let _t = crate::shared::speed_log::scope("assets.serve_asset");
     let resolved = match cached_or_decrypted_asset(app, asset_cache_dir, transient_passphrase, path)
     {
@@ -582,22 +589,32 @@ fn serve_asset(
     };
     let total = fs::metadata(&resolved).map(|meta| meta.len()).unwrap_or(0);
     match range.map(|value| parse_byte_range(value, total)).unwrap_or(Ok(None)) {
-        Ok(None) => match fs::read(&resolved) {
-            Ok(bytes) => protocol_response_with_range(StatusCode::OK, &resolved, bytes, None),
-            Err(_) => protocol_response(StatusCode::NOT_FOUND, path, Vec::new()),
-        },
+        Ok(None) => {
+            let to_read = total.min(MAX_FULL_READ);
+            let read_result = (|| -> std::io::Result<Vec<u8>> {
+                let file = fs::File::open(&resolved)?;
+                let mut reader = BufReader::new(file);
+                let mut buf = Vec::with_capacity(to_read as usize);
+                reader.by_ref().take(to_read).read_to_end(&mut buf)?;
+                Ok(buf)
+            })();
+            match read_result {
+                Ok(bytes) => protocol_response_with_range(StatusCode::OK, &resolved, bytes, None),
+                Err(_) => protocol_response(StatusCode::NOT_FOUND, path, Vec::new()),
+            }
+        }
         Ok(Some((start, end))) => {
             let len = (end - start + 1) as usize;
-            let mut bytes = vec![0u8; len];
-            let read = (|| -> std::io::Result<()> {
-                use std::io::{Read, Seek, SeekFrom};
-                let mut file = fs::File::open(&resolved)?;
-                file.seek(SeekFrom::Start(start))?;
-                file.read_exact(&mut bytes)?;
-                Ok(())
+            let read = (|| -> std::io::Result<Vec<u8>> {
+                let file = fs::File::open(&resolved)?;
+                let mut reader = BufReader::new(file);
+                reader.seek(SeekFrom::Start(start))?;
+                let mut buf = Vec::with_capacity(len);
+                reader.by_ref().take(len as u64).read_to_end(&mut buf)?;
+                Ok(buf)
             })();
             match read {
-                Ok(()) => protocol_response_with_range(
+                Ok(bytes) => protocol_response_with_range(
                     StatusCode::PARTIAL_CONTENT,
                     &resolved,
                     bytes,

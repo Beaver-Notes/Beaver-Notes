@@ -4,7 +4,6 @@ import { ensureDir, readDir, readFile, writeFile } from '@/lib/native/fs';
 import { onImportComplete, onImportProgress } from '@/lib/native/imports';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
 import {
   createMediaFallbackNode,
@@ -252,10 +251,11 @@ async function processRustImportNote(note, state, appDirectory) {
 
   const resourcePromises = (note.resources || []).map((resource) => {
     try {
-      const data = base64ToUint8Array(resource.data || '');
-      return writeFile(
-        path.join(noteAssetDir, resource.filename || resource.hash),
-        data
+      return readFile(resource.path).then((data) =>
+        writeFile(
+          path.join(noteAssetDir, resource.filename || resource.hash),
+          data
+        )
       );
     } catch (error) {
       console.warn('Resource write failed:', error);

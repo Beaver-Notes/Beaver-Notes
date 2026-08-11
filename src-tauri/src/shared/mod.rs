@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -1186,7 +1187,7 @@ pub(crate) fn protocol_response(
     status: StatusCode,
     path: &Path,
     bytes: Vec<u8>,
-) -> Response<Vec<u8>> {
+) -> Response<Cow<'static, [u8]>> {
     protocol_response_with_range(status, path, bytes, None)
 }
 
@@ -1201,7 +1202,7 @@ pub(crate) fn protocol_response_with_range(
     path: &Path,
     bytes: Vec<u8>,
     content_range: Option<String>,
-) -> Response<Vec<u8>> {
+) -> Response<Cow<'static, [u8]>> {
     let mut builder = Response::builder()
         .status(status)
         .header(CONTENT_TYPE, content_type_for_path(path))
@@ -1212,9 +1213,10 @@ pub(crate) fn protocol_response_with_range(
         builder = builder.header(CONTENT_RANGE, cr);
     }
     builder
-        .body(bytes)
+        .body(Cow::Owned(bytes))
         .unwrap_or_else(|_| {
-            let mut r = Response::new(Vec::new());
+            let empty: &'static [u8] = b"";
+            let mut r = Response::new(Cow::Borrowed(empty));
             *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
             r
         })
