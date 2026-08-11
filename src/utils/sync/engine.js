@@ -9,7 +9,7 @@ import {
 } from './pending-writes.js';
 import { mergeCursorDelta } from './transports/transport.js';
 import { applyRemote } from '@/composable/useNoteYjs.js';
-import { appendUpdate } from '@/lib/native/yjs.js';
+import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
 import { getAppDirectory } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
@@ -276,21 +276,46 @@ export class SyncEngine {
             const { updates } = pullResult;
             logger.info(`[sync] ${name} pull got ${updates.length} updates`);
             let cursorsDirty = false;
-            let applyFailed = false;
-            for (const upd of updates) {
-              // Persist first, then apply to the doc — a remote-apply failure must not lose the update
+            const succeeded = new Array(updates.length).fill(false);
+
+            if (updates.length > 0) {
+              let batchApplied = false;
               try {
-                await appendUpdate(upd.noteId, upd.update, upd.device);
-                applyRemote(upd.noteId, upd.update);
-              } catch (err) {
-                applyFailed = true;
-                logger.warn('[sync] pull apply failed:', err?.message);
+                const { bufToBase64 } = await import('@/utils/crypto/codec.js');
+                await appendBatch(
+                  updates.map((u) => u.noteId),
+                  updates.map((u) => bufToBase64(u.update)),
+                  updates.map((u) => u.device)
+                );
+                batchApplied = true;
+              } catch (batchErr) {
+                logger.warn('[sync] batch append failed, falling back to individual:', batchErr?.message);
+              }
+
+              if (batchApplied) {
+                for (let i = 0; i < updates.length; i++) {
+                  try {
+                    applyRemote(updates[i].noteId, updates[i].update);
+                    succeeded[i] = true;
+                  } catch (err) {
+                    logger.warn('[sync] pull apply failed:', err?.message);
+                  }
+                }
+              } else {
+                for (let i = 0; i < updates.length; i++) {
+                  try {
+                    await appendUpdate(updates[i].noteId, updates[i].update, updates[i].device);
+                    applyRemote(updates[i].noteId, updates[i].update);
+                    succeeded[i] = true;
+                  } catch (err) {
+                    logger.warn('[sync] pull apply failed:', err?.message);
+                  }
+                }
               }
             }
-            // Only advance cursors once every update in the page is persisted and
-            // applied — advancing past an un-applied update would skip it on the
-            // next pull (data loss). Failed updates are re-pulled on the next cycle.
-            if (!applyFailed) {
+
+            const allSucceeded = succeeded.every(Boolean);
+            if (allSucceeded) {
               if (name !== 'cloud') {
                 for (const upd of updates) {
                   const delta = {};
@@ -302,11 +327,7 @@ export class SyncEngine {
                 cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
               }
               if (cursorsDirty) await this._saveCursors(cursors);
-            }
-            // A page that failed to apply must not be re-pulled with the same
-            // cursor in a tight loop — stop this cycle and let the next sync
-            // re-pull the page with the fresh cursor.
-            if (applyFailed) {
+            } else if (!allSucceeded) {
               hasMore = false;
               break;
             }

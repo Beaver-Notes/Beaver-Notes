@@ -227,32 +227,56 @@ export class CloudTransport extends Transport {
       hasMore ||= page.hasMore === true;
     }
 
-    const { decryptJSON } = await import('../crypto.js');
+    const { decryptJSON, decryptBatch } = await import('../crypto.js');
 
     const decodedUpdates = [];
+    const parseResults = [];
     for (const upd of updates) {
-      let payload, parsed;
-      try {
-        const raw = atob(upd.data);
-        parsed = parseSyncFilename(upd.key);
-        if (!parsed || parsed.docId !== upd._noteId ||
-          typeof parsed.device !== 'string' || parsed.device.length === 0 ||
-          !isNonNegativeInteger(parsed.ts) || !isNonNegativeInteger(parsed.seq)) {
-          throw malformedRemoteUpdate();
+      const raw = atob(upd.data);
+      const parsed = parseSyncFilename(upd.key);
+      if (!parsed || parsed.docId !== upd._noteId ||
+        typeof parsed.device !== 'string' || parsed.device.length === 0 ||
+        !isNonNegativeInteger(parsed.ts) || !isNonNegativeInteger(parsed.seq)) {
+        throw malformedRemoteUpdate();
+      }
+      const aadSuffix = parsed?.isSnapshot
+        ? `${parsed.docId}-snapshot-${parsed.ts}`
+        : `${parsed.docId}-${parsed.ts}`;
+      parseResults.push({ raw, parsed, aadSuffix });
+    }
+
+    let decryptedPayloads;
+    try {
+      decryptedPayloads = await decryptBatch(
+        parseResults.map((r) => r.raw),
+        parseResults.map((r) => r.aadSuffix)
+      );
+    } catch (batchErr) {
+      logger.warn('[sync] batch decrypt failed, falling back to individual:', batchErr?.message);
+      decryptedPayloads = [];
+      for (const r of parseResults) {
+        try {
+          decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
+        } catch (caughtError) {
+          const errorCode = caughtError?.code === 'DECRYPT_FAILED' ? 'DECRYPT_FAILED' : null;
+          const error = new Error(errorCode || 'Remote update cannot be decrypted');
+          error.code = 'unlock-required';
+          throw error;
         }
-        const aadSuffix = parsed?.isSnapshot
-          ? `${parsed.docId}-snapshot-${parsed.ts}`
-          : `${parsed.docId}-${parsed.ts}`;
-        payload = await decryptJSON(raw, aadSuffix);
-      } catch (caughtError) {
-        const errorCode = caughtError?.code === 'DECRYPT_FAILED' ? 'DECRYPT_FAILED' : null;
-        const error = new Error(errorCode || 'Remote update cannot be decrypted');
+      }
+    }
+
+    for (let i = 0; i < parseResults.length; i++) {
+      const { parsed } = parseResults[i];
+      const payload = decryptedPayloads[i];
+      if (!payload) {
+        const error = new Error('Remote update cannot be decrypted');
         error.code = 'unlock-required';
         throw error;
       }
       const payloadSequence = payload?.sequence ?? payload?.seq;
       const updateBytes = toUpdateBytes(payload?.update);
-      if (!payload || payload.noteId !== upd._noteId || payload.device !== parsed.device ||
+      if (!payload || payload.noteId !== updates[i]._noteId || payload.device !== parsed.device ||
         !isNonNegativeInteger(payload.ts) || payload.ts !== parsed.ts ||
         !isNonNegativeInteger(payloadSequence) || payloadSequence !== parsed.seq || !updateBytes) {
         throw malformedRemoteUpdate();
@@ -313,27 +337,47 @@ export class CloudTransport extends Transport {
 
     // Cloud-only mode: push from in-memory buffer (no disk files)
     if (this._cloudBuffer.length > 0) {
-      const { encryptJSON } = await import('../crypto.js');
+      const { encryptJSON, encryptBatch } = await import('../crypto.js');
       const nextSequences = new Map();
       const batch = this._cloudBuffer.map((item) => ({
         ...item,
         sequence: (nextSequences.get(item.noteId) ?? remoteCursor[item.noteId]?.[ownDeviceId]?.sequence ?? 0) + 1,
       }));
       for (const item of batch) nextSequences.set(item.noteId, item.sequence);
-      const notesMap = new Map();
-      for (const { noteId, update, sequence } of batch) {
-        if (!notesMap.has(noteId)) notesMap.set(noteId, []);
-        const ts = Date.now();
-        const encrypted = await encryptJSON({
+
+      const ts = Date.now();
+      let encryptedResults;
+      try {
+        const payloads = batch.map((item) => ({
           device: ownDeviceId,
           ts,
-          sequence,
-          noteId,
-          update,
-        }, `${noteId}-${ts}`);
+          sequence: item.sequence,
+          noteId: item.noteId,
+          update: item.update,
+        }));
+        const aads = batch.map((item) => `${item.noteId}-${ts}`);
+        encryptedResults = await encryptBatch(payloads, aads);
+      } catch (batchErr) {
+        logger.warn('[sync] cloud push batch encrypt failed, falling back to individual:', batchErr?.message);
+        encryptedResults = [];
+        for (const item of batch) {
+          encryptedResults.push(await encryptJSON({
+            device: ownDeviceId,
+            ts,
+            sequence: item.sequence,
+            noteId: item.noteId,
+            update: item.update,
+          }, `${item.noteId}-${ts}`));
+        }
+      }
+
+      const notesMap = new Map();
+      for (let i = 0; i < batch.length; i++) {
+        const { noteId, sequence } = batch[i];
+        if (!notesMap.has(noteId)) notesMap.set(noteId, []);
         notesMap.get(noteId).push({
           key: `${noteId}~~${ownDeviceId}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`,
-          data: btoa(encrypted),
+          data: btoa(encryptedResults[i]),
           deviceId: ownDeviceId,
           ts,
           sequence,

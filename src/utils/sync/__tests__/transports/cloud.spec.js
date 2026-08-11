@@ -53,6 +53,18 @@ vi.mock('../../constants.js', () => ({
 vi.mock('../../crypto.js', () => ({
   encryptJSON: vi.fn(() => 'encrypted'),
   decryptJSON: vi.fn((raw, _aad) => JSON.parse(atob(raw))),
+  decryptBatch: vi.fn(async (encryptions, aads) => {
+    return encryptions.map(raw => {
+      try {
+        return JSON.parse(atob(raw));
+      } catch {
+        return null;
+      }
+    });
+  }),
+  encryptBatch: vi.fn(async (metas, dataB64s, aads) => {
+    return dataB64s.map(() => 'encrypted');
+  }),
 }));
 
 vi.mock('../../compression.js', () => ({
@@ -235,7 +247,7 @@ describe('CloudTransport', () => {
   it('decrypts and returns updates from remotePullUpdates', async () => {
       const { pullUpdates } = await import('../../remote-yjs.js');
       const { getRemoteState } = await import('../../remote-yjs.js');
-      const { decryptJSON } = await import('../../crypto.js');
+      const { decryptBatch } = await import('../../crypto.js');
 
       const updatePayload = { device: 'remote-device', ts: 100, sequence: 3, noteId: 'note-a', update: [1, 2, 3] };
       const base64Data = btoa(JSON.stringify(updatePayload));
@@ -254,7 +266,7 @@ describe('CloudTransport', () => {
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, seq: 3 });
 
-      decryptJSON.mockResolvedValue(updatePayload);
+      decryptBatch.mockResolvedValue([updatePayload]);
 
       const result = await transport.pull({});
       expect(result.updates).toHaveLength(1);

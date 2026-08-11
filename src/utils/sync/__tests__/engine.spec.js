@@ -15,6 +15,7 @@ vi.mock('@/composable/useNoteYjs.js', () => ({
 
 vi.mock('@/lib/native/yjs.js', () => ({
   appendUpdate: vi.fn(() => Promise.resolve()),
+  appendBatch: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@/lib/native/app', () => ({

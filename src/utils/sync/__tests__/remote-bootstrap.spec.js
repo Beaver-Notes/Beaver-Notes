@@ -154,7 +154,7 @@ vi.mock('../sync-yjs.js', async () => await vi.importActual('../sync-yjs.js'));
 vi.mock('../path.js', () => ({ getSyncPath: vi.fn(async () => '/sync') }));
 vi.mock('../sync-assets.js', () => ({ syncAssets: vi.fn(async () => {}) }));
 vi.mock('@/composable/useNoteYjs.js', () => ({ applyRemote: vi.fn() }));
-vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}) }));
+vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}), appendBatch: vi.fn(async () => {}) }));
 vi.mock('@/lib/native/app', () => ({ getAppDirectory: vi.fn(async () => '/app') }));
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: {
@@ -207,7 +207,7 @@ describe('remote bootstrap integration contract', () => {
       set: vi.fn(async (_key, value) => { storage.cursors = structuredClone(value); }),
     };
     const { applyRemote } = await import('@/composable/useNoteYjs.js');
-    const { appendUpdate } = await import('@/lib/native/yjs.js');
+    const { appendBatch } = await import('@/lib/native/yjs.js');
     const { syncAssets } = await import('../sync-assets.js');
     const { writeFile } = await import('@/lib/native/fs');
     const { reconcileSyncKeyParams } = await import('@/lib/native/security.js');
@@ -231,7 +231,17 @@ describe('remote bootstrap integration contract', () => {
       ['remote-note-b', [4, 5]],
       ['remote-note-a', [6]],
     ]);
-    expect(appendUpdate).toHaveBeenCalledTimes(3);
+    expect(appendBatch).toHaveBeenCalledTimes(2);
+    expect(appendBatch).toHaveBeenNthCalledWith(1,
+      expect.arrayContaining(['remote-note-a', 'remote-note-b']),
+      expect.any(Array),
+      expect.any(Array),
+    );
+    expect(appendBatch).toHaveBeenNthCalledWith(2,
+      ['remote-note-a'],
+      expect.any(Array),
+      expect.any(Array),
+    );
     expect(syncAssets).toHaveBeenCalled();
     expect(fakeServer.pushResults).toEqual([
       expect.objectContaining({ accepted: 2, duplicate: 0 }),
