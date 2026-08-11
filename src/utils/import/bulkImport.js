@@ -212,12 +212,21 @@ function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   }
 }
 
+// ─── Concurrency helper ──────────────────────────────────────────────────────
+
+async function processWithConcurrency(items, fn, concurrency = 4) {
+  for (let i = 0; i < items.length; i += concurrency) {
+    const batch = items.slice(i, i + concurrency);
+    await Promise.all(batch.map(fn));
+    if (typeof yieldToUi === 'function') await yieldToUi();
+  }
+}
+
 // ─── Native Rust import ──────────────────────────────────────────────────────
 
-async function processRustImportNote(note, state) {
+async function processRustImportNote(note, state, appDirectory) {
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
-  const appDirectory = await ensureAppDirectory();
   const id = uuidv4();
   let folderId = null;
 
@@ -238,17 +247,19 @@ async function processRustImportNote(note, state) {
   const noteAssetDir = path.join(appDirectory, 'assets', id);
   await ensureDir(noteAssetDir);
 
-  for (const resource of note.resources || []) {
+  const resourcePromises = (note.resources || []).map((resource) => {
     try {
       const data = base64ToUint8Array(resource.data || '');
-      await writeFile(
+      return writeFile(
         path.join(noteAssetDir, resource.filename || resource.hash),
         data
       );
     } catch (error) {
       console.warn('Resource write failed:', error);
+      return Promise.resolve();
     }
-  }
+  });
+  await Promise.all(resourcePromises);
 
   const content = await htmlToTiptap(note.content || '', id, appDirectory, {
     resources: note.resources || [],
@@ -274,50 +285,57 @@ export function startRustImport(source, onProgress) {
       folderIds: new Set(),
       errors: [],
     };
-    let completionErrors = [];
+    const pendingNotes = [];
     let processing = Promise.resolve();
 
     (async () => {
-    const unlistenProgress = await onImportProgress(async (_, payload) => {
-      if (payload.source !== source) return;
+      const appDirectory = await ensureAppDirectory();
 
-      if (typeof onProgress === 'function') {
-        onProgress({
-          done: payload.done,
-          total: payload.total,
-          current: payload.current,
-        });
-      }
+      const unlistenProgress = await onImportProgress(async (_, payload) => {
+        if (payload.source !== source) return;
 
-      if (payload.note) {
-        processing = processing.then(async () => {
-          try {
-            await processRustImportNote(payload.note, state);
-          } catch (error) {
-            state.errors.push({
-              title: payload.note.title || 'Untitled',
-              reason: error?.message || String(error),
-            });
-          }
-        });
-      }
-    });
+        if (typeof onProgress === 'function') {
+          onProgress({
+            done: payload.done,
+            total: payload.total,
+            current: payload.current,
+          });
+        }
 
-    const unlistenComplete = await onImportComplete(async (_, payload) => {
-      if (payload.source !== source) return;
-
-      completionErrors = [...(payload.errors || [])];
-      unlistenProgress();
-      unlistenComplete();
-      await processing;
-      await flushImportedNotes();
-
-      resolve({
-        imported: state.imported,
-        folders: state.folderIds.size,
-        errors: [...completionErrors, ...state.errors],
+        if (payload.note) {
+          pendingNotes.push(payload.note);
+        }
       });
-    });
+
+      const unlistenComplete = await onImportComplete(async (_, payload) => {
+        if (payload.source !== source) return;
+
+        unlistenProgress();
+        unlistenComplete();
+
+        await processWithConcurrency(
+          pendingNotes,
+          async (note) => {
+            try {
+              await processRustImportNote(note, state, appDirectory);
+            } catch (error) {
+              state.errors.push({
+                title: note.title || 'Untitled',
+                reason: error?.message || String(error),
+              });
+            }
+          },
+          4
+        );
+
+        await flushImportedNotes();
+
+        resolve({
+          imported: state.imported,
+          folders: state.folderIds.size,
+          errors: [...(payload.errors || []), ...state.errors],
+        });
+      });
     })();
   });
 }

@@ -49,7 +49,7 @@ import logoUrl from '@/assets/images/logo-transparent.png';
 // Steps that live inside the persistent wizard frame (fixed card / bottom
 // sheet). 'welcome' and 'finish' are full-screen hero steps and are not
 // part of this set.
-const WIZARD_STEPS = ['customize', 'import', 'account', 'sync', 'password'];
+const WIZARD_STEPS = ['customize', 'password', 'import', 'account', 'sync'];
 
 export function useOnboardingFlow({
   router,
@@ -303,7 +303,7 @@ export function useOnboardingFlow({
 
   // Paid accounts use cloud sync directly and do not need a folder selection.
   const activeFlow = computed(() => {
-    const flow = ['welcome', 'customize', 'import', 'account', 'password', 'finish'];
+    const flow = ['welcome', 'customize', 'password', 'import', 'account', 'finish'];
     if (!accountStore.canUseCloudSync) flow.splice(4, 0, 'sync');
     return flow;
   });
@@ -673,7 +673,7 @@ export function useOnboardingFlow({
   }
 
   async function prepareFreshWorkspace() {
-    await applyFreshAndGo('import');
+    await applyFreshAndGo('password');
   }
 
   async function useDefaultPreferences() {
@@ -758,7 +758,7 @@ export function useOnboardingFlow({
     try {
       await applyOnboardingSyncPreferences(fresh);
       await detectVaultJoin();
-      goToStep('password');
+      goToNextStep();
     } catch (e) {
       state.error = e?.message || String(e);
     } finally {
