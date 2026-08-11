@@ -180,9 +180,9 @@ pub(crate) fn encryption_get_state(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn encryption_submit_password(
+pub(crate) async fn encryption_submit_password(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     password: String,
     create_if_missing: Option<bool>,
 ) -> Result<EncryptionSubmitResult, AppError> {
@@ -195,21 +195,36 @@ pub(crate) fn encryption_submit_password(
     if manifest_path.exists() {
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("Encryption manifest is missing.".into()))?;
-        // Derive the KEK once: unlock returns it alongside the items key so the
-        // key ring can be populated without re-running Argon2id.
-        let (key, kek) = unlock_key_from_manifest(
-            &manifest,
-            &password,
-            APP_ENCRYPTION_SCOPE,
-            APP_PASSWORD_CHECK,
-        )?;
+        // KDF (Argon2id, ~200ms) off the main thread. `manifest` is cloned so
+        // the owned copy can be moved into the blocking closure while the
+        // original remains available for populate_key_ring() after the await.
+        let manifest_for_task = manifest.clone();
+        let password_for_task = password.clone();
+        let (key, kek) = tokio::task::spawn_blocking(move || {
+            unlock_key_from_manifest(
+                &manifest_for_task,
+                &password_for_task,
+                APP_ENCRYPTION_SCOPE,
+                APP_PASSWORD_CHECK,
+            )
+        })
+        .await
+        .map_err(to_error)??;
         populate_key_ring(state.inner(), &manifest, &kek)?;
         let mut s = state.crypto.session.write()?;
         s.app_data_key = Some(key);
         s.active = true;
     } else if create_if_missing {
-        let (manifest, key, kek) =
-            create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
+        let password_for_task = password.clone();
+        let (manifest, key, kek) = tokio::task::spawn_blocking(move || {
+            create_encryption_manifest(
+                APP_ENCRYPTION_SCOPE,
+                APP_PASSWORD_CHECK,
+                &password_for_task,
+            )
+        })
+        .await
+        .map_err(to_error)??;
         write_encryption_manifest(&manifest_path, &manifest)?;
         populate_key_ring(state.inner(), &manifest, &kek)?;
         let mut s = state.crypto.session.write()?;
@@ -237,16 +252,19 @@ pub(crate) fn encryption_submit_password(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn encryption_enable(
+pub(crate) async fn encryption_enable(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     password: String,
 ) -> Result<(), AppError> {
-    let (manifest, key, kek) =
-        create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password)?;
+    let password_for_task = password.clone();
+    let (manifest, key, kek) = tokio::task::spawn_blocking(move || {
+        create_encryption_manifest(APP_ENCRYPTION_SCOPE, APP_PASSWORD_CHECK, &password_for_task)
+    })
+    .await
+    .map_err(to_error)??;
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     write_encryption_manifest(&manifest_path, &manifest)?;
-    // Cache the KEK and populate the key ring so rotation works later.
     populate_key_ring(state.inner(), &manifest, &kek)?;
     let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
@@ -256,9 +274,9 @@ pub(crate) fn encryption_enable(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn encryption_unlock(
+pub(crate) async fn encryption_unlock(
     app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     password: String,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("security.encryption_unlock");
@@ -266,13 +284,18 @@ pub(crate) fn encryption_unlock(
     let manifest_path = app_encryption_manifest_path(&app, state.inner())?;
     let manifest = load_encryption_manifest(&manifest_path)?
         .ok_or_else(|| AppError::Other("Encryption is not enabled.".into()))?;
-    let (key, kek) = unlock_key_from_manifest(
-        &manifest,
-        &password,
-        APP_ENCRYPTION_SCOPE,
-        APP_PASSWORD_CHECK,
-    )?;
-    // Populate items-key ring and cache the KEK for future rotations.
+    let manifest_for_task = manifest.clone();
+    let password_for_task = password.clone();
+    let (key, kek) = tokio::task::spawn_blocking(move || {
+        unlock_key_from_manifest(
+            &manifest_for_task,
+            &password_for_task,
+            APP_ENCRYPTION_SCOPE,
+            APP_PASSWORD_CHECK,
+        )
+    })
+    .await
+    .map_err(to_error)??;
     populate_key_ring(state.inner(), &manifest, &kek)?;
     let mut s = state.crypto.session.write()?;
     s.app_data_key = Some(key);
