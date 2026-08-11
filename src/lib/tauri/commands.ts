@@ -111,6 +111,7 @@ const commandAliases = {
   'yjs:getSnapshot': 'yjs_get_snapshot',
   'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
+  'yjs:compactBatch': 'yjs_compact_batch',
   'yjs:delete': 'yjs_delete',
   'workspace:list': 'workspace_list',
   'workspace:getActive': 'workspace_get_active',
@@ -325,6 +326,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('noteId', payload?.noteId),
         ...withKeyVariants('snapshot', normalizeBinaryData(payload?.snapshot)),
       };
+    case 'yjs:compactBatch':
+      return withKeyVariants('noteId', payload);
     case 'yjs:delete':
       return withKeyVariants('noteId', payload);
     case 'workspace:list':

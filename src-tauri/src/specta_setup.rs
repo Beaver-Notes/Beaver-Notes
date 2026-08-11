@@ -119,7 +119,10 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::yjs::yjs_get_snapshot)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_get_snapshots)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_compact)(&mut types),
+                specta::_fn_datatype!(crate::commands::yjs::yjs_compact_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_delete)(&mut types),
+                // ── Search index ──────────────────────────────────────────────────
+                specta::_fn_datatype!(crate::commands::search::search_extract_index_data)(&mut types),
                 // ── Workspaces ───────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::workspace::workspace_list)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_get_active)(&mut types),

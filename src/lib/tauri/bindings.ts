@@ -193,8 +193,20 @@ export const commands = {
 	 *  The snapshot is sent as base64.
 	 */
 	yjsCompact: (noteId: string, snapshot: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact", { noteId, snapshot })),
+	/**
+	 *  Read all updates for a note, merge them into a single snapshot via y-octo,
+	 *  replace the old rows with one compacted row, and keep the snapshot cache in
+	 *  sync — all in a single SQLite transaction.
+	 */
+	yjsCompactBatch: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact_batch", { noteId })),
 	/**  Delete every Yjs update for a note.  Called when the note itself is deleted. */
 	yjsDelete: (noteId: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_delete", { noteId })),
+	/**
+	 *  Extract search index data from all notes in the data store.
+	 *  Returns a flat array of `{ id, title, searchText, labelsText }` entries
+	 *  ready for MiniSearch on the JS side.
+	 */
+	searchExtractIndexData: () => typedError<SearchEntry[], AppError>(__TAURI_INVOKE("search_extract_index_data")),
 	/**  Return all registered workspaces. */
 	workspaceList: () => typedError<WorkspaceInfo[], AppError>(__TAURI_INVOKE("workspace_list")),
 	/**  Return the currently active workspace. */
@@ -313,6 +325,13 @@ export type OpenDialogOptions = {
  *  the recursive `serde_json::Value` enum definition.
  */
 export type RawJson = any;
+
+export type SearchEntry = {
+	id: string,
+	title: string,
+	searchText: string,
+	labelsText: string,
+};
 
 export type SaveDialogOptions = {
 	title: string | null,

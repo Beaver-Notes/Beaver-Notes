@@ -5,8 +5,7 @@ use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rusqlite::{params, OptionalExtension};
 use serde_json::{Map, Value};
-use yrs::updates::decoder::Decode;
-use yrs::{ReadTxn, Transact};
+use y_octo::{Doc, StateVector, Update};
 
 use crate::shared::{decrypt_yjs_blob, encrypt_yjs_blob, is_encrypted_yjs_blob, AppError};
 
@@ -296,7 +295,7 @@ pub(crate) fn yjs_get_updates(
 }
 
 /// Return a single merged Yjs state snapshot for a note, computed with the
-/// `yrs` CRDT engine (wire-compatible with the JS `yjs` library). The result is
+/// `y-octo` CRDT engine (wire-compatible with the JS `yjs` library). The result is
 /// cached in `yjs_snapshots`, so reads are O(1) as long as the cached snapshot
 /// is fresh (no update newer than it). When the cache is stale — an update was
 /// appended since the snapshot was written — it is rebuilt from history once and
@@ -325,17 +324,14 @@ pub(crate) fn yjs_get_snapshot(
     if key.is_none() && rows.iter().any(|(_, blob)| is_encrypted_yjs_blob(blob)) {
         return Err(AppError::EncryptionLocked);
     }
-    let doc = yrs::Doc::new();
-    {
-        let mut txn = doc.transact_mut();
-        for (_, blob) in rows {
-            let update = yrs::Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
-            txn.apply_update(update).map_err(|e| AppError::Other(e.to_string()))?;
-        }
+    let mut doc = Doc::new();
+    for (_, blob) in rows {
+        let update = Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
+        doc.apply_update(update).map_err(|e| AppError::Other(e.to_string()))?;
     }
     let snapshot = doc
-        .transact_mut()
-        .encode_state_as_update_v1(&yrs::StateVector::default());
+        .encode_state_as_update_v1(&StateVector::default())
+        .map_err(|e| AppError::Other(e.to_string()))?;
     // Store the snapshot encrypted (write_snapshot handles encryption internally).
     write_snapshot(pool, note_id, &snapshot, key)?;
     Ok(snapshot)
@@ -469,6 +465,55 @@ pub(crate) fn yjs_compact(
     Ok(())
 }
 
+/// Read every stored update for `note_id`, merge them into a single snapshot
+/// using the `y-octo` CRDT engine, replace the old rows with one compacted
+/// row, and keep the `yjs_snapshots` cache in sync — all inside a single
+/// SQLite transaction so the database is never in an inconsistent state.
+/// When `key` is `Some`, both the stored snapshot and the single row are
+/// encrypted at rest.
+pub(crate) fn yjs_compact_batch(
+    pool: &DbPool,
+    note_id: &str,
+    key: Option<[u8; 32]>,
+) -> Result<(), AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_compact_batch");
+    let rows = yjs_get_updates(pool, note_id, key)?;
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let mut doc = Doc::new();
+    for (_, blob) in &rows {
+        let update = Update::decode_v1(blob).map_err(|e| AppError::Other(e.to_string()))?;
+        doc.apply_update(update)
+            .map_err(|e| AppError::Other(e.to_string()))?;
+    }
+    let snapshot = doc
+        .encode_state_as_update_v1(&StateVector::default())
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    // Encrypt the snapshot for storage.
+    let stored = match key {
+        Some(k) => encrypt_yjs_blob(&k, &snapshot)?,
+        None => snapshot.to_vec(),
+    };
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    tx.execute(
+        "DELETE FROM note_content WHERE note_id = ?1",
+        rusqlite::params![note_id],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    tx.execute(
+        "INSERT INTO note_content (note_id, data, device, created_at) VALUES (?1, ?2, '', ?3)",
+        rusqlite::params![note_id, stored, chrono::Utc::now().timestamp_millis()],
+    )
+    .map_err(|e| AppError::Other(e.to_string()))?;
+    tx.commit()
+        .map_err(|e| AppError::Other(e.to_string()))?;
+    // Update the snapshot cache.
+    write_snapshot(pool, note_id, &snapshot, key)?;
+    Ok(())
+}
+
 /// Delete all Yjs updates for a note. Called when the note itself is deleted.
 pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
@@ -485,7 +530,7 @@ pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
-// ─── Yjs snapshot cache helpers (yrs-backed) ───────────────────────────────────
+// ─── Yjs snapshot cache helpers (y-octo-backed) ────────────────────────────────
 
 fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;

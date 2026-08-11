@@ -111,7 +111,7 @@ fn flatten_store_value(root: Value) -> Map<String, Value> {
     output
 }
 
-fn storage_aad(row_key: &str) -> String {
+pub(crate) fn storage_aad(row_key: &str) -> String {
     format!("beaver-notes:data-store:{row_key}")
 }
 

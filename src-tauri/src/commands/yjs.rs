@@ -99,6 +99,23 @@ pub(crate) fn yjs_compact(
   Ok(())
 }
 
+/// Read all updates for a note, merge them into a single snapshot via y-octo,
+/// replace the old rows with one compacted row, and keep the snapshot cache in
+/// sync — all in a single SQLite transaction.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn yjs_compact_batch(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    note_id: String,
+) -> Result<(), AppError> {
+    let pool = data_pool(&app, &state)?;
+    let key = yjs_encryption_key(&state)?;
+    tokio::task::spawn_blocking(move || crate::db::yjs_compact_batch(&pool, &note_id, key))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+}
+
 /// Delete every Yjs update for a note.  Called when the note itself is deleted.
 #[tauri::command]
 #[specta::specta]

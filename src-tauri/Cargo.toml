@@ -66,7 +66,7 @@ keyring = "2"
 rayon = "1"
 dirs = "5"
 lru = "0.12"
-yrs = "0.27"
+y-octo = "0.1"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "sync", "macros", "time"] }
 reqwest = { version = "0.13", features = ["rustls", "stream"], default-features = false }
 futures-util = "0.3"
