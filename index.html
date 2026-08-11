@@ -25,8 +25,9 @@
       (function() {
         var t = localStorage.getItem('theme');
         var isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-        document.documentElement.style.backgroundColor = isDark ? '#171717' : '#fafafa';
-        document.body.style.backgroundColor = isDark ? '#171717' : '#fafafa';
+        var bg = isDark ? '#171717' : '#fafafa';
+        document.documentElement.style.backgroundColor = bg;
+        if (document.body) document.body.style.backgroundColor = bg;
       })();
     </script>
     <title>Beaver Notes</title>

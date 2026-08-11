@@ -454,6 +454,14 @@ export function useAppShell(onboardingCompleted = true) {
       // post-onboarding sync (path set + initial pull) has a live engine. With
       // no sync folder configured yet the engine's cycles are no-ops.
       initAppSync();
+      performance.mark('init:done');
+      const entries = performance.getEntriesByType('mark');
+      const measures = [];
+      for (let i = 1; i < entries.length; i++) {
+        measures.push(`${entries[i].name}: ${Math.round(entries[i].startTime - entries[i-1].startTime)}ms`);
+      }
+      console.log('[perf] Startup timeline:', measures.join(' → '));
+      console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
       if (route.name !== ONBOARDING_ROUTE_NAME) {
         await router.replace('/onboarding');
       }
