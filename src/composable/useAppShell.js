@@ -84,6 +84,7 @@ export function useAppShell() {
   const importFilePath = ref('');
   const importNoteTitle = ref('');
   const importFileType = ref(''); // 'bea' | 'md' | 'mdx' | 'txt' | 'html'
+  const importFileContent = ref('');
   const state = reactive({
     zoomLevel: getStoredZoomLevel().toFixed(1),
   });
@@ -757,11 +758,14 @@ export function useAppShell() {
             .replace(/\.bea$/i, '') ||
           'Untitled';
       } else {
-        // Use lightweight title extraction for text-based formats
+        // Read file once, reuse for title extraction and later import
+        const { readFile } = await import('@/lib/native/fs');
         const { extractImportTitle } = await import(
           '@/utils/import/fileImport'
         );
-        title = await extractImportTitle(path);
+        const raw = await readFile(path);
+        importFileContent.value = raw;
+        title = await extractImportTitle(path, raw);
       }
 
       importNoteTitle.value = title;
@@ -776,12 +780,13 @@ export function useAppShell() {
     if (!importFilePath.value) return;
     const path_ = importFilePath.value;
     const type = importFileType.value;
+    const rawContent = importFileContent.value || undefined;
     try {
       if (type === 'bea') {
         await importBEA(path_, router, store, folderId);
       } else {
         const { importSingleFile } = await import('@/utils/import/fileImport');
-        const noteId = await importSingleFile(path_, folderId);
+        const noteId = await importSingleFile(path_, folderId, rawContent);
         router.push(`/note/${noteId}`);
       }
     } catch (error) {
@@ -790,6 +795,7 @@ export function useAppShell() {
       importFilePath.value = '';
       importNoteTitle.value = '';
       importFileType.value = '';
+      importFileContent.value = '';
       showImportDialog.value = false;
     }
   }
@@ -798,6 +804,7 @@ export function useAppShell() {
     importFilePath.value = '';
     importNoteTitle.value = '';
     importFileType.value = '';
+    importFileContent.value = '';
     showImportDialog.value = false;
   }
 

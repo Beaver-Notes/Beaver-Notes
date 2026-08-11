@@ -31,6 +31,7 @@ import {
   update,
   patchLocal,
   persist,
+  persistMeta,
   deleteNote,
   cleanupDeletedIds,
   moveToFolder,
@@ -83,6 +84,7 @@ export const useNoteStore = defineStore('note', {
     update,
     patchLocal,
     persist,
+    persistMeta,
     delete: deleteNote,
     cleanupDeletedIds,
 

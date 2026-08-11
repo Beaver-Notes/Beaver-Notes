@@ -38,7 +38,7 @@ import {
 
 // ─── HTML to Tiptap conversion ───────────────────────────────────────────────
 
-async function convertHtmlNodeToTiptap(node, noteId, resources = []) {
+function convertHtmlNodeToTiptap(node, noteId, resources = []) {
   if (node.nodeType === Node.TEXT_NODE) {
     const text = node.textContent || '';
     if (!text.trim()) return null;
@@ -51,13 +51,9 @@ async function convertHtmlNodeToTiptap(node, noteId, resources = []) {
 
   const tagName = node.tagName.toUpperCase();
   let content = flattenNodes(
-    (
-      await Promise.all(
-        Array.from(node.childNodes || []).map((child) =>
-          convertHtmlNodeToTiptap(child, noteId, resources)
-        )
-      )
-    ).filter(Boolean)
+    Array.from(node.childNodes || [])
+      .map((child) => convertHtmlNodeToTiptap(child, noteId, resources))
+      .filter(Boolean)
   );
 
   switch (tagName) {
@@ -326,7 +322,7 @@ export function startRustImport(source, onProgress) {
   });
 }
 
-export async function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
+export function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
   const resources = options.resources || [];
   const resourceMap =
     resources.length > 0
@@ -338,13 +334,9 @@ export async function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
       ? html
       : sanitizeImportedHtml(html, { allowRelative: true });
   const content = flattenNodes(
-    (
-      await Promise.all(
-        Array.from(doc.body.childNodes || []).map((node) =>
-          convertHtmlNodeToTiptap(node, noteId, resourceMap)
-        )
-      )
-    ).filter(Boolean)
+    Array.from(doc.body.childNodes || [])
+      .map((node) => convertHtmlNodeToTiptap(node, noteId, resourceMap))
+      .filter(Boolean)
   );
 
   return {
@@ -533,13 +525,6 @@ export async function importBear(
         ? await prepareMarkdownStaging(id, resolvedAppDirectory, [assetDir])
         : exportPath;
       const { content } = await convertMarkdownToTiptap(body, id, stagingRoot);
-
-      if (await pathExists(assetDir)) {
-        await copyDirectoryContents(
-          assetDir,
-          path.join(resolvedAppDirectory, 'assets', id)
-        );
-      }
 
       addImportedNote(noteStore, {
         id,

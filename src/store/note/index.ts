@@ -182,6 +182,7 @@ export interface NoteStoreThis {
   searchNotes?(query: string): NoteData[];
   patchLocal(id: string, data?: Record<string, any>): NoteData | null;
   persist(id: string): Promise<NoteData | null>;
+  persistMeta(id: string): Promise<NoteData | null>;
   delete(id: string): Promise<string>;
   cleanupDeletedIds(days?: number): Promise<string[]>;
   addMany?(notes: NoteData[]): Promise<void>;
@@ -376,6 +377,19 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
   return note;
 }
 
+export async function persistMeta(this: NoteStoreThis, id: string): Promise<NoteData | null> {
+  if (!this.data[id]) return null;
+  const note = this.data[id];
+
+  // Skip content walks (preview, searchText) — content unchanged
+  // Skip MiniSearch/Spotlight — only title/searchText/labels matter, and
+  // meta-only ops don't change those either
+  // Skip rebuildLinkIndexForNote — links live in content
+
+  syncNoteMeta(note);
+  return note;
+}
+
 export async function deleteNote(this: NoteStoreThis, id: string): Promise<string> {
   try {
     const snapshot =
@@ -472,9 +486,7 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
           prevFolderId: this.data[noteId].folderId,
         });
         this.patchLocal(noteId, { folderId: targetFolderId });
-        updatePromises.push(
-          this.persist(noteId).then(() => syncNoteMeta(this.data[noteId]))
-        );
+        updatePromises.push(this.persistMeta(noteId));
       }
     }
 
@@ -506,7 +518,7 @@ export async function handleFolderDeletion(this: NoteStoreThis, deletionResult: 
     } else {
       const updatePromises = affectedNotes.map((note) => {
         this.patchLocal(note.id, { folderId: moveContentsTo });
-        return this.persist(note.id).then(() => syncNoteMeta(this.data[note.id]));
+        return this.persistMeta(note.id);
       });
       await Promise.all(updatePromises);
     }
@@ -537,7 +549,7 @@ export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<st
 
   for (const note of invalid) {
     this.patchLocal(note.id, { folderId: null });
-    await this.persist(note.id);
+    await this.persistMeta(note.id);
   }
 
   return invalid.map((note) => note.id);

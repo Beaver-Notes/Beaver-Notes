@@ -12,11 +12,22 @@ import {
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
 import { useNoteStore } from '@/store/note';
+import { buildNotePreview } from '@/utils/note/cardPreview.js';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
 import mime from 'mime';
 
 const _pendingImportNotes = [];
 
 export function addImportedNote(noteStore, payload) {
+  const hidden = payload.isLocked || false;
+  const { cardPreview, preview } = buildNotePreview({
+    content: payload.content,
+    preview: payload.preview,
+    searchText: payload.searchText,
+    hidden,
+  });
+  const searchText = hidden ? '' : (extractTextFromContent(payload.content) || payload.searchText || '');
+
   _pendingImportNotes.push({
     id: payload.id,
     title: payload.title,
@@ -29,6 +40,9 @@ export function addImportedNote(noteStore, payload) {
     isArchived: false,
     isLocked: false,
     isFullWidth: false,
+    cardPreview,
+    preview,
+    searchText,
   });
 }
 

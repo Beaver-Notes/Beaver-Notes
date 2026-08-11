@@ -6,12 +6,12 @@ import { convertMarkdownToTiptap } from '@/utils/markdown';
 import { htmlToTiptap } from './bulkImport';
 import { parseFrontmatter, addImportedNote, flushImportedNotes, parseDateValue } from './helpers';
 
-export async function extractImportTitle(filePath) {
+export async function extractImportTitle(filePath, rawContent) {
   const ext = path.extname(filePath).toLowerCase();
   const fileName = path.basename(filePath);
 
   try {
-    const raw = await readFile(filePath);
+    const raw = rawContent ?? await readFile(filePath);
 
     switch (ext) {
       case '.md':
@@ -37,9 +37,9 @@ export async function extractImportTitle(filePath) {
   }
 }
 
-export async function importSingleMarkdown(filePath, folderId = null) {
+export async function importSingleMarkdown(filePath, folderId = null, rawContent) {
   const noteStore = useNoteStore();
-  const raw = await readFile(filePath);
+  const raw = rawContent ?? await readFile(filePath);
   const { meta, body } = parseFrontmatter(raw);
   const id = uuidv4();
   const fileName = path.basename(filePath);
@@ -65,9 +65,9 @@ export async function importSingleMarkdown(filePath, folderId = null) {
   return id;
 }
 
-export async function importSingleText(filePath, folderId = null) {
+export async function importSingleText(filePath, folderId = null, rawContent) {
   const noteStore = useNoteStore();
-  const raw = await readFile(filePath);
+  const raw = rawContent ?? await readFile(filePath);
   const id = uuidv4();
   const fileName = path.basename(filePath).replace(/\.txt$/i, '') || 'Untitled';
 
@@ -92,9 +92,9 @@ export async function importSingleText(filePath, folderId = null) {
   return id;
 }
 
-export async function importSingleHTML(filePath, folderId = null) {
+export async function importSingleHTML(filePath, folderId = null, rawContent) {
   const noteStore = useNoteStore();
-  const raw = await readFile(filePath);
+  const raw = rawContent ?? await readFile(filePath);
   const id = uuidv4();
   const fileName =
     path.basename(filePath).replace(/\.html$/i, '') || 'Untitled';
@@ -124,13 +124,13 @@ const EXTENSION_MAP = {
 
 export const SUPPORTED_EXTENSIONS = Object.keys(EXTENSION_MAP);
 
-export async function importSingleFile(filePath, folderId = null) {
+export async function importSingleFile(filePath, folderId = null, rawContent) {
   const ext = path.extname(filePath).toLowerCase().replace('.', '');
   const importer = EXTENSION_MAP[ext];
   if (!importer) {
     throw new Error(`Unsupported file format: .${ext}`);
   }
-  const result = await importer(filePath, folderId);
+  const result = await importer(filePath, folderId, rawContent);
   await flushImportedNotes();
   return result;
 }
