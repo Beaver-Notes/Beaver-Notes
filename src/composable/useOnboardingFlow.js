@@ -25,7 +25,7 @@ import {
   runOnboardingMigrationFromPath,
   ENTRANCE_DELAYS,
 } from '@/utils/onboarding/index.js';
-import { setupEncryption } from '@/utils/crypto/encryption.js';
+import { setupEncryption, hasRemoteVaultKeyParams, adoptVaultKey } from '@/utils/crypto/encryption.js';
 import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
 import {
@@ -45,6 +45,11 @@ import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import logoUrl from '@/assets/images/logo-transparent.png';
+import { fetchCloudKeyParams, getFetchedCloudKeyParams, deriveVaultPassphraseProof } from '@/utils/sync/vault-key-params.js';
+import { detectRemoteVaultJoin, completeRemoteVaultJoin } from '@/utils/onboarding/remote-vault-join.js';
+import { useWorkspaceStore } from '@/store/workspace.ts';
+import { getApiClient } from '@/lib/api/client';
+import { loadSessionToken } from '@/composable/useAccountStorage';
 
 // Steps that live inside the persistent wizard frame (fixed card / bottom
 // sheet). 'welcome' and 'finish' are full-screen hero steps and are not
@@ -133,20 +138,12 @@ export function useOnboardingFlow({
     try {
       let detected = false;
       if (accountStore.isAuthenticated) {
-        const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-        const { detectRemoteVaultJoin } = await import(
-          '@/utils/onboarding/remote-vault-join.js'
-        );
         detected = await detectRemoteVaultJoin({
           fetchCloudKeyParams,
-          hasRemoteVaultKeyParams: async () => {
-            const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
-            return hasRemoteVaultKeyParams();
-          },
+          hasRemoteVaultKeyParams: async () => hasRemoteVaultKeyParams(),
         }).catch(() => {});
       }
       if (!detected) {
-        const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
         detected = await hasRemoteVaultKeyParams();
       }
       vaultJoinMode.value = detected;
@@ -167,18 +164,9 @@ export function useOnboardingFlow({
     }
     encryptionPasswordLoading.value = true;
     try {
-      const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const workspaceId = useWorkspaceStore().activeId;
-      const { getFetchedCloudKeyParams, deriveVaultPassphraseProof } =
-        await import('@/utils/sync/vault-key-params.js');
       const fetched = getFetchedCloudKeyParams();
-      const { completeRemoteVaultJoin } = await import(
-        '@/utils/onboarding/remote-vault-join.js'
-      );
       if (workspaceId && vaultJoinMode.value && fetched) {
-        const { getApiClient } = await import('@/lib/api/client');
-        const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
-        const { loadSessionToken } = await import('@/composable/useAccountStorage');
         // Wait for session token to be available (may not be saved yet after sign-in)
         let token = null;
         for (let i = 0; i < 20 && !token; i++) {
@@ -209,7 +197,6 @@ export function useOnboardingFlow({
         goToNextStep();
         return;
       }
-      const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
       const result = await adoptVaultKey(pw, fetched?.paramsBlob);
       if (!result.ok) {
         encryptionPasswordError.value =
