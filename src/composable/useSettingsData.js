@@ -1,7 +1,9 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
+import dayjs from '@/lib/dayjs';
 import { getSettingSync, setSetting } from '@/composable/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
+import { forceSyncNow } from '@/utils/sync';
 import { listen } from '@tauri-apps/api/event';
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
@@ -208,7 +210,6 @@ export function useSettingsData({
         data = await encryptSettings(JSON.stringify(data), state.password);
       }
 
-      const { default: dayjs } = await import('@/lib/dayjs');
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
       const folderPath = path.join(filePaths[0], folderName);
 
@@ -340,7 +341,6 @@ export function useSettingsData({
       if (canceled) return;
       defaultPath.value = await setSyncPath(dir);
       state.syncPath = defaultPath.value;
-      const { forceSyncNow } = await import('@/utils/sync');
       forceSyncNow().catch(() => {});
     } catch (error) {
       console.error(error);

@@ -26,6 +26,9 @@
       </div>
     </div>
 
+    <!-- :key is coarse on purpose — 'wizard' stays constant across
+         customize → password so the frame (card / bottom sheet) never
+         remounts; only its inner content slides. -->
     <div
       :key="topLevelKey"
       class="ob-page-content relative z-10 w-full px-5 sm:px-0"
