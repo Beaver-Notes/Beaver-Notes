@@ -141,8 +141,12 @@ let pendingChangedNoteIds = new Set();
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
   if (observerAttached) return;
-  doc.getMap('folders').observeDeep(() => schedule());
-  doc.getMap('notes').observeDeep((events) => {
+  doc.getMap('folders').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    schedule();
+  });
+  doc.getMap('notes').observeDeep((events, transaction) => {
+    if (transaction?.origin === 'seed') return;
     for (const event of events) {
       if (event.path?.length === 1) {
         pendingChangedNoteIds.add(event.path[0]);
@@ -154,10 +158,22 @@ export function observeWorkspace(callback, debounceMs = 150) {
     }
     schedule();
   });
-  doc.getMap('deletedFolderIds').observeDeep(() => schedule());
-  doc.getMap('deletedNoteIds').observeDeep(() => schedule());
-  doc.getArray('labels').observeDeep(() => schedule());
-  doc.getMap('labelColors').observeDeep(() => schedule());
+  doc.getMap('deletedFolderIds').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    schedule();
+  });
+  doc.getMap('deletedNoteIds').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    schedule();
+  });
+  doc.getArray('labels').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    schedule();
+  });
+  doc.getMap('labelColors').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    schedule();
+  });
   observerAttached = true;
 
   function schedule() {

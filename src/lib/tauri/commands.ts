@@ -97,10 +97,6 @@ const commandAliases = {
   'import:evernote': 'import_evernote',
   'import:apple-notes': 'import_apple_notes',
   'show-edit-context-menu': 'show_edit_context_menu',
-  'search:notes': 'search_notes',
-  'search:indexNote': 'search_index_note',
-  'search:removeNote': 'search_remove_note',
-  'search:rebuildIndex': 'search_rebuild_index',
   'spotsearch:enableIndexing': 'enable_indexing',
   'spotsearch:indexItems': 'index_items',
   'spotsearch:deleteItems': 'delete_items',
@@ -312,23 +308,6 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('name', payload);
     case 'show-edit-context-menu':
       return payload ?? {};
-    case 'search:notes':
-      return {
-        ...withKeyVariants('query', payload?.query),
-        ...(payload?.limit != null
-          ? withKeyVariants('limit', payload.limit)
-          : {}),
-      };
-    case 'search:indexNote':
-      return {
-        ...withKeyVariants('id', payload?.id),
-        ...withKeyVariants('title', payload?.title ?? ''),
-        ...withKeyVariants('body', payload?.body ?? ''),
-      };
-    case 'search:removeNote':
-      return withKeyVariants('id', payload?.id);
-    case 'search:rebuildIndex':
-      return {};
     case 'yjs:append':
       return {
         ...withKeyVariants('noteId', payload?.noteId),

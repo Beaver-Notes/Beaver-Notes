@@ -20,7 +20,6 @@ import {
   upsertSearchEntry,
 } from '@/composable/useSearch.js';
 import { collectExpiredIds } from '@/utils/helpers/index.js';
-import { buildFolderCounts } from '../note-counts.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
@@ -59,6 +58,36 @@ export interface NoteState {
 
 const _skipUndo = { value: false };
 
+const contentSignature: Map<string, object> = new Map();
+const indexSignature: Map<string, string> = new Map();
+
+// ── Incremental folder counts ──
+// Maintained by add/delete/patchLocal to avoid O(n) rebuild on every getter access.
+const folderCounts: Map<string | null, number> = new Map();
+
+function incrementFolderCount(folderId: string | null) {
+  const key = folderId ?? null;
+  folderCounts.set(key, (folderCounts.get(key) || 0) + 1);
+}
+
+function decrementFolderCount(folderId: string | null) {
+  const key = folderId ?? null;
+  const count = folderCounts.get(key) || 0;
+  if (count <= 1) {
+    folderCounts.delete(key);
+  } else {
+    folderCounts.set(key, count - 1);
+  }
+}
+
+function initFolderCounts(data: Record<string, NoteData>) {
+  folderCounts.clear();
+  for (const note of Object.values(data)) {
+    if (!note?.id) continue;
+    incrementFolderCount(note.folderId);
+  }
+}
+
 // ── search (from search.js) ──
 
 // ─── Simple getters (kept together for discoverability) ──────────────────────
@@ -89,11 +118,11 @@ export function getNotesCountByFolder(state: NoteState) {
 }
 
 /**
- * Precomputed note counts per folder, built once per data change instead of
- * once per folder card. The Map is cached by Pinia until `state.data` changes.
+ * Precomputed note counts per folder, maintained incrementally by add/delete/patchLocal.
+ * Avoids O(n) rebuild on every store mutation.
  */
-export function notesCountByFolder(state: NoteState): Map<string | null, number> {
-  return new Map(Object.entries(buildFolderCounts(Object.values(state.data))));
+export function notesCountByFolder(_state: NoteState): Map<string | null, number> {
+  return new Map(folderCounts);
 }
 
 // ─── Search-related getters ──────────────────────────────────────────────────
@@ -176,6 +205,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
     // Data is already populated from the Yjs workspace doc via
     // writeStoresFromWorkspace().  No KV reads needed.
 
+    initFolderCounts(this.data);
     buildSearchIndex(this.data);
     reindexAllNotes(this.data);
     rebuildLinkIndexFromAll(this.data);
@@ -209,6 +239,7 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     } as NoteData;
 
     this.data[id] = hydrateNote(newNote);
+    incrementFolderCount(this.data[id].folderId);
     await saveNote(id, this.data[id]);
     rebuildLinkIndexForNote(id, this.data[id].content);
     syncNoteMeta(this.data[id]);
@@ -269,11 +300,17 @@ export async function update(this: NoteStoreThis, id: string, data: Record<strin
 export function patchLocal(this: NoteStoreThis, id: string, data: Record<string, any> = {}): NoteData | null {
   if (!this.data[id]) return null;
 
+  const prevFolderId = this.data[id].folderId;
   this.data[id] = hydrateNote({
     ...this.data[id],
     ...data,
     updatedAt: data.updatedAt ?? Date.now(),
   });
+
+  if (data.folderId !== undefined && data.folderId !== prevFolderId) {
+    decrementFolderCount(prevFolderId);
+    incrementFolderCount(data.folderId);
+  }
 
   return this.data[id];
 }
@@ -282,26 +319,38 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
   if (!this.data[id]) return null;
 
   const note = this.data[id];
-  // Rebuild the structured card preview from content (styled blocks) so it
-  // survives a reload, and keep a flat `preview` string as a cross-device
-  // fallback. Content lives in the per-note Y.Doc; `searchText` is stripped
-  // before persist so it is no longer the source of truth.
+  const contentChanged = note.content !== contentSignature.get(id);
+
+  // Rebuild preview + searchText only when content actually changed
   if (!note.isLocked && !isEncryptedContent(note.content)) {
-    const { cardPreview, preview } = buildNotePreview({
-      content: note.content,
-      preview: note.preview,
-      searchText: note.searchText,
-    });
-    note.preview = preview;
-    note.cardPreview = cardPreview;
-    // Refresh the flat search text from the current content so the in-memory
-    // search index does not serve stale matches after content edits.
-    note.searchText = extractTextFromContent(note.content) || note.searchText;
+    if (contentChanged) {
+      const { cardPreview, preview } = buildNotePreview({
+        content: note.content,
+        preview: note.preview,
+        searchText: note.searchText,
+      });
+      note.preview = preview;
+      note.cardPreview = cardPreview;
+      note.searchText = extractTextFromContent(note.content) || note.searchText;
+    }
   }
 
-  await saveNote(id, note);
-  rebuildLinkIndexForNote(id, note.content);
-  syncNoteMeta(note);
+  if (contentChanged) {
+    await saveNote(id, note);
+    rebuildLinkIndexForNote(id, note.content);
+    } else {
+      // Content unchanged — only reindex if title/searchText/labels changed
+      const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
+      if (indexKey !== indexSignature.get(id)) {
+        await saveNote(id, note);
+      }
+    }
+
+    syncNoteMeta(note);
+
+    // Update signatures
+    contentSignature.set(id, note.content);
+    indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
 
   return note;
 }
@@ -321,7 +370,11 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
       this.deletedIds[id] = Date.now();
     }
 
+    const folderId = this.data[id]?.folderId;
     delete this.data[id];
+    if (folderId !== undefined) decrementFolderCount(folderId);
+    contentSignature.delete(id);
+    indexSignature.delete(id);
     removeNoteFromLinkIndex(id);
 
     // Clean up Yjs document updates

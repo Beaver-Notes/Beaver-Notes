@@ -158,29 +158,6 @@ export const commands = {
 	getUpdateInfo: () => typedError<UpdateInfo, AppError>(__TAURI_INVOKE("get_update_info")),
 	importEvernote: (enexPath: string, notebookName: string | null) => typedError<null, AppError>(__TAURI_INVOKE("import_evernote", { enexPath, notebookName })),
 	importAppleNotes: () => typedError<null, AppError>(__TAURI_INVOKE("import_apple_notes")),
-	/**
-	 *  Full-text search across note titles and body text using the SQLite FTS5 index.
-	 * 
-	 *  Returns the IDs of matching notes ordered by relevance (FTS5 `rank`).
-	 *  The frontend resolves full note objects from the in-memory store using these IDs,
-	 *  so this call never reads note content into Rust memory.
-	 */
-	searchNotes: (query: string, limit: number | null) => typedError<SearchResult, AppError>(__TAURI_INVOKE("search_notes", { query, limit })),
-	/**
-	 *  Upsert a single note into the FTS index.
-	 *  Called from the frontend every time a note is saved (title or content change).
-	 *  `body` is a pre-extracted plain-text string built by the JS layer, so Rust
-	 *  never has to deserialise the full ProseMirror JSON.
-	 */
-	searchIndexNote: (id: string, title: string, body: string) => typedError<null, AppError>(__TAURI_INVOKE("search_index_note", { id, title, body })),
-	/**  Remove a note from the FTS index. Call when a note is deleted. */
-	searchRemoveNote: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("search_remove_note", { id })),
-	/**
-	 *  Rebuild the entire FTS index from the KV store.
-	 *  Useful after a bulk import or first launch (the index will be empty until notes
-	 *  are individually saved / indexed after startup).
-	 */
-	searchRebuildIndex: () => typedError<number, AppError>(__TAURI_INVOKE("search_rebuild_index")),
 	renderPdf: (html: string, outputPath: string) => typedError<null, AppError>(__TAURI_INVOKE("render_pdf", { html, outputPath })),
 	/**
 	 *  Append a single Yjs binary update for a note.  Updates are stored as
@@ -346,10 +323,6 @@ export type SaveDialogOptions = {
 export type SaveDialogResult = {
 	canceled: boolean,
 	filePath: string | null,
-};
-
-export type SearchResult = {
-	ids: string[],
 };
 
 export type SyncDecryptedPayload = {

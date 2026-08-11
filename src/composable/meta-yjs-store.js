@@ -115,15 +115,12 @@ export async function writeStoresFromWorkspace(changedNoteIds) {
           }
           yNotes.set(id, yNote);
         }
-      });
+      }, 'seed');
     }
 
     const missingLabels = kvLabels.filter(
       (name) => !yLabels.toArray().includes(name)
     );
-    if (missingLabels.length > 0) {
-      yLabels.push(missingLabels);
-    }
 
     // Deduplicate the Y.Array if duplicates somehow accumulated
     const seen = new Set();
@@ -135,10 +132,16 @@ export async function writeStoresFromWorkspace(changedNoteIds) {
         deduped.push(name);
       }
     }
-    if (deduped.length !== yLabels.length) {
-      yLabels.delete(0, yLabels.length);
-      yLabels.push(deduped);
-    }
+
+    doc.transact(() => {
+      if (missingLabels.length > 0) {
+        yLabels.push(missingLabels);
+      }
+      if (deduped.length !== yLabels.length) {
+        yLabels.delete(0, yLabels.length);
+        yLabels.push(deduped);
+      }
+    }, 'seed');
 
     const missingColors = Object.entries(kvColors).filter(
       ([k]) => !yLabelColors.has(k)
@@ -148,7 +151,7 @@ export async function writeStoresFromWorkspace(changedNoteIds) {
         for (const [k, v] of missingColors) {
           yLabelColors.set(k, v);
         }
-      });
+      }, 'seed');
     }
 
     const missingFolders = Object.entries(kvFolders).filter(
@@ -163,7 +166,7 @@ export async function writeStoresFromWorkspace(changedNoteIds) {
           }
           yFolders.set(id, yFolder);
         }
-      });
+      }, 'seed');
     }
 
     // Seeding is complete once nothing is missing from the doc.

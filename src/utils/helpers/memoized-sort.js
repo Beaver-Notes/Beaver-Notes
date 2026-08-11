@@ -1,7 +1,6 @@
 // ─── Memoized array sort ──────────────────────────────────────────────────────
 
-let cacheSignature = null;
-let cacheOrder = null;
+const cache = new WeakMap();
 
 /**
  * Sort an array of objects by a key, avoiding the O(n log n) sort when the
@@ -14,8 +13,10 @@ let cacheOrder = null;
  *    never receive stale note objects, only a cheaper recompute.
  *  - if the signature changed, a fresh sort runs and the cache is updated.
  *
- * The signature is built from the sort key value of every element, so any
- * reordering invalidates the cache. A single slot is kept (most recent call).
+ * The signature is built from the sort key value of every element (plus the
+ * key and order options), so any reordering invalidates the cache. A cache
+ * entry is kept per data array reference, so unrelated data arrays never
+ * evict each other's entry.
  */
 export function memoizedSort({ data, key, order = 'asc' }) {
   if (!Array.isArray(data)) return data;
@@ -33,15 +34,16 @@ export function memoizedSort({ data, key, order = 'asc' }) {
     }
   }
 
-  if (signature === cacheSignature) {
+  const cached = cache.get(data);
+  if (cached !== undefined && cached.signature === signature) {
     const byId = new Map();
     for (let i = 0; i < data.length; i++) {
       byId.set(data[i].id, data[i]);
     }
     const items = [];
     let idsMatch = true;
-    for (let i = 0; i < cacheOrder.length; i++) {
-      const item = byId.get(cacheOrder[i]);
+    for (let i = 0; i < cached.order.length; i++) {
+      const item = byId.get(cached.order[i]);
       if (item === undefined) {
         idsMatch = false;
         break;
@@ -72,7 +74,6 @@ export function memoizedSort({ data, key, order = 'asc' }) {
     return order === 'desc' ? -comparison : comparison;
   });
 
-  cacheSignature = signature;
-  cacheOrder = sorted.map((item) => item.id);
+  cache.set(data, { signature, order: sorted.map((item) => item.id) });
   return sorted;
 }

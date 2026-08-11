@@ -9,7 +9,7 @@ export default mergeConfig(
       environment: 'happy-dom',
       globals: true,
       setupFiles: ['src/test-setup.js'],
-      include: ['src/**/*.spec.js'],
+      include: ['src/**/*.spec.{js,ts}'],
       fileParallelism: false,
     },
   })

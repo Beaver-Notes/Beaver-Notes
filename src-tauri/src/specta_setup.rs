@@ -111,11 +111,6 @@ pub fn generate_bindings() {
                 // ── Imports ──────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::imports::import_evernote)(&mut types),
                 specta::_fn_datatype!(crate::commands::imports::import_apple_notes)(&mut types),
-                // ── Search ───────────────────────────────────────────────────────
-                specta::_fn_datatype!(crate::commands::search::search_notes)(&mut types),
-                specta::_fn_datatype!(crate::commands::search::search_index_note)(&mut types),
-                specta::_fn_datatype!(crate::commands::search::search_remove_note)(&mut types),
-                specta::_fn_datatype!(crate::commands::search::search_rebuild_index)(&mut types),
                 // ── PDF ──────────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::pdf::render_pdf)(&mut types),
                 // ── Yjs CRDT ─────────────────────────────────────────────────────
