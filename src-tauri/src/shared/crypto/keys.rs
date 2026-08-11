@@ -51,6 +51,11 @@ pub(crate) const SYNC_KEY_PARAMS_FILE: &str = "keyParams.json";
 /// AAD binding for note-content encryption. Fixed domain string: it proves the
 /// ciphertext is genuine note content (and not forged/moved across contexts).
 pub(crate) const NOTE_AAD: &str = "beaver-notes:note-content:v1";
+/// Envelope version for raw-byte note payloads. v6 encrypts the raw UTF-8 bytes
+/// directly instead of round-tripping through serde_json (which parsed the JSON
+/// string into a Value and then re-serialised it to bytes). v3 envelopes are
+/// still decrypted for backward compatibility.
+pub(crate) const NOTE_RAW_VERSION: u8 = 6;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

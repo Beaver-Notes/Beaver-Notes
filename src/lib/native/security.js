@@ -65,8 +65,8 @@ export function lockEncryption() {
   return backend.invoke('encryption:lock');
 }
 
-export function encryptNotePayload(plainJson) {
-  return backend.invoke('encryption:encryptNotePayload', plainJson);
+export function encryptNotePayload(plainBytes) {
+  return backend.invoke('encryption:encryptNotePayload', plainBytes);
 }
 
 export function rotateEncryptionKey() {

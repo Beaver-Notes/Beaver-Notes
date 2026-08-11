@@ -179,8 +179,8 @@ export async function encryptionIsConfigured() {
 }
 
 export async function encryptContent(contentObj) {
-  const plaintext = JSON.stringify(contentObj);
-  const envelope = await encryptNotePayload(plaintext);
+  const plaintext = new TextEncoder().encode(JSON.stringify(contentObj));
+  const envelope = await encryptNotePayload(Array.from(plaintext));
   return envelope;
 }
 
@@ -191,11 +191,12 @@ export async function decryptContent(contentVal) {
     return contentVal;
   }
 
-  const plainJson = await decryptNotePayload(contentVal);
-  if (plainJson === null || plainJson === undefined) return null;
+  const plainBytes = await decryptNotePayload(contentVal);
+  if (plainBytes === null || plainBytes === undefined) return null;
 
   try {
-    return JSON.parse(plainJson);
+    const jsonStr = new TextDecoder().decode(new Uint8Array(plainBytes));
+    return JSON.parse(jsonStr);
   } catch (e) {
     console.error(
       '[encryption] decryptContent: decrypted payload is not valid JSON',
@@ -207,7 +208,7 @@ export async function decryptContent(contentVal) {
 
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
-  return contentVal.ae === 1 || contentVal.ae === 2 || contentVal.ae === 3;
+  return contentVal.ae === 1 || contentVal.ae === 2 || contentVal.ae === 3 || contentVal.ae === 6;
 }
 
 export async function lockEncryptionKey() {

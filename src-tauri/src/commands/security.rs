@@ -320,7 +320,7 @@ pub(crate) fn encryption_lock(state: State<AppState>) -> Result<(), AppError> {
 #[specta::specta]
 pub(crate) fn encryption_encrypt_note_payload(
     state: State<AppState>,
-    plain_json: String,
+    plain_bytes: Vec<u8>,
 ) -> Result<RawJson, AppError> {
     let key = current_app_key(state.inner())?
         .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
@@ -330,12 +330,11 @@ pub(crate) fn encryption_encrypt_note_payload(
         .read()?
         .current_items_key_id
         .clone();
-    let value: Value = serde_json::from_str(&plain_json)?;
-    let envelope = aead_encrypt_json(&key, &value, NOTE_AAD)?;
+    let (iv, enc) = aead_encrypt_bytes(&key, &plain_bytes, NOTE_AAD)?;
     let mut result = serde_json::json!({
-        "ae": 3,
-        "iv": envelope.iv,
-        "cipher": envelope.enc,
+        "ae": NOTE_RAW_VERSION,
+        "iv": iv,
+        "cipher": enc,
     });
     if !key_id.is_empty() {
         result["kid"] = Value::String(key_id);
@@ -348,36 +347,67 @@ pub(crate) fn encryption_encrypt_note_payload(
 pub(crate) fn encryption_decrypt_note_payload(
     state: State<AppState>,
     payload: RawJson,
-) -> Result<Option<String>, AppError> {
-    if payload.get("ae").and_then(Value::as_u64) != Some(3) {
-        return Ok(Some(serde_json::to_string(&*payload)?));
+) -> Result<Option<Vec<u8>>, AppError> {
+    let ae = payload.get("ae").and_then(Value::as_u64).unwrap_or(0) as u8;
+
+    // Legacy v3 envelope: encrypted payload is a serde_json Value (JSON bytes).
+    // Decrypt via the JSON path and re-serialise to bytes so callers always
+    // receive raw bytes regardless of the source format.
+    if ae == 3 {
+        let kid = payload
+            .get("kid")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let key = match key_for_id(state.inner(), &kid)? {
+            Some(key) => key,
+            None => return Ok(None),
+        };
+        let envelope = SyncEnvelope {
+            v: PROTOCOL_VERSION,
+            iv: payload
+                .get("iv")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::Other("Encrypted note iv missing.".into()))?
+                .to_string(),
+            enc: payload
+                .get("cipher")
+                .and_then(Value::as_str)
+                .ok_or_else(|| AppError::Other("Encrypted note cipher missing.".into()))?
+                .to_string(),
+        };
+        let value = aead_decrypt_json(&key, &envelope, NOTE_AAD)
+            .map_err(|_| AppError::Other("Failed to decrypt note content.".into()))?;
+        let bytes = serde_json::to_vec(&value)?;
+        return Ok(Some(bytes));
     }
-    // Look up the correct items key by `kid` (absent → current key).
-    let kid = payload
-        .get("kid")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let key = match key_for_id(state.inner(), &kid)? {
-        Some(key) => key,
-        None => return Ok(None),
-    };
-    let envelope = SyncEnvelope {
-        v: PROTOCOL_VERSION,
-        iv: payload
+
+    // v6+ raw-byte envelope: encrypted payload is raw UTF-8 bytes.
+    if ae >= NOTE_RAW_VERSION {
+        let kid = payload
+            .get("kid")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        let key = match key_for_id(state.inner(), &kid)? {
+            Some(key) => key,
+            None => return Ok(None),
+        };
+        let iv_str = payload
             .get("iv")
             .and_then(Value::as_str)
-            .ok_or_else(|| AppError::Other("Encrypted note iv missing.".into()))?
-            .to_string(),
-        enc: payload
+            .ok_or_else(|| AppError::Other("Encrypted note iv missing.".into()))?;
+        let cipher_str = payload
             .get("cipher")
             .and_then(Value::as_str)
-            .ok_or_else(|| AppError::Other("Encrypted note cipher missing.".into()))?
-            .to_string(),
-    };
-    let value = aead_decrypt_json(&key, &envelope, NOTE_AAD)
-        .map_err(|_| AppError::Other("Failed to decrypt note content.".into()))?;
-    Ok(Some(serde_json::to_string(&value)?))
+            .ok_or_else(|| AppError::Other("Encrypted note cipher missing.".into()))?;
+        let bytes = aead_decrypt_bytes(&key, iv_str, cipher_str, NOTE_AAD)
+            .map_err(|_| AppError::Other("Failed to decrypt note content.".into()))?;
+        return Ok(Some(bytes));
+    }
+
+    // Unknown version — pass through as-is for forward-compat.
+    Ok(Some(serde_json::to_vec(&*payload)?))
 }
 
 #[derive(Serialize, specta::Type)]
