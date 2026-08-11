@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
+import { getSettingSync } from '@/composable/settings';
 
 const Settings = () => import('./pages/Settings.vue');
 const Onboarding = () => import('./pages/Onboarding.vue');
@@ -132,6 +133,16 @@ const router = createRouter({
 
     return undefined;
   },
+});
+
+router.beforeEach((to) => {
+  // Synchronous check: if onboarding hasn't completed and we're not
+  // already on the onboarding route, redirect there immediately.
+  // This prevents the sidebar from rendering before onboarding is shown.
+  const onboardingCompleted = getSettingSync('onboardingCompleted');
+  if (!onboardingCompleted && to.name !== 'Onboarding') {
+    return { name: 'Onboarding' };
+  }
 });
 
 router.afterEach((to) => {
