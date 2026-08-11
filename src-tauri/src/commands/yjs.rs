@@ -37,6 +37,23 @@ pub(crate) fn yjs_append(
   Ok(())
 }
 
+/// Append multiple Yjs binary updates in a single IPC call.
+/// All updates are inserted inside one SQLite transaction.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn yjs_append_batch(
+    app: AppHandle,
+    note_ids: Vec<String>,
+    updates: Vec<Vec<u8>>,
+    devices: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<usize, AppError> {
+    let pool = data_pool(&app, &state)?;
+    tokio::task::spawn_blocking(move || crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+}
+
 /// Return a cached merged Yjs state snapshot for a note when it is fresh
 /// (no stored update is newer than the snapshot). Returns an empty vector when
 /// the caller must replay history and re-cache it via `yjs_save_snapshot`.

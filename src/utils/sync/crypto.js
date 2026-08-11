@@ -4,6 +4,8 @@ import {
 import {
   syncEncryptPayload,
   syncDecryptPayload,
+  syncEncryptBatch,
+  syncDecryptBatch,
   syncKeyReady,
 } from '@/lib/native/security.js';
 import { bufToBase64, base64ToBuf } from '@/utils/crypto/codec.js';
@@ -81,6 +83,34 @@ export async function decryptJSON(raw, aad = '') {
     return { ...parsed, update: base64ToBuf(parsed.update) };
   }
   return parsed;
+}
+
+/**
+ * Batch-decrypt an array of sync envelopes in a single IPC call.
+ * Returns an array of {meta, update} objects; failed items are `null`.
+ */
+export async function decryptBatch(rawEnvelopes, aads) {
+  if (!rawEnvelopes.length) return [];
+  const results = await syncDecryptBatch(rawEnvelopes, aads);
+  return results.map((res) => {
+    if (!res) return null;
+    return { ...res.meta, update: base64ToBuf(res.update) };
+  });
+}
+
+/**
+ * Batch-encrypt an array of sync payloads in a single IPC call.
+ * Each payload is {update, ...meta}. Returns an array of encrypted envelope strings.
+ */
+export async function encryptBatch(payloads, aads) {
+  if (!payloads.length) return [];
+  await ensureSyncKeyReadyForWrite();
+  const metas = payloads.map((p) => {
+    const { update, ...meta } = p || {};
+    return JSON.stringify(meta);
+  });
+  const dataB64s = payloads.map((p) => bufToBase64(p.update));
+  return syncEncryptBatch(metas, dataB64s, aads);
 }
 
 export function clearSyncKey() {}

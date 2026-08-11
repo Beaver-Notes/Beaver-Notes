@@ -93,6 +93,14 @@ export function syncDecryptPayload(enc, aad) {
   return backend.invoke('sync:decryptPayload', { enc, aad });
 }
 
+export function syncEncryptBatch(metas, dataB64s, aads) {
+  return backend.invoke('sync:encryptBatch', { metas, dataB64s, aads });
+}
+
+export function syncDecryptBatch(envelopes, aads) {
+  return backend.invoke('sync:decryptBatch', { envelopes, aads });
+}
+
 export function syncKeyReady() {
   return backend.invoke('sync:keyReady');
 }

@@ -114,6 +114,8 @@ export const commands = {
 	 *  as a JSON number array) are decoded for backward compatibility.
 	 */
 	syncDecryptPayload: (enc: string, aad: string) => typedError<SyncDecryptedPayload, AppError>(__TAURI_INVOKE("sync_decrypt_payload", { enc, aad })),
+	syncDecryptBatch: (envelopes: string[], aads: string[]) => typedError<(SyncDecryptedPayload | null)[], AppError>(__TAURI_INVOKE("sync_decrypt_batch", { envelopes, aads })),
+	syncEncryptBatch: (metas: string[], dataB64s: string[], aads: string[]) => typedError<string[], AppError>(__TAURI_INVOKE("sync_encrypt_batch", { metas, dataB64s, aads })),
 	syncKeyReady: () => __TAURI_INVOKE<boolean>("sync_key_ready"),
 	/**
 	 *  Keep the local manifest and the shared `keyParams.json` in the sync folder
@@ -168,6 +170,8 @@ export const commands = {
 	 *  blobs would otherwise pay a serde_json round-trip on a huge array.
 	 */
 	yjsAppend: (noteId: string, update: string, device: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_append", { noteId, update, device })),
+	/**  Append multiple Yjs binary updates in a single IPC call.  All updates are inserted inside one SQLite transaction. */
+	yjsAppendBatch: (noteIds: string[], updates: string[], devices: string[]) => typedError<number, AppError>(__TAURI_INVOKE("yjs_append_batch", { noteIds, updates, devices })),
 	/**
 	 *  Return every stored Yjs update for a note, oldest first.
 	 *  The caller replays them into a Y.Doc to reconstruct the current state.

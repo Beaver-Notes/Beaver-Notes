@@ -61,6 +61,8 @@ const commandAliases = {
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'sync:encryptPayload': 'sync_encrypt_payload',
   'sync:decryptPayload': 'sync_decrypt_payload',
+  'sync:encryptBatch': 'sync_encrypt_batch',
+  'sync:decryptBatch': 'sync_decrypt_batch',
   'sync:keyReady': 'sync_key_ready',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
   'encryption:adoptKeyParams': 'encryption_adopt_key_params',
@@ -107,6 +109,7 @@ const commandAliases = {
   'app-icon:reset': 'reset',
   'pdf:render': 'render_pdf',
   'yjs:append': 'yjs_append',
+  'yjs:appendBatch': 'yjs_append_batch',
   'yjs:getUpdates': 'yjs_get_updates',
   'yjs:getSnapshot': 'yjs_get_snapshot',
   'yjs:getSnapshots': 'yjs_get_snapshots',
@@ -314,6 +317,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('noteId', payload?.noteId),
         ...withKeyVariants('update', normalizeBinaryData(payload?.update)),
         ...withKeyVariants('device', payload?.device ?? ''),
+      };
+    case 'yjs:appendBatch':
+      return {
+        ...withKeyVariants('noteIds', payload?.noteIds),
+        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeBinaryData(u)) : [],
+        ...withKeyVariants('devices', payload?.devices ?? []),
       };
     case 'yjs:getUpdates':
       return withKeyVariants('noteId', payload);

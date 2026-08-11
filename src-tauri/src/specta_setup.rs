@@ -79,6 +79,8 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::encryption_decrypt_note_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_encrypt_payload)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_decrypt_payload)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::sync_encrypt_batch)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::sync_decrypt_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::sync_key_ready)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::encryption_reconcile_key_params)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::encryption_adopt_key_params)(&mut types),
@@ -115,6 +117,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::pdf::render_pdf)(&mut types),
                 // ── Yjs CRDT ─────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::yjs::yjs_append)(&mut types),
+                specta::_fn_datatype!(crate::commands::yjs::yjs_append_batch)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_get_updates)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_get_snapshot)(&mut types),
                 specta::_fn_datatype!(crate::commands::yjs::yjs_get_snapshots)(&mut types),

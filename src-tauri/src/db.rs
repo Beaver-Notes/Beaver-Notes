@@ -514,6 +514,39 @@ pub(crate) fn yjs_compact_batch(
     Ok(())
 }
 
+/// Append multiple Yjs binary updates for different notes in a single SQLite
+/// transaction. Each entry in the parallel arrays is inserted into `note_content`.
+/// Returns the number of rows inserted.
+pub(crate) fn yjs_append_batch(
+    pool: &DbPool,
+    note_ids: &[String],
+    updates: &[Vec<u8>],
+    devices: &[String],
+) -> Result<usize, AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_append_batch");
+    let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
+    {
+        let mut stmt = tx
+            .prepare(
+                "INSERT INTO note_content (note_id, data, device, created_at) VALUES (?1, ?2, ?3, ?4)",
+            )
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        let now = chrono::Utc::now().timestamp_millis();
+        for i in 0..note_ids.len() {
+            stmt.execute(rusqlite::params![
+                note_ids[i],
+                updates[i],
+                devices[i],
+                now,
+            ])
+            .map_err(|e| AppError::Other(e.to_string()))?;
+        }
+    }
+    tx.commit().map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(updates.len())
+}
+
 /// Delete all Yjs updates for a note. Called when the note itself is deleted.
 pub(crate) fn yjs_delete(pool: &DbPool, note_id: &str) -> Result<(), AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;

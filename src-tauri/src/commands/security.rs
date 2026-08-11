@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, State};
 
+use rayon::prelude::*;
 use crate::shared::{RawJson, *};
 use rand::RngCore;
 
@@ -530,6 +531,102 @@ pub(crate) fn sync_decrypt_payload(
     } else {
         Err(AppError::Other(format!("Unsupported envelope version: {}", v)))
     }
+}
+
+/// Batch-decrypt a list of sync payloads in parallel. Each envelope is
+/// decrypted independently; failed items produce `None` in the result vec
+/// instead of aborting the whole batch.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_decrypt_batch(
+    _app: AppHandle,
+    state: State<AppState>,
+    envelopes: Vec<String>,
+    aads: Vec<String>,
+) -> Result<Vec<Option<SyncDecryptedPayload>>, AppError> {
+    let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
+    let key = current_app_key(state.inner())?
+        .ok_or_else(|| AppError::Other("KEY_LOCKED".into()))?;
+
+    let results: Vec<Option<SyncDecryptedPayload>> = envelopes
+        .par_iter()
+        .zip(aads.par_iter())
+        .map(|(enc, aad)| {
+            let envelope: Value = serde_json::from_str(enc).ok()?;
+            let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
+            let iv = envelope.get("iv").and_then(Value::as_str).unwrap_or_default();
+            let enc_str = envelope.get("enc").and_then(Value::as_str).unwrap_or_default();
+
+            if v == SYNC_PAYLOAD_VERSION {
+                let bytes = aead_decrypt_bytes(&key, iv, enc_str, aad).ok()?;
+                let meta: SyncMeta = serde_json::from_value(
+                    envelope.get("meta").cloned().unwrap_or(Value::Null),
+                )
+                .ok()?;
+                Some(SyncDecryptedPayload {
+                    meta,
+                    update: BASE64.encode(bytes),
+                })
+            } else if v == PROTOCOL_VERSION {
+                let legacy = SyncEnvelope { v, iv: iv.to_string(), enc: enc_str.to_string() };
+                let value = aead_decrypt_json(&key, &legacy, aad).ok()?;
+                let meta: SyncMeta = serde_json::from_value(value.clone()).ok()?;
+                let update_arr = value
+                    .get("update")
+                    .and_then(Value::as_array)
+                    .cloned()
+                    .unwrap_or_default();
+                let bytes: Vec<u8> = update_arr
+                    .iter()
+                    .filter_map(|n| n.as_u64().map(|u| u as u8))
+                    .collect();
+                Some(SyncDecryptedPayload {
+                    meta,
+                    update: BASE64.encode(bytes),
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    Ok(results)
+}
+
+/// Batch-encrypt a list of sync payloads in parallel. All items must succeed;
+/// if any encryption fails the whole batch returns an error.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn sync_encrypt_batch(
+    _app: AppHandle,
+    state: State<AppState>,
+    metas: Vec<String>,
+    data_b64s: Vec<String>,
+    aads: Vec<String>,
+) -> Result<Vec<String>, AppError> {
+    let _t = crate::shared::speed_log::scope("security.sync_encrypt_batch");
+    let key = current_app_key(state.inner())?
+        .ok_or_else(|| AppError::Other("Encryption is enabled but locked.".into()))?;
+
+    let results: Result<Vec<String>, AppError> = metas
+        .par_iter()
+        .zip(data_b64s.par_iter())
+        .zip(aads.par_iter())
+        .map(|((meta, data), aad)| {
+            let bytes = BASE64.decode(data)?;
+            let (iv, enc) = aead_encrypt_bytes(&key, &bytes, aad)?;
+            let meta: SyncMeta = serde_json::from_str(meta)?;
+            let envelope = serde_json::json!({
+                "v": SYNC_PAYLOAD_VERSION,
+                "meta": serde_json::to_value(&meta)?,
+                "iv": iv,
+                "enc": enc,
+            });
+            Ok(serde_json::to_string(&envelope)?)
+        })
+        .collect();
+
+    results
 }
 
 #[tauri::command]
