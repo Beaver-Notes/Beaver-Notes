@@ -325,16 +325,21 @@ export function startRustImport(source, onProgress) {
 }
 
 export async function htmlToTiptap(html, noteId, _appDirectory, options = {}) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(
-    sanitizeImportedHtml(html, { allowRelative: true }),
-    'text/html'
-  );
+  const resources = options.resources || [];
+  const resourceMap =
+    resources.length > 0
+      ? new Map(resources.map((r) => [r.hash, r]))
+      : resources;
+
+  const doc =
+    html instanceof Document
+      ? html
+      : sanitizeImportedHtml(html, { allowRelative: true });
   const content = flattenNodes(
     (
       await Promise.all(
         Array.from(doc.body.childNodes || []).map((node) =>
-          convertHtmlNodeToTiptap(node, noteId, options.resources || [])
+          convertHtmlNodeToTiptap(node, noteId, resourceMap)
         )
       )
     ).filter(Boolean)
@@ -368,7 +373,7 @@ export async function importObsidian(
   for (const filePath of files) {
     try {
       const markdown = await readFile(filePath);
-      const { meta } = parseFrontmatter(markdown);
+      const { meta, body } = parseFrontmatter(markdown);
       const fallbackTitle = stripExtension(path.basename(filePath));
       const title = meta.title || fallbackTitle || 'Untitled';
       const assetDir = path.join(path.dirname(filePath), title);
@@ -384,6 +389,8 @@ export async function importObsidian(
         onProgress,
         done: done + 1,
         total: files.length,
+        rawMarkdown: markdown,
+        parsedMeta: { meta, body },
       });
       imported += 1;
     } catch (error) {

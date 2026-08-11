@@ -251,5 +251,5 @@ export function sanitizeImportedHtml(html, options = {}) {
     }
   });
 
-  return doc.body.innerHTML;
+  return doc;
 }

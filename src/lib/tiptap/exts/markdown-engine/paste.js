@@ -48,8 +48,8 @@ export const Paste = Extension.create({
 
               if (html) {
                 event.preventDefault();
-                const container = document.createElement('div');
-                container.innerHTML = sanitizeImportedHtml(html);
+                const doc = sanitizeImportedHtml(html);
+                const container = doc.body;
 
                 container.querySelectorAll('a').forEach((link) => {
                   link.querySelectorAll('span').forEach((span) => {

@@ -13,12 +13,6 @@ import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
 import mime from 'mime';
 
-function normalizeFolderCollection(folderStore) {
-  return Array.isArray(folderStore?.data)
-    ? folderStore.data
-    : Object.values(folderStore?.data || {});
-}
-
 function parseScalarValue(value) {
   const trimmed = String(value || '').trim();
   if (!trimmed) return '';
@@ -252,9 +246,11 @@ export async function importMarkdownFile({
   total,
   folderPartsTransform = (parts) => parts,
   titleTransform = (value) => value,
+  rawMarkdown,
+  parsedMeta,
 }) {
-  const rawMarkdown = await readFile(filePath);
-  const { meta, body } = parseFrontmatter(rawMarkdown);
+  const raw = rawMarkdown ?? (await readFile(filePath));
+  const { meta, body } = parsedMeta ?? parseFrontmatter(raw);
   const id = uuidv4();
   const fileName = path.basename(filePath);
   const derivedTitle = titleTransform(stripExtension(fileName));
@@ -345,7 +341,10 @@ export function resolveRelativeAssetValue(value, noteId, resources = []) {
 
   if (source.startsWith('resource://')) {
     const hash = source.replace('resource://', '');
-    const match = resources.find((resource) => resource.hash === hash);
+    const match =
+      resources instanceof Map
+        ? resources.get(hash)
+        : resources.find((resource) => resource.hash === hash);
     return match ? `assets://${noteId}/${match.filename}` : source;
   }
 
@@ -367,7 +366,10 @@ export function resolveRelativeFileValue(value, noteId, resources = []) {
 
   if (source.startsWith('resource://')) {
     const hash = source.replace('resource://', '');
-    const match = resources.find((resource) => resource.hash === hash);
+    const match =
+      resources instanceof Map
+        ? resources.get(hash)
+        : resources.find((resource) => resource.hash === hash);
     return match ? `assets://${noteId}/${match.filename}` : source;
   }
 
@@ -453,25 +455,23 @@ export async function getOrCreateFolder(
 ) {
   const normalizedName = String(name || '').trim();
   const normalizedParentId = parentId || null;
-  const existing = normalizeFolderCollection(folderStore).find(
-    (folder) =>
-      folder?.name === normalizedName &&
-      (folder?.parentId || null) === normalizedParentId
+
+  const { createdIds } = await folderStore.createFolderPath(
+    [normalizedName],
+    normalizedParentId
   );
 
-  if (existing) return existing.id;
+  for (const id of createdIds) {
+    createdFolderIds?.add(id);
+  }
 
-  const id = uuidv4();
-  await folderStore.add({
-    id,
-    name: normalizedName,
-    parentId: normalizedParentId,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
+  const childIds =
+    folderStore._index.get(normalizedParentId) ?? new Set();
+  for (const cid of childIds) {
+    if (folderStore.data[cid]?.name === normalizedName) return cid;
+  }
 
-  createdFolderIds?.add(id);
-  return id;
+  throw new Error(`Failed to find or create folder: ${normalizedName}`);
 }
 
 export async function buildFolderIdFromPath(
@@ -479,18 +479,19 @@ export async function buildFolderIdFromPath(
   folderStore,
   createdFolderIds = null
 ) {
-  let parentId = null;
+  const normalizedParts = (parts || [])
+    .map((raw) => String(raw || '').trim())
+    .filter(Boolean);
 
-  for (const rawPart of parts || []) {
-    const part = String(rawPart || '').trim();
-    if (!part) continue;
-    parentId = await getOrCreateFolder(
-      part,
-      parentId,
-      folderStore,
-      createdFolderIds
-    );
+  if (normalizedParts.length === 0) return null;
+
+  const { folders, createdIds } = await folderStore.createFolderPath(
+    normalizedParts
+  );
+
+  for (const id of createdIds) {
+    createdFolderIds?.add(id);
   }
 
-  return parentId;
+  return folders[folders.length - 1]?.id ?? null;
 }

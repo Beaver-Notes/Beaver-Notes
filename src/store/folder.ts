@@ -421,33 +421,37 @@ export const useFolderStore = defineStore('folder', {
       return toDelete;
     },
 
-    async createFolderPath(pathArray: string[], parentId: string | null = null): Promise<FolderData[]> {
+    async createFolderPath(
+      pathArray: string[],
+      parentId: string | null = null
+    ): Promise<{ folders: FolderData[]; createdIds: Set<string> }> {
       let currentParentId = parentId;
       const createdFolders: FolderData[] = [];
+      const createdIds = new Set<string>();
 
       for (const folderName of pathArray) {
-        // O(1) via index instead of Object.values().find()
         const childIds = this._index.get(currentParentId ?? null) ?? new Set();
-        let existingFolder: FolderData | undefined;
+        let folder: FolderData | undefined;
         for (const cid of childIds) {
           if (this.data[cid]?.name === folderName) {
-            existingFolder = this.data[cid];
+            folder = this.data[cid];
             break;
           }
         }
 
-        if (!existingFolder) {
-          existingFolder = await this.add({
+        if (!folder) {
+          folder = await this.add({
             name: folderName,
             parentId: currentParentId,
           });
+          createdIds.add(folder.id);
         }
 
-        createdFolders.push(existingFolder);
-        currentParentId = existingFolder.id;
+        createdFolders.push(folder);
+        currentParentId = folder.id;
       }
 
-      return createdFolders;
+      return { folders: createdFolders, createdIds };
     },
 
     async getFolderStats(folderId: string): Promise<{ subfolderCount: number; depth: number; hasChildren: boolean }> {
