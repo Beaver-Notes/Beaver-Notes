@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 import { nanoid } from 'nanoid';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
@@ -70,11 +71,20 @@ const indexSignature: Map<string, string> = new Map();
 
 // ── Incremental folder counts ──
 // Maintained by add/delete/patchLocal to avoid O(n) rebuild on every getter access.
+// `folderCountsVersion` is the reactive dep so the `notesCountByFolder` getter
+// (Pinia caches getters) invalidates when a count changes — otherwise it would
+// return the first Map forever and folder cards would show 0 items.
 const folderCounts: Map<string | null, number> = new Map();
+const folderCountsVersion = ref(0);
+
+function bumpFolderCounts() {
+  folderCountsVersion.value++;
+}
 
 function incrementFolderCount(folderId: string | null) {
   const key = folderId ?? null;
   folderCounts.set(key, (folderCounts.get(key) || 0) + 1);
+  bumpFolderCounts();
 }
 
 function decrementFolderCount(folderId: string | null) {
@@ -85,6 +95,7 @@ function decrementFolderCount(folderId: string | null) {
   } else {
     folderCounts.set(key, count - 1);
   }
+  bumpFolderCounts();
 }
 
 function initFolderCounts(data: Record<string, NoteData>) {
@@ -93,6 +104,7 @@ function initFolderCounts(data: Record<string, NoteData>) {
     if (!note?.id) continue;
     incrementFolderCount(note.folderId);
   }
+  bumpFolderCounts();
 }
 
 // ── search (from search.js) ──
@@ -129,6 +141,9 @@ export function getNotesCountByFolder(state: NoteState) {
  * Avoids O(n) rebuild on every store mutation.
  */
 export function notesCountByFolder(_state: NoteState): Map<string | null, number> {
+  // Reading the reactive version counter makes this getter re-evaluate whenever
+  // a count changes, so it returns a fresh Map (never a stale cached one).
+  void folderCountsVersion.value;
   return new Map(folderCounts);
 }
 

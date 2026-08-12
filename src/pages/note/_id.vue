@@ -438,8 +438,10 @@ export default {
       const text = event.target.textContent || '';
       yjsSetTitle(text);
       autoResizeTitle();
-      // The Yjs title observer (below) writes the title back to the store —
-      // updating it here too persisted twice per keystroke.
+      // Keep the store title current immediately. Relying on the Yjs observer
+      // alone left a window where the workspace-doc round-trip reset the
+      // contenteditable title mid-typing (caret jump).
+      return updateNote(id.value, { title: text });
     }, 150);
 
     function handleContentUpdate(content) {
