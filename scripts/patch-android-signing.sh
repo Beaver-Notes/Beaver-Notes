@@ -18,11 +18,11 @@ perl -i -pe '
             val keystoreProperties = Properties()
             if (keystorePropertiesFile.exists()) {
                 keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+                storeFile = keystoreProperties.getProperty("storeFile")?.let { file(it) }
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
             }
-            storeFile = file(keystoreProperties["storeFile"] as? String ?: return@create)
-            storePassword = keystoreProperties["storePassword"] as? String ?: return@create
-            keyAlias = keystoreProperties["keyAlias"] as? String ?: return@create
-            keyPassword = keystoreProperties["keyPassword"] as? String ?: return@create
         }
     }
 
