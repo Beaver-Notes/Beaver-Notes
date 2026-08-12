@@ -268,10 +268,43 @@ const visibleItems = computed(() => {
   const lo = local - over;
   const hi = local + viewportHeight.value + over;
 
-  return items.filter((item) => {
-    const h = cardHeights.get(item.note.id) ?? item.h;
-    return item.y + h > lo && item.y < hi;
-  });
+  // Items are packed round-robin (item i sits in column i % cols) and each
+  // column's y position is strictly increasing, so the visible range per
+  // column can be found with binary search — O(cols · log n) per frame
+  // instead of scanning every note.
+  const cols = columnCount.value;
+  const result = [];
+  for (let col = 0; col < cols && col < items.length; col++) {
+    const count = Math.ceil((items.length - col) / cols);
+
+    // First item whose bottom crosses the top of the viewport (y + h > lo).
+    let a = 0;
+    let b = count;
+    while (a < b) {
+      const mid = (a + b) >> 1;
+      const it = items[col + mid * cols];
+      const h = cardHeights.get(it.note.id) ?? it.h;
+      if (it.y + h > lo) b = mid;
+      else a = mid + 1;
+    }
+    const startIdx = a;
+
+    // First item whose top is past the bottom of the viewport (y >= hi).
+    a = 0;
+    b = count;
+    while (a < b) {
+      const mid = (a + b) >> 1;
+      const it = items[col + mid * cols];
+      if (it.y >= hi) b = mid;
+      else a = mid + 1;
+    }
+    const endIdx = a;
+
+    for (let k = startIdx; k < endIdx; k++) {
+      result.push(items[col + k * cols]);
+    }
+  }
+  return result;
 });
 
 const skeletonCount = computed(() => columnCount.value * 3);
