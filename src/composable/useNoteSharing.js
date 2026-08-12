@@ -176,6 +176,11 @@ export function useNoteSharing() {
   }
 
   async function fetchLinks(noteId) {
+    // No account → no links to fetch; never hit the network signed out.
+    if (!accountStore.isAuthenticated) {
+      inviteLinks.value = [];
+      return;
+    }
     linkLoading.value = true;
     try {
       inviteLinks.value = await apiListLinks(noteId, { baseUrl: activeBaseUrl() });
@@ -185,6 +190,7 @@ export function useNoteSharing() {
   }
 
   async function generateLink(noteId, options = {}) {
+    if (!accountStore.isAuthenticated) throw new Error('Not authenticated');
     const result = await apiGenerateLink(noteId, {
       role: options.role || 'editor',
       requireApproval: options.requireApproval || false,
@@ -196,6 +202,7 @@ export function useNoteSharing() {
   }
 
   async function revokeLink(noteId, linkId) {
+    if (!accountStore.isAuthenticated) throw new Error('Not authenticated');
     await apiRevokeLink(noteId, linkId, { baseUrl: activeBaseUrl() });
     inviteLinks.value = inviteLinks.value.filter((l) => l.id !== linkId);
   }

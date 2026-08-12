@@ -48,14 +48,18 @@ export async function initAppSync() {
 
   const engine = getSyncEngine();
 
-  // Nothing is configured (no sync folder, folder-only transport) — the engine
-  // stays inert. `_runCycle` skips anyway, but we also skip the initial pull
-  // and the 30s timer so unconfigured installs never pay for them. Once a
-  // folder is chosen (or cloud is enabled) `initAppSync` runs again via
-  // useAppShell / settings, or cycles get triggered manually.
+  // Nothing usable is configured — no sync folder, and no authenticated cloud
+  // account — so the engine stays inert. `_runCycle` skips anyway, but we also
+  // skip the initial pull and the 30s timer so unconfigured installs never pay
+  // for them. Once a folder is chosen (or the user signs in and enables cloud)
+  // the engine cycles get triggered on demand / via useAppShell.
   const syncPath = await getSyncPath();
   const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
-  if (!syncPath && transport === SYNC_TRANSPORT.FOLDER) {
+  const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;
+  const accountStore = useAccountStore();
+  const hasSyncTarget =
+    Boolean(syncPath) || (wantsCloud && accountStore.isAuthenticated);
+  if (!hasSyncTarget) {
     return engine;
   }
 
