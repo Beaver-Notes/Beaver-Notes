@@ -352,17 +352,16 @@ export default {
         }
 
         if (isMatch && labelFilter) {
-          const noteCard = {
-            ...note,
-            content: noteSearchText(note),
-          };
-
-          if (isArchived) return filteredNotes.archived.push(noteCard);
+          // Push the original note reference. The card renders `cardPreview`,
+          // never `content`, and copying the note here re-created every object
+          // on each keystroke/sort, churning props down into the masonry and
+          // forcing a full relayout of all visible cards.
+          if (isArchived) return filteredNotes.archived.push(note);
 
           if (isBookmarked) {
-            filteredNotes.bookmarked.push(noteCard);
+            filteredNotes.bookmarked.push(note);
           } else {
-            filteredNotes.all.push(noteCard);
+            filteredNotes.all.push(note);
           }
         }
       });

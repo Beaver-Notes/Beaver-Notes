@@ -88,7 +88,9 @@ const { translations } = useTranslations();
 const isExpanded = ref(true);
 
 const children = computed(() =>
-  folderStore.validFolders.filter((f) => f.parentId === props.folder.id)
+  folderStore
+    .getByParent(props.folder.id)
+    .filter((f) => !folderStore.deletedIds[f.id])
 );
 
 const isSelected = computed(() => props.selectedId === props.folder.id);

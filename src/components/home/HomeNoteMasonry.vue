@@ -10,8 +10,14 @@
       class="note-masonry__measure"
       aria-hidden="true"
     >
+      <!-- Windowed probe: only the first viewport's worth of real cards are
+           mounted to measure heights. Previously ALL notes were mounted as
+           full HomeNoteCards here, which meant tens of thousands of card
+           components + ResizeObservers on large collections. Cards below the
+           probe window get their heights lazily via the stage per-card
+           ResizeObserver after isReady. -->
       <div
-        v-for="note in notes"
+        v-for="note in probeNotes"
         :key="`measure-${note.id}`"
         :ref="setMeasureRef(note.id)"
         class="note-masonry__measure-item"
@@ -270,6 +276,13 @@ const visibleItems = computed(() => {
 
 const skeletonCount = computed(() => columnCount.value * 3);
 
+// How many real cards are mounted during the measure phase. Covers the initial
+// viewport plus overscan; everything below gets height-corrected lazily once
+// the stage renders it.
+const PROBE_ROWS = 8;
+const probeCount = computed(() => columnCount.value * PROBE_ROWS);
+const probeNotes = computed(() => props.notes.slice(0, probeCount.value));
+
 const onScroll = () => {
   if (scrollRaf) return;
   scrollRaf = requestAnimationFrame(() => {
@@ -405,7 +418,12 @@ function onMeasureObserved(entries) {
     }
   }
   if (changed) measuredVersion.value++;
-  if (props.notes.length > 0 && measuredIds.size >= props.notes.length) {
+  if (props.notes.length === 0) {
+    finishMeasurement();
+  } else if (
+    probeNotes.value.length > 0 &&
+    measuredIds.size >= probeNotes.value.length
+  ) {
     finishMeasurement();
   }
 }
