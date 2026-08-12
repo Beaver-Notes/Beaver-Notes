@@ -520,7 +520,15 @@ export function useOnboardingFlow({
         await runOnboardingMigration();
       }
 
-      // One-time batch migration: move existing note content from KV → Yjs
+      // The legacy Electron migration writes KV directly. Convert it to Yjs at
+      // import time: seed the workspace Y.Doc from KV metadata (so the stores
+      // hydrate), then move note content from KV into each note's Yjs doc.
+      state.migrationStatus = 'Migrating workspace…';
+      const { loadWorkspaceDoc } = await import('@/composable/useWorkspaceYjs.js');
+      const { seedWorkspaceDocFromKv } = await import('@/composable/meta-yjs-store.js');
+      await loadWorkspaceDoc();
+      await seedWorkspaceDocFromKv();
+
       state.migrationStatus = 'Migrating note content…';
       const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
       await migrateNotesContent();

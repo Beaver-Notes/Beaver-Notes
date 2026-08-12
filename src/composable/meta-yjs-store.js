@@ -5,6 +5,7 @@
 
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
+import { useStorage } from '@/composable/storage';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
@@ -18,6 +19,8 @@ import {
   mergeNoteEntry,
   diffRemovedNoteIds,
 } from './meta-yjs-merge.js';
+
+const storage = useStorage();
 
 function buildNotePreviewFromContent(merged, content) {
   return buildNotePreview({
@@ -160,6 +163,50 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
     }
   }
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
+}
+
+/**
+ * Import-only: populate the workspace Y.Doc from KV data written by the legacy
+ * Electron migration. The Rust import writes KV directly; this is the on-import
+ * conversion that makes the Y.Doc (and therefore the stores, via
+ * `writeStoresFromWorkspace`) the source of truth. Runs once, only during
+ * onboarding import — never in the runtime.
+ */
+export async function seedWorkspaceDocFromKv() {
+  const doc = getWorkspaceDoc();
+  const [kvNotes, kvLabels, kvColors, kvFolders] = await Promise.all([
+    storage.get('notes', {}),
+    storage.get('labels', []),
+    storage.get('labelColors', {}),
+    storage.get('folders', {}),
+  ]);
+
+  const yNotes = doc.getMap('notes');
+  const yFolders = doc.getMap('folders');
+  const yLabels = doc.getArray('labels');
+  const yLabelColors = doc.getMap('labelColors');
+
+  doc.transact(() => {
+    for (const [id, note] of Object.entries(kvNotes)) {
+      if (yNotes.has(id)) continue;
+      const yNote = new Y.Map();
+      const { content: _c, ...meta } = note;
+      for (const [k, v] of Object.entries(meta)) yNote.set(k, v);
+      yNotes.set(id, yNote);
+    }
+    for (const [id, folder] of Object.entries(kvFolders)) {
+      if (yFolders.has(id)) continue;
+      const yFolder = new Y.Map();
+      for (const [k, v] of Object.entries(folder)) yFolder.set(k, v);
+      yFolders.set(id, yFolder);
+    }
+    for (const name of kvLabels) {
+      if (!yLabels.toArray().includes(name)) yLabels.push([name]);
+    }
+    for (const [k, v] of Object.entries(kvColors)) {
+      if (!yLabelColors.has(k)) yLabelColors.set(k, v);
+    }
+  }, 'seed');
 }
 
 /**

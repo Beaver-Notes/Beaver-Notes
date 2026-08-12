@@ -6,9 +6,13 @@ const { folderStoreMock, labelStoreMock, noteStoreMock, docHolder, storageGet } 
   const labelStoreMock = { data: [], colors: {} };
   const noteStoreMock = { data: {}, deletedIds: {} };
   const docHolder = { doc: null };
-  const storageGet = vi.fn((key) =>
-    Promise.resolve(key === 'labels' ? [] : {})
-  );
+  const storageGet = vi.fn((key) => {
+    if (key === 'labels') return Promise.resolve([]);
+    if (key === 'notes') return Promise.resolve({});
+    if (key === 'folders') return Promise.resolve({});
+    if (key === 'labelColors') return Promise.resolve({});
+    return Promise.resolve({});
+  });
   return { folderStoreMock, labelStoreMock, noteStoreMock, docHolder, storageGet };
 });
 
@@ -24,7 +28,7 @@ vi.mock('@/store/note', () => ({ useNoteStore: () => noteStoreMock }));
 vi.mock('@/store/note/index', () => ({ saveNote: vi.fn() }));
 vi.mock('../meta-yjs-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc }));
 
-import { writeStoresFromWorkspace } from '../meta-yjs-store.js';
+import { writeStoresFromWorkspace, seedWorkspaceDocFromKv } from '../meta-yjs-store.js';
 
 function seedDoc() {
   const doc = new Y.Doc();
@@ -145,5 +149,58 @@ describe('writeStoresFromWorkspace incremental folder/label rebuilds', () => {
 
     expect(labelStoreMock.data).toEqual(['alpha', 'beta', 'gamma']);
     expect(folderStoreMock.data).toBe(folderDataRef);
+  });
+});
+
+describe('seedWorkspaceDocFromKv (import-time conversion)', () => {
+  beforeEach(() => {
+    storageGet.mockImplementation((key) => {
+      if (key === 'notes') {
+        return Promise.resolve({
+          'imported-1': {
+            id: 'imported-1',
+            title: 'Imported note',
+            folderId: 'folder-imported',
+            labels: ['alpha'],
+            content: { type: 'doc', content: [] },
+          },
+        });
+      }
+      if (key === 'folders') {
+        return Promise.resolve({
+          'folder-imported': { id: 'folder-imported', name: 'Imported folder' },
+        });
+      }
+      if (key === 'labels') return Promise.resolve(['alpha', 'beta']);
+      if (key === 'labelColors') return Promise.resolve({ alpha: '#111' });
+      return Promise.resolve({});
+    });
+  });
+
+  it('writes imported KV metadata into the workspace doc (without content)', async () => {
+    docHolder.doc = new Y.Doc();
+    await seedWorkspaceDocFromKv();
+
+    const doc = docHolder.doc;
+    const yNote = doc.getMap('notes').get('imported-1');
+    expect(yNote).toBeDefined();
+    expect(yNote.get('title')).toBe('Imported note');
+    expect(yNote.has('content')).toBe(false);
+
+    expect(doc.getMap('folders').get('folder-imported').get('name')).toBe(
+      'Imported folder'
+    );
+    expect(doc.getArray('labels').toArray()).toEqual(['alpha', 'beta']);
+    expect(doc.getMap('labelColors').get('alpha')).toBe('#111');
+  });
+
+  it('does not overwrite entries already in the workspace doc', async () => {
+    seedDoc();
+    await seedWorkspaceDocFromKv();
+
+    const doc = docHolder.doc;
+    expect(doc.getMap('notes').get('imported-1')).toBeDefined();
+    // Pre-seeded folder keeps its name (not overwritten by KV).
+    expect(doc.getMap('folders').get('folder-1').get('name')).toBe('Work');
   });
 });
