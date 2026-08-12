@@ -43,6 +43,7 @@ const commandAliases = {
   'storage:set': 'storage_set',
   'storage:delete': 'storage_delete',
   'storage:has': 'storage_has',
+  'storage:reencryptLegacyRows': 'storage_reencrypt_legacy_rows',
   'safeStorage:isEncryptionAvailable': 'safe_storage_is_available',
   'safeStorage:encryptString': 'safe_storage_encrypt',
   'safeStorage:decryptString': 'safe_storage_decrypt',

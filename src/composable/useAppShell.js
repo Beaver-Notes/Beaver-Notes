@@ -499,6 +499,13 @@ export function useAppShell(onboardingCompleted = true) {
     // must NOT read from KV.
     await store.retrieve();
     performance.mark('init:retrieve');
+
+    // One-time whole-row re-encryption of legacy migration rows (which left
+    // note titles and folder metadata as plaintext JSON on disk). Idempotent.
+    backend.invoke('storage:reencryptLegacyRows').catch((err) => {
+      console.warn('[app] legacy row re-encryption failed:', err);
+    });
+
     await refreshSyncLockBanner();
 
     // One-time deferred backfill of card previews for notes that predate the

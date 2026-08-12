@@ -115,7 +115,7 @@ pub(crate) fn storage_aad(row_key: &str) -> String {
     format!("beaver-notes:data-store:{row_key}")
 }
 
-fn encrypt_store_row_with_key(
+pub(crate) fn encrypt_store_row_with_key(
     row_key: &str,
     value: Value,
     key: &[u8; 32],
@@ -250,6 +250,32 @@ fn decrypt_store_row_with_key(
 // The async commands extract owned key material (`app_key`, `key_id`) and the
 // connection pool up front, then dispatch these workers to a blocking thread so
 // SQLite I/O and per-row AES never block the Tauri event loop.
+
+/// One-time pass: whole-row-encrypt legacy `notes.*` / `folders.*` rows that
+/// the migration wrote with only their note content encrypted (or not at all),
+/// leaving titles and folder metadata as plaintext JSON on disk. Idempotent —
+/// rows that already decrypt as whole-row envelopes are skipped, and the read
+/// path handles mixed plaintext/encrypted rows transparently, so a partial pass
+/// is safe.
+pub(crate) fn reencrypt_legacy_store_rows(
+    pool: crate::db::DbPool,
+    key: [u8; 32],
+    key_id: String,
+) -> Result<usize, AppError> {
+    let mut count = 0;
+    for (row_key, value) in crate::db::db_all(&pool)? {
+        if !row_key.starts_with("notes.") && !row_key.starts_with("folders.") {
+            continue;
+        }
+        if decrypt_json_from_storage(&key, &value, &storage_aad(&row_key))?.is_some() {
+            continue;
+        }
+        let encrypted = encrypt_store_row_with_key(&row_key, value, &key, &key_id)?;
+        crate::db::db_set(&pool, &row_key, &serde_json::to_string(&encrypted)?)?;
+        count += 1;
+    }
+    Ok(count)
+}
 
 fn storage_get_value(
     pool: crate::db::DbPool,
@@ -554,6 +580,31 @@ pub(crate) async fn storage_get(
     Ok(value.into())
 }
 
+/// Whole-row-encrypt legacy `notes.*` / `folders.*` rows left plaintext by the
+/// migration. Idempotent; call after the app key is loaded.
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn storage_reencrypt_legacy_rows(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<usize, AppError> {
+    let pool = pick_pool(DATA_STORE, &app, &state)?;
+    let app_key = current_app_key(state.inner())?
+        .ok_or_else(|| AppError::Other("App encryption is locked.".into()))?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
+
+    tokio::task::spawn_blocking(move || reencrypt_legacy_store_rows(pool, app_key, key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
+}
+
 /// Sets a single value by dot-separated key.
 /// For flat-addressable keys this is a single INSERT OR REPLACE; otherwise it
 /// falls back to the load-modify-rewrite path.
@@ -755,5 +806,55 @@ mod tests {
         let decrypted =
             decrypt_store_row_with_key("notes.note-2", encrypted, &app_key).expect("dec");
         assert_eq!(decrypted, value);
+    }
+
+    #[test]
+    fn reencrypt_legacy_rows_encrypts_plaintext_metadata_and_is_idempotent() {
+        let root = unique_temp_dir("beaver-notes-reencrypt");
+        let _ = fs::create_dir_all(&root);
+        let db_path = root.join("data.db");
+        let pool = crate::db::open_pool(&db_path).expect("pool");
+
+        // Legacy migration shape: note content encrypted inline, metadata (and
+        // the whole folder row) plaintext.
+        let mut plain = Map::new();
+        plain.insert(
+            "notes.note-1".to_string(),
+            json!({"id": "note-1", "title": "Secret title", "folderId": "f1"}),
+        );
+        plain.insert(
+            "folders.f1".to_string(),
+            json!({"id": "f1", "name": "Private"}),
+        );
+        crate::db::db_replace_all(&pool, plain).expect("seed");
+
+        let key = [9u8; 32];
+        let key_id = "kid3";
+
+        let count = reencrypt_legacy_store_rows(pool.clone(), key, key_id.to_string())
+            .expect("reencrypt");
+        assert_eq!(count, 2);
+
+        let raw = crate::db::db_all(&pool).expect("raw");
+        for row_key in ["notes.note-1", "folders.f1"] {
+            let row = raw.get(row_key).expect("row");
+            assert_eq!(
+                row.as_object().and_then(|o| o.get("ae")).and_then(Value::as_u64),
+                Some(4),
+                "{row_key} should be whole-row encrypted"
+            );
+            // The decrypted content is unchanged.
+            let decrypted = decrypt_json_from_storage(&key, row, &storage_aad(row_key))
+                .expect("decrypt")
+                .expect("envelope");
+            assert!(decrypted.get("title").is_some() || decrypted.get("name").is_some());
+        }
+
+        // Second pass is a no-op.
+        let second = reencrypt_legacy_store_rows(pool.clone(), key, key_id.to_string())
+            .expect("reencrypt 2");
+        assert_eq!(second, 0);
+
+        let _ = fs::remove_dir_all(&root);
     }
 }

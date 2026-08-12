@@ -33,7 +33,7 @@ use super::super::{
 
 pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
-pub(crate) const ARGON2_MEMORY_KIB: u32 = 16 * 1024;
+pub(crate) const ARGON2_MEMORY_KIB: u32 = 32 * 1024;
 pub(crate) const ARGON2_ITERATIONS: u32 = 2;
 pub(crate) const ARGON2_PARALLELISM: u32 = 2;
 pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 4;
@@ -1048,43 +1048,30 @@ pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
         .join("com.beavernotes.beaver-notes");
     let key_path = app_dir.join(MASTER_KEY_FILE);
 
-    if key_path.exists() {
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let perms = fs::metadata(&key_path)?.permissions();
-            if perms.mode() & 0o077 != 0 {
-                fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
-            }
-        }
-        let raw = fs::read_to_string(&key_path)?;
-        let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
-        if key_bytes.len() != 32 {
-            return Err(AppError::Crypto(
-                "Invalid file-based master key length".into(),
-            ));
-        }
-        return Ok(key_bytes);
+    if !key_path.exists() {
+        // Fail closed: never mint a fresh plaintext master key next to the
+        // data when the OS keychain is unavailable.
+        return Err(AppError::Other(
+            "OS keychain unavailable and no existing master key file found.".into(),
+        ));
     }
 
-    let mut key = vec![0_u8; 32];
-    rand::thread_rng().fill_bytes(&mut key);
-    let encoded = BASE64.encode(&key);
-    if let Some(parent) = key_path.parent() {
-        fs::create_dir_all(parent)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
-        }
-    }
-    fs::write(&key_path, encoded)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
+        let perms = fs::metadata(&key_path)?.permissions();
+        if perms.mode() & 0o077 != 0 {
+            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
+        }
     }
-    Ok(key)
+    let raw = fs::read_to_string(&key_path)?;
+    let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
+    if key_bytes.len() != 32 {
+        return Err(AppError::Crypto(
+            "Invalid file-based master key length".into(),
+        ));
+    }
+    Ok(key_bytes)
 }
 
 pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {

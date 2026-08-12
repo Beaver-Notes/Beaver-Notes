@@ -5,9 +5,9 @@ mod characterization {
         aead_decrypt_bytes, aead_encrypt_bytes, derive_kek_argon2id,
     };
 
-    /// Characterization vector for argon2id key derivation. The expected bytes
-    /// were captured from the original `crypto.rs` before the module split and
-    /// must remain identical (no behavior change allowed).
+    /// Characterization vector for argon2id key derivation (Argon2id t=2,
+    /// m=32MiB, p=2). Bumping ARGON2_MEMORY_KIB changes this — update the vector
+    /// together with the constant.
     #[test]
     fn derive_kek_argon2id_known_vector() {
         let salt = [0x42u8; 16];
@@ -15,8 +15,8 @@ mod characterization {
         assert_eq!(
             key,
             [
-                161, 89, 29, 42, 191, 198, 18, 46, 235, 81, 99, 169, 119, 148, 147, 236, 183,
-                128, 71, 226, 177, 220, 46, 132, 194, 91, 45, 12, 140, 161, 99, 117
+                221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46,
+                214, 162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
             ]
         );
     }

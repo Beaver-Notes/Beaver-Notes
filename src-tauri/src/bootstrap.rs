@@ -253,17 +253,28 @@ fn import_json_file_into_pool(
         return Ok(false);
     };
     let encrypt = state.crypto.session.read()?.active;
+    let (app_key, key_id) = if encrypt {
+        let key = crate::shared::current_app_key(state)?.unwrap_or_default();
+        let key_id = state.crypto.session.read()?.current_items_key_id.clone();
+        (Some(key), key_id)
+    } else {
+        (None, String::new())
+    };
     for (key, value) in map {
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Some(items) = value.as_object() {
                 for (id, item) in items {
                     let flat_key = format!("{}.{}", key, id);
                     if !crate::db::db_has(pool, &flat_key)? {
-                        let row = if encrypt {
-                            crate::shared::encrypt_note_row_for_storage(
-                                state,
+                        let row = if let Some(key) = app_key {
+                            // Whole-row encrypt (title, folderId, folder metadata
+                            // included) rather than only the note content, so the
+                            // migration never leaves plaintext metadata on disk.
+                            crate::commands::storage::encrypt_store_row_with_key(
                                 &flat_key,
                                 item.clone(),
+                                &key,
+                                &key_id,
                             )?
                         } else {
                             item.clone()

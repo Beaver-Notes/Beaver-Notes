@@ -60,6 +60,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::storage::storage_delete)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_has)(&mut types),
                 specta::_fn_datatype!(crate::commands::storage::storage_clear)(&mut types),
+                specta::_fn_datatype!(crate::commands::storage::storage_reencrypt_legacy_rows)(&mut types),
                 // ── Encryption & security ────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::security::safe_storage_is_available)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::safe_storage_encrypt)(&mut types),
