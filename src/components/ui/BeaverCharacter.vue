@@ -44,7 +44,14 @@
           />
         </g>
         <g ref="eyeL">
-          <ellipse class="eye-normal" cx="1168.99" cy="1278.5" rx="127.5" ry="177.5" fill="#562001" />
+          <ellipse
+            class="eye-normal"
+            cx="1168.99"
+            cy="1278.5"
+            rx="127.5"
+            ry="177.5"
+            fill="#562001"
+          />
           <g class="eye-x" opacity="0">
             <path
               d="M1090 1200 L1250 1360 M1250 1200 L1090 1360"
@@ -64,7 +71,14 @@
           />
         </g>
         <g ref="eyeR">
-          <ellipse class="eye-normal" cx="2141.99" cy="1278.5" rx="127.5" ry="177.5" fill="#562001" />
+          <ellipse
+            class="eye-normal"
+            cx="2141.99"
+            cy="1278.5"
+            rx="127.5"
+            ry="177.5"
+            fill="#562001"
+          />
           <g class="eye-x" opacity="0">
             <path
               d="M2063 1200 L2223 1360 M2223 1200 L2063 1360"
@@ -84,10 +98,24 @@
           />
         </g>
         <g ref="ebL">
-          <rect x="1049.49" y="859.996" width="240" height="161" rx="80.5" fill="#B75C25" />
+          <rect
+            x="1049.49"
+            y="859.996"
+            width="240"
+            height="161"
+            rx="80.5"
+            fill="#B75C25"
+          />
         </g>
         <g ref="ebR">
-          <rect x="2014.49" y="859.996" width="240" height="161" rx="80.5" fill="#B75C25" />
+          <rect
+            x="2014.49"
+            y="859.996"
+            width="240"
+            height="161"
+            rx="80.5"
+            fill="#B75C25"
+          />
         </g>
         <g ref="toothL">
           <path
@@ -102,7 +130,14 @@
           />
         </g>
         <g ref="muzzle">
-          <rect x="1185.49" y="1623" width="990" height="320" rx="160" fill="#FAE5B8" />
+          <rect
+            x="1185.49"
+            y="1623"
+            width="990"
+            height="320"
+            rx="160"
+            fill="#FAE5B8"
+          />
         </g>
         <g ref="nose">
           <path
@@ -116,21 +151,14 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 export default {
   name: 'BeaverCharacter',
   props: {
-    /**
-     * Pose(s) to force, e.g. 'thinking' or ['greeting', 'thinking']. Multiple
-     * states blend (later states override per-parameter); the combination is
-     * held continuously (greeting keeps waving). Omit / null to run the
-     * ambient auto-cycle.
-     */
     state: { type: [String, Array], default: null },
-    /** Run the ambient idle/thinking/searching/writing/error/greeting cycle
-     *  when `state` is not set. */
     auto: { type: Boolean, default: true },
+    poses: { type: Array, default: null },
   },
   setup(props) {
     const rootEl = ref(null);
@@ -180,8 +208,7 @@ export default {
       sx = sx === undefined ? 1 : sx;
       sy = sy === undefined ? 1 : sy;
       rot = rot || 0;
-      const v =
-        `translate(${x}px,${y}px) translate(${ox}px,${oy}px) rotate(${rot}deg) scale(${sx},${sy}) translate(${-ox}px,${-oy}px)`;
+      const v = `translate(${x}px,${y}px) translate(${ox}px,${oy}px) rotate(${rot}deg) scale(${sx},${sy}) translate(${-ox}px,${-oy}px)`;
       if (_lastT.get(el) !== v) {
         el.style.transform = v;
         _lastT.set(el, v);
@@ -215,20 +242,33 @@ export default {
       };
     }
 
-    // ── Pose model ────────────────────────────────────────────────────────────
-    // Each state is a pure function (time -> pose) so any single state or any
-    // blend of states can be driven directly, instead of only the auto-cycle.
     function basePose() {
       return {
-        headX: 0, headY: 0, headRot: 0,
-        ebLx: 0, ebLy: 0, ebLrot: 0,
-        ebRx: 0, ebRy: 0, ebRrot: 0,
-        eyeLdx: 0, eyeLdy: 0, eyeRdx: 0, eyeRdy: 0,
-        eyeLsy: 1, eyeRsy: 1, eyeSc: 1,
-        noseY: 0, muzzleSX: 1,
-        toothLy: 0, toothRy: 0, toothSc: 1,
+        headX: 0,
+        headY: 0,
+        headRot: 0,
+        ebLx: 0,
+        ebLy: 0,
+        ebLrot: 0,
+        ebRx: 0,
+        ebRy: 0,
+        ebRrot: 0,
+        eyeLdx: 0,
+        eyeLdy: 0,
+        eyeRdx: 0,
+        eyeRdy: 0,
+        eyeLsy: 1,
+        eyeRsy: 1,
+        eyeSc: 1,
+        noseY: 0,
+        muzzleSX: 1,
+        toothLy: 0,
+        toothRy: 0,
+        toothSc: 1,
         earPose: 0,
-        eyeNorm: 1, eyeX: 0, eyeHappy: 0,
+        eyeNorm: 1,
+        eyeX: 0,
+        eyeHappy: 0,
       };
     }
 
@@ -322,7 +362,8 @@ export default {
     function errorPose(t, local) {
       const p = basePose();
       const shakeT = Math.min(1, local / 0.35);
-      p.headX = local < 0.35 ? Math.sin(local * Math.PI * 10) * (1 - shakeT) * 25 : 0;
+      p.headX =
+        local < 0.35 ? Math.sin(local * Math.PI * 10) * (1 - shakeT) * 25 : 0;
       p.ebLrot = 16;
       p.ebLy = -6;
       p.ebRrot = -16;
@@ -347,6 +388,15 @@ export default {
       return p;
     }
 
+    function cursorTrackPose() {
+      const p = basePose();
+      p.eyeLdx = cursorX * 14;
+      p.eyeLdy = cursorY * 10;
+      p.eyeRdx = cursorX * 14;
+      p.eyeRdy = cursorY * 10;
+      return p;
+    }
+
     const STATE_POSES = {
       idle: idlePose,
       thinking: thinkingPose,
@@ -354,27 +404,43 @@ export default {
       writing: writingPose,
       error: errorPose,
       greeting: greetingPose,
+      cursorTrack: cursorTrackPose,
     };
 
-    // Blend states: start from defaults, each state overrides any parameter it
-    // actually changes (a later state wins a conflict, non-touched params keep
-    // the earlier state's value) — so `['thinking','greeting']` combines the
-    // quizzical brows of thinking with the happy eyes of greeting.
-    function mergeStates(names, t) {
+    const ADDITIVE_KEYS = ['eyeLdx', 'eyeLdy', 'eyeRdx', 'eyeRdy'];
+
+    function mergeStates(names, t, local) {
+      const useLocal = local === undefined ? t : local;
+      const defaults = basePose();
       const pose = basePose();
+      const additive = { eyeLdx: 0, eyeLdy: 0, eyeRdx: 0, eyeRdy: 0 };
+      const touched = {
+        eyeLdx: false,
+        eyeLdy: false,
+        eyeRdx: false,
+        eyeRdy: false,
+      };
       for (const name of names) {
         const fn = STATE_POSES[name];
         if (!fn) continue;
-        const part = fn(t, t);
+        const part = fn(t, useLocal);
         for (const key of Object.keys(pose)) {
-          if (part[key] !== basePose()[key]) pose[key] = part[key];
+          if (part[key] === defaults[key]) continue;
+          if (ADDITIVE_KEYS.includes(key)) {
+            additive[key] += part[key];
+            touched[key] = true;
+          } else {
+            pose[key] = part[key];
+          }
         }
+      }
+      for (const key of ADDITIVE_KEYS) {
+        if (touched[key]) pose[key] = additive[key];
       }
       return pose;
     }
 
-    // Auto-cycle phase schedule.
-    const PHASES = [
+    const DEFAULT_PHASES = [
       { name: 'idle', dur: 3 },
       { name: 'thinking', dur: 3 },
       { name: 'searching', dur: 3 },
@@ -382,9 +448,23 @@ export default {
       { name: 'error', dur: 2 },
       { name: 'greeting', dur: 3 },
     ];
-    const TOTAL = PHASES.reduce((s, p) => s + p.dur, 0);
-    let starts = [0];
-    PHASES.forEach((p, i) => starts.push(starts[i] + p.dur));
+
+    const phases = computed(() => {
+      const src =
+        Array.isArray(props.poses) && props.poses.length
+          ? props.poses
+          : DEFAULT_PHASES;
+      return src.map((p) => ({
+        names: Array.isArray(p.name) ? p.name : [p.name],
+        dur: p.dur,
+      }));
+    });
+    const total = computed(() => phases.value.reduce((s, p) => s + p.dur, 0));
+    const starts = computed(() => {
+      const arr = [0];
+      phases.value.forEach((p, i) => arr.push(arr[i] + p.dur));
+      return arr;
+    });
 
     function smooth(state, key, target, dt, speed) {
       state[key] += (target - state[key]) * Math.min(1, dt * speed);
@@ -440,25 +520,24 @@ export default {
       let pose;
       const states = requestedStates();
       if (greets) {
-        pose = greetingPose((now - forcedStart) / 1000, (now - forcedStart) / 1000);
+        pose = greetingPose(
+          (now - forcedStart) / 1000,
+          (now - forcedStart) / 1000,
+        );
       } else if (states.length > 0) {
-        // Explicitly requested state(s) — held and blended continuously.
-        pose = mergeStates(states, ((now - t0) / 1000));
+        pose = mergeStates(states, (now - t0) / 1000);
       } else if (props.auto) {
-        const t = ((now - t0) / 1000) % TOTAL;
+        const ph = phases.value;
+        const tot = total.value;
+        const st = starts.value;
+        const t = ((now - t0) / 1000) % tot;
         let idx = 0;
-        while (idx < PHASES.length - 1 && t >= starts[idx + 1]) idx++;
-        const local = t - starts[idx];
-        pose = STATE_POSES[PHASES[idx].name](t, local);
+        while (idx < ph.length - 1 && t >= st[idx + 1]) idx++;
+        const local = t - st[idx];
+        pose = mergeStates(ph[idx].names, t, local);
       } else {
-        pose = idlePose(((now - t0) / 1000), 0);
+        pose = idlePose((now - t0) / 1000, 0);
       }
-
-      // Eyes subtly track the cursor (on top of the pose).
-      pose.eyeLdx += cursorX * 14;
-      pose.eyeLdy += cursorY * 10;
-      pose.eyeRdx += cursorX * 14;
-      pose.eyeRdy += cursorY * 10;
 
       fade(els.eyeLX, pose.eyeX);
       fade(els.eyeRX, pose.eyeX);
@@ -469,11 +548,11 @@ export default {
 
       const earLtarget = Math.max(
         -16,
-        Math.min(16, pose.headRot * 0.8 + pose.earPose * 1.1)
+        Math.min(16, pose.headRot * 0.8 + pose.earPose * 1.1),
       );
       const earRtarget = Math.max(
         -16,
-        Math.min(16, pose.headRot * 0.8 - pose.earPose * 1.1)
+        Math.min(16, pose.headRot * 0.8 - pose.earPose * 1.1),
       );
       earLstate += (earLtarget - earLstate) * Math.min(1, dt * 8);
       earRstate += (earRtarget - earRstate) * Math.min(1, dt * 8);
@@ -489,17 +568,62 @@ export default {
       const toothRyS = smooth(toothS, 'ry', pose.toothRy, dt, SP);
       const toothScS = smooth(toothS, 'sc', pose.toothSc, dt, SP);
 
-      set(els.head, pose.headX, pose.headY, pose.headRot, 1, 1, HEAD_PIVOT_X, HEAD_PIVOT_Y);
+      set(
+        els.head,
+        pose.headX,
+        pose.headY,
+        pose.headRot,
+        1,
+        1,
+        HEAD_PIVOT_X,
+        HEAD_PIVOT_Y,
+      );
       set(els.earL, 0, 0, earLstate, 1, 1, EARL_PX, EARL_PY);
       set(els.earR, 0, 0, earRstate, 1, 1, EARR_PX, EARR_PY);
       set(els.ebL, ebLxS, ebLyS, ebLrotS, 1, 1, EBL_CX, EBL_CY);
       set(els.ebR, ebRxS, ebRyS, ebRrotS, 1, 1, EBR_CX, EBR_CY);
-      set(els.eyeL, pose.eyeLdx, pose.eyeLdy, 0, pose.eyeSc, pose.eyeSc * pose.eyeLsy, EYEL_CX, EYEL_CY);
-      set(els.eyeR, pose.eyeRdx, pose.eyeRdy, 0, pose.eyeSc, pose.eyeSc * pose.eyeRsy, EYER_CX, EYER_CY);
+      set(
+        els.eyeL,
+        pose.eyeLdx,
+        pose.eyeLdy,
+        0,
+        pose.eyeSc,
+        pose.eyeSc * pose.eyeLsy,
+        EYEL_CX,
+        EYEL_CY,
+      );
+      set(
+        els.eyeR,
+        pose.eyeRdx,
+        pose.eyeRdy,
+        0,
+        pose.eyeSc,
+        pose.eyeSc * pose.eyeRsy,
+        EYER_CX,
+        EYER_CY,
+      );
       set(els.nose, 0, pose.noseY, 0, 1, 1, 1687, 1675);
       set(els.muzzle, 0, 0, 0, pose.muzzleSX, 1, 1680, 1783);
-      set(els.toothL, pose.headX * 0.3, toothLyS, 0, toothScS, toothScS, 1590, 1980);
-      set(els.toothR, pose.headX * 0.3, toothRyS, 0, toothScS, toothScS, 1767, 1980);
+      set(
+        els.toothL,
+        pose.headX * 0.3,
+        toothLyS,
+        0,
+        toothScS,
+        toothScS,
+        1590,
+        1980,
+      );
+      set(
+        els.toothR,
+        pose.headX * 0.3,
+        toothRyS,
+        0,
+        toothScS,
+        toothScS,
+        1767,
+        1980,
+      );
     }
 
     onMounted(() => {
@@ -571,8 +695,6 @@ export default {
   height: auto;
   display: block;
 }
-/* Promote animated parts to their own compositor layers; CSS transforms must
-   pivot at 0 0 because the JS already bakes the pivot into the transform chain. */
 .beaver-character :deep(g) {
   transform-origin: 0 0;
   will-change: transform, opacity;
