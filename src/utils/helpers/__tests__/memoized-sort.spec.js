@@ -34,8 +34,8 @@ describe('memoizedSort', () => {
     expect(sortSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('re-sorts when an element key value changes', () => {
-    const data = [
+  it('re-sorts when a fresh array reference is provided', () => {
+    let data = [
       { id: 'a', title: 'Yankee', updatedAt: 301 },
       { id: 'b', title: 'Mango', updatedAt: 302 },
       { id: 'c', title: 'Sierra', updatedAt: 303 },
@@ -45,7 +45,9 @@ describe('memoizedSort', () => {
     memoizedSort({ data, key: 'title', order: 'asc' });
     expect(sortSpy).toHaveBeenCalledTimes(1);
 
-    data[0].title = 'Ant';
+    // Pinia getters (the only real callers) return a fresh array after any
+    // note mutation — the reference change is the invalidation signal.
+    data = data.map((n) => (n.id === 'a' ? { ...n, title: 'Ant' } : n));
     const reSorted = memoizedSort({ data, key: 'title', order: 'asc' });
     expect(reSorted.map((n) => n.id)).toEqual(['a', 'b', 'c']);
     expect(sortSpy).toHaveBeenCalledTimes(2);

@@ -438,7 +438,8 @@ export default {
       const text = event.target.textContent || '';
       yjsSetTitle(text);
       autoResizeTitle();
-      return updateNote(id.value, { title: text });
+      // The Yjs title observer (below) writes the title back to the store —
+      // updating it here too persisted twice per keystroke.
     }, 150);
 
     function handleContentUpdate(content) {

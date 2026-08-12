@@ -218,7 +218,12 @@ export default {
 
       const query = currentLinkVal.value.substring(1).toLowerCase();
 
-      return noteStore.notes
+      // Cap the candidate pool before filtering — scanning 10k+ notes per
+      // keystroke with the popover open janked typing.
+      const candidates =
+        noteStore.notes.length > 200 ? noteStore.notes.slice(0, 200) : noteStore.notes;
+
+      return candidates
         .filter(
           (note) =>
             note.id !== route.params.id &&
