@@ -155,11 +155,40 @@ export class SyncEngine {
     syncDeletedAssets(deletedAssets);
   }
 
+  _resolveSkip() {
+    this.syncing = false;
+    this.pending = false;
+    this._pullOnlyMode = false;
+    this._foregroundWake = false;
+    this._forceFlush = false;
+    this.syncResolve?.();
+    this.syncResolve = null;
+    this.syncReject = null;
+    const waiters = this.pendingWaiters;
+    this.pendingWaiters = [];
+    for (const { resolve } of waiters) resolve();
+  }
+
   async _runCycle(_force = false) {
     const t = speed('sync_cycle');
     this.syncing = true;
     this.pending = false;
     this._forceFlush = _force;
+
+    // Early exit before any sync work or status emit: with no sync folder and
+    // only the local transport active there is nothing to do. Unconfigured
+    // installs (no folder, no account) must not pay for cycles on every
+    // visibility change / foreground wake / force. `syncing` was already set
+    // synchronously so concurrent enqueueSync callers still coalesce.
+    const syncPath = await getSyncPath();
+    const activeTransportNames = this.getActiveTransports();
+    if (!syncPath && activeTransportNames.includes('local')) {
+      logger.info('[sync] no syncPath + local transport → skip cycle');
+      t?.end();
+      this._resolveSkip();
+      return;
+    }
+
     try { emit('sync:status', { status: 'syncing' }); } catch {}
 
     const isForegroundWake = this._foregroundWake;
@@ -174,20 +203,12 @@ export class SyncEngine {
 
     let outcome;
     try {
-      const syncPath = await getSyncPath();
-      const activeTransportNames = this.getActiveTransports();
       const hasLocal = activeTransportNames.includes('local');
 
       const cloudOnly = activeTransportNames.length === 1 && activeTransportNames[0] === 'cloud';
       setCloudBuffer(cloudOnly ? this.transports.cloud.getCloudBuffer() : null);
 
       logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
-
-      if (!syncPath && hasLocal) {
-        logger.info('[sync] no syncPath + local only → skip');
-        outcome = { ok: true };
-        return;
-      }
 
       // Check encryption key readiness before attempting any sync operations.
       // If encryption is enabled but the key hasn't been unlocked yet, all

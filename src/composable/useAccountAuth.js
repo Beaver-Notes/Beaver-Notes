@@ -455,7 +455,7 @@ export function useAccountAuth() {
       if (!engine) {
         logger.info('[auth] sync engine not found, initializing now');
         const { initAppSync } = await import('@/utils/sync/app-sync.js');
-        engine = initAppSync();
+        engine = await initAppSync();
       }
       if (!engine) {
         logger.info('[auth] sync engine could not be initialized, skipping seed');

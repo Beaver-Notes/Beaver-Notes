@@ -2,6 +2,7 @@ import { initSyncEngine, getSyncEngine } from './engine.js';
 import { useStorage } from '@/composable/storage';
 import { getSettingSync } from '@/composable/settings';
 import { useAccountStore } from '@/store/account';
+import { getSyncPath } from './path.js';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { LocalFolderTransport } from './transports/local-folder.js';
 import { CloudTransport } from './transports/cloud.js';
@@ -19,7 +20,7 @@ function passphraseProvider() {
  * the initial pull plus periodic sync always run. Without a configured sync
  * folder a sync cycle is a no-op.
  */
-export function initAppSync() {
+export async function initAppSync() {
   initSyncEngine({
     transports: {
       local: new LocalFolderTransport({ passphraseProvider }),
@@ -45,13 +46,26 @@ export function initAppSync() {
     },
   });
 
-  getSyncEngine()
+  const engine = getSyncEngine();
+
+  // Nothing is configured (no sync folder, folder-only transport) — the engine
+  // stays inert. `_runCycle` skips anyway, but we also skip the initial pull
+  // and the 30s timer so unconfigured installs never pay for them. Once a
+  // folder is chosen (or cloud is enabled) `initAppSync` runs again via
+  // useAppShell / settings, or cycles get triggered manually.
+  const syncPath = await getSyncPath();
+  const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
+  if (!syncPath && transport === SYNC_TRANSPORT.FOLDER) {
+    return engine;
+  }
+
+  engine
     .forceSyncNow()
     .catch((err) => console.warn('[sync] initial sync failed:', err));
 
   // Start pull-only timer: polls for remote changes every 30s when visible.
   // Push remains event-driven (on edit, on foreground wake, on manual trigger).
-  getSyncEngine().startPullTimer();
+  engine.startPullTimer();
 
-  return getSyncEngine();
+  return engine;
 }

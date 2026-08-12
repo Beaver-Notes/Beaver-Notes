@@ -450,3 +450,25 @@ describe('SyncEngine flush', () => {
     );
   });
 });
+
+describe('SyncEngine unconfigured skip', () => {
+  it('skips the cycle entirely when no sync path and local-only transport', async () => {
+    const { getSyncPath } = await import('../path.js');
+    const prev = getSyncPath.getMockImplementation();
+    getSyncPath.mockResolvedValue(null);
+
+    const local = { pull: vi.fn(), push: vi.fn(), seedOnce: vi.fn(), compact: vi.fn() };
+    const engine = new SyncEngine({
+      transports: { local },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local'],
+    });
+
+    await engine.forceSyncNow();
+    expect(local.pull).not.toHaveBeenCalled();
+    expect(local.push).not.toHaveBeenCalled();
+    expect(engine.syncing).toBe(false);
+
+    getSyncPath.mockImplementation(prev);
+  });
+});
