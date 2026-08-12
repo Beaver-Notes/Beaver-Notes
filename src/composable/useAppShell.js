@@ -21,7 +21,6 @@ import { useAppStore } from '@/store/app';
 import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
-import { getSyncPath } from '@/utils/sync/path';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
 import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
 import {
@@ -32,11 +31,11 @@ import {
 } from '@/lib/native/updates';
 import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from '@/utils/ui/zoom';
 import {
-  tryRestoreKeyFromSafeStorage,
   encryptionIsConfigured,
   isKeyLoaded,
 } from '@/utils/crypto/encryption.js';
 import { useSoundActions } from './useSoundActions';
+import { useAppEncryptionGate } from './useAppEncryptionGate';
 import {
   loadWorkspaceDoc,
   observeWorkspace,
@@ -293,12 +292,6 @@ export function useAppShell(onboardingCompleted = true) {
     status: null,
     error: null,
   });
-  // Full-screen gate shown on launch when encryption is configured but the key
-  // is not loaded (and could not be auto-restored). Forces unlock before use.
-  const appEncryptionGate = reactive({
-    show: false,
-    deriving: false,
-  });
 
   const syncLockBannerCopy = computed(() => ({
     content:
@@ -396,29 +389,6 @@ export function useAppShell(onboardingCompleted = true) {
     const currentZoomLevel = parseFloat(state.zoomLevel);
     const nextZoomLevel = Math.min(Math.max(currentZoomLevel + delta, 0.5), 3);
     setZoom(nextZoomLevel);
-  };
-
-  const restoreEncryptionKeys = async () => {
-    await getSyncPath();
-    appEncryptionGate.deriving = true;
-    try {
-      await tryRestoreKeyFromSafeStorage();
-    } finally {
-      appEncryptionGate.deriving = false;
-    }
-    await refreshEncryptionGate();
-  };
-
-  const refreshEncryptionGate = async (configuredOverride) => {
-    if (route.name === ONBOARDING_ROUTE_NAME) {
-      appEncryptionGate.show = false;
-      return;
-    }
-    const configured =
-      configuredOverride !== undefined
-        ? configuredOverride
-        : await encryptionIsConfigured();
-    appEncryptionGate.show = configured && !isKeyLoaded();
   };
 
   const hasExistingWorkspaceData = async () => {
@@ -580,16 +550,16 @@ console.log('[perf] Startup timeline:', measures.join(' → '));
 console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
   };
 
-  // Runs when the user unlocks the app via the encryption gate. The gate is
-  // only reachable when a configured vault could not be auto-unlocked, so this
-  // is the deferred remainder of initializeWorkspace().
-  const handleEncryptionUnlocked = () => {
-    appEncryptionGate.show = false;
-    finishWorkspaceInit().catch((err) => {
-      console.error('[app] workspace init after unlock failed:', err);
+  // Full-screen encryption gate (show/derive state, key auto-restore, deferred
+  // init on unlock) lives in a focused composable.
+  const encryptionGate = useAppEncryptionGate({
+    finishWorkspaceInit,
+    onUnlockError: () => {
       retrieved.value = true;
-    });
-  };
+    },
+  });
+  const { appEncryptionGate, restoreEncryptionKeys, handleEncryptionUnlocked } =
+    encryptionGate;
 
   const handleDeepLink = async (payload) => {
     try {
