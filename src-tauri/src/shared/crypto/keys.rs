@@ -119,16 +119,27 @@ fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
 }
 
 pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 32], AppError> {
+    derive_kek_argon2id_with_params(
+        passphrase,
+        salt,
+        ARGON2_MEMORY_KIB,
+        ARGON2_ITERATIONS,
+        ARGON2_PARALLELISM,
+    )
+}
+
+pub(crate) fn derive_kek_argon2id_with_params(
+    passphrase: &str,
+    salt: &[u8],
+    memory_kib: u32,
+    iterations: u32,
+    parallelism: u32,
+) -> Result<[u8; 32], AppError> {
     let _t = crate::shared::speed_log::scope("keys.derive_kek_argon2id");
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         Version::V0x13,
-        Params::new(
-            ARGON2_MEMORY_KIB,
-            ARGON2_ITERATIONS,
-            ARGON2_PARALLELISM,
-            Some(32),
-        )?,
+        Params::new(memory_kib, iterations, parallelism, Some(32))?,
     );
     let salt_string = SaltString::encode_b64(salt)?;
     let hash = argon2.hash_password(passphrase.as_bytes(), &salt_string)?;
@@ -149,7 +160,16 @@ pub(crate) fn derive_kek_from_manifest(
             .as_ref()
             .ok_or_else(|| AppError::Crypto("Argon2 salt missing in v3 manifest".into()))?;
         let salt = hex::decode(salt.trim())?;
-        derive_kek_argon2id(passphrase, &salt)
+        // Use the parameters the manifest was created with (they can predate
+        // the current constants) so existing vaults keep unlocking after a
+        // KDF parameter bump.
+        derive_kek_argon2id_with_params(
+            passphrase,
+            &salt,
+            manifest.argon2_memory_kib.unwrap_or(ARGON2_MEMORY_KIB),
+            manifest.argon2_iterations.unwrap_or(ARGON2_ITERATIONS),
+            manifest.argon2_parallelism.unwrap_or(ARGON2_PARALLELISM),
+        )
     } else {
         let salt = hex::decode(manifest.salt_hex.trim())?;
         Ok(derive_kek(passphrase, &salt))

@@ -21,6 +21,30 @@ mod characterization {
         );
     }
 
+    /// A vault created under older Argon2id parameters must keep unlocking: the
+    /// KEK is derived from the params stored in the manifest, not the current
+    /// constants.
+    #[test]
+    fn derive_kek_from_manifest_respects_stored_argon2_params() {
+        use crate::shared::crypto::keys::{
+            create_encryption_manifest, derive_kek_argon2id_with_params, derive_kek_from_manifest,
+        };
+
+        let passphrase = "test-passphrase";
+        let (mut manifest, _, _) =
+            create_encryption_manifest("app", "check", passphrase).unwrap();
+        // Simulate a vault created under the previous (16MiB) parameters.
+        manifest.argon2_memory_kib = Some(16 * 1024);
+        manifest.argon2_iterations = Some(2);
+        manifest.argon2_parallelism = Some(2);
+
+        let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
+        let from_manifest = derive_kek_from_manifest(&manifest, passphrase).unwrap();
+        let expected =
+            derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        assert_eq!(from_manifest, expected);
+    }
+
     /// Round-trip: a note encrypted for storage can be decrypted back.
     #[test]
     fn note_content_round_trip() {
