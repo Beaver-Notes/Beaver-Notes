@@ -13,6 +13,7 @@ default-run = "beaver-notes"
 default = []
 specta-gen = []
 webdriver-debug = []
+debug = ["dep:tauri-plugin-debug-bridge"]
 
 [lib]
 name = "beaver_notes"
@@ -29,6 +30,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-webdriver-automation = { git = "https://github.com/danielraffel/tauri-webdriver", optional = true }
+tauri-plugin-debug-bridge = { version = "0.4.1", optional = true }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"

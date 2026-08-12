@@ -101,6 +101,11 @@ pub fn run() {
         builder = builder.plugin(tauri_plugin_webdriver_automation::init());
     }
 
+    #[cfg(feature = "debug")]
+    {
+        builder = builder.plugin(tauri_plugin_debug_bridge::init());
+    }
+
     #[cfg(target_os = "ios")]
     {
         builder = builder.plugin(tauri_plugin_swipe_back_ios::init());
