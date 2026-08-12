@@ -322,7 +322,7 @@ jobs:
           yarn tauri build \
             --config src-tauri/tauri.beta.conf.json \
             --target "${{ matrix.tauri_target }}" \
-            --bundles app \
+            --no-bundle \
             --ci
 
       # Dispatch Windows signing to OSSign workflow
