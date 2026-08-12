@@ -2,6 +2,7 @@ import * as syncProtocol from 'y-protocols/sync'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import * as encoding from 'lib0/encoding'
 import * as decoding from 'lib0/decoding'
+import * as Y from 'yjs'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { getWorkspaceDoc } from './meta-yjs-doc.js'
@@ -270,21 +271,42 @@ export function useHocuspocusSync() {
     }
   }
 
-  async function broadcastUpdate(update, origin, doc) {
-    if (
-      origin === 'hocuspocus' ||
-      origin === 'load' ||
-      origin === 'sync'
-    )
-      return
+  // Coalesce doc updates before broadcasting. A keystroke fires one Y.Doc
+  // update event each, so fast typing produced a separate encode + (optional)
+  // AES-GCM WebCrypto call + websocket send per keystroke. Buffer per room and
+  // merge with the same 120 ms window — indistinguishable for remote peers but
+  // a fraction of the crypto/encode/send work. Awareness stays immediate.
+  const BROADCAST_DEBOUNCE_MS = 120
+  const broadcastBuffers = new Map()
 
-    const roomName = [...activeRooms.keys()].find(
-      (name) => activeRooms.get(name)?.doc === doc,
-    )
-    if (!roomName) return
+  function scheduleBroadcast(roomName, update) {
+    let entry = broadcastBuffers.get(roomName)
+    if (!entry) {
+      entry = { updates: [], timer: null }
+      broadcastBuffers.set(roomName, entry)
+    }
+    entry.updates.push(update)
+    if (entry.timer) clearTimeout(entry.timer)
+    entry.timer = setTimeout(() => {
+      entry.timer = null
+      const updates = entry.updates.splice(0)
+      if (updates.length === 0) return
+      const merged = Y.mergeUpdates(updates)
+      if (merged.byteLength === 0) return
+      flushBroadcast(roomName, merged)
+    }, BROADCAST_DEBOUNCE_MS)
+  }
 
+  function dropPendingBroadcast(roomName) {
+    const entry = broadcastBuffers.get(roomName)
+    if (!entry) return
+    if (entry.timer) clearTimeout(entry.timer)
+    broadcastBuffers.delete(roomName)
+  }
+
+  async function flushBroadcast(roomName, merged) {
     const encoder = encoding.createEncoder()
-    syncProtocol.writeUpdate(encoder, update)
+    syncProtocol.writeUpdate(encoder, merged)
     let payload = encoding.toUint8Array(encoder)
 
     // Encrypt if collaboration key is available
@@ -300,6 +322,22 @@ export function useHocuspocusSync() {
     }
 
     sendBinary(payload.buffer)
+  }
+
+  function broadcastUpdate(update, origin, doc) {
+    if (
+      origin === 'hocuspocus' ||
+      origin === 'load' ||
+      origin === 'sync'
+    )
+      return
+
+    const roomName = [...activeRooms.keys()].find(
+      (name) => activeRooms.get(name)?.doc === doc,
+    )
+    if (!roomName) return
+
+    scheduleBroadcast(roomName, update)
   }
 
   function broadcastAwareness({ added, updated, removed }) {
@@ -350,6 +388,7 @@ export function useHocuspocusSync() {
   function leaveNoteRoom(noteId) {
     const roomName = buildRoomName(getActiveWorkspaceId() || '', noteId)
     activeRooms.delete(roomName)
+    dropPendingBroadcast(roomName)
     unregisterActiveDoc(noteId)
   }
 

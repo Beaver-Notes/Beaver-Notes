@@ -99,6 +99,12 @@ async function persistUpdate(noteId, update) {
 
 const FLUSH_DELAY_MS = 300;
 
+// `note_content` grows one row per flush and used to only be compacted on note
+// switch / unmount — so a long editing session (or a crash before switching)
+// left an unbounded update history and forced a full CRDT replay on the next
+// open. Compact periodically in the flush path so history stays bounded.
+const COMPACT_INTERVAL_MS = 5 * 60 * 1000;
+const COMPACT_UPDATE_THRESHOLD = 100;
 
 // Composable that manages Yjs documents across note switches on the page.
 export function useNoteYjs() {
@@ -110,6 +116,8 @@ export function useNoteYjs() {
   // Debounced Yjs update persistence
   let pendingUpdates = [];
   let flushTimer = null;
+  let lastCompactAt = Date.now();
+  let updatesSinceCompact = 0;
 
   function scheduleFlush() {
     if (flushTimer) clearTimeout(flushTimer);
@@ -122,8 +130,28 @@ export function useNoteYjs() {
   async function flushPendingUpdates() {
     if (pendingUpdates.length === 0) return;
     const updates = pendingUpdates.splice(0);
+    updatesSinceCompact += updates.length;
     const merged = Y.mergeUpdates(updates);
     await persistUpdate(currentNoteId, merged);
+
+    // Fold the accumulated update history into a single snapshot row once the
+    // session has been open long enough / appended enough rows. Non-blocking
+    // failure: compaction retries on the next due flush or the note switch.
+    const due =
+      Date.now() - lastCompactAt > COMPACT_INTERVAL_MS ||
+      updatesSinceCompact >= COMPACT_UPDATE_THRESHOLD;
+    if (due && currentDoc) {
+      try {
+        const snapshot = Y.encodeStateAsUpdate(currentDoc);
+        if (snapshot.byteLength > 0) {
+          await compactUpdates(currentNoteId, snapshot);
+        }
+        lastCompactAt = Date.now();
+        updatesSinceCompact = 0;
+      } catch (err) {
+        console.warn('[yjs] periodic compact failed, retrying later:', err);
+      }
+    }
   }
 
   async function load(noteId, initialContent, initialTitle) {
@@ -139,7 +167,12 @@ export function useNoteYjs() {
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
         if (snapshot.byteLength > 0) {
-          await compactUpdates(currentNoteId, snapshot);
+          // Do not block the switch on the old note's compact. The snapshot is
+          // captured before destroy; yjs_compact now runs off the main thread
+          // in Rust, so fire it and load the new note immediately.
+          compactUpdates(currentNoteId, snapshot).catch(() => {
+            // non-critical
+          });
         }
       } catch {
         // non-critical
@@ -249,7 +282,9 @@ export function useNoteYjs() {
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
         if (snapshot.byteLength > 0) {
-          await compactUpdates(currentNoteId, snapshot);
+          compactUpdates(currentNoteId, snapshot).catch(() => {
+            // non-critical
+          });
         }
       } catch {
         // non-critical

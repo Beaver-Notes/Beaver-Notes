@@ -49,8 +49,18 @@ export default defineComponent({
       });
     };
 
+    // `mermaid.render` is CPU-heavy (seconds on low-end devices for complex
+    // diagrams). While editing, the textarea updates `content` on every
+    // keystroke; rendering each keystroke made typing a large diagram unusable.
+    // Debounce to the pause in typing (mirrors MathBlock's 300 ms) and skip the
+    // render entirely when the content hasn't changed since the last success.
+    const RENDER_DEBOUNCE_MS = 300;
+    let renderTimer = null;
+    let lastRenderedContent = null;
+
     const renderDiagram = async () => {
       if (!props.content || !elRef.value) return;
+      if (props.content === lastRenderedContent) return;
 
       const id = `mermaid-svg-${Math.floor(Math.random() * 1000000)}`;
 
@@ -58,17 +68,28 @@ export default defineComponent({
         const { svg, bindFunctions } = await mermaid.render(id, props.content);
 
         elRef.value.innerHTML = svg;
+        lastRenderedContent = props.content;
 
         await nextTick();
         if (bindFunctions) {
           bindFunctions(elRef.value);
         }
       } catch (error) {
+        // Keep the cache clear so a fix is re-rendered on the next change.
+        lastRenderedContent = null;
         console.error('Mermaid render failed:', error);
         elRef.value.innerHTML = `<div class="error">${
           translations.value?.editor?.error || 'Invalid Syntax'
         }</div>`;
       }
+    };
+
+    const scheduleRender = () => {
+      if (renderTimer) clearTimeout(renderTimer);
+      renderTimer = setTimeout(() => {
+        renderTimer = null;
+        renderDiagram();
+      }, RENDER_DEBOUNCE_MS);
     };
 
     onMounted(async () => {
@@ -79,7 +100,7 @@ export default defineComponent({
     watch(
       () => props.content,
       () => {
-        renderDiagram();
+        scheduleRender();
       }
     );
 
