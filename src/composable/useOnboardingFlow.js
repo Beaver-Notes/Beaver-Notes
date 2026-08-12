@@ -285,7 +285,11 @@ export function useOnboardingFlow({
   );
 
   const visiblePlatforms = computed(() =>
-    ALL_PLATFORMS.filter((platform) => !platform.macOnly || isMacOS.value),
+    ALL_PLATFORMS.filter(
+      (platform) =>
+        (!platform.macOnly || isMacOS.value) &&
+        (!isMobileRuntime || !platform.desktopOnly)
+    ),
   );
 
   // Paid accounts use cloud sync directly and do not need a folder selection.
