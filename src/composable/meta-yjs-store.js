@@ -190,12 +190,30 @@ export async function seedWorkspaceDocFromKv() {
   const yLabels = doc.getArray('labels');
   const yLabelColors = doc.getMap('labelColors');
 
+  // Lightweight fields only. Full searchText/preview bloat the workspace doc
+  // and make every launch transfer megabytes; search runs from the persisted
+  // search index (built at import), previews are built once and persisted as
+  // cardPreview.
+  const SEED_META_FIELDS = [
+    'id',
+    'title',
+    'folderId',
+    'labels',
+    'isArchived',
+    'isLocked',
+    'isBookmarked',
+    'isFullWidth',
+    'createdAt',
+    'updatedAt',
+  ];
+
   doc.transact(() => {
     for (const [id, note] of Object.entries(kvNotes)) {
       if (yNotes.has(id)) continue;
       const yNote = new Y.Map();
-      const { content: _c, ...meta } = note;
-      for (const [k, v] of Object.entries(meta)) yNote.set(k, v);
+      for (const field of SEED_META_FIELDS) {
+        if (note[field] !== undefined) yNote.set(field, note[field]);
+      }
       yNotes.set(id, yNote);
     }
     for (const [id, folder] of Object.entries(kvFolders)) {

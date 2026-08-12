@@ -533,6 +533,34 @@ export function useOnboardingFlow({
       const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
       await migrateNotesContent();
 
+      // Build + persist search/link indexes from the imported KV notes (which
+      // still carry searchText). This keeps search working without storing the
+      // full search text in the workspace Yjs doc (which bloated it to MBs and
+      // made every launch transfer megabytes).
+      try {
+        const { useStorage } = await import('@/composable/storage');
+        const { buildSearchIndex, getSearchIndexJSON } = await import('@/composable/useSearch.js');
+        const {
+          rebuildLinkIndexFromAll,
+          getLinkIndexJSON,
+        } = await import('@/store/note/backlinks.ts');
+        const { commands } = await import('@/lib/tauri/bindings');
+        const kvNotes = await useStorage('data').get('notes', {});
+        buildSearchIndex(kvNotes);
+        rebuildLinkIndexFromAll(kvNotes);
+        const signatures = {};
+        for (const n of Object.values(kvNotes)) {
+          if (n?.id) signatures[n.id] = n.updatedAt;
+        }
+        await commands.indexSave(
+          getSearchIndexJSON(),
+          getLinkIndexJSON(),
+          JSON.stringify(signatures)
+        );
+      } catch (err) {
+        console.warn('[onboarding] search index build after import failed:', err);
+      }
+
       // Re-encrypt any assets written during import (safety net for edge cases)
       state.migrationStatus = 'Securing assets…';
       try {
