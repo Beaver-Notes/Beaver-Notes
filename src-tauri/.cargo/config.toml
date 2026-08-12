@@ -1,0 +1,16 @@
+[target.aarch64-linux-android]
+rustflags = []
+
+# Enable hardware-accelerated AES (ARMv8 Crypto Extensions) for asset/note
+# encryption on Apple Silicon. Without these cfgs RustCrypto falls back to slow
+# software AES + GHASH (~180ms/MB), which makes the post-import "Securing assets"
+# pass and asset decryption orders of magnitude slower than they should be.
+[target.aarch64-apple-darwin]
+rustflags = ["--cfg", "aes_armv8", "--cfg", "polyval_armv8"]
+
+# SODIUM_LIB_DIR must be set in your shell environment (e.g. ~/.zshrc) to point
+# to a pre-built static libsodium for Android ARM64. See CONTRIBUTING.md for
+# build instructions.
+#
+# Example (~/.zshrc):
+#   export SODIUM_LIB_DIR="$HOME/.libsodium-android/lib"

@@ -108,8 +108,9 @@
   "exit": "Press Ctrl + Enter to close",
   "linkPlaceholder": "URL or type @ to link a note",
   "linkShortcut": "Press Alt + Click to open the link",
-  "mathPlaceholder": "Text here…",
-  "mermaidPlaceholder": "Enter Mermaid code here…",
+   "mathPlaceholder": "Text here…",
+   "mermaidPlaceholder": "Enter Mermaid code here…",
+   "unsupportedDiagram": "Unsupported diagram type",
   "previousNote": "Previous notes",
   "tiptapPlaceholder": "Write something… or type \"/\" for commands.",
   "untitledNote": "Untitled note"

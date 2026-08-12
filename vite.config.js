@@ -44,7 +44,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           editor: ['@tiptap/core', 'prosemirror-model', 'prosemirror-view'],
-          mermaid: ['mermaid'],
+          'beautiful-mermaid': ['beautiful-mermaid'],
           katex: ['katex'],
         },
       },
