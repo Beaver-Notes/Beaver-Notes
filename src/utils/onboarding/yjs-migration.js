@@ -25,6 +25,7 @@ import * as Y from 'yjs';
 const storage = useStorage();
 
 const MIGRATION_FLAG = 'yjs_content_sync_v2';
+const FLUSH_EVERY = 20;
 
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -75,39 +76,19 @@ async function flushPendingUpdates(device) {
   );
 }
 
-function chunk(array, size) {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
-}
-
-async function runWithConcurrency(items, fn, concurrency) {
-  const results = [];
-  let index = 0;
-
-  async function next() {
-    while (index < items.length) {
-      const currentIndex = index++;
-      results[currentIndex] = await fn(items[currentIndex], currentIndex);
-    }
-  }
-
-  const workers = Array.from(
-    { length: Math.min(concurrency, items.length) },
-    () => next()
-  );
-  await Promise.all(workers);
-  return results;
-}
-
 /**
  * Move note content from KV into Yjs. Import-only: returns early once the
  * versioned flag is set, and only notes that still carry KV content (with an
  * empty Yjs doc) are touched — idempotent and cheap on subsequent runs.
+ *
+ * Runs sequentially and yields to the UI after every note: converting a large
+ * vault builds a ProseMirror doc per note (CPU-heavy), and parallelizing it
+ * with several large Y.Docs at once spiked the main thread and memory. The
+ * import now takes a bit longer wall-clock but never freezes the app.
+ *
+ * @param {(progress: number, noteId: string) => void} [onProgress] 0-100.
  */
-export async function migrateNotesContent() {
+export async function migrateNotesContent(onProgress = null) {
   const flag = await storage.get(MIGRATION_FLAG, false, 'settings');
   if (flag) return 0;
 
@@ -124,25 +105,20 @@ export async function migrateNotesContent() {
 
   let migrated = 0;
 
-  const chunks = chunk(noteIds, 50);
+  for (let i = 0; i < noteIds.length; i++) {
+    const id = noteIds[i];
+    try {
+      if (await processNote(id, notes, schema)) migrated++;
+    } catch (err) {
+      console.warn(`[yjs-content] Failed for note ${id}:`, err);
+    }
 
-  for (const chunkIds of chunks) {
-    const results = await runWithConcurrency(
-      chunkIds,
-      async (id) => {
-        try {
-          return await processNote(id, notes, schema);
-        } catch (err) {
-          console.warn(`[yjs-content] Failed for note ${id}:`, err);
-          return false;
-        }
-      },
-      4
-    );
+    onProgress?.(Math.round(((i + 1) / noteIds.length) * 100), id);
 
-    migrated += results.filter(Boolean).length;
-
-    await flushPendingUpdates(device);
+    if (pendingUpdates.length >= FLUSH_EVERY) {
+      await flushPendingUpdates(device);
+    }
+    // Let the UI paint / respond between notes.
     await yieldToUi();
   }
 

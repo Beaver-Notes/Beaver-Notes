@@ -531,7 +531,12 @@ export function useOnboardingFlow({
 
       state.migrationStatus = 'Migrating note content…';
       const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
-      await migrateNotesContent();
+      await migrateNotesContent((progress, noteId) => {
+        // Real per-note progress; the fake ticker caps at 85 so it never
+        // overshoots the actual work.
+        state.migrationProgress = Math.min(85, Math.round(progress * 0.85));
+        state.migrationCurrent = noteId || '';
+      });
 
       // Build + persist search/link indexes from the imported KV notes (which
       // still carry searchText). This keeps search working without storing the

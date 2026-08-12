@@ -52,18 +52,23 @@ pub(crate) fn migration_status(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn migration_run(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<LegacyMigrationResult, AppError> {
+pub(crate) async fn migration_run(app: AppHandle) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        run_legacy_store_data_migration(&app, state.inner())
+        // The copy is I/O + asset-encryption heavy; run it on a blocking thread
+        // (state is re-derived from the AppHandle — Tauri's managed state is
+        // Send + Sync and reachable from any thread).
+        let app = app.clone();
+        tokio::task::spawn_blocking(move || {
+            let state = app.state::<AppState>();
+            run_legacy_store_data_migration(&app, state.inner())
+        })
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
     }
 
     #[cfg(not(desktop))]
     {
-        let _ = (app, state);
         Err(AppError::Other("Legacy migration is only available on desktop".into()))
     }
 }
@@ -89,19 +94,23 @@ pub(crate) fn migration_probe_path(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn migration_run_with_path(
+pub(crate) async fn migration_run_with_path(
     app: AppHandle,
-    state: State<'_, AppState>,
     path: String,
 ) -> Result<LegacyMigrationResult, AppError> {
     #[cfg(desktop)]
     {
-        run_legacy_store_data_migration_from_path(&app, state.inner(), &path)
+        let app = app.clone();
+        tokio::task::spawn_blocking(move || {
+            let state = app.state::<AppState>();
+            run_legacy_store_data_migration_from_path(&app, state.inner(), &path)
+        })
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
     }
 
     #[cfg(not(desktop))]
     {
-        let _ = (app, state, path);
         Err(AppError::Other("Legacy migration is only available on desktop".into()))
     }
 }
