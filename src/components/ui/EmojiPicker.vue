@@ -36,6 +36,9 @@
 
     <div
       class="grid grid-cols-8 gap-1 max-h-52 overflow-y-auto relative"
+      :class="{
+        'pb-12': activeSkinToneBase && skinToneMap[activeSkinToneBase],
+      }"
     >
       <button
         v-for="emoji in filteredEmojis"
@@ -55,10 +58,10 @@
         {{ emoji.char }}
       </button>
 
-      <!-- Skin tone selector -->
+      <!-- Skin tone selector (bottom overlay, never shifts the grid) -->
       <div
         v-if="activeSkinToneBase && skinToneMap[activeSkinToneBase]"
-        class="col-span-full flex justify-center gap-1 py-1.5 border-t border-neutral-200 dark:border-neutral-700 mt-1"
+        class="absolute left-0 right-0 bottom-0 z-10 flex justify-center gap-1 py-1.5 border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 shadow-[0_-4px_8px_-2px_rgba(0,0,0,0.08)]"
       >
         <button
           v-for="variant in skinToneMap[activeSkinToneBase]"
