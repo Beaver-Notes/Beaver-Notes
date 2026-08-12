@@ -68,7 +68,7 @@
       }
     ],
     "windows": {
-      "signCommand": "ossign.exe -t pecoff -o \"%1\" \"%1\""
+      "signCommand": "ossign.exe -t pecoff -o %1 %1"
     },
     "macOS": {
       "entitlements": "../buildResources/entitlements.mac.plist"
