@@ -62,24 +62,6 @@ export async function ensureKeyReadyForWrite() {
   );
 }
 
-/**
- * Guarantee encryption is configured before any data is read or written.
- * Encryption is mandatory — there is no plaintext mode. On first launch this
- * creates the manifest with a random passphrase (kept in safe storage, so it
- * auto-unlocks on later launches); if a vault already exists it is a no-op.
- */
-export async function ensureEncryptionConfigured() {
-  const next = await refreshState();
-  if (next?.enabled) return true;
-  const result = await setupEncryption();
-  if (!result.ok) {
-    throw new Error(
-      'Encryption setup failed: ' + (result.error || 'Unknown error')
-    );
-  }
-  return true;
-}
-
 export async function setupEncryption(passphrase) {
   if (!passphrase?.trim()) {
     passphrase = generateRandomPassphrase();

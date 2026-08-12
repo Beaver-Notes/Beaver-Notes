@@ -33,7 +33,7 @@ import {
 import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from './zoom';
 import {
   tryRestoreKeyFromSafeStorage,
-  ensureEncryptionConfigured,
+  encryptionIsConfigured,
   isKeyLoaded,
 } from '@/utils/crypto/encryption.js';
 import { useSoundActions } from './useSoundActions';
@@ -475,12 +475,10 @@ export function useAppShell(onboardingCompleted = true) {
     await restoreEncryptionKeys();
     performance.mark('init:encryption');
 
-    // Encryption is mandatory — no plaintext. On first launch (no manifest)
-    // create it with a random passphrase kept in safe storage, so reads never
-    // hit a not-configured state.
-    await ensureEncryptionConfigured();
-
-    if (!isKeyLoaded()) {
+    // The vault passphrase is set by the user during onboarding — the startup
+    // path never auto-creates encryption. Encryption is mandatory; the yjs
+    // layer fails closed if it is ever missing (a startup/init bug).
+    if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
       // Encryption is configured but the key could not be restored (no stored
       // passphrase / safe storage unavailable). Loading note data now would
       // yield garbage (or fail closed server-side), so defer until the user
