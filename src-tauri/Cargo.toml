@@ -146,3 +146,26 @@ strip = true
 opt-level = 3
 [profile.dev.package.aes-gcm]
 opt-level = 3
+
+# CPU-heavy crates stay at opt-level 3 in release builds (the global profile is
+# opt-level "s" for size). Crypto, the CRDT merge, and SQLite are the hot path
+# on every keystroke-flush, note open, and unlock — especially on low-power
+# devices. Slight binary size increase is the accepted trade-off.
+[profile.release.package.aes]
+opt-level = 3
+[profile.release.package.aes-gcm]
+opt-level = 3
+[profile.release.package.chacha20]
+opt-level = 3
+[profile.release.package.chacha20poly1305]
+opt-level = 3
+[profile.release.package.argon2]
+opt-level = 3
+[profile.release.package.bcrypt]
+opt-level = 3
+[profile.release.package.pbkdf2]
+opt-level = 3
+[profile.release.package.y-octo]
+opt-level = 3
+[profile.release.package.rusqlite]
+opt-level = 3

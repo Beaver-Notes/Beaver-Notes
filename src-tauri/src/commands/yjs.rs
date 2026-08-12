@@ -14,17 +14,64 @@ use crate::shared::*;
 fn yjs_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
   let session = state.crypto.session.read()?;
   if !session.active {
+    // Encryption is mandatory — there is no plaintext mode. `active` is set by
+    // the startup init (a manifest is always created), so reaching this state
+    // is a startup/init bug and must fail closed rather than write plaintext.
     return Err(AppError::EncryptionLocked);
   }
   Ok(Some(current_app_key(state)?.ok_or(AppError::EncryptionLocked)?))
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn state_with(active: bool, key: Option<[u8; 32]>) -> AppState {
+        let state = AppState::new(PathBuf::new(), PathBuf::new(), None);
+        {
+            let mut session = state.crypto.session.write().expect("session");
+            session.active = active;
+            session.app_data_key = key;
+        }
+        state
+    }
+
+    #[test]
+    fn locked_when_encryption_not_configured() {
+        // Encryption is mandatory: a session that never became active must fail
+        // closed (no plaintext) — the startup init guarantees `active` is set
+        // before any note is read or written.
+        let state = state_with(false, None);
+        assert!(matches!(
+            yjs_encryption_key(&state),
+            Err(AppError::EncryptionLocked)
+        ));
+    }
+
+    #[test]
+    fn returns_key_when_active_and_unlocked() {
+        let state = state_with(true, Some([7u8; 32]));
+        assert_eq!(yjs_encryption_key(&state).unwrap(), Some([7u8; 32]));
+    }
+
+    #[test]
+    fn locked_when_active_but_key_absent() {
+        let state = state_with(true, None);
+        assert!(matches!(
+            yjs_encryption_key(&state),
+            Err(AppError::EncryptionLocked)
+        ));
+    }
+}
+
 /// Append a single Yjs binary update for a note.  Updates are stored as
 /// append-only BLOB rows so every peer's version is preserved.
 /// When app encryption is active the blob is encrypted before persisting.
+/// Dispatched to a blocking thread so AES + SQLite never block the event loop.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn yjs_append(
+pub(crate) async fn yjs_append(
   app: AppHandle,
   note_id: String,
   update: Vec<u8>,
@@ -33,8 +80,9 @@ pub(crate) fn yjs_append(
 ) -> Result<(), AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  crate::db::yjs_append(&pool, &note_id, &update, &device, key)?;
-  Ok(())
+  tokio::task::spawn_blocking(move || crate::db::yjs_append(&pool, &note_id, &update, &device, key))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Append multiple Yjs binary updates in a single IPC call.
@@ -57,54 +105,66 @@ pub(crate) async fn yjs_append_batch(
 /// Return a cached merged Yjs state snapshot for a note when it is fresh
 /// (no stored update is newer than the snapshot). Returns an empty vector when
 /// the caller must replay history and re-cache it via `yjs_save_snapshot`.
+/// Dispatched to a blocking thread: the stale path replays and decrypts the
+/// whole update history, which must not block the event loop.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn yjs_get_snapshot(
+pub(crate) async fn yjs_get_snapshot(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
 ) -> Result<Vec<u8>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  let result = crate::db::yjs_get_snapshot(&pool, &note_id, key)?;
-  Ok(result)
+  tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshot(&pool, &note_id, key))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Return the fresh merged Yjs snapshot for many notes in a single round-trip
 /// (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
 /// are included in the result map.
+/// Dispatched to a blocking thread (rayon parallel decrypt inside).
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn yjs_get_snapshots(
+pub(crate) async fn yjs_get_snapshots(
   app: AppHandle,
   note_ids: Vec<String>,
   state: State<'_, AppState>,
 ) -> Result<HashMap<String, Vec<u8>>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  crate::db::yjs_get_snapshots(&pool, &note_ids, key)
+  tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshots(&pool, &note_ids, key))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Return every stored Yjs update for a note, oldest first.
 /// The caller replays them into a Y.Doc to reconstruct the current state.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn yjs_get_updates(
+pub(crate) async fn yjs_get_updates(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
 ) -> Result<Vec<Vec<u8>>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  let rows = crate::db::yjs_get_updates(&pool, &note_id, key)?;
-  Ok(rows.into_iter().map(|(_, blob)| blob).collect())
+  tokio::task::spawn_blocking(move || {
+    let rows = crate::db::yjs_get_updates(&pool, &note_id, key)?;
+    Ok::<_, AppError>(rows.into_iter().map(|(_, blob)| blob).collect())
+  })
+  .await
+  .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Delete all existing updates for a note and replace them with a single
 /// compressed Yjs state vector (snapshot).  Keeps the row count bounded.
+/// Dispatched to a blocking thread: rewrites every row + encrypts a multi-MB
+/// blob on note switch.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn yjs_compact(
+pub(crate) async fn yjs_compact(
   app: AppHandle,
   note_id: String,
   snapshot: Vec<u8>,
@@ -112,8 +172,9 @@ pub(crate) fn yjs_compact(
 ) -> Result<(), AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  crate::db::yjs_compact(&pool, &note_id, &snapshot, key)?;
-  Ok(())
+  tokio::task::spawn_blocking(move || crate::db::yjs_compact(&pool, &note_id, &snapshot, key))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Read all updates for a note, merge them into a single snapshot via y-octo,
@@ -136,12 +197,13 @@ pub(crate) async fn yjs_compact_batch(
 /// Delete every Yjs update for a note.  Called when the note itself is deleted.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn yjs_delete(
+pub(crate) async fn yjs_delete(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
 ) -> Result<(), AppError> {
   let pool = data_pool(&app, &state)?;
-  crate::db::yjs_delete(&pool, &note_id)?;
-  Ok(())
+  tokio::task::spawn_blocking(move || crate::db::yjs_delete(&pool, &note_id))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }

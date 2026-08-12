@@ -115,29 +115,6 @@ pub(crate) fn storage_aad(row_key: &str) -> String {
     format!("beaver-notes:data-store:{row_key}")
 }
 
-fn encrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Value, AppError> {
-    let _t = crate::shared::speed_log::scope("storage.encrypt_store_row");
-    let Some(key) = current_app_key(state)? else {
-        return Ok(value);
-    };
-
-    let key_id = state
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
-
-    let envelope = encrypt_json_for_storage(
-        &key,
-        &value,
-        &storage_aad(row_key),
-        if key_id.is_empty() { None } else { Some(key_id.as_str()) },
-    )?;
-    Ok(serde_json::to_value(envelope)?)
-}
-
 fn encrypt_store_row_with_key(
     row_key: &str,
     value: Value,
@@ -152,31 +129,6 @@ fn encrypt_store_row_with_key(
         if key_id.is_empty() { None } else { Some(&*key_id) },
     )?;
     Ok(serde_json::to_value(envelope)?)
-}
-
-fn decrypt_store_row(row_key: &str, value: Value, state: &AppState) -> Result<Value, AppError> {
-    let _t = crate::shared::speed_log::scope("storage.decrypt_store_row");
-    let Some(key) = current_app_key(state)? else {
-        return Ok(value);
-    };
-
-    Ok(decrypt_json_from_storage(&key, &value, &storage_aad(row_key))?.unwrap_or(value))
-}
-
-fn load_store_root(
-    pool: &crate::db::DbPool,
-    name: &str,
-    state: &AppState,
-) -> Result<Value, AppError> {
-    let app_key = current_app_key(state)?;
-    let key_id = state
-        .crypto
-        .session
-        .read()
-        .map_err(AppError::from)?
-        .current_items_key_id
-        .clone();
-    load_store_root_inner(pool, name, &app_key, &key_id)
 }
 
 /// Core store-load logic, parameterised by key material so it can be called
@@ -278,6 +230,226 @@ fn flat_db_key(segments: &[&str]) -> Option<String> {
     }
 }
 
+/// Decrypt a single KV row with key material extracted up front, so the work
+/// can run inside `spawn_blocking` without touching `AppState`.
+/// Mirrors `decrypt_store_row` (plaintext passthrough when the key is absent).
+fn decrypt_store_row_with_key(
+    row_key: &str,
+    value: Value,
+    app_key: &Option<[u8; 32]>,
+) -> Result<Value, AppError> {
+    let _t = crate::shared::speed_log::scope("storage.decrypt_store_row");
+    let Some(key) = app_key else {
+        return Ok(value);
+    };
+    Ok(decrypt_json_from_storage(key, &value, &storage_aad(row_key))?.unwrap_or(value))
+}
+
+// ─── Pure worker functions (state-free; run inside spawn_blocking) ───────────
+//
+// The async commands extract owned key material (`app_key`, `key_id`) and the
+// connection pool up front, then dispatch these workers to a blocking thread so
+// SQLite I/O and per-row AES never block the Tauri event loop.
+
+fn storage_get_value(
+    pool: crate::db::DbPool,
+    name: String,
+    key: String,
+    def: Value,
+    app_key: Option<[u8; 32]>,
+    key_id: String,
+) -> Result<Value, AppError> {
+    let segments = key_segments(&key);
+    if segments.is_empty() {
+        return Ok(def);
+    }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        let raw = crate::db::db_get(&pool, &flat_key)?;
+        let value = raw
+            .and_then(|r| serde_json::from_str::<Value>(&r).ok())
+            .map(|v| {
+                if name == DATA_STORE {
+                    decrypt_store_row_with_key(&flat_key, v, &app_key).unwrap_or(Value::Null)
+                } else {
+                    v
+                }
+            })
+            .unwrap_or(def);
+        return Ok(value);
+    }
+
+    // Fallback: multi-level key — load full store and walk the tree
+    let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
+    Ok(get_nested_value(&root, &segments).cloned().unwrap_or(def))
+}
+
+fn storage_set_value(
+    pool: crate::db::DbPool,
+    name: String,
+    key: String,
+    value: Value,
+    app_key: Option<[u8; 32]>,
+    key_id: String,
+) -> Result<(), AppError> {
+    let segments = key_segments(&key);
+    if segments.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        let payload = if name == DATA_STORE {
+            match &app_key {
+                Some(k) => encrypt_store_row_with_key(&flat_key, value, k, &key_id)?,
+                None => value,
+            }
+        } else {
+            value
+        };
+        let serialized = serde_json::to_string(&payload)?;
+        crate::db::db_set(&pool, &flat_key, &serialized)?;
+        return Ok(());
+    }
+
+    // Fallback: multi-level key — load, mutate, rewrite
+    let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
+    set_nested_value(&mut root, &segments, value);
+    let mut flattened = flatten_store_value(root);
+    if name == DATA_STORE {
+        let mut encrypted = Map::new();
+        for (row_key, value) in flattened {
+            encrypted.insert(
+                row_key.clone(),
+                match &app_key {
+                    Some(k) => encrypt_store_row_with_key(&row_key, value, k, &key_id)?,
+                    None => value,
+                },
+            );
+        }
+        flattened = encrypted;
+    }
+    crate::db::db_replace_all(&pool, flattened)?;
+    Ok(())
+}
+
+fn storage_delete_value(
+    pool: crate::db::DbPool,
+    name: String,
+    key: String,
+    app_key: Option<[u8; 32]>,
+    key_id: String,
+) -> Result<(), AppError> {
+    let segments = key_segments(&key);
+    if segments.is_empty() {
+        return Ok(());
+    }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        crate::db::db_delete(&pool, &flat_key)?;
+        return Ok(());
+    }
+
+    // Fallback: multi-level key — load, mutate, rewrite
+    let mut root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
+    let _ = delete_nested_value(&mut root, &segments);
+    let mut flattened = flatten_store_value(root);
+    if name == DATA_STORE {
+        let mut encrypted = Map::new();
+        for (row_key, value) in flattened {
+            encrypted.insert(
+                row_key.clone(),
+                match &app_key {
+                    Some(k) => encrypt_store_row_with_key(&row_key, value, k, &key_id)?,
+                    None => value,
+                },
+            );
+        }
+        flattened = encrypted;
+    }
+    crate::db::db_replace_all(&pool, flattened)?;
+    Ok(())
+}
+
+fn storage_has_value(
+    pool: crate::db::DbPool,
+    name: String,
+    key: String,
+    app_key: Option<[u8; 32]>,
+    key_id: String,
+) -> Result<bool, AppError> {
+    let segments = key_segments(&key);
+    if segments.is_empty() {
+        return Ok(false);
+    }
+
+    if let Some(flat_key) = flat_db_key(&segments) {
+        return Ok(crate::db::db_has(&pool, &flat_key)?);
+    }
+
+    // Fallback: multi-level key
+    let root = load_store_root_inner(&pool, &name, &app_key, &key_id)?;
+    Ok(get_nested_value(&root, &segments).is_some())
+}
+
+fn storage_replace_value(
+    pool: crate::db::DbPool,
+    name: String,
+    data: Value,
+    app_key: Option<[u8; 32]>,
+    key_id: String,
+) -> Result<(), AppError> {
+    let incoming = flatten_store_value(data);
+    let existing = crate::db::db_all(&pool)?;
+
+    let mut upserts = Map::new();
+    let mut delete_keys: Vec<String> = Vec::new();
+
+    if name == DATA_STORE {
+        for (key, plain_value) in &incoming {
+            let changed = match existing.get(key) {
+                Some(existing_envelope) => {
+                    let decrypted_existing = match &app_key {
+                        Some(k) => decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
+                            .unwrap_or_else(|| existing_envelope.clone()),
+                        None => existing_envelope.clone(),
+                    };
+                    &decrypted_existing != plain_value
+                }
+                None => true, // new row
+            };
+            if changed {
+                if let Some(k) = &app_key {
+                    upserts.insert(
+                        key.clone(),
+                        encrypt_store_row_with_key(key, plain_value.clone(), k, &key_id)?,
+                    );
+                }
+            }
+        }
+    } else {
+        for (key, value) in &incoming {
+            let changed = match existing.get(key) {
+                Some(existing_value) => existing_value != value,
+                None => true,
+            };
+            if changed {
+                upserts.insert(key.clone(), value.clone());
+            }
+        }
+    }
+
+    for key in existing.keys() {
+        if !incoming.contains_key(key) {
+            delete_keys.push(key.clone());
+        }
+    }
+
+    if !upserts.is_empty() || !delete_keys.is_empty() {
+        crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
+    }
+    Ok(())
+}
+
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 /// Returns the full store as a nested JSON object.
@@ -315,108 +487,49 @@ pub(crate) async fn storage_get_store(
 /// Optimised path: only rows whose content actually changed are re-encrypted
 /// and written.  Unchanged rows keep their existing DB envelope, avoiding
 /// expensive AES-GCM re-encryption and reducing I/O.
+///
+/// Heavy lifting (full-table read + per-row compare/decrypt/encrypt) is
+/// dispatched to a blocking thread so the Tauri event loop stays responsive.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_replace(
+pub(crate) async fn storage_replace(
     app: AppHandle,
     name: String,
     data: RawJson,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let incoming = flatten_store_value(data.0);
+    let is_settings = name == SETTINGS_STORE;
+    let app_key = current_app_key(state.inner())?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
 
-    if name == DATA_STORE {
-        let existing = crate::db::db_all(&pool)?;
-        let app_key = current_app_key(state.inner())?;
-        let key_id = state
-            .inner()
-            .crypto
-            .session
-            .read()
-            .map_err(AppError::from)?
-            .current_items_key_id
-            .clone();
+    tokio::task::spawn_blocking(move || storage_replace_value(pool, name, data.0, app_key, key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))??;
 
-        let mut upserts = Map::new();
-        let mut delete_keys: Vec<String> = Vec::new();
-
-        // Rows to insert/update: incoming rows that differ from (or are absent in) existing.
-        for (key, plain_value) in &incoming {
-            let changed = match existing.get(key) {
-                Some(existing_envelope) => {
-                    // Decrypt the stored envelope and compare plaintext.
-                    let decrypted_existing = if let Some(ref k) = app_key {
-                        decrypt_json_from_storage(k, existing_envelope, &storage_aad(key))?
-                            .unwrap_or_else(|| existing_envelope.clone())
-                    } else {
-                        existing_envelope.clone()
-                    };
-                    &decrypted_existing != plain_value
-                }
-                None => true, // new row
-            };
-            if changed {
-                if let Some(ref k) = app_key {
-                    upserts.insert(
-                        key.clone(),
-                        encrypt_store_row_with_key(
-                            key,
-                            plain_value.clone(),
-                            k,
-                            &key_id,
-                        )?,
-                    );
-                }
-            }
-        }
-
-        // Rows to delete: keys in existing but not in incoming.
-        for key in existing.keys() {
-            if !incoming.contains_key(key) {
-                delete_keys.push(key.clone());
-            }
-        }
-
-        if !upserts.is_empty() || !delete_keys.is_empty() {
-            crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
-        }
-    } else {
-        // Settings store: no encryption, just diff against existing.
-        let existing = crate::db::db_all(&pool)?;
-        let mut upserts = Map::new();
-        let mut delete_keys: Vec<String> = Vec::new();
-
-        for (key, value) in &incoming {
-            let changed = match existing.get(key) {
-                Some(existing_value) => existing_value != value,
-                None => true,
-            };
-            if changed {
-                upserts.insert(key.clone(), value.clone());
-            }
-        }
-        for key in existing.keys() {
-            if !incoming.contains_key(key) {
-                delete_keys.push(key.clone());
-            }
-        }
-
-        if !upserts.is_empty() || !delete_keys.is_empty() {
-            crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
-        }
-        invalidate_settings_cache(&state);
+    if is_settings {
+        invalidate_settings_cache(state.inner());
     }
-
     Ok(())
 }
 
 /// Gets a single value by dot-separated key.
 /// For flat-addressable keys this is a single-row lookup; otherwise it falls
 /// back to loading the full store (legacy path, rarely hit).
+///
+/// Runs off the main thread: the collection-namespace fallback ("notes",
+/// "folders") reads and decrypts the entire KV table, which must not block the
+/// Tauri event loop.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_get(
+pub(crate) async fn storage_get(
     app: AppHandle,
     name: String,
     key: String,
@@ -424,29 +537,20 @@ pub(crate) fn storage_get(
     state: State<'_, AppState>,
 ) -> Result<RawJson, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let segments = key_segments(&key);
-    if segments.is_empty() {
-        return Ok(def);
-    }
+    let app_key = current_app_key(state.inner())?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
 
-    if let Some(flat_key) = flat_db_key(&segments) {
-        let raw = crate::db::db_get(&pool, &flat_key)?;
-        let value = raw
-            .and_then(|r| serde_json::from_str::<Value>(&r).ok())
-            .map(|v| {
-                if name == DATA_STORE {
-                    decrypt_store_row(&flat_key, v, state.inner()).unwrap_or(Value::Null)
-                } else {
-                    v
-                }
-            })
-            .unwrap_or(def.0);
-        return Ok(value.into());
-    }
-
-    // Fallback: multi-level key — load full store and walk the tree
-    let root = load_store_root(&pool, &name, state.inner())?;
-    let value = get_nested_value(&root, &segments).cloned().unwrap_or(def.0);
+    let value =
+        tokio::task::spawn_blocking(move || storage_get_value(pool, name, key, def.0, app_key, key_id))
+            .await
+            .map_err(|e| AppError::Other(e.to_string()))??;
     Ok(value.into())
 }
 
@@ -455,7 +559,7 @@ pub(crate) fn storage_get(
 /// falls back to the load-modify-rewrite path.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_set(
+pub(crate) async fn storage_set(
     app: AppHandle,
     name: String,
     key: String,
@@ -463,40 +567,23 @@ pub(crate) fn storage_set(
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let segments = key_segments(&key);
-    if segments.is_empty() {
-        return Ok(());
-    }
+    let is_settings = name == SETTINGS_STORE;
+    let app_key = current_app_key(state.inner())?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
 
-    if let Some(flat_key) = flat_db_key(&segments) {
-        let payload = if name == DATA_STORE {
-            encrypt_store_row(&flat_key, value.0.clone(), state.inner())?
-        } else {
-            value.0.clone()
-        };
-        let serialized = serde_json::to_string(&payload)?;
-        crate::db::db_set(&pool, &flat_key, &serialized)?;
-        if name == SETTINGS_STORE {
-            invalidate_settings_cache(&state);
-        }
-        return Ok(());
-    }
+    tokio::task::spawn_blocking(move || storage_set_value(pool, name, key, value.0, app_key, key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))??;
 
-    // Fallback: multi-level key — load, mutate, rewrite
-    let mut root = load_store_root(&pool, &name, state.inner())?;
-    set_nested_value(&mut root, &segments, value.0);
-    let mut flattened = flatten_store_value(root);
-    if name == DATA_STORE {
-        let state_inner = state.inner();
-        let mut encrypted = Map::new();
-        for (key, value) in flattened {
-            encrypted.insert(key.clone(), encrypt_store_row(&key, value, state_inner)?);
-        }
-        flattened = encrypted;
-    }
-    crate::db::db_replace_all(&pool, flattened)?;
-    if name == SETTINGS_STORE {
-        invalidate_settings_cache(&state);
+    if is_settings {
+        invalidate_settings_cache(state.inner());
     }
     Ok(())
 }
@@ -506,41 +593,30 @@ pub(crate) fn storage_set(
 /// the load-modify-rewrite path.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_delete(
+pub(crate) async fn storage_delete(
     app: AppHandle,
     name: String,
     key: String,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let segments = key_segments(&key);
-    if segments.is_empty() {
-        return Ok(());
-    }
+    let is_settings = name == SETTINGS_STORE;
+    let app_key = current_app_key(state.inner())?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
 
-    if let Some(flat_key) = flat_db_key(&segments) {
-        crate::db::db_delete(&pool, &flat_key)?;
-        if name == SETTINGS_STORE {
-            invalidate_settings_cache(&state);
-        }
-        return Ok(());
-    }
+    tokio::task::spawn_blocking(move || storage_delete_value(pool, name, key, app_key, key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))??;
 
-    // Fallback: multi-level key — load, mutate, rewrite
-    let mut root = load_store_root(&pool, &name, state.inner())?;
-    let _ = delete_nested_value(&mut root, &segments);
-    let mut flattened = flatten_store_value(root);
-    if name == DATA_STORE {
-        let state_inner = state.inner();
-        let mut encrypted = Map::new();
-        for (key, value) in flattened {
-            encrypted.insert(key.clone(), encrypt_store_row(&key, value, state_inner)?);
-        }
-        flattened = encrypted;
-    }
-    crate::db::db_replace_all(&pool, flattened)?;
-    if name == SETTINGS_STORE {
-        invalidate_settings_cache(&state);
+    if is_settings {
+        invalidate_settings_cache(state.inner());
     }
     Ok(())
 }
@@ -549,37 +625,39 @@ pub(crate) fn storage_delete(
 /// For flat-addressable keys this is a single COUNT query; otherwise falls back.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_has(
+pub(crate) async fn storage_has(
     app: AppHandle,
     name: String,
     key: String,
     state: State<'_, AppState>,
 ) -> Result<bool, AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    let segments = key_segments(&key);
-    if segments.is_empty() {
-        return Ok(false);
-    }
+    let app_key = current_app_key(state.inner())?;
+    let key_id = state
+        .inner()
+        .crypto
+        .session
+        .read()
+        .map_err(AppError::from)?
+        .current_items_key_id
+        .clone();
 
-    if let Some(flat_key) = flat_db_key(&segments) {
-        return Ok(crate::db::db_has(&pool, &flat_key)?);
-    }
-
-    // Fallback: multi-level key
-    let root = load_store_root(&pool, &name, state.inner())?;
-    Ok(get_nested_value(&root, &segments).is_some())
+    tokio::task::spawn_blocking(move || storage_has_value(pool, name, key, app_key, key_id))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn storage_clear(
+pub(crate) async fn storage_clear(
     app: AppHandle,
     name: String,
     state: State<'_, AppState>,
 ) -> Result<(), AppError> {
     let pool = pick_pool(&name, &app, &state)?;
-    crate::db::db_clear(&pool)?;
-    Ok(())
+    tokio::task::spawn_blocking(move || crate::db::db_clear(&pool))
+        .await
+        .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[cfg(test)]
@@ -626,7 +704,16 @@ mod tests {
 
         crate::db::db_replace_all(&pool, plain).expect("seed plaintext");
 
-        let root_value = load_store_root(&pool, DATA_STORE, &state).expect("load root");
+        let app_key = current_app_key(&state).expect("app key");
+        let key_id = state
+            .crypto
+            .session
+            .read()
+            .expect("session")
+            .current_items_key_id
+            .clone();
+        let root_value =
+            load_store_root_inner(&pool, DATA_STORE, &app_key, &key_id).expect("load root");
         let notes = root_value.get("notes").expect("notes root");
         assert_eq!(notes.get("note-1").and_then(Value::as_object).is_some(), true);
         assert_eq!(
@@ -659,10 +746,14 @@ mod tests {
         }
 
         let value = json!({"id": "note-2", "title": "Round trip"});
-        let encrypted = encrypt_store_row("notes.note-2", value.clone(), &state).expect("enc");
+        let app_key = current_app_key(&state).expect("app key");
+        let encrypted =
+            encrypt_store_row_with_key("notes.note-2", value.clone(), app_key.as_ref().unwrap(), "kid2")
+                .expect("enc");
         assert_eq!(encrypted.get("ae").and_then(Value::as_u64), Some(4));
 
-        let decrypted = decrypt_store_row("notes.note-2", encrypted, &state).expect("dec");
+        let decrypted =
+            decrypt_store_row_with_key("notes.note-2", encrypted, &app_key).expect("dec");
         assert_eq!(decrypted, value);
     }
 }

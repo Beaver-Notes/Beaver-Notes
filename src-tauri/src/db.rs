@@ -68,7 +68,8 @@ pub(crate) fn open_pool(path: &Path) -> Result<DbPool, AppError> {
     conn.execute_batch(
         "PRAGMA journal_mode=WAL;
         PRAGMA case_sensitive_like = OFF;
-        PRAGMA synchronous=NORMAL;",
+        PRAGMA synchronous=NORMAL;
+        PRAGMA busy_timeout = 5000;",
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
 
@@ -612,4 +613,32 @@ fn write_snapshot(
     )
     .map_err(|e| AppError::Other(e.to_string()))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, path::PathBuf, time::SystemTime};
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("clock ok")
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
+    }
+
+    #[test]
+    fn open_pool_sets_busy_timeout() {
+        let root = unique_temp_dir("beaver-notes-db-test");
+        let _ = fs::create_dir_all(&root);
+        let db_path = root.join("data.db");
+        let pool = open_pool(&db_path).expect("pool");
+        let conn = pool.get().expect("conn");
+        let timeout: i64 = conn
+            .query_row("PRAGMA busy_timeout", [], |row| row.get(0))
+            .expect("pragma");
+        assert_eq!(timeout, 5000, "busy_timeout must be set to avoid SQLITE_BUSY");
+        let _ = fs::remove_dir_all(&root);
+    }
 }

@@ -438,26 +438,30 @@ pub(crate) struct SyncMeta {
 /// stored inside the encrypted envelope so it round-trips with the payload.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn sync_encrypt_payload(
+pub(crate) async fn sync_encrypt_payload(
     _app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     meta: String,
     data: String,
     aad: String,
 ) -> Result<String, AppError> {
-    let _t = crate::shared::speed_log::scope("security.sync_encrypt_payload");
     let key = current_app_key(state.inner())?
         .ok_or_else(|| AppError::Other("Encryption is enabled but locked.".into()))?;
-    let bytes = BASE64.decode(data)?;
-    let (iv, enc) = aead_encrypt_bytes(&key, &bytes, &aad)?;
-    let meta: SyncMeta = serde_json::from_str(&meta)?;
-    let envelope = serde_json::json!({
-        "v": SYNC_PAYLOAD_VERSION,
-        "meta": serde_json::to_value(&meta)?,
-        "iv": iv,
-        "enc": enc,
-    });
-    Ok(serde_json::to_string(&envelope)?)
+    tokio::task::spawn_blocking(move || {
+        let _t = crate::shared::speed_log::scope("security.sync_encrypt_payload");
+        let bytes = BASE64.decode(data)?;
+        let (iv, enc) = aead_encrypt_bytes(&key, &bytes, &aad)?;
+        let meta: SyncMeta = serde_json::from_str(&meta)?;
+        let envelope = serde_json::json!({
+            "v": SYNC_PAYLOAD_VERSION,
+            "meta": serde_json::to_value(&meta)?,
+            "iv": iv,
+            "enc": enc,
+        });
+        Ok(serde_json::to_string(&envelope)?)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Decrypt a sync payload. Returns `DECRYPT_FAILED` on authentication failure
@@ -468,69 +472,73 @@ pub(crate) fn sync_encrypt_payload(
 /// as a JSON number array) are decoded for backward compatibility.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn sync_decrypt_payload(
+pub(crate) async fn sync_decrypt_payload(
     _app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     enc: String,
     aad: String,
 ) -> Result<SyncDecryptedPayload, AppError> {
-    let _t = crate::shared::speed_log::scope("security.sync_decrypt_payload");
-    let envelope: Value = serde_json::from_str(&enc)?;
-    let v = envelope
-        .get("v")
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as u8;
     let key = match current_app_key(state.inner())? {
         Some(key) => key,
         None => return Err(AppError::Other("KEY_LOCKED".into())),
     };
-    let iv = envelope
-        .get("iv")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
-    let enc_str = envelope
-        .get("enc")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string();
+    tokio::task::spawn_blocking(move || {
+        let _t = crate::shared::speed_log::scope("security.sync_decrypt_payload");
+        let envelope: Value = serde_json::from_str(&enc)?;
+        let v = envelope
+            .get("v")
+            .and_then(Value::as_u64)
+            .unwrap_or(0) as u8;
+        let iv = envelope
+            .get("iv")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
+        let enc_str = envelope
+            .get("enc")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string();
 
-    if v == SYNC_PAYLOAD_VERSION {
-        let bytes = aead_decrypt_bytes(&key, &iv, &enc_str, &aad)
+        if v == SYNC_PAYLOAD_VERSION {
+            let bytes = aead_decrypt_bytes(&key, &iv, &enc_str, &aad)
+                .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+            let meta: SyncMeta = serde_json::from_value(
+                envelope
+                    .get("meta")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            )
             .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
-        let meta: SyncMeta = serde_json::from_value(
-            envelope
-                .get("meta")
+            Ok(SyncDecryptedPayload {
+                meta,
+                update: BASE64.encode(bytes),
+            })
+        } else if v == PROTOCOL_VERSION {
+            let legacy = SyncEnvelope { v, iv, enc: enc_str };
+            let value = aead_decrypt_json(&key, &legacy, &aad)
+                .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+            let meta: SyncMeta = serde_json::from_value(value.clone())
+                .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
+            let update_arr = value
+                .get("update")
+                .and_then(Value::as_array)
                 .cloned()
-                .unwrap_or(Value::Null),
-        )
-        .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
-        Ok(SyncDecryptedPayload {
-            meta,
-            update: BASE64.encode(bytes),
-        })
-    } else if v == PROTOCOL_VERSION {
-        let legacy = SyncEnvelope { v, iv, enc: enc_str };
-        let value = aead_decrypt_json(&key, &legacy, &aad)
-            .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
-        let meta: SyncMeta = serde_json::from_value(value.clone())
-            .map_err(|_| AppError::Other("DECRYPT_FAILED".into()))?;
-        let update_arr = value
-            .get("update")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let bytes: Vec<u8> = update_arr
-            .iter()
-            .filter_map(|n| n.as_u64().map(|u| u as u8))
-            .collect();
-        Ok(SyncDecryptedPayload {
-            meta,
-            update: BASE64.encode(bytes),
-        })
-    } else {
-        Err(AppError::Other(format!("Unsupported envelope version: {}", v)))
-    }
+                .unwrap_or_default();
+            let bytes: Vec<u8> = update_arr
+                .iter()
+                .filter_map(|n| n.as_u64().map(|u| u as u8))
+                .collect();
+            Ok(SyncDecryptedPayload {
+                meta,
+                update: BASE64.encode(bytes),
+            })
+        } else {
+            Err(AppError::Other(format!("Unsupported envelope version: {}", v)))
+        }
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Batch-decrypt a list of sync payloads in parallel. Each envelope is
@@ -538,95 +546,105 @@ pub(crate) fn sync_decrypt_payload(
 /// instead of aborting the whole batch.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn sync_decrypt_batch(
+pub(crate) async fn sync_decrypt_batch(
     _app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     envelopes: Vec<String>,
     aads: Vec<String>,
 ) -> Result<Vec<Option<SyncDecryptedPayload>>, AppError> {
-    let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
     let key = current_app_key(state.inner())?
         .ok_or_else(|| AppError::Other("KEY_LOCKED".into()))?;
 
-    let results: Vec<Option<SyncDecryptedPayload>> = envelopes
-        .par_iter()
-        .zip(aads.par_iter())
-        .map(|(enc, aad)| {
-            let envelope: Value = serde_json::from_str(enc).ok()?;
-            let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
-            let iv = envelope.get("iv").and_then(Value::as_str).unwrap_or_default();
-            let enc_str = envelope.get("enc").and_then(Value::as_str).unwrap_or_default();
+    tokio::task::spawn_blocking(move || {
+        let _t = crate::shared::speed_log::scope("security.sync_decrypt_batch");
 
-            if v == SYNC_PAYLOAD_VERSION {
-                let bytes = aead_decrypt_bytes(&key, iv, enc_str, aad).ok()?;
-                let meta: SyncMeta = serde_json::from_value(
-                    envelope.get("meta").cloned().unwrap_or(Value::Null),
-                )
-                .ok()?;
-                Some(SyncDecryptedPayload {
-                    meta,
-                    update: BASE64.encode(bytes),
-                })
-            } else if v == PROTOCOL_VERSION {
-                let legacy = SyncEnvelope { v, iv: iv.to_string(), enc: enc_str.to_string() };
-                let value = aead_decrypt_json(&key, &legacy, aad).ok()?;
-                let meta: SyncMeta = serde_json::from_value(value.clone()).ok()?;
-                let update_arr = value
-                    .get("update")
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_default();
-                let bytes: Vec<u8> = update_arr
-                    .iter()
-                    .filter_map(|n| n.as_u64().map(|u| u as u8))
-                    .collect();
-                Some(SyncDecryptedPayload {
-                    meta,
-                    update: BASE64.encode(bytes),
-                })
-            } else {
-                None
-            }
-        })
-        .collect();
+        let results: Vec<Option<SyncDecryptedPayload>> = envelopes
+            .par_iter()
+            .zip(aads.par_iter())
+            .map(|(enc, aad)| {
+                let envelope: Value = serde_json::from_str(enc).ok()?;
+                let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
+                let iv = envelope.get("iv").and_then(Value::as_str).unwrap_or_default();
+                let enc_str = envelope.get("enc").and_then(Value::as_str).unwrap_or_default();
 
-    Ok(results)
+                if v == SYNC_PAYLOAD_VERSION {
+                    let bytes = aead_decrypt_bytes(&key, iv, enc_str, aad).ok()?;
+                    let meta: SyncMeta = serde_json::from_value(
+                        envelope.get("meta").cloned().unwrap_or(Value::Null),
+                    )
+                    .ok()?;
+                    Some(SyncDecryptedPayload {
+                        meta,
+                        update: BASE64.encode(bytes),
+                    })
+                } else if v == PROTOCOL_VERSION {
+                    let legacy = SyncEnvelope { v, iv: iv.to_string(), enc: enc_str.to_string() };
+                    let value = aead_decrypt_json(&key, &legacy, aad).ok()?;
+                    let meta: SyncMeta = serde_json::from_value(value.clone()).ok()?;
+                    let update_arr = value
+                        .get("update")
+                        .and_then(Value::as_array)
+                        .cloned()
+                        .unwrap_or_default();
+                    let bytes: Vec<u8> = update_arr
+                        .iter()
+                        .filter_map(|n| n.as_u64().map(|u| u as u8))
+                        .collect();
+                    Some(SyncDecryptedPayload {
+                        meta,
+                        update: BASE64.encode(bytes),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Ok(results)
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 /// Batch-encrypt a list of sync payloads in parallel. All items must succeed;
 /// if any encryption fails the whole batch returns an error.
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn sync_encrypt_batch(
+pub(crate) async fn sync_encrypt_batch(
     _app: AppHandle,
-    state: State<AppState>,
+    state: State<'_, AppState>,
     metas: Vec<String>,
     data_b64s: Vec<String>,
     aads: Vec<String>,
 ) -> Result<Vec<String>, AppError> {
-    let _t = crate::shared::speed_log::scope("security.sync_encrypt_batch");
     let key = current_app_key(state.inner())?
         .ok_or_else(|| AppError::Other("Encryption is enabled but locked.".into()))?;
 
-    let results: Result<Vec<String>, AppError> = metas
-        .par_iter()
-        .zip(data_b64s.par_iter())
-        .zip(aads.par_iter())
-        .map(|((meta, data), aad)| {
-            let bytes = BASE64.decode(data)?;
-            let (iv, enc) = aead_encrypt_bytes(&key, &bytes, aad)?;
-            let meta: SyncMeta = serde_json::from_str(meta)?;
-            let envelope = serde_json::json!({
-                "v": SYNC_PAYLOAD_VERSION,
-                "meta": serde_json::to_value(&meta)?,
-                "iv": iv,
-                "enc": enc,
-            });
-            Ok(serde_json::to_string(&envelope)?)
-        })
-        .collect();
+    tokio::task::spawn_blocking(move || {
+        let _t = crate::shared::speed_log::scope("security.sync_encrypt_batch");
 
-    results
+        let results: Result<Vec<String>, AppError> = metas
+            .par_iter()
+            .zip(data_b64s.par_iter())
+            .zip(aads.par_iter())
+            .map(|((meta, data), aad)| {
+                let bytes = BASE64.decode(data)?;
+                let (iv, enc) = aead_encrypt_bytes(&key, &bytes, aad)?;
+                let meta: SyncMeta = serde_json::from_str(meta)?;
+                let envelope = serde_json::json!({
+                    "v": SYNC_PAYLOAD_VERSION,
+                    "meta": serde_json::to_value(&meta)?,
+                    "iv": iv,
+                    "enc": enc,
+                });
+                Ok(serde_json::to_string(&envelope)?)
+            })
+            .collect();
+
+        results
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
