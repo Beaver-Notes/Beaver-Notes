@@ -191,10 +191,7 @@
       </template>
 
       <div v-else class="text-center">
-        <img
-          :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
-          class="mx-auto w-1/4"
-        />
+        <beaver-character class="mx-auto w-40" />
         <p
           class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
         >
@@ -230,8 +227,7 @@ import { useDialog } from '@/composable/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
-import HomeImg from '@/assets/images/home.png';
-import ArchiveImg from '@/assets/images/archive.png';
+import BeaverCharacter from '@/components/ui/BeaverCharacter.vue';
 import HomeFolderCard from '@/components/home/HomeFolderCard.vue';
 import { useFolderStore } from '@/store/folder';
 import HomeSearch from '@/components/home/HomeSearch.vue';
@@ -454,8 +450,7 @@ export default {
       folders,
       folder,
       deleteLabel,
-      HomeImg,
-      ArchiveImg,
+      BeaverCharacter,
       highlightedFolderIds,
       childFolders,
       notesInFolder,
