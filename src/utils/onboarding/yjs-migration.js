@@ -10,7 +10,7 @@
  */
 
 import { useStorage } from '@/composable/storage';
-import { appendUpdate } from '@/lib/native/yjs.js';
+import { appendBatch } from '@/lib/native/yjs.js';
 import {
   extractTextFromContent,
   stripTransientFields,
@@ -29,6 +29,10 @@ const MIGRATION_FLAG = 'yjs_content_sync_v2';
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
+
+// Collect converted updates and flush them in one batched IPC per chunk, so a
+// large import is not N round-trips.
+const pendingUpdates = [];
 
 async function processNote(id, notes, schema) {
   const note = notes[id];
@@ -50,7 +54,7 @@ async function processNote(id, notes, schema) {
   const update = Y.encodeStateAsUpdate(tempYdoc);
 
   if (frag.length > 0 && update.byteLength > 0) {
-    await appendUpdate(id, update, getDeviceId());
+    pendingUpdates.push({ noteId: id, update });
 
     const searchText = extractTextFromContent(clean.content);
     const { content: _c, ...meta } = clean;
@@ -59,6 +63,16 @@ async function processNote(id, notes, schema) {
     return true;
   }
   return false;
+}
+
+async function flushPendingUpdates(device) {
+  if (pendingUpdates.length === 0) return;
+  const entries = pendingUpdates.splice(0);
+  await appendBatch(
+    entries.map((e) => e.noteId),
+    entries.map((e) => e.update),
+    entries.map(() => device)
+  );
 }
 
 function chunk(array, size) {
@@ -106,6 +120,7 @@ export async function migrateNotesContent() {
   }
 
   const schema = await ensureSchema();
+  const device = getDeviceId();
 
   let migrated = 0;
 
@@ -127,9 +142,11 @@ export async function migrateNotesContent() {
 
     migrated += results.filter(Boolean).length;
 
+    await flushPendingUpdates(device);
     await yieldToUi();
   }
 
+  await flushPendingUpdates(device);
   await storage.set(MIGRATION_FLAG, true, 'settings');
   return migrated;
 }
