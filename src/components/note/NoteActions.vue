@@ -371,9 +371,9 @@ import { useTranslations } from '@/composable/useTranslations';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useAccountStore } from '@/store/account';
-import HistoryPanel from '@/components/HistoryPanel.vue';
-import PresenceAvatars from '@/components/PresenceAvatars.vue';
-import ShareModal from '@/components/ShareModal.vue';
+import HistoryPanel from '@/components/note/HistoryPanel.vue';
+import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
+import ShareModal from '@/components/note/ShareModal.vue';
 export default {
   components: {
     HistoryPanel,

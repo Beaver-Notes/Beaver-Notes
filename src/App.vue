@@ -141,7 +141,7 @@ import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
-import AppEncryptionGate from './components/AppEncryptionGate.vue';
+import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
 import { getHocuspocusSync } from './composable/useHocuspocusSync';
 import { useAccountStore } from './store/account';

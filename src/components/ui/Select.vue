@@ -49,22 +49,25 @@
         class="absolute right-2 rtl:right-auto rtl:left-2 top-1/2 -translate-y-1/2 text-neutral-600 dark:text-neutral-200 transition-transform duration-200 pointer-events-none"
       />
 
-      <!-- Dropdown Menu -->
-      <Transition
-        enter-active-class="transition duration-200 ease-[var(--ease-standard)]"
-        enter-from-class="opacity-0 scale-95"
-        enter-to-class="opacity-100 scale-100"
-        leave-active-class="transition duration-150 ease-out"
-        leave-from-class="opacity-100 scale-100"
-        leave-to-class="opacity-0 scale-95"
-      >
-        <div
-          v-if="isOpen"
-          ref="dropdown"
-          class="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5 origin-top"
-          role="listbox"
-          :aria-activedescendant="focusedIndex >= 0 ? `${selectId}-option-${focusedIndex}` : undefined"
+      <!-- Dropdown Menu (teleported so it is never clipped by an
+           overflow/scrolling ancestor like the onboarding modal) -->
+      <Teleport to="body">
+        <Transition
+          enter-active-class="transition duration-200 ease-[var(--ease-standard)]"
+          enter-from-class="opacity-0 scale-95"
+          enter-to-class="opacity-100 scale-100"
+          leave-active-class="transition duration-150 ease-out"
+          leave-from-class="opacity-100 scale-100"
+          leave-to-class="opacity-0 scale-95"
         >
+          <div
+            v-show="isOpen"
+            ref="dropdown"
+            :style="[floatingStyles, { width: dropdownWidth ? dropdownWidth + 'px' : 'auto' }]"
+            class="bg-white dark:bg-neutral-900 border rounded-xl shadow-xl z-50 p-1.5 origin-top"
+            role="listbox"
+            :aria-activedescendant="focusedIndex >= 0 ? `${selectId}-option-${focusedIndex}` : undefined"
+          >
           <!-- Search Input -->
           <div v-if="search" class="mb-2">
             <ui-input
@@ -117,13 +120,15 @@
             </div>
           </div>
         </div>
-      </Transition>
+        </Transition>
+      </Teleport>
     </div>
   </div>
 </template>
 
 <script>
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue';
+import { useFloating, offset, flip, shift, autoUpdate } from '@floating-ui/vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useScrollLock } from '@/utils/ui/scrollLock.js';
 
@@ -154,7 +159,14 @@ export default {
     const focusedIndex = ref(-1);
     const searchQuery = ref('');
     const optionRefs = ref([]);
+    const dropdownWidth = ref(0);
     const { translations } = useTranslations();
+
+    const { floatingStyles } = useFloating(selectButton, dropdown, {
+      placement: 'bottom-start',
+      middleware: [offset(6), flip(), shift({ padding: 8 })],
+      whileElementsMounted: autoUpdate,
+    });
 
     const setOptionRef = (el, index) => {
       if (el) {
@@ -234,6 +246,7 @@ export default {
       }
       isOpen.value = !isOpen.value;
       if (isOpen.value) {
+        dropdownWidth.value = selectButton.value?.offsetWidth || 0;
         nextTick(() => {
           searchQuery.value = '';
           optionRefs.value = [];
@@ -386,6 +399,8 @@ export default {
       selectedText,
       filteredOptions,
       optionRefs,
+      dropdownWidth,
+      floatingStyles,
       translations,
       setOptionRef,
       toggle,
