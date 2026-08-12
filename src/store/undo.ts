@@ -79,7 +79,11 @@ export const useUndoStore = defineStore('undo', () => {
             item.data.isLocked = false;
             await noteStore.add(item.data);
           } else if (item.type === 'folder') {
-            try { await folderStore.add(item.data); } catch {}
+            try {
+              await folderStore.add(item.data);
+            } catch (error) {
+              console.warn('[undo] failed to restore folder', item.id, error);
+            }
           }
         }
         break;

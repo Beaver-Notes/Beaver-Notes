@@ -512,7 +512,9 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     removeNoteFromLinkIndex(id);
 
     // Clean up Yjs document updates
-    deleteUpdates(id).catch(() => {});
+    deleteUpdates(id).catch((error) => {
+      console.warn('[note] failed to delete Yjs updates for', id, error);
+    });
 
     removeSearchEntry(id);
 

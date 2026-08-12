@@ -43,5 +43,8 @@ export async function exportMD(noteId, noteTitle, editor) {
   await ensureDir(assetsDest);
   try {
     await copyPath(assetsSource, assetsDest);
-  } catch {}
+  } catch (error) {
+    // The markdown still exports; the images just won't be embedded.
+    console.warn('[md export] failed to copy assets for', noteId, error);
+  }
 }
