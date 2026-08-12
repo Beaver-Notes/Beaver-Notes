@@ -9,16 +9,13 @@ import {
 } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
+import { useOnboardingAppearance } from '@/composable/useOnboardingAppearance';
 import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import {
   applyOnboardingSyncPreferences,
-  applyOnboardingFreshPreferences,
   getOnboardingMigrationStatus,
-  ONBOARDING_FONTS,
   markOnboardingCompleted,
-  ONBOARDING_LANGUAGES,
-  ONBOARDING_THEMES,
   probeCustomMigrationPath,
   runOnboardingMigration,
   runOnboardingMigrationFromPath,
@@ -40,9 +37,6 @@ import {
 } from '@/utils/onboarding/platforms.js';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
-import lightImg from '@/assets/images/light.png';
-import darkImg from '@/assets/images/dark.png';
-import systemImg from '@/assets/images/system.png';
 import logoUrl from '@/assets/images/logo-transparent.png';
 import { fetchCloudKeyParams, getFetchedCloudKeyParams, deriveVaultPassphraseProof } from '@/utils/sync/vault-key-params.js';
 import { detectRemoteVaultJoin, completeRemoteVaultJoin } from '@/utils/onboarding/remote-vault-join.js';
@@ -254,27 +248,7 @@ export function useOnboardingFlow({
     }
   }
 
-  //  Static config
-
-  const themeImages = { light: lightImg, dark: darkImg, system: systemImg };
-  const themes = ONBOARDING_THEMES.map((item) => ({
-    ...item,
-    img: themeImages[item.name],
-  }));
-  const fonts = ONBOARDING_FONTS;
-  const languages = ONBOARDING_LANGUAGES;
-
   //  Computed
-
-  const themeLabels = computed(() => ({
-    light: translations.value.appearance?.light || 'Light',
-    dark: translations.value.appearance?.dark || 'Dark',
-    system: translations.value.appearance?.system || 'System',
-  }));
-
-  const isDark = computed(() =>
-    fresh.theme === 'system' ? theme.isDark() : fresh.theme === 'dark',
-  );
 
   const isMobileRuntime = backend.isMobileRuntime();
 
@@ -401,6 +375,11 @@ export function useOnboardingFlow({
   const handlePrimaryContinue = () => {
     goToStep('customize');
   };
+
+  // Appearance + fresh-start preferences live in a focused composable that
+  // receives only the shared state it needs.
+  const appearance = useOnboardingAppearance({ fresh, state, theme, goToStep });
+  const { selectAccentColor, selectZoomLevel } = appearance;
 
   //  Import
 
@@ -713,75 +692,6 @@ export function useOnboardingFlow({
     }
   }
 
-  //  Fresh preferences
-
-  async function applyFreshAndGo(target) {
-    state.error = '';
-    state.savingPreferences = true;
-    try {
-      await applyOnboardingFreshPreferences(fresh, { theme });
-      goToStep(target);
-    } catch (e) {
-      state.error = e?.message || String(e);
-    } finally {
-      state.savingPreferences = false;
-    }
-  }
-
-  async function prepareFreshWorkspace() {
-    await applyFreshAndGo('password');
-  }
-
-  async function useDefaultPreferences() {
-    await applyFreshAndGo('password');
-  }
-
-  //  Appearance
-
-  const selectTheme = (name) => {
-    fresh.theme = name;
-    theme.setTheme(name, name === 'system');
-  };
-
-  const selectAccentColor = (color) => {
-    fresh.accentColor = color;
-    const root = document.documentElement;
-    const accentColorNames = [
-      'red',
-      'light',
-      'green',
-      'blue',
-      'purple',
-      'pink',
-      'neutral',
-    ];
-    root.classList.forEach((cls) => {
-      if (accentColorNames.includes(cls)) root.classList.remove(cls);
-    });
-    root.classList.add(color);
-  };
-
-  const selectFont = (font) => {
-    fresh.selectedFont = font;
-    document.documentElement.style.setProperty('--selected-font', font);
-  };
-
-  const selectLanguage = (language) => {
-    fresh.language = language;
-  };
-
-  const selectSounds = (value) => {
-    fresh.soundsEnabled = value;
-  };
-
-  const selectSpotlight = (value) => {
-    fresh.spotlightEnabled = value;
-  };
-
-  const selectZoomLevel = (zoomLevel) => {
-    fresh.zoomLevel = zoomLevel;
-  };
-
   //  Sync
 
   async function chooseSyncPath() {
@@ -931,8 +841,7 @@ export function useOnboardingFlow({
 
     try {
       await refreshStatus();
-    } catch (e) {
-      state.error = e?.message || String(e);
+    } catch (e) {      state.error = e?.message || String(e);
     } finally {
       state.loading = false;
     }
@@ -978,13 +887,9 @@ export function useOnboardingFlow({
     navDirection,
 
     // Static config
-    themes,
-    fonts,
-    languages,
     logoUrl,
+    ...appearance,
 
-    themeLabels,
-    isDark,
     isMobileRuntime,
     isMacOS,
     isCardStep,
@@ -1007,19 +912,8 @@ export function useOnboardingFlow({
     backToPick,
     selectImportSource,
 
-    // Appearance
-    selectTheme,
-    selectAccentColor,
-    selectFont,
-    selectLanguage,
-    selectSounds,
-    selectSpotlight,
-    selectZoomLevel,
-
     // Actions
     refreshStatus,
-    prepareFreshWorkspace,
-    useDefaultPreferences,
     runSelectedMigration,
     browseForPortableData,
     copyMigrationIssues,
