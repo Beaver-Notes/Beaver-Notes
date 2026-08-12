@@ -858,6 +858,7 @@ export function useAppShell(onboardingCompleted = true) {
     getTopLevelRouteKey,
     handleUpdateDismiss,
     handleUpdateInstall: () => handleUpdateInstall(installUpdate),
+    initializeWorkspace,
     mainStyle,
     mobileNavbarStyle,
     openSyncSettings,

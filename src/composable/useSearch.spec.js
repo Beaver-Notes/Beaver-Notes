@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   buildSearchIndex,
   clearSearchIndex,
+  getSearchIndexJSON,
+  loadSearchIndex,
   removeSearchEntry,
   searchNotesIndex,
   upsertSearchEntry,
@@ -62,5 +64,30 @@ describe('useSearch', () => {
 
     removeSearchEntry('a');
     expect(searchNotesIndex('second')).toEqual([]);
+  });
+
+  it('round-trips the index through the persisted JSON format', () => {
+    buildSearchIndex({
+      a: {
+        id: 'a',
+        title: 'Apple Pie',
+        searchText: 'classic dessert recipe',
+        labels: ['Food'],
+      },
+      b: {
+        id: 'b',
+        title: 'Garden Journal',
+        searchText: 'tomatoes and basil',
+        labels: ['Home'],
+      },
+    });
+
+    const json = getSearchIndexJSON();
+    clearSearchIndex();
+    expect(searchNotesIndex('dessert')).toEqual([]);
+
+    loadSearchIndex(json);
+    expect(searchNotesIndex('dessert')).toEqual(['a']);
+    expect(searchNotesIndex('garden')).toEqual(['b']);
   });
 });

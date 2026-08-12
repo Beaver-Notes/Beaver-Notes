@@ -38,10 +38,7 @@ export const useStore = defineStore('main', {
         .map(({ value }) => value);
     },
 
-    async _ensureSpotlightIndex(noteStore: any) {
-      const { reindexAllNotes } = await import('@/utils/platform/spotlightSync.js');
-      reindexAllNotes(noteStore.data);
-    },
+    
 
   },
 });

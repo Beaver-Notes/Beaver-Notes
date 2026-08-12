@@ -19,7 +19,6 @@ import {
   markOnboardingCompleted,
   ONBOARDING_LANGUAGES,
   ONBOARDING_THEMES,
-  openOnboardingWorkspace,
   probeCustomMigrationPath,
   runOnboardingMigration,
   runOnboardingMigrationFromPath,
@@ -526,6 +525,15 @@ export function useOnboardingFlow({
       const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
       await migrateNotesContent();
 
+      // Re-encrypt any assets written during import (safety net for edge cases)
+      state.migrationStatus = 'Securing assets…';
+      try {
+        const { migrateAssetEncryption } = await import('@/lib/native/security.js');
+        await migrateAssetEncryption();
+      } catch (e) {
+        console.warn('[onboarding] post-import asset re-encryption failed:', e);
+      }
+
       clearInterval(ticker);
       state.migrationProgress = 100;
       state.migrationStatus =
@@ -586,6 +594,15 @@ export function useOnboardingFlow({
         : null;
 
       if (!result) return;
+
+      // Re-encrypt any assets written during import (safety net for edge cases)
+      state.migrationStatus = 'Securing assets…';
+      try {
+        const { migrateAssetEncryption } = await import('@/lib/native/security.js');
+        await migrateAssetEncryption();
+      } catch (e) {
+        console.warn('[onboarding] post-import asset re-encryption failed:', e);
+      }
 
       state.migrationProgress = 100;
       state.migrationStatus =
@@ -764,16 +781,8 @@ export function useOnboardingFlow({
     state.error = '';
     state.openingWorkspace = true;
     try {
-      await markOnboardingCompleted(settingsStorage);
-      await openOnboardingWorkspace({
-        store,
-        noteStore,
-        router,
-        onSyncing: () => {
-          state.openingWorkspaceMessage =
-            translations.value.onboarding?.syncingNotes || 'Syncing your notes…';
-        },
-      });
+      await markOnboardingCompleted();
+      await router.replace('/');
     } catch (e) {
       state.error = e?.message || String(e);
     } finally {

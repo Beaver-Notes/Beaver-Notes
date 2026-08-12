@@ -11,6 +11,7 @@ import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
 import { commands } from '@/lib/tauri/bindings';
 import {
+  deleteNoteFromSpotlight,
   indexNoteForSpotlight,
   reindexAllNotes,
 } from '@/utils/platform/spotlightSync.js';
@@ -215,54 +216,61 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
 
     initFolderCounts(this.data);
 
-    // Try to load persisted indexes
-    const snapshotResult = await commands.indexLoad();
-    if (snapshotResult.status === 'ok' && snapshotResult.data) {
-      const snapshot = snapshotResult.data;
-      loadSearchIndex(snapshot.searchJson);
-      loadLinkIndex(snapshot.linksJson);
-      const signatures = JSON.parse(snapshot.signaturesJson || '{}');
+    let coldStart = false;
+    let indexChanged = false;
 
-      // Incremental patch: update only changed notes
-      for (const note of Object.values(this.data)) {
-        if (!note?.id) continue;
-        if (!signatures[note.id] || note.updatedAt > signatures[note.id]) {
-          upsertSearchEntry(note);
-          rebuildLinkIndexForNote(note.id, note.content);
-          signatures[note.id] = note.updatedAt;
+    // Try to load and reconcile persisted indexes
+    try {
+      const snapshotResult = await commands.indexLoad();
+      if (snapshotResult.status === 'ok' && snapshotResult.data) {
+        const snapshot = snapshotResult.data;
+        loadSearchIndex(snapshot.searchJson);
+        loadLinkIndex(snapshot.linksJson);
+        const signatures = JSON.parse(snapshot.signaturesJson || '{}');
+
+        // Incremental patch: update only changed notes
+        for (const note of Object.values(this.data)) {
+          if (!note?.id) continue;
+          if (!signatures[note.id] || note.updatedAt > signatures[note.id]) {
+            upsertSearchEntry(note);
+            rebuildLinkIndexForNote(note.id, note.content);
+            signatures[note.id] = note.updatedAt;
+            indexChanged = true;
+          }
         }
-      }
-      // Remove deleted notes from indexes
-      for (const id of Object.keys(signatures)) {
-        if (!this.data[id]) {
-          removeSearchEntry(id);
-          removeNoteFromLinkIndex(id);
-          delete signatures[id];
+        // Remove deleted notes from indexes
+        for (const id of Object.keys(signatures)) {
+          if (!this.data[id]) {
+            removeSearchEntry(id);
+            removeNoteFromLinkIndex(id);
+            delete signatures[id];
+            indexChanged = true;
+          }
         }
+        // Persist updated indexes only when something actually changed
+        if (indexChanged) {
+          await commands.indexSave(
+            getSearchIndexJSON(),
+            getLinkIndexJSON(),
+            JSON.stringify(signatures)
+          );
+        }
+      } else {
+        coldStart = true;
       }
-      // Persist updated indexes
-      await commands.indexSave(
-        getSearchIndexJSON(),
-        getLinkIndexJSON(),
-        JSON.stringify(signatures)
+    } catch (indexError) {
+      // Corrupt/stale persisted index — fall back to full rebuild
+      console.error(
+        'Persisted index invalid; falling back to full rebuild:',
+        indexError
       );
-    } else {
-      // Cold start: full rebuild
-      buildSearchIndex(this.data);
-      rebuildLinkIndexFromAll(this.data);
-      // Persist for next startup
-      const signatures: Record<string, number> = {};
-      for (const note of Object.values(this.data)) {
-        if (note?.id) signatures[note.id] = note.updatedAt;
-      }
-      await commands.indexSave(
-        getSearchIndexJSON(),
-        getLinkIndexJSON(),
-        JSON.stringify(signatures)
-      );
+      coldStart = true;
     }
 
-    reindexAllNotes(this.data);
+    // Skip Spotlight reindex when nothing changed
+    if (coldStart || indexChanged) {
+      reindexAllNotes(this.data);
+    }
     return this.data;
   } catch (error) {
     console.error('Error retrieving notes:', error);
@@ -483,6 +491,8 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     deleteUpdates(id).catch(() => {});
 
     removeSearchEntry(id);
+
+    deleteNoteFromSpotlight(id);
 
     removeNoteMeta(id);
     syncDeletedNoteIds(this.deletedIds);

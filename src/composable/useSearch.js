@@ -2,14 +2,16 @@ import MiniSearch from 'minisearch';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { speed } from '@/utils/speed.js';
 
-const searchIndex = new MiniSearch({
+const SEARCH_OPTIONS = {
   fields: ['title', 'searchText', 'labelsText'],
   storeFields: ['id'],
   searchOptions: {
     prefix: true,
     fuzzy: 0.2,
   },
-});
+};
+
+let searchIndex = new MiniSearch(SEARCH_OPTIONS);
 
 function noteToDocument(note) {
   return {
@@ -66,6 +68,7 @@ export function getSearchIndexJSON() {
 }
 
 export function loadSearchIndex(json) {
-  searchIndex.removeAll();
-  searchIndex.import(JSON.parse(json));
+  // MiniSearch v7 replaced the instance `import()` with the static
+  // `loadJSON()` — passing the same options used at serialization time.
+  searchIndex = MiniSearch.loadJSON(json, SEARCH_OPTIONS);
 }

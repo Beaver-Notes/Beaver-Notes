@@ -3,7 +3,7 @@ import { setStoredZoomLevel } from '@/composable/zoom';
 import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';
-import { getSyncPath, setSyncPath } from '@/utils/sync/path';
+import { setSyncPath } from '@/utils/sync/path';
 
 // Re-export the legacy/Electron migration helpers under stable onboarding names.
 export {
@@ -135,86 +135,6 @@ export async function applyOnboardingSyncPreferences(preferences) {
   await setSyncPath(preferences.syncPath || '');
 }
 
-export async function markOnboardingCompleted(settingsStorage) {
-  await settingsStorage.set('onboardingCompleted', true);
-}
-
-export async function openOnboardingWorkspace({ store, noteStore, router, onSyncing }) {
-  await getSyncPath();
-
-  // Derive/restore the encryption key before reading any Yjs data, mirroring
-  // useAppShell's initializeWorkspace. Note blobs are encrypted at rest when
-  // the vault is enabled, so decoding them without the key would feed
-  // ciphertext to the Yjs decoder (which aborts on invalid UTF-8) or fail
-  // closed server-side.
-  const { tryRestoreKeyFromSafeStorage, encryptionIsConfigured, isKeyLoaded } =
-    await import('@/utils/crypto/encryption.js');
-  await tryRestoreKeyFromSafeStorage();
-  if ((await encryptionIsConfigured()) && !isKeyLoaded()) {
-    // Vault configured on this device but the key couldn't be restored (e.g.
-    // safe storage unavailable). Defer the workspace load to the shell's
-    // encryption gate, which appears right after onboarding completes and
-    // re-runs the init once unlocked.
-    await router.replace('/');
-    return;
-  }
-
-  // Re-encrypt any assets that were written during import before the encryption
-  // manifest existed. Modern writes go through encrypt_asset() at write-time,
-  // so this is mostly a safety net for edge cases — run unconditionally.
-  try {
-    const { migrateAssetEncryption } = await import('@/lib/native/security.js');
-    await migrateAssetEncryption();
-  } catch (e) {
-    console.warn('[onboarding] post-import asset re-encryption failed:', e);
-  }
-
-  // Initialize the workspace Y.Doc — same sequence as useAppShell's
-  // initializeWorkspace so Pinia gets hydrated from Yjs.
-  const { loadWorkspaceDoc, observeWorkspace } = await import('@/composable/useWorkspaceYjs.js');
-  const { writeStoresFromWorkspace } = await import('@/composable/meta-yjs-store.js');
-
-  await loadWorkspaceDoc();
-  observeWorkspace(writeStoresFromWorkspace);
-  await writeStoresFromWorkspace();
-
-  if (backend.isMobileRuntime?.()) {
-    await router.replace('/');
-    return;
-  }
-
-  // Initialize the sync engine and pull remote data BEFORE navigating so
-  // notes from the sync folder / cloud are already visible on first render.
-  // The engine must exist before forceSyncNow() can do anything; without it
-  // the old code silently skipped the pull (engine was null).
-  try {
-    const { useAccountStore } = await import('@/store/account');
-    const { useWorkspaceStore } = await import('@/store/workspace.ts');
-    if (useAccountStore().isAuthenticated) {
-      await useWorkspaceStore().retrieve();
-    }
-  } catch (err) {
-    console.warn('[onboarding] pre-sync workspace retrieve failed:', err);
-  }
-  initAppSync();
-  const engine = getSyncEngine();
-  if (engine) {
-    onSyncing?.();
-    try {
-      await engine.forceSyncNow();
-    } catch (e) {
-      console.warn('[onboarding] initial sync pull failed:', e);
-    }
-    // The first sync cycle may fail to decrypt because
-    // persistSecureBlobInBackground (called by adoptVaultKey) is
-    // fire-and-forget and the passphrase blob might not be in safe
-    // storage yet.  Retry once after a short delay.
-    setTimeout(() => engine.forceSyncNow().catch(() => {}), 2000);
-  }
-
-  const [latestNote] = [...noteStore.notes].sort(
-    (a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)
-  );
-
-  await router.replace(latestNote ? `/note/${latestNote.id}` : '/');
+export async function markOnboardingCompleted() {
+  await setSetting('onboardingCompleted', true);
 }

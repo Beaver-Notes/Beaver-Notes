@@ -136,6 +136,7 @@
 
 <script>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
@@ -158,11 +159,12 @@ export default {
     AppEncryptionGate,
   },
   setup() {
-    const onboardingCompleted = getSettingSync('onboardingCompleted');
-    const shell = useAppShell(onboardingCompleted);
+    const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
+    const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
     const accountStore = useAccountStore();
     const cloudWorkspaces = useCloudWorkspaces();
+    const route = useRoute();
 
     watch(
       () => accountStore.isAuthenticated,
@@ -174,6 +176,33 @@ export default {
       { immediate: true }
     );
 
+    // When onboarding completes and we leave the Onboarding route, flip the
+    // reactive flag. This triggers the watcher below which starts init + hocuspocus.
+    watch(
+      () => route.name,
+      (name) => {
+        if (name !== 'Onboarding' && !onboardingCompleted.value) {
+          const done = getSettingSync('onboardingCompleted');
+          if (done) onboardingCompleted.value = true;
+        }
+      }
+    );
+
+    // When onboardingCompleted flips true (first-time user finishing onboarding),
+    // run the shell init in the background and start hocuspocus.
+    watch(
+      onboardingCompleted,
+      (val) => {
+        if (val) {
+          shell.initializeWorkspace().catch((err) => {
+            console.error('[app] workspace init after onboarding failed:', err);
+          });
+          const hocuspocus = getHocuspocusSync();
+          hocuspocus.start();
+        }
+      }
+    );
+
     function skipToMain() {
       const main = document.getElementById('app-main');
       if (main) {
@@ -182,7 +211,7 @@ export default {
     }
 
     onMounted(() => {
-      if (onboardingCompleted) {
+      if (onboardingCompleted.value) {
         const hocuspocus = getHocuspocusSync();
         hocuspocus.start();
       }
@@ -199,7 +228,7 @@ export default {
     });
 
     onBeforeUnmount(() => {
-      if (onboardingCompleted) {
+      if (onboardingCompleted.value) {
         const hocuspocus = getHocuspocusSync();
         hocuspocus.stop();
       }
