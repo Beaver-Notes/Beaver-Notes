@@ -1,5 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import Settings from './pages/Settings.vue';
 import Onboarding from './pages/Onboarding.vue';
 import SettingsIndex from './pages/settings/Index.vue';

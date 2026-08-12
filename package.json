@@ -34,7 +34,7 @@
     "test": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest run",
     "test:sync": "yarn vitest run src/utils/sync/__tests__/remote-bootstrap.spec.js",
     "test:watch": "NODE_OPTIONS='--localstorage-file=/tmp/vitest-localstorage' vitest",
-    "lint": "oxlint --vue-plugin --max-warnings 0",
+    "lint": "oxlint --vue-plugin --max-warnings 0 && node scripts/check-composables.mjs",
     "typecheck": "vue-tsc --noEmit",
     "gen:specta": "node scripts/gen-specta.mjs",
     "tran-util": "node scripts/translationUtil.js",

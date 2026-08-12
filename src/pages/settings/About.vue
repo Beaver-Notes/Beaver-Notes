@@ -110,7 +110,7 @@ const INITIAL_UPDATE_CHECK_DELAY_MS = 2000;
 import { onMounted, shallowReactive } from 'vue';
 import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
-import { setSetting } from '@/composable/settings';
+import { setSetting } from '@/lib/settings';
 import { backend } from '@/lib/tauri-bridge';
 import { getAppInfo } from '@/lib/native/app';
 import {

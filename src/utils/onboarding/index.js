@@ -1,5 +1,5 @@
-import { DEFAULT_UI_FONT_STACK, setSetting } from '@/composable/settings';
-import { setStoredZoomLevel } from '@/composable/zoom';
+import { DEFAULT_UI_FONT_STACK, setSetting } from '@/lib/settings';
+import { setStoredZoomLevel } from '@/utils/ui/zoom';
 import { backend } from '@/lib/tauri-bridge';
 import { enableIndexing } from '@/lib/native/spotsearch';
 import { reindexAllNotes } from '@/utils/platform/spotlightSync';

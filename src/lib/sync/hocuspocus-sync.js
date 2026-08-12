@@ -5,8 +5,8 @@ import * as decoding from 'lib0/decoding'
 import * as Y from 'yjs'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
-import { getWorkspaceDoc } from './meta-yjs-doc.js'
-import { registerActiveDoc, unregisterActiveDoc } from './yjs-shared.js'
+import { getWorkspaceDoc } from '@/lib/yjs/meta-doc'
+import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared'
 import {
   importCollabKey,
   encryptUpdate,

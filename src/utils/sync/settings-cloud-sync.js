@@ -1,5 +1,5 @@
 import { useAccountStore } from '@/store/account';
-import { useSyncTransport } from './useSyncTransport';
+import { useSyncTransport } from '@/composable/useSyncTransport';
 import { SYNC_TRANSPORT } from '@/lib/api/types.js';
 
 const TRANSPORT_OPTIONS = [

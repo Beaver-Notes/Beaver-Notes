@@ -89,7 +89,7 @@ Fill in the values:
 | **Mobile** | Tauri 2 (iOS + Android) |
 | **Database** | SQLite via rusqlite (Rust side) |
 | **Sync** | Yjs (CRDT-based collaboration) |
-| **Linting** | ESLint + Prettier |
+| **Linting** | oxlint |
 
 ### Architecture
 
@@ -105,12 +105,12 @@ Beaver Notes is a Tauri v2 application:
 ```
 src/
   components/         -- Vue components (ui/, app/, note/, home/, onboarding/)
-  composable/         -- Vue composables (state management, utilities)
+  composable/         -- Vue composables only (see "Composable convention" below)
   pages/              -- Route page components
   store/              -- Pinia stores (app, note, folder, label, i18n, passwd)
   assets/             -- CSS, fonts, images, SVG, translations (locales/)
-  lib/                -- Core libraries (tiptap extensions, Tauri bridge, dayjs, etc.)
-  utils/              -- Utility functions (crypto, sync, import/export, share)
+  lib/                -- Core libraries (tiptap extensions, Tauri bridge, storage/settings layers, Yjs infra)
+  utils/              -- Pure utility functions (crypto, sync, import/export, share, ui)
 
 src-tauri/
   src/                -- Rust source (commands/, lib.rs, main.rs, db.rs, etc.)
@@ -136,7 +136,35 @@ This spawns `tauri dev` with proper process tree cleanup. The Vite dev server ru
 yarn lint
 ```
 
-Uses ESLint with the `vue3-recommended` and `prettier-vue` configurations. All `.js`, `.ts`, and `.vue` files are linted.
+Runs [oxlint](https://oxc.rs/docs/guide/usage/linter.html) with the Vue plugin
+over all `.js`, `.ts`, and `.vue` files, then `scripts/check-composables.mjs`
+which enforces the composable convention below.
+
+### Composable convention
+
+A **composable** is a `use*` function that uses Vue reactivity
+(`ref`, `computed`, `watch`, lifecycle hooks, …). The convention is:
+
+- **`src/composable/` contains only composables.** Each file must export a
+  `useXxx` function that uses at least one Vue reactivity API. Anything else
+  (pure logic, data access, platform wrappers, Yjs infrastructure) belongs in
+  `src/utils/` or `src/lib/`:
+  - `src/utils/` — pure logic and helpers (no Vue reactivity).
+  - `src/lib/` — platform/backend bindings and app infrastructure (storage,
+    settings, dialogs, Yjs doc/hydration).
+- **Pinia stores** are the exception: store factories are named `useXxx` but
+  live in `src/store/`, not `src/composable/`.
+- **Naming.** `use` + PascalCase (`useNoteStore`). One composable per file.
+  Names must read correctly at the call site with no extra context — prefer
+  `resize(to)` over `resize(to, true)`.
+- **Cohesion.** One concern per composable. If a composable grows past a few
+  hundred lines, split it into focused composables rather than adding branches.
+  A composable should be readable by someone without asking the author what it
+  does.
+
+`scripts/check-composables.mjs` fails the build when a file in
+`src/composable/` is not a composable, and warns when a `use*` function using
+Vue reactivity is defined outside `src/composable/` (excluding `src/store/`).
 
 ### Pre-commit Hooks
 

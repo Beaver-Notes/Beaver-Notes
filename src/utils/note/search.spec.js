@@ -7,7 +7,7 @@ import {
   removeSearchEntry,
   searchNotesIndex,
   upsertSearchEntry,
-} from '@/composable/useSearch.js';
+} from '@/utils/note/search.js';
 
 describe('useSearch', () => {
   beforeEach(() => {

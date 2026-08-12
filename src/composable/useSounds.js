@@ -1,5 +1,5 @@
 import { ref } from 'vue';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { isMobileRuntime } from '@/lib/tauri/runtime';
 
 const _isMobile = isMobileRuntime();

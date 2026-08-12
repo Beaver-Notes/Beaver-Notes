@@ -13,7 +13,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
   },
 }));
 
-import { getSetting, getSettingSync } from '../settings.js';
+import { getSetting, getSettingSync } from '@/lib/settings.js';
 
 describe('getSetting localStorage fast path', () => {
   beforeEach(() => {

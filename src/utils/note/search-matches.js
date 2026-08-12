@@ -1,4 +1,4 @@
-import { searchNotesIndex } from '@/composable/useSearch.js';
+import { searchNotesIndex } from '@/utils/note/search.js';
 
 /**
  * Compute the set of note ids that match a search query.

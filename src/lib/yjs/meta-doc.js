@@ -1,7 +1,7 @@
 /**
  * Meta Yjs document singleton — owns the shared Y.Doc instance
  * for all workspace metadata. Kept separate to avoid circular imports
- * between useWorkspaceYjs and meta-yjs-store.
+ * between the workspace doc and the meta store.
  */
 
 import * as Y from 'yjs';

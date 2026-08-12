@@ -23,7 +23,7 @@ import {
   upsertSearchEntry,
   getSearchIndexJSON,
   loadSearchIndex,
-} from '@/composable/useSearch.js';
+} from '@/utils/note/search.js';
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
@@ -37,7 +37,7 @@ import {
   removeNoteMeta,
   syncDeletedNoteIds,
   transactWorkspace,
-} from '@/composable/useWorkspaceYjs';
+} from '@/lib/yjs/workspace-doc';
 
 export interface NoteData {
   id: string;

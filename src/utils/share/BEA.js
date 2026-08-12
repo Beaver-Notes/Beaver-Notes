@@ -1,4 +1,4 @@
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';

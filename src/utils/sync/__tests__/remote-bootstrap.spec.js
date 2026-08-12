@@ -124,14 +124,14 @@ const api = {
 };
 
 vi.mock('@/lib/api/client.js', () => ({ getApiClient: vi.fn(() => api) }));
-vi.mock('@/composable/useAccountStorage', () => ({
+vi.mock('@/lib/account-storage', () => ({
   loadSessionToken: vi.fn(async () => 'test-token'),
 }));
 vi.mock('../sync-repository.js', () => ({
   getSyncDeviceId: vi.fn(() => 'fresh-device'),
   getCommitsDir: vi.fn(async () => '/commits'),
 }));
-vi.mock('@/composable/settings', () => ({ getSettingSync: vi.fn(() => 'remote') }));
+vi.mock('@/lib/settings', () => ({ getSettingSync: vi.fn(() => 'remote') }));
 vi.mock('@/store/account', () => ({ useAccountStore: vi.fn(() => ({ isAuthenticated: true, subscription: { plan: 'pro' }, serverUrl: 'https://sync.test' })) }));
 vi.mock('@/lib/api/types', () => ({ SYNC_TRANSPORT: { REMOTE: 'remote', BOTH: 'both', FOLDER: 'folder' }, canUseCloudSync: vi.fn(() => true) }));
 vi.mock('@/lib/native/fs', () => ({
@@ -174,9 +174,9 @@ vi.mock('@/lib/tauri-bridge', () => ({
   },
   path: { join: (...parts) => parts.join('/') },
 }));
-vi.mock('@/composable/meta-yjs-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()) }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()) }));
 vi.mock('@/utils/yjs-helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
-vi.mock('@/composable/useWorkspaceYjs', () => ({ syncDeletedAssets: vi.fn() }));
+vi.mock('@/lib/yjs/workspace-doc', () => ({ syncDeletedAssets: vi.fn() }));
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({ loadSecureBlob: vi.fn(async () => 'correct-passphrase') }));
 vi.mock('@tauri-apps/api/event', () => ({ emit: vi.fn() }));
 vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: vi.fn(() => ({ activeId: 'remote-workspace' })) }));

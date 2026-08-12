@@ -24,13 +24,13 @@ vi.mock('@/store/note/backlinks', () => ({
   getBacklinkCount: vi.fn(() => 0),
 }));
 
-vi.mock('@/composable/useWorkspaceYjs', () => ({
+vi.mock('@/lib/yjs/workspace-doc', () => ({
   syncNoteMeta: vi.fn(),
   removeNoteMeta: vi.fn(),
   syncDeletedNoteIds: vi.fn(),
 }));
 
-vi.mock('@/composable/useSearch.js', () => ({
+vi.mock('@/utils/note/search.js', () => ({
   buildSearchIndex: vi.fn(),
   removeSearchEntry: vi.fn(),
   searchNotesIndex: vi.fn(),
@@ -101,8 +101,8 @@ vi.mock('@/store/note/encryption', () => ({
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { rebuildLinkIndexForNote } from '@/store/note/backlinks';
-import { syncNoteMeta } from '@/composable/useWorkspaceYjs';
-import { upsertSearchEntry } from '@/composable/useSearch.js';
+import { syncNoteMeta } from '@/lib/yjs/workspace-doc';
+import { upsertSearchEntry } from '@/utils/note/search.js';
 import { indexNoteForSpotlight } from '@/utils/platform/spotlightSync.js';
 
 describe('persist guard – dirty-signature optimization', () => {

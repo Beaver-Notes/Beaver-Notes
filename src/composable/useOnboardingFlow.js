@@ -9,7 +9,7 @@ import {
 } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
-import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/composable/settings';
+import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import {
   applyOnboardingSyncPreferences,
@@ -48,7 +48,7 @@ import { fetchCloudKeyParams, getFetchedCloudKeyParams, deriveVaultPassphrasePro
 import { detectRemoteVaultJoin, completeRemoteVaultJoin } from '@/utils/onboarding/remote-vault-join.js';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import { getApiClient } from '@/lib/api/client';
-import { loadSessionToken } from '@/composable/useAccountStorage';
+import { loadSessionToken } from '@/lib/account-storage';
 
 // Steps that live inside the persistent wizard frame (fixed card / bottom
 // sheet). 'welcome' and 'finish' are full-screen hero steps and are not
@@ -527,8 +527,8 @@ export function useOnboardingFlow({
       // import time: seed the workspace Y.Doc from KV metadata (so the stores
       // hydrate), then move note content from KV into each note's Yjs doc.
       state.migrationStatus = 'Migrating workspace…';
-      const { loadWorkspaceDoc } = await import('@/composable/useWorkspaceYjs.js');
-      const { seedWorkspaceDocFromKv } = await import('@/composable/meta-yjs-store.js');
+      const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
+      const { seedWorkspaceDocFromKv } = await import('@/lib/yjs/meta-store.js');
       await loadWorkspaceDoc();
       await seedWorkspaceDocFromKv();
 
@@ -545,8 +545,8 @@ export function useOnboardingFlow({
       // full search text in the workspace Yjs doc (which bloated it to MBs and
       // made every launch transfer megabytes).
       try {
-        const { useStorage } = await import('@/composable/storage');
-        const { buildSearchIndex, getSearchIndexJSON } = await import('@/composable/useSearch.js');
+        const { useStorage } = await import('@/lib/storage');
+        const { buildSearchIndex, getSearchIndexJSON } = await import('@/utils/note/search.js');
         const {
           rebuildLinkIndexFromAll,
           getLinkIndexJSON,

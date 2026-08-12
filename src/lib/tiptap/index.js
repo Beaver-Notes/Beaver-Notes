@@ -56,7 +56,7 @@ import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
 import { dropFile } from './exts/drop-file';
 import { getTranslations } from '@/utils/getTranslations';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 const translations = getTranslations();
 
 const directionPreference = getSettingSync('directionPreference');

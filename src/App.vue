@@ -143,11 +143,11 @@ import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
-import { getHocuspocusSync } from './composable/useHocuspocusSync';
+import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import AppNavbar from './components/app/AppNavbar.vue';
-import { getSettingSync } from './composable/settings';
+import { getSettingSync } from '@/lib/settings';
 
 export default {
   components: {

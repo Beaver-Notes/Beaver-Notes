@@ -1,4 +1,4 @@
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useNoteStore } from '@/store/note';
 import { useTranslations } from '@/composable/useTranslations';
 import {

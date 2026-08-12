@@ -1,4 +1,4 @@
-import { getSettingSync, setSetting } from './settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 import { setZoomLevel } from '@/lib/native/app';
 
 const DEFAULT_ZOOM_LEVEL = 1.0;

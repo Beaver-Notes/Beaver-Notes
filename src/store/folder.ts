@@ -6,7 +6,7 @@ import {
   syncFolder,
   removeFolder,
   syncDeletedFolderIds,
-} from '@/composable/useWorkspaceYjs';
+} from '@/lib/yjs/workspace-doc';
 
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 

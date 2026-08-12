@@ -52,7 +52,7 @@ export async function getCommitsDir() {
   }
 
   try {
-    const { getSettingSync } = await import('@/composable/settings');
+    const { getSettingSync } = await import('@/lib/settings');
     const transportSetting = getSettingSync('syncTransport') || 'folder';
     const { SYNC_TRANSPORT } = await import('@/lib/api/types.js');
     const { useAccountStore } = await import('@/store/account');

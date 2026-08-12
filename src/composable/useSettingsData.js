@@ -1,6 +1,6 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
-import { getSettingSync, setSetting } from '@/composable/settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 import { listen } from '@tauri-apps/api/event';
 import { openDialog, showMessage } from '@/lib/native/dialog';

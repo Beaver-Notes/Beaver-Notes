@@ -4,7 +4,7 @@ vi.mock('@/lib/native/app', () => ({
   setZoomLevel: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('./settings', () => ({
+vi.mock('@/lib/settings', () => ({
   getSettingSync: vi.fn(() => '1.5'),
   setSetting: vi.fn(() => Promise.resolve()),
 }));

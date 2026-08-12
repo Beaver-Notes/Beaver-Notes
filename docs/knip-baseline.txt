@@ -52,8 +52,8 @@ Unresolved imports (1)
 espree  .eslintrc.json
 Unused exports (112)
 GROUP_STYLES                          src/components/note/ToolbarCustomizer.vue:6:14              
-getSetting                  function  src/composable/settings.js:156:23                           
-transactWorkspace           function  src/composable/useWorkspaceYjs.js:159:17                    
+getSetting                  function  src/lib/settings.js:156:23                           
+transactWorkspace           function  src/lib/yjs/workspace-doc.js:159:17                    
 setReducedMotion            function  src/lib/native/app.js:74:23                                 
 getReducedMotion            function  src/lib/native/app.js:78:23                                 
 setHighContrast             function  src/lib/native/app.js:82:23                                 

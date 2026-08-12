@@ -1,5 +1,5 @@
 import dayjs from '@/lib/dayjs';
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { useFolderStore } from '@/store/folder';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';

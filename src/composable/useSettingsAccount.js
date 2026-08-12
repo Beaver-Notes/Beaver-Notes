@@ -1,6 +1,6 @@
 import { onMounted, ref } from 'vue';
 import { useAccountStore } from '@/store/account';
-import { setSetting } from '@/composable/settings';
+import { setSetting } from '@/lib/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
 
 export function useSettingsAccount({ dialog, translations }) {

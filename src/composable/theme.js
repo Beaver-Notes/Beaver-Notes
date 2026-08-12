@@ -1,5 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { getSettingSync, setSetting } from './settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { backend } from '@/lib/tauri-bridge';
 import { getNativeDarkTheme } from '@/lib/native/app';

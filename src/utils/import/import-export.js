@@ -1,4 +1,4 @@
-import { useExport } from '@/composable/useExport';
+import { useExport } from '@/utils/share/export';
 import { useImport } from '@/composable/useImport';
 
 export function useImportExport(options) {

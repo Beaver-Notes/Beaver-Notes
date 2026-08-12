@@ -11,8 +11,8 @@ import { useRoute, useRouter } from 'vue-router';
 
 const AUTO_UPDATE_CHECK_DELAY_MS = 1000;
 import { useTheme } from './theme';
-import { useStorage } from './storage';
-import { getSettingSync, hydrateSettingsStore, setSetting } from './settings';
+import { useStorage } from '@/lib/storage';
+import { getSettingSync, hydrateSettingsStore, setSetting } from '@/lib/settings';
 import { useUiState } from '@/composable/useUiState';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
@@ -30,7 +30,7 @@ import {
   installUpdate,
   isUpdateManaged,
 } from '@/lib/native/updates';
-import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from './zoom';
+import { getStoredZoomLevel, setStoredZoomLevel, wasZoomAppliedAtBoot } from '@/utils/ui/zoom';
 import {
   tryRestoreKeyFromSafeStorage,
   encryptionIsConfigured,
@@ -42,7 +42,7 @@ import {
   observeWorkspace,
   writeStoresFromWorkspace,
   backfillNotePreviews,
-} from './useWorkspaceYjs';
+} from '@/lib/yjs/workspace-doc';
 import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
 
@@ -541,7 +541,7 @@ export function useAppShell(onboardingCompleted = true) {
       // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
       // useAccountAuth components which may not have mounted yet.
       if (!accountStore.isAuthenticated) {
-        const { loadSessionToken } = await import('@/composable/useAccountStorage');
+        const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
         if (token) {
           accountStore.setStatus('authenticated');

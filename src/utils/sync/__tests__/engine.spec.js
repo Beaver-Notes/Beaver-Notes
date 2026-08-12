@@ -26,7 +26,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
   path: { join: (...args) => args.join('/') },
 }));
 
-vi.mock('@/composable/meta-yjs-doc.js', () => ({
+vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: vi.fn(() => ({ getMap: vi.fn(() => ({ get: vi.fn(), keys: vi.fn(() => []) })) })),
 }));
 
@@ -34,7 +34,7 @@ vi.mock('@/utils/yjs-helpers.js', () => ({
   yMapToObj: vi.fn(() => ({})),
 }));
 
-vi.mock('@/composable/useWorkspaceYjs', () => ({
+vi.mock('@/lib/yjs/workspace-doc', () => ({
   syncDeletedAssets: vi.fn(),
 }));
 

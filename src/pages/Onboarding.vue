@@ -1320,7 +1320,7 @@
 <script>
 import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
@@ -1356,7 +1356,7 @@ export default {
     const importExportRef = ref(null);
     async function runImportSource(...args) {
       if (!importExportRef.value) {
-        const { useImportExport } = await import('@/composable/useImportExport');
+        const { useImportExport } = await import('@/utils/import/import-export');
         importExportRef.value = useImportExport({
           clipboard,
           folderStore,

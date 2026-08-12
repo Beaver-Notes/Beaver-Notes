@@ -5,7 +5,7 @@ import {
   syncLabel,
   removeLabel,
   syncLabelColor,
-} from '@/composable/useWorkspaceYjs';
+} from '@/lib/yjs/workspace-doc';
 
 interface LabelState {
   data: string[];

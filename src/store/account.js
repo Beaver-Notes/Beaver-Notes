@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { PAID_PLANS } from '@/lib/api/types';
 
 export const useAccountStore = defineStore('account', {

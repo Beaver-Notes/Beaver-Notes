@@ -11,7 +11,7 @@ vi.mock('@/lib/native/fs', () => ({
   readData: vi.fn(() => Promise.resolve('eyJrZXkiOiJ2YWx1ZSJ9')),
   pathExists: vi.fn(() => Promise.resolve(true)),
 }));
-vi.mock('@/composable/settings', () => ({
+vi.mock('@/lib/settings', () => ({
   getSettingSync: vi.fn(() => 'remote'),
 }));
 vi.mock('@/store/account', () => ({
@@ -38,7 +38,7 @@ vi.mock('@/lib/api/client', () => ({
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
   loadSecureBlob: vi.fn(() => Promise.resolve('vault-passphrase')),
 }));
-vi.mock('@/composable/useAccountStorage', () => ({
+vi.mock('@/lib/account-storage', () => ({
   loadSessionToken: vi.fn(() => Promise.resolve('test-token')),
 }));
 
@@ -49,10 +49,10 @@ import {
   fetchCloudKeyParams,
 } from '../vault-key-params.js';
 import { writeFile, readData } from '@/lib/native/fs';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { getSyncPath } from '../path.js';
 import { getApiClient } from '@/lib/api/client';
-import { loadSessionToken } from '@/composable/useAccountStorage';
+import { loadSessionToken } from '@/lib/account-storage';
 
 describe('cloudKeyParamsReachable', () => {
   it('is true when authed, paid, and transport wants cloud', () => {

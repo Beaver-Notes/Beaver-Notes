@@ -256,13 +256,13 @@ import {
   DEFAULT_UI_FONT_STACK,
   getSettingSync,
   setSetting,
-} from '@/composable/settings';
-import { useStorage } from '@/composable/storage';
+} from '@/lib/settings';
+import { useStorage } from '@/lib/storage';
 import {
   formatZoomLevel,
   getStoredZoomLevel,
   setStoredZoomLevel,
-} from '@/composable/zoom';
+} from '@/utils/ui/zoom';
 import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';

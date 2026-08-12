@@ -562,7 +562,7 @@
 <script>
 import { computed, ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';

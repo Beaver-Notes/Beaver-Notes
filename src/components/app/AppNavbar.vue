@@ -213,7 +213,7 @@ import { useRoute } from 'vue-router';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useNoteStore } from '@/store/note';
 
 export default {

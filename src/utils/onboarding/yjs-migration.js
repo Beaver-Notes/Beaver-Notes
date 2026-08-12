@@ -9,7 +9,7 @@
  * skipped (they require the user's per-note passphrase).
  */
 
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { appendBatch } from '@/lib/native/yjs.js';
 import {
   extractTextFromContent,

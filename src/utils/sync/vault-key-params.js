@@ -2,7 +2,7 @@ import { getSyncPath } from './path.js';
 import { path } from '@/lib/tauri-bridge';
 import { ensureDir, writeFile, readData, pathExists } from '@/lib/native/fs';
 import { getAppDirectory } from '@/lib/native/app';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT, canUseCloudSync } from '@/lib/api/types';
 import { getApiClient } from '@/lib/api/client';
@@ -107,7 +107,7 @@ export async function fetchCloudKeyParams({ force = false, timeoutMs } = {}) {
   if (!workspaceId) return null;
 
   // Ensure session token is available before making authenticated requests
-  const { loadSessionToken } = await import('@/composable/useAccountStorage');
+  const { loadSessionToken } = await import('@/lib/account-storage');
   const deadline = Date.now() + (timeoutMs ?? 1000);
   let token = await loadSessionToken();
   while (!token && Date.now() < deadline) {

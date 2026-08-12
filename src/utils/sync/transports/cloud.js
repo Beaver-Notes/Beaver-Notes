@@ -26,13 +26,13 @@ import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
-import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
-import { mergeIntoMap } from '@/composable/useWorkspaceYjs';
+import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
+import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import * as Y from 'yjs';
 import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { toUint8Array, applyUpdatesToDoc } from '@/utils/yjs-helpers.js';
-import { META_DOC_ID } from '@/composable/meta-yjs-doc.js';
+import { META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { logger } from '@/utils/logger';
 
 const CLOUD_PUSH_MIN_INTERVAL_MS = 30_000;

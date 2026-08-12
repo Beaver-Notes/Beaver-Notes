@@ -182,7 +182,7 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';

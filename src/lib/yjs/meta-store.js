@@ -5,7 +5,7 @@
 
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
@@ -14,11 +14,11 @@ import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { saveNote } from '@/store/note/index';
 import { yMapToObj, toUint8Array } from '@/utils/yjs-helpers.js';
-import { getWorkspaceDoc } from './meta-yjs-doc.js';
+import { getWorkspaceDoc } from './meta-doc.js';
 import {
   mergeNoteEntry,
   diffRemovedNoteIds,
-} from './meta-yjs-merge.js';
+} from './meta-merge.js';
 
 const storage = useStorage();
 
@@ -159,7 +159,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
         if (!merged.preview) merged.preview = preview;
         // Persist the built preview so the next launch reads it from the
         // workspace doc instead of loading + converting the content again.
-        const { syncNoteMeta } = await import('./useWorkspaceYjs.js');
+        const { syncNoteMeta } = await import('./workspace-doc.js');
         syncNoteMeta(merged);
       }
     } catch (err) {
@@ -279,7 +279,7 @@ export async function backfillNotePreviews() {
       note.preview = preview;
       await saveNote(id, note);
       // Import syncNoteMeta lazily to avoid circular dep at module evaluation
-      const { syncNoteMeta } = await import('./useWorkspaceYjs.js');
+      const { syncNoteMeta } = await import('./workspace-doc.js');
       syncNoteMeta(note);
     } catch (err) {
       console.warn('[meta-yjs] preview backfill failed for', id, err);

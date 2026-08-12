@@ -1,7 +1,7 @@
 // src/utils/sync/transports/seed.js
 
 import * as Y from 'yjs';
-import { getWorkspaceDoc, META_DOC_ID } from '@/composable/meta-yjs-doc.js';
+import { getWorkspaceDoc, META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { writeYjsSnapshot } from '../sync-yjs.js';
 import { encryptJSON } from '../crypto.js';
 import { toUint8Array, applyUpdatesToDoc } from '@/utils/yjs-helpers.js';

@@ -2,7 +2,7 @@ import { ref } from 'vue';
 
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
-import { createFullSizeCardGhost, createAnimatedStackGhost } from './ghost.js';
+import { createFullSizeCardGhost, createAnimatedStackGhost } from '@/utils/ui/ghost.js';
 
 export function useDragAndDrop({ selectedItems, clearSelection }) {
   const noteStore = useNoteStore();

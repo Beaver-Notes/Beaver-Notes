@@ -166,7 +166,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';

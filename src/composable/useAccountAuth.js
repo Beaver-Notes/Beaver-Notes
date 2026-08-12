@@ -10,7 +10,7 @@ import {
   loadAccountDeviceId,
   saveAccountDeviceId,
   clearAllAccountStorage,
-} from '@/composable/useAccountStorage';
+} from '@/lib/account-storage';
 import { resetApiClient } from '@/lib/api/client';
 import * as authApi from '@/lib/api/auth';
 import * as accountApi from '@/lib/api/account';
@@ -434,7 +434,7 @@ export function useAccountAuth() {
     if (!accountStore.isAuthenticated) return false;
     if (!accountStore.isPaidPlan) return false;
 
-    const transportSetting = await import('@/composable/settings').then(
+    const transportSetting = await import('@/lib/settings').then(
       (m) => m.getSettingSync('syncTransport')
     );
     if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {

@@ -4,7 +4,7 @@
  * lives in separate per-note Y.Docs managed by useNoteYjs.
  *
  * This module owns the document lifecycle (load, persist, observe) and
- * sync helpers. Store hydration lives in meta-yjs-store.js.
+ * sync helpers. Store hydration lives in meta-store.js.
  */
 
 import * as Y from 'yjs';
@@ -15,18 +15,18 @@ import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
 import { encryptJSON } from '@/utils/sync/crypto.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import { YJS_UPDATE_EXT } from '@/utils/sync/constants.js';
-import { registerActiveDoc } from './yjs-shared.js';
+import { registerActiveDoc } from './shared.js';
 import {
   getDeviceId,
   objToYMap,
   toUint8Array,
 } from '@/utils/yjs-helpers.js';
-import { getWorkspaceDoc, META_DOC_ID } from './meta-yjs-doc.js';
-import { getHocuspocusSync } from './useHocuspocusSync.js';
+import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
+import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 
 // Re-export store hydration so consumers keep a single import path
-export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-yjs-store.js';
+export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-store.js';
 
 const NOTE_META_FIELDS = [
   'id',

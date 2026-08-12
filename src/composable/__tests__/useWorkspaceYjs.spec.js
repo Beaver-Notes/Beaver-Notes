@@ -24,13 +24,13 @@ vi.mock('@/utils/yjs-helpers.js', () => ({
   objToYMap: vi.fn(),
   toUint8Array: vi.fn(),
 }));
-vi.mock('../useHocuspocusSync.js', () => ({
+vi.mock('@/lib/sync/hocuspocus-sync.js', () => ({
   getHocuspocusSync: () => ({ joinMetaRoom: vi.fn() }),
 }));
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: null }) }));
 
-import { observeWorkspace, loadWorkspaceDoc, flushPendingMetaUpdates } from '../useWorkspaceYjs.js';
-import { getWorkspaceDoc } from '../meta-yjs-doc.js';
+import { observeWorkspace, loadWorkspaceDoc, flushPendingMetaUpdates } from '@/lib/yjs/workspace-doc.js';
+import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { appendUpdate } from '@/lib/native/yjs.js';
 
 describe('observeWorkspace scheduling', () => {

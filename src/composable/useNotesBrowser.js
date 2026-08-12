@@ -14,7 +14,7 @@ import { parseItemId, areSetsEqual } from '@/utils/helpers/index.js';
 import { useSelection, patchSelectionSet } from '@/composable/selection';
 import { useDragAndDrop } from '@/composable/dragAndDrop';
 import { useUndoStore } from '@/store/undo';
-import { useNotesBrowserTouch } from '@/composable/useNotesBrowserTouch';
+import { useNotesBrowserTouch } from '@/utils/ui/notes-browser-touch';
 
 export function useNotesBrowser({
   state = reactive({

@@ -286,7 +286,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { ref, nextTick, computed } from 'vue';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useRouter } from 'vue-router';
 import { backend } from '@/lib/tauri-bridge';
 import FolderTree from './FolderTree.vue';

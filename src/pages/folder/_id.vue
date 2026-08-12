@@ -223,7 +223,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';

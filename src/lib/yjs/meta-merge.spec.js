@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   mergeNoteEntry,
   diffRemovedNoteIds,
-} from './meta-yjs-merge.js';
+} from './meta-merge.js';
 
 describe('mergeNoteEntry', () => {
   it('merges meta into an existing record', () => {

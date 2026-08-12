@@ -493,15 +493,15 @@
 </template>
 <script>
 import { computed, ref, onMounted } from 'vue';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsData } from '@/composable/useSettingsData';
-import { useSettingsCloudSync } from '@/composable/useSettingsCloudSync';
-import { useImportExport } from '@/composable/useImportExport';
+import { useSettingsCloudSync } from '@/utils/sync/settings-cloud-sync';
+import { useImportExport } from '@/utils/import/import-export';
 import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { useAccountStore } from '@/store/account';
 import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';

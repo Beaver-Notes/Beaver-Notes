@@ -269,8 +269,8 @@
 <script>
 import { computed, onMounted, onUnmounted } from 'vue';
 import { useTheme } from '@/composable/theme';
-import { useStorage } from '@/composable/storage';
-import { useDialog } from '@/composable/dialog';
+import { useStorage } from '@/lib/storage';
+import { useDialog } from '@/lib/dialog';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';

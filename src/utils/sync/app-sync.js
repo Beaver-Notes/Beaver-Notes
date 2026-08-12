@@ -1,6 +1,6 @@
 import { initSyncEngine, getSyncEngine } from './engine.js';
-import { useStorage } from '@/composable/storage';
-import { getSettingSync } from '@/composable/settings';
+import { useStorage } from '@/lib/storage';
+import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { getSyncPath } from './path.js';
 import { SYNC_TRANSPORT } from '@/lib/api/types';

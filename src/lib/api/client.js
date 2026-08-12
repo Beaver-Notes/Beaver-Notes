@@ -1,7 +1,7 @@
 import {
   loadSessionToken,
   clearSessionToken,
-} from '@/composable/useAccountStorage';
+} from '@/lib/account-storage';
 
 const DEFAULT_TIMEOUT_MS = 15000;
 const DEFAULT_API_URL =

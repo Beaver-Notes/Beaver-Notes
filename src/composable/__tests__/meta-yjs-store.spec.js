@@ -16,7 +16,7 @@ const { folderStoreMock, labelStoreMock, noteStoreMock, docHolder, storageGet } 
   return { folderStoreMock, labelStoreMock, noteStoreMock, docHolder, storageGet };
 });
 
-vi.mock('@/composable/storage', () => ({
+vi.mock('@/lib/storage', () => ({
   useStorage: () => ({ get: storageGet }),
 }));
 vi.mock('@/lib/native/yjs.js', () => ({
@@ -26,9 +26,9 @@ vi.mock('@/store/folder', () => ({ useFolderStore: () => folderStoreMock }));
 vi.mock('@/store/label', () => ({ useLabelStore: () => labelStoreMock }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => noteStoreMock }));
 vi.mock('@/store/note/index', () => ({ saveNote: vi.fn() }));
-vi.mock('../meta-yjs-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc }));
 
-import { writeStoresFromWorkspace, seedWorkspaceDocFromKv } from '../meta-yjs-store.js';
+import { writeStoresFromWorkspace, seedWorkspaceDocFromKv } from '@/lib/yjs/meta-store.js';
 
 function seedDoc() {
   const doc = new Y.Doc();

@@ -14,13 +14,13 @@ import {
   toUint8Array,
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
-import { getHocuspocusSync, setRoomKey } from './useHocuspocusSync.js';
+import { getHocuspocusSync, setRoomKey } from '@/lib/sync/hocuspocus-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
 import { speed } from '@/utils/speed.js';
 
-export { registerActiveDoc, applyRemote } from './yjs-shared.js';
-import { registerActiveDoc, unregisterActiveDoc } from './yjs-shared.js';
+export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
+import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;

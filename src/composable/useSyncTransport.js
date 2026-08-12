@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue';
-import { getSettingSync, setSetting } from '@/composable/settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types.js';
 import { forceSyncNow } from '@/utils/sync';
