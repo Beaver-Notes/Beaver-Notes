@@ -37,6 +37,16 @@ describe('mergeNoteEntry', () => {
     const { needsSnapshot } = mergeNoteEntry(existing, {});
     expect(needsSnapshot).toBe(false);
   });
+
+  it('uses a persisted cardPreview from the workspace doc (no snapshot load)', () => {
+    const cardPreview = { blocks: [{ kind: 'text', text: 'Hello' }], hasMore: false };
+    const { note: merged, needsSnapshot } = mergeNoteEntry(
+      {},
+      { id: '1', title: 'x', cardPreview }
+    );
+    expect(needsSnapshot).toBe(false);
+    expect(merged.cardPreview).toBe(cardPreview);
+  });
 });
 
 describe('diffRemovedNoteIds', () => {

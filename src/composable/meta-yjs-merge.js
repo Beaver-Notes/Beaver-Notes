@@ -20,6 +20,10 @@ export function mergeNoteEntry(existing, meta) {
   let needsSnapshot = false;
   if (merged.isLocked) {
     merged.cardPreview = EMPTY_CARD_PREVIEW;
+  } else if (meta.cardPreview && meta.cardPreview.blocks) {
+    // Preview is persisted in the workspace doc — no content load, no
+    // ProseMirror conversion. This is what keeps launch fast.
+    merged.cardPreview = meta.cardPreview;
   } else if (existing.cardPreview) {
     merged.cardPreview = existing.cardPreview;
   } else {

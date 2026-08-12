@@ -40,6 +40,7 @@ const NOTE_META_FIELDS = [
   'createdAt',
   'updatedAt',
   'preview',
+  'cardPreview',
 ];
 
 let observerAttached = false;
@@ -332,8 +333,16 @@ export function syncNoteMeta(note) {
     const meta = {};
     for (const field of NOTE_META_FIELDS) {
       if (field === 'preview') {
-        meta.preview =
-          note.preview || note.searchText || note.cardPreview?.text || '';
+        // Short display snippet only — search text lives in the search index,
+        // not in the workspace doc (full text here is what bloats the meta and
+        // makes every launch transfer megabytes).
+        meta.preview = String(
+          note.preview || note.searchText || note.cardPreview?.text || ''
+        ).slice(0, 400);
+      } else if (field === 'cardPreview') {
+        if (note.cardPreview && typeof note.cardPreview === 'object') {
+          meta.cardPreview = note.cardPreview;
+        }
       } else if (note[field] !== undefined) {
         meta[field] = note[field];
       }

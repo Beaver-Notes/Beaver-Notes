@@ -157,6 +157,10 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
         const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
         merged.cardPreview = cardPreview;
         if (!merged.preview) merged.preview = preview;
+        // Persist the built preview so the next launch reads it from the
+        // workspace doc instead of loading + converting the content again.
+        const { syncNoteMeta } = await import('./useWorkspaceYjs.js');
+        syncNoteMeta(merged);
       }
     } catch (err) {
       console.warn('[meta-yjs] batch preview load failed', err);
