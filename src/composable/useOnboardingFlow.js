@@ -21,6 +21,10 @@ import {
   runOnboardingMigrationFromPath,
   ENTRANCE_DELAYS,
 } from '@/utils/onboarding/index.js';
+import {
+  buildImportedSearchIndex,
+  secureImportedAssets,
+} from '@/utils/onboarding/import-finalize.js';
 import { setupEncryption, hasRemoteVaultKeyParams, adoptVaultKey } from '@/utils/crypto/encryption.js';
 import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
@@ -524,25 +528,7 @@ export function useOnboardingFlow({
       // full search text in the workspace Yjs doc (which bloated it to MBs and
       // made every launch transfer megabytes).
       try {
-        const { useStorage } = await import('@/lib/storage');
-        const { buildSearchIndex, getSearchIndexJSON } = await import('@/utils/note/search.js');
-        const {
-          rebuildLinkIndexFromAll,
-          getLinkIndexJSON,
-        } = await import('@/store/note/backlinks.ts');
-        const { commands } = await import('@/lib/tauri/bindings');
-        const kvNotes = await useStorage('data').get('notes', {});
-        buildSearchIndex(kvNotes);
-        rebuildLinkIndexFromAll(kvNotes);
-        const signatures = {};
-        for (const n of Object.values(kvNotes)) {
-          if (n?.id) signatures[n.id] = n.updatedAt;
-        }
-        await commands.indexSave(
-          getSearchIndexJSON(),
-          getLinkIndexJSON(),
-          JSON.stringify(signatures)
-        );
+        await buildImportedSearchIndex();
       } catch (err) {
         console.warn('[onboarding] search index build after import failed:', err);
       }
@@ -550,8 +536,7 @@ export function useOnboardingFlow({
       // Re-encrypt any assets written during import (safety net for edge cases)
       state.migrationStatus = 'Securing assets…';
       try {
-        const { migrateAssetEncryption } = await import('@/lib/native/security.js');
-        await migrateAssetEncryption();
+        await secureImportedAssets();
       } catch (e) {
         console.warn('[onboarding] post-import asset re-encryption failed:', e);
       }
@@ -622,8 +607,7 @@ export function useOnboardingFlow({
       // Re-encrypt any assets written during import (safety net for edge cases)
       state.migrationStatus = 'Securing assets…';
       try {
-        const { migrateAssetEncryption } = await import('@/lib/native/security.js');
-        await migrateAssetEncryption();
+        await secureImportedAssets();
       } catch (e) {
         console.warn('[onboarding] post-import asset re-encryption failed:', e);
       }
