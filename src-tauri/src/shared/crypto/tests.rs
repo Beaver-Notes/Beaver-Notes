@@ -80,6 +80,37 @@ mod characterization {
         ));
     }
 
+    /// Assets written by the non-streaming encryptor (`encrypt_asset_bytes_with_key`,
+    /// used by fs:writeFile and migration) are a single chunk whose length can
+    /// exceed STREAM_CHUNK_SIZE. The streaming decryptor must accept them.
+    #[test]
+    fn asset_streaming_decrypt_accepts_large_single_chunk() {
+        use crate::shared::crypto::assets::{
+            decrypt_asset_streaming, encrypt_asset_bytes_with_key,
+        };
+        use crate::shared::crypto::keys::STREAM_CHUNK_SIZE;
+
+        let key = [11u8; 32];
+        let plain = vec![0xABu8; STREAM_CHUNK_SIZE + 1024];
+        let enc = encrypt_asset_bytes_with_key(&plain, &key).unwrap();
+
+        let dir = std::env::temp_dir().join(format!(
+            "asset-stream-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("large.bin");
+        let out = dir.join("large.dec");
+        std::fs::write(&src, &enc).unwrap();
+
+        let result = decrypt_asset_streaming(&src, &out, &key);
+        let decrypted = std::fs::read(&out);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        result.expect("large single-chunk asset must stream-decrypt");
+        assert_eq!(decrypted.unwrap(), plain);
+    }
+
     /// Yjs blob round-trip.
     #[test]
     fn yjs_blob_round_trip() {

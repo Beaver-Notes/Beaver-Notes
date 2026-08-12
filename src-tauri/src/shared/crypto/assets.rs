@@ -168,6 +168,13 @@ pub(crate) fn decrypt_asset_streaming(
     let mut nonce_seed = [0u8; 12];
     reader.read_exact(&mut nonce_seed)?;
 
+    // Assets encrypted with `encrypt_asset_bytes_with_key` (fs:writeFile,
+    // migration) are a single chunk whose length can exceed STREAM_CHUNK_SIZE.
+    // Validate chunk lengths against the bytes actually remaining in the file
+    // rather than a fixed streaming cap, so both layouts decrypt.
+    let file_len = reader.get_ref().metadata().map_err(AppError::from)?.len();
+    let mut bytes_consumed = (ASSET_MAGIC.len() + nonce_seed.len()) as u64;
+
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
 
     let output = File::create(output_path)?;
@@ -183,13 +190,15 @@ pub(crate) fn decrypt_asset_streaming(
             Err(e) => return Err(AppError::from(e)),
         }
         let chunk_len = u32::from_le_bytes(len_buf) as usize;
+        let remaining = file_len.saturating_sub(bytes_consumed + 4);
 
-        if chunk_len == 0 || chunk_len > STREAM_CHUNK_SIZE + 16 + 64 {
+        if chunk_len == 0 || chunk_len as u64 > remaining {
             return Err(AppError::Crypto(format!(
                 "Invalid chunk length {} at index {}",
                 chunk_len, chunk_index
             )));
         }
+        bytes_consumed += 4 + chunk_len as u64;
 
         let mut chunk_buf = vec![0u8; chunk_len];
         reader.read_exact(&mut chunk_buf).map_err(|e| {
