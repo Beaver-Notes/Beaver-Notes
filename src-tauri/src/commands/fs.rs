@@ -6,7 +6,7 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::Value;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::shared::{RawJson, *};
 
@@ -14,33 +14,39 @@ const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024; // 64 KB
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn fs_copy(
+pub(crate) async fn fs_copy(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
     dest: String,
 ) -> Result<(), AppError> {
-    let src_path = PathBuf::from(path);
-    let dest_path = PathBuf::from(dest);
-    assert_path_access(&app, &state, &src_path, "copy source")?;
-    assert_path_access(&app, &state, &dest_path, "copy destination")?;
+    // Recursive copy + per-file AES is I/O-heavy — run off the main thread.
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let src_path = PathBuf::from(path);
+        let dest_path = PathBuf::from(dest);
+        assert_path_access(&app, &state, &src_path, "copy source")?;
+        assert_path_access(&app, &state, &dest_path, "copy destination")?;
 
-    if src_path.is_dir() {
-        copy_dir_recursive(&app, &state, &src_path, &dest_path)?;
-        return Ok(());
-    }
+        if src_path.is_dir() {
+            copy_dir_recursive(&app, &state, &src_path, &dest_path)?;
+            return Ok(());
+        }
 
-    let mut final_dest = dest_path.clone();
-    if final_dest.exists() && final_dest.is_dir() {
-        final_dest = final_dest.join(src_path.file_name().unwrap_or_default());
-    }
-    if let Some(parent) = final_dest.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let raw = fs::read(&src_path)?;
-    let payload = encrypt_asset(&app, &state, &final_dest, &raw)?;
-    fs::write(final_dest, payload)?;
-    Ok(())
+        let mut final_dest = dest_path.clone();
+        if final_dest.exists() && final_dest.is_dir() {
+            final_dest = final_dest.join(src_path.file_name().unwrap_or_default());
+        }
+        if let Some(parent) = final_dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let raw = fs::read(&src_path)?;
+        let payload = encrypt_asset(&app, &state, &final_dest, &raw)?;
+        fs::write(final_dest, payload)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 fn copy_dir_recursive(
@@ -140,29 +146,34 @@ pub(crate) fn fs_remove(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn fs_write_file(
+pub(crate) async fn fs_write_file(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
     data: String,
     mode: Option<u32>,
 ) -> Result<(), AppError> {
-    let _t = crate::shared::speed_log::scope("fs.fs_write_file");
-    let data = BASE64.decode(data)?;
-    let path = PathBuf::from(path);
-    assert_path_access(&app, &state, &path, "write file")?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let payload = encrypt_asset(&app, &state, &path, &data)?;
-    let mut file = fs::File::create(&path)?;
-    file.write_all(&payload)?;
-    #[cfg(unix)]
-    if let Some(mode) = mode {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
-    }
-    Ok(())
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let _t = crate::shared::speed_log::scope("fs.fs_write_file");
+        let state = app.state::<AppState>();
+        let data = BASE64.decode(data)?;
+        let path = PathBuf::from(path);
+        assert_path_access(&app, &state, &path, "write file")?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let payload = encrypt_asset(&app, &state, &path, &data)?;
+        let mut file = fs::File::create(&path)?;
+        file.write_all(&payload)?;
+        #[cfg(unix)]
+        if let Some(mode) = mode {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
@@ -198,14 +209,19 @@ pub(crate) fn fs_read_file(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn fs_read_file_binary(
+pub(crate) async fn fs_read_file_binary(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
 ) -> Result<String, AppError> {
-    let path = PathBuf::from(path);
-    assert_path_access(&app, &state, &path, "read file binary")?;
-    Ok(BASE64.encode(fs::read(path)?))
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let path = PathBuf::from(path);
+        assert_path_access(&app, &state, &path, "read file binary")?;
+        Ok(BASE64.encode(fs::read(path)?))
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
@@ -252,21 +268,26 @@ pub(crate) fn fs_unlink(
 
 #[tauri::command]
 #[specta::specta]
-pub(crate) fn fs_read_data(
+pub(crate) async fn fs_read_data(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
     skip_decryption: Option<bool>,
 ) -> Result<String, AppError> {
-    let actual_path = resolve_asset_path_from_uri(&app, &path)?;
-    assert_path_access(&app, &state, &actual_path, "read data")?;
-    let raw = fs::read(&actual_path)?;
-    let plain = if skip_decryption.unwrap_or(false) {
-        raw
-    } else {
-        decrypt_asset(&app, &state, &actual_path, &raw)?
-    };
-    Ok(BASE64.encode(plain))
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let actual_path = resolve_asset_path_from_uri(&app, &path)?;
+        assert_path_access(&app, &state, &actual_path, "read data")?;
+        let raw = fs::read(&actual_path)?;
+        let plain = if skip_decryption.unwrap_or(false) {
+            raw
+        } else {
+            decrypt_asset(&app, &state, &actual_path, &raw)?
+        };
+        Ok(BASE64.encode(plain))
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
