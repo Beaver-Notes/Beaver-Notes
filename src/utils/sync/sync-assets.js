@@ -10,8 +10,8 @@ import {
   ASSET_TYPES,
   ASSETS_DIR,
 } from './constants.js';
-import { mergeIntoMap } from '@/composable/useWorkspaceYjs';
-import { getWorkspaceDoc } from '@/composable/meta-yjs-doc.js';
+import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
+import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
 
 function yieldToUi() {

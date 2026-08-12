@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "enables the default permissions (read-only fs; writes require explicit per-command grants)",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -27,7 +27,9 @@
     "clipboard-manager:default",
     "clipboard-manager:allow-write-text",
     "audio-recorder:default",
+    "biometry:default",
     "safe-area-insets-css:default",
-    "core:webview:default"
+    "core:webview:default",
+    "deep-link:default"
   ]
 }

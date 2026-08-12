@@ -6,6 +6,7 @@ import { openDialog } from '@/lib/native/dialog';
 import { copyPath, ensureDir, writeFile } from '@/lib/native/fs';
 import { tiptapToMarkdown, buildFrontmatter } from '@/utils/markdown';
 import { sanitizeFileName } from './exportBulk';
+import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 
 function getShareTranslations() {
   try {
@@ -31,21 +32,19 @@ export async function exportMD(noteId, noteTitle, editor) {
     useScopedStorage: true,
   });
   if (canceled) return;
+  await ensureKeyReadyForWrite();
   const appDirectory = await getAppDirectory();
   const safeName = sanitizeFileName(noteTitle);
   const folderPath = path.join(filePaths[0], safeName);
   await ensureDir(folderPath);
   await writeFile(path.join(folderPath, `${safeName}.md`), markdown);
-  const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
-  const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
-  const notesAssetsDest = path.join(folderPath, 'assets');
-  const fileAssetsDest = path.join(folderPath, 'file-assets');
-  await ensureDir(notesAssetsDest);
-  await ensureDir(fileAssetsDest);
+  const assetsSource = path.join(appDirectory, 'assets', noteId);
+  const assetsDest = path.join(folderPath, 'assets');
+  await ensureDir(assetsDest);
   try {
-    await copyPath(noteAssetsSource, notesAssetsDest);
-  } catch {}
-  try {
-    await copyPath(fileAssetsSource, fileAssetsDest);
-  } catch {}
+    await copyPath(assetsSource, assetsDest);
+  } catch (error) {
+    // The markdown still exports; the images just won't be embedded.
+    console.warn('[md export] failed to copy assets for', noteId, error);
+  }
 }

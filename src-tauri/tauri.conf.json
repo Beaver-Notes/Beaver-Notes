@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' assets: data: blob: https:; media-src 'self' assets: file-assets: blob: https:; font-src 'self' data:; frame-src 'none'; object-src 'none'; connect-src ipc: http://ipc.localhost"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' assets: data: blob: https:; media-src 'self' assets: blob: https:; font-src 'self' data:; frame-src 'none'; object-src 'none'; connect-src ipc: http://ipc.localhost"
     }
   },
   "bundle": {
@@ -67,6 +67,9 @@
         "role": "Viewer"
       }
     ],
+    "windows": {
+      "signCommand": "ossign.exe -t pecoff -o \"%1\" \"%1\""
+    },
     "macOS": {
       "entitlements": "../buildResources/entitlements.mac.plist"
     },
@@ -76,6 +79,11 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["beaver-notes"]
+      }
+    },
     "updater": {
       "endpoints": [
         "https://github.com/Beaver-Notes/Beaver-Notes/releases/latest/download/latest.json"

@@ -1,5 +1,5 @@
 const IMAGE_SOURCE_PREFIXES = ['assets://', 'blob:', 'data:'];
-const MEDIA_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:'];
+const MEDIA_SOURCE_PREFIXES = ['assets://', 'blob:'];
 
 function normalizeSourceValue(value) {
   return String(value || '').trim();
@@ -251,5 +251,5 @@ export function sanitizeImportedHtml(html, options = {}) {
     }
   });
 
-  return doc.body.innerHTML;
+  return doc;
 }

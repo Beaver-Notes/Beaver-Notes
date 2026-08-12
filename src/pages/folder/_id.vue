@@ -191,10 +191,7 @@
       </template>
 
       <div v-else class="text-center">
-        <img
-          :src="$route.query.archived === 'true' ? ArchiveImg : HomeImg"
-          class="mx-auto w-1/4"
-        />
+        <ui-beaver-character class="mx-auto w-40" />
         <p
           class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
         >
@@ -226,18 +223,18 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
+import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
-import HomeImg from '@/assets/images/home.png';
-import ArchiveImg from '@/assets/images/archive.png';
 import HomeFolderCard from '@/components/home/HomeFolderCard.vue';
 import { useFolderStore } from '@/store/folder';
 import HomeSearch from '@/components/home/HomeSearch.vue';
 import FolderTree from '@/components/home/FolderTree.vue';
 import Actions from '@/components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
-import { extractTextFromContent } from '@/utils/note/serializer.js';
+import { noteSearchText } from '@/utils/note/note-search-text.js';
+import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
@@ -266,7 +263,7 @@ export default {
     const currentFolderId = computed(() => route.params.id);
 
     const sortedNotes = computed(() =>
-      sortArray({
+      memoizedSort({
         data: noteStore.notes,
         order: state.sortOrder,
         key: state.sortBy,
@@ -306,6 +303,10 @@ export default {
       const queryLower = state.query.toLocaleLowerCase();
       const isLabelQuery = queryLower.startsWith('#');
       const labelQuery = isLabelQuery ? queryLower.slice(1) : queryLower;
+      const matchedIds =
+        queryLower.trim() !== ''
+          ? matchNoteIdsByQuery(notes, state.query)
+          : null;
 
       notes.forEach((note) => {
         let { title, isArchived, isBookmarked, labels, folderId } = note;
@@ -325,30 +326,37 @@ export default {
           ? labels.includes(state.activeLabel)
           : true;
 
-        const isMatch = isLabelQuery
-          ? labels.some((label) =>
-              label.toLocaleLowerCase().includes(labelQuery)
-            )
-          : labels.some((label) =>
-              label.toLocaleLowerCase().includes(queryLower)
-            ) ||
-            normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
-            (note.searchText ?? extractTextFromContent(note.content))
-              .toLowerCase()
-              .includes(queryLower);
+        let isMatch = false;
+        if (queryLower.trim() !== '') {
+          if (matchedIds === null) {
+            // Index unavailable — linear fallback
+            isMatch = isLabelQuery
+              ? labels.some((label) =>
+                  label.toLocaleLowerCase().includes(labelQuery)
+                )
+              : labels.some((label) =>
+                  label.toLocaleLowerCase().includes(queryLower)
+                ) ||
+                normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
+                noteSearchText(note).toLowerCase().includes(queryLower);
+          } else {
+            isMatch = matchedIds.has(note.id);
+          }
+        } else {
+          isMatch = true;
+        }
 
         if (isMatch && labelFilter) {
-          const noteCard = {
-            ...note,
-            content: note.searchText ?? extractTextFromContent(note.content),
-          };
-
-          if (isArchived) return filteredNotes.archived.push(noteCard);
+          // Push the original note reference. The card renders `cardPreview`,
+          // never `content`, and copying the note here re-created every object
+          // on each keystroke/sort, churning props down into the masonry and
+          // forcing a full relayout of all visible cards.
+          if (isArchived) return filteredNotes.archived.push(note);
 
           if (isBookmarked) {
-            filteredNotes.bookmarked.push(noteCard);
+            filteredNotes.bookmarked.push(note);
           } else {
-            filteredNotes.all.push(noteCard);
+            filteredNotes.all.push(note);
           }
         }
       });
@@ -441,8 +449,6 @@ export default {
       folders,
       folder,
       deleteLabel,
-      HomeImg,
-      ArchiveImg,
       highlightedFolderIds,
       childFolders,
       notesInFolder,

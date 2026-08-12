@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { getSyncDeviceId } from '@/utils/sync/sync-repository.js';
 import { yjsExtensions, CollapseHeading, heading } from '@/lib/tiptap';
+import { base64ToBuf } from '@/utils/crypto/codec.js';
 import { useAppStore } from '@/store/app';
 
 let cachedSchema = null;
@@ -35,14 +36,14 @@ export function objToYMap(obj) {
 }
 
 /**
- * Apply an array of updates (Uint8Array or number[]) to a Y.Doc,
- * skipping corrupted ones.
+ * Apply an array of updates (base64 strings, Uint8Array or number[]) to a
+ * Y.Doc, skipping corrupted ones.
  */
 export function applyUpdatesToDoc(doc, updates) {
   if (!updates || updates.length === 0) return;
   for (const u of updates) {
     try {
-      Y.applyUpdate(doc, u instanceof Uint8Array ? u : new Uint8Array(u));
+      Y.applyUpdate(doc, toUint8Array(u));
     } catch (e) {
       console.warn('[yjs] skipping corrupted update:', e);
     }
@@ -50,10 +51,15 @@ export function applyUpdatesToDoc(doc, updates) {
 }
 
 /**
- * Ensure a Yjs binary value is a Uint8Array.
+ * Ensure a Yjs binary value is a Uint8Array. IPC now delivers binary as
+ * base64 strings (see commands.ts); numeric arrays are the legacy shape.
  */
 export function toUint8Array(data) {
   if (data instanceof Uint8Array) return data;
+  if (typeof data === 'string') {
+    if (data === '') return new Uint8Array(0);
+    return base64ToBuf(data);
+  }
   return new Uint8Array(data);
 }
 

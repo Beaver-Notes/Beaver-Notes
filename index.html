@@ -21,6 +21,15 @@
         }
       })();
     </script>
+    <script>
+      (function() {
+        var t = localStorage.getItem('theme');
+        var isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var bg = isDark ? '#171717' : '#fafafa';
+        document.documentElement.style.backgroundColor = bg;
+        if (document.body) document.body.style.backgroundColor = bg;
+      })();
+    </script>
     <title>Beaver Notes</title>
   </head>
   <body>

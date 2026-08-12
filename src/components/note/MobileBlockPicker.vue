@@ -48,9 +48,9 @@
 import { computed, ref } from 'vue';
 import mime from 'mime';
 import dayjs from '@/lib/dayjs';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
-import { useEditorImage } from '@/composable/editorImage';
+import { useEditorImage } from '@/utils/assets/editor-image';
 import { saveFile } from '@/utils/assets/storage.js';
 import { openDialog } from '@/lib/native/dialog';
 

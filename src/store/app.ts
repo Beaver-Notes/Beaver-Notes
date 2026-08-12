@@ -1,6 +1,6 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { getSettingSync, setSetting } from '../composable/settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 
 interface AppSetting {
   collapsibleHeading: boolean;

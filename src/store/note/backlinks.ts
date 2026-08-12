@@ -102,3 +102,24 @@ export function getBacklinks(state: { data: Record<string, NoteData> }) {
 export function getBacklinkCount(_state: { data: Record<string, NoteData> }) {
   return (noteId: string): number => linkIndex[noteId]?.size ?? 0;
 }
+
+export function getLinkIndexJSON() {
+  return JSON.stringify({
+    linkIndex: Object.fromEntries(
+      Object.entries(linkIndex).map(([k, v]) => [k, [...v]])
+    ),
+    outgoingIndex: Object.fromEntries(
+      Object.entries(outgoingIndex).map(([k, v]) => [k, [...v]])
+    ),
+  });
+}
+
+export function loadLinkIndex(json: string) {
+  const parsed = JSON.parse(json);
+  for (const [k, v] of Object.entries(parsed.linkIndex || {})) {
+    linkIndex[k] = new Set(v as string[]);
+  }
+  for (const [k, v] of Object.entries(parsed.outgoingIndex || {})) {
+    outgoingIndex[k] = new Set(v as string[]);
+  }
+}

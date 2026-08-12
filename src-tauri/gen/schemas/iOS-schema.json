@@ -2301,6 +2301,84 @@
           "markdownDescription": "Denies the stop_recording command without any pre-configured scope."
         },
         {
+          "description": "This permission set configures which\nbiometry features are by default exposed.\n\n#### Granted Permissions\n\nIt allows acccess to all biometry commands.\n\n\n#### This default permission set includes:\n\n- `allow-authenticate`\n- `allow-status`\n- `allow-has-data`\n- `allow-get-data`\n- `allow-set-data`\n- `allow-remove-data`",
+          "type": "string",
+          "const": "biometry:default",
+          "markdownDescription": "This permission set configures which\nbiometry features are by default exposed.\n\n#### Granted Permissions\n\nIt allows acccess to all biometry commands.\n\n\n#### This default permission set includes:\n\n- `allow-authenticate`\n- `allow-status`\n- `allow-has-data`\n- `allow-get-data`\n- `allow-set-data`\n- `allow-remove-data`"
+        },
+        {
+          "description": "Enables the authenticate command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:allow-authenticate",
+          "markdownDescription": "Enables the authenticate command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:allow-get-data",
+          "markdownDescription": "Enables the get_data command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the has_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:allow-has-data",
+          "markdownDescription": "Enables the has_data command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:allow-remove-data",
+          "markdownDescription": "Enables the remove_data command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the set_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:allow-set-data",
+          "markdownDescription": "Enables the set_data command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the status command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:allow-status",
+          "markdownDescription": "Enables the status command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the authenticate command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:deny-authenticate",
+          "markdownDescription": "Denies the authenticate command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:deny-get-data",
+          "markdownDescription": "Denies the get_data command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the has_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:deny-has-data",
+          "markdownDescription": "Denies the has_data command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:deny-remove-data",
+          "markdownDescription": "Denies the remove_data command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the set_data command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:deny-set-data",
+          "markdownDescription": "Denies the set_data command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the status command without any pre-configured scope.",
+          "type": "string",
+          "const": "biometry:deny-status",
+          "markdownDescription": "Denies the status command without any pre-configured scope."
+        },
+        {
           "description": "No features are enabled by default, as we believe\nthe clipboard can be inherently dangerous and it is \napplication specific if read and/or write access is needed.\n\nClipboard interaction needs to be explicitly enabled.\n",
           "type": "string",
           "const": "clipboard-manager:default",

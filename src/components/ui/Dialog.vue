@@ -168,6 +168,7 @@ export default {
         ...options,
       };
 
+      state.input = options.defaultValue ?? '';
       state.show = true;
       isEmpty.value = false;
     });

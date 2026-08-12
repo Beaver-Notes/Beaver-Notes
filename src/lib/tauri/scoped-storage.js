@@ -161,28 +161,16 @@ async function resolveAssetVirtualPath(value) {
   );
   if (!normalized) return normalized;
 
-  const fileAssetMatch = normalized.match(/^file-assets:\/\/([^/]+)\/(.+)$/);
-  if (fileAssetMatch) {
+  // Both assets:// and file-assets:// resolve to the unified assets/ directory
+  const assetMatch = normalized.match(/^(?:assets|file-assets):\/\/([^/]+)\/(.+)$/);
+  if (assetMatch) {
     const appDirectory = await getAppDirectory();
     return appDirectory
       ? buildPath(
           appDirectory,
-          'file-assets',
-          fileAssetMatch[1],
-          fileAssetMatch[2]
-        )
-      : normalized;
-  }
-
-  const noteAssetMatch = normalized.match(/^assets:\/\/([^/]+)\/(.+)$/);
-  if (noteAssetMatch) {
-    const appDirectory = await getAppDirectory();
-    return appDirectory
-      ? buildPath(
-          appDirectory,
-          'notes-assets',
-          noteAssetMatch[1],
-          noteAssetMatch[2]
+          'assets',
+          assetMatch[1],
+          assetMatch[2]
         )
       : normalized;
   }
@@ -497,7 +485,6 @@ async function stageMobileSelectedFiles(files) {
     await invokeCommand('fs:writeFile', {
       path: destination,
       data: bytes,
-      skipAssetEncryption: true,
     });
     stagedPaths.push(destination);
   }

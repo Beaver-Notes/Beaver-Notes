@@ -8,12 +8,18 @@ mod menu;
 mod secure_blob;
 mod shared;
 
-use tauri::{Manager, RunEvent};
+use tauri::{Emitter, Listener, Manager, RunEvent};
 
 use crate::{
     bootstrap::{focus_main_window, queue_or_emit_file_open},
     shared::{clear_asset_cache, clear_external_open_dir, AppState},
 };
+
+fn emit_deep_link(app: &tauri::AppHandle, url: &str) {
+    if url.starts_with("beaver-notes://") {
+        let _ = app.emit("deep-link://received", url.to_string());
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -50,6 +56,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_audio_recorder::init())
+        .plugin(tauri_plugin_biometry::init())
         .manage(state);
 
     #[cfg(mobile)]
@@ -63,12 +70,14 @@ pub fn run() {
 
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        builder = builder        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             focus_main_window(app);
             let state = app.state::<AppState>();
             for arg in args {
                 let lower = arg.to_lowercase();
-                if lower.ends_with(".bea")
+                if lower.starts_with("beaver-notes://") {
+                    emit_deep_link(app, &arg);
+                } else if lower.ends_with(".bea")
                     || lower.ends_with(".md")
                     || lower.ends_with(".mdx")
                     || lower.ends_with(".txt")
@@ -77,7 +86,8 @@ pub fn run() {
                     queue_or_emit_file_open(app, state.inner(), arg);
                 }
             }
-        }));
+        }))
+        .plugin(tauri_plugin_deep_link::init());
     }
 
     #[cfg(not(target_os = "android"))]
@@ -89,6 +99,11 @@ pub fn run() {
     #[cfg(feature = "webdriver-debug")]
     {
         builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+    }
+
+    #[cfg(feature = "debug")]
+    {
+        builder = builder.plugin(tauri_plugin_debug_bridge::init());
     }
 
     #[cfg(target_os = "ios")]
@@ -142,12 +157,14 @@ pub fn run() {
             commands::fs::fs_write_file,
             commands::fs::fs_mkdir,
             commands::fs::fs_read_file,
+            commands::fs::fs_read_file_binary,
             commands::fs::fs_readdir,
             commands::fs::fs_stat,
             commands::fs::fs_unlink,
             commands::fs::fs_read_data,
             commands::fs::fs_is_file,
             commands::fs::fs_access,
+            commands::fs::fs_download_url,
             commands::storage::storage_get_store,
             commands::storage::storage_replace,
             commands::storage::storage_get,
@@ -155,6 +172,7 @@ pub fn run() {
             commands::storage::storage_delete,
             commands::storage::storage_has,
             commands::storage::storage_clear,
+            commands::storage::storage_reencrypt_legacy_rows,
             commands::security::safe_storage_is_available,
             commands::security::safe_storage_encrypt,
             commands::security::safe_storage_decrypt,
@@ -167,15 +185,20 @@ pub fn run() {
             commands::security::encryption_get_state,
             commands::security::encryption_submit_password,
             commands::security::encryption_enable,
-            commands::security::encryption_disable,
             commands::security::encryption_unlock,
             commands::security::encryption_lock,
             commands::security::encryption_encrypt_note_payload,
             commands::security::encryption_decrypt_note_payload,
             commands::security::sync_encrypt_payload,
             commands::security::sync_decrypt_payload,
+            commands::security::sync_encrypt_batch,
+            commands::security::sync_decrypt_batch,
             commands::security::sync_key_ready,
             commands::security::encryption_reconcile_key_params,
+            commands::security::encryption_adopt_key_params,
+            commands::security::encryption_has_remote_key_params,
+            commands::security::encryption_generate_recovery_code,
+            commands::security::encryption_recover_with_code,
             commands::security::passwd_hash,
             commands::security::passwd_compare,
             commands::security::passwd_record_failure,
@@ -201,16 +224,18 @@ pub fn run() {
             commands::updates::get_update_info,
             commands::imports::import_evernote,
             commands::imports::import_apple_notes,
-            commands::search::search_notes,
-            commands::search::search_index_note,
-            commands::search::search_remove_note,
-            commands::search::search_rebuild_index,
             commands::pdf::render_pdf,
             commands::yjs::yjs_append,
+            commands::yjs::yjs_append_batch,
             commands::yjs::yjs_get_updates,
             commands::yjs::yjs_get_snapshot,
+            commands::yjs::yjs_get_snapshots,
             commands::yjs::yjs_compact,
+            commands::yjs::yjs_compact_batch,
             commands::yjs::yjs_delete,
+            commands::index::index_save,
+            commands::index::index_load,
+            commands::search::search_extract_index_data,
             commands::workspace::workspace_list,
             commands::workspace::workspace_get_active,
             commands::workspace::workspace_create,
@@ -220,6 +245,15 @@ pub fn run() {
         ])
         .setup(|app| {
             bootstrap::setup_app(app)?;
+
+            // Listen for deep links when the app is already running (from tauri-plugin-deep-link)
+            let handle = app.handle().clone();
+            app.listen("deep-link://new-url", move |event| {
+                if let Some(url) = event.payload().strip_prefix('\"').and_then(|s| s.strip_suffix('"')) {
+                    emit_deep_link(&handle, url);
+                }
+            });
+
             Ok(())
         });
 
@@ -247,6 +281,11 @@ pub fn run() {
         RunEvent::Opened { urls } => {
             let state = app.state::<AppState>();
             for url in urls {
+                let url_str = url.to_string();
+                if url_str.starts_with("beaver-notes://") {
+                    emit_deep_link(app, &url_str);
+                    continue;
+                }
                 if let Ok(path) = url.to_file_path() {
                     let path = path.to_string_lossy().to_string();
                     let lower = path.to_lowercase();

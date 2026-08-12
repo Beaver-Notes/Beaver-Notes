@@ -1,5 +1,5 @@
 import { ref, onMounted, onUnmounted } from 'vue';
-import { getSettingSync, setSetting } from './settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { backend } from '@/lib/tauri-bridge';
 import { getNativeDarkTheme } from '@/lib/native/app';
@@ -49,8 +49,11 @@ function syncDocumentThemeSurface() {
 
     rootElement.style.colorScheme = resolvedDarkTheme.value ? 'dark' : 'light';
 
-    if (body && appBackground) {
-      body.style.backgroundColor = appBackground;
+    if (appBackground) {
+      rootElement.style.backgroundColor = appBackground;
+      if (body) {
+        body.style.backgroundColor = appBackground;
+      }
     }
 
     const meta = ensureThemeColorMeta();

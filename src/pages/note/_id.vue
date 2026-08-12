@@ -25,8 +25,10 @@
         </div>
         <div class="flex-1"></div>
         <note-actions
-          v-bind="{ editor, id, note, showSearch, goBack }"
+          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showComments, isShared }"
           @toggle-search="showSearch = !showSearch"
+          @toggle-history="showHistory = !showHistory"
+          @toggle-comments="toggleComments"
         />
       </div>
     </template>
@@ -60,17 +62,17 @@
         </transition>
         <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
       </template>
-      <textarea
+      <div
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
-        rows="1"
-        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder resize-none overflow-hidden leading-tight"
+        contenteditable="true"
+        class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight"
         :class="editor ? '' : 'invisible'"
-        :placeholder="translations.editor.untitledNote"
+        :data-placeholder="translations.editor.untitledNote"
         @input="handleTitleInput"
         @keydown="disallowedEnter"
-      ></textarea>
+      ></div>
       <div v-else class="flex flex-col items-center justify-center h-screen">
         <v-remixicon
           class="w-24 h-auto text-gray-600 dark:text-white"
@@ -88,7 +90,7 @@
           <button
             class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
             @click="
-              appEncryptedLocked ? unlockAppEncryption() : unlockNote(note.id)
+              appEncryptedLocked ? unlockAppEncryption() : noteStore.unlockNote(note.id)
             "
           >
             {{
@@ -113,7 +115,10 @@
           ref="noteEditor"
           :key="$route.params.id"
           :ydoc="ydoc"
+          :awareness="awareness"
+          :user-name="accountStore.profile?.username || 'Anonymous'"
           :note="note"
+          :role="roomRole"
           :cursor-position="note.lastCursorPosition"
           @update="
             autoScroll();
@@ -121,6 +126,7 @@
           "
           @init="editor = $event"
           @keyup.down="autoScroll"
+          @comment-activated="onCommentActivated"
         />
         <div
           v-if="yjsReady && !editor"
@@ -149,6 +155,11 @@
       :editor="editor"
       class="mobile:hidden ipad:hidden"
     />
+    <comment-sidebar
+      v-if="showComments && isShared"
+      :note-id="id"
+      @close="closeComments"
+    />
   </div>
 </template>
 
@@ -167,11 +178,10 @@ import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useUiState } from '@/composable/useUiState';
-import { useStorage } from '@/composable/storage';
 import { useStore } from '@/store';
 import { addCloseHandler } from '@/lib/tauri-bridge';
-import { useNotePersistence } from '@/composable/useNotePersistence';
-import { useNoteEncryption } from '@/composable/useNoteEncryption';
+import { useNotePersistence } from '@/utils/note/persistence';
+import { useNoteEncryption } from '@/utils/crypto/note-encryption';
 import NoteToolbar from '@/components/note/NoteToolbar.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
@@ -179,11 +189,19 @@ import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
+import { useAccountStore } from '@/store/account';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
+import { useNoteHistory } from '@/composable/useNoteHistory';
+import { useNoteSharing } from '@/composable/useNoteSharing';
+import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { Awareness } from 'y-protocols/awareness';
+import { usePresence } from '@/composable/usePresence';
+import { useCommentStore } from '@/store/comment';
+import CommentSidebar from '@/components/note/CommentSidebar.vue';
 
 export default {
   components: {
@@ -193,6 +211,7 @@ export default {
     NoteToolbar,
     NoteHeadingsProgress,
     NoteBacklinks,
+    CommentSidebar,
   },
   inheritAttrs: false,
   setup() {
@@ -200,7 +219,6 @@ export default {
     const route = useRoute();
     const store = useStore();
     const router = useRouter();
-    const storage = useStorage();
     const noteStore = useNoteStore();
     const labelStore = useLabelStore();
     const appStore = useAppStore();
@@ -208,7 +226,12 @@ export default {
     const editor = shallowRef(null);
     const noteEditor = ref();
     const showSearch = shallowRef(false);
+    const showHistory = ref(false);
+    const showComments = ref(false);
+    const commentStore = useCommentStore();
     const titleDiv = ref(null);
+    const noteHistory = useNoteHistory();
+    const sharing = useNoteSharing();
 
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
@@ -220,12 +243,97 @@ export default {
     );
     const { translations } = useTranslations();
 
+    const hocuspocus = getHocuspocusSync();
+    const roomRole = computed(() => hocuspocus.getRoomRole(id.value));
+
     // Yjs document management for note content
     const {
       doc: ydoc,
       ready: yjsReady,
       load: yjsLoad,
+      getTitle: yjsGetTitle,
+      setTitle: yjsSetTitle,
+      observeTitle: yjsObserveTitle,
     } = useNoteYjs();
+
+    // Presence
+    const awareness = ydoc.value ? new Awareness(ydoc.value) : null;
+    const accountStore = useAccountStore();
+    const presence = usePresence(
+      awareness,
+      accountStore.profile?.id || 'anonymous',
+      accountStore.profile?.username || 'Anonymous'
+    );
+
+    onMounted(() => {
+      presence.init();
+    });
+
+    // Update presence when profile loads (profile may arrive after init)
+    watch(
+      () => accountStore.profile?.username,
+      (name) => {
+        if (name && awareness) {
+          presence.setLocalState({ name });
+        }
+      },
+      { immediate: true }
+    );
+
+    onUnmounted(() => {
+      presence.destroy();
+    });
+
+    // Sharing — fetch collaborators to determine if note is shared
+    const isShared = computed(() => sharing.collaborators.value.length > 0);
+    watch(
+      id,
+      async (newId) => {
+        if (newId && accountStore.isAuthenticated) {
+          try {
+            await sharing.fetchCollaborators(newId);
+          } catch {
+            // Errors handled internally by useNoteSharing
+          }
+        }
+      },
+      { immediate: true }
+    );
+
+    // Comments — toggle sidebar + fetch threads when note becomes shared
+    function toggleComments() {
+      showComments.value = !showComments.value;
+      if (showComments.value && isShared.value) {
+        commentStore.fetchThreads(id.value, { baseUrl: accountStore.serverUrl });
+      }
+    }
+    function closeComments() {
+      showComments.value = false;
+      commentStore.closeSidebar();
+    }
+    watch(
+      () => [isShared.value, id.value],
+      async ([shared, noteId]) => {
+        if (shared && noteId && accountStore.isAuthenticated) {
+          commentStore.fetchThreads(noteId, { baseUrl: accountStore.serverUrl });
+        }
+      },
+      { immediate: true }
+    );
+    onUnmounted(() => {
+      commentStore.reset();
+    });
+    function onCommentActivated(commentId) {
+      if (!commentId) return;
+      commentStore.setActiveThread(commentId);
+      showComments.value = true;
+    }
+    watch(
+      () => commentStore.showSidebar,
+      (open) => {
+        if (open) showComments.value = true;
+      }
+    );
 
     // Persistence
     const { updateNote, persistCurrentNote, flushScheduledPersist } =
@@ -275,9 +383,8 @@ export default {
     }
 
     // Encryption
-    const { unlockNote, unlockAppEncryption } = useNoteEncryption({
+    const { unlockAppEncryption } = useNoteEncryption({
       noteId: id,
-      appEncryptedLocked,
     });
 
     // Auto-scroll
@@ -324,8 +431,17 @@ export default {
     );
 
     // Title / content handlers
+    let titleInitialized = false;
+
     const handleTitleInput = debounce((event) => {
-      return updateNote(id.value, { title: event.target.value });
+      if (!titleInitialized) return;
+      const text = event.target.textContent || '';
+      yjsSetTitle(text);
+      autoResizeTitle();
+      // Keep the store title current immediately. Relying on the Yjs observer
+      // alone left a window where the workspace-doc round-trip reset the
+      // contenteditable title mid-typing (caret jump).
+      return updateNote(id.value, { title: text });
     }, 150);
 
     function handleContentUpdate(content) {
@@ -352,17 +468,19 @@ export default {
 
         if (!noteId) return;
 
-        storage.get(`notes.${noteId}`).then((data) => {
-          if (!data || data.id === '') {
-            router.push('/');
-          } else {
-            store.activeNoteId = data.id;
-            localStorage.setItem('lastNoteEdit', noteId);
-          }
-        });
+        // Check the Pinia note store (source of truth) instead of the legacy
+        // KV table which post-migration / synced notes never write to.
+        const currentNote = noteStore.getById(noteId);
+        if (!currentNote || !currentNote.id) {
+          router.push('/');
+        } else {
+          store.activeNoteId = currentNote.id;
+          localStorage.setItem('lastNoteEdit', noteId);
+        }
 
-        const seedContent = noteStore.getById(noteId)?.content;
-        yjsLoad(noteId, seedContent).catch((err) => {
+        const seedContent = currentNote?.content;
+        const seedTitle = currentNote?.title || '';
+        yjsLoad(noteId, seedContent, seedTitle).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
         });
       },
@@ -418,13 +536,18 @@ export default {
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
 
-      if (titleDiv.value && note.value.title) {
-        titleDiv.value.value = note.value.title;
-        autoResizeTitle();
+      if (titleDiv.value) {
+        const titleText = note.value?.title || yjsGetTitle() || '';
+        if (titleText) {
+          titleDiv.value.textContent = titleText;
+          autoResizeTitle();
+        }
+        titleInitialized = true;
       }
     });
 
     onUnmounted(() => {
+      stopTitleObserver();
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();
@@ -486,14 +609,36 @@ export default {
     watch(
       () => note.value,
       async (newNote) => {
-        if (!newNote) return;
         await nextTick();
         if (!titleDiv.value) return;
-        const stored = newNote.title || '';
-        if (titleDiv.value.value !== stored) {
-          titleDiv.value.value = stored;
+        // Prefer store title, fall back to Yjs title, then empty
+        const stored = newNote?.title || yjsGetTitle() || '';
+        if (titleDiv.value.textContent !== stored) {
+          titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
+        titleInitialized = true;
+      },
+      { immediate: true }
+    );
+
+    // Sync remote Yjs title changes back to the store and to the div
+    let stopTitleObserver = () => {};
+    watch(
+      ydoc,
+      (newDoc, oldDoc) => {
+        stopTitleObserver();
+        if (!newDoc) return;
+        stopTitleObserver = yjsObserveTitle((title) => {
+          if (note.value && note.value.title !== title) {
+            updateNote(id.value, { title });
+          }
+          // Sync to div if it doesn't match
+          if (titleDiv.value && titleDiv.value.textContent !== title) {
+            titleDiv.value.textContent = title;
+            autoResizeTitle();
+          }
+        });
       },
       { immediate: true }
     );
@@ -509,11 +654,11 @@ export default {
       note,
       translations,
       uiState,
-      unlockNote,
       unlockAppEncryption,
       appEncryptedLocked,
       editor,
       showSearch,
+      showHistory,
       handleTitleInput,
       handleContentUpdate,
       closeSearch,
@@ -523,19 +668,30 @@ export default {
       isLocked,
       yjsReady,
       ydoc,
+      awareness,
+      presence,
+      isShared,
+      accountStore,
+      showComments,
+      toggleComments,
+      commentStore,
+      onCommentActivated,
+      roomRole,
     };
   },
 };
 </script>
 
 <style scoped>
-.title-placeholder::placeholder {
+.title-placeholder:empty::before {
+  content: attr(data-placeholder);
   color: var(--text-muted);
 }
 
 .title-placeholder {
   field-sizing: content;
   max-height: 8em;
+  min-height: 1.2em;
 }
 
 .editor {

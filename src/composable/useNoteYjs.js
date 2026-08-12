@@ -6,9 +6,7 @@ import {
   getSnapshot,
   compactUpdates,
 } from '@/lib/native/yjs.js';
-import { ensureCommitsDir } from '@/utils/sync/sync-repository.js';
-import { getSyncPath } from '@/utils/sync/path.js';
-import { getSettingSync } from '@/composable/settings';
+import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { queueSyncWrite } from '@/utils/sync/pending-writes.js';
 import {
   getDeviceId,
@@ -16,6 +14,13 @@ import {
   toUint8Array,
   ensureSchema,
 } from '@/utils/yjs-helpers.js';
+import { getHocuspocusSync, setRoomKey } from '@/lib/sync/hocuspocus-sync.js';
+import { useNoteSharing } from './useNoteSharing.js';
+import { useWorkspaceStore } from '@/store/workspace';
+import { speed } from '@/utils/speed.js';
+
+export { registerActiveDoc, applyRemote } from '@/lib/yjs/shared.js';
+import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
@@ -36,21 +41,6 @@ async function retryWrite(fn, label) {
   }
 }
 
-const activeDocs = new Map();
-
-export function registerActiveDoc(noteId, doc) {
-  activeDocs.set(noteId, doc);
-}
-
-export function applyRemote(noteId, update) {
-  const target = activeDocs.get(noteId);
-  if (!target) return false;
-  target.transact(() => {
-    Y.applyUpdate(target, update);
-  }, 'sync');
-  return true;
-}
-
  // Convert TipTap JSON content to Yjs using the editor's own schema.
 
 async function seedFromTipJson(ydoc, contentJson) {
@@ -65,10 +55,12 @@ async function seedFromTipJson(ydoc, contentJson) {
   // replaying individual updates for backwards compatibility.
 
 async function loadStateIntoDoc(newDoc, noteId) {
+  const t = speed('yjs_load_snapshot');
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
       Y.applyUpdate(newDoc, toUint8Array(snapshot));
+      t?.end();
       return;
     }
   } catch (err) {
@@ -81,6 +73,7 @@ async function loadStateIntoDoc(newDoc, noteId) {
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
   }
+  t?.end();
 }
 
   // Persist a Yjs update to SQLite and optionally queue it for the sync folder.
@@ -95,12 +88,9 @@ async function persistUpdate(noteId, update) {
     //
   }
   try {
-    if (getSettingSync('autoSync')) {
-      const syncPath = await getSyncPath();
-      if (syncPath) {
-        const commitsDir = await ensureCommitsDir(syncPath);
-        queueSyncWrite(commitsDir, noteId, update);
-      }
+    const commitsDir = await getCommitsDir();
+    if (commitsDir) {
+      queueSyncWrite(commitsDir, noteId, update);
     }
   } catch {
     //
@@ -109,6 +99,12 @@ async function persistUpdate(noteId, update) {
 
 const FLUSH_DELAY_MS = 300;
 
+// `note_content` grows one row per flush and used to only be compacted on note
+// switch / unmount — so a long editing session (or a crash before switching)
+// left an unbounded update history and forced a full CRDT replay on the next
+// open. Compact periodically in the flush path so history stays bounded.
+const COMPACT_INTERVAL_MS = 5 * 60 * 1000;
+const COMPACT_UPDATE_THRESHOLD = 100;
 
 // Composable that manages Yjs documents across note switches on the page.
 export function useNoteYjs() {
@@ -120,6 +116,8 @@ export function useNoteYjs() {
   // Debounced Yjs update persistence
   let pendingUpdates = [];
   let flushTimer = null;
+  let lastCompactAt = Date.now();
+  let updatesSinceCompact = 0;
 
   function scheduleFlush() {
     if (flushTimer) clearTimeout(flushTimer);
@@ -132,11 +130,32 @@ export function useNoteYjs() {
   async function flushPendingUpdates() {
     if (pendingUpdates.length === 0) return;
     const updates = pendingUpdates.splice(0);
+    updatesSinceCompact += updates.length;
     const merged = Y.mergeUpdates(updates);
     await persistUpdate(currentNoteId, merged);
+
+    // Fold the accumulated update history into a single snapshot row once the
+    // session has been open long enough / appended enough rows. Non-blocking
+    // failure: compaction retries on the next due flush or the note switch.
+    const due =
+      Date.now() - lastCompactAt > COMPACT_INTERVAL_MS ||
+      updatesSinceCompact >= COMPACT_UPDATE_THRESHOLD;
+    if (due && currentDoc) {
+      try {
+        const snapshot = Y.encodeStateAsUpdate(currentDoc);
+        if (snapshot.byteLength > 0) {
+          await compactUpdates(currentNoteId, snapshot);
+        }
+        lastCompactAt = Date.now();
+        updatesSinceCompact = 0;
+      } catch (err) {
+        console.warn('[yjs] periodic compact failed, retrying later:', err);
+      }
+    }
   }
 
-  async function load(noteId, initialContent) {
+  async function load(noteId, initialContent, initialTitle) {
+    const t = speed('yjs_load_note');
     // Flush any pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);
@@ -148,12 +167,18 @@ export function useNoteYjs() {
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
         if (snapshot.byteLength > 0) {
-          await compactUpdates(currentNoteId, snapshot);
+          // Do not block the switch on the old note's compact. The snapshot is
+          // captured before destroy; yjs_compact now runs off the main thread
+          // in Rust, so fire it and load the new note immediately.
+          compactUpdates(currentNoteId, snapshot).catch(() => {
+            // non-critical
+          });
         }
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
+      unregisterActiveDoc(currentNoteId);
+      getHocuspocusSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
     }
 
@@ -175,16 +200,74 @@ export function useNoteYjs() {
       }
     }
 
+    // Seed title if the fragment is empty (first load from store)
+    const titleFrag = newDoc.getXmlFragment('title');
+    if (titleFrag.length === 0 && initialTitle) {
+      try {
+        newDoc.transact(() => {
+          const text = new Y.XmlText();
+          text.insert(0, initialTitle);
+          titleFrag.push([text]);
+        }, 'load');
+      } catch (e) {
+        console.error('[yjs] title seeding failed:', e);
+      }
+    }
+
     newDoc.on('update', (update, origin) => {
       if (origin === 'load' || origin === 'sync') return;
       pendingUpdates.push(update);
       scheduleFlush();
     });
 
+    const hocuspocus = getHocuspocusSync();
+    try {
+      const workspaceStore = useWorkspaceStore();
+      const sharing = useNoteSharing();
+      const noteKeyHex = await sharing.ensureNoteKey(noteId);
+      if (noteKeyHex && workspaceStore.activeId) {
+        const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
+        await setRoomKey(roomName, noteKeyHex);
+      }
+    } catch (err) {
+      console.warn('[yjs] note-key provisioning skipped:', err);
+    }
+    hocuspocus.joinNoteRoom(noteId, newDoc);
+
     currentDoc = newDoc;
-    activeDocs.set(noteId, newDoc);
+    registerActiveDoc(noteId, newDoc);
     doc.value = newDoc;
     ready.value = true;
+    t?.end();
+  }
+
+  function getTitle() {
+    if (!currentDoc) return '';
+    const titleFrag = currentDoc.getXmlFragment('title');
+    return titleFrag.toJSON() || '';
+  }
+
+  function setTitle(title) {
+    if (!currentDoc) return;
+    const titleFrag = currentDoc.getXmlFragment('title');
+    currentDoc.transact(() => {
+      titleFrag.delete(0, titleFrag.length);
+      if (title) {
+        const text = new Y.XmlText();
+        text.insert(0, title);
+        titleFrag.push([text]);
+      }
+    });
+  }
+
+  function observeTitle(callback) {
+    if (!currentDoc) return () => {};
+    const titleFrag = currentDoc.getXmlFragment('title');
+    const handler = () => {
+      callback(titleFrag.toJSON() || '');
+    };
+    titleFrag.observe(handler);
+    return () => titleFrag.unobserve(handler);
   }
 
   onUnmounted(async () => {
@@ -199,15 +282,18 @@ export function useNoteYjs() {
       try {
         const snapshot = Y.encodeStateAsUpdate(currentDoc);
         if (snapshot.byteLength > 0) {
-          await compactUpdates(currentNoteId, snapshot);
+          compactUpdates(currentNoteId, snapshot).catch(() => {
+            // non-critical
+          });
         }
       } catch {
         // non-critical
       }
-      activeDocs.delete(currentNoteId);
+      unregisterActiveDoc(currentNoteId);
+      getHocuspocusSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
     }
   });
 
-  return { doc, ready, load };
+  return { doc, ready, load, getTitle, setTitle, observeTitle };
 }

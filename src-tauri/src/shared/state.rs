@@ -5,6 +5,8 @@ use std::{
     time::SystemTime,
 };
 
+use zeroize::Zeroize;
+
 use super::*;
 
 /// UI presentation preferences, persisted across sessions via settings.
@@ -43,6 +45,19 @@ impl SecurityState {
             transient_passphrase: Mutex::new(String::new()),
         }
     }
+
+    /// Replace the transient passphrase, zeroizing the previous value.
+    pub(crate) fn set_transient_passphrase(&self, passphrase: String) {
+        let mut guard = self.transient_passphrase.lock().unwrap_or_else(|e| e.into_inner());
+        guard.zeroize();
+        *guard = passphrase;
+    }
+
+    /// Zeroize and clear the transient passphrase.
+    pub(crate) fn clear_transient_passphrase(&self) {
+        let mut guard = self.transient_passphrase.lock().unwrap_or_else(|e| e.into_inner());
+        guard.zeroize();
+    }
 }
 
 /// All app-encryption session state, behind one lock (see `CryptoSession`).
@@ -57,6 +72,15 @@ impl CryptoState {
             session: RwLock::new(CryptoSession::default()),
             asset_key_cache: Mutex::new(None),
         }
+    }
+
+    /// Zeroize and clear the cached asset key.
+    pub(crate) fn clear_asset_key_cache(&self) {
+        let mut guard = self.asset_key_cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(k) = guard.as_mut() {
+            k.zeroize();
+        }
+        *guard = None;
     }
 }
 

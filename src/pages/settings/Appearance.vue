@@ -15,7 +15,13 @@
           class="bg-input p-2 rtl:mx-2 rounded-lg transition"
           @click="theme.setTheme(item.name)"
         >
-          <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
+          <img
+            :src="item.img"
+            decoding="async"
+            width="160"
+            height="100"
+            class="w-40 border-2 mb-1 rounded-lg"
+          />
           <p class="capitalize text-center text-sm">
             {{ translations.appearance[item.name] || item.name }}
           </p>
@@ -33,8 +39,8 @@
         ></button>
         <button
           class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'light' }"
-          @click="setColor('light')"
+          :class="{ 'ring-1 ring-primary': state.accentColor === 'amber' }"
+          @click="setColor('amber')"
         ></button>
         <button
           class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
@@ -184,7 +190,7 @@
       <p class="mb-2">{{ translations.appearance.interfaceOptions || '-' }}</p>
       <div>
         <div class="space-y-1">
-          <!-- Clear Text - OLED -->
+          <!-- High contrast text (OLED) -->
           <div class="flex items-center py-2 justify-between">
             <div>
               <span class="block text-lg align-left">
@@ -250,13 +256,13 @@ import {
   DEFAULT_UI_FONT_STACK,
   getSettingSync,
   setSetting,
-} from '@/composable/settings';
-import { useStorage } from '@/composable/storage';
+} from '@/lib/settings';
+import { useStorage } from '@/lib/storage';
 import {
   formatZoomLevel,
   getStoredZoomLevel,
   setStoredZoomLevel,
-} from '@/composable/zoom';
+} from '@/utils/ui/zoom';
 import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';

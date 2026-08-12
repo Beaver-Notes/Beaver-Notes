@@ -3,7 +3,7 @@
     <div class="mx-auto flex max-w-[32rem] items-end gap-3 justify-between">
       <!-- ── Left Rail ── -->
       <div
-        class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-all duration-300 ease-[var(--ease-snappy)] overflow-hidden"
+        class="flex items-center rounded-full bg-white dark:bg-neutral-900 border p-1.5 text-neutral-500 shadow-xl backdrop-blur-[18px] dark:text-neutral-300 dark:shadow-xl transition-[width] duration-300 ease-[var(--ease-snappy)] overflow-hidden"
         :class="railWidthClass"
       >
         <!-- Default Navigation -->
@@ -184,7 +184,7 @@
               : translations.sidebar.addNotes + ' (' + keyBinding + '+N)'
           "
           data-testid="add-note-button"
-          class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-all duration-300 ease-[var(--ease-snappy)] hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
+          class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary text-white shadow-lg transition-[transform,background-color] duration-300 ease-[var(--ease-snappy)] hover:bg-primary/90 dark:bg-primary/90 dark:hover:bg-primary/100"
           :class="{ 'rotate-40 scale-95': showAddMenu }"
           @click="toggleAddMenu"
         >
@@ -213,7 +213,7 @@ import { useRoute } from 'vue-router';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useNoteStore } from '@/store/note';
 
 export default {

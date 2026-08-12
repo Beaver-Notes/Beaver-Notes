@@ -18,6 +18,9 @@ const PLATFORMS = [
     iconBg: 'rgba(245, 158, 11, 0.12)',
     sourceMap: null,
     macOnly: false,
+    // The legacy Electron migration runs in Rust behind `#[cfg(desktop)]` —
+    // it is not available on mobile.
+    desktopOnly: true,
   },
   {
     id: 'obsidian',

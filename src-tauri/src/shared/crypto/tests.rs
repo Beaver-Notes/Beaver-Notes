@@ -1,10 +1,13 @@
 #[cfg(test)]
 mod characterization {
-    use crate::shared::crypto::keys::derive_kek_argon2id;
+    use base64::Engine;
+    use crate::shared::crypto::keys::{
+        aead_decrypt_bytes, aead_encrypt_bytes, derive_kek_argon2id,
+    };
 
-    /// Characterization vector for argon2id key derivation. The expected bytes
-    /// were captured from the original `crypto.rs` before the module split and
-    /// must remain identical (no behavior change allowed).
+    /// Characterization vector for argon2id key derivation (Argon2id t=2,
+    /// m=32MiB, p=2). Bumping ARGON2_MEMORY_KIB changes this — update the vector
+    /// together with the constant.
     #[test]
     fn derive_kek_argon2id_known_vector() {
         let salt = [0x42u8; 16];
@@ -12,10 +15,34 @@ mod characterization {
         assert_eq!(
             key,
             [
-                161, 89, 29, 42, 191, 198, 18, 46, 235, 81, 99, 169, 119, 148, 147, 236, 183,
-                128, 71, 226, 177, 220, 46, 132, 194, 91, 45, 12, 140, 161, 99, 117
+                221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46,
+                214, 162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
             ]
         );
+    }
+
+    /// A vault created under older Argon2id parameters must keep unlocking: the
+    /// KEK is derived from the params stored in the manifest, not the current
+    /// constants.
+    #[test]
+    fn derive_kek_from_manifest_respects_stored_argon2_params() {
+        use crate::shared::crypto::keys::{
+            create_encryption_manifest, derive_kek_argon2id_with_params, derive_kek_from_manifest,
+        };
+
+        let passphrase = "test-passphrase";
+        let (mut manifest, _, _) =
+            create_encryption_manifest("app", "check", passphrase).unwrap();
+        // Simulate a vault created under the previous (16MiB) parameters.
+        manifest.argon2_memory_kib = Some(16 * 1024);
+        manifest.argon2_iterations = Some(2);
+        manifest.argon2_parallelism = Some(2);
+
+        let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
+        let from_manifest = derive_kek_from_manifest(&manifest, passphrase).unwrap();
+        let expected =
+            derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        assert_eq!(from_manifest, expected);
     }
 
     /// Round-trip: a note encrypted for storage can be decrypted back.
@@ -54,6 +81,58 @@ mod characterization {
         assert!(is_encrypted_asset_buffer(&enc));
         let dec = decrypt_asset_bytes_with_key(&enc, &key).unwrap();
         assert_eq!(dec, plain);
+    }
+
+    /// Sync ciphertext must round-trip and reject any authenticated-byte change.
+    #[test]
+    fn sync_payload_authenticates_ciphertext() {
+        let key = [0x42u8; 32];
+        let aad = "remote-note-a-201";
+        let plaintext = b"yjs-update";
+        let (iv, enc) = aead_encrypt_bytes(&key, plaintext, aad).unwrap();
+
+        assert_eq!(aead_decrypt_bytes(&key, &iv, &enc, aad).unwrap(), plaintext);
+
+        let mut tampered = base64::engine::general_purpose::STANDARD
+            .decode(&enc)
+            .unwrap();
+        tampered[0] ^= 1;
+        let tampered = base64::engine::general_purpose::STANDARD.encode(tampered);
+        assert!(matches!(
+            aead_decrypt_bytes(&key, &iv, &tampered, aad),
+            Err(crate::shared::error::AppError::WrongPassword)
+        ));
+    }
+
+    /// Assets written by the non-streaming encryptor (`encrypt_asset_bytes_with_key`,
+    /// used by fs:writeFile and migration) are a single chunk whose length can
+    /// exceed STREAM_CHUNK_SIZE. The streaming decryptor must accept them.
+    #[test]
+    fn asset_streaming_decrypt_accepts_large_single_chunk() {
+        use crate::shared::crypto::assets::{
+            decrypt_asset_streaming, encrypt_asset_bytes_with_key,
+        };
+        use crate::shared::crypto::keys::STREAM_CHUNK_SIZE;
+
+        let key = [11u8; 32];
+        let plain = vec![0xABu8; STREAM_CHUNK_SIZE + 1024];
+        let enc = encrypt_asset_bytes_with_key(&plain, &key).unwrap();
+
+        let dir = std::env::temp_dir().join(format!(
+            "asset-stream-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let src = dir.join("large.bin");
+        let out = dir.join("large.dec");
+        std::fs::write(&src, &enc).unwrap();
+
+        let result = decrypt_asset_streaming(&src, &out, &key);
+        let decrypted = std::fs::read(&out);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        result.expect("large single-chunk asset must stream-decrypt");
+        assert_eq!(decrypted.unwrap(), plain);
     }
 
     /// Yjs blob round-trip.

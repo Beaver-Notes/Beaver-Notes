@@ -52,7 +52,7 @@ export default {
     width: 100%;
     height: 100%;
     transition-property: background-color, border-color;
-    transition-timing-function: ease;
+    transition-timing-function: var(--ease-snappy);
     transition-duration: 200ms;
     display: flex;
     align-items: center;
@@ -60,7 +60,7 @@ export default {
     .remixicon-icon {
       transform: scale(0.95) !important;
       opacity: 0;
-      transition: transform 200ms ease, opacity 200ms ease;
+      transition: transform 200ms var(--ease-snappy), opacity 200ms var(--ease-snappy);
     }
   }
   &__input:checked ~ &__mark {

@@ -11,12 +11,47 @@ import {
 } from '@/lib/native/fs';
 import { base64ToUint8Array } from '@/utils/helpers/index.js';
 import { convertMarkdownToTiptap } from '@/utils/markdown';
+import { useNoteStore } from '@/store/note';
+import { buildNotePreview } from '@/utils/note/cardPreview.js';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
+import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 import mime from 'mime';
 
-function normalizeFolderCollection(folderStore) {
-  return Array.isArray(folderStore?.data)
-    ? folderStore.data
-    : Object.values(folderStore?.data || {});
+const _pendingImportNotes = [];
+
+export function addImportedNote(noteStore, payload) {
+  const hidden = payload.isLocked || false;
+  const { cardPreview, preview } = buildNotePreview({
+    content: payload.content,
+    preview: payload.preview,
+    searchText: payload.searchText,
+    hidden,
+  });
+  const searchText = hidden ? '' : (extractTextFromContent(payload.content) || payload.searchText || '');
+
+  _pendingImportNotes.push({
+    id: payload.id,
+    title: payload.title,
+    content: payload.content,
+    labels: payload.labels || [],
+    folderId: payload.folderId || null,
+    createdAt: payload.createdAt || Date.now(),
+    updatedAt: payload.updatedAt || Date.now(),
+    isBookmarked: false,
+    isArchived: false,
+    isLocked: false,
+    isFullWidth: false,
+    cardPreview,
+    preview,
+    searchText,
+  });
+}
+
+export async function flushImportedNotes() {
+  if (!_pendingImportNotes.length) return;
+  const notes = _pendingImportNotes.splice(0);
+  const noteStore = useNoteStore();
+  await noteStore.addMany(notes);
 }
 
 function parseScalarValue(value) {
@@ -146,6 +181,7 @@ export async function listFilesRecursive(rootPath, extensions, options = {}) {
 export async function copyDirectoryContents(sourcePath, destPath) {
   if (!(await pathExists(sourcePath))) return;
   try {
+    await ensureKeyReadyForWrite();
     await ensureDir(destPath);
     await copyPath(sourcePath, destPath);
   } catch (error) {
@@ -159,36 +195,20 @@ export async function prepareMarkdownStaging(
   assetDirs = []
 ) {
   const stagingRoot = path.join(appDirectory, '.import-staging', noteId);
-  const noteAssetsDir = path.join(stagingRoot, 'notes-assets');
-  const fileAssetsDir = path.join(stagingRoot, 'file-assets');
-  await ensureDir(noteAssetsDir);
-  await ensureDir(fileAssetsDir);
+  const assetsDir = path.join(stagingRoot, 'assets');
+  await ensureDir(assetsDir);
 
   for (const assetDir of assetDirs) {
     if (!(await pathExists(assetDir))) continue;
     try {
-      await copyPath(assetDir, noteAssetsDir);
-      await copyPath(assetDir, fileAssetsDir);
+      await ensureKeyReadyForWrite();
+      await copyPath(assetDir, assetsDir);
     } catch (error) {
       console.warn('Staging asset copy failed:', error);
     }
   }
 
   return stagingRoot;
-}
-
-export async function addImportedNote(noteStore, payload) {
-  await noteStore.add({
-    id: payload.id,
-    title: payload.title,
-    content: payload.content,
-    labels: payload.labels || [],
-    folderId: payload.folderId || null,
-    createdAt: payload.createdAt || Date.now(),
-    updatedAt: payload.updatedAt || Date.now(),
-    isBookmarked: false,
-    isArchived: false,
-  });
 }
 
 export function extractBearTags(markdown) {
@@ -255,9 +275,11 @@ export async function importMarkdownFile({
   total,
   folderPartsTransform = (parts) => parts,
   titleTransform = (value) => value,
+  rawMarkdown,
+  parsedMeta,
 }) {
-  const rawMarkdown = await readFile(filePath);
-  const { meta, body } = parseFrontmatter(rawMarkdown);
+  const raw = rawMarkdown ?? (await readFile(filePath));
+  const { meta, body } = parsedMeta ?? parseFrontmatter(raw);
   const id = uuidv4();
   const fileName = path.basename(filePath);
   const derivedTitle = titleTransform(stripExtension(fileName));
@@ -280,7 +302,7 @@ export async function importMarkdownFile({
       : directoryPath;
   const { content } = await convertMarkdownToTiptap(body, id, stagingRoot);
 
-  await addImportedNote(noteStore, {
+  addImportedNote(noteStore, {
     id,
     title,
     content,
@@ -293,7 +315,7 @@ export async function importMarkdownFile({
   for (const assetDir of assetDirs) {
     await copyDirectoryContents(
       assetDir,
-      path.join(appDirectory, 'notes-assets', id)
+      path.join(appDirectory, 'assets', id)
     );
   }
 
@@ -348,7 +370,10 @@ export function resolveRelativeAssetValue(value, noteId, resources = []) {
 
   if (source.startsWith('resource://')) {
     const hash = source.replace('resource://', '');
-    const match = resources.find((resource) => resource.hash === hash);
+    const match =
+      resources instanceof Map
+        ? resources.get(hash)
+        : resources.find((resource) => resource.hash === hash);
     return match ? `assets://${noteId}/${match.filename}` : source;
   }
 
@@ -370,12 +395,15 @@ export function resolveRelativeFileValue(value, noteId, resources = []) {
 
   if (source.startsWith('resource://')) {
     const hash = source.replace('resource://', '');
-    const match = resources.find((resource) => resource.hash === hash);
-    return match ? `file-assets://${noteId}/${match.filename}` : source;
+    const match =
+      resources instanceof Map
+        ? resources.get(hash)
+        : resources.find((resource) => resource.hash === hash);
+    return match ? `assets://${noteId}/${match.filename}` : source;
   }
 
   const fileName = path.basename(source);
-  return `file-assets://${noteId}/${fileName}`;
+  return `assets://${noteId}/${fileName}`;
 }
 
 export function sanitizeFilename(name) {
@@ -456,25 +484,23 @@ export async function getOrCreateFolder(
 ) {
   const normalizedName = String(name || '').trim();
   const normalizedParentId = parentId || null;
-  const existing = normalizeFolderCollection(folderStore).find(
-    (folder) =>
-      folder?.name === normalizedName &&
-      (folder?.parentId || null) === normalizedParentId
+
+  const { createdIds } = await folderStore.createFolderPath(
+    [normalizedName],
+    normalizedParentId
   );
 
-  if (existing) return existing.id;
+  for (const id of createdIds) {
+    createdFolderIds?.add(id);
+  }
 
-  const id = uuidv4();
-  await folderStore.add({
-    id,
-    name: normalizedName,
-    parentId: normalizedParentId,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
+  const childIds =
+    folderStore._index.get(normalizedParentId) ?? new Set();
+  for (const cid of childIds) {
+    if (folderStore.data[cid]?.name === normalizedName) return cid;
+  }
 
-  createdFolderIds?.add(id);
-  return id;
+  throw new Error(`Failed to find or create folder: ${normalizedName}`);
 }
 
 export async function buildFolderIdFromPath(
@@ -482,18 +508,19 @@ export async function buildFolderIdFromPath(
   folderStore,
   createdFolderIds = null
 ) {
-  let parentId = null;
+  const normalizedParts = (parts || [])
+    .map((raw) => String(raw || '').trim())
+    .filter(Boolean);
 
-  for (const rawPart of parts || []) {
-    const part = String(rawPart || '').trim();
-    if (!part) continue;
-    parentId = await getOrCreateFolder(
-      part,
-      parentId,
-      folderStore,
-      createdFolderIds
-    );
+  if (normalizedParts.length === 0) return null;
+
+  const { folders, createdIds } = await folderStore.createFolderPath(
+    normalizedParts
+  );
+
+  for (const id of createdIds) {
+    createdFolderIds?.add(id);
   }
 
-  return parentId;
+  return folders[folders.length - 1]?.id ?? null;
 }

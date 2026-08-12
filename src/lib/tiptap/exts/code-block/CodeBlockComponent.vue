@@ -32,6 +32,7 @@ import { highlightText } from '@speed-highlight/core';
 import defaultThemeStyles from '@speed-highlight/core/themes/default.css?raw';
 import darkThemeStyles from '@speed-highlight/core/themes/atom-dark.css?raw';
 import { codeHighlightPluginKey, parseHighlightedHtml } from './plugin';
+import { createDebouncedLatest } from '@/utils/helpers/latest';
 
 const LANGUAGES = [
   'bash',
@@ -137,7 +138,11 @@ export default {
       return lang ? `language-${lang}` : '';
     });
 
+    // Guard so an in-flight highlight never overwrites a newer one
+    let highlightSeq = 0;
+
     async function applyHighlight() {
+      const seq = ++highlightSeq;
       const code = props.node.textContent;
       if (!code) {
         updateDecorations([]);
@@ -148,6 +153,7 @@ export default {
 
       try {
         const html = await highlightText(code, lang);
+        if (seq !== highlightSeq) return;
         const inner = extractCodeHtml(html);
         if (!inner) {
           updateDecorations([]);
@@ -173,6 +179,8 @@ export default {
       dispatch(tr);
     }
 
+    const debouncedHighlight = createDebouncedLatest(applyHighlight, 300);
+
     onMounted(() => {
       injectThemes();
       applyHighlight();
@@ -181,9 +189,8 @@ export default {
     watch(
       [() => props.node.textContent, () => props.node.attrs.language],
       () => {
-        applyHighlight();
-      },
-      { immediate: true }
+        debouncedHighlight();
+      }
     );
 
     watch(

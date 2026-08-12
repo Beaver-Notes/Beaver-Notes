@@ -1,4 +1,4 @@
-use std::{fs, path::Path};
+use std::{fs, path::Path, time::{SystemTime, UNIX_EPOCH}};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use chrono::{Local, NaiveDateTime, TimeZone, Utc};
@@ -20,7 +20,7 @@ struct ImportResourcePayload {
     hash: String,
     mime: String,
     filename: String,
-    data: String,
+    path: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -268,10 +268,14 @@ fn replace_en_media(mut value: String, resources: &[ImportResourcePayload]) -> S
     value
 }
 
-fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayload>, AppError> {
+fn parse_evernote_resources(
+    note_block: &str,
+    temp_dir: &Path,
+) -> Result<Vec<ImportResourcePayload>, AppError> {
     extract_tag_blocks(note_block, "resource")
         .into_iter()
-        .map(|resource_block| {
+        .enumerate()
+        .map(|(index, resource_block)| {
             let data = strip_cdata(&extract_tag_value(&resource_block, "data").unwrap_or_default());
             let mime = decode_xml_entities(
                 &extract_tag_value(&resource_block, "mime").unwrap_or_default(),
@@ -283,11 +287,14 @@ fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayloa
                 .filter(|value| !value.is_empty())
                 .unwrap_or_else(|| hash.clone());
 
+            let file_path = temp_dir.join(format!("{hash}_{index}"));
+            fs::write(&file_path, &bytes)?;
+
             Ok(ImportResourcePayload {
                 hash,
                 mime,
                 filename: file_name,
-                data: BASE64.encode(bytes),
+                path: file_path.to_string_lossy().to_string(),
             })
         })
         .collect()
@@ -296,6 +303,7 @@ fn parse_evernote_resources(note_block: &str) -> Result<Vec<ImportResourcePayloa
 fn parse_evernote_note(
     note_block: &str,
     notebook_name: Option<String>,
+    temp_dir: &Path,
 ) -> Result<ImportNotePayload, AppError> {
     let title = extract_tag_value(note_block, "title")
         .map(|value| decode_xml_entities(&value))
@@ -310,7 +318,7 @@ fn parse_evernote_note(
         .map(|value| decode_xml_entities(&value))
         .filter(|value| !value.is_empty())
         .collect::<Vec<_>>();
-    let resources = parse_evernote_resources(note_block)?;
+    let resources = parse_evernote_resources(note_block, temp_dir)?;
     let raw_content = strip_cdata(&extract_tag_value(note_block, "content").unwrap_or_default());
     let content = replace_en_media(
         replace_en_todos(replace_en_note_tags(strip_processing_instructions(
@@ -362,6 +370,7 @@ fn parse_apple_note_block(block: &str) -> Result<ImportNotePayload, AppError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) async fn import_evernote(
     app: AppHandle,
     enex_path: String,
@@ -369,9 +378,35 @@ pub(crate) async fn import_evernote(
 ) -> Result<(), AppError> {
     let app_handle = app.clone();
     std::thread::spawn(move || {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis();
+        let temp_dir = std::env::temp_dir().join(format!("beaver_import_{timestamp}"));
+        if let Err(error) = fs::create_dir_all(&temp_dir) {
+            let _ = app_handle.emit_to(
+                MAIN_WINDOW_LABEL,
+                "import-complete",
+                ImportCompletePayload {
+                    source: "evernote",
+                    imported: 0,
+                    errors: vec![ImportErrorPayload {
+                        title: Path::new(&enex_path)
+                            .file_name()
+                            .and_then(|value| value.to_str())
+                            .unwrap_or("Evernote import")
+                            .to_string(),
+                        reason: error.to_string(),
+                    }],
+                },
+            );
+            return;
+        }
+
         let raw = match fs::read(&enex_path) {
             Ok(bytes) => bytes,
             Err(error) => {
+                let _ = fs::remove_dir_all(&temp_dir);
                 let _ = app_handle.emit_to(
                     MAIN_WINDOW_LABEL,
                     "import-complete",
@@ -399,7 +434,7 @@ pub(crate) async fn import_evernote(
         let mut errors = Vec::new();
 
         for (index, note_block) in notes.iter().enumerate() {
-            match parse_evernote_note(note_block, notebook_name.clone()) {
+            match parse_evernote_note(note_block, notebook_name.clone(), &temp_dir) {
                 Ok(note) => {
                     imported += 1;
                     let _ = app_handle.emit_to(
@@ -438,6 +473,8 @@ pub(crate) async fn import_evernote(
             }
         }
 
+        let _ = fs::remove_dir_all(&temp_dir);
+
         let _ = app_handle.emit_to(
             MAIN_WINDOW_LABEL,
             "import-complete",
@@ -453,6 +490,7 @@ pub(crate) async fn import_evernote(
 }
 
 #[tauri::command]
+#[specta::specta]
 #[cfg(target_os = "macos")]
 pub(crate) async fn import_apple_notes(app: AppHandle) -> Result<(), AppError> {
     let app_handle = app.clone();
@@ -585,6 +623,7 @@ return output
 }
 
 #[tauri::command]
+#[specta::specta]
 #[cfg(not(target_os = "macos"))]
 pub(crate) async fn import_apple_notes(_app: AppHandle) -> Result<(), AppError> {
     Err(AppError::Other("Apple Notes import is only available on macOS".into()))

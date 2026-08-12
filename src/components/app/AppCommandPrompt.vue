@@ -155,6 +155,8 @@ import { useRouter } from 'vue-router';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
+import { noteSearchText } from '@/utils/note/note-search-text.js';
+import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
 import commands from '@/utils/ui/commands.js';
 import { useUiState } from '@/composable/useUiState';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
@@ -178,15 +180,6 @@ const state = shallowReactive({
 const prefersReducedMotion = () =>
   window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// Helper: Extract plain text from complex content structures
-const mergeContent = (content) => {
-  if (typeof content === 'string') return content;
-  if (Array.isArray(content)) return content.map(mergeContent).join('');
-  if (!content) return '';
-  if (content.content) return mergeContent(content.content);
-  return content.label ?? content.text ?? '';
-};
-
 const isCommand = computed(() => state.query.startsWith('>'));
 const queryTerm = computed(() =>
   (isCommand.value ? state.query.slice(1) : state.query).toLowerCase().trim()
@@ -203,7 +196,7 @@ const items = computed(() => {
   const notes = noteStore.notes.map((n) => ({
     ...n,
     type: 'note',
-    content: mergeContent(n.content),
+    content: noteSearchText(n),
   }));
 
   const folders = (folderStore.folders || []).map((f) => ({
@@ -212,10 +205,22 @@ const items = computed(() => {
     title: f.name || f.title,
   }));
 
-  return [...notes, ...folders].filter((i) => {
+  // Notes use the in-memory MiniSearch index (built + kept fresh); folders are
+  // few and filtered linearly by name.
+  const matchedNoteIds = matchNoteIdsByQuery(notes, state.query);
+  const allItems = [...notes, ...folders];
+  if (matchedNoteIds === null) {
+    // Index unavailable — linear fallback for both.
+    return allItems.filter((i) => {
+      const title = (i.title || i.name || '').toLowerCase();
+      const content = (i.content || '').toLowerCase();
+      return title.includes(queryTerm.value) || content.includes(queryTerm.value);
+    });
+  }
+  return allItems.filter((i) => {
+    if (i.type === 'note') return matchedNoteIds.has(i.id);
     const title = (i.title || i.name || '').toLowerCase();
-    const content = (i.content || '').toLowerCase();
-    return title.includes(queryTerm.value) || content.includes(queryTerm.value);
+    return title.includes(queryTerm.value);
   });
 });
 

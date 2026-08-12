@@ -10,8 +10,14 @@
       class="note-masonry__measure"
       aria-hidden="true"
     >
+      <!-- Windowed probe: only the first viewport's worth of real cards are
+           mounted to measure heights. Previously ALL notes were mounted as
+           full HomeNoteCards here, which meant tens of thousands of card
+           components + ResizeObservers on large collections. Cards below the
+           probe window get their heights lazily via the stage per-card
+           ResizeObserver after isReady. -->
       <div
-        v-for="note in notes"
+        v-for="note in probeNotes"
         :key="`measure-${note.id}`"
         :ref="setMeasureRef(note.id)"
         class="note-masonry__measure-item"
@@ -262,13 +268,53 @@ const visibleItems = computed(() => {
   const lo = local - over;
   const hi = local + viewportHeight.value + over;
 
-  return items.filter((item) => {
-    const h = cardHeights.get(item.note.id) ?? item.h;
-    return item.y + h > lo && item.y < hi;
-  });
+  // Items are packed round-robin (item i sits in column i % cols) and each
+  // column's y position is strictly increasing, so the visible range per
+  // column can be found with binary search — O(cols · log n) per frame
+  // instead of scanning every note.
+  const cols = columnCount.value;
+  const result = [];
+  for (let col = 0; col < cols && col < items.length; col++) {
+    const count = Math.ceil((items.length - col) / cols);
+
+    // First item whose bottom crosses the top of the viewport (y + h > lo).
+    let a = 0;
+    let b = count;
+    while (a < b) {
+      const mid = (a + b) >> 1;
+      const it = items[col + mid * cols];
+      const h = cardHeights.get(it.note.id) ?? it.h;
+      if (it.y + h > lo) b = mid;
+      else a = mid + 1;
+    }
+    const startIdx = a;
+
+    // First item whose top is past the bottom of the viewport (y >= hi).
+    a = 0;
+    b = count;
+    while (a < b) {
+      const mid = (a + b) >> 1;
+      const it = items[col + mid * cols];
+      if (it.y >= hi) b = mid;
+      else a = mid + 1;
+    }
+    const endIdx = a;
+
+    for (let k = startIdx; k < endIdx; k++) {
+      result.push(items[col + k * cols]);
+    }
+  }
+  return result;
 });
 
 const skeletonCount = computed(() => columnCount.value * 3);
+
+// How many real cards are mounted during the measure phase. Covers the initial
+// viewport plus overscan; everything below gets height-corrected lazily once
+// the stage renders it.
+const PROBE_ROWS = 8;
+const probeCount = computed(() => columnCount.value * PROBE_ROWS);
+const probeNotes = computed(() => props.notes.slice(0, probeCount.value));
 
 const onScroll = () => {
   if (scrollRaf) return;
@@ -405,7 +451,12 @@ function onMeasureObserved(entries) {
     }
   }
   if (changed) measuredVersion.value++;
-  if (props.notes.length > 0 && measuredIds.size >= props.notes.length) {
+  if (props.notes.length === 0) {
+    finishMeasurement();
+  } else if (
+    probeNotes.value.length > 0 &&
+    measuredIds.size >= probeNotes.value.length
+  ) {
     finishMeasurement();
   }
 }

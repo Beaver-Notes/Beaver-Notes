@@ -81,7 +81,7 @@
 import { computed, ref, onMounted } from 'vue';
 import { useLabelStore } from '@/store/label';
 import { useNoteStore } from '@/store/note';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 
 const labelStore = useLabelStore();
@@ -107,7 +107,7 @@ onMounted(() => {
 });
 
 const sortedLabels = computed(() =>
-  [...labelStore.data].sort((a, b) => a.localeCompare(b))
+  [...new Set(labelStore.data)].sort((a, b) => a.localeCompare(b))
 );
 
 function noteCountFor(name) {

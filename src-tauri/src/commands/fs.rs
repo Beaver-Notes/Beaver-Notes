@@ -6,38 +6,47 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use serde_json::Value;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
-use crate::shared::*;
+use crate::shared::{RawJson, *};
+
+const DOWNLOAD_CHUNK_SIZE: usize = 64 * 1024; // 64 KB
 
 #[tauri::command]
-pub(crate) fn fs_copy(
+#[specta::specta]
+pub(crate) async fn fs_copy(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
     dest: String,
 ) -> Result<(), AppError> {
-    let src_path = PathBuf::from(path);
-    let dest_path = PathBuf::from(dest);
-    assert_path_access(&app, &state, &src_path, "copy source")?;
-    assert_path_access(&app, &state, &dest_path, "copy destination")?;
+    // Recursive copy + per-file AES is I/O-heavy — run off the main thread.
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let src_path = PathBuf::from(path);
+        let dest_path = PathBuf::from(dest);
+        assert_path_access(&app, &state, &src_path, "copy source")?;
+        assert_path_access(&app, &state, &dest_path, "copy destination")?;
 
-    if src_path.is_dir() {
-        copy_dir_recursive(&app, &state, &src_path, &dest_path)?;
-        return Ok(());
-    }
+        if src_path.is_dir() {
+            copy_dir_recursive(&app, &state, &src_path, &dest_path)?;
+            return Ok(());
+        }
 
-    let mut final_dest = dest_path.clone();
-    if final_dest.exists() && final_dest.is_dir() {
-        final_dest = final_dest.join(src_path.file_name().unwrap_or_default());
-    }
-    if let Some(parent) = final_dest.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let raw = fs::read(&src_path)?;
-    let payload = encrypt_asset(&app, &state, &final_dest, &raw, false)?;
-    fs::write(final_dest, payload)?;
-    Ok(())
+        let mut final_dest = dest_path.clone();
+        if final_dest.exists() && final_dest.is_dir() {
+            final_dest = final_dest.join(src_path.file_name().unwrap_or_default());
+        }
+        if let Some(parent) = final_dest.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let raw = fs::read(&src_path)?;
+        let payload = encrypt_asset(&app, &state, &final_dest, &raw)?;
+        fs::write(final_dest, payload)?;
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 fn copy_dir_recursive(
@@ -55,7 +64,7 @@ fn copy_dir_recursive(
             copy_dir_recursive(app, state, &src_path, &dest_path)?;
         } else {
             let raw = fs::read(&src_path)?;
-            let payload = encrypt_asset(app, state, &dest_path, &raw, false)?;
+            let payload = encrypt_asset(app, state, &dest_path, &raw)?;
             fs::write(dest_path, payload)?;
         }
     }
@@ -63,35 +72,38 @@ fn copy_dir_recursive(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_output_json(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-    data: Value,
+    data: RawJson,
 ) -> Result<(), AppError> {
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "write json")?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let serialized = serde_json::to_vec_pretty(&data)?;
+    let serialized = serde_json::to_vec_pretty(&*data)?;
     fs::write(path, serialized)?;
     Ok(())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_read_json(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-) -> Result<Value, AppError> {
+) -> Result<RawJson, AppError> {
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "read json")?;
     let raw = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&raw)?)
+    Ok(serde_json::from_str::<Value>(&raw)?.into())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_ensure_dir(
     app: AppHandle,
     state: State<AppState>,
@@ -104,6 +116,7 @@ pub(crate) fn fs_ensure_dir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_path_exists(
     app: AppHandle,
     state: State<AppState>,
@@ -115,6 +128,7 @@ pub(crate) fn fs_path_exists(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_remove(
     app: AppHandle,
     state: State<AppState>,
@@ -131,37 +145,39 @@ pub(crate) fn fs_remove(
 }
 
 #[tauri::command]
-pub(crate) fn fs_write_file(
+#[specta::specta]
+pub(crate) async fn fs_write_file(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
-    data: Vec<u8>,
+    data: String,
     mode: Option<u32>,
-    skip_asset_encryption: Option<bool>,
 ) -> Result<(), AppError> {
-    let path = PathBuf::from(path);
-    assert_path_access(&app, &state, &path, "write file")?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let payload = encrypt_asset(
-        &app,
-        &state,
-        &path,
-        &data,
-        skip_asset_encryption.unwrap_or(false),
-    )?;
-    let mut file = fs::File::create(&path)?;
-    file.write_all(&payload)?;
-    #[cfg(unix)]
-    if let Some(mode) = mode {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
-    }
-    Ok(())
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let _t = crate::shared::speed_log::scope("fs.fs_write_file");
+        let state = app.state::<AppState>();
+        let data = BASE64.decode(data)?;
+        let path = PathBuf::from(path);
+        assert_path_access(&app, &state, &path, "write file")?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let payload = encrypt_asset(&app, &state, &path, &data)?;
+        let mut file = fs::File::create(&path)?;
+        file.write_all(&payload)?;
+        #[cfg(unix)]
+        if let Some(mode) = mode {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(path, fs::Permissions::from_mode(mode))?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_mkdir(
     app: AppHandle,
     state: State<AppState>,
@@ -180,6 +196,7 @@ pub(crate) fn fs_mkdir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_read_file(
     app: AppHandle,
     state: State<AppState>,
@@ -191,6 +208,24 @@ pub(crate) fn fs_read_file(
 }
 
 #[tauri::command]
+#[specta::specta]
+pub(crate) async fn fs_read_file_binary(
+    app: AppHandle,
+    path: String,
+) -> Result<String, AppError> {
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let path = PathBuf::from(path);
+        assert_path_access(&app, &state, &path, "read file binary")?;
+        Ok(BASE64.encode(fs::read(path)?))
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_readdir(
     app: AppHandle,
     state: State<AppState>,
@@ -207,6 +242,7 @@ pub(crate) fn fs_readdir(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_stat(
     app: AppHandle,
     state: State<AppState>,
@@ -218,6 +254,7 @@ pub(crate) fn fs_stat(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_unlink(
     app: AppHandle,
     state: State<AppState>,
@@ -230,24 +267,31 @@ pub(crate) fn fs_unlink(
 }
 
 #[tauri::command]
-pub(crate) fn fs_read_data(
+#[specta::specta]
+pub(crate) async fn fs_read_data(
     app: AppHandle,
-    state: State<AppState>,
     path: String,
     skip_decryption: Option<bool>,
 ) -> Result<String, AppError> {
-    let actual_path = resolve_asset_path_from_uri(&app, &path)?;
-    assert_path_access(&app, &state, &actual_path, "read data")?;
-    let raw = fs::read(&actual_path)?;
-    let plain = if skip_decryption.unwrap_or(false) {
-        raw
-    } else {
-        decrypt_asset(&app, &state, &actual_path, &raw)?
-    };
-    Ok(BASE64.encode(plain))
+    let app = app.clone();
+    tokio::task::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let actual_path = resolve_asset_path_from_uri(&app, &path)?;
+        assert_path_access(&app, &state, &actual_path, "read data")?;
+        let raw = fs::read(&actual_path)?;
+        let plain = if skip_decryption.unwrap_or(false) {
+            raw
+        } else {
+            decrypt_asset(&app, &state, &actual_path, &raw)?
+        };
+        Ok(BASE64.encode(plain))
+    })
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))?
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_is_file(
     app: AppHandle,
     state: State<AppState>,
@@ -259,6 +303,7 @@ pub(crate) fn fs_is_file(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub(crate) fn fs_access(
     app: AppHandle,
     state: State<AppState>,
@@ -267,4 +312,54 @@ pub(crate) fn fs_access(
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "access check")?;
     Ok(path.exists())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn fs_download_url(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    url: String,
+    dest: String,
+) -> Result<u64, AppError> {
+    let dest_path = PathBuf::from(&dest);
+    assert_path_access(&app, &state, &dest_path, "download destination")?;
+
+    if let Some(parent) = dest_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| AppError::Other(format!("Failed to create HTTP client: {e}")))?;
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| AppError::Other(format!("Download request failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Err(AppError::Other(format!(
+            "Download failed with status {}",
+            resp.status()
+        )));
+    }
+
+    let mut file = fs::File::create(&dest_path)?;
+    let mut total: u64 = 0;
+    let mut stream = resp.bytes_stream();
+
+    use futures_util::StreamExt;
+    while let Some(chunk_result) = stream.next().await {
+        let chunk = chunk_result
+            .map_err(|e| AppError::Other(format!("Download stream error: {e}")))?;
+        file.write_all(&chunk)?;
+        total += chunk.len() as u64;
+    }
+
+    file.flush()?;
+    Ok(total)
 }

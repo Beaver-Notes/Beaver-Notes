@@ -1,13 +1,19 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
-
-const Settings = () => import('./pages/Settings.vue');
-const Onboarding = () => import('./pages/Onboarding.vue');
-const SettingsIndex = () => import('./pages/settings/Index.vue');
-const SettingsAppearance = () => import('./pages/settings/Appearance.vue');
-const SettingsShortcuts = () => import('./pages/settings/Shortcuts.vue');
-const SettingsAbout = () => import('./pages/settings/About.vue');
-const SettingsLabels = () => import('./pages/settings/Labels.vue');
-const SettingsSecurity = () => import('./pages/settings/Security.vue');
+import { getSettingSync } from '@/lib/settings';
+import Settings from './pages/Settings.vue';
+import Onboarding from './pages/Onboarding.vue';
+import SettingsIndex from './pages/settings/Index.vue';
+import SettingsAppearance from './pages/settings/Appearance.vue';
+import SettingsShortcuts from './pages/settings/Shortcuts.vue';
+import SettingsAbout from './pages/settings/About.vue';
+import SettingsLabels from './pages/settings/Labels.vue';
+import SettingsSecurity from './pages/settings/Security.vue';
+import SettingsAccount from './pages/settings/Account.vue';
+import SettingsData from './pages/settings/Data.vue';
+import JoinNote from './pages/join/[token].vue';
+import Home from './pages/Index.vue';
+import Note from './pages/note/_id.vue';
+import Folder from './pages/folder/_id.vue';
 
 const APP_NAME = 'Beaver Notes';
 
@@ -21,6 +27,7 @@ const routeTitles = {
   'Settings-About': `About — ${APP_NAME}`,
   'Settings-Labels': `Labels — ${APP_NAME}`,
   'Settings-Security': `Security — ${APP_NAME}`,
+  'Settings-Data': `Data — ${APP_NAME}`,
   Onboarding: `Welcome — ${APP_NAME}`,
 };
 
@@ -28,7 +35,7 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: () => import('./pages/Index.vue'),
+    component: Home,
   },
   {
     path: '/onboarding',
@@ -38,12 +45,12 @@ const routes = [
   {
     path: '/note/:id',
     name: 'Note',
-    component: () => import('./pages/note/_id.vue'),
+    component: Note,
   },
   {
     path: '/folder/:id',
     name: 'Folder',
-    component: () => import('./pages/folder/_id.vue'),
+    component: Folder,
   },
   {
     path: '/settings',
@@ -59,6 +66,11 @@ const routes = [
         path: 'appearance',
         name: 'Settings-Appearance',
         component: SettingsAppearance,
+      },
+      {
+        path: 'account',
+        name: 'Settings-Account',
+        component: SettingsAccount,
       },
       {
         path: 'shortcuts',
@@ -80,7 +92,18 @@ const routes = [
         name: 'Settings-Security',
         component: SettingsSecurity,
       },
+      {
+        path: 'data',
+        name: 'Settings-Data',
+        component: SettingsData,
+      },
     ],
+  },
+  {
+    path: '/join/:token',
+    name: 'JoinNote',
+    component: JoinNote,
+    meta: { guest: true },
   },
   {
     // Catch-all route for footnote links
@@ -112,6 +135,16 @@ const router = createRouter({
 
     return undefined;
   },
+});
+
+router.beforeEach((to) => {
+  // Synchronous check: if onboarding hasn't completed and we're not
+  // already on the onboarding route, redirect there immediately.
+  // This prevents the sidebar from rendering before onboarding is shown.
+  const onboardingCompleted = getSettingSync('onboardingCompleted');
+  if (!onboardingCompleted && to.name !== 'Onboarding') {
+    return { name: 'Onboarding' };
+  }
 });
 
 router.afterEach((to) => {

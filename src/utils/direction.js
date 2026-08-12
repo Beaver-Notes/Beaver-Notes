@@ -1,4 +1,4 @@
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 
 const directionPreference = getSettingSync('directionPreference');
 

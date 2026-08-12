@@ -6,6 +6,7 @@ import {
 } from '@tiptap/vue-3';
 import { Plugin } from '@tiptap/pm/state';
 import { mergeCollapsedFootnotes } from '../footnote-block/utils';
+import { collectEmptyHeadingPositions } from './utils';
 
 function createArrowSVG() {
   const svgNS = 'http://www.w3.org/2000/svg';
@@ -168,13 +169,15 @@ export default Heading.extend({
           if (transactions.some((t) => t.getMeta('headingDelete'))) return null;
           const tr = newState.tr;
           let modified = false;
-          newState.doc.descendants((node, pos) => {
-            if (node.type.name === 'heading' && node.content.size === 0) {
-              tr.insertText(' ', pos + 1);
-              modified = true;
-              return false;
-            }
-          });
+          const starts = collectEmptyHeadingPositions(
+            newState.doc,
+            transactions
+          );
+          // Insert from the end so earlier inserts don't shift later positions
+          for (const start of starts.sort((a, b) => b - a)) {
+            tr.insertText(' ', start + 1);
+            modified = true;
+          }
           return modified ? tr : null;
         },
       }),

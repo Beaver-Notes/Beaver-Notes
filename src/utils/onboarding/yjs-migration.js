@@ -1,83 +1,128 @@
 /**
- * One-time batch migration: reads existing note content from the KV store
- * and writes it into the note_content (Yjs) table, then strips content from KV.
+ * One-time conversion of note content into the note's Yjs doc. Yjs is the only
+ * content store and encryption is mandatory — this runs only when data is
+ * *imported* (legacy Electron vaults write notes into KV directly), never as a
+ * runtime step.
  *
- * Runs during onboarding after legacy data has been imported so that every
- * note's content lives in Yjs before the user opens any note.
+ * App-encrypted content (`ae:3` legacy envelope, `ae:6` raw bytes) is decrypted
+ * with the loaded app key before conversion; per-note password-locked notes are
+ * skipped (they require the user's per-note passphrase).
  */
 
-import { useStorage } from '@/composable/storage';
-import { compactUpdates } from '@/lib/native/yjs.js';
+import { useStorage } from '@/lib/storage';
+import { appendBatch } from '@/lib/native/yjs.js';
 import {
   extractTextFromContent,
   stripTransientFields,
 } from '@/utils/note/serializer.js';
-import { ensureSchema } from '@/utils/yjs-helpers.js';
-import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { ensureSchema, getDeviceId } from '@/utils/yjs-helpers.js';
+import {
+  isAppEncryptedEnvelope,
+  decryptContent,
+} from '@/utils/crypto/encryption.js';
+import * as Y from 'yjs';
 
 const storage = useStorage();
 
-export async function migrateNotesContent() {
-  const flag = await storage.get('yjs_migration_done', false, 'settings');
+const MIGRATION_FLAG = 'yjs_content_sync_v2';
+const FLUSH_EVERY = 20;
+
+function yieldToUi() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+// Collect converted updates and flush them in one batched IPC per chunk, so a
+// large import is not N round-trips.
+const pendingUpdates = [];
+
+async function processNote(id, notes, schema) {
+  const note = notes[id];
+  if (!note.content) return false;
+  // Per-note password locks can't be auto-decrypted — keep their KV content.
+  if (note.isLocked) return false;
+
+  let content = note.content;
+  if (isAppEncryptedEnvelope(content)) {
+    const decrypted = await decryptContent(content).catch(() => null);
+    if (!decrypted || typeof decrypted !== 'object') return false;
+    content = decrypted;
+  }
+
+  const clean = stripTransientFields({ ...note, content });
+  const { prosemirrorJSONToYDoc } = await import('@tiptap/y-tiptap');
+  const tempYdoc = prosemirrorJSONToYDoc(schema, clean.content, 'content');
+  const frag = tempYdoc.getXmlFragment('content');
+  const update = Y.encodeStateAsUpdate(tempYdoc);
+
+  if (frag.length > 0 && update.byteLength > 0) {
+    pendingUpdates.push({ noteId: id, update });
+
+    const searchText = extractTextFromContent(clean.content);
+    const { content: _c, ...meta } = clean;
+    await storage.set(`notes.${id}`, { ...meta, searchText });
+
+    return true;
+  }
+  return false;
+}
+
+async function flushPendingUpdates(device) {
+  if (pendingUpdates.length === 0) return;
+  const entries = pendingUpdates.splice(0);
+  await appendBatch(
+    entries.map((e) => e.noteId),
+    entries.map((e) => e.update),
+    entries.map(() => device)
+  );
+}
+
+/**
+ * Move note content from KV into Yjs. Import-only: returns early once the
+ * versioned flag is set, and only notes that still carry KV content (with an
+ * empty Yjs doc) are touched — idempotent and cheap on subsequent runs.
+ *
+ * Runs sequentially and yields to the UI after every note: converting a large
+ * vault builds a ProseMirror doc per note (CPU-heavy), and parallelizing it
+ * with several large Y.Docs at once spiked the main thread and memory. The
+ * import now takes a bit longer wall-clock but never freezes the app.
+ *
+ * @param {(progress: number, noteId: string) => void} [onProgress] 0-100.
+ */
+export async function migrateNotesContent(onProgress = null) {
+  const flag = await storage.get(MIGRATION_FLAG, false, 'settings');
   if (flag) return 0;
 
   const notes = await storage.get('notes', {});
   const noteIds = Object.keys(notes).filter((id) => notes[id]?.content);
 
   if (noteIds.length === 0) {
-    await storage.set('yjs_migration_done', true, 'settings');
+    await storage.set(MIGRATION_FLAG, true, 'settings');
     return 0;
   }
 
-  const { prosemirrorJSONToYDoc } = await import('@tiptap/y-tiptap');
   const schema = await ensureSchema();
+  const device = getDeviceId();
 
   let migrated = 0;
 
-  for (const id of noteIds) {
-    const note = notes[id];
-    if (!note.content) continue;
-
-    // Locked / app-encrypted notes keep their ciphertext in the KV store.
-    // The new storage model never places ciphertext into the per-note Yjs
-    // doc, and converting ciphertext to ProseMirror JSON would destroy it.
-    // Leave these notes untouched in KV so the content is not lost.
-    const isLockedOrEncrypted =
-      note.isLocked || isEncryptedContent(note.content);
-    if (isLockedOrEncrypted) {
-      continue;
-    }
-
+  for (let i = 0; i < noteIds.length; i++) {
+    const id = noteIds[i];
     try {
-      const clean = stripTransientFields(note);
-      const tempYdoc = prosemirrorJSONToYDoc(schema, clean.content, 'content');
-      const frag = tempYdoc.getXmlFragment('content');
-
-      const Y = await import('yjs');
-      const snapshot = Y.encodeStateAsUpdate(tempYdoc);
-
-      // Only strip the KV content once we have a real, non-empty Yjs version
-      // of it. If the conversion produced an empty fragment (e.g. unsupported
-      // node types), keep the KV content so it is not destroyed.
-      if (frag.length > 0 && snapshot.byteLength > 0) {
-        await compactUpdates(id, snapshot);
-
-        // Strip content from KV but preserve searchText for card previews
-        const searchText = extractTextFromContent(clean.content);
-        const { content: _c, ...meta } = clean;
-        await storage.set(`notes.${id}`, { ...meta, searchText });
-
-        migrated++;
-      } else {
-        console.warn(
-          `[yjs-migration] No usable Yjs content for note ${id}; keeping KV content.`
-        );
-      }
+      if (await processNote(id, notes, schema)) migrated++;
     } catch (err) {
-      console.warn(`[yjs-migration] Failed for note ${id}:`, err);
+      console.warn(`[yjs-content] Failed for note ${id}:`, err);
     }
+
+    onProgress?.(Math.round(((i + 1) / noteIds.length) * 100), id);
+
+    if (pendingUpdates.length >= FLUSH_EVERY) {
+      await flushPendingUpdates(device);
+    }
+    // Let the UI paint / respond between notes.
+    await yieldToUi();
   }
 
-  await storage.set('yjs_migration_done', true, 'settings');
+  await flushPendingUpdates(device);
+  await storage.set(MIGRATION_FLAG, true, 'settings');
   return migrated;
 }

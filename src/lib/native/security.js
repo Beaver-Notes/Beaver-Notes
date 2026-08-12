@@ -35,10 +35,8 @@ export function clearAssetPassphrase() {
   return backend.invoke('assetCrypto:clearAppPassphrase');
 }
 
-export function migrateAssetEncryption(encryptAtRest) {
-  return backend.invoke('assetCrypto:migrateDir', {
-    encryptAtRest,
-  });
+export function migrateAssetEncryption() {
+  return backend.invoke('assetCrypto:migrateDir');
 }
 
 export function getEncryptionState() {
@@ -59,10 +57,6 @@ export function enableEncryption(password) {
   return backend.invoke('encryption:enable', password);
 }
 
-export function disableEncryptionState(removeManifest = true) {
-  return backend.invoke('encryption:disable', { removeManifest });
-}
-
 export function unlockEncryption(password) {
   return backend.invoke('encryption:unlock', { password });
 }
@@ -71,20 +65,40 @@ export function lockEncryption() {
   return backend.invoke('encryption:lock');
 }
 
-export function encryptNotePayload(plainJson) {
-  return backend.invoke('encryption:encryptNotePayload', plainJson);
+export function encryptNotePayload(plainBytes) {
+  return backend.invoke('encryption:encryptNotePayload', plainBytes);
+}
+
+export function rotateEncryptionKey() {
+  return backend.invoke('encryption:rotateKey');
+}
+
+export function generateRecoveryCode() {
+  return backend.invoke('encryption:generateRecoveryCode');
+}
+
+export function recoverWithCode(code) {
+  return backend.invoke('encryption:recoverWithCode', { code });
 }
 
 export function decryptNotePayload(payload) {
   return backend.invoke('encryption:decryptNotePayload', payload);
 }
 
-export function syncEncryptPayload(json, aad) {
-  return backend.invoke('sync:encryptPayload', { json, aad });
+export function syncEncryptPayload(meta, data, aad) {
+  return backend.invoke('sync:encryptPayload', { meta, data, aad });
 }
 
 export function syncDecryptPayload(enc, aad) {
   return backend.invoke('sync:decryptPayload', { enc, aad });
+}
+
+export function syncEncryptBatch(metas, dataB64s, aads) {
+  return backend.invoke('sync:encryptBatch', { metas, dataB64s, aads });
+}
+
+export function syncDecryptBatch(envelopes, aads) {
+  return backend.invoke('sync:decryptBatch', { envelopes, aads });
 }
 
 export function syncKeyReady() {
@@ -93,6 +107,17 @@ export function syncKeyReady() {
 
 export function reconcileSyncKeyParams(passphrase) {
   return backend.invoke('encryption:reconcileKeyParams', { passphrase });
+}
+
+export function adoptKeyParams(passphrase, keyParams) {
+  return backend.invoke(
+    'encryption:adoptKeyParams',
+    keyParams == null ? { passphrase } : { passphrase, keyParams },
+  );
+}
+
+export function hasRemoteKeyParams() {
+  return backend.invoke('encryption:hasRemoteKeyParams');
 }
 
 export function decryptAssetStream(path) {
@@ -146,38 +171,29 @@ function isIgnoredAssetEntry(name) {
 }
 
 export async function listAssetFiles(appDirectory) {
-  const roots = ['notes-assets', 'file-assets'];
   const files = [];
+  const rootDir = path.join(appDirectory, 'assets');
+  const noteDirs = await readDir(rootDir).catch(() => []);
 
-  for (const root of roots) {
-    const rootDir = path.join(appDirectory, root);
-    const noteDirs = await readDir(rootDir).catch(() => []);
+  for (const noteDir of noteDirs) {
+    if (isIgnoredAssetEntry(noteDir)) continue;
+    const fullNoteDir = path.join(rootDir, noteDir);
+    const assetNames = await readDir(fullNoteDir).catch(() => []);
 
-    for (const noteDir of noteDirs) {
-      if (isIgnoredAssetEntry(noteDir)) continue;
-      const fullNoteDir = path.join(rootDir, noteDir);
-      const assetNames = await readDir(fullNoteDir).catch(() => []);
-
-      for (const assetName of assetNames) {
-        if (isIgnoredAssetEntry(assetName)) continue;
-        files.push(path.join(fullNoteDir, assetName));
-      }
+    for (const assetName of assetNames) {
+      if (isIgnoredAssetEntry(assetName)) continue;
+      files.push(path.join(fullNoteDir, assetName));
     }
   }
 
   return files;
 }
 
-export async function rewriteAssetFile(
-  filePath,
-  { skipAssetEncryption = false } = {}
-) {
+export async function rewriteAssetFile(filePath) {
   const base64 = await readData(filePath);
   if (!base64) return false;
 
-  await writeFile(filePath, base64ToUint8Array(base64), {
-    skipAssetEncryption,
-  });
+  await writeFile(filePath, base64ToUint8Array(base64));
   return true;
 }
 

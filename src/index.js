@@ -4,12 +4,14 @@ import App from './App.vue';
 import router from './router';
 import compsUi from './lib/comps-ui';
 import { backend } from './lib/tauri-bridge';
-import { getStoredZoomLevel, setStoredZoomLevel } from './composable/zoom';
-import { getSettingSync } from './composable/settings';
+import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
+import { getSettingSync } from '@/lib/settings';
 import { initializeThemeHandling } from './utils/themeHandler';
 import './assets/css/fonts.css';
 import './assets/css/tailwind.css';
 import './assets/css/style.css';
+
+performance.mark('app:init');
 
 initializeThemeHandling();
 
@@ -60,3 +62,5 @@ const app = createApp(App);
 app.config.unwrapInjectedRef = true;
 
 app.use(router).use(createPinia()).use(compsUi).mount('#app');
+
+performance.mark('app:mounted');

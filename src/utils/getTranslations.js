@@ -1,5 +1,5 @@
 // src/utils/getTranslations.js
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 
 const locales = import.meta.glob('@/assets/locales/*.json', { eager: true });
 

@@ -4,9 +4,9 @@ import useAudioRecorder from '@/utils/assets/record.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useUiState } from '@/composable/useUiState';
 import { useNoteStore } from '@/store/note';
-import { useEditorImage } from '@/composable/editorImage';
-import { useDialog } from '@/composable/dialog';
-import { useStorage } from '@/composable/storage';
+import { useEditorImage } from '@/utils/assets/editor-image';
+import { useDialog } from '@/lib/dialog';
+import { useStorage } from '@/lib/storage';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { backend, path } from '@/lib/tauri-bridge';
@@ -14,14 +14,17 @@ import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportBEA } from '@/utils/share/BEA';
 import { exportPDF } from '@/utils/share/PDF';
+import {
+  getTempSharePath,
+  shareFile,
+  tryShareOrExport,
+} from '@/utils/share/export-helpers';
 import { buildWebExportDocument } from '@/utils/share/exportBulk';
 import { tiptapToMarkdown, buildFrontmatter } from '@/utils/markdown';
 import { getAppDirectory } from '@/lib/native/app';
 import {
-  ensureDir,
   readDir,
   readData,
-  writeFile,
   removePath,
 } from '@/lib/native/fs';
 import { readExportData } from '@/lib/native/exports';
@@ -29,7 +32,7 @@ import { saveDialog } from '@/lib/native/dialog';
 import { shareFileViaNative } from '@/lib/native/share';
 import mime from 'mime';
 import { saveFile } from '@/utils/assets/storage.js';
-import { getStoredZoomLevel, setStoredZoomLevel } from '@/composable/zoom';
+import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 
 const storage = useStorage('settings');
@@ -131,54 +134,6 @@ export function useNoteMenu(props) {
     }
   }
 
-  async function shareFile(fileName, content, mimeType) {
-    if (isMobile) {
-      const tempPath = await getTempSharePath(fileName);
-      try {
-        const data =
-          typeof content === 'string'
-            ? new TextEncoder().encode(content)
-            : content;
-        await writeFile(tempPath, Array.from(data));
-        const shared = await shareFileViaNative(tempPath, mimeType);
-        try {
-          await removePath(tempPath);
-        } catch {}
-        return shared;
-      } catch {
-        try {
-          await removePath(tempPath);
-        } catch {}
-        return false;
-      }
-    }
-
-    const blob = new Blob([content], { type: mimeType });
-    const file = new File([blob], fileName, { type: mimeType });
-    if (
-      typeof navigator !== 'undefined' &&
-      navigator.share &&
-      navigator.canShare?.({ files: [file] })
-    ) {
-      await navigator.share({ files: [file] });
-      return true;
-    }
-    return false;
-  }
-
-  async function getTempSharePath(fileName) {
-    const tempDir = await backend.invoke('helper:get-path', 'temp');
-    const shareDir = path.join(tempDir, 'beaver-notes-share');
-    await ensureDir(shareDir);
-    return path.join(shareDir, fileName);
-  }
-
-  async function tryShareOrExport(shareFn, exportFn) {
-    if (!(await shareFn())) {
-      await exportFn();
-    }
-  }
-
   async function shareBEA() {
     const storage = useStorage();
     const allNotes = await storage.store();
@@ -204,10 +159,10 @@ export function useNoteMenu(props) {
 
     const assets = {
       notesAssets: await encodeAssets(
-        path.join(appDirectory, 'notes-assets', props.id)
+        path.join(appDirectory, 'assets', props.id)
       ),
       fileAssets: await encodeAssets(
-        path.join(appDirectory, 'file-assets', props.id)
+        path.join(appDirectory, 'assets', props.id)
       ),
     };
 
@@ -287,8 +242,7 @@ export function useNoteMenu(props) {
       seen.add(zipPath);
       const nid = assetNoteId || fileAssetNoteId;
       const fname = assetFile || fileAssetFile;
-      const assetType = assetFile ? 'notes-assets' : 'file-assets';
-      const srcPath = path.join(appDir, assetType, nid, fname);
+      const srcPath = path.join(appDir, 'assets', nid, fname);
       try {
         const base64 = await readData(srcPath);
         if (base64) zip.file(zipPath, base64, { base64: true });

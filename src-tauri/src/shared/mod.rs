@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::HashMap,
     fs,
     path::{Path, PathBuf},
@@ -7,13 +8,17 @@ use std::{
 };
 
 use http::{
-    header::{ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_TYPE},
+    header::{
+        ACCESS_CONTROL_ALLOW_ORIGIN, ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
+    },
     Response, StatusCode,
 };
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use specta_typescript::Any;
+use zeroize::Zeroize;
 
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::FilePath;
@@ -31,6 +36,8 @@ pub(crate) use crypto::*;
 mod error;
 pub(crate) use error::*;
 
+pub(crate) mod speed_log;
+
 mod state;
 pub(crate) use state::*;
 
@@ -39,7 +46,13 @@ pub(crate) const SETTINGS_STORE: &str = "settings.json";
 pub(crate) const DATA_STORE: &str = "data.json";
 pub(crate) const AUTH_STORE: &str = "auth.json";
 pub(crate) const SAFE_STORAGE_SERVICE: &str = "com.beavernotes.beaver-notes";
-pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &["encryptionPassphraseBlob"];
+pub(crate) const ALLOWED_BLOB_KEYS: &[&str] = &[
+    "encryptionPassphraseBlob",
+    "beaverAccountSession",
+    "beaverAccountProfile",
+    "beaverAccountDeviceId",
+    "e2eIdentityKeypair",
+];
 pub(crate) const WARN_THRESHOLD: u32 = 5;
 /// Consecutive failed passphrase attempts before the app-encryption unlock is
 /// rate-limited (lockout), and the base lockout duration. Each further failure
@@ -54,24 +67,58 @@ pub(crate) const SYNC_ENCRYPTION_SCOPE: &str = "sync";
 
 pub(crate) static HELP_URL: &str = "https://docs.beavernotes.com/";
 
-#[derive(Clone, Serialize)]
+/// Wrapper around `serde_json::Value` that specta exports as TypeScript `any`.
+/// This avoids the infinite-loop bug in specta-typescript when trying to render
+/// the recursive `serde_json::Value` enum definition.
+#[derive(Clone, Debug, Serialize, specta::Type)]
+pub(crate) struct RawJson(#[specta(type = Any)] pub serde_json::Value);
+
+impl<'de> serde::Deserialize<'de> for RawJson {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        serde_json::Value::deserialize(deserializer).map(Self)
+    }
+}
+
+impl std::ops::Deref for RawJson {
+    type Target = serde_json::Value;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for RawJson {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<serde_json::Value> for RawJson {
+    fn from(v: serde_json::Value) -> Self {
+        Self(v)
+    }
+}
+
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AppInfo {
     pub(crate) name: String,
     pub(crate) version: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FileStat {
     pub(crate) is_file: bool,
     pub(crate) is_directory: bool,
-    pub(crate) size: u64,
-    pub(crate) mtime_ms: u128,
-    pub(crate) ctime_ms: u128,
+    pub(crate) size: f64,
+    pub(crate) mtime_ms: f64,
+    pub(crate) ctime_ms: f64,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct FailureResult {
     pub(crate) fail_count: u32,
@@ -79,10 +126,10 @@ pub(crate) struct FailureResult {
     /// True when the unlock is currently rate-limited (lockout active).
     pub(crate) locked: bool,
     /// Seconds remaining in the current lockout (0 when not locked).
-    pub(crate) lockout_seconds: u64,
+    pub(crate) lockout_seconds: f64,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct WindowStateSnapshot {
     pub(crate) x: i32,
@@ -92,7 +139,7 @@ pub(crate) struct WindowStateSnapshot {
     pub(crate) maximized: bool,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LegacyMigrationStatus {
     pub(crate) legacy_dir: Option<String>,
@@ -102,7 +149,7 @@ pub(crate) struct LegacyMigrationStatus {
     pub(crate) target_has_data: bool,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct LegacyMigrationResult {
     pub(crate) legacy_dir: Option<String>,
@@ -112,7 +159,7 @@ pub(crate) struct LegacyMigrationResult {
     pub(crate) marker_written: bool,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OpenDialogOptions {
     pub(crate) title: Option<String>,
@@ -123,21 +170,21 @@ pub(crate) struct OpenDialogOptions {
     pub(crate) filters: Option<Vec<DialogFilter>>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DialogFilter {
     pub(crate) name: String,
     pub(crate) extensions: Vec<String>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct DialogResult {
     pub(crate) canceled: bool,
     pub(crate) file_paths: Vec<String>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MessageDialogOptions {
     pub(crate) title: Option<String>,
@@ -147,7 +194,7 @@ pub(crate) struct MessageDialogOptions {
     pub(crate) buttons: Option<Vec<String>>,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize)]
+#[derive(Clone, Default, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SaveDialogOptions {
     pub(crate) title: Option<String>,
@@ -155,14 +202,14 @@ pub(crate) struct SaveDialogOptions {
     pub(crate) filters: Option<Vec<DialogFilter>>,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct SaveDialogResult {
     pub(crate) canceled: bool,
     pub(crate) file_path: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, specta::Type, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct BannerData {
     pub(crate) content: String,
@@ -171,7 +218,7 @@ pub(crate) struct BannerData {
     pub(crate) version: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CheckResult {
     pub(crate) success: bool,
@@ -180,7 +227,7 @@ pub(crate) struct CheckResult {
     pub(crate) error: Option<String>,
 }
 
-#[derive(Clone, Default, Serialize)]
+#[derive(Clone, Default, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UpdateInfo {
     pub(crate) is_checking: bool,
@@ -220,6 +267,10 @@ impl DbState {
 /// Snapshot of the app-encryption session. Lives behind a single `RwLock` in
 /// `AppState` so the items-key ring, current key id, cached KEK, loaded data
 /// key, and active flag are always mutated/observed atomically (no TOCTOU).
+///
+/// All key material is scrubbed when the session is dropped or reset (lock),
+/// so the DEK/KEK/ring are zeroized from memory instead of lingering in the
+/// heap after a lock or app shutdown.
 #[derive(Default, Debug)]
 pub(crate) struct CryptoSession {
     /// Items data key (decrypted). Present only while the app is unlocked.
@@ -234,6 +285,21 @@ pub(crate) struct CryptoSession {
     pub(crate) master_key_cache: Option<[u8; 32]>,
     /// Whether app encryption is enabled (a manifest exists).
     pub(crate) active: bool,
+}
+
+impl Drop for CryptoSession {
+    fn drop(&mut self) {
+        if let Some(key) = self.app_data_key.as_mut() {
+            key.zeroize();
+        }
+        for key in self.items_keys.values_mut() {
+            key.zeroize();
+        }
+        if let Some(key) = self.master_key_cache.as_mut() {
+            key.zeroize();
+        }
+        self.current_items_key_id.zeroize();
+    }
 }
 
 pub(crate) struct AppState {
@@ -283,7 +349,7 @@ pub(crate) fn app_storage_dir(app: &AppHandle, state: &AppState) -> Result<PathB
     app.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
 }
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, specta::Type, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum InstallationSource {
     Standalone,
@@ -529,7 +595,6 @@ pub(crate) fn data_pool(app: &AppHandle, state: &AppState) -> Result<DbPool, App
     Ok(pool)
 }
 
-/// Swap the active data pool to a different workspace's database.
 pub(crate) fn swap_data_pool(
     app: &AppHandle,
     state: &AppState,
@@ -562,7 +627,6 @@ pub(crate) fn settings_pool(app: &AppHandle, state: &AppState) -> Result<DbPool,
     Ok(pool)
 }
 
-/// Swap the active settings pool to a different workspace's database.
 pub(crate) fn swap_settings_pool(
     app: &AppHandle,
     state: &AppState,
@@ -591,7 +655,7 @@ pub(crate) struct WorkspaceInfo {
 }
 
 /// Internal shape of workspaces.json
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Serialize, specta::Type, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct WorkspacesJson {
     #[serde(default = "default_workspace_id")]
@@ -777,8 +841,8 @@ pub(crate) fn path_for_name(
     }
 }
 
-fn asset_roots(app_dir: &Path) -> [PathBuf; 2] {
-    [app_dir.join("notes-assets"), app_dir.join("file-assets")]
+fn asset_roots(app_dir: &Path) -> [PathBuf; 1] {
+    [app_dir.join("assets")]
 }
 
 pub(crate) fn is_local_asset_path(app: &AppHandle, target_path: &Path) -> bool {
@@ -823,8 +887,7 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
     }
 
     let root_name = match scheme {
-        "assets" => "notes-assets",
-        "file-assets" => "file-assets",
+        "assets" | "file-assets" => "assets",
         _ => {
             return Err(AppError::Other(format!("Unsupported asset scheme: {scheme}")));
         }
@@ -925,9 +988,9 @@ pub(crate) fn to_file_stat(metadata: fs::Metadata) -> FileStat {
     FileStat {
         is_file: metadata.is_file(),
         is_directory: metadata.is_dir(),
-        size: metadata.len(),
-        mtime_ms: modified,
-        ctime_ms: created,
+        size: metadata.len() as f64,
+        mtime_ms: modified as f64,
+        ctime_ms: created as f64,
     }
 }
 
@@ -1027,12 +1090,18 @@ pub(crate) fn cached_or_decrypted_asset(
     transient_passphrase: Option<&str>,
     path: &Path,
 ) -> Result<PathBuf, AppError> {
-    let raw = fs::read(path)?;
-    if !is_encrypted_asset_buffer(&raw) {
+    let _t = crate::shared::speed_log::scope("assets.cached_or_decrypted_asset");
+    let metadata = fs::metadata(path)?;
+    let file_size = metadata.len();
+
+    let mut magic = [0u8; 4];
+    fs::File::open(path)
+        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))?;
+
+    if !is_encrypted_asset_header(&magic, file_size) {
         return Ok(path.to_path_buf());
     }
 
-    let metadata = fs::metadata(path)?;
     let cache_path = decrypted_cache_path(asset_cache_dir, path, &metadata)?;
     if cache_path.exists() {
         return Ok(cache_path);
@@ -1044,19 +1113,19 @@ pub(crate) fn cached_or_decrypted_asset(
         let manifest_path = app_encryption_manifest_path(app, app_state.inner())?;
         let manifest = load_encryption_manifest(&manifest_path)?
             .ok_or_else(|| AppError::Other("App encryption manifest is missing.".into()))?;
-        unlock_key_from_manifest(
+        let (key, _kek) = unlock_key_from_manifest(
             &manifest,
             passphrase,
             APP_ENCRYPTION_SCOPE,
             APP_PASSWORD_CHECK,
-        )?
+        )?;
+        key
     } else {
         current_app_key(app_state.inner())?.ok_or_else(|| {
             AppError::Other("App encryption is locked. Unlock before opening encrypted assets.".into())
         })?
     };
-    let plain = decrypt_asset_bytes_with_key(&raw, &key)?;
-    fs::write(&cache_path, plain)?;
+    decrypt_asset_streaming(path, &cache_path, &key)?;
     prune_asset_cache_dir(asset_cache_dir);
     Ok(cache_path)
 }
@@ -1118,14 +1187,36 @@ pub(crate) fn protocol_response(
     status: StatusCode,
     path: &Path,
     bytes: Vec<u8>,
-) -> Response<Vec<u8>> {
-    Response::builder()
+) -> Response<Cow<'static, [u8]>> {
+    protocol_response_with_range(status, path, bytes, None)
+}
+
+/// Response for a custom-protocol asset request. When `content_range` is set
+/// the body is a byte range and the reply is a `206 Partial Content` with
+/// `Content-Range`; `Accept-Ranges: bytes` is always advertised so the
+/// renderer can issue range requests for media (e.g. `audio`/`video` seeking
+/// and `ReadableStream`-based readers) without loading whole decrypted files
+/// into memory.
+pub(crate) fn protocol_response_with_range(
+    status: StatusCode,
+    path: &Path,
+    bytes: Vec<u8>,
+    content_range: Option<String>,
+) -> Response<Cow<'static, [u8]>> {
+    let mut builder = Response::builder()
         .status(status)
         .header(CONTENT_TYPE, content_type_for_path(path))
         .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*")
-        .body(bytes)
+        .header(ACCEPT_RANGES, "bytes")
+        .header(CONTENT_LENGTH, bytes.len().to_string());
+    if let Some(cr) = content_range {
+        builder = builder.header(CONTENT_RANGE, cr);
+    }
+    builder
+        .body(Cow::Owned(bytes))
         .unwrap_or_else(|_| {
-            let mut r = Response::new(Vec::new());
+            let empty: &'static [u8] = b"";
+            let mut r = Response::new(Cow::Borrowed(empty));
             *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
             r
         })

@@ -166,8 +166,10 @@ import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRoute, useRouter } from 'vue-router';
 import { useNoteStore } from '@/store/note';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
+import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
+import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
@@ -203,7 +205,7 @@ export default {
     });
 
     const sortedNotes = computed(() =>
-      sortArray({
+      memoizedSort({
         data: noteStore.notes,
         order: state.sortOrder,
         key: state.sortBy,
@@ -244,6 +246,10 @@ export default {
       const queryLower = state.query.trim().toLocaleLowerCase();
       const isLabelQuery = queryLower.startsWith('#');
       const labelQuery = isLabelQuery ? queryLower.slice(1) : queryLower;
+      const matchedIds =
+        queryLower !== ''
+          ? matchNoteIdsByQuery(notes, state.query)
+          : null;
 
       highlightedFolderIds.value.clear();
 
@@ -260,36 +266,39 @@ export default {
         if (queryLower !== '') {
           let matchesQuery = false;
 
-          if (isLabelQuery) {
-            for (let j = 0; j < labels.length; j++) {
-              if (labels[j].toLocaleLowerCase().includes(labelQuery)) {
-                matchesQuery = true;
-                break;
+          if (matchedIds === null) {
+            // Index unavailable — linear fallback
+            if (isLabelQuery) {
+              for (let j = 0; j < labels.length; j++) {
+                if (labels[j].toLocaleLowerCase().includes(labelQuery)) {
+                  matchesQuery = true;
+                  break;
+                }
               }
-            }
-          } else {
-            const normalizedTitle =
-              title && title.trim() !== ''
-                ? title
-                : translations.value.card?.untitledNote || '';
-
-            if (
-              normalizedTitle.toLocaleLowerCase().includes(queryLower)
-            ) {
-              matchesQuery = true;
             } else {
-              const searchText = note.searchText || '';
-              if (searchText.toLowerCase().includes(queryLower)) {
+              const normalizedTitle =
+                title && title.trim() !== ''
+                  ? title
+                  : translations.value.card?.untitledNote || '';
+
+              if (normalizedTitle.toLocaleLowerCase().includes(queryLower)) {
                 matchesQuery = true;
               } else {
-                for (let j = 0; j < labels.length; j++) {
-                  if (labels[j].toLocaleLowerCase().includes(queryLower)) {
-                    matchesQuery = true;
-                    break;
+                const searchText = note.searchText || '';
+                if (searchText.toLowerCase().includes(queryLower)) {
+                  matchesQuery = true;
+                } else {
+                  for (let j = 0; j < labels.length; j++) {
+                    if (labels[j].toLocaleLowerCase().includes(queryLower)) {
+                      matchesQuery = true;
+                      break;
+                    }
                   }
                 }
               }
             }
+          } else if (matchedIds.has(note.id)) {
+            matchesQuery = true;
           }
 
           if (!matchesQuery) continue;

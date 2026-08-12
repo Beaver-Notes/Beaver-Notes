@@ -40,20 +40,67 @@
           </button>
         </template>
 
-        <button
-          v-for="s in shareActions"
-          :key="s.name"
-          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-          @click="s.handler"
-        >
-          <v-remixicon :name="s.icon" />
-          <span
-            class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+        <ui-list>
+          <ui-list-item
+            v-if="isAuthenticated"
+            tag="button"
+            class="gap-2 text-left"
+            @click="showShareModal = true"
           >
-            {{ s.title }}
-          </span>
-        </button>
+            <v-remixicon name="riUserSharedLine" />
+            <span
+              class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+            >
+              {{ translations.share?.collaborate || 'Collaborate' }}
+            </span>
+          </ui-list-item>
+
+          <hr v-if="isAuthenticated" class="border-t my-1" />
+
+          <ui-list-item
+            v-for="s in shareActions"
+            :key="s.name"
+            tag="button"
+            class="gap-2 text-left"
+            @click="s.handler"
+          >
+            <v-remixicon :name="s.icon" />
+            <span
+              class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+            >
+              {{ s.title }}
+            </span>
+          </ui-list-item>
+        </ui-list>
       </ui-popover>
+
+      <button
+        v-if="isAuthenticated"
+        v-tooltip.group="'History'"
+        :aria-label="'History'"
+        :class="{ 'is-active': showHistory }"
+        class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+        @click="$emit('toggle-history')"
+      >
+        <v-remixicon name="riHistoryLine" />
+      </button>
+
+      <button
+        v-if="isShared"
+        v-tooltip.group="translations.comments?.title || 'Comments'"
+        :aria-label="translations.comments?.title || 'Comments'"
+        :class="{ 'is-active': showComments }"
+        class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
+        @click="$emit('toggle-comments')"
+      >
+        <v-remixicon name="riChat3Line" />
+      </button>
+
+      <presence-avatars
+        v-if="showCollaboration"
+        :peers="peers"
+        class="mx-0.5"
+      />
 
       <button
         v-tooltip.group="translations.menu.readerMode"
@@ -78,8 +125,12 @@
       <ui-popover>
         <template #trigger>
           <button
-            v-tooltip.group="translations.noteActions?.noteActions || 'Note actions'"
-            :aria-label="translations.noteActions?.noteActions || 'Note actions'"
+            v-tooltip.group="
+              translations.noteActions?.noteActions || 'Note actions'
+            "
+            :aria-label="
+              translations.noteActions?.noteActions || 'Note actions'
+            "
             class="hoverable h-8 px-1 rounded-lg transition-colors flex items-center"
           >
             <v-remixicon name="riEqualizer3Line" />
@@ -97,7 +148,11 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isBookmarked ? translations.noteActions?.removeBookmark || 'Remove bookmark' : translations.noteActions?.bookmark || 'Bookmark' }}
+            {{
+              note.isBookmarked
+                ? translations.noteActions?.removeBookmark || 'Remove bookmark'
+                : translations.noteActions?.bookmark || 'Bookmark'
+            }}
           </span>
         </button>
 
@@ -112,7 +167,11 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ note.isArchived ? (translations.noteActions?.unarchive || 'Unarchive') : (translations.noteActions?.archive || 'Archive') }}
+            {{
+              note.isArchived
+                ? translations.noteActions?.unarchive || 'Unarchive'
+                : translations.noteActions?.archive || 'Archive'
+            }}
           </span>
         </button>
 
@@ -175,7 +234,11 @@
           <span
             class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
           >
-            {{ copyState === 1 ? (translations.noteActions?.copied || 'Copied!') : (translations.noteActions?.copyContent || 'Copy content') }}
+            {{
+              copyState === 1
+                ? translations.noteActions?.copied || 'Copied!'
+                : translations.noteActions?.copyContent || 'Copy content'
+            }}
           </span>
         </button>
       </ui-popover>
@@ -198,6 +261,25 @@
       </button>
 
       <div class="flex items-center gap-1">
+        <button
+          v-if="isAuthenticated"
+          :aria-label="'History'"
+          class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
+          @click="$emit('toggle-history')"
+        >
+          <v-remixicon name="riHistoryLine" />
+        </button>
+        <button
+          v-if="isShared"
+          :aria-label="translations.comments?.title || 'Comments'"
+          class="flex h-10 w-10 items-center justify-center rounded-xl transition-colors"
+          :class="showComments
+            ? 'bg-primary/10 text-primary dark:bg-secondary/10 dark:text-secondary'
+            : 'text-neutral-600 hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white'"
+          @click="$emit('toggle-comments')"
+        >
+          <v-remixicon name="riChat3Line" />
+        </button>
         <button
           :aria-label="translations.menu.share"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
@@ -241,20 +323,41 @@
       </h3>
     </template>
 
-    <div class="grid gap-2 p-2">
-      <button
+    <ui-list class="p-2">
+      <ui-list-item
+        v-if="isAuthenticated"
+        tag="button"
+        class="gap-3 text-left"
+        @click="showShareModal = true"
+      >
+        <v-remixicon name="riUserSharedLine" />
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-medium">{{
+            translations.share?.collaborate || 'Collaborate'
+          }}</span>
+        </span>
+      </ui-list-item>
+      <ui-list-item
         v-for="s in shareActions"
         :key="s.name"
-        class="flex items-center gap-3 rounded-xl px-3 py-3 text-left text-neutral-700 transition-colors hover:bg-black/5 dark:text-neutral-100 dark:hover:bg-white/10"
+        tag="button"
+        class="gap-3 text-left"
         @click="s.handler"
       >
         <v-remixicon :name="s.icon" />
         <span class="min-w-0 flex-1">
           <span class="block text-sm font-medium">{{ s.title }}</span>
         </span>
-      </button>
-    </div>
+      </ui-list-item>
+    </ui-list>
   </ui-modal>
+
+  <share-modal v-model="showShareModal" :note-id="id" />
+  <history-panel
+    v-if="showHistory"
+    :note-id="id"
+    @close="$emit('toggle-history')"
+  />
 </template>
 
 <script>
@@ -263,26 +366,52 @@ import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
 import { useClipboard } from '@/composable/clipboard';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
+import { useAccountStore } from '@/store/account';
+import HistoryPanel from '@/components/note/HistoryPanel.vue';
+import PresenceAvatars from '@/components/note/PresenceAvatars.vue';
+import ShareModal from '@/components/note/ShareModal.vue';
 export default {
+  components: {
+    HistoryPanel,
+    PresenceAvatars,
+    ShareModal,
+  },
   props: {
     editor: { type: Object, default: () => ({}) },
     id: { type: String, default: '' },
     note: { type: Object, required: true },
     goBack: { type: Function, required: true },
     showSearch: { type: Boolean, default: false },
+    peers: { type: [Map, Object], default: () => ({}) },
+    localColor: { type: String, default: '' },
+    localName: { type: String, default: 'Anonymous' },
+    showHistory: { type: Boolean, default: false },
+    showComments: { type: Boolean, default: false },
+    isShared: { type: Boolean, default: false },
   },
-  emits: ['toggle-search'],
+  emits: ['toggle-search', 'toggle-history', 'toggle-comments'],
   setup(props) {
     const menu = useNoteMenu(props);
     const noteStore = useNoteStore();
+    const accountStore = useAccountStore();
     const shellRef = ref(null);
     const showShareDialog = ref(false);
+    const showShareModal = ref(false);
     const isStuck = ref(false);
     const { copyState, copyToClipboard } = useClipboard();
+
+    const isAuthenticated = computed(() => accountStore.isAuthenticated);
+    const hasOnlinePeers = computed(() => {
+      const p = props.peers;
+      return p instanceof Map ? p.size > 0 : Object.keys(p).length > 0;
+    });
+    const showCollaboration = computed(
+      () => isAuthenticated.value && hasOnlinePeers.value,
+    );
 
     function lockNote() {
       const passwordStore = usePasswordStore();
@@ -304,7 +433,7 @@ export default {
             onConfirm: async (newKey) => {
               if (newKey) {
                 try {
-                  await passwordStore.setSharedKey(newKey);
+                  await passwordStore.setAppPassword(newKey);
                   await verifyPassphrase(newKey);
                   await noteStore.lockNote(props.note.id, newKey);
                 } catch {
@@ -328,9 +457,8 @@ export default {
             cancelText: t.cancel || 'Cancel',
             placeholder: t.password || 'Password',
             onConfirm: async (enteredPassword) => {
-              const isValid = await passwordStore.isValidPassword(
-                enteredPassword
-              );
+              const isValid =
+                await passwordStore.isValidPassword(enteredPassword);
               if (isValid) {
                 await noteStore.lockNote(props.note.id, enteredPassword);
               } else {
@@ -410,6 +538,9 @@ export default {
       lockNote,
       syncStickyState,
       showShareDialog,
+      showShareModal,
+      isAuthenticated,
+      showCollaboration,
     };
   },
 };
@@ -437,6 +568,8 @@ input[type='number'] {
 }
 
 .editor-actions-mobile-shell {
-  transition: box-shadow 180ms ease, background-color 180ms ease;
+  transition:
+    box-shadow 180ms ease,
+    background-color 180ms ease;
 }
 </style>

@@ -19,30 +19,11 @@ import {
   isEncryptedContent,
 } from '@/utils/crypto/encryption.js';
 
-let _appKeyRaw = null;
-let _decryptWorkerInFlight = null;
-
 /**
  * Yield to UI thread to prevent blocking.
  */
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
-}
-
-/**
- * Try to get the raw app key for worker-based decryption.
- * Returns null if not available.
- */
-export function getAppKeyRaw() {
-  return _appKeyRaw;
-}
-
-/**
- * Set the raw app key for worker-based decryption.
- * Called after successful unlock.
- */
-export function setAppKeyRaw(key) {
-  _appKeyRaw = key;
 }
 
 /**
@@ -145,7 +126,6 @@ export async function decryptNoteForMemory(note) {
 
 /**
  * Batch decrypt multiple notes with UI yielding to prevent stalls.
- * Uses worker-based decryption when available for better performance.
  * @param {Array} notes - Array of note objects
  * @param {Object} options - { onProgress, batchSize, signal }
  * @returns {Array} Decrypted notes in same order
@@ -182,8 +162,7 @@ export async function batchDecryptNotesForMemory(notes, options = {}) {
 
 /**
  * If app-level encryption is active, encrypts the note's content before it is
- * written to storage. Uses a Web Worker so the main thread never blocks.
- * Throws if the encryption key is locked.
+ * written to storage. Throws if the encryption key is locked.
  */
 export async function encryptNoteForStorage(note) {
   if (!isEncryptionEnabled()) return note;

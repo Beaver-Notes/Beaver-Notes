@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { bufToBase64 } from '@/utils/crypto/codec.js';
 
 const textEncoder = new TextEncoder();
 
@@ -24,13 +25,16 @@ const commandAliases = {
   'fs:pathExists': 'fs_path_exists',
   'fs:readFile': 'fs_read_file',
   'fs:readData': 'fs_read_data',
+  'fs:readFileBinary': 'fs_read_file_binary',
   'fs:writeFile': 'fs_write_file',
   'fs:copy': 'fs_copy',
   'fs:isFile': 'fs_is_file',
   'fs:access': 'fs_access',
+  'fs:downloadUrl': 'fs_download_url',
   'fs:readdir': 'fs_readdir',
   'fs:stat': 'fs_stat',
   'fs:unlink': 'fs_unlink',
+  'fs:remove': 'fs_remove',
   'fs:mkdir': 'fs_mkdir',
   'storage:store': 'storage_get_store',
   'storage:replace': 'storage_replace',
@@ -39,6 +43,7 @@ const commandAliases = {
   'storage:set': 'storage_set',
   'storage:delete': 'storage_delete',
   'storage:has': 'storage_has',
+  'storage:reencryptLegacyRows': 'storage_reencrypt_legacy_rows',
   'safeStorage:isEncryptionAvailable': 'safe_storage_is_available',
   'safeStorage:encryptString': 'safe_storage_encrypt',
   'safeStorage:decryptString': 'safe_storage_decrypt',
@@ -52,15 +57,21 @@ const commandAliases = {
   'encryption:getState': 'encryption_get_state',
   'encryption:submitPassword': 'encryption_submit_password',
   'encryption:enable': 'encryption_enable',
-  'encryption:disable': 'encryption_disable',
   'encryption:unlock': 'encryption_unlock',
   'encryption:lock': 'encryption_lock',
   'encryption:encryptNotePayload': 'encryption_encrypt_note_payload',
   'encryption:decryptNotePayload': 'encryption_decrypt_note_payload',
   'sync:encryptPayload': 'sync_encrypt_payload',
   'sync:decryptPayload': 'sync_decrypt_payload',
+  'sync:encryptBatch': 'sync_encrypt_batch',
+  'sync:decryptBatch': 'sync_decrypt_batch',
   'sync:keyReady': 'sync_key_ready',
   'encryption:reconcileKeyParams': 'encryption_reconcile_key_params',
+  'encryption:adoptKeyParams': 'encryption_adopt_key_params',
+  'encryption:hasRemoteKeyParams': 'encryption_has_remote_key_params',
+  'encryption:rotateKey': 'encryption_rotate_key',
+  'encryption:generateRecoveryCode': 'encryption_generate_recovery_code',
+  'encryption:recoverWithCode': 'encryption_recover_with_code',
 
   'assetCrypto:decryptAssetStream': 'encryption_decrypt_asset_stream',
   'assetCrypto:encryptAssetStream': 'encryption_encrypt_asset_stream',
@@ -90,10 +101,6 @@ const commandAliases = {
   'import:evernote': 'import_evernote',
   'import:apple-notes': 'import_apple_notes',
   'show-edit-context-menu': 'show_edit_context_menu',
-  'search:notes': 'search_notes',
-  'search:indexNote': 'search_index_note',
-  'search:removeNote': 'search_remove_note',
-  'search:rebuildIndex': 'search_rebuild_index',
   'spotsearch:enableIndexing': 'enable_indexing',
   'spotsearch:indexItems': 'index_items',
   'spotsearch:deleteItems': 'delete_items',
@@ -104,9 +111,12 @@ const commandAliases = {
   'app-icon:reset': 'reset',
   'pdf:render': 'render_pdf',
   'yjs:append': 'yjs_append',
+  'yjs:appendBatch': 'yjs_append_batch',
   'yjs:getUpdates': 'yjs_get_updates',
   'yjs:getSnapshot': 'yjs_get_snapshot',
+  'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
+  'yjs:compactBatch': 'yjs_compact_batch',
   'yjs:delete': 'yjs_delete',
   'workspace:list': 'workspace_list',
   'workspace:getActive': 'workspace_get_active',
@@ -133,17 +143,24 @@ function withKeyVariants(
   return { [key]: value, [snake]: value };
 }
 
-function normalizeBinaryData(data: unknown): number[] {
-  if (data == null) return [];
-  if (typeof data === 'string') return Array.from(textEncoder.encode(data));
-  if (data instanceof ArrayBuffer) return Array.from(new Uint8Array(data));
+function normalizeBinaryData(data: unknown): string {
+  // Binary crosses the JSON IPC as base64 — the Rust side decodes it. This is
+  // ~3x smaller than the previous JSON number-array encoding (and the sync
+  // layer already uses base64), cutting IPC + parse cost on large snapshots.
+  if (data == null) return '';
+  if (typeof data === 'string') {
+    // Plain-text callers (e.g. writing markdown) must be utf-8 encoded before
+    // base64; binary callers pass Uint8Array / ArrayBuffer.
+    return bufToBase64(textEncoder.encode(data));
+  }
+  if (data instanceof ArrayBuffer) return bufToBase64(new Uint8Array(data));
   if (ArrayBuffer.isView(data)) {
-    return Array.from(
+    return bufToBase64(
       new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
     );
   }
-  if (Array.isArray(data)) return data;
-  return Array.from(textEncoder.encode(String(data)));
+  if (Array.isArray(data)) return bufToBase64(new Uint8Array(data));
+  return bufToBase64(textEncoder.encode(String(data)));
 }
 
 function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {
@@ -164,6 +181,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'fs:stat':
     case 'fs:unlink':
     case 'fs:readData':
+    case 'fs:readFileBinary':
+    case 'fs:remove':
       return {
         ...withKeyVariants('path', payload?.path ?? payload),
         ...(payload?.skipDecryption != null
@@ -229,9 +248,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'assetCrypto:setAppPassphrase':
       return withKeyVariants('passphrase', payload);
     case 'assetCrypto:migrateDir':
-      return {
-        ...withKeyVariants('encrypt_at_rest', payload?.encryptAtRest),
-      };
+      return {};
     case 'encryption:getState':
       return {};
     case 'encryption:submitPassword':
@@ -243,17 +260,15 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'encryption:enable':
       return withKeyVariants('password', payload);
-    case 'encryption:disable':
-      return {
-        ...withKeyVariants(
-          'remove_manifest',
-          payload?.removeManifest ?? payload?.remove_manifest ?? true
-        ),
-      };
     case 'encryption:unlock':
       return withKeyVariants('password', payload?.password);
     case 'encryption:lock':
       return {};
+    case 'encryption:rotateKey':
+    case 'encryption:generateRecoveryCode':
+      return {};
+    case 'encryption:recoverWithCode':
+      return withKeyVariants('code', payload?.code);
     case 'crypto:cacheDecryptedNote':
       return {
         ...withKeyVariants('note_id', payload?.noteId),
@@ -273,7 +288,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('payload', payload);
     case 'sync:encryptPayload':
       return {
-        ...withKeyVariants('json', payload?.json),
+        ...withKeyVariants('meta', payload?.meta),
+        ...withKeyVariants('data', payload?.data),
         ...withKeyVariants('aad', payload?.aad),
       };
     case 'sync:decryptPayload':
@@ -285,6 +301,11 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {};
     case 'encryption:reconcileKeyParams':
       return withKeyVariants('passphrase', payload?.passphrase);
+    case 'encryption:adoptKeyParams':
+      return {
+        ...withKeyVariants('passphrase', payload?.passphrase),
+        ...(payload?.keyParams != null ? withKeyVariants('keyParams', payload.keyParams) : {}),
+      };
     case 'passwd:hash':
       return withKeyVariants('password', payload);
     case 'dialog:open':
@@ -300,38 +321,31 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return withKeyVariants('name', payload);
     case 'show-edit-context-menu':
       return payload ?? {};
-    case 'search:notes':
-      return {
-        ...withKeyVariants('query', payload?.query),
-        ...(payload?.limit != null
-          ? withKeyVariants('limit', payload.limit)
-          : {}),
-      };
-    case 'search:indexNote':
-      return {
-        ...withKeyVariants('id', payload?.id),
-        ...withKeyVariants('title', payload?.title ?? ''),
-        ...withKeyVariants('body', payload?.body ?? ''),
-      };
-    case 'search:removeNote':
-      return withKeyVariants('id', payload?.id);
-    case 'search:rebuildIndex':
-      return {};
     case 'yjs:append':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
         ...withKeyVariants('update', normalizeBinaryData(payload?.update)),
         ...withKeyVariants('device', payload?.device ?? ''),
       };
+    case 'yjs:appendBatch':
+      return {
+        ...withKeyVariants('noteIds', payload?.noteIds),
+        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeBinaryData(u)) : [],
+        ...withKeyVariants('devices', payload?.devices ?? []),
+      };
     case 'yjs:getUpdates':
       return withKeyVariants('noteId', payload);
     case 'yjs:getSnapshot':
       return withKeyVariants('noteId', payload);
+    case 'yjs:getSnapshots':
+      return withKeyVariants('noteIds', payload);
     case 'yjs:compact':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
         ...withKeyVariants('snapshot', normalizeBinaryData(payload?.snapshot)),
       };
+    case 'yjs:compactBatch':
+      return withKeyVariants('noteId', payload);
     case 'yjs:delete':
       return withKeyVariants('noteId', payload);
     case 'workspace:list':

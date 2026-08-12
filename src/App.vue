@@ -9,9 +9,20 @@
   />
   <app-command-prompt />
   <app-encryption-gate
-    v-if="appEncryptionGate.show"
-    @unlocked="appEncryptionGate.show = false"
+    v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
+    @unlocked="handleEncryptionUnlocked"
   />
+  <div
+    v-if="appEncryptionGate.show && appEncryptionGate.deriving"
+    class="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 backdrop-blur-sm"
+  >
+    <div class="flex flex-col items-center gap-3">
+      <ui-spinner :size="36" />
+      <span class="text-sm text-neutral-500 dark:text-neutral-400">
+        Unlocking…
+      </span>
+    </div>
+  </div>
 
   <a
     href="#app-main"
@@ -30,7 +41,7 @@
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
-    <app-sidebar v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
+    <app-sidebar v-if="onboardingCompleted" v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
     <main
       id="app-main"
       ref="mainRef"
@@ -124,14 +135,19 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
-import AppEncryptionGate from './components/AppEncryptionGate.vue';
+import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
 import { useAppShell } from './composable/useAppShell';
+import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { useAccountStore } from './store/account';
+import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import AppNavbar from './components/app/AppNavbar.vue';
+import { getSettingSync } from '@/lib/settings';
 
 export default {
   components: {
@@ -143,8 +159,49 @@ export default {
     AppEncryptionGate,
   },
   setup() {
-    const shell = useAppShell();
+    const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
+    const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
+    const accountStore = useAccountStore();
+    const cloudWorkspaces = useCloudWorkspaces();
+    const route = useRoute();
+
+    watch(
+      () => accountStore.isAuthenticated,
+      async (authenticated) => {
+        if (authenticated) {
+          await cloudWorkspaces.fetchWorkspaces();
+        }
+      },
+      { immediate: true }
+    );
+
+    // When onboarding completes and we leave the Onboarding route, flip the
+    // reactive flag. This triggers the watcher below which starts init + hocuspocus.
+    watch(
+      () => route.name,
+      (name) => {
+        if (name !== 'Onboarding' && !onboardingCompleted.value) {
+          const done = getSettingSync('onboardingCompleted');
+          if (done) onboardingCompleted.value = true;
+        }
+      }
+    );
+
+    // When onboardingCompleted flips true (first-time user finishing onboarding),
+    // run the shell init in the background and start hocuspocus.
+    watch(
+      onboardingCompleted,
+      (val) => {
+        if (val) {
+          shell.initializeWorkspace().catch((err) => {
+            console.error('[app] workspace init after onboarding failed:', err);
+          });
+          const hocuspocus = getHocuspocusSync();
+          hocuspocus.start();
+        }
+      }
+    );
 
     function skipToMain() {
       const main = document.getElementById('app-main');
@@ -154,18 +211,20 @@ export default {
     }
 
     onMounted(() => {
-      if (typeof window.requestIdleCallback === 'undefined') return;
-      window.requestIdleCallback(
-        () => {
-          import('./pages/note/_id.vue');
-          import('./pages/folder/_id.vue');
-          import('@/lib/tiptap/index.js').then((m) => m.prewarmEditor());
-        },
-        { timeout: 2000 }
-      );
+      if (onboardingCompleted.value) {
+        const hocuspocus = getHocuspocusSync();
+        hocuspocus.start();
+      }
     });
 
-    return { ...shell, mainRef, skipToMain };
+    onBeforeUnmount(() => {
+      if (onboardingCompleted.value) {
+        const hocuspocus = getHocuspocusSync();
+        hocuspocus.stop();
+      }
+    });
+
+    return { ...shell, mainRef, skipToMain, onboardingCompleted };
   },
 };
 </script>

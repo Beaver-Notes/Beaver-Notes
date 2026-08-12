@@ -161,22 +161,14 @@ export default {
 </script>
 <style>
 .ui-popover-enter-active {
-  transition: opacity var(--motion-fast) var(--ease-snappy),
-    transform var(--motion-fast) var(--ease-snappy);
+  transition: opacity var(--motion-fast) var(--ease-snappy);
 }
 .ui-popover-leave-active {
-  transition: opacity var(--motion-fast) var(--ease-exit),
-    transform var(--motion-fast) var(--ease-exit);
+  transition: opacity var(--motion-fast) var(--ease-exit);
 }
 .ui-popover-enter-from,
 .ui-popover-leave-to {
   opacity: 0;
-  transform: scale(0.97);
-}
-.ui-popover-enter-to,
-.ui-popover-leave-from {
-  opacity: 1;
-  transform: scale(1);
 }
 @media (prefers-reduced-motion: reduce) {
   .ui-popover-enter-active,

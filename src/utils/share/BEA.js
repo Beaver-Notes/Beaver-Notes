@@ -1,4 +1,4 @@
-import { useStorage } from '@/composable/storage';
+import { useStorage } from '@/lib/storage';
 import { useNoteStore } from '../../store/note';
 import { useLabelStore } from '@/store/label';
 import { useI18nStore } from '@/store/i18n';
@@ -68,11 +68,10 @@ export async function exportBEA(noteId, noteTitle) {
       return;
     }
     const appDirectory = await getAppDirectory();
-    const noteAssetsSource = path.join(appDirectory, 'notes-assets', noteId);
-    const fileAssetsSource = path.join(appDirectory, 'file-assets', noteId);
+    const assetsSource = path.join(appDirectory, 'assets', noteId);
     const assets = {
-      notesAssets: await encodeAssets(noteAssetsSource),
-      fileAssets: await encodeAssets(fileAssetsSource),
+      notesAssets: await encodeAssets(assetsSource),
+      fileAssets: await encodeAssets(assetsSource),
     };
     const exportedData = {
       data: {
@@ -153,21 +152,17 @@ async function processImportedNote(noteData, router, folderId = null) {
     }
     if (noteData.assets) {
       const { notesAssets, fileAssets } = noteData.assets;
-      await ensureExportDir(
-        path.join(appDirectory, 'notes-assets', noteData.id)
-      );
-      await ensureExportDir(
-        path.join(appDirectory, 'file-assets', noteData.id)
-      );
+      const assetsDir = path.join(appDirectory, 'assets', noteData.id);
+      await ensureExportDir(assetsDir);
       for (const [filename, base64Data] of Object.entries(notesAssets || {})) {
         await writeExportFile(
-          path.join(appDirectory, 'notes-assets', noteData.id, filename),
+          path.join(assetsDir, filename),
           Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
         );
       }
       for (const [filename, base64Data] of Object.entries(fileAssets || {})) {
         await writeExportFile(
-          path.join(appDirectory, 'file-assets', noteData.id, filename),
+          path.join(assetsDir, filename),
           Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0))
         );
       }

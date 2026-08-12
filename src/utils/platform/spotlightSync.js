@@ -1,4 +1,4 @@
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { indexItems, deleteItems, deleteDomain } from '@/lib/native/spotsearch';
 
 const DOMAIN = 'notes';

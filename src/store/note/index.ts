@@ -1,34 +1,62 @@
+import { ref } from 'vue';
 import { nanoid } from 'nanoid';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readDir, removePath } from '@/lib/native/fs';
 import { trackDeletedAssets } from '@/utils/sync';
 import { deleteUpdates } from '@/lib/native/yjs.js';
-import { hydrateNote } from '@/utils/note/serializer.js';
+import { hydrateNote, extractTextFromContent } from '@/utils/note/serializer.js';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
-import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { isEncryptedContent, ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
 import { useFolderStore } from '../folder';
 import { useUndoStore } from '../undo';
+import { commands } from '@/lib/tauri/bindings';
 import {
-  indexNote,
-  removeNoteFromIndex,
-} from '@/lib/native/search';
-import {
-  indexNoteForSpotlight,
   deleteNoteFromSpotlight,
+  indexNoteForSpotlight,
   reindexAllNotes,
 } from '@/utils/platform/spotlightSync.js';
+import {
+  buildSearchIndex,
+  removeSearchEntry,
+  searchNotesIndex,
+  upsertSearchEntry,
+  getSearchIndexJSON,
+  loadSearchIndex,
+} from '@/utils/note/search.js';
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
   rebuildLinkIndexFromAll,
+  getLinkIndexJSON,
+  loadLinkIndex,
 } from './backlinks';
 import {
   syncNoteMeta,
   removeNoteMeta,
   syncDeletedNoteIds,
-} from '@/composable/useWorkspaceYjs';
+  transactWorkspace,
+} from '@/lib/yjs/workspace-doc';
+
+export interface CardPreviewBlock {
+  kind: string;
+  text?: string;
+  src?: string;
+  alt?: string;
+  rows?: { text: string; isHeader: boolean }[][];
+  label?: string;
+  tone?: string;
+  checked?: boolean;
+}
+
+export interface CardPreview {
+  version: number;
+  blocks: CardPreviewBlock[];
+  hasMore: boolean;
+  mediaCount: number;
+  visibleMediaCount: number;
+}
 
 export interface NoteData {
   id: string;
@@ -44,7 +72,7 @@ export interface NoteData {
   folderId: string | null;
   preview?: string;
   searchText?: string;
-  cardPreview?: any;
+  cardPreview?: CardPreview;
 }
 
 export interface NoteState {
@@ -56,6 +84,47 @@ export interface NoteState {
 }
 
 const _skipUndo = { value: false };
+
+const contentSignature: Map<string, object> = new Map();
+const indexSignature: Map<string, string> = new Map();
+
+// ── Incremental folder counts ──
+// Maintained by add/delete/patchLocal to avoid O(n) rebuild on every getter access.
+// `folderCountsVersion` is the reactive dep so the `notesCountByFolder` getter
+// (Pinia caches getters) invalidates when a count changes — otherwise it would
+// return the first Map forever and folder cards would show 0 items.
+const folderCounts: Map<string | null, number> = new Map();
+const folderCountsVersion = ref(0);
+
+function bumpFolderCounts() {
+  folderCountsVersion.value++;
+}
+
+function incrementFolderCount(folderId: string | null) {
+  const key = folderId ?? null;
+  folderCounts.set(key, (folderCounts.get(key) || 0) + 1);
+  bumpFolderCounts();
+}
+
+function decrementFolderCount(folderId: string | null) {
+  const key = folderId ?? null;
+  const count = folderCounts.get(key) || 0;
+  if (count <= 1) {
+    folderCounts.delete(key);
+  } else {
+    folderCounts.set(key, count - 1);
+  }
+  bumpFolderCounts();
+}
+
+function initFolderCounts(data: Record<string, NoteData>) {
+  folderCounts.clear();
+  for (const note of Object.values(data)) {
+    if (!note?.id) continue;
+    incrementFolderCount(note.folderId);
+  }
+  bumpFolderCounts();
+}
 
 // ── search (from search.js) ──
 
@@ -86,6 +155,17 @@ export function getNotesCountByFolder(state: NoteState) {
   };
 }
 
+/**
+ * Precomputed note counts per folder, maintained incrementally by add/delete/patchLocal.
+ * Avoids O(n) rebuild on every store mutation.
+ */
+export function notesCountByFolder(_state: NoteState): Map<string | null, number> {
+  // Reading the reactive version counter makes this getter re-evaluate whenever
+  // a count changes, so it returns a fresh Map (never a stale cached one).
+  void folderCountsVersion.value;
+  return new Map(folderCounts);
+}
+
 // ─── Search-related getters ──────────────────────────────────────────────────
 
 export function getFolderContents(state: NoteState) {
@@ -96,7 +176,7 @@ export function getFolderContents(state: NoteState) {
 
     const folders = useFolderStore()
       .getByParent(folderId)
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return { folders, notes };
   };
@@ -104,7 +184,7 @@ export function getFolderContents(state: NoteState) {
 
 /**
  * Synchronous in-memory fallback search using the pre-computed `searchText`
- * field. Used when the FTS index hasn't been populated yet or for
+ * field. Used when the local search index hasn't been populated yet or for
  * callers that need a synchronous result.
  * For the primary search UI use `searchNotesSql` instead.
  */
@@ -113,22 +193,13 @@ export function searchNotes(state: NoteState) {
     const searchTerm = query.toLowerCase();
     return Object.values(state.data).filter((note) => {
       if (!note.id) return false;
+      const labels = Array.isArray(note.labels) ? note.labels.join(' ') : '';
       return (
         note.title.toLowerCase().includes(searchTerm) ||
-        (note.searchText || '').toLowerCase().includes(searchTerm)
+        (note.searchText || '').toLowerCase().includes(searchTerm) ||
+        labels.toLowerCase().includes(searchTerm)
       );
     });
-  };
-}
-
-export function getNotesWithPath(state: NoteState) {
-  return (notes: NoteData[] | null = null) => {
-    const notesToProcess: NoteData[] =
-      notes || Object.values(state.data).filter(({ id }) => id);
-    return notesToProcess.map((note) => ({
-      ...note,
-      folderPath: note.folderId ? (useFolderStore() as any).getPath(note.folderId) : [],
-    }));
   };
 }
 
@@ -140,17 +211,19 @@ export interface NoteStoreThis {
   searchNotes?(query: string): NoteData[];
   patchLocal(id: string, data?: Record<string, any>): NoteData | null;
   persist(id: string): Promise<NoteData | null>;
+  persistMeta(id: string): Promise<NoteData | null>;
   delete(id: string): Promise<string>;
   cleanupDeletedIds(days?: number): Promise<string[]>;
+  addMany?(notes: NoteData[]): Promise<void>;
 }
 
 export async function searchNotesSql(this: NoteStoreThis, query: string): Promise<NoteData[]> {
   if (!query?.trim()) return [];
   try {
-    const { ids } = (await import('@/lib/native/search')).searchNotesFts(query) as any;
+    const ids = searchNotesIndex(query);
     return ids.map((id: string) => this.data[id]).filter(Boolean);
   } catch {
-    // FTS not yet available (first launch before rebuild) — fall back
+    // Index not yet available (first launch before rebuild) — fall back
     return this.searchNotes!(query);
   }
 }
@@ -164,9 +237,63 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
     // Data is already populated from the Yjs workspace doc via
     // writeStoresFromWorkspace().  No KV reads needed.
 
-    reindexAllNotes(this.data);
-    rebuildLinkIndexFromAll(this.data);
+    initFolderCounts(this.data);
 
+    let coldStart = false;
+    let indexChanged = false;
+
+    // Try to load and reconcile persisted indexes
+    try {
+      const snapshotResult = await commands.indexLoad();
+      if (snapshotResult.status === 'ok' && snapshotResult.data) {
+        const snapshot = snapshotResult.data;
+        loadSearchIndex(snapshot.searchJson);
+        loadLinkIndex(snapshot.linksJson);
+        const signatures = JSON.parse(snapshot.signaturesJson || '{}');
+
+        // Incremental patch: update only changed notes
+        for (const note of Object.values(this.data)) {
+          if (!note?.id) continue;
+          if (!signatures[note.id] || note.updatedAt > signatures[note.id]) {
+            upsertSearchEntry(note);
+            rebuildLinkIndexForNote(note.id, note.content);
+            signatures[note.id] = note.updatedAt;
+            indexChanged = true;
+          }
+        }
+        // Remove deleted notes from indexes
+        for (const id of Object.keys(signatures)) {
+          if (!this.data[id]) {
+            removeSearchEntry(id);
+            removeNoteFromLinkIndex(id);
+            delete signatures[id];
+            indexChanged = true;
+          }
+        }
+        // Persist updated indexes only when something actually changed
+        if (indexChanged) {
+          await commands.indexSave(
+            getSearchIndexJSON(),
+            getLinkIndexJSON(),
+            JSON.stringify(signatures)
+          );
+        }
+      } else {
+        coldStart = true;
+      }
+    } catch (indexError) {
+      // Corrupt/stale persisted index — fall back to full rebuild
+      console.error(
+        'Persisted index invalid; falling back to full rebuild:',
+        indexError
+      );
+      coldStart = true;
+    }
+
+    // Skip Spotlight reindex when nothing changed
+    if (coldStart || indexChanged) {
+      reindexAllNotes(this.data);
+    }
     return this.data;
   } catch (error) {
     console.error('Error retrieving notes:', error);
@@ -178,6 +305,7 @@ export async function retrieve(this: NoteStoreThis): Promise<Record<string, Note
 
 export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<string, any> = {}): Promise<NoteData> {
   try {
+    await ensureKeyReadyForWrite();
     const folderId = await resolveFolderId(note.folderId);
     const id = note.id || nanoid();
     const newNote = {
@@ -196,7 +324,12 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     } as NoteData;
 
     this.data[id] = hydrateNote(newNote);
+    incrementFolderCount(this.data[id].folderId);
     await saveNote(id, this.data[id]);
+    // Content lives in Yjs — write it at creation so the editor finds it
+    // immediately (no KV content, no later conversion).
+    const { writeNoteContentToYjs } = await import('@/utils/note/contentToYjs.js');
+    await writeNoteContentToYjs(id, this.data[id].content);
     rebuildLinkIndexForNote(id, this.data[id].content);
     syncNoteMeta(this.data[id]);
 
@@ -205,6 +338,43 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     console.error('Error adding note:', error);
     throw error;
   }
+}
+
+export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<void> {
+  if (!notes.length) return;
+
+  await ensureKeyReadyForWrite();
+
+  for (const note of notes) {
+    this.data[note.id] = hydrateNote(note);
+    incrementFolderCount(this.data[note.id].folderId);
+  }
+
+  transactWorkspace(() => {
+    for (const note of notes) {
+      syncNoteMeta(this.data[note.id]);
+    }
+  });
+
+  // Imports convert content to Yjs in one batched IPC — the app never stores
+  // note content outside Yjs.
+  const { writeNotesContentToYjs } = await import('@/utils/note/contentToYjs.js');
+  await writeNotesContentToYjs(notes);
+
+  buildSearchIndex(this.data);
+  rebuildLinkIndexFromAll(this.data);
+  reindexAllNotes(this.data);
+
+  // Persist indexes for next startup
+  const signatures: Record<string, number> = {};
+  for (const note of Object.values(this.data)) {
+    if (note?.id) signatures[note.id] = note.updatedAt;
+  }
+  await commands.indexSave(
+    getSearchIndexJSON(),
+    getLinkIndexJSON(),
+    JSON.stringify(signatures)
+  );
 }
 
 export async function update(this: NoteStoreThis, id: string, data: Record<string, any> = {}): Promise<NoteData> {
@@ -256,11 +426,17 @@ export async function update(this: NoteStoreThis, id: string, data: Record<strin
 export function patchLocal(this: NoteStoreThis, id: string, data: Record<string, any> = {}): NoteData | null {
   if (!this.data[id]) return null;
 
+  const prevFolderId = this.data[id].folderId;
   this.data[id] = hydrateNote({
     ...this.data[id],
     ...data,
     updatedAt: data.updatedAt ?? Date.now(),
   });
+
+  if (data.folderId !== undefined && data.folderId !== prevFolderId) {
+    decrementFolderCount(prevFolderId);
+    incrementFolderCount(data.folderId);
+  }
 
   return this.data[id];
 }
@@ -268,25 +444,56 @@ export function patchLocal(this: NoteStoreThis, id: string, data: Record<string,
 export async function persist(this: NoteStoreThis, id: string): Promise<NoteData | null> {
   if (!this.data[id]) return null;
 
+  await ensureKeyReadyForWrite();
+
   const note = this.data[id];
-  // Rebuild the structured card preview from content (styled blocks) so it
-  // survives a reload, and keep a flat `preview` string as a cross-device
-  // fallback. Content lives in the per-note Y.Doc; `searchText` is stripped
-  // before persist so it is no longer the source of truth.
+  const contentChanged = note.content !== contentSignature.get(id);
+
+  // Rebuild preview + searchText only when content actually changed
   if (!note.isLocked && !isEncryptedContent(note.content)) {
-    const { cardPreview, preview } = buildNotePreview({
-      content: note.content,
-      preview: note.preview,
-      searchText: note.searchText,
-    });
-    note.preview = preview;
-    note.cardPreview = cardPreview;
+    if (contentChanged) {
+      const { cardPreview, preview } = buildNotePreview({
+        content: note.content,
+        preview: note.preview,
+        searchText: note.searchText,
+      });
+      note.preview = preview;
+      note.cardPreview = cardPreview as CardPreview;
+      note.searchText = extractTextFromContent(note.content) || note.searchText;
+    }
   }
 
-  await saveNote(id, note);
-  rebuildLinkIndexForNote(id, note.content);
-  syncNoteMeta(note);
+  if (contentChanged) {
+    await saveNote(id, note);
+    rebuildLinkIndexForNote(id, note.content);
+    } else {
+      // Content unchanged — only reindex if title/searchText/labels changed
+      const indexKey = `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`;
+      if (indexKey !== indexSignature.get(id)) {
+        await saveNote(id, note);
+      }
+    }
 
+    syncNoteMeta(note);
+
+    // Update signatures
+    contentSignature.set(id, note.content);
+    indexSignature.set(id, `${note.title}\0${(note.searchText || '').length}\0${(note.labels || []).join()}`);
+
+  return note;
+}
+
+export async function persistMeta(this: NoteStoreThis, id: string): Promise<NoteData | null> {
+  if (!this.data[id]) return null;
+  await ensureKeyReadyForWrite();
+  const note = this.data[id];
+
+  // Skip content walks (preview, searchText) — content unchanged
+  // Skip MiniSearch/Spotlight — only title/searchText/labels matter, and
+  // meta-only ops don't change those either
+  // Skip rebuildLinkIndexForNote — links live in content
+
+  syncNoteMeta(note);
   return note;
 }
 
@@ -305,13 +512,21 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
       this.deletedIds[id] = Date.now();
     }
 
+    const folderId = this.data[id]?.folderId;
     delete this.data[id];
+    if (folderId !== undefined) decrementFolderCount(folderId);
+    contentSignature.delete(id);
+    indexSignature.delete(id);
     removeNoteFromLinkIndex(id);
 
     // Clean up Yjs document updates
-    deleteUpdates(id).catch(() => {});
+    deleteUpdates(id).catch((error) => {
+      console.warn('[note] failed to delete Yjs updates for', id, error);
+    });
 
-    removeNoteFromFts(id);
+    removeSearchEntry(id);
+
+    deleteNoteFromSpotlight(id);
 
     removeNoteMeta(id);
     syncDeletedNoteIds(this.deletedIds);
@@ -322,16 +537,14 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     try {
       const appDirectory = await getAppDirectory();
       if (appDirectory) {
-        for (const assetType of ['notes-assets', 'file-assets']) {
-          const assetDir = path.join(appDirectory, assetType, id);
-          try {
-            const files = await readDir(assetDir);
-            if (files?.length) await trackDeletedAssets(assetType, id, files);
-          } catch {
-            // Asset folder may not exist — that's fine
-          }
-          await removePath(path.join(appDirectory, assetType, id));
+        const assetDir = path.join(appDirectory, 'assets', id);
+        try {
+          const files = await readDir(assetDir);
+          if (files?.length) await trackDeletedAssets('assets', id, files);
+        } catch {
+          // Asset folder may not exist — that's fine
         }
+        await removePath(assetDir);
       }
     } catch (fileError) {
       console.warn('Error removing note files:', fileError);
@@ -376,7 +589,7 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
     }
 
     const undoNotes: { id: string; prevFolderId: string | null | undefined }[] = [];
-    const updatePromises: Promise<any>[] = [];
+    const updatePromises: Promise<NoteData | null>[] = [];
     for (const noteId of noteIds) {
       if (this.data[noteId]) {
         undoNotes.push({
@@ -384,9 +597,7 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
           prevFolderId: this.data[noteId].folderId,
         });
         this.patchLocal(noteId, { folderId: targetFolderId });
-        updatePromises.push(
-          this.persist(noteId).then(() => syncNoteMeta(this.data[noteId]))
-        );
+        updatePromises.push(this.persistMeta(noteId));
       }
     }
 
@@ -400,47 +611,6 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
   }
 }
 
-export async function handleFolderDeletion(this: NoteStoreThis, deletionResult: any): Promise<{ noteIds: string[]; noteSnapshots: { type: string; data: any }[] }> {
-  try {
-    const { deletedFolderId, descendantIds, moveContentsTo, deleteContents } =
-      deletionResult;
-
-    const affectedFolderIds = new Set([deletedFolderId, ...descendantIds]);
-    const affectedNotes = Object.values(this.data).filter((note) =>
-      affectedFolderIds.has(note.folderId)
-    );
-
-    _skipUndo.value = true;
-    if (deleteContents) {
-      for (const note of affectedNotes) {
-        await this.delete(note.id);
-      }
-    } else {
-      const updatePromises = affectedNotes.map((note) => {
-        this.patchLocal(note.id, { folderId: moveContentsTo });
-        return this.persist(note.id).then(() => syncNoteMeta(this.data[note.id]));
-      });
-      await Promise.all(updatePromises);
-    }
-    _skipUndo.value = false;
-
-    const snapshots = deleteContents
-      ? affectedNotes.map((note) => ({
-          type: 'note',
-          data: JSON.parse(JSON.stringify(note)),
-        }))
-      : [];
-
-    return {
-      noteIds: affectedNotes.map((note) => note.id),
-      noteSnapshots: snapshots,
-    };
-  } catch (error) {
-    console.error('Error handling folder deletion:', error);
-    throw error;
-  }
-}
-
 export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<string[]> {
   const folderStore = useFolderStore();
   const invalid = Object.values(this.data).filter(
@@ -449,7 +619,7 @@ export async function normalizeInvalidFolderIds(this: NoteStoreThis): Promise<st
 
   for (const note of invalid) {
     this.patchLocal(note.id, { folderId: null });
-    await this.persist(note.id);
+    await this.persistMeta(note.id);
   }
 
   return invalid.map((note) => note.id);
@@ -465,6 +635,8 @@ export async function addLabel(this: NoteStoreThis, id: string, labelId: string)
     }
 
     if (this.data[id].labels.includes(labelId)) return labelId;
+
+    await ensureKeyReadyForWrite();
 
     this.data[id] = hydrateNote({
       ...this.data[id],
@@ -492,6 +664,8 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
     const idx = this.data[id].labels.indexOf(labelId);
     if (idx === -1) return;
 
+    await ensureKeyReadyForWrite();
+
     const labels = [...this.data[id].labels];
     labels.splice(idx, 1);
     this.data[id] = hydrateNote({
@@ -513,26 +687,21 @@ export async function removeLabel(this: NoteStoreThis, id: string, labelId: stri
 // ── helpers (from helpers.js) ──
 
 /**
- * Silently sync a note into the FTS index after it is written to storage.
+ * Silently sync a note into the local search index after it is written to storage.
  * Uses the pre-computed `searchText` field so no content serialisation is needed.
  * Errors are swallowed — a stale index degrades gracefully to no results.
  */
-export function syncFtsIndex(note: NoteData): void {
+export function syncSearchIndex(note: NoteData): void {
   if (!note?.id || note.isLocked || isEncryptedContent(note.content)) return;
-  indexNote(note.id, note.title || '', note.searchText || '').catch(() => {});
+  upsertSearchEntry(note);
 }
 
 export async function saveNote(id: string, noteData: NoteData): Promise<void> {
-  syncFtsIndex(noteData);
+  syncSearchIndex(noteData);
   indexNoteForSpotlight(noteData);
 }
 
 async function resolveFolderId(folderId: string | null | undefined): Promise<string | null> {
   if (folderId === undefined || folderId === null) return null;
   return useFolderStore().exists(folderId) ? folderId : null;
-}
-
-function removeNoteFromFts(id: string): void {
-  removeNoteFromIndex(id).catch(() => {});
-  deleteNoteFromSpotlight(id);
 }

@@ -2,7 +2,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import dayjs from '@/lib/dayjs';
-import { getSettingSync, setSetting } from '@/composable/settings';
+import { getSettingSync, setSetting } from '@/lib/settings';
 
 const localeFiles = import.meta.glob<{ default: Record<string, string> }>('@/assets/locales/*.json', {
   eager: true,

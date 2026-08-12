@@ -6,7 +6,7 @@ import {
   syncFolder,
   removeFolder,
   syncDeletedFolderIds,
-} from '@/composable/useWorkspaceYjs';
+} from '@/lib/yjs/workspace-doc';
 
 import { collectExpiredIds } from '@/utils/helpers/index.js';
 
@@ -27,7 +27,7 @@ interface FolderData {
 interface FolderState {
   data: Record<string, FolderData>;
   deletedIds: Record<string, number>;
-  _ci: Map<string | null, Set<string>> | null;
+  _childrenIndex: Map<string | null, Set<string>> | null;
 }
 
 // Children index helpers
@@ -66,18 +66,18 @@ export const useFolderStore = defineStore('folder', {
   state: (): FolderState => ({
     data: {},
     deletedIds: {},
-    // _ci holds the children index (Map). Null until first access.
+    // _childrenIndex holds the children index (Map). Null until first access.
     // We store it as plain state so actions can mutate it directly;
     // Vue won't deeply observe the Map internals.
-    _ci: null,
+    _childrenIndex: null,
   }),
 
   getters: {
     // Lazily build the children index; Pinia caches this getter until
-    // data/_ci changes so it only rebuilds when truly necessary.
+    // data/_childrenIndex changes so it only rebuilds when truly necessary.
     _index(state) {
-      if (!state._ci) state._ci = buildChildIndex(state.data);
-      return state._ci;
+      if (!state._childrenIndex) state._childrenIndex = buildChildIndex(state.data);
+      return state._childrenIndex;
     },
 
     folders: (state) => Object.values(state.data).filter(({ id }) => id),
@@ -85,13 +85,13 @@ export const useFolderStore = defineStore('folder', {
     getById: (state) => (id: string) => state.data[id],
 
     getByParent: (state) => (parentId: string | null = null) => {
-      const ci = state._ci ?? buildChildIndex(state.data);
+      const ci = state._childrenIndex ?? buildChildIndex(state.data);
       const ids = ci.get(parentId ?? null) ?? new Set();
       return [...ids].map((id: string) => state.data[id]).filter(Boolean) as FolderData[];
     },
 
     rootFolders: (state) => {
-      const ci = state._ci ?? buildChildIndex(state.data);
+      const ci = state._childrenIndex ?? buildChildIndex(state.data);
       const ids = ci.get(null) ?? new Set();
       return [...ids].map((id: string) => state.data[id]).filter(Boolean) as FolderData[];
     },
@@ -108,7 +108,7 @@ export const useFolderStore = defineStore('folder', {
     },
 
     getDescendants: (state) => {
-      const ci = state._ci ?? buildChildIndex(state.data);
+      const ci = state._childrenIndex ?? buildChildIndex(state.data);
       return (folderId: string) => {
         const descendants: FolderData[] = [];
         const queue = [folderId];
@@ -128,7 +128,7 @@ export const useFolderStore = defineStore('folder', {
     },
 
     hasChildren: (state) => {
-      const ci = state._ci ?? buildChildIndex(state.data);
+      const ci = state._childrenIndex ?? buildChildIndex(state.data);
       return (folderId: string) => {
         const children = ci.get(folderId);
         return children ? children.size > 0 : false;
@@ -147,7 +147,7 @@ export const useFolderStore = defineStore('folder', {
     },
 
     getFolderTree: (state) => {
-      const ci = state._ci ?? buildChildIndex(state.data);
+      const ci = state._childrenIndex ?? buildChildIndex(state.data);
       const buildTree = (parentId: string | null = null): (FolderData & { children: FolderData[]; hasChildren: boolean })[] => {
         const childIds = ci.get(parentId ?? null) ?? new Set();
         return [...childIds]
@@ -181,7 +181,7 @@ export const useFolderStore = defineStore('folder', {
     // ── Index maintenance ─────────────────────────────────────────────────
 
     _rebuildIndex() {
-      this._ci = buildChildIndex(this.data);
+      this._childrenIndex = buildChildIndex(this.data);
     },
 
     // ── Load & hydration ──────────────────────────────────────────────────
@@ -337,9 +337,9 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToArchive = Object.values(noteStore.data).filter(
-          (note: any) => note.id && allIdsSet.has(note.folderId)
+          (note) => note.id && note.folderId && allIdsSet.has(note.folderId)
         );
-        const undoNotes = notesToArchive.map((n: any) => ({ id: n.id, prev: false }));
+        const undoNotes = notesToArchive.map((n) => ({ id: n.id, prev: false }));
         for (const note of notesToArchive) {
           await noteStore.update(note.id, { isArchived: true });
         }
@@ -372,9 +372,9 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToUnarchive = Object.values(noteStore.data).filter(
-          (note: any) => note.id && allIdsSet.has(note.folderId)
+          (note) => note.id && note.folderId && allIdsSet.has(note.folderId)
         );
-        const undoNotes = notesToUnarchive.map((n: any) => ({ id: n.id, prev: true }));
+        const undoNotes = notesToUnarchive.map((n) => ({ id: n.id, prev: true }));
         for (const note of notesToUnarchive) {
           await noteStore.update(note.id, { isArchived: false });
         }
@@ -421,33 +421,37 @@ export const useFolderStore = defineStore('folder', {
       return toDelete;
     },
 
-    async createFolderPath(pathArray: string[], parentId: string | null = null): Promise<FolderData[]> {
+    async createFolderPath(
+      pathArray: string[],
+      parentId: string | null = null
+    ): Promise<{ folders: FolderData[]; createdIds: Set<string> }> {
       let currentParentId = parentId;
       const createdFolders: FolderData[] = [];
+      const createdIds = new Set<string>();
 
       for (const folderName of pathArray) {
-        // O(1) via index instead of Object.values().find()
         const childIds = this._index.get(currentParentId ?? null) ?? new Set();
-        let existingFolder: FolderData | undefined;
+        let folder: FolderData | undefined;
         for (const cid of childIds) {
           if (this.data[cid]?.name === folderName) {
-            existingFolder = this.data[cid];
+            folder = this.data[cid];
             break;
           }
         }
 
-        if (!existingFolder) {
-          existingFolder = await this.add({
+        if (!folder) {
+          folder = await this.add({
             name: folderName,
             parentId: currentParentId,
           });
+          createdIds.add(folder.id);
         }
 
-        createdFolders.push(existingFolder);
-        currentParentId = existingFolder.id;
+        createdFolders.push(folder);
+        currentParentId = folder.id;
       }
 
-      return createdFolders;
+      return { folders: createdFolders, createdIds };
     },
 
     async getFolderStats(folderId: string): Promise<{ subfolderCount: number; depth: number; hasChildren: boolean }> {

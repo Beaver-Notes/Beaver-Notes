@@ -68,7 +68,6 @@
                 class="note-card-preview-image"
                 :src="block.src"
                 :alt="block.alt || 'Note preview image'"
-                loading="lazy"
                 decoding="async"
               />
             </template>
@@ -266,10 +265,10 @@ import { useNoteStore } from '@/store/note';
 import { usePasswordStore } from '@/store/passwd';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
-import { getSettingSync } from '@/composable/settings';
+import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
-import { useDialog } from '@/composable/dialog';
+import { useDialog } from '@/lib/dialog';
 import FolderTree from './FolderTree.vue';
 import { useLabelStore } from '@/store/label';
 import { useSounds } from '@/composable/useSounds';
@@ -348,87 +347,21 @@ onUnmounted(() => mobileQuery.removeEventListener('change', onMobileChange));
 useGroupTooltip();
 
 async function lockNote(note) {
-  const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
   try {
-    const hassharedKey = await passwordStore.retrieve();
-    if (!hassharedKey) {
-      dialog.prompt({
-        title: translations.value.card.enterPasswd,
-        okText: translations.value.card.setKey,
-        body: translations.value.settings.warning,
-        cancelText: translations.value.dialog.cancel,
-        placeholder: translations.value.card.password,
-        onConfirm: async (newKey) => {
-          if (newKey) {
-            try {
-              await passwordStore.setSharedKey(newKey);
-              await verifyPassphrase(newKey);
-              await noteStore.lockNote(note, newKey);
-            } catch {
-              showCardAlert(translations.value.card.keyFail);
-            }
-          } else {
-            showCardAlert(translations.value.card.keyFail);
-          }
-        },
-      });
-    } else {
-      dialog.prompt({
-        title: translations.value.card.enterPasswd,
-        body: translations.value.settings.warning,
-        icon: 'riLockLine',
-        okText: translations.value.card.lock,
-        cancelText: translations.value.dialog.cancel,
-        placeholder: translations.value.card.password,
-        onConfirm: async (enteredPassword) => {
-          const isValid = await passwordStore.isValidPassword(enteredPassword);
-          if (isValid) {
-            await noteStore.lockNote(note, enteredPassword);
-          } else {
-            play('error');
-            showCardAlert(translations.value.card.wrongPasswd);
-          }
-        },
-      });
-    }
+    await noteStore.lockNote(note);
   } catch (error) {
     console.error('Error locking note:', error);
   }
 }
 
 async function unlockNote(note) {
-  const passwordStore = usePasswordStore();
   const noteStore = useNoteStore();
-  dialog.prompt({
-    title: translations.value.card.enterPasswd,
-    body: translations.value.card.isLocked,
-    icon: 'riLockUnlockLine',
-    okText: translations.value.card.unlock,
-    cancelText: translations.value.dialog.cancel,
-    placeholder: translations.value.card.password,
-    onConfirm: async (enteredPassword) => {
-      try {
-        const hassharedKey = await passwordStore.retrieve();
-        if (!hassharedKey) {
-          await noteStore.unlockNote(note, enteredPassword);
-          await passwordStore.setSharedKey(enteredPassword);
-          await verifyPassphrase(enteredPassword);
-        } else {
-          const isValid = await passwordStore.isValidPassword(enteredPassword);
-          if (isValid) {
-            await noteStore.unlockNote(note, enteredPassword);
-          } else {
-            play('error');
-            showCardAlert(translations.value.card.wrongPasswd);
-          }
-        }
-      } catch {
-        play('error');
-        showCardAlert(translations.value.card.wrongPasswd);
-      }
-    },
-  });
+  try {
+    await noteStore.unlockNote(note);
+  } catch (error) {
+    console.error('Error unlocking note:', error);
+  }
 }
 
 async function deleteNote(note) {

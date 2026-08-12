@@ -4,7 +4,6 @@ dist-ssr/
 
 # Rust / Tauri
 src-tauri/target/
-src-tauri/.cargo/
 src-tauri/gen/android/app/build/
 src-tauri/gen/apple/build/
 src-tauri/gen/apple/beaver-notes.xcodeproj/
@@ -43,3 +42,9 @@ screenshots/
 .env.development
 
 package-lock.json
+
+# Internal / should not be published
+tests/
+docs/superpowers/
+docs/*.md
+docs/**/*.md
