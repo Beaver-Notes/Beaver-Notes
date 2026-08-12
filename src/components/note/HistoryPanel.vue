@@ -543,6 +543,7 @@ export default {
           element: previewEditorEl.value,
           editable: false,
           extensions,
+          enableCoreExtensions: { paste: false, textDirection: false },
           content: history.selectedCommit.value.content,
         });
       } else {
@@ -668,6 +669,7 @@ export default {
             element: previewEditorEl.value,
             editable: false,
             extensions,
+          enableCoreExtensions: { paste: false, textDirection: false },
             content: val.content,
           });
         }

@@ -180,6 +180,9 @@ export { extensions, yjsExtensions, createBaseExtensions, CollapseHeading, headi
 export default function ({ extensions: optsExts, ...opts }) {
   const instance = new Editor({
     ...opts,
+    // The app ships its own Paste + TextDirection; drop tiptap's core
+    // duplicates (they'd otherwise collide by name).
+    enableCoreExtensions: { paste: false, textDirection: false },
     extensions: [...extensions, ...(optsExts || [])],
   });
 

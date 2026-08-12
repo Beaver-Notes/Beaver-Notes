@@ -55,6 +55,7 @@ export function useAppEncryptionGate({ finishWorkspaceInit, onUnlockError }) {
   return {
     appEncryptionGate,
     restoreEncryptionKeys,
+    refreshEncryptionGate,
     handleEncryptionUnlocked,
   };
 }

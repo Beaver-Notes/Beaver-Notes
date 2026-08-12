@@ -12,7 +12,7 @@
           v-if="missing"
           class="flex items-center gap-1 text-sm text-amber-600 dark:text-amber-400"
         >
-          <v-remixicon name="riAlertLine" class="w-4 h-4" />
+          <v-remixicon name="riErrorWarningLine" class="w-4 h-4" />
           <span>{{ translations.editor.fileNotFound || 'File not found' }}</span>
         </div>
         <div v-else class="flex items-center gap-2">

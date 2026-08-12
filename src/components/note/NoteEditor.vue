@@ -325,6 +325,9 @@ export default {
       editable: canEdit(props.role),
       autofocus: props.cursorPosition,
       extensions: exts,
+      // The app ships its own Paste + TextDirection; drop tiptap's core
+      // duplicates (they'd otherwise collide by name).
+      enableCoreExtensions: { paste: false, textDirection: false },
       editorProps: {
         handleClick,
         handleDOMEvents: {

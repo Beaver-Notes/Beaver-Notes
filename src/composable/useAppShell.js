@@ -563,7 +563,7 @@ export function useAppShell(onboardingCompleted = true) {
       retrieved.value = true;
     },
   });
-  const { appEncryptionGate, restoreEncryptionKeys, handleEncryptionUnlocked } =
+  const { appEncryptionGate, restoreEncryptionKeys, refreshEncryptionGate, handleEncryptionUnlocked } =
     encryptionGate;
 
   const handleDeepLink = async (payload) => {

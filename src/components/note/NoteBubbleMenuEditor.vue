@@ -606,6 +606,7 @@ export default {
       currentAlignment,
       currentAlignmentIcon,
       alignmentOptions,
+      canComment,
       // Link input
       linkInputValue,
       linkInputRef,
