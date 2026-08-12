@@ -170,11 +170,26 @@ export function useAccountAuth() {
     return { token, user, subscription };
   }
 
-  async function signInWithPasskey(email) {
+  // Shared scaffolding for the sign-in / sign-up flows: clear the previous
+  // error, set the authenticating status, hold the busy flag, and on failure
+  // reset to anonymous with a normalized error.
+  async function runAuthFlow(fn) {
     clearAuthError();
     setStatus('authenticating');
     accountStore.setBusy(true);
     try {
+      return await fn();
+    } catch (err) {
+      setStatus('anonymous');
+      setAuthError(normalizeError(err));
+      throw err;
+    } finally {
+      accountStore.setBusy(false);
+    }
+  }
+
+  async function signInWithPasskey(email) {
+    return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail) {
         throw new Error('Email is required.');
@@ -189,20 +204,11 @@ export function useAccountAuth() {
       );
       await ensureDeviceId();
       return performSignIn(result || {});
-    } catch (err) {
-      setStatus('anonymous');
-      setAuthError(normalizeError(err));
-      throw err;
-    } finally {
-      accountStore.setBusy(false);
-    }
+    });
   }
 
   async function signUpWithPasskey(email) {
-    clearAuthError();
-    setStatus('authenticating');
-    accountStore.setBusy(true);
-    try {
+    return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail) {
         throw new Error('Email is required.');
@@ -220,20 +226,11 @@ export function useAccountAuth() {
       );
       await ensureDeviceId();
       return performSignIn(result || {});
-    } catch (err) {
-      setStatus('anonymous');
-      setAuthError(normalizeError(err));
-      throw err;
-    } finally {
-      accountStore.setBusy(false);
-    }
+    });
   }
 
   async function signInWithPassword(email, password) {
-    clearAuthError();
-    setStatus('authenticating');
-    accountStore.setBusy(true);
-    try {
+    return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail || !password) {
         throw new Error('Email and password are required.');
@@ -243,20 +240,11 @@ export function useAccountAuth() {
       });
       await ensureDeviceId();
       return performSignIn(result || {});
-    } catch (err) {
-      setStatus('anonymous');
-      setAuthError(normalizeError(err));
-      throw err;
-    } finally {
-      accountStore.setBusy(false);
-    }
+    });
   }
 
   async function signUpWithPassword(email, password) {
-    clearAuthError();
-    setStatus('authenticating');
-    accountStore.setBusy(true);
-    try {
+    return runAuthFlow(async () => {
       const normalizedEmail = String(email || '').trim();
       if (!normalizedEmail || !password) {
         throw new Error('Email and password are required.');
@@ -271,13 +259,7 @@ export function useAccountAuth() {
       });
       await ensureDeviceId();
       return performSignIn(result || {});
-    } catch (err) {
-      setStatus('anonymous');
-      setAuthError(normalizeError(err));
-      throw err;
-    } finally {
-      accountStore.setBusy(false);
-    }
+    });
   }
 
   async function startQuickConnect() {

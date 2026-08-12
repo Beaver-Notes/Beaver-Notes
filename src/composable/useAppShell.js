@@ -48,6 +48,27 @@ import { initAppSync } from '@/utils/sync/app-sync.js';
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
 
+// Dev-only startup instrumentation. esbuild strips console.log in prod builds.
+function logStartupTiming() {
+  const entries = performance.getEntriesByType('mark');
+  const measures = [];
+  for (let i = 1; i < entries.length; i++) {
+    measures.push(
+      `${entries[i].name}: ${Math.round(
+        entries[i].startTime - entries[i - 1].startTime
+      )}ms`
+    );
+  }
+  // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
+  console.log('[perf] Startup timeline:', measures.join(' → '));
+  // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
+  console.log(
+    '[perf] Total startup:',
+    Math.round(entries[entries.length - 1].startTime - entries[0].startTime) +
+      'ms'
+  );
+}
+
 function applyDocumentSettings() {
   document.documentElement.style.setProperty(
     '--selected-font',
@@ -425,15 +446,7 @@ export function useAppShell(onboardingCompleted = true) {
       // no sync folder configured yet the engine's cycles are no-ops.
       initAppSync();
       performance.mark('init:done');
-      const entries = performance.getEntriesByType('mark');
-      const measures = [];
-      for (let i = 1; i < entries.length; i++) {
-        measures.push(`${entries[i].name}: ${Math.round(entries[i].startTime - entries[i-1].startTime)}ms`);
-      }
-      // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-console.log('[perf] Startup timeline:', measures.join(' → '));
-      // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
+      logStartupTiming();
       if (route.name !== ONBOARDING_ROUTE_NAME) {
         await router.replace('/onboarding');
       }
@@ -539,15 +552,7 @@ console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startT
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     performance.mark('init:done');
-    const entries = performance.getEntriesByType('mark');
-    const measures = [];
-    for (let i = 1; i < entries.length; i++) {
-      measures.push(`${entries[i].name}: ${Math.round(entries[i].startTime - entries[i-1].startTime)}ms`);
-    }
-    // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-console.log('[perf] Startup timeline:', measures.join(' → '));
-    // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
-console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
+    logStartupTiming();
   };
 
   // Full-screen encryption gate (show/derive state, key auto-restore, deferred
