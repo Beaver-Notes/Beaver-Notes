@@ -215,16 +215,6 @@ export default {
         const hocuspocus = getHocuspocusSync();
         hocuspocus.start();
       }
-
-      if (typeof window.requestIdleCallback === 'undefined') return;
-      window.requestIdleCallback(
-        () => {
-          import('./pages/note/_id.vue');
-          import('./pages/folder/_id.vue');
-          import('@/lib/tiptap/index.js').then((m) => m.prewarmEditor());
-        },
-        { timeout: 2000 }
-      );
     });
 
     onBeforeUnmount(() => {
