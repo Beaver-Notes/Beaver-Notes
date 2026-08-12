@@ -5,9 +5,9 @@
 
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
-import { useStorage } from '@/composable/storage';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
 import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -17,10 +17,7 @@ import { getWorkspaceDoc } from './meta-yjs-doc.js';
 import {
   mergeNoteEntry,
   diffRemovedNoteIds,
-  shouldReadKv,
 } from './meta-yjs-merge.js';
-
-const storage = useStorage();
 
 function buildNotePreviewFromContent(merged, content) {
   return buildNotePreview({
@@ -42,156 +39,63 @@ async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
   return mod.yXmlFragmentToProsemirrorJSON(xmlFragment);
 }
 
-// Once all KV entries have been merged into the workspace doc, subsequent
-// workspace changes can skip the KV reads entirely unless a locked /
-// encrypted note needs content reattached.
-let kvSeeded = false;
-
 /**
  * Push workspace-doc changes into the Pinia stores (one-way: doc -> store).
  * Idempotent — re-applying the same state is a no-op for consumers.
  *
- * On first run the Y.Doc may be empty while KV stores already contain data
- * (notes, labels, folders, etc.). This function detects that and seeds the
- * Y.Doc from the KV stores so the Y.Doc becomes the source of truth going
- * forward.
+ * The workspace Y.Doc is the single source of truth for metadata; note CONTENT
+ * lives in per-note Yjs docs. No KV reads, no seeding, no conversion.
  *
  * @param {Set<string>|undefined} [changedNoteIds] ids of notes whose meta
  *   changed in this batch. When provided, only those notes are re-merged and
  *   removed ids are evicted — the store map is not rebuilt wholesale. When
  *   omitted, all notes are re-merged (initial hydration).
+ * @param {{folders?: boolean, labels?: boolean, labelColors?: boolean, deleted?: boolean}|undefined} [metaChanges]
+ *   flags for which non-note collections changed in this batch (from
+ *   `observeWorkspace`). When provided, folders/labels are only rebuilt when
+ *   their flag is set; when omitted (initial hydration) everything is rebuilt.
  */
-export async function writeStoresFromWorkspace(changedNoteIds) {
+export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   const doc = getWorkspaceDoc();
   const folderStore = useFolderStore();
   const labelStore = useLabelStore();
   const noteStore = useNoteStore();
 
-  // ── Merge KV stores into the Y.Doc ─────────────────────────────────────
   const yLabels = doc.getArray('labels');
   const yLabelColors = doc.getMap('labelColors');
   const yFolders = doc.getMap('folders');
   const yNotes = doc.getMap('notes');
 
-  // Read KV only while seeding is incomplete or a changed note may need its
-  // content reattached (locked / app-encrypted notes keep content in KV).
   const changedIds = changedNoteIds instanceof Set ? changedNoteIds : null;
-  const changedMetaById = {};
-  if (changedIds) {
-    for (const id of changedIds) {
-      const yNote = yNotes.get(id);
-      if (yNote) changedMetaById[id] = yMapToObj(yNote);
+
+  const isInitialHydration = !metaChanges;
+  let foldersNeedRebuild = isInitialHydration || metaChanges.folders || metaChanges.deleted;
+  let labelsNeedRebuild = isInitialHydration || metaChanges.labels || metaChanges.labelColors;
+
+  // ── Folders / Labels ───────────────────────────────────────────────────────
+  // Incremental batches only rebuild a collection when its own flag is set.
+  // Note-only changes previously rebuilt every folder/label object and
+  // cascaded a full reactive re-render of every folder-dependent computed
+  // app-wide — the dominant cost for a single-note edit at scale. Initial
+  // hydration (no flags) rebuilds everything.
+  if (foldersNeedRebuild) {
+    const folders = {};
+    for (const [id, yFolder] of yFolders.entries()) {
+      folders[id] = yMapToObj(yFolder);
     }
+    folderStore.data = folders;
+    folderStore.deletedIds = yMapToObj(doc.getMap('deletedFolderIds'));
+    folderStore._rebuildIndex();
   }
 
-  let kvNotes = {};
-  let kvLabels = [];
-  let kvColors = {};
-  let kvFolders = {};
-  if (shouldReadKv({ kvSeeded, changedMetaById, storeData: noteStore.data })) {
-    // Full KV collections — used both for seeding and for reattaching content
-    // (locked / app-encrypted notes keep ciphertext in KV).
-    kvNotes = await storage.get('notes', {});
-    kvLabels = await storage.get('labels', []);
-    kvColors = await storage.get('labelColors', {});
-    kvFolders = await storage.get('folders', {});
-
-    // Merge KV data into the Y.Doc by adding any entry that is *missing* from
-    // the doc. Unlike a one-time "seed if empty" guard, this is idempotent and
-    // also covers the case where the legacy migration populates KV *after* the
-    // doc was first seeded (e.g. initializeWorkspace ran at app start with a
-    // partial KV, then the legacy import added the rest). Without this, the
-    // newly-imported notes would never reach the doc and would be invisible.
-    const missingNotes = Object.entries(kvNotes).filter(
-      ([id]) => !yNotes.has(id)
-    );
-    if (missingNotes.length > 0) {
-      doc.transact(() => {
-        for (const [id, note] of missingNotes) {
-          const yNote = new Y.Map();
-          const { content: _c, ...meta } = note;
-          for (const [k, v] of Object.entries(meta)) {
-            yNote.set(k, v);
-          }
-          yNotes.set(id, yNote);
-        }
-      }, 'seed');
-    }
-
-    const missingLabels = kvLabels.filter(
-      (name) => !yLabels.toArray().includes(name)
-    );
-
-    // Deduplicate the Y.Array if duplicates somehow accumulated
-    const seen = new Set();
-    const deduped = [];
-    for (let i = 0; i < yLabels.length; i++) {
-      const name = yLabels.get(i);
-      if (!seen.has(name)) {
-        seen.add(name);
-        deduped.push(name);
-      }
-    }
-
-    doc.transact(() => {
-      if (missingLabels.length > 0) {
-        yLabels.push(missingLabels);
-      }
-      if (deduped.length !== yLabels.length) {
-        yLabels.delete(0, yLabels.length);
-        yLabels.push(deduped);
-      }
-    }, 'seed');
-
-    const missingColors = Object.entries(kvColors).filter(
-      ([k]) => !yLabelColors.has(k)
-    );
-    if (missingColors.length > 0) {
-      doc.transact(() => {
-        for (const [k, v] of missingColors) {
-          yLabelColors.set(k, v);
-        }
-      }, 'seed');
-    }
-
-    const missingFolders = Object.entries(kvFolders).filter(
-      ([id]) => !yFolders.has(id)
-    );
-    if (missingFolders.length > 0) {
-      doc.transact(() => {
-        for (const [id, folder] of missingFolders) {
-          const yFolder = new Y.Map();
-          for (const [k, v] of Object.entries(folder)) {
-            yFolder.set(k, v);
-          }
-          yFolders.set(id, yFolder);
-        }
-      }, 'seed');
-    }
-
-    // Seeding is complete once nothing is missing from the doc.
-    const stillMissing =
-      Object.entries(kvNotes).some(([id]) => !yNotes.has(id)) ||
-      kvLabels.some((name) => !yLabels.toArray().includes(name)) ||
-      Object.entries(kvColors).some(([k]) => !yLabelColors.has(k)) ||
-      Object.entries(kvFolders).some(([id]) => !yFolders.has(id));
-    if (!stillMissing) kvSeeded = true;
+  if (labelsNeedRebuild) {
+    labelStore.data = [...new Set(yLabels.toArray())];
+    labelStore.colors = yMapToObj(yLabelColors);
   }
 
-  // ── Folders (cheap, always rebuilt) ────────────────────────────────────
-  const folders = {};
-  for (const [id, yFolder] of yFolders.entries()) {
-    folders[id] = yMapToObj(yFolder);
-  }
-  folderStore.data = folders;
-  folderStore.deletedIds = yMapToObj(doc.getMap('deletedFolderIds'));
-  folderStore._rebuildIndex();
-
-  // ── Labels (cheap, always rebuilt) ─────────────────────────────────────
-  labelStore.data = [...new Set(yLabels.toArray())];
-  labelStore.colors = yMapToObj(yLabelColors);
-
-  // ── Note metadata (preserve content kept in memory separately) ────────
+  // ── Note metadata ──────────────────────────────────────────────────────────
+  // Content lives in per-note Yjs docs. Card previews missing an in-memory
+  // content source are built from the note's Yjs snapshot (batched below).
   const pendingPreviews = [];
 
   if (changedIds) {
@@ -201,11 +105,7 @@ export async function writeStoresFromWorkspace(changedNoteIds) {
       if (!yNote) continue;
       const meta = yMapToObj(yNote);
       const existing = noteStore.data[id] || {};
-      const { note: merged, needsSnapshot } = mergeNoteEntry(
-        existing,
-        meta,
-        kvNotes[id]?.content
-      );
+      const { note: merged, needsSnapshot } = mergeNoteEntry(existing, meta);
       if (needsSnapshot) pendingPreviews.push(id);
       noteStore.data[id] = merged;
     }
@@ -222,11 +122,7 @@ export async function writeStoresFromWorkspace(changedNoteIds) {
     for (const [id, yNote] of yNotes.entries()) {
       const meta = yMapToObj(yNote);
       const existing = noteStore.data[id] || {};
-      const { note: merged, needsSnapshot } = mergeNoteEntry(
-        existing,
-        meta,
-        kvNotes[id]?.content
-      );
+      const { note: merged, needsSnapshot } = mergeNoteEntry(existing, meta);
       if (needsSnapshot) pendingPreviews.push(id);
       noteStore.data[id] = merged;
     }

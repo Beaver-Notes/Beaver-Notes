@@ -62,6 +62,24 @@ export async function ensureKeyReadyForWrite() {
   );
 }
 
+/**
+ * Guarantee encryption is configured before any data is read or written.
+ * Encryption is mandatory — there is no plaintext mode. On first launch this
+ * creates the manifest with a random passphrase (kept in safe storage, so it
+ * auto-unlocks on later launches); if a vault already exists it is a no-op.
+ */
+export async function ensureEncryptionConfigured() {
+  const next = await refreshState();
+  if (next?.enabled) return true;
+  const result = await setupEncryption();
+  if (!result.ok) {
+    throw new Error(
+      'Encryption setup failed: ' + (result.error || 'Unknown error')
+    );
+  }
+  return true;
+}
+
 export async function setupEncryption(passphrase) {
   if (!passphrase?.trim()) {
     passphrase = generateRandomPassphrase();
@@ -187,7 +205,7 @@ export async function encryptContent(contentObj) {
 export async function decryptContent(contentVal) {
   if (!contentVal) return contentVal;
 
-  if (!isEncryptedContent(contentVal)) {
+  if (!isAppEncryptedEnvelope(contentVal)) {
     return contentVal;
   }
 
@@ -206,9 +224,25 @@ export async function decryptContent(contentVal) {
   }
 }
 
+/**
+ * True when `contentVal` is an app-key encrypted note envelope in ANY format
+ * we can still decrypt (`ae:3` legacy JSON bytes, `ae:6` raw bytes). Used by
+ * `decryptContent` and the import-time conversion — the runtime never holds
+ * legacy envelopes.
+ */
+export function isAppEncryptedEnvelope(contentVal) {
+  if (!contentVal || typeof contentVal !== 'object') return false;
+  return contentVal.ae === 3 || contentVal.ae === 6;
+}
+
+/**
+ * Runtime detection of encrypted note content. Yjs is the only content store,
+ * so only the current raw-byte envelope (`ae:6`) can appear at runtime; the
+ * legacy `ae:1/2/3` formats only exist inside import conversion, never here.
+ */
 export function isEncryptedContent(contentVal) {
   if (!contentVal || typeof contentVal !== 'object') return false;
-  return contentVal.ae === 1 || contentVal.ae === 2 || contentVal.ae === 3 || contentVal.ae === 6;
+  return contentVal.ae === 6;
 }
 
 export async function lockEncryptionKey() {

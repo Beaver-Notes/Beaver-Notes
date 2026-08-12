@@ -303,6 +303,10 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     this.data[id] = hydrateNote(newNote);
     incrementFolderCount(this.data[id].folderId);
     await saveNote(id, this.data[id]);
+    // Content lives in Yjs — write it at creation so the editor finds it
+    // immediately (no KV content, no later conversion).
+    const { writeNoteContentToYjs } = await import('@/utils/note/contentToYjs.js');
+    await writeNoteContentToYjs(id, this.data[id].content);
     rebuildLinkIndexForNote(id, this.data[id].content);
     syncNoteMeta(this.data[id]);
 
@@ -328,6 +332,11 @@ export async function addMany(this: NoteStoreThis, notes: NoteData[]): Promise<v
       syncNoteMeta(this.data[note.id]);
     }
   });
+
+  // Imports convert content to Yjs in one batched IPC — the app never stores
+  // note content outside Yjs.
+  const { writeNotesContentToYjs } = await import('@/utils/note/contentToYjs.js');
+  await writeNotesContentToYjs(notes);
 
   buildSearchIndex(this.data);
   rebuildLinkIndexFromAll(this.data);
