@@ -49,13 +49,3 @@ export function convertNote(this: NoteStoreLockThis, id: string): void {
   }
   this.data[id] = hydrateNote({ ...note });
 }
-
-// Kept for backward-compatibility with any callers that reference the store method directly.
-export function uncollapseHeading(contents: any[], footnotes: any[]): any[] {
-  return uncollapseHeadings(contents, footnotes);
-}
-
-// Legacy migration — no longer needed; lock state lives in Yjs note metadata.
-export async function migrateLockData(): Promise<void> {
-  // no-op
-}

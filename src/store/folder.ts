@@ -337,9 +337,9 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToArchive = Object.values(noteStore.data).filter(
-          (note: any) => note.id && allIdsSet.has(note.folderId)
+          (note) => note.id && note.folderId && allIdsSet.has(note.folderId)
         );
-        const undoNotes = notesToArchive.map((n: any) => ({ id: n.id, prev: false }));
+        const undoNotes = notesToArchive.map((n) => ({ id: n.id, prev: false }));
         for (const note of notesToArchive) {
           await noteStore.update(note.id, { isArchived: true });
         }
@@ -372,9 +372,9 @@ export const useFolderStore = defineStore('folder', {
         const { useNoteStore } = await import('./note');
         const noteStore = useNoteStore();
         const notesToUnarchive = Object.values(noteStore.data).filter(
-          (note: any) => note.id && allIdsSet.has(note.folderId)
+          (note) => note.id && note.folderId && allIdsSet.has(note.folderId)
         );
-        const undoNotes = notesToUnarchive.map((n: any) => ({ id: n.id, prev: true }));
+        const undoNotes = notesToUnarchive.map((n) => ({ id: n.id, prev: true }));
         for (const note of notesToUnarchive) {
           await noteStore.update(note.id, { isArchived: false });
         }

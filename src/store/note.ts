@@ -10,15 +10,12 @@ import {
 import {
   getFolderContents,
   searchNotes,
-  getNotesWithPath,
   searchNotesSql,
 } from './note/index';
 import {
   lockNote,
   unlockNote,
   convertNote,
-  uncollapseHeading,
-  migrateLockData,
 } from './note/lock';
 import {
   decryptAllNotesForAppEncryption,
@@ -35,7 +32,6 @@ import {
   deleteNote,
   cleanupDeletedIds,
   moveToFolder,
-  handleFolderDeletion,
   normalizeInvalidFolderIds,
   addLabel,
   removeLabel,
@@ -59,7 +55,6 @@ export const useNoteStore = defineStore('note', {
     notesCountByFolder,
     getFolderContents,
     searchNotes,
-    getNotesWithPath,
     getBacklinks,
     getBacklinkCount,
   },
@@ -75,9 +70,6 @@ export const useNoteStore = defineStore('note', {
     decryptAllNotesForAppEncryption,
     persistAllNotesForAppEncryption,
 
-    // Migration
-    migrateLockData,
-
     // CRUD
     add,
     addMany,
@@ -90,14 +82,12 @@ export const useNoteStore = defineStore('note', {
 
     // Folder operations
     moveToFolder,
-    handleFolderDeletion,
     normalizeInvalidFolderIds,
 
     // Note locking
     lockNote,
     unlockNote,
     convertNote,
-    uncollapseHeading,
 
     // Labels
     addLabel,

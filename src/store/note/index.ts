@@ -39,6 +39,25 @@ import {
   transactWorkspace,
 } from '@/lib/yjs/workspace-doc';
 
+export interface CardPreviewBlock {
+  kind: string;
+  text?: string;
+  src?: string;
+  alt?: string;
+  rows?: { text: string; isHeader: boolean }[][];
+  label?: string;
+  tone?: string;
+  checked?: boolean;
+}
+
+export interface CardPreview {
+  version: number;
+  blocks: CardPreviewBlock[];
+  hasMore: boolean;
+  mediaCount: number;
+  visibleMediaCount: number;
+}
+
 export interface NoteData {
   id: string;
   title: string;
@@ -53,7 +72,7 @@ export interface NoteData {
   folderId: string | null;
   preview?: string;
   searchText?: string;
-  cardPreview?: any;
+  cardPreview?: CardPreview;
 }
 
 export interface NoteState {
@@ -157,7 +176,7 @@ export function getFolderContents(state: NoteState) {
 
     const folders = useFolderStore()
       .getByParent(folderId)
-      .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     return { folders, notes };
   };
@@ -181,17 +200,6 @@ export function searchNotes(state: NoteState) {
         labels.toLowerCase().includes(searchTerm)
       );
     });
-  };
-}
-
-export function getNotesWithPath(state: NoteState) {
-  return (notes: NoteData[] | null = null) => {
-    const notesToProcess: NoteData[] =
-      notes || Object.values(state.data).filter(({ id }) => id);
-    return notesToProcess.map((note) => ({
-      ...note,
-      folderPath: note.folderId ? (useFolderStore() as any).getPath(note.folderId) : [],
-    }));
   };
 }
 
@@ -450,7 +458,7 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
         searchText: note.searchText,
       });
       note.preview = preview;
-      note.cardPreview = cardPreview;
+      note.cardPreview = cardPreview as CardPreview;
       note.searchText = extractTextFromContent(note.content) || note.searchText;
     }
   }
@@ -581,7 +589,7 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
     }
 
     const undoNotes: { id: string; prevFolderId: string | null | undefined }[] = [];
-    const updatePromises: Promise<any>[] = [];
+    const updatePromises: Promise<NoteData | null>[] = [];
     for (const noteId of noteIds) {
       if (this.data[noteId]) {
         undoNotes.push({
@@ -599,47 +607,6 @@ export async function moveToFolder(this: NoteStoreThis, noteIds: string[], folde
     return undoNotes.map((n) => this.data[n.id]);
   } catch (error) {
     console.error('Error moving multiple notes to folder:', error);
-    throw error;
-  }
-}
-
-export async function handleFolderDeletion(this: NoteStoreThis, deletionResult: any): Promise<{ noteIds: string[]; noteSnapshots: { type: string; data: any }[] }> {
-  try {
-    const { deletedFolderId, descendantIds, moveContentsTo, deleteContents } =
-      deletionResult;
-
-    const affectedFolderIds = new Set([deletedFolderId, ...descendantIds]);
-    const affectedNotes = Object.values(this.data).filter((note) =>
-      affectedFolderIds.has(note.folderId)
-    );
-
-    _skipUndo.value = true;
-    if (deleteContents) {
-      for (const note of affectedNotes) {
-        await this.delete(note.id);
-      }
-    } else {
-      const updatePromises = affectedNotes.map((note) => {
-        this.patchLocal(note.id, { folderId: moveContentsTo });
-        return this.persistMeta(note.id);
-      });
-      await Promise.all(updatePromises);
-    }
-    _skipUndo.value = false;
-
-    const snapshots = deleteContents
-      ? affectedNotes.map((note) => ({
-          type: 'note',
-          data: JSON.parse(JSON.stringify(note)),
-        }))
-      : [];
-
-    return {
-      noteIds: affectedNotes.map((note) => note.id),
-      noteSnapshots: snapshots,
-    };
-  } catch (error) {
-    console.error('Error handling folder deletion:', error);
     throw error;
   }
 }

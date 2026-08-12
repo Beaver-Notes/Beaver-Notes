@@ -34,7 +34,7 @@ export const useStore = defineStore('main', {
       }
 
       return values
-        .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+        .filter((r) => r.status === 'fulfilled')
         .map(({ value }) => value);
     },
 

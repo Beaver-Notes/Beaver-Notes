@@ -82,7 +82,7 @@ export const useUndoStore = defineStore('undo', () => {
             try {
               await folderStore.add(item.data);
             } catch (error) {
-              console.warn('[undo] failed to restore folder', item.id, error);
+              console.warn('[undo] failed to restore folder', item.data.id, error);
             }
           }
         }

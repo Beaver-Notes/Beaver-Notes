@@ -89,8 +89,6 @@ vi.mock('@/store/note/lock', () => ({
   lockNote: vi.fn(),
   unlockNote: vi.fn(),
   convertNote: vi.fn(),
-  uncollapseHeading: vi.fn(),
-  migrateLockData: vi.fn(),
 }));
 
 vi.mock('@/store/note/encryption', () => ({
