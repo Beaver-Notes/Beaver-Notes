@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use tauri::{AppHandle, State};
 
 use crate::shared::*;
@@ -69,15 +70,18 @@ mod tests {
 /// append-only BLOB rows so every peer's version is preserved.
 /// When app encryption is active the blob is encrypted before persisting.
 /// Dispatched to a blocking thread so AES + SQLite never block the event loop.
+/// The update crosses IPC as base64 (Tauri invoke is JSON-only; base64 is
+/// ~3x smaller than the JSON number-array encoding this replaced).
 #[tauri::command]
 #[specta::specta]
 pub(crate) async fn yjs_append(
   app: AppHandle,
   note_id: String,
-  update: Vec<u8>,
+  update: String,
   device: String,
   state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+  let update = BASE64.decode(update)?;
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
   tokio::task::spawn_blocking(move || crate::db::yjs_append(&pool, &note_id, &update, &device, key))
@@ -92,10 +96,14 @@ pub(crate) async fn yjs_append(
 pub(crate) async fn yjs_append_batch(
     app: AppHandle,
     note_ids: Vec<String>,
-    updates: Vec<Vec<u8>>,
+    updates: Vec<String>,
     devices: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<usize, AppError> {
+    let updates = updates
+        .into_iter()
+        .map(|u| BASE64.decode(u))
+        .collect::<Result<Vec<_>, _>>()?;
     let pool = data_pool(&app, &state)?;
     tokio::task::spawn_blocking(move || crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices))
         .await
@@ -103,7 +111,7 @@ pub(crate) async fn yjs_append_batch(
 }
 
 /// Return a cached merged Yjs state snapshot for a note when it is fresh
-/// (no stored update is newer than the snapshot). Returns an empty vector when
+/// (no stored update is newer than the snapshot). Returns an empty string when
 /// the caller must replay history and re-cache it via `yjs_save_snapshot`.
 /// Dispatched to a blocking thread: the stale path replays and decrypts the
 /// whole update history, which must not block the event loop.
@@ -113,12 +121,13 @@ pub(crate) async fn yjs_get_snapshot(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
-) -> Result<Vec<u8>, AppError> {
+) -> Result<String, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshot(&pool, &note_id, key))
+  let result = tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshot(&pool, &note_id, key))
     .await
-    .map_err(|e| AppError::Other(e.to_string()))?
+    .map_err(|e| AppError::Other(e.to_string()))??;
+  Ok(BASE64.encode(result))
 }
 
 /// Return the fresh merged Yjs snapshot for many notes in a single round-trip
@@ -131,12 +140,13 @@ pub(crate) async fn yjs_get_snapshots(
   app: AppHandle,
   note_ids: Vec<String>,
   state: State<'_, AppState>,
-) -> Result<HashMap<String, Vec<u8>>, AppError> {
+) -> Result<HashMap<String, String>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
-  tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshots(&pool, &note_ids, key))
+  let result = tokio::task::spawn_blocking(move || crate::db::yjs_get_snapshots(&pool, &note_ids, key))
     .await
-    .map_err(|e| AppError::Other(e.to_string()))?
+    .map_err(|e| AppError::Other(e.to_string()))??;
+  Ok(result.into_iter().map(|(id, blob)| (id, BASE64.encode(blob))).collect())
 }
 
 /// Return every stored Yjs update for a note, oldest first.
@@ -147,12 +157,12 @@ pub(crate) async fn yjs_get_updates(
   app: AppHandle,
   note_id: String,
   state: State<'_, AppState>,
-) -> Result<Vec<Vec<u8>>, AppError> {
+) -> Result<Vec<String>, AppError> {
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
   tokio::task::spawn_blocking(move || {
     let rows = crate::db::yjs_get_updates(&pool, &note_id, key)?;
-    Ok::<_, AppError>(rows.into_iter().map(|(_, blob)| blob).collect())
+    Ok::<_, AppError>(rows.into_iter().map(|(_, blob)| BASE64.encode(blob)).collect())
   })
   .await
   .map_err(|e| AppError::Other(e.to_string()))?
@@ -167,9 +177,10 @@ pub(crate) async fn yjs_get_updates(
 pub(crate) async fn yjs_compact(
   app: AppHandle,
   note_id: String,
-  snapshot: Vec<u8>,
+  snapshot: String,
   state: State<'_, AppState>,
 ) -> Result<(), AppError> {
+  let snapshot = BASE64.decode(snapshot)?;
   let pool = data_pool(&app, &state)?;
   let key = yjs_encryption_key(&state)?;
   tokio::task::spawn_blocking(move || crate::db::yjs_compact(&pool, &note_id, &snapshot, key))

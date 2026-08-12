@@ -34,10 +34,10 @@ export const commands = {
 	fsEnsureDir: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_ensure_dir", { path })),
 	fsPathExists: (path: string) => typedError<boolean, AppError>(__TAURI_INVOKE("fs_path_exists", { path })),
 	fsRemove: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_remove", { path })),
-	fsWriteFile: (path: string, data: number[], mode: number | null) => typedError<null, AppError>(__TAURI_INVOKE("fs_write_file", { path, data, mode })),
+	fsWriteFile: (path: string, data: string, mode: number | null) => typedError<null, AppError>(__TAURI_INVOKE("fs_write_file", { path, data, mode })),
 	fsMkdir: (path: string, mode: number | null) => typedError<null, AppError>(__TAURI_INVOKE("fs_mkdir", { path, mode })),
 	fsReadFile: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("fs_read_file", { path })),
-	fsReadFileBinary: (path: string) => typedError<number[], AppError>(__TAURI_INVOKE("fs_read_file_binary", { path })),
+	fsReadFileBinary: (path: string) => typedError<string, AppError>(__TAURI_INVOKE("fs_read_file_binary", { path })),
 	fsReaddir: (path: string) => typedError<string[], AppError>(__TAURI_INVOKE("fs_readdir", { path })),
 	fsStat: (path: string) => typedError<FileStat, AppError>(__TAURI_INVOKE("fs_stat", { path })),
 	fsUnlink: (path: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_unlink", { path })),
@@ -184,34 +184,34 @@ export const commands = {
 	 *  append-only BLOB rows so every peer's version is preserved.
 	 *  When app encryption is active the blob is encrypted before persisting.
 	 */
-	yjsAppend: (noteId: string, update: number[], device: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_append", { noteId, update, device })),
+	yjsAppend: (noteId: string, update: string, device: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_append", { noteId, update, device })),
 	/**
 	 *  Append multiple Yjs binary updates in a single IPC call.
 	 *  All updates are inserted inside one SQLite transaction.
 	 */
-	yjsAppendBatch: (noteIds: string[], updates: number[][], devices: string[]) => typedError<number, AppError>(__TAURI_INVOKE("yjs_append_batch", { noteIds, updates, devices })),
+	yjsAppendBatch: (noteIds: string[], updates: string[], devices: string[]) => typedError<number, AppError>(__TAURI_INVOKE("yjs_append_batch", { noteIds, updates, devices })),
 	/**
 	 *  Return every stored Yjs update for a note, oldest first.
 	 *  The caller replays them into a Y.Doc to reconstruct the current state.
 	 */
-	yjsGetUpdates: (noteId: string) => typedError<number[][], AppError>(__TAURI_INVOKE("yjs_get_updates", { noteId })),
+	yjsGetUpdates: (noteId: string) => typedError<string[], AppError>(__TAURI_INVOKE("yjs_get_updates", { noteId })),
 	/**
 	 *  Return a cached merged Yjs state snapshot for a note when it is fresh
-	 *  (no stored update is newer than the snapshot). Returns an empty vector when
+	 *  (no stored update is newer than the snapshot). Returns an empty string when
 	 *  the caller must replay history and re-cache it via `yjs_save_snapshot`.
 	 */
-	yjsGetSnapshot: (noteId: string) => typedError<number[], AppError>(__TAURI_INVOKE("yjs_get_snapshot", { noteId })),
+	yjsGetSnapshot: (noteId: string) => typedError<string, AppError>(__TAURI_INVOKE("yjs_get_snapshot", { noteId })),
 	/**
 	 *  Return the fresh merged Yjs snapshot for many notes in a single round-trip
 	 *  (batched SQL), avoiding N+1 IPC calls. Only requested notes that have data
 	 *  are included in the result map.
 	 */
-	yjsGetSnapshots: (noteIds: string[]) => typedError<{ [key in string]: number[] }, AppError>(__TAURI_INVOKE("yjs_get_snapshots", { noteIds })),
+	yjsGetSnapshots: (noteIds: string[]) => typedError<{ [key in string]: string }, AppError>(__TAURI_INVOKE("yjs_get_snapshots", { noteIds })),
 	/**
 	 *  Delete all existing updates for a note and replace them with a single
 	 *  compressed Yjs state vector (snapshot).  Keeps the row count bounded.
 	 */
-	yjsCompact: (noteId: string, snapshot: number[]) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact", { noteId, snapshot })),
+	yjsCompact: (noteId: string, snapshot: string) => typedError<null, AppError>(__TAURI_INVOKE("yjs_compact", { noteId, snapshot })),
 	/**
 	 *  Read all updates for a note, merge them into a single snapshot via y-octo,
 	 *  replace the old rows with one compacted row, and keep the snapshot cache in

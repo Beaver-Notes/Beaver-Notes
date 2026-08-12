@@ -22,7 +22,7 @@ import { parseSyncFilename } from '../sync-yjs.js';
 import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
 import { writeInitialSnapshots } from './seed.js';
 import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
-import { readDir, readFile, readFileBinary, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
+import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
 import { yMapToObj } from '@/utils/yjs-helpers.js';
@@ -834,8 +834,7 @@ export class CloudTransport extends Transport {
           const file = assetFiles.find(f => f.key === assetKey);
           if (!file) continue;
           try {
-            const data = await readFileBinary(file.localPath);
-            const bytes = data instanceof Uint8Array ? data : new Uint8Array(Array.isArray(data) ? data : Array.from(data));
+            const bytes = await readFileBinaryBytes(file.localPath);
             if (bytes && bytes.byteLength > 0) {
               assetEntries.push({ key: assetKey, data: bytes, size: bytes.byteLength });
             }
@@ -1030,10 +1029,7 @@ export class CloudTransport extends Transport {
     let currentBytes = 0;
     for (const op of uploads) {
       try {
-        const rawData = await readFileBinary(op.src);
-        const data = rawData instanceof Uint8Array
-          ? rawData
-          : new Uint8Array(Array.isArray(rawData) ? rawData : Array.from(rawData));
+        const data = await readFileBinaryBytes(op.src);
         if (!data || data.byteLength === 0) {
           console.warn('[sync] asset read empty:', op.flatKey);
           continue;

@@ -144,10 +144,11 @@ pub(crate) fn fs_write_file(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-    data: Vec<u8>,
+    data: String,
     mode: Option<u32>,
 ) -> Result<(), AppError> {
     let _t = crate::shared::speed_log::scope("fs.fs_write_file");
+    let data = BASE64.decode(data)?;
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "write file")?;
     if let Some(parent) = path.parent() {
@@ -201,10 +202,10 @@ pub(crate) fn fs_read_file_binary(
     app: AppHandle,
     state: State<AppState>,
     path: String,
-) -> Result<Vec<u8>, AppError> {
+) -> Result<String, AppError> {
     let path = PathBuf::from(path);
     assert_path_access(&app, &state, &path, "read file binary")?;
-    Ok(fs::read(path)?)
+    Ok(BASE64.encode(fs::read(path)?))
 }
 
 #[tauri::command]

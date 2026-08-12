@@ -24,6 +24,17 @@ export function readFileBinary(path) {
   return backend.invoke('fs:readFileBinary', path);
 }
 
+/**
+ * Read a file's raw bytes. IPC delivers binary as base64; returns a Uint8Array.
+ */
+export async function readFileBinaryBytes(path) {
+  const { base64ToBuf } = await import('@/utils/crypto/codec.js');
+  const data = await readFileBinary(path);
+  if (data instanceof Uint8Array) return data;
+  if (typeof data === 'string') return base64ToBuf(data);
+  return new Uint8Array(data);
+}
+
 export function readData(path, options = {}) {
   return backend.invoke('fs:readData', { path, ...options });
 }

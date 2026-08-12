@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { bufToBase64 } from '@/utils/crypto/codec.js';
 
 const textEncoder = new TextEncoder();
 
@@ -141,17 +142,24 @@ function withKeyVariants(
   return { [key]: value, [snake]: value };
 }
 
-function normalizeBinaryData(data: unknown): number[] {
-  if (data == null) return [];
-  if (typeof data === 'string') return Array.from(textEncoder.encode(data));
-  if (data instanceof ArrayBuffer) return Array.from(new Uint8Array(data));
+function normalizeBinaryData(data: unknown): string {
+  // Binary crosses the JSON IPC as base64 — the Rust side decodes it. This is
+  // ~3x smaller than the previous JSON number-array encoding (and the sync
+  // layer already uses base64), cutting IPC + parse cost on large snapshots.
+  if (data == null) return '';
+  if (typeof data === 'string') {
+    // Plain-text callers (e.g. writing markdown) must be utf-8 encoded before
+    // base64; binary callers pass Uint8Array / ArrayBuffer.
+    return bufToBase64(textEncoder.encode(data));
+  }
+  if (data instanceof ArrayBuffer) return bufToBase64(new Uint8Array(data));
   if (ArrayBuffer.isView(data)) {
-    return Array.from(
+    return bufToBase64(
       new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
     );
   }
-  if (Array.isArray(data)) return data;
-  return Array.from(textEncoder.encode(String(data)));
+  if (Array.isArray(data)) return bufToBase64(new Uint8Array(data));
+  return bufToBase64(textEncoder.encode(String(data)));
 }
 
 function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {
