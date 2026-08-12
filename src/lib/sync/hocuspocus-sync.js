@@ -354,6 +354,23 @@ export function useHocuspocusSync() {
     sendBinary(encoding.toUint8Array(encoder).buffer)
   }
 
+  function attachRoomHandlers(doc) {
+    doc.on('update', (update, origin) => {
+      broadcastUpdate(update, origin, doc)
+    })
+    if (localAwareness) {
+      localAwareness.on('update', broadcastAwareness)
+    }
+  }
+
+  function requestInitialSync(doc) {
+    if (connected && doc) {
+      const encoder = encoding.createEncoder()
+      syncProtocol.writeSyncStep1(encoder, doc)
+      sendBinary(encoding.toUint8Array(encoder).buffer)
+    }
+  }
+
   function joinNoteRoom(noteId, doc) {
     const workspaceId = getActiveWorkspaceId()
     if (!workspaceId) return
@@ -364,19 +381,8 @@ export function useHocuspocusSync() {
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
     registerActiveDoc(noteId, doc)
 
-    doc.on('update', (update, origin) => {
-      broadcastUpdate(update, origin, doc)
-    })
-
-    if (localAwareness) {
-      localAwareness.on('update', broadcastAwareness)
-    }
-
-    if (connected && doc) {
-      const encoder = encoding.createEncoder()
-      syncProtocol.writeSyncStep1(encoder, doc)
-      sendBinary(encoding.toUint8Array(encoder).buffer)
-    }
+    attachRoomHandlers(doc)
+    requestInitialSync(doc)
   }
 
   /**
@@ -399,19 +405,8 @@ export function useHocuspocusSync() {
     const doc = getWorkspaceDoc()
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
 
-    doc.on('update', (update, origin) => {
-      broadcastUpdate(update, origin, doc)
-    })
-
-    if (localAwareness) {
-      localAwareness.on('update', broadcastAwareness)
-    }
-
-    if (connected && doc) {
-      const encoder = encoding.createEncoder()
-      syncProtocol.writeSyncStep1(encoder, doc)
-      sendBinary(encoding.toUint8Array(encoder).buffer)
-    }
+    attachRoomHandlers(doc)
+    requestInitialSync(doc)
   }
 
   function connect() {
@@ -519,19 +514,8 @@ export function useHocuspocusSync() {
     const roomName = buildRoomName(workspaceId, noteId)
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
 
-    doc.on('update', (update, origin) => {
-      broadcastUpdate(update, origin, doc)
-    })
-
-    if (localAwareness) {
-      localAwareness.on('update', broadcastAwareness)
-    }
-
-    if (connected && doc) {
-      const encoder = encoding.createEncoder()
-      syncProtocol.writeSyncStep1(encoder, doc)
-      sendBinary(encoding.toUint8Array(encoder).buffer)
-    }
+    attachRoomHandlers(doc)
+    requestInitialSync(doc)
   }
 
   function getRoomRole(noteId) {

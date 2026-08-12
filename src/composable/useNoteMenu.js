@@ -14,14 +14,17 @@ import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportBEA } from '@/utils/share/BEA';
 import { exportPDF } from '@/utils/share/PDF';
+import {
+  getTempSharePath,
+  shareFile,
+  tryShareOrExport,
+} from '@/utils/share/export-helpers';
 import { buildWebExportDocument } from '@/utils/share/exportBulk';
 import { tiptapToMarkdown, buildFrontmatter } from '@/utils/markdown';
 import { getAppDirectory } from '@/lib/native/app';
 import {
-  ensureDir,
   readDir,
   readData,
-  writeFile,
   removePath,
 } from '@/lib/native/fs';
 import { readExportData } from '@/lib/native/exports';
@@ -128,54 +131,6 @@ export function useNoteMenu(props) {
         title: translations.value.settings?.alertTitle || 'Error',
         body: error?.message || translations.value.menu?.exportError || 'Failed to export PDF. Please try again.',
       });
-    }
-  }
-
-  async function shareFile(fileName, content, mimeType) {
-    if (isMobile) {
-      const tempPath = await getTempSharePath(fileName);
-      try {
-        const data =
-          typeof content === 'string'
-            ? new TextEncoder().encode(content)
-            : content;
-        await writeFile(tempPath, Array.from(data));
-        const shared = await shareFileViaNative(tempPath, mimeType);
-        try {
-          await removePath(tempPath);
-        } catch {}
-        return shared;
-      } catch {
-        try {
-          await removePath(tempPath);
-        } catch {}
-        return false;
-      }
-    }
-
-    const blob = new Blob([content], { type: mimeType });
-    const file = new File([blob], fileName, { type: mimeType });
-    if (
-      typeof navigator !== 'undefined' &&
-      navigator.share &&
-      navigator.canShare?.({ files: [file] })
-    ) {
-      await navigator.share({ files: [file] });
-      return true;
-    }
-    return false;
-  }
-
-  async function getTempSharePath(fileName) {
-    const tempDir = await backend.invoke('helper:get-path', 'temp');
-    const shareDir = path.join(tempDir, 'beaver-notes-share');
-    await ensureDir(shareDir);
-    return path.join(shareDir, fileName);
-  }
-
-  async function tryShareOrExport(shareFn, exportFn) {
-    if (!(await shareFn())) {
-      await exportFn();
     }
   }
 
