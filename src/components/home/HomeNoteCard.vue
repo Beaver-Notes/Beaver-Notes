@@ -68,7 +68,6 @@
                 class="note-card-preview-image"
                 :src="block.src"
                 :alt="block.alt || 'Note preview image'"
-                loading="lazy"
                 decoding="async"
               />
             </template>
