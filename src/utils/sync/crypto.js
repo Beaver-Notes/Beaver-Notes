@@ -106,7 +106,7 @@ export async function encryptBatch(payloads, aads) {
   if (!payloads.length) return [];
   await ensureSyncKeyReadyForWrite();
   const metas = payloads.map((p) => {
-    const { update, ...meta } = p || {};
+    const { update: _update, ...meta } = p || {};
     return JSON.stringify(meta);
   });
   const dataB64s = payloads.map((p) => bufToBase64(p.update));

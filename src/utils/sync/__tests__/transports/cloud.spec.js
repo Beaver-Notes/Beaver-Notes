@@ -53,7 +53,7 @@ vi.mock('../../constants.js', () => ({
 vi.mock('../../crypto.js', () => ({
   encryptJSON: vi.fn(() => 'encrypted'),
   decryptJSON: vi.fn((raw, _aad) => JSON.parse(atob(raw))),
-  decryptBatch: vi.fn(async (encryptions, aads) => {
+  decryptBatch: vi.fn(async (encryptions, _aads) => {
     return encryptions.map(raw => {
       try {
         return JSON.parse(atob(raw));
@@ -62,7 +62,7 @@ vi.mock('../../crypto.js', () => ({
       }
     });
   }),
-  encryptBatch: vi.fn(async (metas, dataB64s, aads) => {
+  encryptBatch: vi.fn(async (metas, dataB64s, _aads) => {
     return dataB64s.map(() => 'encrypted');
   }),
 }));

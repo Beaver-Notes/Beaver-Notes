@@ -55,9 +55,6 @@ const WIZARD_STEPS = ['customize', 'password', 'import', 'account', 'sync'];
 
 export function useOnboardingFlow({
   router,
-  store,
-  noteStore,
-  settingsStorage,
   clipboard,
   runImportSource,
 }) {

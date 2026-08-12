@@ -289,7 +289,6 @@ export function startRustImport(source, onProgress) {
       errors: [],
     };
     const pendingNotes = [];
-    let processing = Promise.resolve();
 
     (async () => {
       const appDirectory = await ensureAppDirectory();

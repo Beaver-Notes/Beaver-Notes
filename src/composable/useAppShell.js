@@ -460,8 +460,10 @@ export function useAppShell(onboardingCompleted = true) {
       for (let i = 1; i < entries.length; i++) {
         measures.push(`${entries[i].name}: ${Math.round(entries[i].startTime - entries[i-1].startTime)}ms`);
       }
-      console.log('[perf] Startup timeline:', measures.join(' → '));
-      console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
+      // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
+console.log('[perf] Startup timeline:', measures.join(' → '));
+      // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
+console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
       if (route.name !== ONBOARDING_ROUTE_NAME) {
         await router.replace('/onboarding');
       }
@@ -572,8 +574,10 @@ export function useAppShell(onboardingCompleted = true) {
     for (let i = 1; i < entries.length; i++) {
       measures.push(`${entries[i].name}: ${Math.round(entries[i].startTime - entries[i-1].startTime)}ms`);
     }
-    console.log('[perf] Startup timeline:', measures.join(' → '));
-    console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
+    // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
+console.log('[perf] Startup timeline:', measures.join(' → '));
+    // eslint-disable-next-line no-console -- dev-only startup instrumentation (esbuild strips console.log in prod)
+console.log('[perf] Total startup:', Math.round(entries[entries.length-1].startTime - entries[0].startTime) + 'ms');
   };
 
   // Runs when the user unlocks the app via the encryption gate. The gate is

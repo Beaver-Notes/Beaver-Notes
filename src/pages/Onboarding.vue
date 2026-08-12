@@ -1370,9 +1370,6 @@ export default {
 
     const flow = useOnboardingFlow({
       router,
-      store,
-      noteStore,
-      settingsStorage,
       clipboard,
       runImportSource,
     });

@@ -297,7 +297,7 @@ export class SyncEngine {
             const { updates } = pullResult;
             logger.info(`[sync] ${name} pull got ${updates.length} updates`);
             let cursorsDirty = false;
-            const succeeded = new Array(updates.length).fill(false);
+            const succeeded = Array.from({ length: updates.length }, () => false);
 
             if (updates.length > 0) {
               let batchApplied = false;
