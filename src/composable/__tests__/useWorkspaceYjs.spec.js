@@ -24,13 +24,14 @@ vi.mock('@/utils/yjs-helpers.js', () => ({
   objToYMap: vi.fn(),
   toUint8Array: vi.fn(),
 }));
-vi.mock('./useHocuspocusSync.js', () => ({
+vi.mock('../useHocuspocusSync.js', () => ({
   getHocuspocusSync: () => ({ joinMetaRoom: vi.fn() }),
 }));
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: null }) }));
 
-import { observeWorkspace } from '../useWorkspaceYjs.js';
+import { observeWorkspace, loadWorkspaceDoc, flushPendingMetaUpdates } from '../useWorkspaceYjs.js';
 import { getWorkspaceDoc } from '../meta-yjs-doc.js';
+import { appendUpdate } from '@/lib/native/yjs.js';
 
 describe('observeWorkspace scheduling', () => {
   const callback = vi.fn();
@@ -87,5 +88,56 @@ describe('observeWorkspace scheduling', () => {
     vi.advanceTimersByTime(1000);
 
     expect(callback).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('workspace meta-doc debounced persistence', () => {
+  beforeAll(async () => {
+    await loadWorkspaceDoc();
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    appendUpdate.mockClear();
+  });
+
+  afterEach(async () => {
+    await flushPendingMetaUpdates();
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  it('coalesces a burst of meta updates into a single append', async () => {
+    const doc = getWorkspaceDoc();
+
+    // Simulate a bulk op: three separate local transactions in quick succession.
+    for (let i = 0; i < 3; i++) {
+      doc.transact(() => {
+        const yNote = new Y.Map();
+        yNote.set('title', `burst-${i}`);
+        doc.getMap('notes').set(`burst-note-${i}`, yNote);
+      }, 'local');
+    }
+
+    // Nothing persisted before the debounce window elapses.
+    expect(appendUpdate).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(appendUpdate).toHaveBeenCalledTimes(1);
+    expect(appendUpdate.mock.calls[0][0]).toBe('meta');
+  });
+
+  it('persists nothing when only sync/load-origin updates occur', async () => {
+    const doc = getWorkspaceDoc();
+    doc.transact(() => {
+      const yNote = new Y.Map();
+      yNote.set('title', 'synced');
+      doc.getMap('notes').set('sync-only', yNote);
+    }, 'sync');
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(appendUpdate).not.toHaveBeenCalled();
   });
 });

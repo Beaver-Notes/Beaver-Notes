@@ -46,6 +46,31 @@ let observerAttached = false;
 let persistHandlerAttached = false;
 let snapshotWritten = false;
 
+// Debounced, merged persistence for the workspace doc. A burst of meta edits
+// (bulk drag, multi-rename, bulk label) fires one Y.Doc update event per
+// change; persisting each event individually would issue one SQLite IPC +
+// AES encrypt per change on the main thread. Instead we buffer the deltas,
+// merge them (Y.mergeUpdates — lossless for CRDT state) and write once.
+const META_FLUSH_DELAY_MS = 300;
+let pendingMetaUpdates = [];
+let metaFlushTimer = null;
+
+function scheduleMetaFlush() {
+  if (metaFlushTimer) clearTimeout(metaFlushTimer);
+  metaFlushTimer = setTimeout(() => {
+    metaFlushTimer = null;
+    flushPendingMetaUpdates();
+  }, META_FLUSH_DELAY_MS);
+}
+
+export async function flushPendingMetaUpdates() {
+  if (pendingMetaUpdates.length === 0) return;
+  const updates = pendingMetaUpdates.splice(0);
+  const merged = Y.mergeUpdates(updates);
+  if (merged.byteLength === 0) return;
+  await persistWorkspace(merged);
+}
+
 // ── Persistence ──────────────────────────────────────────────────────────────
 
 const MAX_WRITE_RETRIES = 3;
@@ -108,8 +133,14 @@ export async function loadWorkspaceDoc() {
   if (!persistHandlerAttached) {
     doc.on('update', (update, origin) => {
       if (origin === 'load' || origin === 'sync') return;
-      persistWorkspace(update);
+      pendingMetaUpdates.push(update);
+      scheduleMetaFlush();
     });
+
+    // Flush any buffered meta updates on navigation so nothing is lost.
+    if (typeof window !== 'undefined') {
+      window.addEventListener('pagehide', flushPendingMetaUpdates);
+    }
     persistHandlerAttached = true;
   }
 
@@ -138,11 +169,13 @@ export async function loadWorkspaceDoc() {
 
 let observerTimer = null;
 let pendingChangedNoteIds = new Set();
+let metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
   if (observerAttached) return;
   doc.getMap('folders').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
+    metaFlags.folders = true;
     schedule();
   });
   doc.getMap('notes').observeDeep((events, transaction) => {
@@ -160,6 +193,7 @@ export function observeWorkspace(callback, debounceMs = 150) {
   });
   doc.getMap('deletedFolderIds').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
+    metaFlags.deleted = true;
     schedule();
   });
   doc.getMap('deletedNoteIds').observeDeep((_events, transaction) => {
@@ -168,10 +202,12 @@ export function observeWorkspace(callback, debounceMs = 150) {
   });
   doc.getArray('labels').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
+    metaFlags.labels = true;
     schedule();
   });
   doc.getMap('labelColors').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
+    metaFlags.labelColors = true;
     schedule();
   });
   observerAttached = true;
@@ -182,7 +218,9 @@ export function observeWorkspace(callback, debounceMs = 150) {
       observerTimer = null;
       const changed = pendingChangedNoteIds;
       pendingChangedNoteIds = new Set();
-      callback(changed);
+      const flags = metaFlags;
+      metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+      callback(changed, flags);
     }, debounceMs);
   }
 }
