@@ -97,6 +97,7 @@ export function useOnboardingFlow({
     migrationStatus: '',
     savingPreferences: false,
     openingWorkspace: false,
+    openingWorkspaceMessage: '',
     error: '',
     status: null,
     migrationCurrent: '',
@@ -519,6 +520,12 @@ export function useOnboardingFlow({
       } else {
         await runOnboardingMigration();
       }
+
+      // One-time batch migration: move existing note content from KV → Yjs
+      state.migrationStatus = 'Migrating note content…';
+      const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
+      await migrateNotesContent();
+
       clearInterval(ticker);
       state.migrationProgress = 100;
       state.migrationStatus =
@@ -758,11 +765,20 @@ export function useOnboardingFlow({
     state.openingWorkspace = true;
     try {
       await markOnboardingCompleted(settingsStorage);
-      await openOnboardingWorkspace({ store, noteStore, router });
+      await openOnboardingWorkspace({
+        store,
+        noteStore,
+        router,
+        onSyncing: () => {
+          state.openingWorkspaceMessage =
+            translations.value.onboarding?.syncingNotes || 'Syncing your notes…';
+        },
+      });
     } catch (e) {
       state.error = e?.message || String(e);
     } finally {
       state.openingWorkspace = false;
+      state.openingWorkspaceMessage = '';
     }
   }
 

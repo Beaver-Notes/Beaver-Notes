@@ -76,7 +76,7 @@ export function cloudKeyParamsReachable({ force = false } = {}) {
 }
 
 export async function publishCloudKeyParams() {
-  if (!cloudKeyParamsReachable()) { logger.info('[vault-key-params] publish: cloud not reachable'); return false; }
+  if (!cloudKeyParamsReachable()) { logger.debug('[vault-key-params] publish: cloud not reachable'); return false; }
   const p = await localKeyParamsPath();
   if (!p) { logger.info('[vault-key-params] publish: no local key params path'); return false; }
   const exists = await pathExists(p).catch(() => false);

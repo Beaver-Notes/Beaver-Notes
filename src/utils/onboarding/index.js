@@ -139,7 +139,7 @@ export async function markOnboardingCompleted(settingsStorage) {
   await settingsStorage.set('onboardingCompleted', true);
 }
 
-export async function openOnboardingWorkspace({ store, noteStore, router }) {
+export async function openOnboardingWorkspace({ store, noteStore, router, onSyncing }) {
   await getSyncPath();
 
   // Derive/restore the encryption key before reading any Yjs data, mirroring
@@ -159,21 +159,14 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
     return;
   }
 
-  // Consolidate legacy asset directories (notes-assets/ + file-assets/ → assets/)
-  // AFTER key restoration so encrypt_asset() can write encrypted files.
-  const { consolidateAssets } = await import('@/utils/migration/consolidateAssets.js');
-  await consolidateAssets();
-
-  // Re-encrypt any assets that were written during import (Phase 4) before the
-  // encryption manifest existed. consolidateAssets() only handles files in legacy
-  // dirs; this covers files already in assets/ that were copied unencrypted.
-  if (await encryptionIsConfigured()) {
-    try {
-      const { migrateAssetEncryption } = await import('@/lib/native/security.js');
-      await migrateAssetEncryption();
-    } catch (e) {
-      console.warn('[onboarding] post-import asset re-encryption failed:', e);
-    }
+  // Re-encrypt any assets that were written during import before the encryption
+  // manifest existed. Modern writes go through encrypt_asset() at write-time,
+  // so this is mostly a safety net for edge cases — run unconditionally.
+  try {
+    const { migrateAssetEncryption } = await import('@/lib/native/security.js');
+    await migrateAssetEncryption();
+  } catch (e) {
+    console.warn('[onboarding] post-import asset re-encryption failed:', e);
   }
 
   // Initialize the workspace Y.Doc — same sequence as useAppShell's
@@ -184,10 +177,6 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
   await loadWorkspaceDoc();
   observeWorkspace(writeStoresFromWorkspace);
   await writeStoresFromWorkspace();
-
-  // One-time batch migration: move existing note content from KV → Yjs
-  const { migrateNotesContent } = await import('./yjs-migration.js');
-  await migrateNotesContent();
 
   if (backend.isMobileRuntime?.()) {
     await router.replace('/');
@@ -210,6 +199,7 @@ export async function openOnboardingWorkspace({ store, noteStore, router }) {
   initAppSync();
   const engine = getSyncEngine();
   if (engine) {
+    onSyncing?.();
     try {
       await engine.forceSyncNow();
     } catch (e) {

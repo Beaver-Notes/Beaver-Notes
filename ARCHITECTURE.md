@@ -104,7 +104,7 @@ Both encode/decode the same binary format (`updates/v1`), ensuring wire compatib
 |-------|-----------|-------|
 | Note content at rest (Yjs) | AES-256-GCM (`BNY1`) | `note_content` + `yjs_snapshots` blobs |
 | Note/KV metadata | XChaCha20-Poly1305 (`ae:4` + per-row AAD) | `data.db` KV rows (`notes.<id>`, `labels`, …) |
-| Asset files | AES-256-GCM (`BNA3`, streamed chunks) | Images, attachments in `notes-assets`/`file-assets` |
+| Asset files | AES-256-GCM (`BNA3`, streamed chunks) | Images, attachments in `assets/` (legacy `notes-assets`/`file-assets` are a migration-only source, never written) |
 | Sync payload | XChaCha20-Poly1305 (`v4` + AAD) | Cross-device commits/snapshots |
 | Secure blobs | AES-256-GCM (OS keyring master key) | Passphrase auto-unlock, Beaver account session |
 | Collaboration | AES-256-GCM (WebCrypto, ML-KEM-derived key) | In-session collab updates |

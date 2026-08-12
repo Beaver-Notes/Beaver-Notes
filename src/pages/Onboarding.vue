@@ -1260,20 +1260,32 @@
         </div>
 
         <div
-          class="flex flex-wrap mobile:flex-col mobile:w-full mobile:items-stretch mobile:px-4 ob-bottom-nav justify-center gap-3"
+          class="flex flex-col items-center gap-3"
         >
-          <ui-button @click="goToPreviousStep">
-            <v-remixicon name="riArrowLeftLine" /> Back
-          </ui-button>
-          <ui-button
-            variant="primary"
-            :loading="state.openingWorkspace"
-            @click="completeAndOpenWorkspace"
+          <Transition name="ob-toast">
+            <p
+              v-if="state.openingWorkspaceMessage"
+              class="text-sm text-neutral-500 dark:text-neutral-400"
+            >
+              {{ state.openingWorkspaceMessage }}
+            </p>
+          </Transition>
+          <div
+            class="flex flex-wrap mobile:flex-col mobile:w-full mobile:items-stretch mobile:px-4 ob-bottom-nav justify-center gap-3"
           >
-            <template v-if="!state.openingWorkspace">
-              <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver Notes
-            </template>
-          </ui-button>
+            <ui-button @click="goToPreviousStep" :disabled="state.openingWorkspace">
+              <v-remixicon name="riArrowLeftLine" /> Back
+            </ui-button>
+            <ui-button
+              variant="primary"
+              :loading="state.openingWorkspace"
+              @click="completeAndOpenWorkspace"
+            >
+              <template v-if="!state.openingWorkspace">
+                <v-remixicon name="riCheckLine" class="mr-1" /> Open Beaver Notes
+              </template>
+            </ui-button>
+          </div>
         </div>
       </div>
     </div>
