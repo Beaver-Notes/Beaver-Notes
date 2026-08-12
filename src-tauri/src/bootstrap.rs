@@ -24,6 +24,43 @@ const WINDOW_STATE_KEY: &str = "windowStateMain";
 #[cfg(desktop)]
 const LEGACY_DATA_FILES: &[&str] = &["config.json", "data.json"];
 
+/// Progress payload for the legacy migration, emitted over the
+/// `migration-progress` Tauri event so the onboarding UI can show real
+/// progress instead of a fake ticker. `done`/`total` count files (store JSON +
+/// assets); the renderer maps the "copy" phase into the overall bar.
+#[derive(Clone, serde::Serialize)]
+pub(crate) struct MigrationProgress {
+    pub(crate) phase: String,
+    pub(crate) done: u64,
+    pub(crate) total: u64,
+}
+
+fn emit_migration_progress(app: &AppHandle, phase: &str, done: u64, total: u64) {
+    let _ = app.emit(
+        "migration-progress",
+        MigrationProgress {
+            phase: phase.to_string(),
+            done,
+            total,
+        },
+    );
+}
+
+fn count_files(dir: &std::path::Path) -> u64 {
+    let mut n = 0u64;
+    if let Ok(rd) = fs::read_dir(dir) {
+        for entry in rd.flatten() {
+            let p = entry.path();
+            if p.is_dir() {
+                n += count_files(&p);
+            } else {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
 #[cfg(desktop)]
 const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
 
@@ -249,20 +286,36 @@ fn import_json_file_into_pool(
 }
 
 #[cfg(desktop)]
-fn copy_directory_missing(app: &AppHandle, state: &AppState, source: &Path, target: &Path) -> Result<(), AppError> {
+fn copy_directory_missing(
+    app: &AppHandle,
+    state: &AppState,
+    source: &Path,
+    target: &Path,
+    done: &mut u64,
+    total: u64,
+) -> Result<(), AppError> {
     fs::create_dir_all(target)?;
 
+    let mut last_pct = u64::MAX;
     for entry in fs::read_dir(source)? {
         let entry = entry?;
         let source_path = entry.path();
         let target_path = target.join(entry.file_name());
 
         if source_path.is_dir() {
-            copy_directory_missing(app, state, &source_path, &target_path)?;
+            copy_directory_missing(app, state, &source_path, &target_path, done, total)?;
         } else if !target_path.exists() {
             let raw = fs::read(&source_path)?;
             let payload = encrypt_asset(app, state, &target_path, &raw)?;
             fs::write(&target_path, payload)?;
+            *done += 1;
+            // Throttle: emit once per percentage point so large asset trees
+            // don't flood the event channel.
+            let pct = if total > 0 { (*done * 100) / total } else { 100 };
+            if pct != last_pct {
+                last_pct = pct;
+                emit_migration_progress(app, "copy", *done, total);
+            }
         }
     }
 
@@ -373,17 +426,46 @@ fn run_migration_core(
 
     let mut merged_store_files = Vec::new();
     let data_pool = data_pool(app, state)?;
+
+    // Count every file that will be copied so the progress bar has a real total
+    // (store JSONs + all assets), then report as we go.
+    let mut copy_total = LEGACY_DATA_FILES.len() as u64 + 1; // + SETTINGS_STORE
+    for folder in ["notes-assets", "file-assets"] {
+        let old = old_dir.join(folder);
+        if old.exists() {
+            copy_total += count_files(&old);
+        }
+    }
+    let old_assets = old_dir.join("assets");
+    if old_assets.exists() {
+        for entry in fs::read_dir(&old_assets)? {
+            let entry = entry?;
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str == "notes-assets" || name_str == "file-assets" {
+                continue;
+            }
+            let src = entry.path();
+            copy_total += if src.is_dir() { count_files(&src) } else { 1 };
+        }
+    }
+    let mut copy_done = 0u64;
+
     for legacy_name in LEGACY_DATA_FILES {
         let old = old_dir.join(legacy_name);
         if import_json_file_into_pool(state, &old, &data_pool)? {
             merged_store_files.push((*legacy_name).to_string());
         }
+        copy_done += 1;
+        emit_migration_progress(app, "copy", copy_done, copy_total);
     }
 
     let old_auth = old_dir.join(AUTH_STORE);
     if old_auth.exists() {
         merge_store_file(&old_auth, &new_dir.join(AUTH_STORE))?;
         merged_store_files.push(AUTH_STORE.to_string());
+        copy_done += 1;
+        emit_migration_progress(app, "copy", copy_done, copy_total);
     }
 
     let settings_pool = settings_pool(app, state)?;
@@ -391,6 +473,8 @@ fn run_migration_core(
     if import_json_file_into_pool(state, &old_settings, &settings_pool)? {
         merged_store_files.push(SETTINGS_STORE.to_string());
     }
+    copy_done += 1;
+    emit_migration_progress(app, "copy", copy_done, copy_total);
 
     const SETTINGS_KEY_REMAP: &[(&str, &str)] = &[
         ("color-scheme", "colorScheme"),
@@ -415,14 +499,13 @@ fn run_migration_core(
         if old.exists() {
             // Copy all legacy asset subdirs into the consolidated `assets/` directory
             let dest = new_dir.join("assets");
-            copy_directory_missing(app, state, &old, &dest)?;
+            copy_directory_missing(app, state, &old, &dest, &mut copy_done, copy_total)?;
             copied_asset_dirs.push(folder.to_string());
         }
     }
     // Also check if the source already uses the consolidated `assets/` dir.
     // Skip notes-assets/ and file-assets/ inside it — those are already handled
     // by the loop above and copying them would create nested duplicates.
-    let old_assets = old_dir.join("assets");
     if old_assets.exists() {
         let dest_assets = new_dir.join("assets");
         fs::create_dir_all(&dest_assets)?;
@@ -436,11 +519,13 @@ fn run_migration_core(
             let src = entry.path();
             let dst = dest_assets.join(&name);
             if src.is_dir() {
-                copy_directory_missing(app, state, &src, &dst)?;
+                copy_directory_missing(app, state, &src, &dst, &mut copy_done, copy_total)?;
             } else if !dst.exists() {
                 let raw = fs::read(&src)?;
                 let payload = encrypt_asset(app, state, &dst, &raw)?;
                 fs::write(&dst, payload)?;
+                copy_done += 1;
+                emit_migration_progress(app, "copy", copy_done, copy_total);
             }
         }
         copied_asset_dirs.push("assets".to_string());

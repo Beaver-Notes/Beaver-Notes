@@ -494,29 +494,28 @@ export function useOnboardingFlow({
     state.migrationIssuesText = '';
     importPhase.value = 'running';
 
+    // Real progress, weighted by phase: Rust copy (events) 0-60, Yjs content
+    // conversion (per-note callback) 60-90, finalize 90-100.
+    const COPY_WEIGHT = 60;
+    const CONVERT_WEIGHT = 30;
+    let unlistenProgress = null;
+
     try {
-      const steps = [
-        'Copying notes…',
-        'Copying folders…',
-        'Copying labels…',
-        'Copying assets…',
-        'Migrating settings…',
-      ];
-      const ticker = setInterval(() => {
-        if (state.migrationProgress < 85) {
+      unlistenProgress = await backend.listenPayload(
+        'migration-progress',
+        (payload) => {
+          if (payload?.phase !== 'copy') return;
+          const { done, total } = payload || {};
           state.migrationProgress = Math.min(
-            state.migrationProgress + Math.floor(Math.random() * 8) + 2,
-            85,
+            total > 0 ? Math.round((done / total) * COPY_WEIGHT) : COPY_WEIGHT,
+            COPY_WEIGHT,
           );
           state.migrationStatus =
-            steps[
-              Math.min(
-                Math.floor(state.migrationProgress / 20),
-                steps.length - 1,
-              )
-            ];
+            total > 0
+              ? `Migrating data… ${done} of ${total}`
+              : 'Migrating data…';
         }
-      }, 300);
+      );
 
       if (customLegacyStatus.value?.hasLegacyData && customLegacyPath.value) {
         await runOnboardingMigrationFromPath(customLegacyPath.value);
@@ -536,9 +535,8 @@ export function useOnboardingFlow({
       state.migrationStatus = 'Migrating note content…';
       const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
       await migrateNotesContent((progress, noteId) => {
-        // Real per-note progress; the fake ticker caps at 85 so it never
-        // overshoots the actual work.
-        state.migrationProgress = Math.min(85, Math.round(progress * 0.85));
+        state.migrationProgress =
+          COPY_WEIGHT + Math.round((progress / 100) * CONVERT_WEIGHT);
         state.migrationCurrent = noteId || '';
       });
 
@@ -579,16 +577,18 @@ export function useOnboardingFlow({
         console.warn('[onboarding] post-import asset re-encryption failed:', e);
       }
 
-      clearInterval(ticker);
-      state.migrationProgress = 100;
+      state.migrationProgress = COPY_WEIGHT + CONVERT_WEIGHT;
       state.migrationStatus =
         translations.value.onboarding?.allDone || 'All done!';
       state.migrationDone = true;
       importPhase.value = 'done';
+      // Jump the last 10% once everything is actually finished.
+      state.migrationProgress = 100;
     } catch (e) {
       state.error = e?.message || String(e);
       importPhase.value = 'confirm';
     } finally {
+      unlistenProgress?.();
       state.migrating = false;
     }
   }
