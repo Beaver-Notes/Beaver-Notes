@@ -15,7 +15,13 @@
           class="bg-input p-2 rtl:mx-2 rounded-lg transition"
           @click="theme.setTheme(item.name)"
         >
-          <img :src="item.img" class="w-40 border-2 mb-1 rounded-lg" />
+          <img
+            :src="item.img"
+            decoding="async"
+            width="160"
+            height="100"
+            class="w-40 border-2 mb-1 rounded-lg"
+          />
           <p class="capitalize text-center text-sm">
             {{ translations.appearance[item.name] || item.name }}
           </p>

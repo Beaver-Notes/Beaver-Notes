@@ -35,6 +35,9 @@
             <img
               :src="item.img"
               :alt="item.label"
+              decoding="async"
+              width="320"
+              height="200"
               class="w-full border-2 mb-1 rounded-lg"
             />
             <p
