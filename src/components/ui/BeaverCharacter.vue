@@ -120,7 +120,19 @@ import { ref, onMounted, onUnmounted } from 'vue';
 
 export default {
   name: 'BeaverCharacter',
-  setup() {
+  props: {
+    /**
+     * Pose(s) to force, e.g. 'thinking' or ['greeting', 'thinking']. Multiple
+     * states blend (later states override per-parameter); the combination is
+     * held continuously (greeting keeps waving). Omit / null to run the
+     * ambient auto-cycle.
+     */
+    state: { type: [String, Array], default: null },
+    /** Run the ambient idle/thinking/searching/writing/error/greeting cycle
+     *  when `state` is not set. */
+    auto: { type: Boolean, default: true },
+  },
+  setup(props) {
     const rootEl = ref(null);
     const stage = ref(null);
     const head = ref(null);
@@ -160,9 +172,6 @@ export default {
       return a + (b - a) * t;
     }
 
-    // Dirty-checked CSS-transform writes: style.transform/opacity (not SVG
-    // attributes) so the browser composites on the GPU; no-op writes are
-    // skipped entirely.
     const _lastT = new WeakMap();
     const _lastO = new WeakMap();
     function set(el, x, y, rot, sx, sy, ox, oy) {
@@ -206,17 +215,22 @@ export default {
       };
     }
 
-    const PHASES = [
-      { name: 'idle', dur: 3 },
-      { name: 'thinking', dur: 3 },
-      { name: 'searching', dur: 3 },
-      { name: 'writing', dur: 3 },
-      { name: 'error', dur: 2 },
-      { name: 'greeting', dur: 3 },
-    ];
-    const TOTAL = PHASES.reduce((s, p) => s + p.dur, 0);
-    let starts = [0];
-    PHASES.forEach((p, i) => starts.push(starts[i] + p.dur));
+    // ── Pose model ────────────────────────────────────────────────────────────
+    // Each state is a pure function (time -> pose) so any single state or any
+    // blend of states can be driven directly, instead of only the auto-cycle.
+    function basePose() {
+      return {
+        headX: 0, headY: 0, headRot: 0,
+        ebLx: 0, ebLy: 0, ebLrot: 0,
+        ebRx: 0, ebRy: 0, ebRrot: 0,
+        eyeLdx: 0, eyeLdy: 0, eyeRdx: 0, eyeRdy: 0,
+        eyeLsy: 1, eyeRsy: 1, eyeSc: 1,
+        noseY: 0, muzzleSX: 1,
+        toothLy: 0, toothRy: 0, toothSc: 1,
+        earPose: 0,
+        eyeNorm: 1, eyeX: 0, eyeHappy: 0,
+      };
+    }
 
     const THINK_PTS = [
       { t: 0, x: 0, y: 0 },
@@ -235,6 +249,143 @@ export default {
       { t: 2.6, x: 0, y: 0 },
     ];
 
+    function idlePose(t, local) {
+      const p = basePose();
+      if (local > 0.9 && local < 1.05) {
+        const b = 1 - Math.abs((local - 0.975) / 0.075);
+        p.eyeLsy = 1 - 0.9 * b;
+        p.eyeRsy = 1 - 0.9 * b;
+        p.ebLy = 10 * b;
+        p.ebRy = 10 * b;
+      }
+      if (local > 1.5 && local < 1.9) {
+        const b = ease(Math.min(1, (local - 1.5) / 0.2));
+        p.noseY = -14 * Math.sin(b * Math.PI);
+        p.toothSc = 1 + 0.12 * Math.sin(b * Math.PI * 2);
+      }
+      const j = microjitter(t, 0);
+      p.eyeLdx = j.x;
+      p.eyeLdy = j.y;
+      p.eyeRdx = j.x;
+      p.eyeRdy = j.y;
+      return p;
+    }
+
+    function thinkingPose(t, local) {
+      const p = basePose();
+      const s = saccade(THINK_PTS, local);
+      p.eyeLdx = s.x;
+      p.eyeLdy = s.y;
+      p.eyeRdx = s.x;
+      p.eyeRdy = s.y;
+      p.ebLrot = -8;
+      p.ebLy = -24;
+      p.ebRrot = 6;
+      p.ebRy = -6;
+      p.muzzleSX = 1 + 0.02 * Math.sin(t * Math.PI * 2 * 4);
+      return p;
+    }
+
+    function searchingPose(t, local) {
+      const p = basePose();
+      p.eyeSc = 1.1;
+      const s = saccade(SEARCH_PTS, local);
+      p.eyeLdx = s.x;
+      p.eyeLdy = s.y;
+      p.eyeRdx = s.x;
+      p.eyeRdy = s.y;
+      p.noseY = -16 * Math.abs(Math.sin(t * Math.PI * 4));
+      p.earPose = 6;
+      p.ebLx = s.x * 0.5;
+      p.ebLy = -12 + s.y * 0.35;
+      p.ebRx = s.x * 0.5;
+      p.ebRy = -12 + s.y * 0.35;
+      return p;
+    }
+
+    function writingPose(t, local) {
+      const p = basePose();
+      const freq = 2; // 120 bpm
+      const bounce = Math.abs(Math.sin(t * Math.PI * 2 * freq));
+      p.headY = -bounce * (2345 * 0.0013);
+      p.toothSc = 1 + 0.25 * bounce;
+      p.ebLy = -8 * bounce;
+      p.ebRy = -8 * bounce;
+      const j = microjitter(t, 5);
+      p.eyeLdx = j.x * 0.6;
+      p.eyeLdy = j.y * 0.6 + 8;
+      p.eyeRdx = j.x * 0.6;
+      p.eyeRdy = j.y * 0.6 + 8;
+      return p;
+    }
+
+    function errorPose(t, local) {
+      const p = basePose();
+      const shakeT = Math.min(1, local / 0.35);
+      p.headX = local < 0.35 ? Math.sin(local * Math.PI * 10) * (1 - shakeT) * 25 : 0;
+      p.ebLrot = 16;
+      p.ebLy = -6;
+      p.ebRrot = -16;
+      p.ebRy = -6;
+      p.eyeNorm = 0;
+      const blinkPhase = (local * 4) % 1;
+      const blinkOn = blinkPhase < 0.5 && local > 0.5;
+      p.eyeX = blinkOn ? 0 : 1;
+      return p;
+    }
+
+    function greetingPose(t, local) {
+      const p = basePose();
+      const holdEase = ease(Math.min(1, local / 0.4));
+      p.headY = -holdEase * 8;
+      p.ebLy = -22 * holdEase;
+      p.ebRy = -22 * holdEase;
+      p.eyeNorm = 1 - holdEase;
+      p.eyeHappy = holdEase;
+      p.muzzleSX = 1 + 0.12 * holdEase;
+      p.earPose = 9 * holdEase * Math.sin(t * Math.PI * 2 * 3);
+      return p;
+    }
+
+    const STATE_POSES = {
+      idle: idlePose,
+      thinking: thinkingPose,
+      searching: searchingPose,
+      writing: writingPose,
+      error: errorPose,
+      greeting: greetingPose,
+    };
+
+    // Blend states: start from defaults, each state overrides any parameter it
+    // actually changes (a later state wins a conflict, non-touched params keep
+    // the earlier state's value) — so `['thinking','greeting']` combines the
+    // quizzical brows of thinking with the happy eyes of greeting.
+    function mergeStates(names, t) {
+      const pose = basePose();
+      for (const name of names) {
+        const fn = STATE_POSES[name];
+        if (!fn) continue;
+        const part = fn(t, t);
+        for (const key of Object.keys(pose)) {
+          if (part[key] !== basePose()[key]) pose[key] = part[key];
+        }
+      }
+      return pose;
+    }
+
+    // Auto-cycle phase schedule.
+    const PHASES = [
+      { name: 'idle', dur: 3 },
+      { name: 'thinking', dur: 3 },
+      { name: 'searching', dur: 3 },
+      { name: 'writing', dur: 3 },
+      { name: 'error', dur: 2 },
+      { name: 'greeting', dur: 3 },
+    ];
+    const TOTAL = PHASES.reduce((s, p) => s + p.dur, 0);
+    let starts = [0];
+    PHASES.forEach((p, i) => starts.push(starts[i] + p.dur));
+
     function smooth(state, key, target, dt, speed) {
       state[key] += (target - state[key]) * Math.min(1, dt * speed);
       return state[key];
@@ -248,16 +399,20 @@ export default {
     let lastNow = 0;
     let t0 = 0;
 
-    // Cursor tracking (normalized -1..1 relative to the component center).
     let cursorX = 0;
     let cursorY = 0;
-    // Forced greeting window (on click / touch).
     let forcedStart = 0;
     let forcedUntil = 0;
 
     let rafId = 0;
     let els = null;
-    let running = false;
+
+    function requestedStates() {
+      if (props.state == null) return [];
+      if (Array.isArray(props.state)) return props.state.filter(Boolean);
+      const s = String(props.state).trim();
+      return s ? [s] : [];
+    }
 
     function greet() {
       const now = performance.now();
@@ -274,8 +429,6 @@ export default {
 
     function frame(now) {
       rafId = requestAnimationFrame(frame);
-      // Skip all work while the tab is hidden (rAF is throttled anyway, but
-      // the dt clamp + early return keep the timeline from jumping).
       if (document.hidden) {
         lastNow = now;
         return;
@@ -284,179 +437,69 @@ export default {
       lastNow = now;
 
       const greets = now < forcedUntil;
-      let t;
-      let idx;
+      let pose;
+      const states = requestedStates();
       if (greets) {
-        t = (now - forcedStart) / 1000;
-        idx = PHASES.findIndex((p) => p.name === 'greeting');
-      } else {
-        t = ((now - t0) / 1000) % TOTAL;
-        idx = 0;
+        pose = greetingPose((now - forcedStart) / 1000, (now - forcedStart) / 1000);
+      } else if (states.length > 0) {
+        // Explicitly requested state(s) — held and blended continuously.
+        pose = mergeStates(states, ((now - t0) / 1000));
+      } else if (props.auto) {
+        const t = ((now - t0) / 1000) % TOTAL;
+        let idx = 0;
         while (idx < PHASES.length - 1 && t >= starts[idx + 1]) idx++;
-      }
-      const local = greets ? t : t - starts[idx];
-      const dur = PHASES[idx].dur;
-
-      fade(els.eyeLX, 0);
-      fade(els.eyeRX, 0);
-      fade(els.eyeLHappy, 0);
-      fade(els.eyeRHappy, 0);
-      fade(els.eyeLNorm, 1);
-      fade(els.eyeRNorm, 1);
-
-      let headX = 0;
-      let headY = 0;
-      let headRot = 0;
-      let ebLx = 0;
-      let ebLy = 0;
-      let ebLrot = 0;
-      let ebRx = 0;
-      let ebRy = 0;
-      let ebRrot = 0;
-      let eyeLsy = 1;
-      let eyeRsy = 1;
-      let eyeSc = 1;
-      let eyeLdx = 0;
-      let eyeLdy = 0;
-      let eyeRdx = 0;
-      let eyeRdy = 0;
-      let noseY = 0;
-      let muzzleSX = 1;
-      let toothLy = 0;
-      let toothRy = 0;
-      let toothSc = 1;
-      let earPose = 0;
-
-      const phase = PHASES[idx].name;
-
-      if (phase === 'idle') {
-        if (local > 0.9 && local < 1.05) {
-          const b = 1 - Math.abs((local - 0.975) / 0.075);
-          eyeLsy = 1 - 0.9 * b;
-          eyeRsy = 1 - 0.9 * b;
-          ebLy = 10 * b;
-          ebRy = 10 * b;
-        }
-        if (local > 1.5 && local < 1.9) {
-          const b = ease(Math.min(1, (local - 1.5) / 0.2));
-          noseY = -14 * Math.sin(b * Math.PI);
-          toothSc = 1 + 0.12 * Math.sin(b * Math.PI * 2);
-        }
-        const j = microjitter(t, 0);
-        eyeLdx = j.x;
-        eyeLdy = j.y;
-        eyeRdx = j.x;
-        eyeRdy = j.y;
-      } else if (phase === 'thinking') {
-        const s = saccade(THINK_PTS, local);
-        eyeLdx = s.x;
-        eyeLdy = s.y;
-        eyeRdx = s.x;
-        eyeRdy = s.y;
-        ebLrot = -8;
-        ebLy = -24;
-        ebRrot = 6;
-        ebRy = -6;
-        muzzleSX = 1 + 0.02 * Math.sin(t * Math.PI * 2 * 4);
-      } else if (phase === 'searching') {
-        eyeSc = 1.1;
-        const s = saccade(SEARCH_PTS, local);
-        eyeLdx = s.x;
-        eyeLdy = s.y;
-        eyeRdx = s.x;
-        eyeRdy = s.y;
-        noseY = -16 * Math.abs(Math.sin(t * Math.PI * 4));
-        headRot = 0;
-        earPose = 6;
-        ebLx = s.x * 0.5;
-        ebLy = -12 + s.y * 0.35;
-        ebRx = s.x * 0.5;
-        ebRy = -12 + s.y * 0.35;
-      } else if (phase === 'writing') {
-        const freq = 2; // 120 bpm
-        const bounce = Math.abs(Math.sin(t * Math.PI * 2 * freq));
-        headY = -bounce * (2345 * 0.0013);
-        toothSc = 1 + 0.25 * bounce;
-        ebLy = -8 * bounce;
-        ebRy = -8 * bounce;
-        const j = microjitter(t, 5);
-        eyeLdx = j.x * 0.6;
-        eyeLdy = j.y * 0.6 + 8;
-        eyeRdx = j.x * 0.6;
-        eyeRdy = j.y * 0.6 + 8;
-      } else if (phase === 'error') {
-        const shakeT = Math.min(1, local / 0.35);
-        headX = local < 0.35 ? Math.sin(local * Math.PI * 10) * (1 - shakeT) * 25 : 0;
-        ebLrot = 16;
-        ebLy = -6;
-        ebLx = 0;
-        ebRrot = -16;
-        ebRy = -6;
-        ebRx = 0;
-        fade(els.eyeLNorm, 0);
-        fade(els.eyeRNorm, 0);
-        const blinkPhase = (local * 4) % 1;
-        const blinkOn = blinkPhase < 0.5 && local > 0.5;
-        fade(els.eyeLX, blinkOn ? 0 : 1);
-        fade(els.eyeRX, blinkOn ? 0 : 1);
-      } else if (phase === 'greeting') {
-        const holdEase = ease(Math.min(1, local / 0.4));
-        headY = -holdEase * 8;
-        ebLy = -22 * holdEase;
-        ebRy = -22 * holdEase;
-        fade(els.eyeLNorm, 1 - holdEase);
-        fade(els.eyeRNorm, 1 - holdEase);
-        fade(els.eyeLHappy, holdEase);
-        fade(els.eyeRHappy, holdEase);
-        muzzleSX = 1 + 0.12 * holdEase;
-        earPose = 9 * holdEase * Math.sin(t * Math.PI * 2 * 3);
-        if (local > dur - 0.6) {
-          const back = ease((local - (dur - 0.6)) / 0.6);
-          headY = lerp(headY, 0, back);
-          ebLy = lerp(ebLy, 0, back);
-          ebRy = lerp(ebRy, 0, back);
-          fade(els.eyeLNorm, lerp(1 - holdEase, 1, back));
-          fade(els.eyeRNorm, lerp(1 - holdEase, 1, back));
-          fade(els.eyeLHappy, lerp(holdEase, 0, back));
-          fade(els.eyeRHappy, lerp(holdEase, 0, back));
-          muzzleSX = lerp(muzzleSX, 1, back);
-          earPose = lerp(earPose, 0, back);
-        }
+        const local = t - starts[idx];
+        pose = STATE_POSES[PHASES[idx].name](t, local);
+      } else {
+        pose = idlePose(((now - t0) / 1000), 0);
       }
 
-      // Eyes subtly track the cursor (on top of the phase pose).
-      eyeLdx += cursorX * 14;
-      eyeLdy += cursorY * 10;
-      eyeRdx += cursorX * 14;
-      eyeRdy += cursorY * 10;
+      // Eyes subtly track the cursor (on top of the pose).
+      pose.eyeLdx += cursorX * 14;
+      pose.eyeLdy += cursorY * 10;
+      pose.eyeRdx += cursorX * 14;
+      pose.eyeRdy += cursorY * 10;
 
-      const earLtarget = Math.max(-16, Math.min(16, headRot * 0.8 + earPose * 1.1));
-      const earRtarget = Math.max(-16, Math.min(16, headRot * 0.8 - earPose * 1.1));
+      fade(els.eyeLX, pose.eyeX);
+      fade(els.eyeRX, pose.eyeX);
+      fade(els.eyeLHappy, pose.eyeHappy);
+      fade(els.eyeRHappy, pose.eyeHappy);
+      fade(els.eyeLNorm, pose.eyeNorm);
+      fade(els.eyeRNorm, pose.eyeNorm);
+
+      const earLtarget = Math.max(
+        -16,
+        Math.min(16, pose.headRot * 0.8 + pose.earPose * 1.1)
+      );
+      const earRtarget = Math.max(
+        -16,
+        Math.min(16, pose.headRot * 0.8 - pose.earPose * 1.1)
+      );
       earLstate += (earLtarget - earLstate) * Math.min(1, dt * 8);
       earRstate += (earRtarget - earRstate) * Math.min(1, dt * 8);
 
       const SP = 11;
-      const ebLxS = smooth(ebLs, 'x', ebLx, dt, SP);
-      const ebLyS = smooth(ebLs, 'y', ebLy, dt, SP);
-      const ebLrotS = smooth(ebLs, 'rot', ebLrot, dt, SP);
-      const ebRxS = smooth(ebRs, 'x', ebRx, dt, SP);
-      const ebRyS = smooth(ebRs, 'y', ebRy, dt, SP);
-      const ebRrotS = smooth(ebRs, 'rot', ebRrot, dt, SP);
-      const toothLyS = smooth(toothS, 'ly', toothLy, dt, SP);
-      const toothRyS = smooth(toothS, 'ry', toothRy, dt, SP);
-      const toothScS = smooth(toothS, 'sc', toothSc, dt, SP);
+      const ebLxS = smooth(ebLs, 'x', pose.ebLx, dt, SP);
+      const ebLyS = smooth(ebLs, 'y', pose.ebLy, dt, SP);
+      const ebLrotS = smooth(ebLs, 'rot', pose.ebLrot, dt, SP);
+      const ebRxS = smooth(ebRs, 'x', pose.ebRx, dt, SP);
+      const ebRyS = smooth(ebRs, 'y', pose.ebRy, dt, SP);
+      const ebRrotS = smooth(ebRs, 'rot', pose.ebRrot, dt, SP);
+      const toothLyS = smooth(toothS, 'ly', pose.toothLy, dt, SP);
+      const toothRyS = smooth(toothS, 'ry', pose.toothRy, dt, SP);
+      const toothScS = smooth(toothS, 'sc', pose.toothSc, dt, SP);
 
-      set(els.head, headX, headY, headRot, 1, 1, HEAD_PIVOT_X, HEAD_PIVOT_Y);
+      set(els.head, pose.headX, pose.headY, pose.headRot, 1, 1, HEAD_PIVOT_X, HEAD_PIVOT_Y);
       set(els.earL, 0, 0, earLstate, 1, 1, EARL_PX, EARL_PY);
       set(els.earR, 0, 0, earRstate, 1, 1, EARR_PX, EARR_PY);
       set(els.ebL, ebLxS, ebLyS, ebLrotS, 1, 1, EBL_CX, EBL_CY);
       set(els.ebR, ebRxS, ebRyS, ebRrotS, 1, 1, EBR_CX, EBR_CY);
-      set(els.eyeL, eyeLdx, eyeLdy, 0, eyeSc, eyeSc * eyeLsy, EYEL_CX, EYEL_CY);
-      set(els.eyeR, eyeRdx, eyeRdy, 0, eyeSc, eyeSc * eyeRsy, EYER_CX, EYER_CY);
-      set(els.nose, 0, noseY, 0, 1, 1, 1687, 1675);
-      set(els.muzzle, 0, 0, 0, muzzleSX, 1, 1680, 1783);
-      set(els.toothL, headX * 0.3, toothLyS, 0, toothScS, toothScS, 1590, 1980);
-      set(els.toothR, headX * 0.3, toothRyS, 0, toothScS, toothScS, 1767, 1980);
+      set(els.eyeL, pose.eyeLdx, pose.eyeLdy, 0, pose.eyeSc, pose.eyeSc * pose.eyeLsy, EYEL_CX, EYEL_CY);
+      set(els.eyeR, pose.eyeRdx, pose.eyeRdy, 0, pose.eyeSc, pose.eyeSc * pose.eyeRsy, EYER_CX, EYER_CY);
+      set(els.nose, 0, pose.noseY, 0, 1, 1, 1687, 1675);
+      set(els.muzzle, 0, 0, 0, pose.muzzleSX, 1, 1680, 1783);
+      set(els.toothL, pose.headX * 0.3, toothLyS, 0, toothScS, toothScS, 1590, 1980);
+      set(els.toothR, pose.headX * 0.3, toothRyS, 0, toothScS, toothScS, 1767, 1980);
     }
 
     onMounted(() => {
@@ -481,9 +524,7 @@ export default {
       };
       t0 = performance.now();
       lastNow = t0;
-      running = true;
 
-      // Respect reduced-motion: show a static beaver, no animation.
       const reducedMotion =
         typeof document !== 'undefined' &&
         document.documentElement?.classList.contains('prefers-reduced-motion');
@@ -493,7 +534,6 @@ export default {
     });
 
     onUnmounted(() => {
-      running = false;
       if (rafId) cancelAnimationFrame(rafId);
     });
 
