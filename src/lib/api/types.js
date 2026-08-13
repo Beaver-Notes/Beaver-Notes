@@ -1,13 +1,13 @@
 export const PLAN_NAMES = Object.freeze({
   FREE: 'free',
-  BASIC: 'basic',
+  STARTER: 'starter',
   PRO: 'pro',
   TEAM: 'team',
   ENTERPRISE: 'enterprise',
 });
 
 export const PAID_PLANS = Object.freeze([
-  PLAN_NAMES.BASIC,
+  PLAN_NAMES.STARTER,
   PLAN_NAMES.PRO,
   PLAN_NAMES.TEAM,
   PLAN_NAMES.ENTERPRISE,
@@ -221,6 +221,11 @@ export function normalizeWorkspace(raw) {
     ownerId: raw.ownerId || null,
     storageUsedBytes: Number(raw.storageUsedBytes) || 0,
     createdAt: raw.createdAt || null,
+    wrappedKey: raw.wrappedKey || null,
+    nameEncrypted: raw.nameEncrypted || null,
+    orgId: raw.orgId || null,
+    emoji: raw.emoji || null,
+    color: raw.color || null,
   };
 }
 

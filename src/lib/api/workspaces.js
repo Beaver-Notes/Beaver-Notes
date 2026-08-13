@@ -78,10 +78,13 @@ export async function deleteWorkspace(id, { baseUrl, signal } = {}) {
 
 export async function addMember(workspaceId, identifier, role = 'editor', { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
+  const body = /\S+@\S+\.\S+/.test(identifier.trim())
+    ? { email: identifier.trim().toLowerCase(), role }
+    : { username: identifier.trim().toLowerCase(), role };
   return client.post(
     `/workspaces/${encodeURIComponent(workspaceId)}/members`,
-    { identifier, role },
-    { signal }
+    body,
+    { baseUrl, signal }
   );
 }
 

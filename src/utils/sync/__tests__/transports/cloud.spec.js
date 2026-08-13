@@ -74,7 +74,7 @@ vi.mock('../../compression.js', () => ({
 }));
 
 describe('CloudTransport', () => {
-  const defaultAccountState = () => ({ isAuth: true, plan: 'basic' });
+  const defaultAccountState = () => ({ isAuth: true, plan: 'starter' });
   let transport;
 
   beforeEach(() => {
@@ -131,7 +131,7 @@ describe('CloudTransport', () => {
       const unAuthTransport = new CloudTransport({
         passphraseProvider: vi.fn(),
         getTransportSetting: () => 'both',
-        getAccountState: () => ({ isAuth: false, plan: 'basic' }),
+        getAccountState: () => ({ isAuth: false, plan: 'starter' }),
       });
       const result = await unAuthTransport.push({});
       expect(result.pushed).toBe(0);
@@ -148,7 +148,7 @@ describe('CloudTransport', () => {
     });
 
     it('re-checks _remoteAllowed each call', async () => {
-      let plan = 'basic';
+      let plan = 'starter';
       const downgradableTransport = new CloudTransport({
         passphraseProvider: vi.fn(),
         getTransportSetting: () => 'both',
@@ -238,7 +238,7 @@ describe('CloudTransport', () => {
       const localTransport = new CloudTransport({
         passphraseProvider: vi.fn(),
         getTransportSetting: () => 'folder',
-        getAccountState: () => ({ isAuth: true, plan: 'basic' }),
+        getAccountState: () => ({ isAuth: true, plan: 'starter' }),
       });
       const result = await localTransport.pull({});
       expect(result.updates).toEqual([]);
