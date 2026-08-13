@@ -1069,11 +1069,26 @@ pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
     let key_path = app_dir.join(MASTER_KEY_FILE);
 
     if !key_path.exists() {
-        // Fail closed: never mint a fresh plaintext master key next to the
-        // data when the OS keychain is unavailable.
-        return Err(AppError::Other(
-            "OS keychain unavailable and no existing master key file found.".into(),
-        ));
+        // No OS keychain (e.g. headless/minimal Linux distros): fall back to an
+        // on-disk master key so safe-storage still works. Keep it owner-only.
+        let mut key = vec![0_u8; 32];
+        rand::thread_rng().fill_bytes(&mut key);
+        let encoded = BASE64.encode(&key);
+        if let Some(parent) = key_path.parent() {
+            fs::create_dir_all(parent)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+            }
+        }
+        fs::write(&key_path, encoded)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
+        }
+        return Ok(key);
     }
 
     #[cfg(unix)]
