@@ -366,9 +366,6 @@
               'Upgrade to Basic or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.'
             }}
           </p>
-          <ui-button class="mt-2" variant="primary">{{
-            translations.account?.seePlans || 'See plans'
-          }}</ui-button>
         </div>
       </div>
     </section>

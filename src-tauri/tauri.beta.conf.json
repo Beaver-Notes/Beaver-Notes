@@ -83,7 +83,11 @@
       "entitlements": "../buildResources/entitlements.mac.plist"
     },
     "iOS": {
-      "developmentTeam": "F8U6VTU2DJ"
+      "developmentTeam": "F8U6VTU2DJ",
+      "minimumSystemVersion": "15.0",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Beaver Notes uses the microphone to record audio notes."
+      }
     },
     "linux": {
       "deb": {
