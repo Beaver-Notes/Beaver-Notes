@@ -450,6 +450,13 @@ jobs:
         run: |
           rm -rf src-tauri/gen/android
           yarn tauri android init
+          # tauri android init regenerates the manifest without the alternate
+          # icon activity-alias entries and a res/ without the custom icons —
+          # restore the committed versions so app icon switching works.
+          rm -rf src-tauri/gen/android/app/src/main/res
+          git checkout -- src-tauri/gen/android/app/src/main/res
+          rm -f src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          git checkout -- src-tauri/gen/android/app/src/main/AndroidManifest.xml
 
       - name: Patch Android signing into build.gradle.kts
         if: ${{ matrix.id == 'android' }}
