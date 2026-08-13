@@ -73,6 +73,9 @@
     "macOS": {
       "entitlements": "../buildResources/entitlements.mac.plist"
     },
+    "iOS": {
+      "developmentTeam": "F8U6VTU2DJ"
+    },
     "linux": {
       "deb": { "depends": [] },
       "rpm": { "depends": [] }
