@@ -100,7 +100,7 @@
       <section class="space-y-2">
         <div class="flex items-center justify-between">
           <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">Devices & Sessions</p>
-          <ui-button variant="ghost" size="sm" @click="handleLoadDevices">Refresh</ui-button>
+          <ui-button variant="secondary" @click="handleLoadDevices">Refresh</ui-button>
         </div>
         <div class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border">
           <div
