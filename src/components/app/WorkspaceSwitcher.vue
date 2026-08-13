@@ -109,6 +109,15 @@
           >
             <v-remixicon name="riEditLine" size="12" class="text-neutral-400" />
           </button>
+          <button
+            v-if="isPaid && (ws.role === 'owner' || ws.role === 'admin')"
+            class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+            style="right: 1.5rem"
+            @click.stop="goToTeamSettings"
+            aria-label="Team settings"
+          >
+            <v-remixicon name="riSettingsLine" size="12" class="text-neutral-400" />
+          </button>
         </div>
 
         <div
@@ -148,6 +157,7 @@
 
 <script>
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
@@ -187,6 +197,7 @@ export default {
   setup() {
     const workspaceStore = useWorkspaceStore();
     const accountStore = useAccountStore();
+    const router = useRouter();
     const triggerEl = ref(null);
 
     const workspaces = computed(() => workspaceStore.workspaces);
@@ -254,6 +265,10 @@ export default {
       });
     }
 
+    function goToTeamSettings() {
+      router.push('/settings/workspace');
+    }
+
     function promptJoin() {
       emitter.emit('show-dialog', 'prompt', {
         title: 'Join Workspace',
@@ -292,6 +307,7 @@ export default {
       switchWorkspace,
       promptCreate,
       promptRename,
+      goToTeamSettings,
       promptJoin,
     };
   },

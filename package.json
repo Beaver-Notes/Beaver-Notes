@@ -53,6 +53,7 @@
     "@tailwindcss/typography": "^0.5.19",
     "@tauri-apps/cli": "^2",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.4.11",
     "@wdio/cli": "^9.30.0",
     "@wdio/local-runner": "^9.30.0",
     "@wdio/mocha-framework": "^9.30.0",
