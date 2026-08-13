@@ -496,6 +496,10 @@ jobs:
         run: |
           rm -rf src-tauri/gen/apple
           yarn tauri ios init
+          # The Tauri template ships its own default icon set — restore the
+          # committed custom Assets.xcassets (app icons + alternates).
+          rm -rf src-tauri/gen/apple/Assets.xcassets
+          git checkout -- src-tauri/gen/apple/Assets.xcassets
 
       - name: Fix iOS bundle version
         if: ${{ matrix.id == 'ios' }}
@@ -528,6 +532,12 @@ jobs:
                   + '\\1dependencies:\n',
                   s,
                   count=1,
+              )
+          if 'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES' not in s:
+              s = s.replace(
+                  'DEVELOPMENT_TEAM: F8U6VTU2DJ',
+                  'DEVELOPMENT_TEAM: F8U6VTU2DJ\n'
+                  + '        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: \'"AppIcon 1" "AppIcon 2" "AppIcon 3" "AppIcon 4" "AppIcon 5" "AppIcon 6" "AppIcon 7" "AppIcon 8"\'',
               )
           open(path, 'w').write(s)
           PYEOF
