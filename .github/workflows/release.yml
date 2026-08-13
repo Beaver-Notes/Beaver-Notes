@@ -510,7 +510,7 @@ jobs:
       - name: Set iOS development team
         if: ${{ matrix.id == 'ios' }}
         run: |
-          sed -i '' 's/DEVELOPMENT_TEAM: .*$/DEVELOPMENT_TEAM: LAF7ZJN6TW/' \
+          sed -i '' 's/DEVELOPMENT_TEAM: .*$/DEVELOPMENT_TEAM: F8U6VTU2DJ/' \
             src-tauri/gen/apple/project.yml
 
       - name: Write Apple API key
@@ -559,7 +559,6 @@ jobs:
 
       - name: Build iOS app
         if: ${{ matrix.id == 'ios' }}
-        continue-on-error: true
         shell: bash
         env:
           CI: 'true'
@@ -591,7 +590,6 @@ jobs:
       - name: Find iOS IPA
         if: ${{ matrix.id == 'ios' }}
         id: find-ipa
-        continue-on-error: true
         shell: bash
         run: |
           IPA=$(find src-tauri/gen/apple/build -name "*.ipa" -type f | head -1)
@@ -603,7 +601,6 @@ jobs:
 
       - name: Stage iOS assets
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
-        continue-on-error: true
         shell: bash
         run: |
           mkdir -p release-assets
@@ -612,7 +609,6 @@ jobs:
       # Upload iOS IPA to TestFlight via App Store Connect API
       - name: Upload to TestFlight
         if: ${{ matrix.id == 'ios' && steps.find-ipa.outputs.ipa-path != '' }}
-        continue-on-error: true
         uses: apple-actions/upload-testflight-build@v4
         with:
           app-path: ${{ steps.find-ipa.outputs.ipa-path }}
