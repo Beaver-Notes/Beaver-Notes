@@ -28,11 +28,28 @@ export function computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspace
 
 async function reconcileRemovedSharedWorkspaces(backendWorkspaces) {
   try {
-    const { listLocalWorkspaces, deleteLocalWorkspace } = await import('@/lib/native/workspaces');
+    const {
+      listLocalWorkspaces,
+      getActiveLocalWorkspace,
+      switchLocalWorkspace,
+      deleteLocalWorkspace,
+    } = await import('@/lib/native/workspaces');
     const localWorkspaces = (await listLocalWorkspaces().catch(() => [])) || [];
     const removed = computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces);
+    if (removed.length === 0) return;
+
+    const active = await getActiveLocalWorkspace().catch(() => null);
+    const activeId = active?.id;
+    const remainingPersonal = localWorkspaces.find(
+      (w) => w.workspaceType === 'personal' && !removed.includes(w.id)
+    );
+    const fallbackId = remainingPersonal?.id ?? 'default';
+
     for (const id of removed) {
       try {
+        if (id === activeId) {
+          await switchLocalWorkspace(fallbackId);
+        }
         await deleteLocalWorkspace(id);
       } catch (err) {
         console.warn(
@@ -43,6 +60,33 @@ async function reconcileRemovedSharedWorkspaces(backendWorkspaces) {
     }
   } catch (err) {
     console.warn('[useCloudWorkspaces] local workspace reconciliation skipped:', err);
+  }
+}
+
+async function registerCloudWorkspaces(backendWorkspaces, accountStore) {
+  if (!Array.isArray(backendWorkspaces) || backendWorkspaces.length === 0) return;
+  const { registerLocalWorkspace } = await import('@/lib/native/workspaces');
+  const personalOrgId =
+    accountStore.activeAccount?.organizations?.[0]?.id ??
+    accountStore.activeOrgId ??
+    null;
+  for (const ws of backendWorkspaces) {
+    const isShared = Boolean(ws.orgId) && ws.orgId !== personalOrgId;
+    try {
+      await registerLocalWorkspace({
+        id: ws.id,
+        name: ws.name,
+        orgId: ws.orgId,
+        ownerId: ws.ownerId,
+        workspaceType: isShared ? 'shared' : 'personal',
+        createdAt: ws.createdAt,
+      });
+    } catch (err) {
+      console.warn(
+        `[useCloudWorkspaces] could not register workspace ${ws.id}:`,
+        err?.message || err
+      );
+    }
   }
 }
 
@@ -76,7 +120,9 @@ export function useCloudWorkspaces() {
         if (!activeId.value && workspaces.value.length > 0) {
           activeId.value = workspaces.value[0].id;
         }
-        await reconcileRemovedSharedWorkspaces(workspaces.value);
+        await registerCloudWorkspaces(workspaces.value, accountStore);
+        // Removal reconciliation must not hold `loading` during the delete loop.
+        void reconcileRemovedSharedWorkspaces(workspaces.value);
       } catch (err) {
         if (err?.name === 'AbortError') return;
         error.value = err?.message || 'Failed to load workspaces';
@@ -103,6 +149,7 @@ export function useCloudWorkspaces() {
       };
       workspaces.value.push(ws);
       activeId.value = ws.id;
+      void registerCloudWorkspaces([ws], accountStore);
       return ws;
     } catch (err) {
       error.value = err?.message || 'Failed to create workspace';

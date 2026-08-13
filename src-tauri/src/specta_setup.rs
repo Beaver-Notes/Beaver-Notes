@@ -134,6 +134,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::workspace::workspace_list)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_get_active)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_create)(&mut types),
+                specta::_fn_datatype!(crate::commands::workspace::workspace_register_cloud)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_switch)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_rename)(&mut types),
                 specta::_fn_datatype!(crate::commands::workspace::workspace_delete)(&mut types),

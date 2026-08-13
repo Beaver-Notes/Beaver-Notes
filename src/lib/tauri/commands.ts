@@ -121,6 +121,7 @@ const commandAliases = {
   'workspace:list': 'workspace_list',
   'workspace:getActive': 'workspace_get_active',
   'workspace:create': 'workspace_create',
+  'workspace:registerCloud': 'workspace_register_cloud',
   'workspace:switch': 'workspace_switch',
   'workspace:rename': 'workspace_rename',
   'workspace:delete': 'workspace_delete',
@@ -356,6 +357,18 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {
         name: payload?.name ?? payload,
         copySettings: payload?.copySettings ?? false,
+      };
+    case 'workspace:registerCloud':
+      return {
+        ...withKeyVariants('id', payload?.id),
+        ...withKeyVariants('name', payload?.name),
+        ...withKeyVariants('org_id', payload?.orgId ?? payload?.org_id),
+        ...withKeyVariants('owner_id', payload?.ownerId ?? payload?.owner_id),
+        ...withKeyVariants(
+          'workspace_type',
+          payload?.workspaceType ?? payload?.workspace_type
+        ),
+        ...withKeyVariants('created_at', payload?.createdAt ?? payload?.created_at),
       };
     case 'workspace:switch':
       return withKeyVariants('id', payload?.id ?? payload);

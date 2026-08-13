@@ -239,6 +239,7 @@ pub fn run() {
             commands::workspace::workspace_list,
             commands::workspace::workspace_get_active,
             commands::workspace::workspace_create,
+            commands::workspace::workspace_register_cloud,
             commands::workspace::workspace_switch,
             commands::workspace::workspace_rename,
             commands::workspace::workspace_delete,

@@ -39,4 +39,26 @@ describe('invokeCommand payload normalization', () => {
     await invokeCommand('encryption:hasRemoteKeyParams');
     expect(invoke).toHaveBeenCalledWith('encryption_has_remote_key_params', {});
   });
+
+  it('normalizes workspace:registerCloud to snake_case Rust args', async () => {
+    await invokeCommand('workspace:registerCloud', {
+      id: 'w1',
+      name: 'Design',
+      orgId: 'org-1',
+      ownerId: 'u1',
+      workspaceType: 'shared',
+      createdAt: '2026-01-01T00:00:00Z',
+    });
+    expect(invoke).toHaveBeenCalledWith(
+      'workspace_register_cloud',
+      expect.objectContaining({
+        id: 'w1',
+        name: 'Design',
+        org_id: 'org-1',
+        owner_id: 'u1',
+        workspace_type: 'shared',
+        created_at: '2026-01-01T00:00:00Z',
+      })
+    );
+  });
 });
