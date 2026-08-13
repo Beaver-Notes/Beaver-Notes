@@ -573,6 +573,24 @@ jobs:
                   + '        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: \'"AppIcon 1" "AppIcon 2" "AppIcon 3" "AppIcon 4" "AppIcon 5" "AppIcon 6" "AppIcon 7" "AppIcon 8"\'',
               )
           open(path, 'w').write(s)
+
+          # tauri ios build never re-runs XcodeGen, so project.yml edits above do
+          # not reach the .xcodeproj — patch the generated pbxproj directly so
+          # actool compiles the alternate app icons.
+          pbx_path = 'src-tauri/gen/apple/beaver-notes.xcodeproj/project.pbxproj'
+          pbx = open(pbx_path).read()
+          if 'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES' not in pbx:
+              alt = (
+                  'ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = '
+                  + '"\\"AppIcon 1\\" \\"AppIcon 2\\" \\"AppIcon 3\\" \\"AppIcon 4\\" \\"AppIcon 5\\" \\"AppIcon 6\\" \\"AppIcon 7\\" \\"AppIcon 8\\"";\n'
+                  + '\t\t\t\tASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;'
+              )
+              pbx = re.sub(
+                  r'(?m)(\n\t\t\t\tINFOPLIST_FILE = "[^"]+";)',
+                  lambda m: m.group(1) + '\n\t\t\t\t' + alt,
+                  pbx,
+              )
+              open(pbx_path, 'w').write(pbx)
           PYEOF
 
       - name: Write Apple API key
