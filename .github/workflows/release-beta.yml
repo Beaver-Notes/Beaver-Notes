@@ -2,6 +2,12 @@ name: Release Beta
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to build: all | ios | android | macos | linux | windows'
+        required: false
+        type: string
+        default: all
   push:
     tags:
       - 'v*-beta.*'
@@ -182,7 +188,7 @@ jobs:
 
   desktop:
     name: Build beta ${{ matrix.id }}
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && (github.event.inputs.platform == 'all' || startswith(matrix.id, github.event.inputs.platform)) }}
     needs:
       - validate
       - create-release
@@ -682,7 +688,7 @@ jobs:
 
   windows:
     name: Build Windows beta (via OSSign)
-    if: ${{ needs.validate.outputs.version_match == 'true' }}
+    if: ${{ needs.validate.outputs.version_match == 'true' && (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows') }}
     needs:
       - validate
       - create-release
