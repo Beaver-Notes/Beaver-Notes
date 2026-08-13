@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-beta
+  group: release-beta-${{ github.event.inputs.platform || 'all' }}
   cancel-in-progress: false
 
 env:
