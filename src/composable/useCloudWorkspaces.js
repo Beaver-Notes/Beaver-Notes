@@ -19,6 +19,33 @@ const error = ref('');
 let fetchController = null;
 let fetchInFlight = null;
 
+export function computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces) {
+  const backendIds = new Set((backendWorkspaces || []).map((w) => w.id));
+  return (localWorkspaces || [])
+    .filter((w) => w.workspaceType === 'shared' && w.cloudSync && !backendIds.has(w.id))
+    .map((w) => w.id);
+}
+
+async function reconcileRemovedSharedWorkspaces(backendWorkspaces) {
+  try {
+    const { listLocalWorkspaces, deleteLocalWorkspace } = await import('@/lib/native/workspaces');
+    const localWorkspaces = (await listLocalWorkspaces().catch(() => [])) || [];
+    const removed = computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces);
+    for (const id of removed) {
+      try {
+        await deleteLocalWorkspace(id);
+      } catch (err) {
+        console.warn(
+          `[useCloudWorkspaces] could not delete removed shared workspace ${id}:`,
+          err?.message || err
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[useCloudWorkspaces] local workspace reconciliation skipped:', err);
+  }
+}
+
 export function useCloudWorkspaces() {
   const accountStore = useAccountStore();
 
@@ -49,6 +76,7 @@ export function useCloudWorkspaces() {
         if (!activeId.value && workspaces.value.length > 0) {
           activeId.value = workspaces.value[0].id;
         }
+        await reconcileRemovedSharedWorkspaces(workspaces.value);
       } catch (err) {
         if (err?.name === 'AbortError') return;
         error.value = err?.message || 'Failed to load workspaces';

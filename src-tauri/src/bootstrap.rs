@@ -798,6 +798,10 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
         id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
         name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
         created_at: now,
+        workspace_type: "personal".into(),
+        org_id: None,
+        owner_id: None,
+        cloud_sync: false,
     };
     let registry_json = serde_json::json!({
         "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
@@ -826,6 +830,10 @@ fn ensure_default_workspace_in_registry(
             id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
             name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: now,
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         };
         let registry_json = serde_json::json!({
             "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
@@ -844,6 +852,10 @@ fn ensure_default_workspace_in_registry(
             id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
             name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: now,
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         };
         let mut new_registry = registry;
         new_registry.push(default_ws);

@@ -652,6 +652,14 @@ pub(crate) struct WorkspaceInfo {
     pub(crate) id: String,
     pub(crate) name: String,
     pub(crate) created_at: String,
+    #[serde(default = "default_workspace_type")]
+    pub(crate) workspace_type: String, // "personal" | "shared"
+    #[serde(default)]
+    pub(crate) org_id: Option<String>,
+    #[serde(default)]
+    pub(crate) owner_id: Option<String>,
+    #[serde(default)]
+    pub(crate) cloud_sync: bool,
 }
 
 /// Internal shape of workspaces.json
@@ -666,6 +674,10 @@ struct WorkspacesJson {
 
 fn default_workspace_id() -> String {
     DEFAULT_WORKSPACE_ID.to_string()
+}
+
+fn default_workspace_type() -> String {
+    "personal".to_string()
 }
 
 /// Path to the workspaces.json registry file at the app root.

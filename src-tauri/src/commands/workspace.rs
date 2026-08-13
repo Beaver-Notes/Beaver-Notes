@@ -28,6 +28,10 @@ pub(crate) fn workspace_get_active(
             id: id.clone(),
             name: DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: String::new(),
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         });
     Ok(ws)
 }
@@ -69,6 +73,10 @@ pub(crate) fn workspace_create(
         id: id.clone(),
         name,
         created_at: now,
+        workspace_type: "personal".into(),
+        org_id: None,
+        owner_id: None,
+        cloud_sync: false,
     };
 
     let mut registry = load_workspace_registry(&app, &state)?;
