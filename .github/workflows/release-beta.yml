@@ -186,43 +186,46 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
 
+  prepare:
+    name: Prepare platform matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Compute platform matrix
+        id: matrix
+        shell: bash
+        run: |
+          PLATFORM="${{ github.event.inputs.platform || 'all' }}"
+          echo "Selected platform: $PLATFORM"
+          echo "matrix=$(python3 - "$PLATFORM" <<'PY'
+          import json, sys
+          platform = sys.argv[1]
+          all_entries = [
+            {"id": "macos-universal", "runner": "macos-latest", "rust_targets": "aarch64-apple-darwin,x86_64-apple-darwin", "tauri_target": "universal-apple-darwin", "bundle_args": "--bundles app,dmg", "asset_suffix": "macos-universal"},
+            {"id": "linux-x64", "runner": "ubuntu-24.04", "rust_targets": "x86_64-unknown-linux-gnu", "tauri_target": "x86_64-unknown-linux-gnu", "asset_suffix": "linux-x64"},
+            {"id": "linux-arm64", "runner": "ubuntu-24.04-arm", "rust_targets": "aarch64-unknown-linux-gnu", "tauri_target": "aarch64-unknown-linux-gnu", "asset_suffix": "linux-arm64"},
+            {"id": "android", "runner": "ubuntu-24.04", "rust_targets": "aarch64-linux-android,x86_64-linux-android", "asset_suffix": "android"},
+            {"id": "ios", "runner": "macos-latest", "rust_targets": "aarch64-apple-ios", "asset_suffix": "ios"},
+          ]
+          entries = all_entries if platform == "all" else [e for e in all_entries if e["id"].startswith(platform)]
+          print(json.dumps(entries, separators=(",", ":")))
+          PY
+          )" >> "$GITHUB_OUTPUT"
+
   desktop:
     name: Build beta ${{ matrix.id }}
-    if: ${{ needs.validate.outputs.version_match == 'true' && (github.event.inputs.platform == 'all' || startswith(matrix.id, github.event.inputs.platform)) }}
+    if: ${{ needs.validate.outputs.version_match == 'true' }}
     needs:
       - validate
       - create-release
+      - prepare
     runs-on: ${{ matrix.runner }}
 
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - id: macos-universal
-            runner: macos-latest
-            rust_targets: 'aarch64-apple-darwin,x86_64-apple-darwin'
-            tauri_target: 'universal-apple-darwin'
-            bundle_args: '--bundles app,dmg'
-            asset_suffix: 'macos-universal'
-          - id: linux-x64
-            runner: ubuntu-24.04
-            rust_targets: 'x86_64-unknown-linux-gnu'
-            tauri_target: 'x86_64-unknown-linux-gnu'
-            asset_suffix: 'linux-x64'
-          - id: linux-arm64
-            runner: ubuntu-24.04-arm
-            rust_targets: 'aarch64-unknown-linux-gnu'
-            tauri_target: 'aarch64-unknown-linux-gnu'
-            asset_suffix: 'linux-arm64'
-           # Windows builds handled by OSSign fork
-          - id: android
-            runner: ubuntu-24.04
-            rust_targets: 'aarch64-linux-android,x86_64-linux-android'
-            asset_suffix: 'android'
-          - id: ios
-            runner: macos-latest
-            rust_targets: 'aarch64-apple-ios'
-            asset_suffix: 'ios'
+        include: ${{ fromJSON(needs.prepare.outputs.matrix) }}
 
     steps:
       - name: Checkout
