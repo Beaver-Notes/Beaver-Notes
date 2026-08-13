@@ -532,6 +532,25 @@ jobs:
           sed -i '' 's/DEVELOPMENT_TEAM: .*$/DEVELOPMENT_TEAM: F8U6VTU2DJ/' \
             src-tauri/gen/apple/project.yml
 
+      - name: Configure iOS distribution signing
+        if: ${{ matrix.id == 'ios' }}
+        shell: bash
+        run: |
+          python3 - <<'PYEOF'
+          import re
+          path = 'src-tauri/gen/apple/project.yml'
+          s = open(path).read()
+          if 'CODE_SIGN_IDENTITY' not in s:
+              s = re.sub(
+                  r'(?m)^(\s+)dependencies:\n',
+                  '      configs:\n        release:\n          CODE_SIGN_IDENTITY: iPhone Distribution\n'
+                  + '\\1dependencies:\n',
+                  s,
+                  count=1,
+              )
+          open(path, 'w').write(s)
+          PYEOF
+
       - name: Write Apple API key
         if: ${{ matrix.id == 'ios' }}
         env:
@@ -589,7 +608,7 @@ jobs:
           APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          yarn tauri ios build --config src-tauri/tauri.beta.conf.json
+          yarn tauri ios build --export-method app-store-connect --config src-tauri/tauri.beta.conf.json
 
       # - name: Stage Windows beta assets
       #   if: ${{ startsWith(matrix.id, 'windows-') }}
