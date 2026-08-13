@@ -175,16 +175,21 @@ jobs:
             echo "tag_name=v${{ needs.validate.outputs.version }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Create empty draft prerelease
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.tag_name }}
-          name: ${{ needs.validate.outputs.version }}
-          draft: true
-          prerelease: true
-          generate_release_notes: false
+      - name: Create empty draft prerelease if missing
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.CUSTOM_GITHUB_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag_name }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — keeping it (assets preserved)."
+          else
+            gh release create "$TAG" \
+              --title "${{ needs.validate.outputs.version }}" \
+              --draft \
+              --prerelease
+            echo "Created draft release $TAG."
+          fi
 
   prepare:
     name: Prepare platform matrix
