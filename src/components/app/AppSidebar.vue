@@ -67,7 +67,7 @@
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
-        @click="addFolder"
+        @click="openCreateFolderModal"
       >
         <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
         <transition name="fade-fast">
@@ -312,6 +312,13 @@
         </transition>
       </router-link>
     </div>
+
+    <folder-customize-modal
+      v-model="showCreateFolderModal"
+      :folder="null"
+      :parent-id="currentFolderId"
+      @saved="onFolderCreated"
+    />
   </aside>
 </template>
 
@@ -328,9 +335,10 @@ import { useAppShellActions } from '@/composable/useAppShellActions';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
+import FolderCustomizeModal from '../home/FolderCustomizeModal.vue';
 
 export default {
-  components: { WorkspaceSwitcher },
+  components: { WorkspaceSwitcher, FolderCustomizeModal },
   setup() {
     const { play } = useSounds();
     const router = useRouter();
@@ -363,6 +371,22 @@ export default {
       handleNavigation,
       createShortcutMap,
     } = useAppShellActions();
+
+    const showCreateFolderModal = ref(false);
+    const currentFolderId = computed(
+      () =>
+        route.name === 'Folder'
+          ? (route.params.id ?? null)
+          : null
+    );
+
+    function openCreateFolderModal() {
+      showCreateFolderModal.value = true;
+    }
+
+    function onFolderCreated() {
+      showCreateFolderModal.value = false;
+    }
 
     const isMacOS = isMacOSRuntime();
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
@@ -530,6 +554,10 @@ export default {
     onMounted(() => {
       _unregSidebarShortcuts = bindGlobalShortcuts(
         createShortcutMap({
+          'mod+shift+f': () => {
+            if (route.name === 'Note') return false;
+            openCreateFolderModal();
+          },
           'mod+shift+l': () =>
             theme.setTheme(theme.isDark() ? 'light' : 'dark'),
           'mod+shift+y': () => manualSync(),
@@ -590,6 +618,9 @@ export default {
       manualSync,
       keyBinding,
       folderStore,
+      showCreateFolderModal,
+      openCreateFolderModal,
+      onFolderCreated,
     };
   },
 };

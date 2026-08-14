@@ -2,11 +2,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { ref } from 'vue';
 import { mount } from '@vue/test-utils';
 
-vi.mock('@/lib/tauri-bridge', () => ({ backend: { isMobileRuntime: () => true } }));
 const folderStoreMock = {
   data: {},
   deletedIds: {},
   rootFolders: [],
+  validFolders: [],
   update: vi.fn(),
   archive: vi.fn(),
   unarchive: vi.fn(),
@@ -31,6 +31,7 @@ vi.mock('@/composable/useTranslations', () => ({
         unarchive: 'Unarchive',
         moveToFolder: 'Move to folder',
         delete: 'Delete',
+        untitledFolder: 'Untitled folder',
       },
     }),
   }),
@@ -45,22 +46,23 @@ import HomeFolderCard from '../HomeFolderCard.vue';
 const folder = { id: 'f1', name: 'Work', color: '#6366f1', icon: '', isArchived: false, parentId: null };
 
 describe('HomeFolderCard mobile', () => {
-  it('exposes Delete inside the mobile customize modal', async () => {
+  it('exposes Delete inside the folder customize modal', async () => {
     const wrapper = mount(HomeFolderCard, {
       props: { folder },
       global: {
         stubs: {
           'ui-modal': {
-            template: '<div><slot name="header" /><slot /></div>',
+            template: '<div><slot name="header" /><slot name="actions" /><slot /></div>',
           },
-          'ui-popover': { template: '<div><slot name="trigger" /><slot /></div>' },
+          'ui-input': true,
           'ui-emoji-picker': { template: '<div />' },
+          'ui-button': { template: '<button type="button"><slot /></button>' },
           'v-remixicon': { template: '<i />' },
         },
       },
     });
-    wrapper.vm.showCustomizeModal = true;
-    await wrapper.vm.$nextTick();
+
+    await wrapper.find('[data-testid="customize-folder-button"]').trigger('click');
     const deleteBtn = wrapper.findAll('button').find((b) => b.text().toLowerCase().includes('delete'));
     expect(deleteBtn).toBeTruthy();
 
