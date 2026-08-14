@@ -12,62 +12,6 @@
           }}
         </p>
 
-        <div class="mb-4">
-          <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
-            {{
-              translations.settings.appPasswordDesc ||
-              'Protects all notes on this device.'
-            }}
-          </p>
-          <template v-if="hasPassword">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex-1 text-sm text-neutral-600 dark:text-neutral-300"
-              >
-                <v-remixicon
-                  name="riShieldCheckLine"
-                  class="inline mr-1 text-primary"
-                  size="16"
-                />
-                {{
-                  translations.settings.passwordSet || 'App password is set'
-                }}
-              </span>
-              <ui-button class="text-sm" @click="changePasswordDialog">
-                {{ translations.settings.changePassword || 'Change' }}
-              </ui-button>
-            </div>
-          </template>
-          <template v-else>
-            <div class="flex items-center gap-2">
-              <ui-input
-                v-model="passwordInput"
-                type="password"
-                class="flex-1"
-                :aria-label="
-                  translations.settings.globalPassword || 'App password'
-                "
-                :aria-describedby="securityError ? 'security-error' : undefined"
-                :placeholder="
-                  translations.settings.choosePassword || 'Set your app password...'
-                "
-                @keyup.enter="setAppPassword"
-              />
-              <ui-button :disabled="!passwordInput" @click="setAppPassword">
-                {{ translations.settings.setPassword || 'Set password' }}
-              </ui-button>
-            </div>
-            <p
-              v-if="securityError"
-              id="security-error"
-              role="alert"
-              class="text-sm text-red-500 mt-1"
-            >
-              {{ securityError }}
-            </p>
-          </template>
-        </div>
-
         <div class="py-3">
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
@@ -176,7 +120,6 @@
 import { computed, onMounted, ref } from 'vue';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import {
   isKeyLoaded,
@@ -195,12 +138,7 @@ import { publishCloudKeyParams } from '@/utils/sync/vault-key-params.js';
 
 const { translations } = useTranslations();
 const dialog = useDialog();
-const passwordStore = usePasswordStore();
 const noteStore = useNoteStore();
-
-const passwordInput = ref('');
-const securityError = ref('');
-const hasPassword = ref(!!passwordStore.appPassword);
 
 const keyLoaded = ref(isKeyLoaded());
 const encryptionBusy = ref(false);
@@ -235,83 +173,6 @@ const encryptionProgressLabel = computed(() => {
       return translations.settings?.processingNotes || 'Processing notes';
   }
 });
-
-function showDialogAlert(message, onConfirm) {
-  dialog.alert({
-    title: translations.value.settings.alertTitle || 'Alert',
-    body: message,
-    okText: translations.value.dialog?.close || 'Close',
-    ...(onConfirm ? { onConfirm } : {}),
-  });
-}
-
-async function resetPasswordDialog() {
-  dialog.prompt({
-    title: translations.value.settings.resetPasswordTitle,
-    body:
-      translations.value.settings.body ||
-      'This data is encrypted, you need to input the password to get access',
-    icon: 'riLockLine',
-    okText: translations.value.settings.next,
-    cancelText: translations.value.settings.cancel,
-    placeholder: translations.value.settings.password,
-    onConfirm: async (currentPassword) => {
-      if (!currentPassword) {
-        showDialogAlert(translations.value.settings.invalidPassword);
-        return;
-      }
-
-      const isCurrentPasswordValid = await passwordStore.isValidPassword(
-        currentPassword
-      );
-      if (!isCurrentPasswordValid) {
-        showDialogAlert(translations.value.settings.wrongCurrentPassword);
-        return;
-      }
-
-      dialog.prompt({
-        title: translations.value.settings.enterNewPassword,
-        okText: translations.value.settings.resetPassword,
-        body: translations.value.settings.warning,
-        cancelText: translations.value.settings.cancel,
-        placeholder: translations.value.settings.newPassword,
-        onConfirm: async (newPassword) => {
-          if (!newPassword) {
-            showDialogAlert(translations.value.settings.invalidPassword);
-            return;
-          }
-
-          try {
-            await passwordStore.resetPassword(currentPassword, newPassword);
-            await verifyPassphrase(newPassword);
-            hasPassword.value = true;
-            showDialogAlert(translations.value.settings.passwordResetSuccess);
-          } catch (error) {
-            console.error('Error resetting password:', error);
-            showDialogAlert(translations.value.settings.passwordResetError);
-          }
-        },
-      });
-    },
-  });
-}
-
-async function setAppPassword() {
-  securityError.value = '';
-  if (!passwordInput.value?.trim()) return;
-  try {
-    await passwordStore.setAppPassword(passwordInput.value);
-    await verifyPassphrase(passwordInput.value);
-    hasPassword.value = true;
-    passwordInput.value = '';
-  } catch (error) {
-    securityError.value = String(error);
-  }
-}
-
-function changePasswordDialog() {
-  resetPasswordDialog();
-}
 
 function refreshKeyLoaded() {
   keyLoaded.value = isKeyLoaded();
@@ -558,9 +419,7 @@ function lockNow() {
   keyLoaded.value = false;
 }
 
-onMounted(async () => {
-  await passwordStore.retrieve();
-  hasPassword.value = !!passwordStore.appPassword;
+onMounted(() => {
   refreshKeyLoaded();
 });
 </script>
