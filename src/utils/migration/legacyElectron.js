@@ -18,11 +18,10 @@ import {
   ENVELOPE_VERSION,
   NOTE_ENVELOPE_VERSION_ARGON2,
   HASH_SHA_256,
-  IV_LENGTH_BYTES,
   PBKDF2_ITERATIONS,
-  SALT_LENGTH_BYTES,
 } from '@/utils/crypto/constants.js';
-import { bufToBase64, bufToHex, hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
+import { bufToHex, hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
+import { encryptContent } from '@/utils/crypto/encryption.js';
 
 // Legacy per-note encryption functions kept only for migration.
 const LEGACY_CRYPTOJS_PREFIX = 'U2FsdGVk';
@@ -61,23 +60,6 @@ async function _noteKeyPbkdf2(password, saltBuf) {
     false,
     ['encrypt', 'decrypt']
   );
-}
-
-export async function encryptNoteWithPassword(plaintext, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH_BYTES));
-  const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
-  const key = await _noteKeyArgon2(password, salt);
-  const ct = await crypto.subtle.encrypt(
-    { name: ALGO_AES_GCM, iv },
-    key,
-    new TextEncoder().encode(plaintext)
-  );
-  return JSON.stringify({
-    v: NOTE_ENVELOPE_VERSION_ARGON2,
-    salt: bufToHex(salt),
-    iv: bufToHex(iv),
-    cipher: bufToBase64(new Uint8Array(ct)),
-  });
 }
 
 export async function decryptNoteWithPassword(ciphertext, password) {
@@ -194,7 +176,7 @@ export async function detectLegacyLockedNotes(dir) {
   }
 }
 
-export async function migrateLegacyLockedNotes(dir, password, setSharedKey) {
+export async function migrateLegacyLockedNotes(dir, password) {
   const { data, notes: lockedNotes } = await readLegacyWithLocked(dir);
   if (!data || !lockedNotes.length) return 0;
 
@@ -211,7 +193,7 @@ export async function migrateLegacyLockedNotes(dir, password, setSharedKey) {
 
       if (parsed?.v === NOTE_ENVELOPE_VERSION_ARGON2) {
         const saltBuf = hexToBuf(parsed.salt);
-        // Derive the Argon2id key ONCE and reuse it for decrypt + re-encrypt.
+        // Derive the Argon2id key once and reuse it for decryption.
         const key = await _noteKeyArgon2(password, saltBuf);
         const buf = await crypto.subtle.decrypt(
           { name: ALGO_AES_GCM, iv: hexToBuf(parsed.iv) },
@@ -219,26 +201,8 @@ export async function migrateLegacyLockedNotes(dir, password, setSharedKey) {
           base64ToBuf(parsed.cipher)
         );
         plaintext = new TextDecoder().decode(buf);
-
-        // Re-encrypt with the same derived key (and same salt) — no second
-        // Argon2 derivation needed.
-        const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
-        const ct = await crypto.subtle.encrypt(
-          { name: ALGO_AES_GCM, iv },
-          key,
-          new TextEncoder().encode(plaintext)
-        );
-        note.content = {
-          type: 'doc',
-          content: [JSON.stringify({
-            v: NOTE_ENVELOPE_VERSION_ARGON2,
-            salt: bufToHex(saltBuf),
-            iv: bufToHex(iv),
-            cipher: bufToBase64(new Uint8Array(ct)),
-          })],
-        };
       } else if (parsed?.v === ENVELOPE_VERSION) {
-        // PBKDF2 envelope — decrypt with PBKDF2, re-encrypt with Argon2.
+        // PBKDF2 envelope — decrypt with PBKDF2.
         const saltBuf = hexToBuf(parsed.salt);
         const keyPbkdf2 = await _noteKeyPbkdf2(password, saltBuf);
         const buf = await crypto.subtle.decrypt(
@@ -247,47 +211,16 @@ export async function migrateLegacyLockedNotes(dir, password, setSharedKey) {
           base64ToBuf(parsed.cipher)
         );
         plaintext = new TextDecoder().decode(buf);
-
-        const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH_BYTES));
-        const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
-        const keyArgon2 = await _noteKeyArgon2(password, salt);
-        const ct = await crypto.subtle.encrypt(
-          { name: ALGO_AES_GCM, iv },
-          keyArgon2,
-          new TextEncoder().encode(plaintext)
-        );
-        note.content = {
-          type: 'doc',
-          content: [JSON.stringify({
-            v: NOTE_ENVELOPE_VERSION_ARGON2,
-            salt: bufToHex(salt),
-            iv: bufToHex(iv),
-            cipher: bufToBase64(new Uint8Array(ct)),
-          })],
-        };
       } else {
         // Legacy CryptoJS or unknown — fall back to the generic helper which
-        // handles derivation internally. No reuse possible for CryptoJS.
+        // handles derivation internally.
         ({ plaintext } = await decryptNoteWithPassword(ciphertext, password));
-        const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH_BYTES));
-        const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH_BYTES));
-        const key = await _noteKeyArgon2(password, salt);
-        const ct = await crypto.subtle.encrypt(
-          { name: ALGO_AES_GCM, iv },
-          key,
-          new TextEncoder().encode(plaintext)
-        );
-        note.content = {
-          type: 'doc',
-          content: [JSON.stringify({
-            v: NOTE_ENVELOPE_VERSION_ARGON2,
-            salt: bufToHex(salt),
-            iv: bufToHex(iv),
-            cipher: bufToBase64(new Uint8Array(ct)),
-          })],
-        };
       }
 
+      // Re-encrypt with the WORKSPACE key into the app's encrypted content
+      // format (`ae:6`) so the migrated note decrypts with the workspace
+      // passphrase after unlock. The legacy password is not persisted anywhere.
+      note.content = await encryptContent(JSON.parse(plaintext));
       note.isLocked = true;
       note.updatedAt = Date.now();
       migrated += 1;
@@ -299,6 +232,5 @@ export async function migrateLegacyLockedNotes(dir, password, setSharedKey) {
   if (migrated > 0) {
     await writeLegacyData(dir, JSON.stringify(data, null, 2));
   }
-  if (setSharedKey) await setSharedKey(password);
   return migrated;
 }

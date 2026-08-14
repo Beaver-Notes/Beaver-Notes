@@ -1324,7 +1324,6 @@ import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { usePasswordStore } from '@/store/passwd';
 import { useAccountStore } from '@/store/account';
 import { clipboard } from '@/lib/tauri-bridge';
 import { useSounds } from '@/composable/useSounds';
@@ -1350,7 +1349,6 @@ export default {
 
     const { translations } = useTranslations();
     const accountStore = useAccountStore();
-    const passwordStore = usePasswordStore();
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
     const importExportRef = ref(null);
@@ -1438,7 +1436,6 @@ export default {
       if (!legacyPasswordValue.value) return;
       const result = await flow.handleLegacyPasswordSubmit(
         legacyPasswordValue.value,
-        passwordStore,
       );
       if (result.success) legacyPasswordValue.value = '';
     }

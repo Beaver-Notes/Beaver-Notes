@@ -262,7 +262,6 @@
 import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/lib/settings';

@@ -16,7 +16,6 @@ vi.mock('@/composable/useNoteMenu', () => ({
   }),
 }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => ({}) }));
-vi.mock('@/store/passwd', () => ({ usePasswordStore: () => ({ retrieve: vi.fn() }) }));
 vi.mock('@/store/account', () => ({ useAccountStore: () => ({ isAuthenticated: false }) }));
 vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: {} }),

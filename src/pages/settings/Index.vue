@@ -274,7 +274,6 @@ import { useDialog } from '@/lib/dialog';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { formatTime } from '@/utils/helpers/index.js';
 import { forceSyncNow } from '../../utils/sync';
@@ -290,7 +289,6 @@ export default {
   setup() {
     const isDebugMode = import.meta.env.DEV;
     const { translations } = useTranslations();
-    const passwordStore = usePasswordStore();
     const noteStore = useNoteStore();
     const themes = [
       { name: 'light', img: lightImg },
@@ -308,7 +306,6 @@ export default {
       dialog,
       folderStore,
       noteStore,
-      passwordStore,
       storage,
       translations,
     });
@@ -316,9 +313,7 @@ export default {
     const securitySettings = useSettingsSecurity({
       dialog,
       noteStore,
-      passwordStore,
       translations,
-      showDialogAlert: dataSettings.showDialogAlert,
     });
 
     onMounted(() => {

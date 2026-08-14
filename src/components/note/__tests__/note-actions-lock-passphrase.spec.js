@@ -5,13 +5,11 @@ const {
   promptMock,
   alertMock,
   lockNoteMock,
-  setAppPasswordMock,
   verifyPassphraseMock,
 } = vi.hoisted(() => ({
   promptMock: vi.fn(),
   alertMock: vi.fn(),
   lockNoteMock: vi.fn(),
-  setAppPasswordMock: vi.fn(),
   verifyPassphraseMock: vi.fn(),
 }));
 
@@ -42,12 +40,6 @@ vi.mock('@/composable/useTranslations', () => ({
 }));
 vi.mock('@/composable/useClipboard', () => ({
   useClipboard: () => ({ copyState: 0, copyToClipboard: vi.fn() }),
-}));
-vi.mock('@/store/passwd', () => ({
-  usePasswordStore: () => ({
-    retrieve: vi.fn().mockResolvedValue(''),
-    setAppPassword: setAppPasswordMock,
-  }),
 }));
 vi.mock('@/utils/crypto/encryption.js', () => ({
   verifyPassphrase: verifyPassphraseMock,
@@ -97,7 +89,6 @@ describe('NoteActions lock', () => {
     promptMock.mockReset();
     alertMock.mockReset();
     lockNoteMock.mockReset();
-    setAppPasswordMock.mockReset();
     verifyPassphraseMock.mockReset();
   });
 
@@ -116,7 +107,6 @@ describe('NoteActions lock', () => {
 
     expect(verifyPassphraseMock).toHaveBeenCalledWith('my-passphrase');
     expect(lockNoteMock).toHaveBeenCalledWith('n1');
-    expect(setAppPasswordMock).not.toHaveBeenCalled();
   });
 
   it('alerts on a wrong passphrase and does not lock', async () => {

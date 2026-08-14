@@ -431,24 +431,6 @@
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
-            <label
-              class="editor-checkbox text-sm text-neutral-700 dark:text-neutral-200"
-            >
-              <input v-model="state.withPassword" type="checkbox" />
-              <span>{{
-                translations.settings.encryptPasswd || 'Encrypt'
-              }}</span>
-            </label>
-            <expand-transition>
-              <ui-input
-                v-if="state.withPassword"
-                v-model="state.password"
-                :placeholder="translations.settings.password || 'Password'"
-                class="w-full"
-                style="-webkit-text-security: disc"
-                autofocus
-              />
-            </expand-transition>
             <ui-button class="w-full" @click="exportData(defaultPath)">{{
               translations.settings.exportData || 'Export'
             }}</ui-button>
@@ -498,7 +480,6 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsData } from '@/composable/useSettingsData';
 import { useSettingsCloudSync } from '@/utils/sync/settings-cloud-sync';
 import { useImportExport } from '@/utils/import/import-export';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';
@@ -513,7 +494,6 @@ export default {
     const { translations } = useTranslations();
     const dialog = useDialog();
     const storage = useStorage();
-    const passwordStore = usePasswordStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const accountStore = useAccountStore();
@@ -566,7 +546,6 @@ export default {
       dialog,
       folderStore,
       noteStore,
-      passwordStore,
       storage,
       translations,
     });
@@ -646,38 +625,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-.editor-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.editor-checkbox input[type='checkbox'] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 9999px;
-  border: 2px solid #ccc;
-  cursor: pointer;
-  position: relative;
-  margin: 0;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-.editor-checkbox input[type='checkbox']:checked {
-  @apply bg-primary border-primary;
-}
-.editor-checkbox input[type='checkbox']:checked::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 16px;
-  height: 16px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='white'/%3E%3C/svg%3E");
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  transform: translate(-50%, -50%);
-}
-</style>

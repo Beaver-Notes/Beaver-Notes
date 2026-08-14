@@ -5,9 +5,6 @@ vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: { settings: {} } }),
 }));
 vi.mock('@/lib/dialog', () => ({ useDialog: () => ({ prompt: vi.fn(), alert: vi.fn(), confirm: vi.fn() }) }));
-vi.mock('@/store/passwd', () => ({
-  usePasswordStore: () => ({ appPassword: 'mock', retrieve: vi.fn(), setAppPassword: vi.fn(), isValidPassword: vi.fn(), resetPassword: vi.fn() }),
-}));
 vi.mock('@/store/note', () => ({ useNoteStore: () => ({}) }));
 vi.mock('@/utils/crypto/encryption.js', () => ({
   isKeyLoaded: () => true,

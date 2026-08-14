@@ -870,6 +870,17 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     // ── Workspace migration (must run BEFORE any settings_pool call) ──────
     migrate_to_workspace_layout(app.handle(), state.inner())?;
 
+    // The separate app-password store was retired — one workspace passphrase
+    // protects everything now. Delete the legacy `password.enc` file on the
+    // first launch after the upgrade; never fails startup if it is absent.
+    {
+        let app_dir = crate::shared::app_storage_dir(app.handle(), state.inner())?;
+        let legacy_password_file = app_dir.join("password.enc");
+        if legacy_password_file.exists() {
+            let _ = std::fs::remove_file(&legacy_password_file);
+        }
+    }
+
     sync_roots_from_settings(app.handle(), state.inner());
     grant_trusted_path(
         &state,

@@ -1,5 +1,5 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
+import { hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 import { listen } from '@tauri-apps/api/event';
@@ -21,29 +21,15 @@ import {
   clearAssetPassphrase,
   clearSecureBlob,
 } from '@/lib/native/security.js';
-import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
+import {
+  ensureKeyReadyForWrite,
+  verifyPassphrase,
+} from '@/utils/crypto/encryption.js';
 
 import {
   ONBOARDING_LANGUAGE_CONFIG,
   getLanguageDirection,
 } from '@/utils/i18n/languages.js';
-
-async function encryptSettings(plaintext, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
-  const aesKey = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    key, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
-  );
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(plaintext));
-  return JSON.stringify({
-    v: 1,
-    salt: Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join(''),
-    iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
-    cipher: bufToBase64(new Uint8Array(ct)),
-  });
-}
 
 async function decryptSettings(ciphertext, password) {
   const parsed = JSON.parse(ciphertext);
@@ -63,7 +49,6 @@ export function useSettingsData({
   dialog,
   folderStore,
   noteStore: _noteStore,
-  passwordStore,
   storage,
   translations,
 }) {
@@ -87,8 +72,6 @@ export function useSettingsData({
 
   const state = reactive({
     syncPath: '',
-    password: '',
-    withPassword: false,
     lastUpdated: null,
     zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
   });
@@ -199,14 +182,7 @@ export function useSettingsData({
       if (canceled) return;
 
       let data = await storage.store();
-      data.appPassword = storage.get('sharedKey');
       data.lockedNotes = JSON.parse(localStorage.getItem('lockedNotes'));
-      await passwordStore.retrieve();
-      data.appPassword = passwordStore.appPassword;
-
-      if (state.withPassword) {
-        data = await encryptSettings(JSON.stringify(data), state.password);
-      }
 
       const { default: dayjs } = await import('@/lib/dayjs');
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
@@ -224,9 +200,6 @@ export function useSettingsData({
           `${translations.value.settings.exportMessage}"${folderName}"`
         );
       }
-
-      state.withPassword = false;
-      state.password = '';
     } catch (error) {
       console.error(error);
     }
@@ -281,10 +254,6 @@ export function useSettingsData({
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        if (result.appPassword) {
-          await passwordStore.importAppPassword(result.appPassword);
-        }
-
         if (result.lockStatus !== null && result.lockStatus !== undefined) {
           localStorage.setItem('lockStatus', JSON.stringify(result.lockStatus));
         }
@@ -300,27 +269,43 @@ export function useSettingsData({
         );
       };
 
-      if (typeof data === 'string') {
-        dialog.prompt({
-          title: translations.value.settings.inputPassword,
-          body: translations.value.settings.body,
-          okText: translations.value.settings.import,
-          cancelText: translations.value.settings.cancel,
-          placeholder: translations.value.settings.password,
-          onConfirm: async (pass) => {
-            try {
+      // Import always requires the workspace passphrase — it is the single
+      // secret protecting every note. Verifying it also unlocks the workspace
+      // encryption key so merged rows can be encrypted with the current key.
+      dialog.prompt({
+        title: translations.value.settings.inputPassword,
+        body: translations.value.settings.body,
+        okText: translations.value.settings.import,
+        cancelText: translations.value.settings.cancel,
+        placeholder: translations.value.settings.password,
+        password: true,
+        onConfirm: async (pass) => {
+          if (!pass) {
+            showAlert(translations.value.settings.invalidPassword);
+            return false;
+          }
+
+          const verification = await verifyPassphrase(pass);
+          if (!verification.ok) {
+            showAlert(
+              verification.error || translations.value.settings.invalidPassword
+            );
+            return false;
+          }
+
+          try {
+            if (typeof data === 'string') {
               const result = await decryptSettings(data, pass);
               await finishImport(JSON.parse(result));
-            } catch {
-              showAlert(translations.value.settings.invalidPassword);
-              return false;
+            } else {
+              await finishImport(data);
             }
-          },
-        });
-        return;
-      }
-
-      await finishImport(data);
+          } catch {
+            showAlert(translations.value.settings.invalidPassword);
+            return false;
+          }
+        },
+      });
     } catch (error) {
       console.error(error);
     }

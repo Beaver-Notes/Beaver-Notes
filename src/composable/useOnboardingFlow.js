@@ -640,7 +640,7 @@ export function useOnboardingFlow({
     }
   }
 
-  async function handleLegacyPasswordSubmit(password, passwordStore) {
+  async function handleLegacyPasswordSubmit(password) {
     state.legacyPasswordLoading = true;
     state.legacyPasswordError = '';
     let migratedCount = 0;
@@ -652,9 +652,7 @@ export function useOnboardingFlow({
         return { success: true, migratedCount };
       }
 
-      migratedCount = await migrateLegacyLockedNotes(dir, password, (pw) =>
-        passwordStore.setAppPassword(pw),
-      );
+      migratedCount = await migrateLegacyLockedNotes(dir, password);
       state.legacyHasLockedNotes = false;
       return { success: true, migratedCount };
     } catch (e) {
