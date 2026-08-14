@@ -114,16 +114,13 @@ export function useSettingsAccount({ dialog, translations }) {
   async function detectAndPromptVaultJoin() {
     try {
       const { fetchCloudKeyParams, getFetchedCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-      const { detectRemoteVaultJoin } = await import('@/utils/onboarding/remote-vault-join.js');
-      const { hasRemoteVaultKeyParams, isKeyLoaded, adoptVaultKey } = await import('@/utils/crypto/encryption.js');
+      const { hasRemoteVaultKeyParams, adoptVaultKey } = await import('@/utils/crypto/encryption.js');
 
-      // If encryption key is already loaded, no need to prompt
-      if (isKeyLoaded()) return;
-
-      const hasVault = await detectRemoteVaultJoin({
-        fetchCloudKeyParams,
-        hasRemoteVaultKeyParams,
-      }).catch(() => false);
+      // Authoritative signal: the remote vault differs from this device's local
+      // manifest (or no local manifest exists). We deliberately do NOT skip when
+      // a local key is loaded — a wrong local key must still be re-imported.
+      await fetchCloudKeyParams({ force: true }).catch(() => null);
+      const hasVault = await hasRemoteVaultKeyParams().catch(() => false);
 
       if (hasVault) {
         dialog.confirm({
