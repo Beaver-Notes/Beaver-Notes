@@ -89,14 +89,6 @@
             </span>
           </div>
 
-          <ui-button
-            class="text-sm mt-3"
-            :disabled="encryptionBusy"
-            @click="importVaultFromSync"
-          >
-            Import vault from sync
-          </ui-button>
-
           <p
             v-if="encryptionError"
             id="encryption-error"
@@ -192,8 +184,6 @@ import {
   verifyPassphrase,
   lockEncryptionKey,
   generateRecoveryCode,
-  adoptVaultKey,
-  hasRemoteVaultKeyParams,
 } from '@/utils/crypto/encryption.js';
 import {
   migrateAssetEncryption,
@@ -252,72 +242,6 @@ function showDialogAlert(message, onConfirm) {
     body: message,
     okText: translations.value.dialog?.close || 'Close',
     ...(onConfirm ? { onConfirm } : {}),
-  });
-}
-
-async function importVaultFromSync() {
-  encryptionError.value = '';
-  let has = false;
-  try {
-    const { fetchCloudKeyParams } = await import(
-      '@/utils/sync/vault-key-params.js'
-    );
-    const fetched = await fetchCloudKeyParams({ force: true }).catch(() => null);
-    // If fetch succeeded, vault exists. Otherwise fall back to native check.
-    has = fetched || await hasRemoteVaultKeyParams();
-  } catch (e) {
-    encryptionError.value = e?.message || 'Failed to check the sync source.';
-    return;
-  }
-  if (!has) {
-    showDialogAlert(
-      translations.value.settings?.noRemoteVault ||
-        'No existing vault found in your sync source.'
-    );
-    return;
-  }
-  dialog.confirm({
-    title: 'Import vault from sync',
-    body: 'Importing will replace this device\u2019s encryption key. Notes encrypted with a different key may no longer be readable.',
-    icon: 'riShieldKeyholeLine',
-    okText: 'Import',
-    cancelText: 'Cancel',
-    onConfirm: () => {
-      dialog.prompt({
-        title: 'Enter this vault\u2019s password',
-        body: 'Enter the password for the existing encrypted vault in your sync source.',
-        icon: 'riLockLine',
-        okText: 'Import',
-        cancelText: 'Cancel',
-        placeholder: 'Vault password',
-        password: true,
-        onConfirm: async (pass) => {
-          if (!pass) {
-            showDialogAlert(
-              translations.value.settings?.invalidPassword ||
-                'Enter the vault password.'
-            );
-            return;
-          }
-          try {
-            const res = await adoptVaultKey(pass);
-            if (!res.ok) {
-              showDialogAlert(
-                res.error || 'Failed to import the vault. Check the password.'
-              );
-              return;
-            }
-            showDialogAlert(
-              translations.value.settings?.vaultImported ||
-                'Vault imported. The app will reload.',
-              () => window.location.reload()
-            );
-          } catch (e) {
-            showDialogAlert(e?.message || 'Failed to import the vault.');
-          }
-        },
-      });
-    },
   });
 }
 
