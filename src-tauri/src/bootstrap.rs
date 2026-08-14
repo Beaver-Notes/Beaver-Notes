@@ -368,12 +368,7 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), App
             .flatten()
             .and_then(|value| String::from_utf8(value).ok())
             .filter(|value: &String| !value.is_empty())
-            .is_some()
-            || keyring_entry(key)
-                .ok()
-                .and_then(|entry| entry.get_password().ok())
-                .filter(|value: &String| !value.is_empty())
-                .is_some();
+            .is_some();
 
         if has_existing {
             continue;
@@ -382,7 +377,6 @@ fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), App
         let _ = state
             .cache.secure_blobs
             .store_blob(state.inner(), key, blob.as_bytes().to_vec());
-        let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(|e| AppError::Other(e.to_string())));
     }
 
     Ok(())

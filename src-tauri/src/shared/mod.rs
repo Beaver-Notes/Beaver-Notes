@@ -13,7 +13,6 @@ use http::{
     },
     Response, StatusCode,
 };
-use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -921,10 +920,6 @@ pub(crate) fn resolve_asset_path_from_uri(app: &AppHandle, uri: &str) -> Result<
         return resolve_asset_path_from_protocol_url(app, uri, "file-assets");
     }
     Ok(PathBuf::from(uri))
-}
-
-pub(crate) fn keyring_entry(account: &str) -> Result<Entry, AppError> {
-    Entry::new(SAFE_STORAGE_SERVICE, account).map_err(|e| AppError::Other(e.to_string()))
 }
 
 pub(crate) fn grant_trusted_path(state: &AppState, path: &Path) {

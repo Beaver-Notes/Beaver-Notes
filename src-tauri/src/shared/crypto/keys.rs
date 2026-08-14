@@ -1049,10 +1049,24 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
             if let Ok(stored) = entry.get_password() {
                 return BASE64.decode(stored.as_bytes()).map_err(AppError::from);
             }
-
+            // The keyring is present but has no key we can read. Prefer reusing
+            // the durable file key when one exists (keychain-less / flaky
+            // keychain Linux): minting a fresh key here would rotate the master
+            // key and strand every blob encrypted with the previous one — the
+            // cause of the encryption gate appearing on every launch.
+            if let Some(key) = read_file_based_master_key()? {
+                let _ = entry.set_password(&BASE64.encode(&key));
+                return Ok(key);
+            }
+            // First run anywhere: mint once and anchor the key in BOTH stores so
+            // the key is identical on the next launch no matter which store
+            // survives. (On macOS/Windows the plaintext file is intentionally not
+            // written — the OS keychain is the sole store there.)
             let mut key = vec![0_u8; 32];
             rand::thread_rng().fill_bytes(&mut key);
             if entry.set_password(&BASE64.encode(&key)).is_ok() {
+                #[cfg(target_os = "linux")]
+                let _ = write_file_based_master_key(&key);
                 return Ok(key);
             }
         }
@@ -1062,35 +1076,18 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
     file_based_master_key()
 }
 
-pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
+fn master_key_path() -> Result<std::path::PathBuf, AppError> {
     let app_dir = dirs::data_local_dir()
         .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
         .join("com.beavernotes.beaver-notes");
-    let key_path = app_dir.join(MASTER_KEY_FILE);
+    Ok(app_dir.join(MASTER_KEY_FILE))
+}
 
+fn read_file_based_master_key() -> Result<Option<Vec<u8>>, AppError> {
+    let key_path = master_key_path()?;
     if !key_path.exists() {
-        // No OS keychain (e.g. headless/minimal Linux distros): fall back to an
-        // on-disk master key so safe-storage still works. Keep it owner-only.
-        let mut key = vec![0_u8; 32];
-        rand::thread_rng().fill_bytes(&mut key);
-        let encoded = BASE64.encode(&key);
-        if let Some(parent) = key_path.parent() {
-            fs::create_dir_all(parent)?;
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
-            }
-        }
-        fs::write(&key_path, encoded)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
-        }
-        return Ok(key);
+        return Ok(None);
     }
-
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -1106,7 +1103,39 @@ pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
             "Invalid file-based master key length".into(),
         ));
     }
-    Ok(key_bytes)
+    Ok(Some(key_bytes))
+}
+
+fn write_file_based_master_key(key: &[u8]) -> Result<(), AppError> {
+    let key_path = master_key_path()?;
+    let encoded = BASE64.encode(key);
+    if let Some(parent) = key_path.parent() {
+        fs::create_dir_all(parent)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+        }
+    }
+    fs::write(&key_path, encoded)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
+    }
+    Ok(())
+}
+
+pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
+    if let Some(key) = read_file_based_master_key()? {
+        return Ok(key);
+    }
+    // No OS keychain (e.g. headless/minimal Linux distros): fall back to an
+    // on-disk master key so safe-storage still works. Keep it owner-only.
+    let mut key = vec![0_u8; 32];
+    rand::thread_rng().fill_bytes(&mut key);
+    write_file_based_master_key(&key)?;
+    Ok(key)
 }
 
 pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {
