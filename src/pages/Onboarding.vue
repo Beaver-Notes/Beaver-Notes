@@ -27,7 +27,7 @@
     </div>
 
     <!-- :key is coarse on purpose — 'wizard' stays constant across
-         customize → password so the frame (card / bottom sheet) never
+         account → customize so the frame (card / bottom sheet) never
          remounts; only its inner content slides. -->
     <div
       :key="topLevelKey"
@@ -71,7 +71,7 @@
               <p
                 class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                Lets start by customizing your settings, or use the defaults.
+                Let's get set up — sign in, secure your notes, then import and customize.
               </p>
             </div>
           </div>
@@ -99,7 +99,7 @@
         </div>
       </div>
 
-      <!-- ── Wizard: customize → import → account → sync → password ──
+      <!-- ── Wizard: account → sync → password → import → customize ──
            One persistent modal frame (ui-modal renders as a fixed centered
            card on desktop and a bottom sheet on mobile automatically). Only
            the inner content transitions between steps. -->
