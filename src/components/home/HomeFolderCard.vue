@@ -271,6 +271,36 @@
           @select="setFolderIcon"
         />
       </div>
+
+      <!-- Actions (edit mode) -->
+      <div class="border-t border-neutral-200 dark:border-neutral-700 mt-4 pt-3 px-4 pb-4">
+        <p class="text-[11px] font-semibold text-neutral-500 mb-2">
+          {{ translations.card.actions || 'Actions' }}
+        </p>
+        <div class="flex flex-col gap-1">
+          <button
+            class="flex w-full items-center gap-2 rounded-lg p-2.5 text-left text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            @click.stop="toggleArchive"
+          >
+            <v-remixicon :name="folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'" />
+            <span>{{ folder.isArchived ? translations.card.unarchive : translations.card.archive }}</span>
+          </button>
+          <button
+            class="flex w-full items-center gap-2 rounded-lg p-2.5 text-left text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+            @click.stop="showFolderMoveModal = true"
+          >
+            <v-remixicon name="riFolderTransferLine" />
+            <span>{{ translations.card.moveToFolder }}</span>
+          </button>
+          <button
+            class="flex w-full items-center gap-2 rounded-lg p-2.5 text-left text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-500/10 transition-colors"
+            @click.stop="deleteFolder"
+          >
+            <v-remixicon name="riDeleteBin6Line" />
+            <span>{{ translations.card.delete }}</span>
+          </button>
+        </div>
+      </div>
     </ui-modal>
 
     <folder-tree
