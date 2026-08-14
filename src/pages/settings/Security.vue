@@ -290,6 +290,7 @@ async function importVaultFromSync() {
         okText: 'Import',
         cancelText: 'Cancel',
         placeholder: 'Vault password',
+        password: true,
         onConfirm: async (pass) => {
           if (!pass) {
             showDialogAlert(

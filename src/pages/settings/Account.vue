@@ -619,6 +619,7 @@ export default {
             okText: translations.value.account?.importVault || 'Import',
             cancelText: translations.value.dialog?.cancel || 'Cancel',
             placeholder: translations.value.settings?.password || 'Vault password',
+            password: true,
             onConfirm: async (pass) => {
               if (!pass) {
                 dialog.alert({
