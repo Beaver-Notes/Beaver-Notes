@@ -542,7 +542,11 @@ export function useOnboardingFlow({
       state.migrationStatus =
         translations.value.onboarding?.allDone || 'All done!';
       state.migrationDone = true;
-      await seedFreshFromSettings();
+      try {
+        await seedFreshFromSettings();
+      } catch (err) {
+        console.warn('[onboarding] re-seed from imported settings failed:', err);
+      }
       importPhase.value = 'done';
       // Jump the last 10% once everything is actually finished.
       state.migrationProgress = 100;
@@ -621,7 +625,11 @@ export function useOnboardingFlow({
         )
         .join('\n');
       state.migrationDone = true;
-      await seedFreshFromSettings();
+      try {
+        await seedFreshFromSettings();
+      } catch (err) {
+        console.warn('[onboarding] re-seed from imported settings failed:', err);
+      }
       importPhase.value = 'done';
     } catch (e) {
       state.error = e?.message || String(e);
@@ -797,6 +805,8 @@ export function useOnboardingFlow({
     'selectedFont',
     'soundsEnabled',
     'spotlightEnabled',
+    'selectedLanguage',
+    'directionPreference',
   ];
 
   async function seedFreshFromSettings() {
@@ -812,6 +822,7 @@ export function useOnboardingFlow({
     fresh.zoomLevel =
       parseFloat(await getSetting('zoomLevel')) || fresh.zoomLevel;
     fresh.selectedFont = (await getSetting('selectedFont')) || fresh.selectedFont;
+    fresh.language = (await getSetting('selectedLanguage')) || fresh.language;
     fresh.soundsEnabled =
       (await getSetting('soundsEnabled')) ?? fresh.soundsEnabled;
     fresh.spotlightEnabled =
