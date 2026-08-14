@@ -364,7 +364,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
 import { useClipboard } from '@/composable/clipboard';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
@@ -414,63 +413,33 @@ export default {
     );
 
     function lockNote() {
-      const passwordStore = usePasswordStore();
-      const noteStore = useNoteStore();
       const dialog = useDialog();
+      const noteStore = useNoteStore();
       const { translations } = useTranslations();
       const t = translations.value.card;
       const dlg = translations.value.dialog;
       const settings = translations.value.settings;
 
-      passwordStore.retrieve().then((hasSharedKey) => {
-        if (!hasSharedKey) {
-          dialog.prompt({
-            title: t.enterPasswd || 'Set a password',
-            okText: t.setKey || 'Set Key',
-            body: t.warning || 'Set a password to lock this note.',
-            cancelText: t.cancel || 'Cancel',
-            placeholder: t.password || 'Password',
-            onConfirm: async (newKey) => {
-              if (newKey) {
-                try {
-                  await passwordStore.setAppPassword(newKey);
-                  await verifyPassphrase(newKey);
-                  await noteStore.lockNote(props.note.id, newKey);
-                } catch {
-                  dialog.alert({
-                    title: t.keyFail || 'Error',
-                    body: t.keyFail || 'Failed to lock note.',
-                    okText: dlg?.close || 'Close',
-                  });
-                }
-              }
-            },
-          });
-        } else {
-          dialog.prompt({
-            title: t.enterPasswd || 'Enter password',
-            body:
-              t.warning ||
-              'Warning, if you forget your password, you will lose access to your locked notes.',
-            icon: 'riLockLine',
-            okText: t.lock || 'Lock',
-            cancelText: t.cancel || 'Cancel',
-            placeholder: t.password || 'Password',
-            onConfirm: async (enteredPassword) => {
-              const isValid =
-                await passwordStore.isValidPassword(enteredPassword);
-              if (isValid) {
-                await noteStore.lockNote(props.note.id, enteredPassword);
-              } else {
-                dialog.alert({
-                  title: settings?.alertTitle || 'Alert',
-                  body: t.wrongPasswd || 'Wrong password.',
-                  okText: dlg?.close || 'Close',
-                });
-              }
-            },
-          });
-        }
+      dialog.prompt({
+        title: t.enterPasswd || 'Enter passphrase',
+        body: t.warning || 'Enter your workspace passphrase to lock this note.',
+        icon: 'riLockLine',
+        okText: t.lock || 'Lock',
+        cancelText: t.cancel || 'Cancel',
+        placeholder: t.password || 'Passphrase',
+        password: true,
+        onConfirm: async (enteredPassword) => {
+          const result = await verifyPassphrase(enteredPassword);
+          if (result.ok) {
+            await noteStore.lockNote(props.note.id);
+          } else {
+            dialog.alert({
+              title: settings?.alertTitle || 'Alert',
+              body: result.error || t.wrongPasswd || 'Wrong passphrase.',
+              okText: dlg?.close || 'Close',
+            });
+          }
+        },
       });
     }
 
