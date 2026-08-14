@@ -1,5 +1,7 @@
 import Suggestion from './suggestion';
 import { useLabelStore } from '@/store/label';
+import { VueRenderer } from '@tiptap/vue-3';
+import LabelNodeView from './label-suggestion/LabelNodeView.vue';
 
 const props = {
   showAdd: true,
@@ -18,6 +20,15 @@ const props = {
 const LabelSuggestion = Suggestion({ name: 'noteLabel', props }).configure({
   HTMLAttributes: {
     class: 'mention',
+  },
+  addNodeView() {
+    return ({ node }) => {
+      const component = new VueRenderer(LabelNodeView, {
+        props: { node },
+        editor: this.editor,
+      });
+      return { dom: component.element };
+    };
   },
   suggestion: {
     char: '#',
