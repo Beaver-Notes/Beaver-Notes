@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex flex-col md:flex-row items-start md:space-x-4 space-y-2 md:space-y-0"
+    class="flex flex-col md:flex-row items-start md:space-x-4 space-y-2 md:space-y-0 mb-6"
   >
     <!-- Search input -->
     <div class="w-full md:flex-1 rtl:ml-4">
