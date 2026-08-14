@@ -20,9 +20,11 @@ vi.mock('@/lib/native/yjs.js', () => ({
 
 vi.mock('@/lib/native/app', () => ({
   getAppDirectory: vi.fn(() => '/tmp/app-dir'),
+  notify: vi.fn(() => Promise.resolve(true)),
 }));
 
 vi.mock('@/lib/tauri-bridge', () => ({
+  backend: { isTouchRuntime: vi.fn(() => false) },
   path: { join: (...args) => args.join('/') },
 }));
 

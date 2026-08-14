@@ -22,7 +22,7 @@ import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
-import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
+import { appReady, notify, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
 import {
   checkForUpdates,
   getAutoUpdateStatus,
@@ -634,6 +634,16 @@ export function useAppShell(onboardingCompleted = true) {
         updateBanner.secondaryText = bannerData.secondaryText;
         updateBanner.version = bannerData.version;
         updateBanner.show = true;
+        if (!backend.isTouchRuntime()) {
+          const copy = translations.value.app || {};
+          notify({
+            title: copy.updateAvailableTitle || 'Update available',
+            body:
+              copy.updateAvailableBody ||
+              bannerData.content ||
+              'An update is ready to install.',
+          }).catch(() => {});
+        }
       }),
       backend.listen('spellcheck-changed', () => {}),
       backend.listen('deep-link://received', (_, payload) => {

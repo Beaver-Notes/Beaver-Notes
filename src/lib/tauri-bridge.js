@@ -15,6 +15,7 @@ import {
   isIOSRuntime,
   isMacOSRuntime,
   isAppleRuntime,
+  isTabletRuntime,
 } from '@/lib/tauri/runtime';
 import { invokeWithScopedSupport } from '@/lib/tauri/scoped-storage';
 
@@ -45,6 +46,9 @@ export const backend = {
   },
   isAppleRuntime() {
     return isAppleRuntime();
+  },
+  isTouchRuntime() {
+    return isMobileRuntime() || isTabletRuntime();
   },
 };
 
