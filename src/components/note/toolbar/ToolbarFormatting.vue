@@ -3,6 +3,7 @@
   <button
     v-for="item in visibleInlineFormatItems"
     :key="item.id"
+    v-keep-focus
     v-tooltip.group="fmtMap[item.fmt]?.title"
     :aria-label="fmtMap[item.fmt]?.title"
     :class="tbBtn(editor.isActive(fmtMap[item.fmt]?.state))"
@@ -14,6 +15,7 @@
   <!-- Color / highlight entry button -->
   <button
     v-if="isItemVisible('color')"
+    v-keep-focus
     v-tooltip.group="translations.menu.highlight"
     :aria-label="translations.menu.highlight"
     :class="tbBtn(editor.isActive('textStyle') || editor.isActive('highlight'))"

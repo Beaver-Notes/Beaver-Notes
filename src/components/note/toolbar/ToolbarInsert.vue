@@ -8,6 +8,7 @@
   >
     <template #trigger>
       <button
+        v-keep-focus
         v-tooltip.group="translations.menu.link"
         :aria-label="translations.menu.link"
         :class="tbBtn(editor.isActive('link') || linkPopoverOpen)"
@@ -33,6 +34,7 @@
           @keyup.enter="saveLinkInput"
         />
         <button
+          v-keep-focus
           class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
           :title="translations.common?.cancel || 'Cancel'"
           :aria-label="translations.common?.cancel || 'Cancel'"
@@ -41,6 +43,7 @@
           <v-remixicon name="riCloseLine" class="size-4" />
         </button>
         <button
+          v-keep-focus
           class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
           :title="translations.common?.save || 'Save'"
           :aria-label="translations.common?.save || 'Save'"
@@ -60,6 +63,7 @@
         <button
           v-for="(suggestion, index) in linkSuggestions"
           :key="suggestion.id"
+          v-keep-focus
           :class="
             index === selectedLinkIndex
               ? 'bg-neutral-100 dark:bg-neutral-700'
@@ -91,6 +95,7 @@
   </ui-popover>
   <button
     v-if="isItemVisible('image')"
+    v-keep-focus
     v-tooltip.group="translations.menu.image"
     :aria-label="translations.menu.image"
     :class="tbBtn()"
@@ -100,6 +105,7 @@
   </button>
   <button
     v-if="isItemVisible('file')"
+    v-keep-focus
     v-tooltip.group="translations.menu.file"
     :aria-label="translations.menu.file"
     :class="tbBtn()"
@@ -109,6 +115,7 @@
   </button>
   <button
     v-if="isItemVisible('video')"
+    v-keep-focus
     v-tooltip.group="translations.menu.video"
     :aria-label="translations.menu.video"
     :class="tbBtn()"
@@ -118,6 +125,7 @@
   </button>
   <button
     v-if="isItemVisible('table')"
+    v-keep-focus
     v-tooltip.group="translations.menu.table"
     :aria-label="translations.menu.table"
     :class="tbBtn()"
@@ -133,6 +141,7 @@
   </button>
   <button
     v-if="isItemVisible('draw')"
+    v-keep-focus
     v-tooltip.group="translations.menu.draw"
     :aria-label="translations.menu.draw"
     :class="tbBtn(drawActions.some((action) => action.isActive))"
@@ -145,6 +154,7 @@
   <div class="flex items-center gap-0.5">
     <template v-if="isRecording">
       <button
+        v-keep-focus
         :class="tbBtn()"
         class="!text-red-500"
         aria-label="Stop recording"
@@ -156,7 +166,7 @@
         class="min-w-10 px-1 text-xs font-semibold tabular-nums text-red-500"
         >{{ formattedTime }}</span
       >
-      <button :class="tbBtn()" :aria-label="isPaused ? 'Play recording' : 'Pause recording'" @click="pauseResume">
+      <button v-keep-focus :class="tbBtn()" :aria-label="isPaused ? 'Play recording' : 'Pause recording'" @click="pauseResume">
         <v-remixicon
           :name="isPaused ? 'riPlayFill' : 'riPauseFill'"
         />
@@ -165,6 +175,7 @@
     <template v-else>
       <button
         v-if="isItemVisible('audio')"
+        v-keep-focus
         v-tooltip.group="translations.menu.record"
         :aria-label="translations.menu.record"
         :class="tbBtn()"
