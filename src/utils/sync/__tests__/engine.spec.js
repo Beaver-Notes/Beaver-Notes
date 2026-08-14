@@ -67,6 +67,10 @@ vi.mock('../vault-key-params.js', () => ({
   publishCloudKeyParams: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('@/utils/crypto/encryption.js', () => ({
+  isEncryptionEnabled: vi.fn(() => false),
+}));
+
 describe('SyncEngine mutex', () => {
   let engine;
   let mockLocalTransport;
@@ -472,5 +476,156 @@ describe('SyncEngine unconfigured skip', () => {
     expect(engine.syncing).toBe(false);
 
     getSyncPath.mockImplementation(prev);
+  });
+});
+
+describe('SyncEngine notifications', () => {
+  let engine;
+  let backend;
+  let notify;
+  let isTouchRuntime;
+  let syncKeyReady;
+  let isEncryptionEnabled;
+  let mockLocalTransport;
+  let mockCloudTransport;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    ({ notify } = await import('@/lib/native/app'));
+    ({ backend } = await import('@/lib/tauri-bridge'));
+    isTouchRuntime = backend.isTouchRuntime;
+    ({ syncKeyReady } = await import('@/lib/native/security.js'));
+    ({ isEncryptionEnabled } = await import('@/utils/crypto/encryption.js'));
+    isTouchRuntime.mockReturnValue(false);
+    syncKeyReady.mockResolvedValue(true);
+    isEncryptionEnabled.mockReturnValue(false);
+
+    mockLocalTransport = {
+      pull: vi.fn(() => ({ updates: [], cursorsDelta: {} })),
+      push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
+      seedOnce: vi.fn(() => Promise.resolve()),
+      compact: vi.fn(() => Promise.resolve()),
+    };
+
+    mockCloudTransport = {
+      pull: vi.fn(() => ({ updates: [], cursorsDelta: {} })),
+      push: vi.fn(() => ({ updates: [], cursorsDelta: {}, pushed: 0 })),
+      seedOnce: vi.fn(() => Promise.resolve()),
+      compact: vi.fn(() => Promise.resolve()),
+      syncAssets: vi.fn(() => Promise.resolve()),
+      getCloudBuffer: vi.fn(() => []),
+    };
+
+    engine = new SyncEngine({
+      transports: { local: mockLocalTransport, cloud: mockCloudTransport },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['local', 'cloud'],
+    });
+  });
+
+  it('notifies when a completed cycle pulled updates', async () => {
+    mockCloudTransport.pull.mockReturnValue({
+      updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, seq: 1 }],
+      cursorsDelta: {},
+    });
+
+    await engine.enqueueSync(true);
+
+    await vi.waitFor(() => {
+      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: 'Sync complete' });
+    });
+  });
+
+  it('notifies when a completed cycle pushed changes', async () => {
+    mockCloudTransport.push.mockReturnValue({ updates: [], cursorsDelta: {}, pushed: 2 });
+
+    await engine.enqueueSync(true);
+
+    await vi.waitFor(() => {
+      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: 'Sync complete' });
+    });
+  });
+
+  it('does not notify on a no-op completion', async () => {
+    await engine.enqueueSync(true);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it('throttles failure notifications to once per five minutes', async () => {
+    mockLocalTransport.push.mockRejectedValue(new Error('offline'));
+
+    const base = Date.now() + 10 * 60_000;
+    const dateNow = vi.spyOn(Date, 'now').mockReturnValue(base);
+    try {
+      await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
+      await vi.waitFor(() => {
+        expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: 'Sync failed' });
+      });
+
+      notify.mockClear();
+      dateNow.mockReturnValue(base + 5_000);
+      await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
+      await new Promise((r) => setTimeout(r, 10));
+      expect(notify).not.toHaveBeenCalled();
+
+      dateNow.mockReturnValue(base + 5 * 60_000 + 1);
+      await expect(engine.enqueueSync(true)).rejects.toThrow('offline');
+      await vi.waitFor(() => {
+        expect(notify).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      dateNow.mockRestore();
+    }
+  });
+
+  it('notifies once for repeated locked cycles and again after a successful cycle', async () => {
+    const lockBody = 'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.';
+    syncKeyReady.mockResolvedValue(false);
+    isEncryptionEnabled.mockReturnValue(true);
+
+    engine = new SyncEngine({
+      transports: { cloud: mockCloudTransport },
+      storage: { get: vi.fn(() => ({})), set: vi.fn() },
+      getActiveTransports: () => ['cloud'],
+    });
+
+    await engine.enqueueSync(true);
+    await vi.waitFor(() => {
+      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: lockBody });
+    });
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    notify.mockClear();
+    await engine.enqueueSync(true);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(notify).not.toHaveBeenCalled();
+
+    syncKeyReady.mockResolvedValue(true);
+    await engine.enqueueSync(true);
+    await new Promise((r) => setTimeout(r, 10));
+
+    notify.mockClear();
+    syncKeyReady.mockResolvedValue(false);
+    await engine.enqueueSync(true);
+    await vi.waitFor(() => {
+      expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: lockBody });
+    });
+    expect(notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('suppresses notifications when isTouchRuntime() is true', async () => {
+    isTouchRuntime.mockReturnValue(true);
+    mockCloudTransport.pull.mockReturnValue({
+      updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, seq: 1 }],
+      cursorsDelta: {},
+    });
+
+    await engine.enqueueSync(true);
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(isTouchRuntime).toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
   });
 });
