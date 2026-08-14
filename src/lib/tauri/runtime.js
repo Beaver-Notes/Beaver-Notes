@@ -49,3 +49,7 @@ export function isMacOSRuntime() {
 export function isAppleRuntime() {
   return isIOSRuntime() || isMacOSRuntime();
 }
+
+export function isDesktopRuntime() {
+  return !isMobileRuntime() && !isTabletRuntime();
+}

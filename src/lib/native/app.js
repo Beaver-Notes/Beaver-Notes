@@ -57,6 +57,10 @@ export function setMenuVisibility(visible) {
   return backend.invoke('app:change-menu-visibility', visible);
 }
 
+export function updateMenu(context) {
+  return backend.invoke('app:update-menu', { context });
+}
+
 export function setZoomLevel(level) {
   return backend.invoke('app:set-zoom', level);
 }

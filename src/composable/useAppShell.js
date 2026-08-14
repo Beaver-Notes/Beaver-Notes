@@ -45,6 +45,12 @@ import {
 import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
 
+import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
+
+// Re-export the pure helper so it stays unit-testable via this composable
+// module (see src/composable/__tests__/menu-context.spec.js).
+export { buildMenuContext };
+
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
 
@@ -155,6 +161,23 @@ export function useAppShell(onboardingCompleted = true) {
     if (uiState.overlayCount > 0) return false;
     return true;
   });
+
+  // Keep the native menu in sync with the current screen. Desktop only — the
+  // native menu is a desktop concept. Debounced (~150ms) so rapid navigation
+  // coalesces into a single rebuild; the last context wins.
+  watch(
+    () => [route.name, uiState.inReaderMode],
+    () => {
+      if (!backend.isDesktopRuntime()) return;
+      pushMenuContext(
+        buildMenuContext({
+          routeName: route.name,
+          inReaderMode: uiState.inReaderMode,
+        })
+      );
+    },
+    { immediate: true }
+  );
 
   let maxVisualViewportHeight = 0;
   let pendingBlurTimeout = null;

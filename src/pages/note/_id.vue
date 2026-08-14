@@ -193,6 +193,7 @@ import { useAppStore } from '../../store/app';
 import { useAccountStore } from '@/store/account';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { decryptNoteForMemory, hydrateNote } from '@/utils/note/serializer.js';
+import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
@@ -243,6 +244,26 @@ export default {
       () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
     );
     const { translations } = useTranslations();
+
+    const pushNoteMenuContext = () => {
+      pushMenuContext(
+        buildMenuContext({
+          routeName: 'Note',
+          noteEditable: !isLocked.value,
+          noteLocked: isLocked.value,
+          inReaderMode: uiState.inReaderMode,
+        })
+      );
+    };
+
+    // Keep the native menu's Format/Insert items in sync with the note's
+    // editable state (load, lock/unlock) and reader mode. Debounced by
+    // pushMenuContext; desktop only.
+    watch(
+      () => [id.value, isLocked.value, uiState.inReaderMode],
+      () => pushNoteMenuContext(),
+      { immediate: true }
+    );
 
     const hocuspocus = getHocuspocusSync();
     const roomRole = computed(() => hocuspocus.getRoomRole(id.value));
@@ -515,6 +536,7 @@ export default {
       let isFirstFocus = true;
 
       const onFocus = () => {
+        pushNoteMenuContext();
         if (window.innerWidth >= 768) return;
         if (!isFirstFocus) return;
         isFirstFocus = false;
@@ -554,7 +576,12 @@ export default {
       removeEditorListeners();
     });
 
-    onBeforeRouteLeave(() => {
+    onBeforeRouteLeave((to) => {
+      // Leave the native menu on a neutral screen while the next route is
+      // being resolved; the app-shell watcher repaints it on arrival.
+      pushMenuContext(
+        buildMenuContext({ routeName: to.name })
+      );
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
         wait: false,
       });
