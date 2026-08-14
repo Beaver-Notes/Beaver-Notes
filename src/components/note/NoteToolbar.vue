@@ -27,6 +27,7 @@
             ]"
           >
             <button
+              v-keep-focus
               v-tooltip.group="
                 translations.toolbar?.insertBlock || 'Insert block'
               "
@@ -85,6 +86,7 @@
               <button
                 v-for="t in tableActions"
                 :key="t.name"
+                v-keep-focus
                 v-tooltip.group="t.label"
                 :aria-label="t.label"
                 :class="tbBtn()"
@@ -166,12 +168,13 @@
               panelClass('headings'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.headings }}</span>
             <button
+              v-keep-focus
               :class="tbChip(editor.isActive('paragraph'))"
               aria-label="Body"
               @click="
@@ -184,6 +187,7 @@
             <button
               v-for="h in [1, 2, 3, 4]"
               :key="h"
+              v-keep-focus
               :class="tbChip(editor.isActive('heading', { level: h }))"
               :aria-label="'Heading ' + h"
               @click="
@@ -202,7 +206,7 @@
               panelClass('fontSize'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -211,6 +215,7 @@
               class="flex items-center gap-0.5 border border-black/10 dark:border-white/10 rounded-xl px-1 h-[38px] shrink-0"
             >
               <button
+                v-keep-focus
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
                 aria-label="Decrease font size"
                 @click="
@@ -228,6 +233,7 @@
                 @change="updateFontSize"
               />
               <button
+                v-keep-focus
                 class="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 hover:text-neutral-800 dark:hover:text-white transition-colors"
                 aria-label="Increase font size"
                 @click="
@@ -242,6 +248,7 @@
             <button
               v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
               :key="size"
+              v-keep-focus
               :class="tbChip()"
               :aria-label="'Font size ' + size + 'pt'"
               @click="
@@ -257,6 +264,7 @@
               {{ size }}
             </button>
             <button
+              v-keep-focus
               :class="[tbChip(), 'opacity-60 !text-xs']"
               aria-label="Default font size"
               @click="
@@ -276,12 +284,13 @@
               panelClass('color'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.textColor }}</span>
             <button
+              v-keep-focus
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
               aria-label="Remove text color"
               @click="
@@ -294,6 +303,7 @@
             <button
               v-for="c in textColors"
               :key="'tc-' + c"
+              v-keep-focus
               class="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
               :style="{ background: c + '33' }"
               :aria-label="'Text color ' + c"
@@ -313,6 +323,7 @@
               translations.menu.highlighterColor
             }}</span>
             <button
+              v-keep-focus
               class="w-7 h-7 shrink-0 rounded-lg border border-black/10 dark:border-white/10 flex items-center justify-center text-[12px] text-neutral-500 hover:bg-black/5 dark:hover:bg-white/10 transition-colors bg-transparent"
               aria-label="Remove highlight"
               @click="
@@ -325,6 +336,7 @@
             <button
               v-for="(c, i) in highlighterColors"
               :key="'hl-' + c"
+              v-keep-focus
               :class="[
                 'h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/10 hover:scale-110 active:scale-95 transition-transform',
                 c,
@@ -344,7 +356,7 @@
               panelClass('lists'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -352,6 +364,7 @@
             <button
               v-for="l in lists"
               :key="l.name"
+              v-keep-focus
               :class="[tbChip(editor.isActive(l.state)), 'gap-1.5']"
               @click="
                 l.run();
@@ -369,12 +382,13 @@
               panelClass('image'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.image }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Upload image"
               @click="
@@ -393,12 +407,13 @@
               panelClass('file'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.file }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Upload file"
               @click="
@@ -417,12 +432,13 @@
               panelClass('video'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.video }}</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Upload video"
               @click="
@@ -441,12 +457,13 @@
               panelClass('audio'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">{{ translations.menu.record }}</span>
             <button
+              v-keep-focus
               :class="[tbChip(), 'gap-1.5']"
               @click="
                 toggleRecording();
@@ -458,6 +475,7 @@
               }}
             </button>
             <button
+              v-keep-focus
               :class="[tbChip(), 'gap-1.5']"
               @click="
                 triggerAudioInput();
@@ -477,12 +495,13 @@
               panelClass('paragraph'),
             ]"
           >
-            <button class="tb-back" aria-label="Back" @click="closeSub()">
+            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
             <span class="sub-label">Align</span>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align left"
               @click="
@@ -493,6 +512,7 @@
               <v-remixicon name="riAlignLeft" />
             </button>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align center"
               @click="
@@ -503,6 +523,7 @@
               <v-remixicon name="riAlignCenter" />
             </button>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align right"
               @click="
@@ -513,6 +534,7 @@
               <v-remixicon name="riAlignRight" />
             </button>
             <button
+              v-keep-focus
               :class="tbBtn()"
               aria-label="Align justify"
               @click="

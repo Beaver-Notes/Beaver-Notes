@@ -3,6 +3,7 @@
     class="bg-white dark:bg-neutral-900 border z-20 w-fit mx-auto p-1 rounded-xl shadow-md no-print flex items-center"
   >
     <button
+      v-keep-focus
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :class="
         currentLayout === 'wrap-left'
@@ -15,6 +16,7 @@
       <v-remixicon name="riAlignLeft" class="size-5" />
     </button>
     <button
+      v-keep-focus
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :class="
         currentLayout === 'block'
@@ -29,6 +31,7 @@
       <v-remixicon name="riAlignCenter" class="size-5" />
     </button>
     <button
+      v-keep-focus
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :class="
         currentLayout === 'wrap-right'
@@ -42,6 +45,7 @@
     </button>
     <span class="border-r mx-1 h-6" />
     <button
+      v-keep-focus
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :title="translations.editor.downloadImage || 'Download image'"
       @click="downloadImage"
@@ -50,6 +54,7 @@
     </button>
     <span class="border-r mx-1 h-6" />
     <button
+      v-keep-focus
       class="hoverable h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
       :title="deleteTitle"
       @click="removeImage"
