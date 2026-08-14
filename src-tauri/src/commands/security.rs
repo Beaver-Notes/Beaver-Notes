@@ -831,11 +831,11 @@ pub(crate) fn encryption_has_remote_key_params(
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {
-    if KEYRING_AVAILABLE.load(std::sync::atomic::Ordering::Relaxed) {
-        return Ok(true);
-    }
-    let master_key_result = file_based_master_key();
-    Ok(master_key_result.is_ok())
+    // Verify safe storage actually works instead of trusting the keyring flag.
+    // On Linux, KEYRING_AVAILABLE defaults true but the daemon may be dead;
+    // the file-based fallback makes read_master_key() succeed regardless. A
+    // successful probe means a blob written now will be readable next launch.
+    read_master_key().map(|_| true)
 }
 
 #[tauri::command]

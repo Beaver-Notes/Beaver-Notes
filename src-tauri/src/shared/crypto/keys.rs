@@ -1044,36 +1044,57 @@ pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
 }
 
 fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
-    if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
-        if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
-            if let Ok(stored) = entry.get_password() {
-                return BASE64.decode(stored.as_bytes()).map_err(AppError::from);
-            }
-            // The keyring is present but has no key we can read. Prefer reusing
-            // the durable file key when one exists (keychain-less / flaky
-            // keychain Linux): minting a fresh key here would rotate the master
-            // key and strand every blob encrypted with the previous one — the
-            // cause of the encryption gate appearing on every launch.
-            if let Some(key) = read_file_based_master_key()? {
+    // On Linux, the file-based master key is authoritative and the OS keyring
+    // is only an opportunistic mirror. Linux keyring daemons (Secret Service /
+    // gnome-keyring) are frequently absent or flaky in headless/minimal
+    // environments, and a dead daemon can strand a blob under a keyring-only
+    // key. Reading the file key first (minting it on first run) makes the key
+    // deterministic across launches regardless of keyring state.
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(key) = read_file_based_master_key()? {
+            return Ok(key);
+        }
+        let key = file_based_master_key()?;
+        // Anchor into the keyring when it happens to be alive, so desktop
+        // distros with a working keyring still get the OS-keychain benefit.
+        // A failure here is non-fatal: the file key remains authoritative.
+        if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
+            if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
                 let _ = entry.set_password(&BASE64.encode(&key));
-                return Ok(key);
-            }
-            // First run anywhere: mint once and anchor the key in BOTH stores so
-            // the key is identical on the next launch no matter which store
-            // survives. (On macOS/Windows the plaintext file is intentionally not
-            // written — the OS keychain is the sole store there.)
-            let mut key = vec![0_u8; 32];
-            rand::thread_rng().fill_bytes(&mut key);
-            if entry.set_password(&BASE64.encode(&key)).is_ok() {
-                #[cfg(target_os = "linux")]
-                let _ = write_file_based_master_key(&key);
-                return Ok(key);
             }
         }
-        super::KEYRING_AVAILABLE.store(false, Ordering::Relaxed);
+        return Ok(key);
     }
 
-    file_based_master_key()
+    #[cfg(not(target_os = "linux"))]
+    {
+        if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
+            if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
+                if let Ok(stored) = entry.get_password() {
+                    return BASE64.decode(stored.as_bytes()).map_err(AppError::from);
+                }
+                // The keyring is present but has no key we can read. Prefer
+                // reusing a durable file key when one exists so we never
+                // rotate the master key and strand existing blobs.
+                if let Some(key) = read_file_based_master_key()? {
+                    let _ = entry.set_password(&BASE64.encode(&key));
+                    return Ok(key);
+                }
+                // First run: mint once and anchor it. On macOS/Windows the
+                // plaintext file is intentionally not written — the OS
+                // keychain is the sole store there.
+                let mut key = vec![0_u8; 32];
+                rand::thread_rng().fill_bytes(&mut key);
+                if entry.set_password(&BASE64.encode(&key)).is_ok() {
+                    return Ok(key);
+                }
+            }
+            super::KEYRING_AVAILABLE.store(false, Ordering::Relaxed);
+        }
+
+        file_based_master_key()
+    }
 }
 
 fn master_key_path() -> Result<std::path::PathBuf, AppError> {
