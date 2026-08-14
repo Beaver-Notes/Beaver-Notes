@@ -44,6 +44,7 @@ vi.mock('@/lib/native/app', () => ({
 
 vi.mock('@/lib/tauri-bridge', () => ({
   path: { join: (...args) => args.join('/') },
+  addCloseHandler: vi.fn(),
 }));
 
 vi.mock('../../constants.js', () => ({

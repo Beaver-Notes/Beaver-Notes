@@ -1,6 +1,6 @@
 import { computed, reactive, ref, shallowRef, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
-import useAudioRecorder from '@/utils/assets/record.js';
+import { useAudioRecorder } from '@/composable/useAudioRecorder';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { useUiState } from '@/composable/useUiState';
 import { useNoteStore } from '@/store/note';
@@ -34,8 +34,6 @@ import mime from 'mime';
 import { saveFile } from '@/utils/assets/storage.js';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
-
-const storage = useStorage('settings');
 
 const highlighterColors = [
   'bg-[#DC8D42]/30 dark:bg-[#DC8D42]/40',
@@ -75,8 +73,14 @@ export function useNoteMenu(props) {
   const visibleItems = toolbar.visibleItems;
   const showCustomizer = ref(false);
 
-  const { isRecording, formattedTime, toggleRecording, isPaused, pauseResume } =
-    useAudioRecorder(props, backend, storage, path);
+  const recorder = useAudioRecorder();
+  const isRecording = recorder.isRecording;
+  const formattedTime = recorder.formattedTime;
+
+  function toggleRecording() {
+    const cursorPos = props.editor?.state?.selection?.from ?? 0;
+    recorder.start(props.id, cursorPos);
+  }
 
   const uiState = useUiState();
   const noteStore = useNoteStore();
@@ -663,8 +667,6 @@ export function useNoteMenu(props) {
     isRecording,
     formattedTime,
     toggleRecording,
-    isPaused,
-    pauseResume,
     currentTextColor,
     currentHighlightClass,
     drawActions,

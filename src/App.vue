@@ -8,6 +8,7 @@
     class="safe-area-overlay safe-area-overlay--bottom"
   />
   <app-command-prompt />
+  <recording-pill />
   <app-encryption-gate
     v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
     @unlocked="handleEncryptionUnlocked"
@@ -142,6 +143,7 @@ import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
+import RecordingPill from './components/note/RecordingPill.vue';
 import { useAppShell } from './composable/useAppShell';
 import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
 import { useAccountStore } from './store/account';
@@ -157,6 +159,7 @@ export default {
     AppNavbar,
     ImportFolderPicker,
     AppEncryptionGate,
+    RecordingPill,
   },
   setup() {
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));

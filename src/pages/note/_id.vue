@@ -180,9 +180,11 @@ import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useUiState } from '@/composable/useUiState';
 import { useStore } from '@/store';
-import { addCloseHandler } from '@/lib/tauri-bridge';
+import { addCloseHandler, path } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/utils/note/persistence';
 import { useNoteEncryption } from '@/utils/crypto/note-encryption';
+import { useAudioRecorder } from '@/composable/useAudioRecorder';
+import { insertAudioIntoClosedNote } from '@/utils/assets/audioInsert';
 import NoteToolbar from '@/components/note/NoteToolbar.vue';
 import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
@@ -244,6 +246,24 @@ export default {
       () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
     );
     const { translations } = useTranslations();
+
+    // App-global audio recorder: when a recording that targets THIS note
+    // stops, insert the audio node into the editor. If the editor is not
+    // ready, fall back to appending into the note's stored content.
+    const recorder = useAudioRecorder();
+
+    function handleRecordingStopped({ filePath, noteId, cursorPos }) {
+      if (noteId !== id.value) return;
+      if (note.value && editor.value) {
+        const filename = path.basename(filePath);
+        const src = `assets://${noteId}/${filename}`;
+        const pos = cursorPos ?? editor.value.state.selection.from;
+        editor.value.commands.setTextSelection(pos);
+        editor.value.commands.setAudio(src, filename);
+      } else {
+        void insertAudioIntoClosedNote(noteId, filePath, noteStore);
+      }
+    }
 
     const pushNoteMenuContext = () => {
       pushMenuContext(
@@ -514,6 +534,7 @@ export default {
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     };
     let removeGlobalShortcuts = () => {};
+    let stopRecorderListener = () => {};
 
     const scrollTitleIntoView = () => {
       const titleEl = titleDiv.value;
@@ -558,6 +579,7 @@ export default {
         },
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
+      stopRecorderListener = recorder.onStopped(handleRecordingStopped);
 
       if (titleDiv.value) {
         const titleText = note.value?.title || yjsGetTitle() || '';
@@ -571,6 +593,7 @@ export default {
 
     onUnmounted(() => {
       stopTitleObserver();
+      stopRecorderListener();
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();

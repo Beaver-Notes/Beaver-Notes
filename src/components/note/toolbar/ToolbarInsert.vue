@@ -152,38 +152,16 @@
 
   <!-- Audio -->
   <div class="flex items-center gap-0.5">
-    <template v-if="isRecording">
-      <button
-        v-keep-focus
-        :class="tbBtn()"
-        class="!text-red-500"
-        aria-label="Stop recording"
-        @click="toggleRecording"
-      >
-        <v-remixicon name="riStopCircleLine" />
-      </button>
-      <span
-        class="min-w-10 px-1 text-xs font-semibold tabular-nums text-red-500"
-        >{{ formattedTime }}</span
-      >
-      <button v-keep-focus :class="tbBtn()" :aria-label="isPaused ? 'Play recording' : 'Pause recording'" @click="pauseResume">
-        <v-remixicon
-          :name="isPaused ? 'riPlayFill' : 'riPauseFill'"
-        />
-      </button>
-    </template>
-    <template v-else>
-      <button
-        v-if="isItemVisible('audio')"
-        v-keep-focus
-        v-tooltip.group="translations.menu.record"
-        :aria-label="translations.menu.record"
-        :class="tbBtn()"
-        @click="openSub('audio')"
-      >
-        <v-remixicon name="riMicLine" />
-      </button>
-    </template>
+    <button
+      v-if="isItemVisible('audio')"
+      v-keep-focus
+      v-tooltip.group="translations.menu.record"
+      :aria-label="translations.menu.record"
+      :class="tbBtn()"
+      @click="toggleRecording"
+    >
+      <v-remixicon name="riMicLine" />
+    </button>
   </div>
 </template>
 
@@ -200,11 +178,7 @@ export default {
     isTableActive: { type: Boolean, default: false },
     tableActions: { type: Array, default: () => [] },
     drawActions: { type: Array, default: () => [] },
-    isRecording: { type: Boolean, default: false },
-    formattedTime: { type: String, default: '' },
-    isPaused: { type: Boolean, default: false },
     toggleRecording: { type: Function, required: true },
-    pauseResume: { type: Function, required: true },
     isMobile: { type: Boolean, default: false },
     tbBtn: { type: Function, required: true },
     openSub: { type: Function, required: true },

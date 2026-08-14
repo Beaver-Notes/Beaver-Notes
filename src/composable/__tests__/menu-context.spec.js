@@ -21,6 +21,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
     isDesktopRuntime: () => true,
   },
   onFileOpened: vi.fn(() => () => {}),
+  addCloseHandler: vi.fn(),
 }));
 
 // Extract a pure `buildMenuContext({ routeName, noteEditable, noteLocked, inReaderMode })`
