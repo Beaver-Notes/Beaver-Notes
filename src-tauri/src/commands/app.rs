@@ -265,6 +265,21 @@ pub(crate) fn change_menu_visibility(app: AppHandle, visible: bool) -> Result<()
 
 #[tauri::command]
 #[specta::specta]
+pub(crate) fn update_menu(app: AppHandle, context: serde_json::Value) -> Result<(), AppError> {
+    #[cfg(desktop)]
+    {
+        crate::menu::rebuild_menu(&app, &crate::menu::menu_context_from_value(&context))
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = (app, context);
+        Ok(())
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
 pub(crate) fn app_ready(app: AppHandle, state: State<AppState>) -> Result<(), AppError> {
     if let Some(banner) = state
         .updater

@@ -142,6 +142,7 @@ pub fn run() {
             commands::app::set_high_contrast,
             commands::app::get_high_contrast,
             commands::app::change_menu_visibility,
+            commands::app::update_menu,
             commands::app::app_ready,
             commands::app::helper_relaunch,
             commands::app::helper_get_path,
