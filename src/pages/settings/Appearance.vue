@@ -200,7 +200,10 @@
             <ui-switch v-model="ClearFontChecked" @change="toggleClearFont" />
           </div>
           <!-- Menubar visibility -->
-          <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
+          <div
+            v-if="isDesktopRuntime && !isMacOS"
+            class="flex items-center py-2 justify-between"
+          >
             <div>
               <span class="block text-lg align-left">
                 {{ translations.appearance.menuBarVisibility || '-' }}
@@ -428,6 +431,7 @@ export default {
     const setZoom = (newZoomLevel) => {
       state.zoomLevel = setStoredZoomLevel(newZoomLevel, { reload: true });
     };
+    const isDesktopRuntime = backend.isDesktopRuntime();
     const isMobileRuntime = backend.isMobileRuntime();
     const isIOSRuntime = backend.isIOSRuntime();
     const iconsSupported = ref(false);
@@ -523,6 +527,7 @@ export default {
       visibilityMenubar,
       toggleVisibilityOfMenubar,
       isMacOS,
+      isDesktopRuntime,
       toggleDirectionPreference,
       updateFont,
       updateCodeFont,
