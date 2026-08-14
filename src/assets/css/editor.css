@@ -48,8 +48,7 @@
   @apply dark:text-[color:var(--text-dark)];
 }
 .ProseMirror li {
-  margin-top: 0.25em !important;
-  margin-bottom: 0.25em !important;
+  margin-top: 0.125em !important;
 }
 .ProseMirror strong {
   color: inherit !important;

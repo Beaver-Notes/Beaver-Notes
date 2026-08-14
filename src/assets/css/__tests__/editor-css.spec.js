@@ -26,3 +26,10 @@ describe('editor.css scroll clearance for the fixed toolbar', () => {
     expect(blockWithScrollPadding).toContain('var(--app-keyboard-inset-bottom)');
   });
 });
+
+describe('editor list spacing', () => {
+  it('does not force a bottom margin on list items', () => {
+    const liBlock = editorCss.match(/\.ProseMirror li\s*{[^}]*}/)?.[0] ?? '';
+    expect(liBlock).not.toMatch(/margin-bottom:\s*0\.25em\s*!important/);
+  });
+});
