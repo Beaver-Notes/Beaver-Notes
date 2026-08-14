@@ -51,7 +51,7 @@ import { loadSessionToken } from '@/lib/account-storage';
 // Steps that live inside the persistent wizard frame (fixed card / bottom
 // sheet). 'welcome' and 'finish' are full-screen hero steps and are not
 // part of this set.
-const WIZARD_STEPS = ['customize', 'password', 'import', 'account', 'sync'];
+const WIZARD_STEPS = ['account', 'sync', 'password', 'import', 'customize'];
 
 export function useOnboardingFlow({
   router,
@@ -269,8 +269,8 @@ export function useOnboardingFlow({
 
   // Paid accounts use cloud sync directly and do not need a folder selection.
   const activeFlow = computed(() => {
-    const flow = ['welcome', 'customize', 'password', 'import', 'account', 'finish'];
-    if (!accountStore.canUseCloudSync) flow.splice(4, 0, 'sync');
+    const flow = ['welcome', 'account', 'password', 'import', 'customize', 'finish'];
+    if (!accountStore.canUseCloudSync) flow.splice(2, 0, 'sync');
     return flow;
   });
 
