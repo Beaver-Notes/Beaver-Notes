@@ -27,7 +27,10 @@ const LabelSuggestion = Suggestion({ name: 'noteLabel', props }).configure({
         props: { node },
         editor: this.editor,
       });
-      return { dom: component.element };
+      return {
+        dom: component.element,
+        destroy: () => component.destroy(),
+      };
     };
   },
   suggestion: {
