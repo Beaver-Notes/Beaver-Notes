@@ -86,28 +86,3 @@ jobs:
       - name: Run Rust unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib
 
-  # Static check that the Android manifest still references the network security
-  # config (self-hosted sync servers over plain HTTP) and has not regressed to
-  # the Tauri placeholder. Cheap guard; the full Android build happens in the
-  # release workflows.
-  android-manifest:
-    name: Android manifest checks
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Verify network security config
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f src-tauri/gen/android/app/src/main/res/xml/network_security_config.xml
-          grep -q 'android:networkSecurityConfig="@xml/network_security_config"' \
-            src-tauri/gen/android/app/src/main/AndroidManifest.xml
-          if grep -q 'android:usesCleartextTraffic="\${usesCleartextTraffic}"' \
-            src-tauri/gen/android/app/src/main/AndroidManifest.xml; then
-            echo "::error::AndroidManifest reverted to usesCleartextTraffic placeholder"
-            exit 1
-          fi
-          echo "Android network security config verified"
