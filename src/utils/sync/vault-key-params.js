@@ -36,7 +36,12 @@ function decodeKeyParams(raw) {
   }
 }
 
-export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyParamsBlob, challenge) {
+export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyParamsBlob, _challenge) {
+  // The proof must be stable across publish and verify, so it can be stored
+  // as a hash and compared later. The per-request `challenge` is a freshness
+  // token checked separately by the server — it must NOT be part of the KDF
+  // salt, otherwise every request (which mints a new challenge) would derive a
+  // different proof and verification could never match the stored hash.
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     'raw',
@@ -48,7 +53,7 @@ export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyPar
   const bits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-       salt: encoder.encode(`beaver-vault-proof-v1:${workspaceId}:${keyParamsBlob}:${challenge}`),
+      salt: encoder.encode(`beaver-vault-proof-v1:${workspaceId}:${keyParamsBlob}`),
       iterations: PROOF_ITERATIONS,
       hash: 'SHA-256',
     },

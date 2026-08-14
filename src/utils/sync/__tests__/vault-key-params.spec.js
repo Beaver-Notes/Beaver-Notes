@@ -92,7 +92,7 @@ describe('publishCloudKeyParams', () => {
 });
 
 describe('vault API payloads', () => {
-  it('derives a deterministic proof bound to the key params blob', async () => {
+  it('derives a deterministic proof bound to workspace + blob, independent of the challenge', async () => {
     const first = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'challenge');
     const second = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'challenge');
     const differentWorkspace = await deriveVaultPassphraseProof('vault-passphrase', 'ws-b', 'blob-a', 'challenge');
@@ -100,10 +100,13 @@ describe('vault API payloads', () => {
     const differentChallenge = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'other-challenge');
     const differentPassphrase = await deriveVaultPassphraseProof('other', 'ws-a', 'blob-a', 'challenge');
 
+    // The proof must be stable across requests so publish and verify can be
+    // compared later — the per-request challenge is a freshness token handled
+    // by the server, NOT part of the KDF salt.
     expect(first).toBe(second);
+    expect(first).toBe(differentChallenge);
     expect(first).not.toBe(differentBlob);
     expect(first).not.toBe(differentWorkspace);
-    expect(first).not.toBe(differentChallenge);
     expect(first).not.toBe(differentPassphrase);
   });
 });
