@@ -542,6 +542,7 @@ export function useOnboardingFlow({
       state.migrationStatus =
         translations.value.onboarding?.allDone || 'All done!';
       state.migrationDone = true;
+      seedFreshFromSettings();
       importPhase.value = 'done';
       // Jump the last 10% once everything is actually finished.
       state.migrationProgress = 100;
@@ -620,6 +621,7 @@ export function useOnboardingFlow({
         )
         .join('\n');
       state.migrationDone = true;
+      seedFreshFromSettings();
       importPhase.value = 'done';
     } catch (e) {
       state.error = e?.message || String(e);
@@ -788,6 +790,24 @@ export function useOnboardingFlow({
     }
   });
 
+  function seedFreshFromSettings() {
+    fresh.theme = theme.currentTheme.value || fresh.theme;
+    fresh.accentColor = getSettingSync('colorScheme') || fresh.accentColor;
+    fresh.zoomLevel =
+      parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
+    fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
+    fresh.soundsEnabled =
+      getSettingSync('soundsEnabled') ?? fresh.soundsEnabled;
+    fresh.spotlightEnabled =
+      getSettingSync('spotlightEnabled') ?? fresh.spotlightEnabled;
+    document.documentElement.style.setProperty(
+      '--selected-font',
+      fresh.selectedFont,
+    );
+    selectAccentColor(fresh.accentColor);
+    selectZoomLevel(fresh.zoomLevel);
+  }
+
   onMounted(async () => {
     if (prefersReducedMotion()) {
       logoIn.value = textIn.value = ctaIn.value = true;
@@ -804,21 +824,7 @@ export function useOnboardingFlow({
     }
 
     theme.loadTheme();
-    fresh.theme = theme.currentTheme.value || fresh.theme;
-    fresh.accentColor = getSettingSync('colorScheme') || fresh.accentColor;
-    fresh.zoomLevel =
-      parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
-    fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
-    fresh.soundsEnabled =
-      getSettingSync('soundsEnabled') ?? fresh.soundsEnabled;
-    fresh.spotlightEnabled =
-      getSettingSync('spotlightEnabled') ?? fresh.spotlightEnabled;
-    document.documentElement.style.setProperty(
-      '--selected-font',
-      fresh.selectedFont,
-    );
-    selectAccentColor(fresh.accentColor);
-    selectZoomLevel(fresh.zoomLevel);
+    seedFreshFromSettings();
 
     try {
       await refreshStatus();
