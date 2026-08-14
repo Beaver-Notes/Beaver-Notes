@@ -35,16 +35,6 @@
                 <span class="content-header w-full">
                   <slot name="header"></slot>
                 </span>
-                <v-remixicon
-                  v-show="!persist"
-                  class="cursor-pointer shrink-0 text-neutral-500 hover:text-neutral-700 dark:text-neutral-400 dark:hover:text-neutral-200 transition-colors"
-                  name="riCloseLine"
-                  size="20"
-                  role="button"
-                  aria-label="Close"
-                  tabindex="0"
-                  @click="closeModal"
-                ></v-remixicon>
               </div>
             </div>
             <div>
