@@ -1,4 +1,5 @@
 import { Transport } from './transport.js';
+import { normalizeSyncTransport } from '@/lib/api/types.js';
 import {
   pushUpdates as remotePushUpdates,
   pullUpdates as remotePullUpdates,
@@ -1272,9 +1273,9 @@ export class CloudTransport extends Transport {
 
   _remoteAllowed() {
     const t = this.getTransportSetting();
-    const want = t === 'remote' || t === 'both';
+    const want = normalizeSyncTransport(t) === 'remote';
     if (!want) {
-      logger.info('[sync] _remoteAllowed: transport setting is', JSON.stringify(t), '— not remote/both');
+      logger.info('[sync] _remoteAllowed: transport setting is', JSON.stringify(t), '— not remote');
       return false;
     }
     const state = this.getAccountState();

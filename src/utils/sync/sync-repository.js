@@ -54,12 +54,12 @@ export async function getCommitsDir() {
   try {
     const { getSettingSync } = await import('@/lib/settings');
     const transportSetting = getSettingSync('syncTransport') || 'folder';
-    const { SYNC_TRANSPORT } = await import('@/lib/api/types.js');
+    const { SYNC_TRANSPORT, normalizeSyncTransport } = await import('@/lib/api/types.js');
     const { useAccountStore } = await import('@/store/account');
     const accountStore = useAccountStore();
 
     const remoteAllowed =
-      transportSetting === SYNC_TRANSPORT.REMOTE &&
+      normalizeSyncTransport(transportSetting) === SYNC_TRANSPORT.REMOTE &&
       accountStore.isAuthenticated;
 
     if (remoteAllowed) {

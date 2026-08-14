@@ -419,7 +419,8 @@ export function useAccountAuth() {
     const transportSetting = await import('@/lib/settings').then(
       (m) => m.getSettingSync('syncTransport')
     );
-    if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {
+    const { normalizeSyncTransport } = await import('@/lib/api/types.js');
+    if (transportSetting && normalizeSyncTransport(transportSetting) !== 'remote') {
       return false;
     }
 

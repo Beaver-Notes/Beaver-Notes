@@ -1,25 +1,19 @@
 import { computed, ref } from 'vue';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
-import { SYNC_TRANSPORT } from '@/lib/api/types.js';
+import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types.js';
 import { forceSyncNow } from '@/utils/sync';
 
 export function useSyncTransport() {
   const accountStore = useAccountStore();
   const transport = ref(
-    getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER
+    normalizeSyncTransport(getSettingSync('syncTransport'))
   );
 
-  const isFolder = computed(
-    () =>
-      transport.value === SYNC_TRANSPORT.FOLDER ||
-      transport.value === SYNC_TRANSPORT.BOTH
-  );
+  const isFolder = computed(() => transport.value === SYNC_TRANSPORT.FOLDER);
   const isRemote = computed(
     () =>
-      (transport.value === SYNC_TRANSPORT.REMOTE ||
-        transport.value === SYNC_TRANSPORT.BOTH) &&
-      accountStore.isPaidPlan
+      transport.value === SYNC_TRANSPORT.REMOTE && accountStore.isPaidPlan
   );
 
   // Reflects the transports the *live* Yjs sync engine (utils/sync/index.js)
@@ -40,14 +34,13 @@ export function useSyncTransport() {
 
   const activeTransportNames = computed(() => {
     if (transport.value === SYNC_TRANSPORT.FOLDER) return ['local'];
-    return ['local', 'cloud'];
+    return ['cloud'];
   });
 
   async function setTransport(value) {
     if (
       value !== SYNC_TRANSPORT.FOLDER &&
-      value !== SYNC_TRANSPORT.REMOTE &&
-      value !== SYNC_TRANSPORT.BOTH
+      value !== SYNC_TRANSPORT.REMOTE
     ) {
       return;
     }

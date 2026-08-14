@@ -4,7 +4,7 @@ import { ensureDir, writeFile, readData, pathExists } from '@/lib/native/fs';
 import { getAppDirectory } from '@/lib/native/app';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
-import { SYNC_TRANSPORT, canUseCloudSync } from '@/lib/api/types';
+import { SYNC_TRANSPORT, canUseCloudSync, normalizeSyncTransport } from '@/lib/api/types';
 import { getApiClient } from '@/lib/api/client';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { useWorkspaceStore } from '@/store/workspace.ts';
@@ -65,9 +65,8 @@ export function getFetchedCloudKeyParams() {
 
 export function cloudKeyParamsReachable({ force = false } = {}) {
   const accountStore = useAccountStore();
-  const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
-  const wantsCloud =
-    transport === SYNC_TRANSPORT.REMOTE || transport === SYNC_TRANSPORT.BOTH;
+  const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
+  const wantsCloud = transport === SYNC_TRANSPORT.REMOTE;
   return Boolean(
     accountStore.isAuthenticated &&
       canUseCloudSync(accountStore.activeOrg?.subscription ?? accountStore.subscription) &&

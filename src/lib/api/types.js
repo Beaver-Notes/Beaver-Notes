@@ -16,8 +16,15 @@ export const PAID_PLANS = Object.freeze([
 export const SYNC_TRANSPORT = Object.freeze({
   FOLDER: 'folder',
   REMOTE: 'remote',
-  BOTH: 'both',
 });
+
+// The "both" option was removed. Stored `syncTransport` values of "both"
+// (from older installs) map to remote so existing users keep cloud sync.
+export function normalizeSyncTransport(value) {
+  if (value === SYNC_TRANSPORT.REMOTE) return SYNC_TRANSPORT.REMOTE;
+  if (value === 'both') return SYNC_TRANSPORT.REMOTE;
+  return SYNC_TRANSPORT.FOLDER;
+}
 
 export function isPaidPlan(plan) {
   return PAID_PLANS.includes(plan);

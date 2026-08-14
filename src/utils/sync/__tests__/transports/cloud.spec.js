@@ -82,7 +82,7 @@ describe('CloudTransport', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
     transport = new CloudTransport({
       passphraseProvider: vi.fn(() => 'mock-pass'),
-      getTransportSetting: () => 'both',
+      getTransportSetting: () => 'remote',
       getAccountState: defaultAccountState,
     });
   });
@@ -130,7 +130,7 @@ describe('CloudTransport', () => {
     it('no-op when not authenticated', async () => {
       const unAuthTransport = new CloudTransport({
         passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'both',
+        getTransportSetting: () => 'remote',
         getAccountState: () => ({ isAuth: false, plan: 'starter' }),
       });
       const result = await unAuthTransport.push({});
@@ -140,7 +140,7 @@ describe('CloudTransport', () => {
     it('no-op when plan is free', async () => {
       const freeTransport = new CloudTransport({
         passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'both',
+        getTransportSetting: () => 'remote',
         getAccountState: () => ({ isAuth: true, plan: 'free' }),
       });
       const result = await freeTransport.push({});
@@ -151,7 +151,7 @@ describe('CloudTransport', () => {
       let plan = 'starter';
       const downgradableTransport = new CloudTransport({
         passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'both',
+        getTransportSetting: () => 'remote',
         getAccountState: () => ({ isAuth: true, plan }),
       });
       const { readDir } = await import('@/lib/native/fs');

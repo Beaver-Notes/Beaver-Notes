@@ -25,7 +25,8 @@ vi.mock('@/store/workspace.ts', () => ({
   useWorkspaceStore: () => ({ activeId: 'ws-123' }),
 }));
 vi.mock('@/lib/api/types', () => ({
-  SYNC_TRANSPORT: { FOLDER: 'folder', REMOTE: 'remote', BOTH: 'both' },
+  SYNC_TRANSPORT: { FOLDER: 'folder', REMOTE: 'remote' },
+  normalizeSyncTransport: (v) => v === 'remote' ? 'remote' : 'folder',
   canUseCloudSync: () => true,
 }));
 vi.mock('@/lib/api/client', () => ({
