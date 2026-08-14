@@ -1,10 +1,8 @@
-const enabled = typeof console !== 'undefined';
-
 export const logger = {
   // eslint-disable-next-line no-console
-  debug: (...args) => { if (enabled) console.debug(...args); },
+  debug: (...args) => console.debug(...args),
   // eslint-disable-next-line no-console
-  info: (...args) => { if (enabled) console.info(...args); },
-  warn: (...args) => { if (enabled) console.warn(...args); },
-  error: (...args) => { if (enabled) console.error(...args); },
+  info: (...args) => console.info(...args),
+  warn: (...args) => console.warn(...args),
+  error: (...args) => console.error(...args),
 };

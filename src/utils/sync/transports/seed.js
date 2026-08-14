@@ -4,7 +4,7 @@ import * as Y from 'yjs';
 import { getWorkspaceDoc, META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { writeYjsSnapshot } from '../sync-yjs.js';
 import { encryptJSON } from '../crypto.js';
-import { toUint8Array, applyUpdatesToDoc } from '@/utils/yjs-helpers.js';
+import { toUint8Array, applyUpdatesToDoc } from '@/lib/yjs/helpers.js';
 import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 
 export async function writeInitialSnapshots(commitsDir) {

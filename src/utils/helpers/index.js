@@ -77,6 +77,34 @@ export function base64ToUint8Array(base64) {
 }
 
 /**
+ * Encode bytes into a base64 string, accepting the same input shapes as
+ * `new Uint8Array(...)` plus strings (encoded as UTF-8).
+ * @param {Uint8Array|ArrayBuffer|ArrayBufferView|Array|string} data
+ * @returns {string}
+ */
+export function uint8ArrayToBase64(data) {
+  const bytes =
+    data instanceof Uint8Array
+      ? data
+      : data instanceof ArrayBuffer
+        ? new Uint8Array(data)
+        : ArrayBuffer.isView(data)
+          ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+          : Array.isArray(data)
+            ? new Uint8Array(data)
+            : typeof data === 'string'
+              ? new TextEncoder().encode(data)
+              : new Uint8Array();
+
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+}
+
+/**
  * Remove characters that are invalid in file names across most file systems.
  * @param {string} name
  * @param {string} [fallback='Untitled']
@@ -84,7 +112,7 @@ export function base64ToUint8Array(base64) {
  */
 export function sanitizeFileName(name, fallback = 'Untitled') {
   const sanitized = String(name || '')
-    .replace(/[<>:"\\|?*\x00-\x1F]/g, '-')
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
     .trim();
   return sanitized || fallback;
 }
@@ -132,20 +160,6 @@ export function formatTime(time, format) {
 }
 
 // ─── Deleted-IDs helpers ─────────────────────────────────────────────────────
-
-export const DELETED_IDS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-
-export function pruneExpiredIds(deletedIds) {
-  const cutoff = Date.now() - DELETED_IDS_TTL_MS;
-  let dirty = false;
-  for (const id of Object.keys(deletedIds)) {
-    if (deletedIds[id] < cutoff) {
-      delete deletedIds[id];
-      dirty = true;
-    }
-  }
-  return dirty;
-}
 
 export function collectExpiredIds(deletedIds, days = 30) {
   const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;

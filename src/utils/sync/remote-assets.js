@@ -11,16 +11,7 @@
  */
 
 import { getApiClient } from '@/lib/api/client.js';
-
-function uint8ArrayToBase64(data) {
-  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
-  let binary = '';
-  const chunkSize = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-  }
-  return btoa(binary);
-}
+import { uint8ArrayToBase64 } from '@/utils/helpers/index.js';
 
 let apiClient = null;
 

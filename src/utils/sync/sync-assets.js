@@ -12,7 +12,7 @@ import {
 } from './constants.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { yMapToObj } from '@/lib/yjs/helpers.js';
 
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));

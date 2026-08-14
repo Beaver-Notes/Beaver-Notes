@@ -13,7 +13,7 @@ import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { saveNote } from '@/store/note/index';
-import { yMapToObj, toUint8Array } from '@/utils/yjs-helpers.js';
+import { yMapToObj, toUint8Array } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from './meta-doc.js';
 import {
   mergeNoteEntry,

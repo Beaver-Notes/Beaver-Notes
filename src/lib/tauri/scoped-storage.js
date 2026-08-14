@@ -56,13 +56,6 @@ function uniqueToken() {
     : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function sanitizeFileName(value, fallback = 'file') {
-  const normalized = String(value || '')
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '-')
-    .trim();
-  return normalized || fallback;
-}
-
 function hasDialogProperty(payload, property) {
   return (
     payload?.[property] === true ||
@@ -114,20 +107,11 @@ function toUint8Array(data) {
   return textEncoder.encode(String(data));
 }
 
-function uint8ArrayToBase64(data) {
-  const bytes = toUint8Array(data);
-  let binary = '';
-  const chunkSize = 0x8000;
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    const chunk = bytes.subarray(index, index + chunkSize);
-    binary += String.fromCharCode(...chunk);
-  }
-
-  return btoa(binary);
-}
-
-import { base64ToUint8Array } from '@/utils/helpers/index.js';
+import {
+  base64ToUint8Array,
+  sanitizeFileName,
+  uint8ArrayToBase64,
+} from '@/utils/helpers/index.js';
 
 function isScopedPath(value) {
   return String(value || '').startsWith(SCOPED_PATH_PREFIX);

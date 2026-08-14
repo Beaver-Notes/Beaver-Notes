@@ -14,7 +14,7 @@ import { getAppDirectory } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { syncDeletedAssets } from '@/lib/yjs/workspace-doc';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';

@@ -15,7 +15,7 @@ import {
   extractTextFromContent,
   stripTransientFields,
 } from '@/utils/note/serializer.js';
-import { ensureSchema, getDeviceId } from '@/utils/yjs-helpers.js';
+import { ensureSchema, getDeviceId } from '@/lib/yjs/helpers.js';
 import {
   isAppEncryptedEnvelope,
   decryptContent,

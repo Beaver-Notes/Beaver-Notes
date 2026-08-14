@@ -20,7 +20,7 @@ import {
   getDeviceId,
   objToYMap,
   toUint8Array,
-} from '@/utils/yjs-helpers.js';
+} from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
 import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
 import { useWorkspaceStore } from '@/store/workspace';

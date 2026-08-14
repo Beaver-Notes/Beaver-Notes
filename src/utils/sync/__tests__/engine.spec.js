@@ -30,7 +30,7 @@ vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: vi.fn(() => ({ getMap: vi.fn(() => ({ get: vi.fn(), keys: vi.fn(() => []) })) })),
 }));
 
-vi.mock('@/utils/yjs-helpers.js', () => ({
+vi.mock('@/lib/yjs/helpers.js', () => ({
   yMapToObj: vi.fn(() => ({})),
 }));
 

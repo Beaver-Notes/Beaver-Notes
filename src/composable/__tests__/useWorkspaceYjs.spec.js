@@ -19,7 +19,7 @@ vi.mock('@/utils/sync/sync-repository.js', () => ({
 vi.mock('@/utils/sync/sync-yjs.js', () => ({ writeYjsSnapshot: vi.fn() }));
 vi.mock('@/utils/sync/crypto.js', () => ({ encryptJSON: vi.fn() }));
 vi.mock('@/utils/sync/pending-writes.js', () => ({ queueSyncWrite: vi.fn() }));
-vi.mock('@/utils/yjs-helpers.js', () => ({
+vi.mock('@/lib/yjs/helpers.js', () => ({
   getDeviceId: vi.fn(() => 'device'),
   objToYMap: vi.fn(),
   toUint8Array: vi.fn(),

@@ -175,7 +175,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
   path: { join: (...parts) => parts.join('/') },
 }));
 vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()) }));
-vi.mock('@/utils/yjs-helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
+vi.mock('@/lib/yjs/helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
 vi.mock('@/lib/yjs/workspace-doc', () => ({ syncDeletedAssets: vi.fn() }));
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({ loadSecureBlob: vi.fn(async () => 'correct-passphrase') }));
 vi.mock('@tauri-apps/api/event', () => ({ emit: vi.fn() }));

@@ -25,13 +25,13 @@ import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
 import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import * as Y from 'yjs';
 import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
-import { toUint8Array, applyUpdatesToDoc } from '@/utils/yjs-helpers.js';
+import { toUint8Array, applyUpdatesToDoc } from '@/lib/yjs/helpers.js';
 import { META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { logger } from '@/utils/logger';
 

@@ -13,7 +13,7 @@ import {
   applyUpdatesToDoc,
   toUint8Array,
   ensureSchema,
-} from '@/utils/yjs-helpers.js';
+} from '@/lib/yjs/helpers.js';
 import { getHocuspocusSync, setRoomKey } from '@/lib/sync/hocuspocus-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';

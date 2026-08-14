@@ -10,7 +10,7 @@ import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 
 let helpersPromise = null;
 function getHelpers() {
-  if (!helpersPromise) helpersPromise = import('@/utils/yjs-helpers.js');
+  if (!helpersPromise) helpersPromise = import('@/lib/yjs/helpers.js');
   return helpersPromise;
 }
 

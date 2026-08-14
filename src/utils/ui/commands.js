@@ -1,6 +1,6 @@
 import emitter from 'tiny-emitter/instance';
 
-import { getTranslations } from '@/utils/getTranslations';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 const translations = getTranslations();
 
 function getModifierKey() {
