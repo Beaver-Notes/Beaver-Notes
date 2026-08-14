@@ -16,6 +16,13 @@ describe('editor.css list spacing', () => {
     const taskBlock = editorCss.match(/ul\[data-type='taskList'\]\s*{[^}]*li\s*{[^}]*}/s)?.[0] ?? '';
     expect(taskBlock).not.toMatch(/margin-(top|bottom):/);
   });
+
+  it('resets paragraph margins inside task items with !important so rows stay compact', () => {
+    const start = editorCss.indexOf("ul[data-type='taskList']");
+    const end = editorCss.indexOf('.search-result', start);
+    const section = editorCss.slice(start, end > start ? end : undefined);
+    expect(section).toMatch(/p\s*\{\s*margin:\s*0\s*!important\s*;?\s*\}/);
+  });
 });
 
 describe('editor scroll clearance for the fixed toolbar', () => {
