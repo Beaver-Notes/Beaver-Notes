@@ -10,8 +10,8 @@ import {
 import { mergeCursorDelta } from './transports/transport.js';
 import { applyRemote } from '@/composable/useNoteYjs.js';
 import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
-import { getAppDirectory } from '@/lib/native/app';
-import { path } from '@/lib/tauri-bridge';
+import { getAppDirectory, notify } from '@/lib/native/app';
+import { backend, path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
@@ -23,6 +23,57 @@ import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
 import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
+
+// ── Desktop notifications ──
+// Background pull-only cycles can fail or complete every 30s while the app is
+// visible, so consecutive failure and lock notifications are throttled to
+// avoid spamming the user. Completion notifications only fire when a cycle
+// actually moved data.
+const ERROR_NOTIFY_THROTTLE_MS = 5 * 60_000;
+let lastErrorNotifyAt = 0;
+let unlockNotified = false;
+
+async function getAppCopy() {
+  try {
+    const { useI18nStore } = await import('@/store/i18n');
+    return useI18nStore().messages?.app || {};
+  } catch {
+    return {};
+  }
+}
+
+function desktopNotify(title, body) {
+  if (backend.isTouchRuntime()) return Promise.resolve(false);
+  return notify({ title, body }).catch(() => false);
+}
+
+function notifySyncCompleted() {
+  getAppCopy().then((copy) => {
+    desktopNotify('Beaver Notes', copy.syncComplete || 'Sync complete');
+  });
+}
+
+function notifySyncFailed() {
+  const now = Date.now();
+  if (now - lastErrorNotifyAt < ERROR_NOTIFY_THROTTLE_MS) return;
+  lastErrorNotifyAt = now;
+  getAppCopy().then((copy) => {
+    desktopNotify('Beaver Notes', copy.syncFailed || 'Sync failed');
+  });
+}
+
+function notifySyncLocked() {
+  if (unlockNotified) return;
+  unlockNotified = true;
+  getAppCopy().then((copy) => {
+    desktopNotify(
+      'Beaver Notes',
+      copy.syncLockContent ||
+        'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.'
+    );
+  });
+}
+
 
 let engine = null;
 
@@ -199,6 +250,7 @@ export class SyncEngine {
     const shouldPull = _force || isForegroundWake || pullOnly || hasPendingWrites();
     const shouldPush = !pullOnly;
     let gotUpdates = false;
+    let pushedAny = false;
     logger.info('[sync] _runCycle start', { force: _force, foregroundWake: isForegroundWake, pullOnly, shouldPull, shouldPush });
 
     let outcome;
@@ -219,6 +271,7 @@ export class SyncEngine {
         if (!keyReady && (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled()) {
           logger.info('[sync] encryption enabled but key not ready — deferring cycle');
           try { emit('sync:status', { status: 'unlock-required' }); } catch {}
+          notifySyncLocked();
           outcome = { ok: true };
           return;
         }
@@ -289,8 +342,16 @@ export class SyncEngine {
               if (e?.code === 'unlock-required') {
                 console.warn('[sync] pull deferred — encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
+                notifySyncLocked();
                 if (name === 'cloud') cloudBlocked = true;
                 break;
+              }
+              if (e?.code === 'DECRYPT_FAILED') {
+                // The local key doesn't match the sync data — not a transient
+                // lock. Surface it so the user can re-adopt/import the correct
+                // vault instead of silently deferring forever.
+                try { emit('sync:status', { status: 'decrypt-failed', message: e.message }); } catch {}
+                throw e;
               }
               throw e;
             }
@@ -386,6 +447,7 @@ export class SyncEngine {
             }
           }
           logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
+          if (pushResult.pushed > 0) pushedAny = true;
           if (pushResult.cursorsDelta && mergeCursors(cursors, pushResult.cursorsDelta, name === 'cloud')) {
             await this._saveCursors(cursors);
           }
@@ -415,11 +477,14 @@ export class SyncEngine {
 
       outcome = { ok: true };
       try { emit('sync:status', { status: 'complete' }); } catch {}
+      unlockNotified = false;
+      if (gotUpdates || pushedAny) notifySyncCompleted();
       logger.info('[sync] cycle complete ok');
     } catch (err) {
       console.error('[sync] Sync failed:', err);
       console.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
+      notifySyncFailed();
       const status = err?.code === 'unlock-required' ? 'unlock-required' :
         err?.status === 401 || err?.status === 403 ? 'authorization-failed' : 'offline';
       try { emit('sync:status', { status }); } catch {}

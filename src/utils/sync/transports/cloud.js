@@ -298,9 +298,12 @@ export class CloudTransport extends Transport {
         try {
           decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
         } catch (caughtError) {
-          const errorCode = caughtError?.code === 'DECRYPT_FAILED' ? 'DECRYPT_FAILED' : null;
-          const error = new Error(errorCode || 'Remote update cannot be decrypted');
-          error.code = 'unlock-required';
+          // Preserve the real cause: KEY_LOCKED means the key is loaded but
+          // locked; DECRYPT_FAILED means the local key doesn't match the sync
+          // data. Collapsing both to 'unlock-required' hid the mismatch and
+          // made the engine defer forever with a misleading message.
+          const error = new Error(caughtError?.message || 'Remote update cannot be decrypted');
+          error.code = caughtError?.code || 'unlock-required';
           throw error;
         }
       }

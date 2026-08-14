@@ -294,7 +294,9 @@ describe('remote bootstrap integration contract', () => {
     const cloud = new CloudTransport({ passphraseProvider: () => 'wrong-passphrase', getTransportSetting: () => 'remote', getAccountState: () => ({ isAuth: true, plan: 'pro' }) });
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
-    await engine.enqueueSync(true);
+    // Decrypt mismatch is a hard error (DECRYPT_FAILED), not a deferral: the
+    // cycle must reject and neither apply remote data nor advance the cursor.
+    await expect(engine.enqueueSync(true)).rejects.toMatchObject({ code: 'DECRYPT_FAILED' });
     expect(applyRemote).not.toHaveBeenCalled();
     expect(storage.set).not.toHaveBeenCalled();
   });
