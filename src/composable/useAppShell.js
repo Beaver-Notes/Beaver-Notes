@@ -208,6 +208,10 @@ export function useAppShell(onboardingCompleted = true) {
         '--app-keyboard-inset-bottom',
         visible ? '8px' : 'var(--app-safe-area-bottom)'
       );
+      document.documentElement.style.setProperty(
+        '--app-note-page-padding',
+        `calc(56px + var(--app-keyboard-inset-bottom) + 0.75rem)`
+      );
     },
     { immediate: true }
   );
@@ -229,10 +233,6 @@ export function useAppShell(onboardingCompleted = true) {
       rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
-      rootStyle.setProperty(
-        '--app-note-page-padding',
-        `calc(54px + ${bottomInsetValue} + 0.75rem)`
-      );
     } catch (error) {
       console.warn('Safe area inset CSS plugin failed to initialize:', error);
     }

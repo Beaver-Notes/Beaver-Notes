@@ -23,6 +23,7 @@
   font-size: 1.065rem;
   line-height: 1.5;
   scroll-margin-top: calc(var(--app-safe-area-top) + 1.5rem);
+  scroll-padding-bottom: calc(var(--app-keyboard-inset-bottom) + 4.5rem);
 }
 .ProseMirror a {
   @apply text-primary dark:text-primary;
