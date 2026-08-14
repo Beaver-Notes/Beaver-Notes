@@ -324,10 +324,14 @@ export default {
       },
     });
 
+    const THEME_COLOR_CLASSES = [
+      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light', 'dark',
+    ];
+
     const setColor = (color) => {
       const root = document.documentElement;
       root.classList.forEach((cls) => {
-        if (cls !== 'light' && cls !== 'dark') {
+        if (THEME_COLOR_CLASSES.includes(cls)) {
           root.classList.remove(cls);
         }
       });
