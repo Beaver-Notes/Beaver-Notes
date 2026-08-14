@@ -28,6 +28,7 @@ import {
 import { setupEncryption, hasRemoteVaultKeyParams, adoptVaultKey } from '@/utils/crypto/encryption.js';
 import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
+import { forceSyncNow } from '@/utils/sync';
 import {
   detectLegacyLockedNotes,
   migrateLegacyLockedNotes,
@@ -728,6 +729,11 @@ export function useOnboardingFlow({
     state.openingWorkspace = true;
     try {
       await markOnboardingCompleted();
+      // Kick off the first sync now that the transport + sync path (or cloud
+      // account) are configured. The engine was initialized at boot; without
+      // this explicit call the initial pull/push waits for a manual trigger
+      // from Settings or the next app launch.
+      forceSyncNow().catch(() => {});
       await router.replace('/');
     } catch (e) {
       state.error = e?.message || String(e);
