@@ -79,6 +79,7 @@
           <ui-switch v-model="openLastEdited" />
         </div>
         <div
+          v-if="!isTouchRuntime"
           class="flex flex-row gap-3 px-4 py-3.5 items-center justify-between gap-6"
         >
           <div class="min-w-0 flex-1">
@@ -301,6 +302,7 @@ export default {
     const folderStore = useFolderStore();
     const isMobileRuntime = backend.isMobileRuntime();
     const isIOSRuntime = backend.isAppleRuntime();
+    const isTouchRuntime = backend.isTouchRuntime();
 
     const dataSettings = useSettingsData({
       dialog,
@@ -348,6 +350,7 @@ export default {
       formatTime,
       isMobileRuntime,
       isIOSRuntime,
+      isTouchRuntime,
 
       toggleSpotlight,
       isDebugMode,

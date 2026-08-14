@@ -4,10 +4,10 @@ import {
   impactFeedback,
   notificationFeedback,
 } from '@tauri-apps/plugin-haptics';
-import { isMobileRuntime } from '@/lib/tauri/runtime';
+import { isPhoneRuntime } from '@/lib/tauri/runtime';
 
 export async function triggerSelectionHaptic() {
-  if (!isTauri() || !isMobileRuntime()) return;
+  if (!isTauri() || !isPhoneRuntime()) return;
 
   try {
     await selectionFeedback();
@@ -40,7 +40,7 @@ const hapticMap = {
 };
 
 export async function triggerInteractionHaptic(name) {
-  if (!isTauri() || !isMobileRuntime()) return;
+  if (!isTauri() || !isPhoneRuntime()) return;
 
   const fn = hapticMap[name];
   if (!fn) return;
