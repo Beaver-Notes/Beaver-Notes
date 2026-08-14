@@ -259,7 +259,6 @@ pub(crate) fn handle_menu_event(app: &AppHandle, event: MenuEvent) {
         }
         "Toggle Developer Tools" => {
             if let Some(window) = maybe_window {
-                #[cfg(debug_assertions)]
                 window.open_devtools();
             }
         }
