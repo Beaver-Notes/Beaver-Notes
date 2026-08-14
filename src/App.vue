@@ -47,7 +47,7 @@
       ref="mainRef"
       v-if="retrieved"
       data-testid="app-main"
-      class="flex-1 min-w-0 overflow-y-auto mobile:pl-0 print:p-2"
+      class="flex-1 min-w-0 overflow-y-auto mobile:pl-0 mobile:scroll-pb-[calc(var(--app-keyboard-inset-bottom)+4.5rem)] print:p-2"
       :style="mainStyle"
       tabindex="-1"
     >

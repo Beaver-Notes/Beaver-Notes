@@ -17,21 +17,29 @@ const props = {
   },
 };
 
-const LabelSuggestion = Suggestion({ name: 'noteLabel', props }).configure({
+// addNodeView must live on the node DEFINITION, so it is passed through the
+// factory's `configure` param (spread into Node.create). TipTap's
+// `.configure()` below only merges into options and would silently drop it.
+const LabelSuggestion = Suggestion({
+  name: 'noteLabel',
+  props,
+  configure: {
+    addNodeView() {
+      return ({ node }) => {
+        const component = new VueRenderer(LabelNodeView, {
+          props: { node },
+          editor: this.editor,
+        });
+        return {
+          dom: component.element,
+          destroy: () => component.destroy(),
+        };
+      };
+    },
+  },
+}).configure({
   HTMLAttributes: {
     class: 'mention',
-  },
-  addNodeView() {
-    return ({ node }) => {
-      const component = new VueRenderer(LabelNodeView, {
-        props: { node },
-        editor: this.editor,
-      });
-      return {
-        dom: component.element,
-        destroy: () => component.destroy(),
-      };
-    };
   },
   suggestion: {
     char: '#',

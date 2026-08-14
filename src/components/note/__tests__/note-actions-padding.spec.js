@@ -36,7 +36,7 @@ const baseProps = {
 };
 
 describe('NoteActions padding', () => {
-  it('mobile shell has px-2 inset matching NoteToolbar', async () => {
+  it('mobile shell stays full-bleed (no extra inset)', async () => {
     document.documentElement.classList.add('runtime-mobile');
     const wrapper = mount(NoteActions, {
       props: baseProps,
@@ -45,11 +45,11 @@ describe('NoteActions padding', () => {
       },
     });
     const shell = wrapper.find('.editor-actions-mobile-shell');
-    expect(shell.classes()).toContain('px-2');
+    expect(shell.classes()).not.toContain('px-2');
     document.documentElement.classList.remove('runtime-mobile');
   });
 
-  it('desktop bar uses p-1.5 inner padding', () => {
+  it('desktop bar keeps its original p-1 inner padding', () => {
     const wrapper = mount(NoteActions, {
       props: baseProps,
       global: {
@@ -57,7 +57,7 @@ describe('NoteActions padding', () => {
       },
     });
     const bar = wrapper.find('.w-fit');
-    expect(bar.classes()).toContain('p-1.5');
-    expect(bar.classes()).not.toContain('p-1');
+    expect(bar.classes()).toContain('p-1');
+    expect(bar.classes()).not.toContain('p-1.5');
   });
 });

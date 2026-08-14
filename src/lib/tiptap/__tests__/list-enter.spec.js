@@ -22,6 +22,26 @@ const bulletListDoc = {
   ],
 };
 
+const taskListDoc = {
+  type: 'doc',
+  content: [
+    {
+      type: 'taskList',
+      content: [
+        {
+          type: 'taskItem',
+          content: [
+            {
+              type: 'paragraph',
+              content: [{ type: 'text', text: 'item one' }],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+};
+
 // doc offsets: doc(0) bulletList(1) listItem(2) paragraph(3) text(4..11);
 // the text "item one" ends at doc position 11 (the textblock end).
 const END_OF_ITEM_TEXT = 11;
@@ -52,6 +72,17 @@ describe('bullet list Enter', () => {
     const json = editor.getJSON();
     expect(handled).toBe(true);
     expect(json.content[0].content).toHaveLength(2);
+    editor.destroy();
+  });
+
+  it('creates a new task item when Enter is pressed in a task list', () => {
+    const editor = createEditor({ content: taskListDoc });
+    editor.commands.setTextSelection(END_OF_ITEM_TEXT);
+    const handled = editor.commands.keyboardShortcut('Enter');
+    const json = editor.getJSON();
+    expect(handled).toBe(true);
+    expect(json.content[0].content).toHaveLength(2);
+    expect(json.content[0].content[1]).toMatchObject({ type: 'taskItem' });
     editor.destroy();
   });
 });
