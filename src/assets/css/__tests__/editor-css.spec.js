@@ -11,6 +11,12 @@ describe('editor.css list spacing', () => {
     const liBlock = editorCss.match(/\.ProseMirror li\s*{[^}]*}/)?.[0] ?? '';
     expect(liBlock).not.toMatch(/margin-bottom:\s*0\.25em\s*!important/);
   });
+
+  it('keeps task list items roomier than compact bullet items', () => {
+    const taskBlock = editorCss.match(/ul\[data-type='taskList'\]\s*{[^}]*li\s*{[^}]*}/s)?.[0] ?? '';
+    expect(taskBlock).toMatch(/margin-top:\s*0\.25em\s*!important/);
+    expect(taskBlock).toMatch(/margin-bottom:\s*0\.25em\s*!important/);
+  });
 });
 
 describe('editor scroll clearance for the fixed toolbar', () => {
