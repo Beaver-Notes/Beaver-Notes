@@ -357,6 +357,8 @@
   "utilities": "Utilities",
   "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
   "wrongCurrentPassword": "Wrong password, please try again",
+  "wrongBackupPassword": "Wrong backup password. The imported backup was encrypted with a password you set when exporting it, not your current workspace passphrase.",
+  "wrongWorkspacePassphrase": "Wrong workspace passphrase. The workspace passphrase is the passphrase you set during onboarding.",
   "todayDateFormat": "Today's date format",
   "todayDateFormatPlaceholder": "Enter date format (e.g., YYYY-MM-DD)",
   "currentTime": "Current time",

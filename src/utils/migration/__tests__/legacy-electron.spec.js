@@ -7,13 +7,75 @@ const {
   deriveArgon2KeyMock,
   decryptLegacyCryptoJSMock,
   encryptContentMock,
-} = vi.hoisted(() => ({
-  readLegacyDataMock: vi.fn(),
-  writeLegacyDataMock: vi.fn(),
-  deriveArgon2KeyMock: vi.fn(),
-  decryptLegacyCryptoJSMock: vi.fn(),
-  encryptContentMock: vi.fn(),
-}));
+  decryptContentMock,
+} = vi.hoisted(() => {
+  // Minimal codec helpers so the faithful encrypt/decrypt pair below does not
+  // depend on module imports (vi.hoisted runs before imports resolve).
+  const bufToHex = (buf) =>
+    Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+  const hexToBuf = (hex) =>
+    Uint8Array.from(hex.match(/.{2}/g) || [], (b) => parseInt(b, 16));
+  const bufToBase64 = (buf) => {
+    let binary = '';
+    for (const byte of buf) binary += String.fromCharCode(byte);
+    return btoa(binary);
+  };
+  const base64ToBuf = (b64) =>
+    Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+
+  // Shared AES-GCM key so the mock pair round-trips like the real native
+  // encryption:encryptNotePayload / encryption:decryptNotePayload commands.
+  let aesKey = null;
+  async function getAesKey() {
+    if (!aesKey) {
+      aesKey = await crypto.subtle.importKey(
+        'raw',
+        crypto.getRandomValues(new Uint8Array(32)),
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+    return aesKey;
+  }
+
+  const encryptContentMock = vi.fn(async (contentObj) => {
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const cipher = new Uint8Array(
+      await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        await getAesKey(),
+        new TextEncoder().encode(JSON.stringify(contentObj))
+      )
+    );
+    return {
+      ae: 6,
+      iv: bufToHex(iv),
+      cipher: bufToBase64(cipher),
+      kid: 'test-workspace',
+    };
+  });
+
+  const decryptContentMock = vi.fn(async (envelope) => {
+    const plaintext = new Uint8Array(
+      await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: hexToBuf(envelope.iv) },
+        await getAesKey(),
+        base64ToBuf(envelope.cipher)
+      )
+    );
+    return JSON.parse(new TextDecoder().decode(plaintext));
+  });
+
+  return {
+    readLegacyDataMock: vi.fn(),
+    writeLegacyDataMock: vi.fn(),
+    deriveArgon2KeyMock: vi.fn(),
+    decryptLegacyCryptoJSMock: vi.fn(),
+    encryptContentMock,
+    decryptContentMock,
+  };
+});
 
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: { isMobileRuntime: () => false },
@@ -33,8 +95,17 @@ vi.mock('@/lib/native/security.js', () => ({
   deriveArgon2Key: deriveArgon2KeyMock,
 }));
 
+// Faithful encrypt/decrypt PAIR: encryptContent performs a real AES-GCM
+// round trip in-test (Web Crypto is available in happy-dom/node), so the
+// ae:6 envelope and the post-unlock `decryptNoteForMemory` success are
+// asserted against actual crypto, not a mocked constant.
 vi.mock('@/utils/crypto/encryption.js', () => ({
+  isEncryptionEnabled: () => true,
+  ensureKeyReadyForWrite: async () => true,
+  isEncryptedContent: (contentVal) =>
+    !!contentVal && typeof contentVal === 'object' && contentVal.ae === 6,
   encryptContent: encryptContentMock,
+  decryptContent: decryptContentMock,
 }));
 
 // Same detection semantics as the real module, but also recognises JSON
@@ -71,8 +142,7 @@ vi.mock('@/utils/platform/legacyLock', () => ({
 }));
 
 import { migrateLegacyLockedNotes } from '../legacyElectron.js';
-
-const ENVELOPE = { ae: 6, iv: 'deadbeef', cipher: 'c2lwaGVy' };
+import { decryptNoteForMemory } from '@/utils/note/serializer.js';
 
 const PLAINTEXT_DOC = JSON.stringify({
   type: 'doc',
@@ -128,7 +198,7 @@ describe('migrateLegacyLockedNotes (workspace-key re-encryption)', () => {
     deriveArgon2KeyMock.mockReset();
     decryptLegacyCryptoJSMock.mockReset();
     encryptContentMock.mockReset();
-    encryptContentMock.mockResolvedValue(ENVELOPE);
+    decryptContentMock.mockReset();
   });
 
   it('re-encrypts a CryptoJS legacy locked note with the workspace key', async () => {
@@ -155,9 +225,11 @@ describe('migrateLegacyLockedNotes (workspace-key re-encryption)', () => {
     expect(encryptContentMock).toHaveBeenCalledTimes(1);
     expect(encryptContentMock).toHaveBeenCalledWith(JSON.parse(PLAINTEXT_DOC));
     expect(writeLegacyDataMock).toHaveBeenCalledTimes(1);
-    // The written note's content is the workspace-encrypted ae:6 envelope.
+    // The written note's content is a real workspace-encrypted ae:6 envelope.
     const migratedNote = writtenNotes()[note.id];
-    expect(migratedNote.content).toStrictEqual(ENVELOPE);
+    expect(migratedNote.content.ae).toBe(6);
+    expect(migratedNote.content.iv).toBeTruthy();
+    expect(migratedNote.content.cipher).toBeTruthy();
     expect(migratedNote.isLocked).toBe(true);
   });
 
@@ -180,7 +252,9 @@ describe('migrateLegacyLockedNotes (workspace-key re-encryption)', () => {
     expect(encryptContentMock).toHaveBeenCalledWith(JSON.parse(PLAINTEXT_DOC));
     expect(writeLegacyDataMock).toHaveBeenCalledTimes(1);
     const migratedNote = writtenNotes()[note.id];
-    expect(migratedNote.content).toStrictEqual(ENVELOPE);
+    expect(migratedNote.content.ae).toBe(6);
+    expect(migratedNote.content.iv).toBeTruthy();
+    expect(migratedNote.content.cipher).toBeTruthy();
     expect(migratedNote.isLocked).toBe(true);
   });
 
@@ -202,5 +276,31 @@ describe('migrateLegacyLockedNotes (workspace-key re-encryption)', () => {
     expect(encryptContentMock).not.toHaveBeenCalled();
     // The migration's only side effect is writing re-encrypted legacy data —
     // the legacy password is never persisted as an app password anywhere.
+  });
+
+  it('round-trips: a migrated ae:6 note decrypts back to the original plaintext via decryptNoteForMemory', async () => {
+    const note = {
+      id: 'n4',
+      title: 'Locked legacy note',
+      isLocked: true,
+      content: { type: 'doc', content: ['U2FsdGVkX1+mockCiphertext'] },
+    };
+    readLegacyDataMock.mockResolvedValue(
+      JSON.stringify({ data: legacyData(note) })
+    );
+    decryptLegacyCryptoJSMock.mockResolvedValue(PLAINTEXT_DOC);
+
+    const migrated = await migrateLegacyLockedNotes('/legacy/dir', 'legacy-pw');
+    expect(migrated).toBe(1);
+
+    const migratedNote = writtenNotes()[note.id];
+    expect(migratedNote.content.ae).toBe(6);
+    expect(migratedNote.isLocked).toBe(true);
+
+    // The ae:6 envelope produced by encryptContent must be decryptable by the
+    // exact path the app's unlock flow uses (decryptContent → decryptNoteForMemory).
+    const decrypted = await decryptNoteForMemory(migratedNote);
+    expect(decrypted.content).toStrictEqual(JSON.parse(PLAINTEXT_DOC));
+    expect(decrypted.isLocked).toBe(true);
   });
 });

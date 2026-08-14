@@ -269,9 +269,15 @@ export function useSettingsData({
         );
       };
 
-      // Import always requires the workspace passphrase — it is the single
-      // secret protecting every note. Verifying it also unlocks the workspace
-      // encryption key so merged rows can be encrypted with the current key.
+      // Two import formats:
+      //   string → legacy `encryptSettings`-encrypted backup whose password
+      //             was arbitrary (never the workspace passphrase). Decrypt it
+      //             with that backup password directly; do NOT verify the
+      //             workspace passphrase.
+      //   object → the new workspace-encrypted export. Require the workspace
+      //             passphrase and merge only when verifyPassphrase succeeds
+      //             (this also unlocks the workspace key so merged rows are
+      //             encrypted with the current key).
       dialog.prompt({
         title: translations.value.settings.inputPassword,
         body: translations.value.settings.body,
@@ -285,25 +291,40 @@ export function useSettingsData({
             return false;
           }
 
+          if (typeof data === 'string') {
+            try {
+              const result = await decryptSettings(data, pass);
+              await finishImport(JSON.parse(result));
+            } catch {
+              showAlert(
+                translations.value.settings.wrongBackupPassword ||
+                  'Wrong backup password'
+              );
+              return false;
+            }
+            return true;
+          }
+
           const verification = await verifyPassphrase(pass);
           if (!verification.ok) {
             showAlert(
-              verification.error || translations.value.settings.invalidPassword
+              translations.value.settings.wrongWorkspacePassphrase ||
+                verification.error ||
+                translations.value.settings.invalidPassword
             );
             return false;
           }
 
           try {
-            if (typeof data === 'string') {
-              const result = await decryptSettings(data, pass);
-              await finishImport(JSON.parse(result));
-            } else {
-              await finishImport(data);
-            }
+            await finishImport(data);
           } catch {
-            showAlert(translations.value.settings.invalidPassword);
+            showAlert(
+              translations.value.settings.wrongWorkspacePassphrase ||
+                translations.value.settings.invalidPassword
+            );
             return false;
           }
+          return true;
         },
       });
     } catch (error) {
