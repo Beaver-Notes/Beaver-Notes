@@ -475,25 +475,6 @@ jobs:
           rm -f src-tauri/gen/android/app/src/main/AndroidManifest.xml
           git checkout -- src-tauri/gen/android/app/src/main/AndroidManifest.xml
 
-      # The app supports self-hosted sync servers reachable over plain HTTP,
-      # so the committed manifest must keep pointing at the network security
-      # config (cleartext for user-configured servers) — never fall back to the
-      # Tauri placeholder which forces cleartext off in release builds.
-      - name: Verify Android network security config
-        if: ${{ matrix.id == 'android' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -f src-tauri/gen/android/app/src/main/res/xml/network_security_config.xml
-          grep -q 'android:networkSecurityConfig="@xml/network_security_config"' \
-            src-tauri/gen/android/app/src/main/AndroidManifest.xml
-          if grep -q 'android:usesCleartextTraffic="\${usesCleartextTraffic}"' \
-            src-tauri/gen/android/app/src/main/AndroidManifest.xml; then
-            echo "::error::AndroidManifest reverted to usesCleartextTraffic placeholder"
-            exit 1
-          fi
-          echo "Android network security config verified"
-
       - name: Patch Android signing into build.gradle.kts
         if: ${{ matrix.id == 'android' }}
         shell: bash

@@ -251,7 +251,7 @@
     class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white/90 dark:bg-neutral-900/90 top-0 mb-4 hidden mobile:flex"
     :style="shellStyle"
   >
-    <div class="flex w-full items-center justify-between p-1.5">
+    <div class="flex w-full items-center justify-between">
       <button
         aria-label="Back"
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
