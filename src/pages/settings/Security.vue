@@ -264,6 +264,7 @@ async function changeEncryptionPassphrase() {
     cancelText: translations.value.settings.cancel || 'Cancel',
     placeholder:
       translations.value.settings.currentPassphrase || 'Current passphrase',
+    password: true,
     onConfirm: async (currentPass) => {
       if (!currentPass) return;
 
@@ -286,6 +287,7 @@ async function changeEncryptionPassphrase() {
           cancelText: translations.value.settings.cancel || 'Cancel',
           placeholder:
             translations.value.settings.newPassphrase || 'New passphrase',
+          password: true,
           onConfirm: async (newPass) => {
             if (!newPass) return;
             if (newPass.length < 8) {
@@ -306,6 +308,7 @@ async function changeEncryptionPassphrase() {
               placeholder:
                 translations.value.settings.confirmPassphrasePlaceholder ||
                 'Confirm passphrase',
+              password: true,
               onConfirm: async (confirmPass) => {
                 if (newPass !== confirmPass) {
                   encryptionError.value = 'Passphrases do not match.';

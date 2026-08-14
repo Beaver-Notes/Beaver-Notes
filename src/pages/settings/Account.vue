@@ -78,7 +78,7 @@
             />
             <ui-input
               v-model="signInPassword"
-              type="password"
+              :password="true"
               class="w-full"
               :placeholder="
                 translations.account?.passwordPlaceholder || 'Password'
@@ -528,7 +528,7 @@
         <div v-else class="flex flex-col gap-2">
           <ui-input
             v-model="deletePassword"
-            type="password"
+            :password="true"
             class="w-full"
             :placeholder="
               translations.account?.confirmPasswordPlaceholder || 'Password'

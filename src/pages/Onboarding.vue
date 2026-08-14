@@ -456,7 +456,7 @@
                           </p>
                           <ui-input
                             v-model="legacyPasswordValue"
-                            type="password"
+                            :password="true"
                             placeholder="Old password"
                             class="w-full"
                             @keyup.enter="submitLegacyPassword"
@@ -964,7 +964,7 @@
                           />
                           <ui-input
                             v-model="signInPassword"
-                            type="password"
+                            :password="true"
                             class="w-full"
                             :placeholder="
                               translations.account?.passwordPlaceholder ||

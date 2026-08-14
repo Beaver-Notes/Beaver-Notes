@@ -41,6 +41,7 @@ export function useSettingsSecurity({
       cancelText: translations.value.settings.cancel || 'Cancel',
       placeholder:
         translations.value.settings.currentPassphrase || 'Current passphrase',
+      password: true,
       onConfirm: async (currentPass) => {
         if (!currentPass) return;
 
@@ -63,6 +64,7 @@ export function useSettingsSecurity({
             cancelText: translations.value.settings.cancel || 'Cancel',
             placeholder:
               translations.value.settings.newPassphrase || 'New passphrase',
+            password: true,
             onConfirm: async (newPass) => {
               if (!newPass) return;
               if (newPass.length < 6) {
@@ -82,6 +84,7 @@ export function useSettingsSecurity({
                 placeholder:
                   translations.value.settings.confirmPassphrasePlaceholder ||
                   'Confirm passphrase',
+                password: true,
                 onConfirm: async (confirmPass) => {
                   if (newPass !== confirmPass) {
                     encryptionError.value = 'Passphrases do not match.';
