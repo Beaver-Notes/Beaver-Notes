@@ -10,7 +10,7 @@ import {
 import { useTranslations } from '@/composable/useTranslations';
 import { useTheme } from '@/composable/theme';
 import { useOnboardingAppearance } from '@/composable/useOnboardingAppearance';
-import { DEFAULT_UI_FONT_STACK, getSettingSync, setSetting } from '@/lib/settings';
+import { DEFAULT_UI_FONT_STACK, getSetting, invalidateSettingMirrors, setSetting } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
 import {
   applyOnboardingSyncPreferences,
@@ -542,7 +542,7 @@ export function useOnboardingFlow({
       state.migrationStatus =
         translations.value.onboarding?.allDone || 'All done!';
       state.migrationDone = true;
-      seedFreshFromSettings();
+      await seedFreshFromSettings();
       importPhase.value = 'done';
       // Jump the last 10% once everything is actually finished.
       state.migrationProgress = 100;
@@ -621,7 +621,7 @@ export function useOnboardingFlow({
         )
         .join('\n');
       state.migrationDone = true;
-      seedFreshFromSettings();
+      await seedFreshFromSettings();
       importPhase.value = 'done';
     } catch (e) {
       state.error = e?.message || String(e);
@@ -790,16 +790,32 @@ export function useOnboardingFlow({
     }
   });
 
-  function seedFreshFromSettings() {
-    fresh.theme = theme.currentTheme.value || fresh.theme;
-    fresh.accentColor = getSettingSync('colorScheme') || fresh.accentColor;
+  const SEED_SETTING_KEYS = [
+    'theme',
+    'colorScheme',
+    'zoomLevel',
+    'selectedFont',
+    'soundsEnabled',
+    'spotlightEnabled',
+  ];
+
+  async function seedFreshFromSettings() {
+    // Imported settings live only in the KV pool during onboarding (the
+    // localStorage mirror is never hydrated until initializeWorkspace runs).
+    // Drop any stale mirrors so getSetting's fast path is defeated and each
+    // read goes to the pool, which re-mirrors as a side effect.
+    invalidateSettingMirrors(SEED_SETTING_KEYS);
+
+    const themeSetting = await getSetting('theme');
+    fresh.theme = themeSetting || fresh.theme;
+    fresh.accentColor = (await getSetting('colorScheme')) || fresh.accentColor;
     fresh.zoomLevel =
-      parseFloat(getSettingSync('zoomLevel')) || fresh.zoomLevel;
-    fresh.selectedFont = getSettingSync('selectedFont') || fresh.selectedFont;
+      parseFloat(await getSetting('zoomLevel')) || fresh.zoomLevel;
+    fresh.selectedFont = (await getSetting('selectedFont')) || fresh.selectedFont;
     fresh.soundsEnabled =
-      getSettingSync('soundsEnabled') ?? fresh.soundsEnabled;
+      (await getSetting('soundsEnabled')) ?? fresh.soundsEnabled;
     fresh.spotlightEnabled =
-      getSettingSync('spotlightEnabled') ?? fresh.spotlightEnabled;
+      (await getSetting('spotlightEnabled')) ?? fresh.spotlightEnabled;
     document.documentElement.style.setProperty(
       '--selected-font',
       fresh.selectedFont,
@@ -824,7 +840,7 @@ export function useOnboardingFlow({
     }
 
     theme.loadTheme();
-    seedFreshFromSettings();
+    await seedFreshFromSettings();
 
     try {
       await refreshStatus();

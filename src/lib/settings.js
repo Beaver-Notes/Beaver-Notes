@@ -201,3 +201,9 @@ export async function hydrateSettingsStore(keys = Object.keys(settingDefs)) {
   );
   return Object.fromEntries(entries);
 }
+
+export function invalidateSettingMirrors(keys) {
+  for (const key of keys) {
+    mirrorToLocalStorage(key, null);
+  }
+}
