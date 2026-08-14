@@ -134,6 +134,16 @@ export function useOnboardingFlow({
     try {
       let detected = false;
       if (accountStore.isAuthenticated) {
+        // The workspace list may not be loaded yet on a fresh onboarding, but
+        // fetchCloudKeyParams needs an active workspace to query the vault.
+        const workspaceStore = useWorkspaceStore();
+        if (!workspaceStore.activeId) {
+          try {
+            await workspaceStore.retrieve();
+          } catch (e) {
+            console.warn('[onboarding] workspace retrieve during vault detect failed:', e);
+          }
+        }
         detected = await detectRemoteVaultJoin({
           fetchCloudKeyParams,
           hasRemoteVaultKeyParams: async () => hasRemoteVaultKeyParams(),
