@@ -325,6 +325,7 @@ import emitter from 'tiny-emitter/instance';
 import { forceSyncNow } from '@/utils/sync';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
 
@@ -363,7 +364,7 @@ export default {
       createShortcutMap,
     } = useAppShellActions();
 
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const isMacOS = isMacOSRuntime();
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
 
     onMounted(() => {

@@ -39,7 +39,9 @@ import {
   PLATFORM_LABELS,
   getMigrationSourceCopy,
   getMigrationWhatGetsCopied,
+  isPlatformVisible,
 } from '@/utils/onboarding/platforms.js';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { openDialog } from '@/lib/native/dialog';
 import { backend } from '@/lib/tauri-bridge';
 import logoUrl from '@/assets/images/logo-transparent.png';
@@ -264,17 +266,14 @@ export function useOnboardingFlow({
 
   const isMobileRuntime = backend.isMobileRuntime();
 
-  const isMacOS = computed(
-    () =>
-      typeof window !== 'undefined' &&
-      window.navigator.platform.toLowerCase().includes('mac'),
-  );
+  const isMacOS = computed(() => isMacOSRuntime());
 
   const visiblePlatforms = computed(() =>
-    ALL_PLATFORMS.filter(
-      (platform) =>
-        (!platform.macOnly || isMacOS.value) &&
-        (!isMobileRuntime || !platform.desktopOnly)
+    ALL_PLATFORMS.filter((platform) =>
+      isPlatformVisible(platform, {
+        isMacOS: isMacOS.value,
+        isTouch: isMobileRuntime,
+      }),
     ),
   );
 

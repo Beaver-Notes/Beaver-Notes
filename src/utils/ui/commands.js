@@ -1,10 +1,11 @@
 import emitter from 'tiny-emitter/instance';
 
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { getTranslations } from '@/utils/i18n/getTranslations';
 const translations = getTranslations();
 
 function getModifierKey() {
-  return navigator.platform.includes('Mac') ? 'Cmd' : 'Ctrl';
+  return isMacOSRuntime() ? 'Cmd' : 'Ctrl';
 }
 
 let commands = [

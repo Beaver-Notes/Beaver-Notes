@@ -93,6 +93,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import { useLabelStore } from '@/store/label';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { debounce } from '@/utils/helpers/index.js';
 
 export default {
@@ -106,7 +107,7 @@ export default {
   setup(props, { emit }) {
     const { translations } = useTranslations();
     const labelStore = useLabelStore();
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const isMacOS = isMacOSRuntime();
 
     const activeSuggestionIndex = ref(-1);
 

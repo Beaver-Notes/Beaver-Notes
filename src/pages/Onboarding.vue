@@ -1330,6 +1330,7 @@ import { useSounds } from '@/composable/useSounds';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { CURTAIN_DURATIONS } from '@/utils/onboarding/index.js';
 
 const { hold: CURTAIN_HOLD, open: CURTAIN_OPEN } = CURTAIN_DURATIONS;
@@ -1343,9 +1344,7 @@ export default {
     const store = useStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const isMacOS =
-      typeof window !== 'undefined' &&
-      window.navigator.platform.toLowerCase().includes('mac');
+    const isMacOS = isMacOSRuntime();
 
     const { translations } = useTranslations();
     const accountStore = useAccountStore();

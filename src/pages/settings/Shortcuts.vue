@@ -33,6 +33,7 @@
 
 <script setup>
 import { useTranslations } from '@/composable/useTranslations';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 
 // Translations
 const { translations } = useTranslations();
@@ -108,7 +109,7 @@ function getFormattedKeys(keys) {
 }
 
 function isMacOS() {
-  return navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  return isMacOSRuntime();
 }
 </script>
 

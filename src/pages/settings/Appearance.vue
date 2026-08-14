@@ -268,6 +268,7 @@ import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import { getSystemFonts, setMenuVisibility } from '@/lib/native/app';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { backend } from '@/lib/tauri-bridge';
 import {
   isSupported,
@@ -308,9 +309,7 @@ export default {
 
     let defaultPath = '';
 
-    const isMacOS = computed(() =>
-      window.navigator.platform.toLowerCase().includes('mac')
-    );
+    const isMacOS = computed(() => isMacOSRuntime());
 
     const ClearFontChecked = computed({
       get: () => getSettingSync('selectedDarkText') === '#CCCCCC',

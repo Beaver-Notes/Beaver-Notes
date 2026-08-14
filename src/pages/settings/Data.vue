@@ -487,6 +487,7 @@ import { useAccountStore } from '@/store/account';
 import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { forceSyncNow } from '@/utils/sync';
 
 export default {
@@ -497,9 +498,7 @@ export default {
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const accountStore = useAccountStore();
-    const isMacOS = computed(() =>
-      window.navigator.platform.toLowerCase().includes('mac')
-    );
+    const isMacOS = computed(() => isMacOSRuntime());
 
     const lastSyncAt = ref(Number(localStorage.getItem('sync:lastRunAt') || 0));
     const syncState = ref({ syncing: false });

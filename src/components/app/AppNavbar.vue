@@ -213,6 +213,7 @@ import { useRoute } from 'vue-router';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useDialog } from '@/lib/dialog';
 
 export default {
@@ -228,7 +229,7 @@ export default {
       handleNavigation,
       createShortcutMap,
     } = useAppShellActions({ includeSettingsNav: true });
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const isMacOS = isMacOSRuntime();
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
     const navRailRef = ref(null);
     const navItemRefs = new Map();
