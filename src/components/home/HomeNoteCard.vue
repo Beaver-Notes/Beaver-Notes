@@ -455,6 +455,15 @@ function mediaIcon(tone) {
   visibility: visible;
 }
 
+/* Touch-primary devices (phones, tablets without a mouse): hover is unreliable,
+   so keep card actions visible instead of hover-revealed. */
+@media (hover: none) {
+  .note-card .invisible.group-hover\:visible,
+  .note-card__action.invisible {
+    visibility: visible !important;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .note-card:hover {
     transform: translate3d(0, -1px, 0) scale(1.002);
