@@ -7,159 +7,179 @@
     <template #header>
       <div class="flex items-center gap-2">
         <v-remixicon name="riShareLine" size="20" />
-        <span class="font-semibold">Share Note</span>
+        <span class="font-semibold">Share note</span>
       </div>
     </template>
 
-    <div class="space-y-4">
-      <div v-if="sharing.key" class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm">
-        <v-remixicon name="riCheckLine" size="16" class="inline mr-1" />
-        Collaboration enabled for this note
+    <template #actions>
+      <div class="flex justify-end pb-2">
+        <ui-button variant="primary" @click="$emit('update:modelValue', false)">
+          Done
+        </ui-button>
+      </div>
+    </template>
+
+    <div class="space-y-5">
+      <div
+        v-if="sharing.key"
+        class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary dark:bg-primary/20"
+      >
+        <v-remixicon name="riCheckLine" size="12" />
+        Collaboration enabled
       </div>
 
-      <div>
-        <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-          Invite by username or email
-        </label>
-        <div class="flex gap-2">
-          <input
+      <!-- Section 1 — Collaborate -->
+      <section class="space-y-3">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          Collaborate
+        </h3>
+
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <ui-input
             v-model="inviteInput"
+            class="flex-1"
             type="text"
             placeholder="username or email"
-            class="flex-1 px-3 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary/50"
             @keydown.enter="handleInvite"
           />
-          <select
+          <ui-select
             v-model="inviteRole"
-            class="px-2 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-2 focus:ring-primary/50"
-          >
-            <option value="editor">Editor</option>
-            <option value="viewer">Viewer</option>
-          </select>
-          <button
+            :options="INVITE_ROLE_OPTIONS"
+            class="sm:w-32"
+          />
+          <ui-button
+            variant="primary"
             :disabled="!inviteInput.trim() || inviting"
-            class="px-4 py-2 rounded-lg bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :loading="inviting"
             @click="handleInvite"
           >
-            {{ inviting ? '...' : 'Invite' }}
-          </button>
+            <v-remixicon name="riUserAddLine" class="mr-1" size="16" />
+            Invite
+          </ui-button>
         </div>
-        <p v-if="sharing.error.value" class="mt-1 text-sm text-red-500">
+
+        <p v-if="sharing.error.value" role="alert" class="text-sm text-red-500">
           {{ sharing.error.value }}
         </p>
-      </div>
 
-      <div v-if="sharing.collaborators.value.length > 0">
-        <h4 class="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-          Collaborators
-        </h4>
-        <ul class="space-y-1">
-          <li
-            v-for="collab in sharing.collaborators.value"
-            :key="collab.userId"
-            class="flex items-center justify-between p-2 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-          >
-            <div class="flex items-center gap-2">
-              <div
-                class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium text-white"
-                :style="{ backgroundColor: getAvatarColor(collab.userId) }"
-              >
-                {{ getInitials(collab.username || collab.email) }}
-              </div>
-              <div>
-                <p class="text-sm font-medium text-neutral-900 dark:text-neutral-100">
+        <div v-if="sharing.collaborators.value.length" class="space-y-2">
+          <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Collaborators
+          </p>
+          <ui-list class="space-y-1">
+            <ui-list-item
+              v-for="collab in sharing.collaborators.value"
+              :key="collab.userId"
+              class="gap-2"
+            >
+              <ui-user-avatar
+                :name="collab.username || collab.email || 'Unknown'"
+                :size="32"
+              />
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-medium text-neutral-900 dark:text-neutral-100">
                   {{ collab.username || collab.email || 'Unknown' }}
                 </p>
                 <p class="text-xs text-neutral-500 dark:text-neutral-400">
                   {{ collab.role }}
                 </p>
               </div>
-            </div>
-            <button
-              class="text-neutral-400 hover:text-red-500 transition-colors p-1"
-              title="Remove collaborator"
-              @click="handleRemove(collab.userId)"
-            >
-              <v-remixicon name="riCloseLine" size="16" />
-            </button>
-          </li>
-        </ul>
-      </div>
-
-      <div v-else-if="!sharing.loading.value" class="text-center py-4 text-sm text-neutral-500 dark:text-neutral-400">
-        No collaborators yet. Invite someone to start collaborating.
-      </div>
-
-      <!-- Invite Link Section -->
-      <div class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-4">
-        <h4 class="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-3">
-          Invite Link
-        </h4>
-
-        <div class="space-y-3">
-          <div class="flex gap-2">
-            <select
-              v-model="linkRole"
-              class="flex-1 text-xs border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1.5 bg-white dark:bg-neutral-800"
-            >
-              <option value="editor">Can edit</option>
-              <option value="viewer">Can view</option>
-            </select>
-            <select
-              v-model="linkExpiry"
-              class="flex-1 text-xs border border-neutral-200 dark:border-neutral-600 rounded-md px-2 py-1.5 bg-white dark:bg-neutral-800"
-            >
-              <option value="null">Never expires</option>
-              <option value="86400000">24 hours</option>
-              <option value="604800000">7 days</option>
-              <option value="2592000000">30 days</option>
-            </select>
-          </div>
-          <button
-            @click="createLink"
-            :disabled="linkLoading"
-            class="w-full text-xs font-medium px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-          >
-            {{ linkLoading ? 'Creating...' : 'Create Invite Link' }}
-          </button>
-          <p v-if="linkError" class="text-xs text-red-500 mt-1">{{ linkError }}</p>
+              <button
+                class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
+                title="Remove collaborator"
+                @click="handleRemove(collab.userId)"
+              >
+                <v-remixicon name="riCloseLine" size="16" />
+              </button>
+            </ui-list-item>
+          </ui-list>
         </div>
 
-        <div v-if="inviteLinks.length" class="mt-4 space-y-2">
-          <div
+        <div v-else-if="sharing.loading.value" class="flex justify-center py-4">
+          <ui-spinner size="20" />
+        </div>
+
+        <p
+          v-else
+          class="py-3 text-center text-sm text-neutral-500 dark:text-neutral-400"
+        >
+          No collaborators yet. Invite someone to start collaborating.
+        </p>
+      </section>
+
+      <!-- Section 2 — Invite link -->
+      <section class="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          Invite link
+        </h3>
+
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <ui-select
+            v-model="linkRole"
+            :options="LINK_ROLE_OPTIONS"
+            class="flex-1"
+          />
+          <ui-select
+            v-model="linkExpiry"
+            :options="EXPIRY_OPTIONS"
+            class="flex-1"
+          />
+        </div>
+
+        <ui-button
+          variant="primary"
+          class="w-full"
+          :loading="linkLoading"
+          @click="createLink"
+        >
+          Create invite link
+        </ui-button>
+
+        <p v-if="linkError" role="alert" class="text-xs text-red-500">
+          {{ linkError }}
+        </p>
+
+        <ui-list v-if="inviteLinks.length" class="space-y-2">
+          <ui-list-item
             v-for="link in inviteLinks"
             :key="link.id"
-            class="flex items-center gap-2 p-2 rounded-lg bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700"
+            class="gap-2 bg-neutral-50 dark:bg-neutral-800"
           >
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-medium text-neutral-700 dark:text-neutral-300 truncate">
+            <div class="min-w-0 flex-1">
+              <p class="truncate text-xs font-medium text-neutral-700 dark:text-neutral-300">
                 {{ getInviteUrl(link.token) }}
               </p>
-              <p class="text-[10px] text-neutral-400">
-                {{ link.role }} · {{ link.expiresAt ? 'Expires ' + formatDate(link.expiresAt) : 'No expiry' }}
+              <p class="text-[10px] text-neutral-500 dark:text-neutral-400">
+                {{ link.role }} ·
+                {{ link.expiresAt ? 'Expires ' + formatDate(link.expiresAt) : 'No expiry' }}
               </p>
             </div>
             <button
+              class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-neutral-600 dark:hover:text-neutral-300"
+              :title="copyState === 1 && copiedToken === link.token ? 'Copied' : 'Copy link'"
               @click="copyLink(link.token)"
-              class="p-1 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300"
-              title="Copy link"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-              </svg>
+              <v-remixicon
+                :name="copyState === 1 && copiedToken === link.token ? 'riCheckLine' : 'riFileCopyLine'"
+                size="16"
+              />
             </button>
+            <span
+              v-if="copyState === 1 && copiedToken === link.token"
+              class="text-xs font-medium text-primary"
+            >
+              Copied
+            </span>
             <button
-              @click="handleRevokeLink(link.id)"
-              class="p-1 text-neutral-400 hover:text-red-500"
+              class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
               title="Revoke link"
+              @click="handleRevokeLink(link.id)"
             >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
+              <v-remixicon name="riDeleteBinLine" size="16" />
             </button>
-          </div>
-        </div>
-      </div>
+          </ui-list-item>
+        </ui-list>
+      </section>
     </div>
   </ui-modal>
 </template>
@@ -167,25 +187,24 @@
 <script>
 import { ref, watch, onMounted } from 'vue';
 import { useNoteSharing } from '@/composable/useNoteSharing';
+import { useClipboard } from '@/composable/clipboard';
 
-const AVATAR_COLORS = [
-  '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
-  '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#14B8A6',
+const INVITE_ROLE_OPTIONS = [
+  { value: 'editor', text: 'Editor' },
+  { value: 'viewer', text: 'Viewer' },
 ];
 
-function getAvatarColor(str) {
-  if (!str) return AVATAR_COLORS[0];
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    hash = str.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
+const LINK_ROLE_OPTIONS = [
+  { value: 'editor', text: 'Can edit' },
+  { value: 'viewer', text: 'Can view' },
+];
 
-function getInitials(name) {
-  if (!name) return '?';
-  return name.slice(0, 2).toUpperCase();
-}
+const EXPIRY_OPTIONS = [
+  { value: 'never', text: 'Never expires' },
+  { value: '86400000', text: '24 hours' },
+  { value: '604800000', text: '7 days' },
+  { value: '2592000000', text: '30 days' },
+];
 
 export default {
   props: {
@@ -200,13 +219,14 @@ export default {
     const inviting = ref(false);
     const { inviteLinks, linkLoading, fetchLinks, generateLink, revokeLink } = sharing;
     const linkRole = ref('editor');
-    const linkExpiry = ref('null');
+    const linkExpiry = ref('never');
+    const linkError = ref('');
+    const { copyState, copyToClipboard } = useClipboard();
+    const copiedToken = ref('');
 
     function getInviteUrl(token) {
       return `beaver-notes://join/${token}`;
     }
-
-    const linkError = ref('');
 
     async function createLink() {
       linkLoading.value = true;
@@ -214,7 +234,7 @@ export default {
       try {
         await generateLink(props.noteId, {
           role: linkRole.value,
-          expiresIn: linkExpiry.value === 'null' ? null : parseInt(linkExpiry.value),
+          expiresIn: linkExpiry.value === 'never' ? null : parseInt(linkExpiry.value, 10),
         });
       } catch (err) {
         linkError.value = err?.message || 'Failed to create invite link';
@@ -224,8 +244,11 @@ export default {
       }
     }
 
-    function copyLink(token) {
-      navigator.clipboard.writeText(getInviteUrl(token));
+    async function copyLink(token) {
+      await copyToClipboard(getInviteUrl(token));
+      if (copyState.value === 1) {
+        copiedToken.value = token;
+      }
     }
 
     function handleRevokeLink(linkId) {
@@ -284,6 +307,9 @@ export default {
 
     return {
       sharing,
+      INVITE_ROLE_OPTIONS,
+      LINK_ROLE_OPTIONS,
+      EXPIRY_OPTIONS,
       inviteInput,
       inviteRole,
       inviting,
@@ -292,15 +318,15 @@ export default {
       linkError,
       linkRole,
       linkExpiry,
+      copyState,
+      copiedToken,
       createLink,
       copyLink,
-      revokeLink: handleRevokeLink,
+      handleRevokeLink,
       getInviteUrl,
       formatDate,
       handleInvite,
       handleRemove,
-      getAvatarColor,
-      getInitials,
     };
   },
 };
