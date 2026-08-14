@@ -261,9 +261,21 @@ export default {
         editor.value.commands.setTextSelection(pos);
         editor.value.commands.setAudio(src, filename);
       } else {
-        void insertAudioIntoClosedNote(noteId, filePath, noteStore);
+        void insertAudioIntoClosedNote(noteId, filePath, noteStore).catch(
+          (error) => {
+            console.error('Failed to insert recording into note:', error);
+          }
+        );
       }
     }
+
+    // Subscribe in setup scope, not onMounted: router.currentRoute already
+    // reflects the target note before this page finishes mounting (slow
+    // devices: Yjs hydration/decrypt), and the global pill defers insertion
+    // to this page whenever the route points here. An onMounted-only
+    // subscription would leave a window where neither path inserts and the
+    // recorded file is silently orphaned.
+    const stopRecorderListener = recorder.onStopped(handleRecordingStopped);
 
     const pushNoteMenuContext = () => {
       pushMenuContext(
@@ -534,7 +546,6 @@ export default {
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id);
     };
     let removeGlobalShortcuts = () => {};
-    let stopRecorderListener = () => {};
 
     const scrollTitleIntoView = () => {
       const titleEl = titleDiv.value;
@@ -579,7 +590,6 @@ export default {
         },
       });
       window.addEventListener('beforeunload', handleBeforeUnload);
-      stopRecorderListener = recorder.onStopped(handleRecordingStopped);
 
       if (titleDiv.value) {
         const titleText = note.value?.title || yjsGetTitle() || '';

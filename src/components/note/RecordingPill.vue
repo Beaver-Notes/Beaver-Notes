@@ -85,7 +85,11 @@ export default {
       const route = router.currentRoute.value;
       const openNoteId = route.name === 'Note' ? route.params.id : null;
       if (noteId === openNoteId) return;
-      void insertAudioIntoClosedNote(noteId, filePath, noteStore);
+      void insertAudioIntoClosedNote(noteId, filePath, noteStore).catch(
+        (error) => {
+          console.error('Failed to insert recording into note:', error);
+        }
+      );
     });
 
     return {
