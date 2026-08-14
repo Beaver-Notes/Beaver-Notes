@@ -1,5 +1,7 @@
 <template>
   <span
+    data-mention
+    :data-id="node.attrs.id"
     class="mention note-label-chip"
     :style="chipStyle"
   >#{{ label }}</span>

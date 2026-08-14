@@ -12,10 +12,9 @@ describe('editor.css list spacing', () => {
     expect(liBlock).not.toMatch(/margin-bottom:\s*0\.25em\s*!important/);
   });
 
-  it('keeps task list items roomier than compact bullet items', () => {
+  it('does not add extra item margins inside task lists (same rhythm as normal lists)', () => {
     const taskBlock = editorCss.match(/ul\[data-type='taskList'\]\s*{[^}]*li\s*{[^}]*}/s)?.[0] ?? '';
-    expect(taskBlock).toMatch(/margin-top:\s*0\.25em\s*!important/);
-    expect(taskBlock).toMatch(/margin-bottom:\s*0\.25em\s*!important/);
+    expect(taskBlock).not.toMatch(/margin-(top|bottom):/);
   });
 });
 

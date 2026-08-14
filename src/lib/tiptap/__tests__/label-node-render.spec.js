@@ -40,4 +40,12 @@ describe('noteLabel editor rendering', () => {
     expect(chip.textContent).toBe('#work');
     editor.destroy();
   });
+
+  it('keeps data-mention and data-id so persistence can extract note labels', () => {
+    const editor = makeEditor();
+    const chip = editor.view.dom.querySelector('.note-label-chip');
+    expect(chip.hasAttribute('data-mention')).toBe(true);
+    expect(chip.getAttribute('data-id')).toBe('work');
+    editor.destroy();
+  });
 });

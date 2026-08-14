@@ -121,8 +121,6 @@ img.ProseMirror-selectednode {
       align-items: center;
       gap: 0.5rem;
       padding-left: 0 !important;
-      margin-top: 0.25em !important;
-      margin-bottom: 0.25em !important;
 
       > label {
         flex: 0 0 auto;

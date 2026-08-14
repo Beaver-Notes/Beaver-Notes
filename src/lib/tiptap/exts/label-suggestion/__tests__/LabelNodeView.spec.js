@@ -20,6 +20,14 @@ describe('LabelNodeView', () => {
     expect(wrapper.attributes('style')).toContain('#ffba00');
   });
 
+  it('exposes data-mention and data-id for note-label persistence', () => {
+    const wrapper = mount(LabelNodeView, {
+      props: { node: { attrs: { id: 'work', label: 'work' } } },
+    });
+    expect(wrapper.attributes('data-mention')).toBeDefined();
+    expect(wrapper.attributes('data-id')).toBe('work');
+  });
+
   it('renders without color when the label has none', () => {
     const wrapper = mount(LabelNodeView, {
       props: { node: { attrs: { id: 'plain', label: 'plain' } } },
