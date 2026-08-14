@@ -69,7 +69,6 @@
           </span>
           <div class="flex items-center">
             <button
-              v-if="selectionBar.hasSelectedNotes"
               v-tooltip:right="
                 selectionBar.shouldLock
                   ? translations.card.lock || 'Lock'
@@ -80,7 +79,8 @@
                   ? translations.card.lock || 'Lock'
                   : translations.card.unlock || 'Unlock'
               "
-              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200"
+              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200 disabled:opacity-40 disabled:pointer-events-none"
+              :disabled="!selectionBar.hasSelectedNotes"
               @click="selectionBar.toggleLock()"
             >
               <v-remixicon
@@ -91,7 +91,6 @@
               />
             </button>
             <button
-              v-if="selectionBar.hasSelectedNotes"
               v-tooltip:right="
                 selectionBar.shouldBookmark
                   ? translations.card.bookmark || 'Bookmark'
@@ -102,12 +101,13 @@
                   ? translations.card.bookmark || 'Bookmark'
                   : translations.card.removeBookmark || 'Unbookmark'
               "
-              class="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200"
+              class="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200 disabled:opacity-40 disabled:pointer-events-none"
               :class="
                 selectionBar.shouldBookmark
                   ? 'text-neutral-400 hover:text-amber-500'
                   : 'text-amber-500'
               "
+              :disabled="!selectionBar.hasSelectedNotes"
               @click="selectionBar.toggleBookmark()"
             >
               <v-remixicon
@@ -214,7 +214,6 @@ import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 import { useDialog } from '@/lib/dialog';
-import { useNoteStore } from '@/store/note';
 
 export default {
   setup() {
@@ -240,8 +239,6 @@ export default {
     });
     const showAddMenu = ref(false);
     const selectionBar = useSelectionBar();
-    const dialog = useDialog();
-    const noteStore = useNoteStore();
 
     // ── Rail width ──
     const railWidthClass = computed(() => {
@@ -295,22 +292,7 @@ export default {
     }
 
     function handleDeleteSelection() {
-      const notes = selectionBar.selectedNotes;
-      if (!notes.length) return;
-
-      const t = translations.value || {};
-
-      dialog.confirm({
-        title: t.card?.confirmPrompt || 'Delete note?',
-        okText: t.card?.confirm || 'Delete',
-        cancelText: t.card?.cancel || 'Cancel',
-        onConfirm: async () => {
-          for (const note of notes) {
-            await noteStore.delete(note.id);
-          }
-          selectionBar.clearSelection();
-        },
-      });
+      selectionBar.deleteSelection();
     }
 
     function handleMoveSelection() {
