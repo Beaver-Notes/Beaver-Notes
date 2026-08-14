@@ -174,6 +174,7 @@ import {
   onUnmounted,
 } from 'vue';
 import { debounce } from '@/utils/helpers/index.js';
+import { isTitleFocused } from './titleGuard.js';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -613,7 +614,7 @@ export default {
         if (!titleDiv.value) return;
         // Prefer store title, fall back to Yjs title, then empty
         const stored = newNote?.title || yjsGetTitle() || '';
-        if (titleDiv.value.textContent !== stored) {
+        if (!isTitleFocused(titleDiv.value) && titleDiv.value.textContent !== stored) {
           titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
@@ -633,8 +634,8 @@ export default {
           if (note.value && note.value.title !== title) {
             updateNote(id.value, { title });
           }
-          // Sync to div if it doesn't match
-          if (titleDiv.value && titleDiv.value.textContent !== title) {
+          // Sync to div if it doesn't match (skip while the title is focused)
+          if (!isTitleFocused(titleDiv.value) && titleDiv.value && titleDiv.value.textContent !== title) {
             titleDiv.value.textContent = title;
             autoResizeTitle();
           }
