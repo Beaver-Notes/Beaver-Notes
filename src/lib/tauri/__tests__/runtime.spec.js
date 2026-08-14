@@ -26,6 +26,13 @@ describe('runtime form factors', () => {
     expect(runtime.isMacOSRuntime()).toBe(false);
   });
 
+  it('treats a modern iPadOS mobile Safari UA as touch and never as macOS', async () => {
+    mockUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.5 Mobile/15E148 Safari/604.1');
+    const runtime = await import('../runtime.js');
+    expect(runtime.isTouchRuntime()).toBe(true);
+    expect(runtime.isMacOSRuntime()).toBe(false);
+  });
+
   it('treats macOS as desktop and macOS', async () => {
     mockUA('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36');
     const runtime = await import('../runtime.js');

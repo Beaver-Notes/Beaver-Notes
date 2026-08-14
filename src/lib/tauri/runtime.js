@@ -1,6 +1,6 @@
 const PHONE_USER_AGENT_RE = /Android|iPhone|iPod/i;
 const IPAD_USER_AGENT_RE = /iPad/i;
-const MOBILE_USER_AGENT_RE = /Android|iPhone|iPad|iPod/i;
+const MOBILE_USER_AGENT_RE = /Android|iPhone|iPad|iPod|Mobile/i;
 const IOS_USER_AGENT_RE = /iPhone|iPad|iPod/i;
 const MACOS_USER_AGENT_RE = /Macintosh/i;
 
@@ -39,10 +39,12 @@ export function isIOSRuntime() {
 }
 
 export function isMacOSRuntime() {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
   return (
-    typeof navigator !== 'undefined' &&
-    MACOS_USER_AGENT_RE.test(navigator.userAgent || '') &&
-    !IOS_USER_AGENT_RE.test(navigator.userAgent || '')
+    MACOS_USER_AGENT_RE.test(ua) &&
+    !IOS_USER_AGENT_RE.test(ua) &&
+    !/Mobile/.test(ua)
   );
 }
 
