@@ -45,6 +45,51 @@ mod characterization {
         assert_eq!(from_manifest, expected);
     }
 
+    /// Sync vault join must derive the items key with the params' stored Argon2
+    /// settings — not the module defaults. A vault published under 16 MiB must
+    /// join with the correct passphrase (a WrongPassword here means the derive
+    /// ignored the params and used 32 MiB).
+    #[test]
+    fn derive_items_key_from_params_respects_stored_argon2_memory() {
+        use base64::Engine;
+        use crate::shared::crypto::keys::{
+            create_encryption_manifest, derive_items_key_from_params,
+            derive_kek_argon2id_with_params, encrypt_bytes_with_key, KeyParams, PROTOCOL_VERSION,
+        };
+
+        let passphrase = "test-passphrase";
+        let (manifest, data_key, _) =
+            create_encryption_manifest("app", "check", passphrase).unwrap();
+
+        // Simulate a vault created under 16 MiB: derive a 16 MiB KEK and wrap
+        // the same data_key with it, exactly as a 16 MiB vault would.
+        let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
+        let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        let wrapped_16mb = encrypt_bytes_with_key(&kek_16mb, &data_key).unwrap();
+
+        let params = KeyParams {
+            version: PROTOCOL_VERSION,
+            kdf: "argon2id".to_string(),
+            salt_hex: manifest
+                .argon2_salt_hex
+                .clone()
+                .unwrap_or(manifest.salt_hex),
+            argon2_memory_kib: 16 * 1024,
+            argon2_iterations: 2,
+            argon2_parallelism: 2,
+            wrapped_items_key: wrapped_16mb,
+        };
+
+        let (items_key, _kek) = derive_items_key_from_params(&params, passphrase).unwrap();
+        assert_eq!(items_key, data_key);
+
+        // Wrong passphrase still fails cleanly.
+        assert!(matches!(
+            derive_items_key_from_params(&params, "wrong-passphrase"),
+            Err(crate::shared::error::AppError::WrongPassword)
+        ));
+    }
+
     /// Round-trip: a note encrypted for storage can be decrypted back.
     #[test]
     fn note_content_round_trip() {

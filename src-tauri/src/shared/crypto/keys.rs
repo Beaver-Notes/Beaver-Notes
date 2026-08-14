@@ -527,7 +527,17 @@ pub(crate) fn derive_items_key_from_params(
     passphrase: &str,
 ) -> Result<([u8; 32], [u8; 32]), AppError> {
     let salt = hex::decode(params.salt_hex.trim())?;
-    let kek = derive_kek_argon2id(passphrase, &salt)?;
+    // Use the KDF parameters the vault was published with — never the module
+    // defaults. A vault may have been created with different Argon2 settings
+    // (e.g. a legacy 16 MiB manifest), and deriving with the defaults yields a
+    // different KEK and a spurious WrongPassword for the correct passphrase.
+    let kek = derive_kek_argon2id_with_params(
+        passphrase,
+        &salt,
+        params.argon2_memory_kib,
+        params.argon2_iterations,
+        params.argon2_parallelism,
+    )?;
     let items_key = decrypt_bytes_with_key(&kek, &params.wrapped_items_key)
         .map_err(|_| AppError::WrongPassword)?;
     if items_key.len() != 32 {
