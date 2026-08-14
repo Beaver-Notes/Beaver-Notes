@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { CloudTransport } from '../../transports/cloud.js';
+import { CloudTransport, buildSeedAssetBatches } from '../../transports/cloud.js';
 
 vi.mock('@/store/workspace.ts', () => ({
   useWorkspaceStore: vi.fn(() => ({ activeId: 'workspace-1', workspaces: [] })),
@@ -691,6 +691,38 @@ describe('CloudTransport', () => {
 
       expect(pushUpdates).not.toHaveBeenCalled();
       expect(transport._serverProbeComplete).toBe(false);
+    });
+  });
+
+  describe('buildSeedAssetBatches', () => {
+    it('never produces a batch with more than 50 items (backend /seed-batch cap)', () => {
+      const entries = Array.from({ length: 200 }, (_, i) => ({ key: `k${i}`, size: 100 }));
+      const batches = buildSeedAssetBatches(entries);
+      for (const batch of batches) {
+        expect(batch.length).toBeLessThanOrEqual(50);
+      }
+      expect(batches.flat().length).toBe(200);
+    });
+
+    it('splits on the 10MB size cap', () => {
+      const entries = Array.from({ length: 12 }, (_, i) => ({ key: `k${i}`, size: 1024 * 1024 }));
+      const batches = buildSeedAssetBatches(entries);
+      for (const batch of batches) {
+        expect(batch.reduce((s, e) => s + e.size, 0)).toBeLessThanOrEqual(10 * 1024 * 1024);
+      }
+      expect(batches.length).toBeGreaterThan(1);
+      expect(batches.flat().length).toBe(12);
+    });
+
+    it('uploads oversized single files solo', () => {
+      const entries = [
+        { key: 'big', size: 12 * 1024 * 1024 },
+        { key: 'small', size: 100 },
+      ];
+      const batches = buildSeedAssetBatches(entries);
+      expect(batches).toHaveLength(2);
+      expect(batches[0]).toEqual([{ key: 'small', size: 100 }]);
+      expect(batches[1]).toEqual([{ key: 'big', size: 12 * 1024 * 1024 }]);
     });
   });
 });

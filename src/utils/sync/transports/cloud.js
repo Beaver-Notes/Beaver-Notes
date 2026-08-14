@@ -39,6 +39,45 @@ const CLOUD_PUSH_MIN_INTERVAL_MS = 30_000;
 const CLOUD_PUSH_MAX_BATCH_BYTES = 256 * 1024;
 const CLOUD_PUSH_MAX_FILES_PER_POST = 50;
 
+// Backend /seed-batch caps each request at SEED_BATCH_MAX_ITEMS (50) items
+// and the route body limit is 100MB. The seed upload path must respect BOTH
+// caps, otherwise size-packed batches exceed the item count and the server
+// rejects them (400 too_many_items), failing the whole seed.
+export const SEED_BATCH_MAX_ITEMS = 50;
+export const SEED_BATCH_MAX_BYTES = 10 * 1024 * 1024;
+
+export function buildSeedAssetBatches(entries, { maxItems = SEED_BATCH_MAX_ITEMS, maxBytes = SEED_BATCH_MAX_BYTES } = {}) {
+  const sorted = [...entries].sort((a, b) => a.size - b.size);
+
+  const batches = [];
+  let currentBatch = [];
+  let currentSize = 0;
+
+  const flush = () => {
+    if (currentBatch.length > 0) {
+      batches.push(currentBatch);
+      currentBatch = [];
+      currentSize = 0;
+    }
+  };
+
+  for (const entry of sorted) {
+    if (entry.size > maxBytes) {
+      flush();
+      batches.push([entry]);
+      continue;
+    }
+    if (currentBatch.length >= maxItems || currentSize + entry.size > maxBytes) {
+      flush();
+    }
+    currentBatch.push(entry);
+    currentSize += entry.size;
+  }
+  flush();
+
+  return batches;
+}
+
 function acknowledgedCheckpoints(result, noteIds) {
   if (result?.checkpoints && typeof result.checkpoints === 'object') return result.checkpoints;
   if (result?.checkpoint && noteIds.length === 1) return { [noteIds[0]]: result.checkpoint };
@@ -827,8 +866,6 @@ export class CloudTransport extends Transport {
         }
         if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: toUploadKeys.length });
 
-        // Build size-based batches: group assets to stay under MAX_BATCH_BYTES
-        const MAX_BATCH_BYTES = 10 * 1024 * 1024; // 10MB per batch
         const assetEntries = [];
         for (const assetKey of toUploadKeys) {
           const file = assetFiles.find(f => f.key === assetKey);
@@ -843,32 +880,11 @@ export class CloudTransport extends Transport {
           }
         }
 
-        // Sort by size ascending — pack small files together, large files get their own batch
+        // Build batches capped at SEED_BATCH_MAX_ITEMS items AND 10MB, matching
+        // the backend /seed-batch contract (50 items / 100MB body limit).
         assetEntries.sort((a, b) => a.size - b.size);
 
-        const batches = [];
-        let currentBatch = [];
-        let currentSize = 0;
-        for (const entry of assetEntries) {
-          if (entry.size > MAX_BATCH_BYTES) {
-            // Large file — upload solo
-            if (currentBatch.length > 0) {
-              batches.push(currentBatch);
-              currentBatch = [];
-              currentSize = 0;
-            }
-            batches.push([entry]);
-          } else if (currentSize + entry.size > MAX_BATCH_BYTES) {
-            // Would overflow — start new batch
-            batches.push(currentBatch);
-            currentBatch = [entry];
-            currentSize = entry.size;
-          } else {
-            currentBatch.push(entry);
-            currentSize += entry.size;
-          }
-        }
-        if (currentBatch.length > 0) batches.push(currentBatch);
+        const batches = buildSeedAssetBatches(assetEntries);
 
         logger.info(`[sync] cloud seed: ${assetEntries.length} assets in ${batches.length} batches`);
 
