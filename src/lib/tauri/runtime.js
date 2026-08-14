@@ -50,6 +50,10 @@ export function isAppleRuntime() {
   return isIOSRuntime() || isMacOSRuntime();
 }
 
+export function isTouchRuntime() {
+  return isMobileRuntime();
+}
+
 export function isDesktopRuntime() {
-  return !isMobileRuntime() && !isTabletRuntime();
+  return !isTouchRuntime();
 }
