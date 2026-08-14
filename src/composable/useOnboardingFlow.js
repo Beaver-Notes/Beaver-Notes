@@ -374,7 +374,7 @@ export function useOnboardingFlow({
   }
 
   const handlePrimaryContinue = () => {
-    goToStep('customize');
+    goToStep('account');
   };
 
   // Appearance + fresh-start preferences live in a focused composable that

@@ -50,11 +50,11 @@ export function useOnboardingAppearance({ fresh, state, theme, goToStep }) {
   }
 
   async function prepareFreshWorkspace() {
-    await applyFreshAndGo('password');
+    await applyFreshAndGo('finish');
   }
 
   async function useDefaultPreferences() {
-    await applyFreshAndGo('password');
+    await applyFreshAndGo('account');
   }
 
   const selectTheme = (name) => {
