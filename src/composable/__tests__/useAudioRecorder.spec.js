@@ -26,6 +26,14 @@ vi.mock('@/lib/native/app', () => ({
   getAppDirectory: vi.fn().mockResolvedValue('/app'),
 }));
 
+const { removePathMock, dialogAlertMock } = vi.hoisted(() => ({
+  removePathMock: vi.fn().mockResolvedValue(),
+  dialogAlertMock: vi.fn(),
+}));
+
+vi.mock('@/lib/native/fs', () => ({ removePath: removePathMock }));
+vi.mock('@/lib/dialog', () => ({ useDialog: () => ({ alert: dialogAlertMock }) }));
+
 import {
   checkPermission,
   startRecording,
@@ -35,6 +43,7 @@ import {
   getStatus,
 } from 'tauri-plugin-audio-recorder-api';
 import { backend, addCloseHandler } from '@/lib/tauri-bridge';
+import { removePath } from '@/lib/native/fs';
 
 async function freshRecorder() {
   vi.resetModules();
@@ -87,6 +96,42 @@ describe('useAudioRecorder singleton', () => {
 
     expect(rec.isRecording.value).toBe(false);
     expect(startRecording).not.toHaveBeenCalled();
+  });
+
+  it('alerts the user when microphone permission is denied', async () => {
+    checkPermission.mockResolvedValue({ granted: false, canRequest: false });
+
+    const rec = await freshRecorder();
+    await rec.start('n1', 0);
+
+    expect(dialogAlertMock).toHaveBeenCalledWith({
+      title: 'Microphone access needed',
+      body: 'Allow microphone access to record audio notes.',
+      okText: 'OK',
+    });
+    expect(startRecording).not.toHaveBeenCalled();
+  });
+
+  it('removes the orphaned file when no handler consumes the stop payload', async () => {
+    const rec = await freshRecorder();
+    rec.onStopped(() => {});
+
+    await rec.start('n1', 0);
+    const payload = await rec.stop();
+
+    expect(removePath).toHaveBeenCalledWith('/app/assets/n1/abc.wav');
+    expect(payload.consumed).toBe(false);
+  });
+
+  it('keeps the file when an onStopped handler consumes the payload', async () => {
+    const rec = await freshRecorder();
+    rec.onStopped((payload) => payload.markConsumed());
+
+    await rec.start('n1', 0);
+    const payload = await rec.stop();
+
+    expect(removePath).not.toHaveBeenCalled();
+    expect(payload.consumed).toBe(true);
   });
 
   it('allows only one recording at a time', async () => {

@@ -252,8 +252,10 @@ export default {
     // ready, fall back to appending into the note's stored content.
     const recorder = useAudioRecorder();
 
-    function handleRecordingStopped({ filePath, noteId, cursorPos }) {
+    function handleRecordingStopped(payload) {
+      const { filePath, noteId, cursorPos } = payload;
       if (noteId !== id.value) return;
+      payload.markConsumed();
       if (note.value && editor.value) {
         const filename = path.basename(filePath);
         const src = `assets://${noteId}/${filename}`;

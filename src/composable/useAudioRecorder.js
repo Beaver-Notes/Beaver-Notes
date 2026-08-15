@@ -10,6 +10,8 @@ import {
 } from 'tauri-plugin-audio-recorder-api';
 import { backend, path, addCloseHandler } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
+import { removePath } from '@/lib/native/fs';
+import { useDialog } from '@/lib/dialog';
 
 // Module-scope singleton state: the recorder survives note navigation and
 // stays alive until the recording is explicitly stopped.
@@ -95,7 +97,11 @@ async function start(noteId, cursor = 0) {
   try {
     const hasPermission = await ensurePermission();
     if (!hasPermission) {
-      console.error('Microphone permission denied.');
+      useDialog().alert({
+        title: 'Microphone access needed',
+        body: 'Allow microphone access to record audio notes.',
+        okText: 'OK',
+      });
       return;
     }
 
@@ -156,7 +162,18 @@ async function stop() {
   resetState();
 
   if (filePath) {
+    let consumed = false;
     const payload = { filePath, noteId, cursorPos: cursor };
+    Object.defineProperty(payload, 'consumed', {
+      get: () => consumed,
+      enumerable: false,
+    });
+    Object.defineProperty(payload, 'markConsumed', {
+      value: () => {
+        consumed = true;
+      },
+      enumerable: false,
+    });
     stoppedCallbacks.forEach((callback) => {
       try {
         callback(payload);
@@ -164,6 +181,9 @@ async function stop() {
         console.error('Recording stop handler failed.', error);
       }
     });
+    if (!consumed) {
+      void removePath(filePath).catch(() => {});
+    }
     return payload;
   }
   return null;
