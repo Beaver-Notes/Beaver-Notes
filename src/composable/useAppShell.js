@@ -529,6 +529,20 @@ export function useAppShell(onboardingCompleted = true) {
       console.warn('[app] legacy row re-encryption failed:', err);
     });
 
+    // Retryable KV→Yjs content migration. Runs on every startup while notes
+    // still carry KV content: a note that failed a previous run (undecryptable,
+    // invalid ID) is retried and repaired here rather than stranded in KV.
+    // Cheap for already-migrated installs because it only touches notes whose
+    // KV row still has a content field.
+    (async () => {
+      try {
+        const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
+        await migrateNotesContent();
+      } catch (err) {
+        console.warn('[app] startup content migration failed:', err);
+      }
+    })();
+
     await refreshSyncLockBanner();
 
     // One-time deferred backfill of card previews for notes that predate the
