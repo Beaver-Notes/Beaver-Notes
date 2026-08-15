@@ -111,6 +111,10 @@ async function start(noteId, cursor = 0) {
 
     await startRecording({
       outputPath: path.join(assetsPath, generateRecordingStem()),
+      // Fixed best quality-for-memory. The plugin exposes no sampleRate/channels/
+      // bitrate knobs, only `quality` presets (low=16kHz mono, medium=44.1kHz mono,
+      // high=48kHz stereo). `medium` is the sweet spot for voice: mono, full voice
+      // bandwidth (good fidelity), and low memory — Whisper-ready, no resampling.
       quality: 'medium',
       maxDuration: 0,
     });
