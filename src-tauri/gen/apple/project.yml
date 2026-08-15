@@ -104,7 +104,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beavernotes.beaver-notes.Record
-        IPHONEOS_DEPLOYMENT_TARGET: '26.5'
+        IPHONEOS_DEPLOYMENT_TARGET: '16.1'
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: LAF7ZJN6TW
         INFOPLIST_KEY_CFBundleDisplayName: Record
