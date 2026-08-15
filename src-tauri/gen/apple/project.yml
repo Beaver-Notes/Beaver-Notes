@@ -44,6 +44,24 @@ targets:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
+        NSSupportsLiveActivities: true
+        NSMicrophoneUsageDescription: Beaver Notes uses the microphone to record audio notes.
+        ITSAppUsesNonExemptEncryption: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoadsInWebContent: true
+        CFBundleIcons:
+          CFBundleAlternateIcons:
+            AppIcon 1: {}
+            AppIcon 2: {}
+            AppIcon 3: {}
+            AppIcon 4: {}
+            AppIcon 5: {}
+            AppIcon 6: {}
+            AppIcon 7: {}
+            AppIcon 8: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UISupportedInterfaceOrientations~ipad:
@@ -75,6 +93,10 @@ targets:
     dependencies:
       - framework: libapp.a
         embed: false
+      - package: tauri-plugin-live-activity
+        product: tauri-plugin-live-activity
+      - target: RecordExtension
+        embed: true
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
@@ -96,8 +118,14 @@ targets:
       - path: Record
     info:
       path: Record/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
       path: RecordExtension.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.beavernotes.beaver-notes
     dependencies:
       - package: tauri-plugin-live-activity
         product: RecordingActivityShared
