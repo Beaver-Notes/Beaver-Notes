@@ -12,6 +12,7 @@ import { backend, path, addCloseHandler } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { removePath } from '@/lib/native/fs';
 import { useDialog } from '@/lib/dialog';
+import { useNoteStore } from '@/store/note';
 
 // Module-scope singleton state: the recorder survives note navigation and
 // stays alive until the recording is explicitly stopped.
@@ -47,6 +48,44 @@ function setElapsedTime(durationMs = 0) {
   seconds.value = elapsedSeconds % 60;
 }
 
+function elapsedSeconds() {
+  return minutes.value * 60 + seconds.value;
+}
+
+function noteTitleFor(noteId) {
+  try {
+    return useNoteStore().getById(noteId)?.title || 'Recording';
+  } catch (error) {
+    console.error('Failed to resolve the recording note title.', error);
+    return 'Recording';
+  }
+}
+
+function pushLiveActivityStart(title) {
+  if (!backend.isIOSRuntime()) return;
+  void backend
+    .liveActivityStart(title)
+    .catch((error) =>
+      console.error('Failed to start the Live Activity.', error)
+    );
+}
+
+function pushLiveActivityUpdate() {
+  if (!backend.isIOSRuntime()) return;
+  void backend
+    .liveActivityUpdate(elapsedSeconds(), isPaused.value)
+    .catch((error) =>
+      console.error('Failed to update the Live Activity.', error)
+    );
+}
+
+function pushLiveActivityEnd() {
+  if (!backend.isIOSRuntime()) return;
+  void backend.liveActivityEnd().catch((error) =>
+    console.error('Failed to end the Live Activity.', error)
+  );
+}
+
 function resetState() {
   isRecording.value = false;
   isPaused.value = false;
@@ -70,6 +109,7 @@ function startStatusPolling() {
       isRecording.value = status.state !== 'idle';
       isPaused.value = status.state === 'paused';
       setElapsedTime(status.durationMs);
+      pushLiveActivityUpdate();
 
       if (status.state === 'idle') {
         stopStatusPolling();
@@ -125,6 +165,7 @@ async function start(noteId, cursor = 0) {
     isPaused.value = false;
     setElapsedTime(0);
     startStatusPolling();
+    pushLiveActivityStart(noteTitleFor(noteId));
   } catch (error) {
     console.error('Failed to start recording.', error);
     stopStatusPolling();
@@ -143,6 +184,7 @@ async function pauseResume() {
       await pauseRecording();
       isPaused.value = true;
     }
+    pushLiveActivityUpdate();
   } catch (error) {
     console.error('Failed to change recording state.', error);
   }
@@ -162,6 +204,7 @@ async function stop() {
     console.error('Failed to stop recording.', error);
   }
 
+  pushLiveActivityEnd();
   stopStatusPolling();
   resetState();
 
@@ -208,6 +251,7 @@ function cleanup() {
       return null;
     })
     .finally(() => {
+      pushLiveActivityEnd();
       resetState();
     });
 }

@@ -15,6 +15,10 @@ vi.mock('tauri-plugin-audio-recorder-api', () => ({
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: {
     isMobileRuntime: () => true,
+    isIOSRuntime: () => false,
+    liveActivityStart: vi.fn().mockResolvedValue(),
+    liveActivityUpdate: vi.fn().mockResolvedValue(),
+    liveActivityEnd: vi.fn().mockResolvedValue(),
     invoke: vi.fn().mockResolvedValue(),
   },
   path: {
