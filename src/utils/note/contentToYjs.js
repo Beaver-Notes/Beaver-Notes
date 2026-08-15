@@ -5,7 +5,7 @@
  */
 
 import * as Y from 'yjs';
-import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
+import { appendUpdate, appendBatch, compactUpdates } from '@/lib/native/yjs.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 
 let helpersPromise = null;
@@ -61,4 +61,26 @@ export async function writeNotesContentToYjs(notes) {
     entries.map((e) => e.update),
     entries.map(() => device)
   );
+}
+
+/**
+ * Replace a note's Yjs content with the given full content.
+ *
+ * `writeNoteContentToYjs` APPENDS a full-state update built from an
+ * independent Y.Doc — correct when the doc is empty (creation/import), but for
+ * a note that already has Yjs content it re-adds everything (whole content
+ * duplicated). This variant encodes the full content and COMPACTS the note's
+ * update log to that snapshot, so the doc ends up exactly as given.
+ *
+ * Safe for notes that are not concurrently edited (single-window app; used by
+ * the closed-note recording insert). Do not use while a collaboration session
+ * is live on the note.
+ */
+export async function replaceNoteContentInYjs(noteId, content) {
+  if (!noteId || !content || typeof content !== 'object') return;
+  const helpers = await getHelpers();
+  const schema = await helpers.ensureSchema();
+  const update = await encodeContentUpdate(schema, content);
+  if (!update) return;
+  await compactUpdates(noteId, update);
 }

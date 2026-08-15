@@ -282,6 +282,10 @@ export default {
     // recorded file is silently orphaned.
     const stopRecorderListener = recorder.onStopped(handleRecordingStopped);
 
+    // Mark this note as the open editor so the recording pill defers to us
+    // (authority, not the route — no route-transition double insert).
+    recorder.openNoteId.value = id.value;
+
     const pushNoteMenuContext = () => {
       pushMenuContext(
         buildMenuContext({
@@ -609,6 +613,7 @@ export default {
     onUnmounted(() => {
       stopTitleObserver();
       stopRecorderListener();
+      if (recorder.openNoteId.value === id.value) recorder.openNoteId.value = null;
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();

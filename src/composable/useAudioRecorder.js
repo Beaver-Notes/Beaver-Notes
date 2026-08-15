@@ -22,6 +22,10 @@ const minutes = ref(0);
 const seconds = ref(0);
 const targetNoteId = ref(null);
 const cursorPos = ref(null);
+// The note currently open in the editor, set by the note page. The recording
+// pill defers insertion to it (authority, not the route) so the open note and
+// the pill can never both insert for the same note.
+const openNoteId = ref(null);
 
 let statusInterval = null;
 const stoppedCallbacks = new Set();
@@ -271,6 +275,7 @@ export function useAudioRecorder() {
     isPaused,
     formattedTime,
     targetNoteId,
+    openNoteId,
     start,
     pauseResume,
     stop,

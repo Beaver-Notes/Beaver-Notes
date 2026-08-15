@@ -70,14 +70,13 @@ export default {
       router.push({ name: 'Note', params: { id: targetNoteId.value } });
     }
 
-    // Global fallback: when the recording's note is not the currently open
-    // note page, append the audio into the closed note's store content. The
-    // open note page handles its own insert, so the two never race.
+    // Global fallback: when the recording's note is not currently open in an
+    // editor, append the audio into the closed note's store content. The open
+    // note page handles its own insert and marks itself via `recorder.openNoteId`
+    // (authority, not the route), so the two can never race for the same note.
     recorder.onStopped((payload) => {
       const { filePath, noteId, cursorPos } = payload;
-      const route = router.currentRoute.value;
-      const openNoteId = route.name === 'Note' ? route.params.id : null;
-      if (noteId === openNoteId) return;
+      if (noteId === recorder.openNoteId.value) return;
       payload.markConsumed();
       void insertAudioIntoClosedNote(noteId, filePath, noteStore, cursorPos).catch(
         (error) => {

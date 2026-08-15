@@ -53,17 +53,17 @@ vi.mock('vue-router', () => ({
 
 import { insertAudioIntoClosedNote } from '@/utils/assets/audioInsert';
 
-async function freshRecorder() {
-  vi.resetModules();
-  const mod = await import('@/composable/useAudioRecorder.js');
-  return mod.useAudioRecorder();
-}
-
 async function mountPill() {
+  // Reset modules, then mount the pill BEFORE reading the recorder: the pill's
+  // static import caches the recorder module, so reading it afterwards returns
+  // the exact same singleton the pill subscribed to.
+  vi.resetModules();
   const { default: Pill } = await import('../RecordingPill.vue');
-  return mount(Pill, {
+  const { useAudioRecorder } = await import('@/composable/useAudioRecorder');
+  const wrapper = mount(Pill, {
     global: { stubs: { 'v-remixicon': true } },
   });
+  return { wrapper, rec: useAudioRecorder() };
 }
 
 describe('RecordingPill insertion ownership', () => {
@@ -72,18 +72,16 @@ describe('RecordingPill insertion ownership', () => {
     mockRoute.value = { name: null, params: {} };
   });
 
-  it('defers to the note page when the route already points at the target note (I1 race)', async () => {
-    const rec = await freshRecorder();
-    await mountPill();
+  it('defers to the note page when the target note is the open editor (I1 race)', async () => {
+    const { rec } = await mountPill();
 
-    // The note page registers its onStopped subscription in setup() scope,
-    // before the router/route settles; simulate that subscriber here.
+    // The note page registers its onStopped subscription in setup() scope
+    // and marks itself via recorder.openNoteId (authority, not the route);
+    // simulate that here.
     const pageHandleRecordingStopped = vi.fn();
     rec.onStopped(pageHandleRecordingStopped);
+    rec.openNoteId.value = 'n1';
 
-    // Navigation to the target note has already settled when the user
-    // taps stop while the page is still mounting.
-    mockRoute.value = { name: 'Note', params: { id: 'n1' } };
     await rec.start('n1', 0);
     await rec.stop();
 
@@ -91,11 +89,9 @@ describe('RecordingPill insertion ownership', () => {
     expect(pageHandleRecordingStopped).toHaveBeenCalledTimes(1);
   });
 
-  it('appends into the closed note when the route is not on the target note', async () => {
-    const rec = await freshRecorder();
-    await mountPill();
+  it('appends into the closed note when the target note is not the open editor', async () => {
+    const { rec } = await mountPill();
 
-    mockRoute.value = { name: 'Home', params: {} };
     await rec.start('n1', 0);
     await rec.stop();
 
@@ -108,8 +104,7 @@ describe('RecordingPill insertion ownership', () => {
   });
 
   it('uses the banner surface language and 44px controls', async () => {
-    const rec = await freshRecorder();
-    const wrapper = await mountPill();
+    const { wrapper, rec } = await mountPill();
 
     await rec.start('n1', 0);
     await nextTick();

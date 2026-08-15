@@ -1,9 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { insertAudioIntoClosedNote } from '../audioInsert.js';
+
+beforeEach(() => vi.clearAllMocks());
 
 vi.mock('@/lib/tauri-bridge', () => ({ path: { basename: (f) => f.split('/').pop() } }));
 vi.mock('@/lib/native/fs', () => ({ removePath: vi.fn() }));
-vi.mock('@/utils/note/contentToYjs.js', () => ({ writeNoteContentToYjs: vi.fn() }));
+const replaceNoteContentInYjs = vi.fn();
+vi.mock('@/utils/note/contentToYjs.js', () => ({ replaceNoteContentInYjs }));
 
 function noteStore(content) {
   return {
@@ -36,5 +39,19 @@ describe('insertAudioIntoClosedNote cursor mapping', () => {
     const written = store.patchLocal.mock.calls[0][1].content;
     expect(written.content).toHaveLength(3);
     expect(written.content[2].type).toBe('Audio');
+  });
+
+  it('replaces the Yjs content via compact, not append, so it is not duplicated', async () => {
+    const content = { type: 'doc', content: [
+      { type: 'paragraph', content: [{ type: 'text', text: 'one' }] },
+    ] };
+    const store = noteStore(content);
+    await insertAudioIntoClosedNote('n1', '/a/assets/n1/rec.wav', store);
+    expect(replaceNoteContentInYjs).toHaveBeenCalledTimes(1);
+    const [noteId, written] = replaceNoteContentInYjs.mock.calls[0];
+    expect(noteId).toBe('n1');
+    expect(written.content).toHaveLength(2);
+    expect(written.content[1].type).toBe('Audio');
+    expect(written.content[0]).toEqual(content.content[0]);
   });
 });

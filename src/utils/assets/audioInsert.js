@@ -52,10 +52,12 @@ export async function insertAudioIntoClosedNote(
 
   noteStore.patchLocal(noteId, { content, updatedAt: Date.now() });
 
-  const { writeNoteContentToYjs } = await import(
+  // Replace (compact) rather than append: appending an independent full-state
+  // update to a note that already has Yjs content duplicates the whole note.
+  const { replaceNoteContentInYjs } = await import(
     '@/utils/note/contentToYjs.js'
   );
-  await writeNoteContentToYjs(noteId, content);
+  await replaceNoteContentInYjs(noteId, content);
   await noteStore.persist(noteId);
 }
 
