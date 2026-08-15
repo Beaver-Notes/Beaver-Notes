@@ -5,20 +5,22 @@
     role="region"
     aria-label="Audio recording"
   >
-    <div class="flex items-center gap-2 bg-neutral-50 dark:bg-neutral-900 rounded-lg py-2 pl-3 pr-2 shadow-md">
+    <div
+      class="flex items-center gap-0.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 py-1 pl-1.5 pr-1.5 shadow-xl backdrop-blur-sm"
+    >
       <button
         type="button"
-        class="flex min-w-0 flex-1 items-center gap-2 rounded-lg py-2 pr-3 text-left hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+        class="flex min-w-0 items-center gap-2 rounded-full h-9 pl-2.5 pr-3 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
         :aria-label="goToTargetLabel"
         @click="goToTargetNote"
       >
-        <span class="rec-dot size-2.5 shrink-0 rounded-full bg-primary" />
+        <span class="rec-dot size-2.5 shrink-0 rounded-full bg-red-500" />
         <span class="shrink-0 text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{{ formattedTime }}</span>
-        <span class="truncate text-sm text-neutral-500 dark:text-neutral-400">{{ recordingNoteTitle }}</span>
+        <span class="max-w-[11rem] truncate text-sm text-neutral-500 dark:text-neutral-400">{{ recordingNoteTitle }}</span>
       </button>
       <button
         type="button"
-        class="flex size-11 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors"
+        class="flex items-center justify-center rounded-full size-9 hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-neutral-500 dark:text-neutral-400"
         :aria-label="isPaused ? 'Resume recording' : 'Pause recording'"
         @click.stop="pauseResume()"
       >
@@ -26,11 +28,11 @@
       </button>
       <button
         type="button"
-        class="flex size-11 shrink-0 items-center justify-center rounded-full text-neutral-500 hover:bg-black/5 dark:text-neutral-400 dark:hover:bg-white/10 transition-colors"
+        class="flex items-center justify-center rounded-full size-9 hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-neutral-500 dark:text-neutral-400"
         aria-label="Stop recording"
         @click.stop="stop()"
       >
-        <v-remixicon name="riStopCircleLine" class="size-5 text-primary" />
+        <v-remixicon name="riStopCircleLine" class="size-5 text-red-500" />
       </button>
     </div>
   </div>

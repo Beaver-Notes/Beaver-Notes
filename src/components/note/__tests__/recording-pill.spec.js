@@ -103,25 +103,24 @@ describe('RecordingPill insertion ownership', () => {
     );
   });
 
-  it('uses the banner surface language and 44px controls', async () => {
+  it('uses the compact pill surface and 36px controls', async () => {
     const { wrapper, rec } = await mountPill();
 
     await rec.start('n1', 0);
     await nextTick();
 
-    // role="region" is the outer fixed wrapper; the banner surface is the
-    // inner surface div.
-    const banner = wrapper.find('[role="region"] > div');
-    expect(banner.classes()).toContain('rounded-lg');
-    expect(banner.classes()).toContain('bg-neutral-50');
-    expect(banner.classes()).not.toContain('rounded-full');
+    // role="region" is the outer fixed wrapper; the inner surface is the pill.
+    const pill = wrapper.find('[role="region"] > div');
+    expect(pill.classes()).toContain('rounded-full');
+    expect(pill.classes()).toContain('border');
+    expect(pill.classes()).toContain('shadow-xl');
 
-    // First button is the flex-1 tap-to-note title; pause + stop are the
-    // 44px controls.
+    // First button is the tap-to-note title; pause + stop are the 36px
+    // circular controls.
     const buttons = wrapper.findAll('button');
     expect(buttons).toHaveLength(3);
     for (const b of buttons.slice(1)) {
-      expect(b.classes()).toContain('size-11');
+      expect(b.classes()).toContain('size-9');
     }
 
     await rec.stop();
