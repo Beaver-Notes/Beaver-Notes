@@ -108,8 +108,9 @@ export async function verifyPassphrase(passphrase) {
       .catch(() => {});
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] verify failed:', err);
-    return { ok: false, error: err?.message || String(err) };
+    const msg = err?.message || String(err);
+    console.error('[encryption] verify failed:', msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -166,7 +167,7 @@ async function _doRestoreKey() {
   if (!result.ok) {
     console.warn(
       '[encryption] _doRestoreKey: verifyPassphrase failed:',
-      result.error
+      result.error || 'Unknown error'
     );
     return false;
   }

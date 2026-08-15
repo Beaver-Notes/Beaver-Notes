@@ -526,7 +526,7 @@ export function useAppShell(onboardingCompleted = true) {
     // One-time whole-row re-encryption of legacy migration rows (which left
     // note titles and folder metadata as plaintext JSON on disk). Idempotent.
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
-      console.warn('[app] legacy row re-encryption failed:', err);
+      console.warn('[app] legacy row re-encryption failed:', err?.message || err);
     });
 
     // Retryable KV→Yjs content migration. Runs on every startup while notes

@@ -619,6 +619,7 @@ export default {
       keyBinding,
       folderStore,
       showCreateFolderModal,
+      currentFolderId,
       openCreateFolderModal,
       onFolderCreated,
     };
