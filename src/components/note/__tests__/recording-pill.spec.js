@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { nextTick } from 'vue';
 
 vi.mock('tauri-plugin-audio-recorder-api', () => ({
   checkPermission: vi.fn().mockResolvedValue({ granted: true, canRequest: true }),
@@ -99,5 +100,30 @@ describe('RecordingPill insertion ownership', () => {
       '/app/assets/n1/abc.wav',
       expect.any(Object)
     );
+  });
+
+  it('uses the banner surface language and 44px controls', async () => {
+    const rec = await freshRecorder();
+    const wrapper = await mountPill();
+
+    await rec.start('n1', 0);
+    await nextTick();
+
+    // role="region" is the outer fixed wrapper; the banner surface is the
+    // inner surface div.
+    const banner = wrapper.find('[role="region"] > div');
+    expect(banner.classes()).toContain('rounded-lg');
+    expect(banner.classes()).toContain('bg-neutral-50');
+    expect(banner.classes()).not.toContain('rounded-full');
+
+    // First button is the flex-1 tap-to-note title; pause + stop are the
+    // 44px controls.
+    const buttons = wrapper.findAll('button');
+    expect(buttons).toHaveLength(3);
+    for (const b of buttons.slice(1)) {
+      expect(b.classes()).toContain('size-11');
+    }
+
+    await rec.stop();
   });
 });
