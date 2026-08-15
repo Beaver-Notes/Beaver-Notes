@@ -73,11 +73,11 @@ export default {
     // Global fallback: when the recording's note is not the currently open
     // note page, append the audio into the closed note's store content. The
     // open note page handles its own insert, so the two never race.
-    recorder.onStopped(({ filePath, noteId }) => {
+    recorder.onStopped(({ filePath, noteId, cursorPos }) => {
       const route = router.currentRoute.value;
       const openNoteId = route.name === 'Note' ? route.params.id : null;
       if (noteId === openNoteId) return;
-      void insertAudioIntoClosedNote(noteId, filePath, noteStore).catch(
+      void insertAudioIntoClosedNote(noteId, filePath, noteStore, cursorPos).catch(
         (error) => {
           console.error('Failed to insert recording into note:', error);
         }

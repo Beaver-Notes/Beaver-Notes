@@ -98,7 +98,8 @@ describe('RecordingPill insertion ownership', () => {
     expect(insertAudioIntoClosedNote).toHaveBeenCalledWith(
       'n1',
       '/app/assets/n1/abc.wav',
-      expect.any(Object)
+      expect.any(Object),
+      0
     );
   });
 

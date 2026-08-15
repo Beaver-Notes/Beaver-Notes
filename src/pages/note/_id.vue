@@ -261,11 +261,14 @@ export default {
         editor.value.commands.setTextSelection(pos);
         editor.value.commands.setAudio(src, filename);
       } else {
-        void insertAudioIntoClosedNote(noteId, filePath, noteStore).catch(
-          (error) => {
-            console.error('Failed to insert recording into note:', error);
-          }
-        );
+        void insertAudioIntoClosedNote(
+          noteId,
+          filePath,
+          noteStore,
+          cursorPos
+        ).catch((error) => {
+          console.error('Failed to insert recording into note:', error);
+        });
       }
     }
 
