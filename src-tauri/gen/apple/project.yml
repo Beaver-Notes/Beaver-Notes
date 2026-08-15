@@ -2,14 +2,12 @@ name: beaver-notes
 options:
   bundleIdPrefix: com.beavernotes.beaver-notes
   deploymentTarget:
-    iOS: 16.1
+    iOS: 15.0
 fileGroups: [../../src]
 configs:
   debug: debug
   release: release
-packages:
-  tauri-plugin-live-activity:
-    path: ../../../vendor/tauri-plugin-live-activity/ios
+packages: {}
 settingGroups:
   app:
     base:
@@ -44,7 +42,6 @@ targets:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
-        NSSupportsLiveActivities: true
         NSMicrophoneUsageDescription: Beaver Notes uses the microphone to record audio notes.
         ITSAppUsesNonExemptEncryption: false
         UIFileSharingEnabled: true
@@ -93,10 +90,6 @@ targets:
     dependencies:
       - framework: libapp.a
         embed: false
-      - package: tauri-plugin-live-activity
-        product: tauri-plugin-live-activity
-      - target: RecordExtension
-        embed: true
       - sdk: CoreGraphics.framework
       - sdk: Metal.framework
       - sdk: MetalKit.framework
@@ -111,31 +104,3 @@ targets:
         outputFiles:
           - $(SRCROOT)/Externals/x86_64/${CONFIGURATION}/libapp.a
           - $(SRCROOT)/Externals/arm64/${CONFIGURATION}/libapp.a
-  RecordExtension:
-    type: app-extension
-    platform: iOS
-    sources:
-      - path: Record
-    info:
-      path: Record/Info.plist
-      properties:
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.widgetkit-extension
-    entitlements:
-      path: RecordExtension.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.beavernotes.beaver-notes
-    dependencies:
-      - package: tauri-plugin-live-activity
-        product: RecordingActivityShared
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.beavernotes.beaver-notes.Record
-        IPHONEOS_DEPLOYMENT_TARGET: '16.1'
-        CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: LAF7ZJN6TW
-        INFOPLIST_KEY_CFBundleDisplayName: Record
-        GENERATE_INFOPLIST_FILE: YES
-        SKIP_INSTALL: YES
-        SWIFT_EMIT_LOC_STRINGS: YES

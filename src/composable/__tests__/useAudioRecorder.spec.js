@@ -10,25 +10,14 @@ vi.mock('tauri-plugin-audio-recorder-api', () => ({
   stopRecording: vi.fn().mockResolvedValue({ filePath: '/app/assets/n1/abc.wav' }),
 }));
 
-const {
-  isIOSRuntimeMock,
-  liveActivityStartMock,
-  liveActivityUpdateMock,
-  liveActivityEndMock,
-} = vi.hoisted(() => ({
+const { isIOSRuntimeMock } = vi.hoisted(() => ({
   isIOSRuntimeMock: vi.fn().mockReturnValue(false),
-  liveActivityStartMock: vi.fn().mockResolvedValue(),
-  liveActivityUpdateMock: vi.fn().mockResolvedValue(),
-  liveActivityEndMock: vi.fn().mockResolvedValue(),
 }));
 
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: {
     isMobileRuntime: () => true,
     isIOSRuntime: isIOSRuntimeMock,
-    liveActivityStart: liveActivityStartMock,
-    liveActivityUpdate: liveActivityUpdateMock,
-    liveActivityEnd: liveActivityEndMock,
     invoke: vi.fn().mockResolvedValue(),
   },
   path: {
@@ -235,60 +224,5 @@ describe('useAudioRecorder singleton', () => {
   it('registers a window close handler to stop and clean up', async () => {
     await freshRecorder();
     expect(addCloseHandler).toHaveBeenCalled();
-  });
-
-  describe('iOS Live Activity mirror', () => {
-    it('starts the Live Activity with the note title on iOS', async () => {
-      isIOSRuntimeMock.mockReturnValue(true);
-      const rec = await freshRecorder();
-
-      await rec.start('n1', 0);
-
-      expect(liveActivityStartMock).toHaveBeenCalledWith('Test Note');
-    });
-
-    it('pushes timer updates on pause/resume on iOS', async () => {
-      isIOSRuntimeMock.mockReturnValue(true);
-      const rec = await freshRecorder();
-      await rec.start('n1', 0);
-
-      await rec.pauseResume();
-      expect(liveActivityUpdateMock).toHaveBeenLastCalledWith(0, true);
-
-      await rec.pauseResume();
-      expect(liveActivityUpdateMock).toHaveBeenLastCalledWith(0, false);
-    });
-
-    it('ends the Live Activity when the recording stops on iOS', async () => {
-      isIOSRuntimeMock.mockReturnValue(true);
-      const rec = await freshRecorder();
-      await rec.start('n1', 0);
-
-      await rec.stop();
-
-      expect(liveActivityEndMock).toHaveBeenCalled();
-    });
-
-    it('never touches the Live Activity outside iOS', async () => {
-      isIOSRuntimeMock.mockReturnValue(false);
-      const rec = await freshRecorder();
-      await rec.start('n1', 0);
-      await rec.pauseResume();
-      await rec.stop();
-
-      expect(liveActivityStartMock).not.toHaveBeenCalled();
-      expect(liveActivityUpdateMock).not.toHaveBeenCalled();
-      expect(liveActivityEndMock).not.toHaveBeenCalled();
-    });
-
-    it('does not start the Live Activity when recording never started', async () => {
-      isIOSRuntimeMock.mockReturnValue(true);
-      checkPermission.mockResolvedValue({ granted: false, canRequest: false });
-      const rec = await freshRecorder();
-
-      await rec.start('n1', 0);
-
-      expect(liveActivityStartMock).not.toHaveBeenCalled();
-    });
   });
 });

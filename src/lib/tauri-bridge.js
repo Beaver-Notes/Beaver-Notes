@@ -54,15 +54,6 @@ export const backend = {
   isDesktopRuntime() {
     return isDesktopRuntime();
   },
-  liveActivityStart(title) {
-    return invokeWithScopedSupport('plugin:live-activity|live_activity_start', { title });
-  },
-  liveActivityUpdate(timeSeconds, isPaused) {
-    return invokeWithScopedSupport('plugin:live-activity|live_activity_update', { timeSeconds, isPaused });
-  },
-  liveActivityEnd() {
-    return invokeWithScopedSupport('plugin:live-activity|live_activity_end', {});
-  },
 };
 
 export const path = {

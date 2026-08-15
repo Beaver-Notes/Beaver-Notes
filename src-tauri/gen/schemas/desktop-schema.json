@@ -4425,36 +4425,6 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the debug bridge plugin. Allows the eval callback command.\n#### This default permission set includes:\n\n- `allow-eval-callback`\n- `allow-console-callback`",
-          "type": "string",
-          "const": "debug-bridge:default",
-          "markdownDescription": "Default permissions for the debug bridge plugin. Allows the eval callback command.\n#### This default permission set includes:\n\n- `allow-eval-callback`\n- `allow-console-callback`"
-        },
-        {
-          "description": "Enables the console_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:allow-console-callback",
-          "markdownDescription": "Enables the console_callback command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the eval_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:allow-eval-callback",
-          "markdownDescription": "Enables the eval_callback command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the console_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:deny-console-callback",
-          "markdownDescription": "Denies the console_callback command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the eval_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:deny-eval-callback",
-          "markdownDescription": "Denies the eval_callback command without any pre-configured scope."
-        },
-        {
           "description": "Allows reading the opened deep link via the get_current command\n#### This default permission set includes:\n\n- `allow-get-current`",
           "type": "string",
           "const": "deep-link:default",
