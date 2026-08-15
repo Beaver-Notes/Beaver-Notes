@@ -12,22 +12,27 @@ let package = Package(
             name: "tauri-plugin-live-activity",
             type: .static,
             targets: ["tauri-plugin-live-activity"]),
+        .library(
+            name: "RecordingActivityShared",
+            type: .static,
+            targets: ["RecordingActivityShared"]),
     ],
     dependencies: [
         .package(name: "Tauri", path: "../.tauri/tauri-api")
     ],
     targets: [
+        // The ActivityAttributes type shared by the app and the widget
+        // extension. Both link this product so the type identity matches.
+        .target(
+            name: "RecordingActivityShared",
+            path: "Shared"),
+        // The app-side Tauri plugin: starts/updates/ends the activity.
         .target(
             name: "tauri-plugin-live-activity",
             dependencies: [
-                .byName(name: "Tauri")
+                .byName(name: "Tauri"),
+                .target(name: "RecordingActivityShared"),
             ],
-            path: "Sources",
-            exclude: [
-                // Widget-only files — compiled into the app's widget-extension
-                // target (Xcode), never linked into the app (they carry @main).
-                "RecordingActivityViews.swift",
-                "RecordingActivityWidgetBundle.swift",
-            ])
+            path: "Sources"),
     ]
 )

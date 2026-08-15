@@ -1,4 +1,5 @@
 import ActivityKit
+import RecordingActivityShared
 import Tauri
 import UIKit
 import WebKit

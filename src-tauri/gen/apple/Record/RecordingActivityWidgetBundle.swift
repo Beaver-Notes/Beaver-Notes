@@ -1,12 +1,13 @@
 import ActivityKit
+import RecordingActivityShared
 import SwiftUI
 import WidgetKit
 
 /// Entry point for the widget extension that renders the recording Live Activity.
 ///
-/// This bundle is intended for a dedicated widget extension target in the
-/// generated Xcode project (`gen/apple`). The app target itself only talks to
-/// ActivityKit through `LiveActivityPlugin`; rendering belongs to this bundle.
+/// This bundle belongs to the `RecordExtension` target (`gen/apple/Record`).
+/// The app target only talks to ActivityKit through `LiveActivityPlugin`;
+/// rendering lives here.
 @available(iOS 16.1, *)
 struct RecordingActivityWidget: Widget {
     var body: some WidgetConfiguration {
