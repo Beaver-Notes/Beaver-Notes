@@ -79,10 +79,10 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-biometry = "0.2"
 tauri-plugin-app-icon = "0.1.0"
-tauri-plugin-scoped-storage = "=1.5.0"
 specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = { version = "0.0.12", features = ["serde"] }
+tauri-plugin-scoped-storage = "1.5.1"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
@@ -92,6 +92,7 @@ tauri-plugin-spotsearch = "0.2.1"
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
 tauri-plugin-haptics = "2"
 tauri-plugin-sharesheet = { path = "../vendor/tauri-plugin-sharesheet" }
+tauri-plugin-live-activity = { path = "../vendor/tauri-plugin-live-activity" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
@@ -156,8 +157,6 @@ opt-level = 3
 [profile.release.package.aes]
 opt-level = 3
 [profile.release.package.aes-gcm]
-opt-level = 3
-[profile.release.package.chacha20]
 opt-level = 3
 [profile.release.package.chacha20poly1305]
 opt-level = 3

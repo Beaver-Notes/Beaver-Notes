@@ -55,13 +55,13 @@ export const backend = {
     return isDesktopRuntime();
   },
   liveActivityStart(title) {
-    return invokeWithScopedSupport('live_activity_start', { title });
+    return invokeWithScopedSupport('plugin:live-activity|live_activity_start', { title });
   },
   liveActivityUpdate(timeSeconds, isPaused) {
-    return invokeWithScopedSupport('live_activity_update', { timeSeconds, isPaused });
+    return invokeWithScopedSupport('plugin:live-activity|live_activity_update', { timeSeconds, isPaused });
   },
   liveActivityEnd() {
-    return invokeWithScopedSupport('live_activity_end', {});
+    return invokeWithScopedSupport('plugin:live-activity|live_activity_end', {});
   },
 };
 

@@ -65,7 +65,8 @@ pub fn run() {
             .plugin(tauri_plugin_safe_area_insets_css::init())
             .plugin(tauri_plugin_haptics::init())
             .plugin(tauri_plugin_pdf_render::init())
-            .plugin(tauri_plugin_sharesheet::init());
+            .plugin(tauri_plugin_sharesheet::init())
+            .plugin(tauri_plugin_live_activity::init());
     }
 
     #[cfg(desktop)]
@@ -236,9 +237,6 @@ pub fn run() {
             commands::yjs::yjs_delete,
             commands::index::index_save,
             commands::index::index_load,
-            commands::live_activity::live_activity_start,
-            commands::live_activity::live_activity_update,
-            commands::live_activity::live_activity_end,
             commands::search::search_extract_index_data,
             commands::workspace::workspace_list,
             commands::workspace::workspace_get_active,
