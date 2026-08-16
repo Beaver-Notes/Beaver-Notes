@@ -43,6 +43,7 @@ import {
 } from '@/utils/onboarding/platforms.js';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { openDialog } from '@/lib/native/dialog';
+import { readLegacyData } from '@/lib/native/app';
 import { backend } from '@/lib/tauri-bridge';
 import logoUrl from '@/assets/images/logo-transparent.png';
 import { fetchCloudKeyParams, getFetchedCloudKeyParams, deriveVaultPassphraseProof } from '@/utils/sync/vault-key-params.js';
@@ -72,6 +73,12 @@ export function useOnboardingFlow({
   const migrationPlatform = ref(null);
   const customLegacyPath = ref(null);
   const customLegacyStatus = ref(null);
+
+  // The legacy (Electron) locked-notes password, captured from the password
+  // step. Never persisted to state — only kept long enough for the whole-note
+  // conversion in migrateLegacyData to decrypt locked notes. Cleared on
+  // failure or when the user skips the password step.
+  let legacyPassword = '';
 
   // Tracks whether the last navigation moved forward or backward through
   // the flow, so the wizard body can slide the right direction.
@@ -514,27 +521,72 @@ export function useOnboardingFlow({
       }
       console.warn('[onboarding] legacy Electron migration (Rust copy) finished');
 
-      // The legacy Electron migration writes KV directly. Convert it to Yjs at
-      // import time: seed the workspace Y.Doc from KV metadata (so the stores
-      // hydrate), then move note content from KV into each note's Yjs doc.
-      state.migrationStatus = 'Migrating workspace…';
-      const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
-      const { seedWorkspaceDocFromKv } = await import('@/lib/yjs/meta-store.js');
-      await loadWorkspaceDoc();
-      await seedWorkspaceDocFromKv();
-      console.warn('[onboarding] workspace doc seeded from KV');
+      // Read the legacy store directly (never via KV) and parse it. The Rust
+      // copy step ran above; everything from here on is frontend-led.
+      const legacyDir = getLegacyDir();
+      state.migrationStatus = 'Reading legacy data…';
+      const legacyRaw = legacyDir ? await readLegacyData(legacyDir) : null;
+      if (!legacyRaw) {
+        throw new Error('No legacy data file found to import.');
+      }
+      const { unwrapLegacyData } = await import('@/utils/platform/legacyLock');
+      const legacyData = unwrapLegacyData(JSON.parse(legacyRaw));
 
+      // Convert note content to Yjs in realtime (plaintext JSON -> Yjs).
       state.migrationStatus = 'Migrating note content…';
-      const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
-      const migrationResult = await migrateNotesContent((progress, noteId) => {
-        state.migrationProgress =
-          COPY_WEIGHT + Math.round((progress / 100) * CONVERT_WEIGHT);
-        state.migrationCurrent = noteId || '';
+      const { convertLegacyNotesToYjs } = await import(
+        '@/utils/onboarding/legacyContentToYjs.js'
+      );
+      const noteList = Object.entries(legacyData?.notes || {}).map(
+        ([id, note]) => ({ ...note, id: note.id || id })
+      );
+      const convertResult = await convertLegacyNotesToYjs(noteList, {
+        onProgress: (done, total) => {
+          state.migrationProgress =
+            COPY_WEIGHT + Math.round((done / total) * CONVERT_WEIGHT);
+        },
+        legacyPassword: legacyPassword || undefined,
       });
       console.warn(
-        '[onboarding] note content migration complete:',
-        JSON.stringify(migrationResult)
+        '[onboarding] note content conversion complete:',
+        JSON.stringify(convertResult)
       );
+
+      // Seed the workspace doc directly from parsed data (no KV reads).
+      state.migrationStatus = 'Migrating workspace…';
+      const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
+      const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
+      await loadWorkspaceDoc();
+      await seedWorkspaceDocFromData(
+        legacyData?.notes || {},
+        legacyData?.folders || {},
+        legacyData?.labels || [],
+        legacyData?.labelColors || {},
+        legacyData?.deletedIds || {},
+        legacyData?.deletedFolderIds || {}
+      );
+      console.warn('[onboarding] workspace doc seeded from parsed data');
+
+      // Import matching user preferences (localStorage). Re-assert the
+      // imported syncPath: setSetting does not invalidate getSyncPath's
+      // memoized cache, so read it back and re-persist through setSyncPath
+      // (which clears the cache) to guarantee the imported path wins.
+      try {
+        const { importLegacyPreferences } = await import(
+          '@/utils/onboarding/import-preferences.js'
+        );
+        if (legacyDir) {
+          const imported = await importLegacyPreferences(legacyDir);
+          console.warn('[onboarding] imported', imported, 'legacy preferences');
+        }
+        const { getSyncPath } = await import('@/utils/sync/path.js');
+        const importedSyncPath = (await getSyncPath()) || '';
+        if (importedSyncPath) {
+          await setSyncPath(importedSyncPath);
+        }
+      } catch (err) {
+        console.warn('[onboarding] preference import failed:', err);
+      }
 
       // Dump the correlated native + frontend state so any stranded notes are
       // visible in the console right after import.
@@ -545,12 +597,12 @@ export function useOnboardingFlow({
         console.warn('[onboarding] debug state dump failed:', err);
       }
 
-      // Build + persist search/link indexes from the imported KV notes (which
-      // still carry searchText). This keeps search working without storing the
-      // full search text in the workspace Yjs doc (which bloated it to MBs and
-      // made every launch transfer megabytes).
+      // Build + persist search/link indexes from the imported legacy notes
+      // (which still carry searchText). This keeps search working without
+      // storing the full search text in the workspace Yjs doc (which bloated
+      // it to MBs and made every launch transfer megabytes).
       try {
-        await buildImportedSearchIndex();
+        await buildImportedSearchIndex(legacyData?.notes || {});
       } catch (err) {
         console.warn('[onboarding] search index build after import failed:', err);
       }
@@ -676,11 +728,16 @@ export function useOnboardingFlow({
         return { success: true, migratedCount };
       }
 
+      // Keep the submitted password for the whole-note conversion in
+      // migrateLegacyData, which runs after this step.
+      legacyPassword = password;
+
       migratedCount = await migrateLegacyLockedNotes(dir, password);
       state.legacyHasLockedNotes = false;
       return { success: true, migratedCount };
     } catch (e) {
       console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
+      legacyPassword = '';
       state.legacyPasswordError = e?.message || 'Incorrect password';
       return {
         success: false,
@@ -693,6 +750,7 @@ export function useOnboardingFlow({
   }
 
   function handleLegacyPasswordSkip() {
+    legacyPassword = '';
     state.legacyPasswordError = '';
     state.legacyHasLockedNotes = false;
   }
