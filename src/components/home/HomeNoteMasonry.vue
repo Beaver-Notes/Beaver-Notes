@@ -5,35 +5,7 @@
     :class="{ 'filter-pulse': pulse }"
   >
     <div
-      v-if="!isReady && containerWidth > 0"
-      ref="measureRef"
-      class="note-masonry__measure"
-      aria-hidden="true"
-    >
-      <!-- Windowed probe: only the first viewport's worth of real cards are
-           mounted to measure heights. Previously ALL notes were mounted as
-           full HomeNoteCards here, which meant tens of thousands of card
-           components + ResizeObservers on large collections. Cards below the
-           probe window get their heights lazily via the stage per-card
-           ResizeObserver after isReady. -->
-      <div
-        v-for="note in probeNotes"
-        :key="`measure-${note.id}`"
-        :ref="setMeasureRef(note.id)"
-        class="note-masonry__measure-item"
-        :style="{ width: `${columnWidth}px` }"
-      >
-        <home-note-card
-          :note="note"
-          :is-locked="note.isLocked"
-          :disable-open="selectionMode"
-          class="w-full"
-        />
-      </div>
-    </div>
-
-    <div
-      v-if="!isReady && containerWidth > 0"
+      v-if="containerWidth === 0"
       class="note-masonry__skeleton"
       aria-hidden="true"
     >
@@ -45,7 +17,7 @@
     </div>
 
     <div
-      v-show="isReady"
+      v-else
       class="note-masonry__stage"
       :style="{ height: `${stageHeight}px` }"
     >
@@ -82,9 +54,8 @@
         "
       >
         <home-note-card
-          :note-id="item.note.id"
+          :note="item.note"
           :is-locked="item.note.isLocked"
-          v-bind="{ note: item.note }"
           :disable-open="selectionMode"
           :class="{
             'ring-1 ring-secondary bg-primary/5 transform scale-[1.02] transition-transform duration-200':
@@ -114,12 +85,12 @@ import {
   ref,
   watch,
 } from 'vue';
+import HomeNoteCard from './HomeNoteCard.vue';
 
 const CARD_LEAVE_DURATION_MS = 250;
 const CARD_ENTER_DURATION_MS = 300;
 const CARD_LEAVE_CLEANUP_MS = CARD_LEAVE_DURATION_MS + 50;
 const CARD_ENTER_CLEANUP_MS = CARD_ENTER_DURATION_MS + 50;
-import HomeNoteCard from './HomeNoteCard.vue';
 
 const props = defineProps({
   notes: { type: Array, default: () => [] },
@@ -162,12 +133,6 @@ const viewportHeight = ref(
 const containerOffset = ref(0);
 const measuredVersion = ref(0);
 
-const isReady = ref(false);
-const measureRef = ref(null);
-const measureElements = new Map();
-const measureRefCbs = new Map();
-const measuredIds = new Set();
-
 const cardElements = new Map();
 const cardElementIds = new WeakMap();
 const cardHeights = new Map();
@@ -175,11 +140,9 @@ const cardRefCbs = new Map();
 let scrollEl = null,
   containerRO = null,
   cardRO = null,
-  measureRO = null,
-  measureRaf = null,
   scrollRaf = null,
-  cardResizeRaf = null,
-  measureTimeout = null;
+  cardResizeRaf = null;
+let pendingCardEntries = [];
 
 const leavingItems = new Map();
 const enteringItems = new Map();
@@ -260,7 +223,6 @@ const stageHeight = computed(() => layoutResult.value.stageHeight);
 const visibleItems = computed(() => {
   const { items } = layoutResult.value;
   if (!items.length) return [];
-  if (!isReady.value) return [];
 
   const over =
     containerWidth.value < 480
@@ -270,16 +232,11 @@ const visibleItems = computed(() => {
   const lo = local - over;
   const hi = local + viewportHeight.value + over;
 
-  // Items are packed round-robin (item i sits in column i % cols) and each
-  // column's y position is strictly increasing, so the visible range per
-  // column can be found with binary search — O(cols · log n) per frame
-  // instead of scanning every note.
   const cols = columnCount.value;
   const result = [];
   for (let col = 0; col < cols && col < items.length; col++) {
     const count = Math.ceil((items.length - col) / cols);
 
-    // First item whose bottom crosses the top of the viewport (y + h > lo).
     let a = 0;
     let b = count;
     while (a < b) {
@@ -291,7 +248,6 @@ const visibleItems = computed(() => {
     }
     const startIdx = a;
 
-    // First item whose top is past the bottom of the viewport (y >= hi).
     a = 0;
     b = count;
     while (a < b) {
@@ -310,13 +266,6 @@ const visibleItems = computed(() => {
 });
 
 const skeletonCount = computed(() => columnCount.value * 3);
-
-// How many real cards are mounted during the measure phase. Covers the initial
-// viewport plus overscan; everything below gets height-corrected lazily once
-// the stage renders it.
-const PROBE_ROWS = 8;
-const probeCount = computed(() => columnCount.value * PROBE_ROWS);
-const probeNotes = computed(() => props.notes.slice(0, probeCount.value));
 
 const onScroll = () => {
   if (scrollRaf) return;
@@ -370,36 +319,6 @@ function onWindowResize() {
   updateOffset();
 }
 
-function updateCardHeight(id, el) {
-  const h = Math.round(el.getBoundingClientRect().height);
-  const prev = cardHeights.get(id);
-  if (!h || (prev !== undefined && Math.abs(prev - h) < 2)) return false;
-  cardHeights.set(id, h);
-  return true;
-}
-
-function scheduleMeasure() {
-  if (measureRaf) cancelAnimationFrame(measureRaf);
-  measureRaf = requestAnimationFrame(() => {
-    measureRaf = null;
-    let changed = false;
-    for (const note of props.notes) {
-      const el = cardElements.get(note.id);
-      if (el && updateCardHeight(note.id, el)) changed = true;
-    }
-    const ids = new Set(props.notes.map((n) => n.id));
-    for (const id of cardHeights.keys()) {
-      if (!ids.has(id)) {
-        const el = cardElements.get(id);
-        if (el && cardRO) cardRO.unobserve(el);
-        cardHeights.delete(id);
-        changed = true;
-      }
-    }
-    if (changed) measuredVersion.value++;
-  });
-}
-
 function setCardRef(id) {
   if (!cardRefCbs.has(id)) {
     cardRefCbs.set(id, (el) => {
@@ -419,83 +338,56 @@ function setCardRef(id) {
   return cardRefCbs.get(id);
 }
 
-function setMeasureRef(id) {
-  if (!measureRefCbs.has(id)) {
-    measureRefCbs.set(id, (el) => {
-      const prev = measureElements.get(id);
-      if (prev && prev !== el && measureRO) measureRO.unobserve(prev);
-      if (el) {
-        measureElements.set(id, el);
-        cardElementIds.set(el, id);
-        if (measureRO) measureRO.observe(el);
-      } else {
-        if (prev && measureRO) measureRO.unobserve(prev);
-        measureElements.delete(id);
-        measureRefCbs.delete(id);
+function onCardObserved(entries) {
+  pendingCardEntries.push(...entries);
+  if (cardResizeRaf) return;
+  cardResizeRaf = requestAnimationFrame(() => {
+    cardResizeRaf = null;
+    const batch = pendingCardEntries;
+    pendingCardEntries = [];
+    let changed = false;
+    for (const entry of batch) {
+      const el = entry.target;
+      const id = cardElementIds.get(el);
+      if (!id) continue;
+      const h = Math.round(
+        entry.borderBoxSize?.[0]?.blockSize ?? entry.contentRect.height
+      );
+      const prev = cardHeights.get(id);
+      if (h > 0 && (prev === undefined || Math.abs(prev - h) >= 2)) {
+        cardHeights.set(id, h);
+        changed = true;
       }
-    });
-  }
-  return measureRefCbs.get(id);
-}
-
-function onMeasureObserved(entries) {
-  let changed = false;
-  for (const entry of entries) {
-    const el = entry.target;
-    const id = cardElementIds.get(el);
-    if (!id) continue;
-    const h = Math.round(entry.contentRect.height);
-    const prev = cardHeights.get(id);
-    if (h > 0 && (prev === undefined || Math.abs(prev - h) >= 2)) {
-      cardHeights.set(id, h);
-      measuredIds.add(id);
-      changed = true;
     }
-  }
-  if (changed) measuredVersion.value++;
-  if (props.notes.length === 0) {
-    finishMeasurement();
-  } else if (
-    probeNotes.value.length > 0 &&
-    measuredIds.size >= probeNotes.value.length
-  ) {
-    finishMeasurement();
-  }
+    if (changed) measuredVersion.value++;
+  });
 }
 
-function finishMeasurement() {
-  if (isReady.value) return;
-  isReady.value = true;
-  if (measureTimeout) {
-    clearTimeout(measureTimeout);
-    measureTimeout = null;
-  }
-  if (measureRO) {
-    measureRO.disconnect();
-    measureRO = null;
-  }
-  measureElements.clear();
-  measureRefCbs.clear();
-}
-
-// On container resize the column count changes, which means cards
-// reflow to a new width and their heights change. Clear the cache and
-// let the runtime ResizeObserver on each card repopulate it. Without
-// this, the layout still uses heights from the old column width and
-// positions are wrong, which is what causes the "half the cards are
-// gone" symptom after a window resize.
+// On container resize the column count changes, which means cards reflow to a
+// new width and their heights change. Clear the cache and re-measure mounted
+// cards; the per-card ResizeObserver corrects the rest.
 watch(columnCount, () => {
   cardHeights.clear();
   measuredVersion.value++;
   updateOffset();
-  scheduleMeasure();
+  requestAnimationFrame(() => {
+    let changed = false;
+    for (const [id, el] of cardElements) {
+      const h = Math.round(el.offsetHeight);
+      if (h > 0 && Math.abs(h - (cardHeights.get(id) ?? 0)) >= 2) {
+        cardHeights.set(id, h);
+        changed = true;
+      }
+    }
+    if (changed) measuredVersion.value++;
+  });
 });
 
 let _prevNoteIds = new Set();
 
 watch(
   () => props.notes.map((n) => n.id).join(','),
-  async () => {
+  () => {
     const newIds = new Set(props.notes.map((n) => n.id));
 
     for (const id of _prevNoteIds) {
@@ -513,9 +405,6 @@ watch(
     }
 
     _prevNoteIds = newIds;
-
-    await nextTick();
-    scheduleMeasure();
   },
   { immediate: true }
 );
@@ -552,26 +441,9 @@ onMounted(async () => {
     containerRO.observe(containerRef.value);
     if (scrollEl !== window) containerRO.observe(scrollEl);
 
-    cardRO = new ResizeObserver(() => {
-      if (cardResizeRaf) return;
-      cardResizeRaf = requestAnimationFrame(() => {
-        cardResizeRaf = null;
-        scheduleMeasure();
-      });
-    });
-
-    if (containerWidth.value > 0 && measureRef.value) {
-      measureRO = new ResizeObserver(onMeasureObserved);
-      for (const [id, el] of measureElements) {
-        cardElementIds.set(el, id);
-        measureRO.observe(el);
-      }
-    }
-
-    measureTimeout = setTimeout(finishMeasurement, 5000);
+    cardRO = new ResizeObserver(onCardObserved);
   } else {
     window.addEventListener('resize', onWindowResize, { passive: true });
-    finishMeasurement();
   }
 });
 
@@ -580,14 +452,10 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', onWindowResize);
   containerRO?.disconnect();
   cardRO?.disconnect();
-  if (measureRO) measureRO.disconnect();
-  if (measureRaf) cancelAnimationFrame(measureRaf);
   if (scrollRaf) cancelAnimationFrame(scrollRaf);
   if (cardResizeRaf) cancelAnimationFrame(cardResizeRaf);
-  if (measureTimeout) clearTimeout(measureTimeout);
   cardRefCbs.clear();
-  measureRefCbs.clear();
-  scrollEl = containerRO = cardRO = measureRO = null;
+  scrollEl = containerRO = cardRO = null;
 });
 </script>
 
@@ -595,19 +463,6 @@ onBeforeUnmount(() => {
 .note-masonry {
   position: relative;
   width: 100%;
-}
-
-.note-masonry__measure {
-  position: absolute;
-  left: -9999px;
-  top: 0;
-  visibility: hidden;
-  pointer-events: none;
-  width: 100%;
-}
-
-.note-masonry__measure-item {
-  display: block;
 }
 
 .note-masonry__skeleton {
@@ -713,5 +568,12 @@ onBeforeUnmount(() => {
     animation: none;
     opacity: 1;
   }
+}
+
+/* The masonry windows the DOM itself, so the card's own
+   content-visibility:auto (HomeNoteCard.vue) is redundant here and causes
+   320px placeholder flashes on scroll. Force it off for cards in the grid. */
+.note-masonry :deep(.note-card) {
+  content-visibility: visible;
 }
 </style>
