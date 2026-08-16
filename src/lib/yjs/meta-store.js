@@ -5,7 +5,6 @@
 
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
-import { useStorage } from '@/lib/storage';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
@@ -19,8 +18,6 @@ import {
   mergeNoteEntry,
   diffRemovedNoteIds,
 } from './meta-merge.js';
-
-const storage = useStorage();
 
 function buildNotePreviewFromContent(merged, content) {
   return buildNotePreview({
@@ -167,121 +164,6 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
     }
   }
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
-}
-
-/**
- * Import-only: populate the workspace Y.Doc from KV data written by the legacy
- * Electron migration. The Rust import writes KV directly; this is the on-import
- * conversion that makes the Y.Doc (and therefore the stores, via
- * `writeStoresFromWorkspace`) the source of truth. Runs once, only during
- * onboarding import — never in the runtime.
- */
-export async function seedWorkspaceDocFromKv() {
-  const doc = getWorkspaceDoc();
-  const [kvNotes, kvLabels, kvColors, kvFolders] = await Promise.all([
-    storage.get('notes', {}),
-    storage.get('labels', []),
-    storage.get('labelColors', {}),
-    storage.get('folders', {}),
-  ]);
-
-  console.warn(
-    '[meta-yjs] seedWorkspaceDocFromKv: KV has',
-    Object.keys(kvNotes || {}).length,
-    'notes,',
-    Object.keys(kvFolders || {}).length,
-    'folders,',
-    (kvLabels || []).length,
-    'labels'
-  );
-
-  // Sample the raw note shape so we can tell decrypted notes ({id,title,...})
-  // from undecrypted whole-row envelopes ({ae,enc,iv,kid}).
-  {
-    const sample = Object.entries(kvNotes || {})[0];
-    if (sample) {
-      const [sid, note] = sample;
-      console.warn(
-        '[meta-yjs] seedWorkspaceDocFromKv: sample note:',
-        JSON.stringify({
-          key: sid,
-          keys: note && typeof note === 'object' ? Object.keys(note) : typeof note,
-          ae: note?.ae,
-          hasContent: Boolean(note?.content),
-          hasTitle: Boolean(note?.title),
-          title: note?.title?.slice?.(0, 40),
-        })
-      );
-    }
-  }
-
-  const yNotes = doc.getMap('notes');
-  const yFolders = doc.getMap('folders');
-  const yLabels = doc.getArray('labels');
-  const yLabelColors = doc.getMap('labelColors');
-
-  // Lightweight fields only. Full searchText/preview bloat the workspace doc
-  // and make every launch transfer megabytes; search runs from the persisted
-  // search index (built at import), previews are built once and persisted as
-  // cardPreview.
-  const SEED_META_FIELDS = [
-    'id',
-    'title',
-    'folderId',
-    'labels',
-    'isArchived',
-    'isLocked',
-    'isBookmarked',
-    'isFullWidth',
-    'createdAt',
-    'updatedAt',
-  ];
-
-  let seededNotes = 0;
-  let seededFolders = 0;
-  let seededLabels = 0;
-
-  doc.transact(() => {
-    for (const [id, note] of Object.entries(kvNotes)) {
-      if (yNotes.has(id)) continue;
-      const yNote = new Y.Map();
-      for (const field of SEED_META_FIELDS) {
-        if (note[field] !== undefined) yNote.set(field, note[field]);
-      }
-      yNotes.set(id, yNote);
-      seededNotes++;
-    }
-    for (const [id, folder] of Object.entries(kvFolders)) {
-      if (yFolders.has(id)) continue;
-      const yFolder = new Y.Map();
-      for (const [k, v] of Object.entries(folder)) yFolder.set(k, v);
-      yFolders.set(id, yFolder);
-      seededFolders++;
-    }
-    for (const name of kvLabels) {
-      if (!yLabels.toArray().includes(name)) {
-        yLabels.push([name]);
-        seededLabels++;
-      }
-    }
-    for (const [k, v] of Object.entries(kvColors)) {
-      if (!yLabelColors.has(k)) yLabelColors.set(k, v);
-    }
-  }, 'seed');
-
-  console.warn(
-    '[meta-yjs] seedWorkspaceDocFromKv: seeded',
-    seededNotes,
-    'notes,',
-    seededFolders,
-    'folders,',
-    seededLabels,
-    'labels — workspace doc now has',
-    yNotes.size,
-    'notes,',
-    yFolders.size,
-    'folders'
-  );
 }
 
 /**

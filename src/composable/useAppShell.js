@@ -509,9 +509,9 @@ export function useAppShell(onboardingCompleted = true) {
     }
 
     // Load the unified workspace Y.Doc first — it is the single source of
-    // truth for all note/folder/label metadata.  On first run after legacy
-    // migration the doc may still be empty, so seed it from the KV stores
-    // before wiring observers.
+    // truth for all note/folder/label metadata. On first run after legacy
+    // migration the doc is seeded from parsed data during onboarding before
+    // observers are wired.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
     observeWorkspace(writeStoresFromWorkspace);
@@ -528,29 +528,6 @@ export function useAppShell(onboardingCompleted = true) {
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
       console.warn('[app] legacy row re-encryption failed:', err?.message || err);
     });
-
-    // Retryable KV→Yjs content migration. Runs on every startup while notes
-    // still carry KV content: a note that failed a previous run (undecryptable,
-    // invalid ID) is retried and repaired here rather than stranded in KV.
-    // Cheap for already-migrated installs because it only touches notes whose
-    // KV row still has a content field.
-    (async () => {
-      try {
-        const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
-        const result = await migrateNotesContent();
-        console.warn(
-          '[app] startup content migration complete:',
-          JSON.stringify(result)
-        );
-        if (result?.repaired > 0) {
-          // A repair re-keyed notes in KV AND the workspace doc — re-hydrate
-          // the stores so the repaired notes appear without a relaunch.
-          writeStoresFromWorkspace();
-        }
-      } catch (err) {
-        console.warn('[app] startup content migration failed:', err);
-      }
-    })();
 
     await refreshSyncLockBanner();
 
