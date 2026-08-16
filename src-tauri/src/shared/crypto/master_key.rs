@@ -6,7 +6,9 @@ use std::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 
-use super::super::{AppError, SAFE_STORAGE_SERVICE};
+use super::super::AppError;
+#[cfg(not(target_os = "android"))]
+use super::super::SAFE_STORAGE_SERVICE;
 use super::keys::{
     decrypt_bytes_with_key, derive_kek_argon2id_with_params, encrypt_bytes_with_key, random_key,
     random_nonce, WrappedKeyEnvelope,
@@ -21,6 +23,11 @@ pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key_
 
 pub(crate) const MASTER_KEY_FILE: &str = "master.key";
 pub(crate) const MASTER_KEY_ENC_FILE: &str = "master.key.enc";
+
+/// Android-only: the Keystore-wrapped master-key blob persisted by the Android
+/// backend. Readable without the Keystore key but useless without it.
+#[cfg(target_os = "android")]
+const MASTER_KEY_WRAPPED_FILE: &str = "master.key.wrapped";
 
 /// Which secure backend currently protects the master key. Mirrors the OS
 /// keychain on macOS/Windows/iOS, Secret Service or the kernel keyring on
@@ -264,7 +271,11 @@ fn write_enc_file(key: &[u8]) -> Result<(), AppError> {
 }
 
 fn platform_backends() -> Vec<Box<dyn MasterKeyBackend>> {
-    #[cfg(target_os = "linux")]
+    #[cfg(target_os = "android")]
+    {
+        vec![Box::new(AndroidKeystoreBackend)]
+    }
+    #[cfg(all(not(target_os = "android"), target_os = "linux"))]
     {
         vec![
             Box::new(KeyringBackend {
@@ -282,14 +293,10 @@ fn platform_backends() -> Vec<Box<dyn MasterKeyBackend>> {
             Box::new(EncryptedFileBackend),
         ]
     }
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(all(not(target_os = "android"), not(target_os = "linux")))]
     {
         vec![Box::new(KeyringBackend {
-            kind: if cfg!(target_os = "android") {
-                MasterKeyBackendKind::AndroidKeystore
-            } else {
-                MasterKeyBackendKind::Keychain
-            },
+            kind: MasterKeyBackendKind::Keychain,
             service: SAFE_STORAGE_SERVICE,
             account: SAFE_STORAGE_MASTER_ACCOUNT,
             store: KeyringStore::Default,
@@ -410,6 +417,93 @@ impl MasterKeyBackend for EncryptedFileBackend {
     fn is_alive(&self) -> bool {
         DEVICE_KEK.lock().map(|k| k.is_some()).unwrap_or(false)
     }
+}
+
+/// The `tauri::AppHandle` captured at startup, so the no-arg master-key
+/// backend can reach the plugin-managed `SecureKeystore` state. `AppHandle::current()`
+/// is not available in the pinned tauri 2.10, so it is populated during setup
+/// (see `set_android_app_handle`). Only touched on Android; cfg'd out elsewhere.
+#[cfg(target_os = "android")]
+static ANDROID_APP: Mutex<Option<tauri::AppHandle>> = Mutex::new(None);
+
+#[cfg(target_os = "android")]
+pub(crate) fn set_android_app_handle(app: tauri::AppHandle) {
+    if let Ok(mut guard) = ANDROID_APP.lock() {
+        *guard = Some(app);
+    }
+}
+
+#[cfg(target_os = "android")]
+fn android_app_handle() -> Result<tauri::AppHandle, AppError> {
+    ANDROID_APP
+        .lock()
+        .map_err(|_| AppError::Other("Android Keystore lock poisoned".into()))?
+        .clone()
+        .ok_or_else(|| AppError::Other("Android Keystore not initialized".into()))
+}
+
+/// Android Keystore (hardware-backed) master-key backend, via the vendored
+/// `tauri-plugin-secure-keystore`. Wraps the 32-byte master key in an Android
+/// Keystore AES-GCM key so the raw key never leaves the device, and persists
+/// the resulting portable blob next to the other master-key files. `get`
+/// reads that blob and asks the Keystore to unwrap it.
+#[cfg(target_os = "android")]
+struct AndroidKeystoreBackend;
+
+#[cfg(target_os = "android")]
+impl MasterKeyBackend for AndroidKeystoreBackend {
+    fn kind(&self) -> MasterKeyBackendKind {
+        MasterKeyBackendKind::AndroidKeystore
+    }
+
+    fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+        use tauri_plugin_secure_keystore::SecureKeystoreExt;
+        let app = android_app_handle()?;
+        let blob_path = master_key_wrapped_path(&app)?;
+        if !blob_path.exists() {
+            return Ok(None);
+        }
+        let blob = fs::read_to_string(blob_path)?;
+        let data = app
+            .secure_keystore()
+            .unwrap(blob)
+            .map_err(|e| AppError::Other(format!("keystore: {e}")))?;
+        let raw = BASE64.decode(data.as_bytes())?;
+        Ok(Some(raw))
+    }
+
+    fn set(&self, key: &[u8]) -> Result<(), AppError> {
+        use tauri_plugin_secure_keystore::SecureKeystoreExt;
+        let app = android_app_handle()?;
+        let blob = app
+            .secure_keystore()
+            .wrap(BASE64.encode(key))
+            .map_err(|e| AppError::Other(format!("keystore: {e}")))?;
+        let blob_path = master_key_wrapped_path(&app)?;
+        if let Some(parent) = blob_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(blob_path, blob)?;
+        Ok(())
+    }
+
+    fn is_alive(&self) -> bool {
+        // Keystore is a hardware/TEE-backed key that is always available on
+        // Android; treat as alive (the concrete read tolerates absence).
+        true
+    }
+}
+
+/// Where the Android backend keeps the blob produced by `wrap`. Uses the
+/// tauri path resolver rather than `dirs` because `data_local_dir` resolves
+/// to `None` on Android (no `$HOME`).
+#[cfg(target_os = "android")]
+fn master_key_wrapped_path(app: &tauri::AppHandle) -> Result<PathBuf, AppError> {
+    use tauri::Manager;
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join(MASTER_KEY_WRAPPED_FILE))
+        .map_err(|e| AppError::Other(format!("Cannot resolve app data dir: {e}")))
 }
 
 pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {

@@ -251,6 +251,9 @@ pub fn run() {
             commands::workspace::workspace_delete,
         ])
         .setup(|app| {
+            #[cfg(target_os = "android")]
+            crate::shared::set_android_app_handle(app.handle().clone());
+
             bootstrap::setup_app(app)?;
 
             // Listen for deep links when the app is already running (from tauri-plugin-deep-link)
