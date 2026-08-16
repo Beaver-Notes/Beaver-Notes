@@ -182,6 +182,7 @@ pub fn run() {
             commands::security::safe_storage_store_blob,
             commands::security::safe_storage_fetch_blob,
             commands::security::safe_storage_clear_blob,
+            commands::security::safe_storage_set_device_password,
             commands::security::asset_crypto_set_passphrase,
             commands::security::asset_crypto_clear_passphrase,
             commands::security::asset_crypto_migrate_dir,

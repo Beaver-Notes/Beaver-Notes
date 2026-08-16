@@ -105,6 +105,7 @@ export const commands = {
 	safeStorageStoreBlob: (key: string, blob: string) => typedError<null, AppError>(__TAURI_INVOKE("safe_storage_store_blob", { key, blob })),
 	safeStorageFetchBlob: (key: string) => typedError<string | null, AppError>(__TAURI_INVOKE("safe_storage_fetch_blob", { key })),
 	safeStorageClearBlob: (key: string) => typedError<null, AppError>(__TAURI_INVOKE("safe_storage_clear_blob", { key })),
+	safeStorageSetDevicePassword: (password: string) => typedError<null, AppError>(__TAURI_INVOKE("safe_storage_set_device_password", { password })),
 	assetCryptoSetPassphrase: (passphrase: string) => typedError<null, AppError>(__TAURI_INVOKE("asset_crypto_set_passphrase", { passphrase })),
 	assetCryptoClearPassphrase: () => typedError<null, AppError>(__TAURI_INVOKE("asset_crypto_clear_passphrase")),
 	assetCryptoMigrateDir: () => typedError<AssetMigrationResult, AppError>(__TAURI_INVOKE("asset_crypto_migrate_dir")),
@@ -259,6 +260,13 @@ export const commands = {
 	workspaceGetActive: () => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_get_active")),
 	/**  Create a new workspace and switch to it. */
 	workspaceCreate: (name: string, copySettings: boolean | null) => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_create", { name, copySettings })),
+	/**
+	 *  Register a backend (cloud) workspace in the local registry so local mirrors
+	 *  of shared/cloud workspaces participate in removal reconciliation. Creates
+	 *  the workspace directory and DBs on first registration (like `workspace_create`),
+	 *  upserts the entry, and never changes the active workspace.
+	 */
+	workspaceRegisterCloud: (id: string, name: string, orgId: string | null, ownerId: string | null, workspaceType: string | null, createdAt: string | null) => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_register_cloud", { id, name, orgId, ownerId, workspaceType, createdAt })),
 	/**  Switch the active workspace. The frontend must reload stores after this. */
 	workspaceSwitch: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_switch", { id })),
 	/**  Rename a workspace. */
@@ -271,7 +279,7 @@ export const commands = {
 };
 
 /* Types */
-export type AppError = ({ Io: string }) & { Crypto?: never; Other?: never; Serialization?: never } | ({ Crypto: string }) & { Io?: never; Other?: never; Serialization?: never } | ({ Serialization: string }) & { Crypto?: never; Io?: never; Other?: never } | "WrongPassword" | "EncryptionLocked" | ({ Other: string }) & { Crypto?: never; Io?: never; Serialization?: never };
+export type AppError = ({ Io: string }) & { Crypto?: never; Other?: never; Serialization?: never } | ({ Crypto: string }) & { Io?: never; Other?: never; Serialization?: never } | ({ Serialization: string }) & { Crypto?: never; Io?: never; Other?: never } | "WrongPassword" | "EncryptionLocked" | "DevicePasswordRequired" | "WrongDevicePassword" | "SecureStorageUnavailable" | ({ Other: string }) & { Crypto?: never; Io?: never; Serialization?: never };
 
 export type AppInfo = {
 	name: string,

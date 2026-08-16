@@ -50,6 +50,7 @@ const commandAliases = {
   'safeStorage:storeBlob': 'safe_storage_store_blob',
   'safeStorage:fetchBlob': 'safe_storage_fetch_blob',
   'safeStorage:clearBlob': 'safe_storage_clear_blob',
+  'safeStorage:setDevicePassword': 'safe_storage_set_device_password',
   'assetCrypto:setAppPassphrase': 'asset_crypto_set_passphrase',
   'assetCrypto:clearAppPassphrase': 'asset_crypto_clear_passphrase',
   'assetCrypto:migrateDir': 'asset_crypto_migrate_dir',
@@ -241,6 +242,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'safeStorage:encryptString':
       return withKeyVariants('plain_text', payload);
+    case 'safeStorage:setDevicePassword':
+      return withKeyVariants('password', payload);
     case 'safeStorage:decryptString':
       return withKeyVariants('encrypted_base64', payload);
     case 'safeStorage:fetchBlob':

@@ -68,6 +68,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::safe_storage_store_blob)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::safe_storage_fetch_blob)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::safe_storage_clear_blob)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::safe_storage_set_device_password)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::asset_crypto_set_passphrase)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::asset_crypto_clear_passphrase)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::asset_crypto_migrate_dir)(&mut types),
