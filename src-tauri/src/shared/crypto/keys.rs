@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{atomic::Ordering, Condvar, Mutex},
 };
 
 use aes_gcm::{
@@ -19,7 +18,6 @@ use chacha20poly1305::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use hmac::Hmac;
-use keyring::Entry;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -27,11 +25,8 @@ use serde_json::Value;
 use sha2::Sha256;
 use tauri::AppHandle;
 
-use super::super::{
-    app_encryption_manifest_path, get_settings_value, AppError, AppState, SAFE_STORAGE_SERVICE,
-};
+use super::super::{app_encryption_manifest_path, get_settings_value, AppError, AppState};
 
-pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 32 * 1024;
 pub(crate) const ARGON2_ITERATIONS: u32 = 2;
@@ -108,8 +103,6 @@ pub(crate) struct EncryptionManifest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) recovery_kek: Option<WrappedKeyEnvelope>,
 }
-
-const MASTER_KEY_FILE: &str = "master.key";
 
 fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     let _t = crate::shared::speed_log::scope("keys.derive_kek_pbkdf2");
@@ -1005,202 +998,6 @@ pub(crate) fn decrypt_note_row_from_storage(
         }
     }
     Ok(Value::Object(note))
-}
-
-/// Master-key resolution state. `Loading` means a thread is currently inside
-/// the (slow) Keychain/file read; concurrent cold callers wait on
-/// `MASTER_KEY_CONDVAR` and reuse the single result instead of issuing several
-/// Keychain IPC round-trips (each of which costs seconds on macOS).
-enum MasterKeyState {
-    Pending,
-    Loading,
-    Ready(Vec<u8>),
-}
-
-static MASTER_KEY_STATE: Mutex<MasterKeyState> = Mutex::new(MasterKeyState::Pending);
-static MASTER_KEY_CONDVAR: Condvar = Condvar::new();
-
-pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
-    let _t = crate::shared::speed_log::scope("keys.read_master_key");
-    let mut state = MASTER_KEY_STATE
-        .lock()
-        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-    loop {
-        match &*state {
-            MasterKeyState::Ready(key) => return Ok(key.clone()),
-            MasterKeyState::Pending => break,
-            MasterKeyState::Loading => {
-                state = MASTER_KEY_CONDVAR
-                    .wait(state)
-                    .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-            }
-        }
-    }
-    *state = MasterKeyState::Loading;
-    drop(state);
-
-    let result = read_master_key_from_store();
-
-    let mut state = MASTER_KEY_STATE
-        .lock()
-        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-    match &result {
-        Ok(key) => *state = MasterKeyState::Ready(key.clone()),
-        // Transient Keychain failures retry next call.
-        Err(_) => *state = MasterKeyState::Pending,
-    }
-    MASTER_KEY_CONDVAR.notify_all();
-    result
-}
-
-fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
-    // On Linux, the file-based master key is authoritative and the OS keyring
-    // is only an opportunistic mirror. Linux keyring daemons (Secret Service /
-    // gnome-keyring) are frequently absent or flaky in headless/minimal
-    // environments, and a dead daemon can strand a blob under a keyring-only
-    // key. Reading the file key first (minting it on first run) makes the key
-    // deterministic across launches regardless of keyring state.
-    #[cfg(target_os = "linux")]
-    {
-        if let Some(key) = read_file_based_master_key()? {
-            return Ok(key);
-        }
-        let key = file_based_master_key()?;
-        // Anchor into the keyring when it happens to be alive, so desktop
-        // distros with a working keyring still get the OS-keychain benefit.
-        // A failure here is non-fatal: the file key remains authoritative.
-        if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
-            if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
-                let _ = entry.set_password(&BASE64.encode(&key));
-            }
-        }
-        return Ok(key);
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
-            if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
-                if let Ok(stored) = entry.get_password() {
-                    return BASE64.decode(stored.as_bytes()).map_err(AppError::from);
-                }
-                // The keyring is present but has no key we can read. Prefer
-                // reusing a durable file key when one exists so we never
-                // rotate the master key and strand existing blobs.
-                if let Some(key) = read_file_based_master_key()? {
-                    let _ = entry.set_password(&BASE64.encode(&key));
-                    return Ok(key);
-                }
-                // First run: mint once and anchor it. On macOS/Windows the
-                // plaintext file is intentionally not written — the OS
-                // keychain is the sole store there.
-                let mut key = vec![0_u8; 32];
-                rand::thread_rng().fill_bytes(&mut key);
-                if entry.set_password(&BASE64.encode(&key)).is_ok() {
-                    return Ok(key);
-                }
-            }
-            super::KEYRING_AVAILABLE.store(false, Ordering::Relaxed);
-        }
-
-        file_based_master_key()
-    }
-}
-
-fn master_key_path() -> Result<std::path::PathBuf, AppError> {
-    let app_dir = dirs::data_local_dir()
-        .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-        .join("com.beavernotes.beaver-notes");
-    Ok(app_dir.join(MASTER_KEY_FILE))
-}
-
-fn read_file_based_master_key() -> Result<Option<Vec<u8>>, AppError> {
-    let key_path = master_key_path()?;
-    if !key_path.exists() {
-        return Ok(None);
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = fs::metadata(&key_path)?.permissions();
-        if perms.mode() & 0o077 != 0 {
-            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
-        }
-    }
-    let raw = fs::read_to_string(&key_path)?;
-    let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
-    if key_bytes.len() != 32 {
-        return Err(AppError::Crypto(
-            "Invalid file-based master key length".into(),
-        ));
-    }
-    Ok(Some(key_bytes))
-}
-
-fn write_file_based_master_key(key: &[u8]) -> Result<(), AppError> {
-    let key_path = master_key_path()?;
-    let encoded = BASE64.encode(key);
-    if let Some(parent) = key_path.parent() {
-        fs::create_dir_all(parent)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
-        }
-    }
-    fs::write(&key_path, encoded)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
-    }
-    Ok(())
-}
-
-pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
-    if let Some(key) = read_file_based_master_key()? {
-        return Ok(key);
-    }
-    // No OS keychain (e.g. headless/minimal Linux distros): fall back to an
-    // on-disk master key so safe-storage still works. Keep it owner-only.
-    let mut key = vec![0_u8; 32];
-    rand::thread_rng().fill_bytes(&mut key);
-    write_file_based_master_key(&key)?;
-    Ok(key)
-}
-
-pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {
-    let key = read_master_key()?;
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    let mut iv = [0_u8; 12];
-    rand::thread_rng().fill_bytes(&mut iv);
-    let encrypted = cipher.encrypt(Nonce::from_slice(&iv), bytes)?;
-    let mut payload = iv.to_vec();
-    payload.extend_from_slice(&encrypted);
-    Ok(BASE64.encode(payload))
-}
-
-pub(crate) fn safe_storage_decrypt_bytes(value: &str) -> Result<Vec<u8>, AppError> {
-    let key = read_master_key()?;
-    let payload = BASE64.decode(value.as_bytes())?;
-    if payload.len() < 13 {
-        return Err(AppError::Crypto("Invalid encrypted payload".into()));
-    }
-    let (iv, ciphertext) = payload.split_at(12);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    cipher
-        .decrypt(Nonce::from_slice(iv), ciphertext)
-        .map_err(AppError::from)
-}
-
-pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
-    if super::super::ALLOWED_BLOB_KEYS.contains(&key) {
-        Ok(())
-    } else {
-        Err(AppError::Other(format!(
-            "[safeStorage] Unsupported blob key: {key}"
-        )))
-    }
 }
 
 #[cfg(test)]
