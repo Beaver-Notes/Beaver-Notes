@@ -188,20 +188,23 @@ fn select_key_from_backends(
         return Err(AppError::SecureStorageUnavailable);
     }
     let key = mint();
+    // Write durable backends FIRST; if none succeed, abort before the key
+    // touches the reboot-ephemeral kernel keyring.
     let mut durable_written = false;
     for backend in backends {
-        // The `durable_alive` guard probed a durable backend alive moments ago;
-        // this loop verifies the write actually landed. A durable backend can
-        // fail its `set` right after a successful `get` probe (daemon crash,
-        // locked/read-only store), which would otherwise leave the key only in
-        // the reboot-ephemeral kernel keyring. Non-durable keyutils writes are
-        // still attempted (best-effort mirror) but don't count.
-        if backend.set(&key).is_ok() && is_durable_kind(backend.kind()) {
+        if is_durable_kind(backend.kind()) && backend.set(&key).is_ok() {
             durable_written = true;
         }
     }
     if !durable_written {
         return Err(AppError::SecureStorageUnavailable);
+    }
+    // Only now mirror to non-durable backends (kernel keyring) — the durable
+    // anchor is already in place, so the key cannot be stranded on reboot.
+    for backend in backends {
+        if !is_durable_kind(backend.kind()) {
+            let _ = backend.set(&key);
+        }
     }
     Ok(key.to_vec())
 }
@@ -926,6 +929,42 @@ mod tests {
         assert!(
             matches!(err, AppError::SecureStorageUnavailable),
             "minting must fail when no durable backend accepted the write"
+        );
+    }
+
+    #[test]
+    fn select_fails_when_only_keyutils_write_succeeds() {
+        // Durable backends probe alive (via `get`/`is_alive`) but their `set`
+        // fails moments later; only the KernelKeyring backend accepts the
+        // write. The keyutils mirror must NOT run — adopting a reboot-ephemeral
+        // keyring key on the next `read_master_key()` would strand blobs once
+        // the key expires.
+        let keyutils = Rc::new(RefCell::new(Vec::new()));
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::SecretService,
+                stored: None,
+                fail: false,
+            }),
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                None,
+                Rc::clone(&keyutils),
+            )),
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::EncryptedFile,
+                stored: None,
+                fail: false,
+            }),
+        ];
+        let err = select_key_from_backends(&backends, random_key, true).unwrap_err();
+        assert!(
+            matches!(err, AppError::SecureStorageUnavailable),
+            "minting must fail when the only successful write is the non-durable kernel keyring"
+        );
+        assert!(
+            keyutils.borrow().is_empty(),
+            "the keyutils mirror must NOT run when no durable write landed"
         );
     }
 
