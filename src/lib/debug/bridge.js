@@ -5,7 +5,7 @@
  * behind a flag) that correlates:
  *
  *   1. what the NATIVE side actually persisted — KV rows, per-note Yjs
- *      updates, and the decoded workspace meta doc (`debug:dumpState`),
+ *      updates, and the decoded workspace meta doc (`debug:dump-state`),
  *   2. what the FRONTEND has in memory — the workspace Y.Doc and the Pinia
  *      note/folder/label stores.
  *
@@ -38,7 +38,7 @@ function subscribeHooks() {
 
 /** Raw persisted state straight from the native side. */
 export async function dumpNativeState() {
-  const raw = await backend.invoke('debug:dumpState');
+  const raw = await backend.invoke('debug:dump-state');
   console.warn('[debug-bridge] native persisted state:', JSON.stringify(raw, null, 2));
   return raw;
 }

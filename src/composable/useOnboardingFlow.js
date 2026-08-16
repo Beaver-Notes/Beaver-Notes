@@ -574,7 +574,7 @@ export function useOnboardingFlow({
       // Seed the workspace doc directly from parsed data (no KV reads).
       state.migrationStatus = 'Migrating workspace…';
       const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
-      await seedWorkspaceDocFromData(
+      const seedResult = await seedWorkspaceDocFromData(
         legacyData?.notes || {},
         legacyData?.folders || {},
         legacyData?.labels || [],
@@ -582,7 +582,10 @@ export function useOnboardingFlow({
         legacyData?.deletedIds || {},
         legacyData?.deletedFolderIds || {}
       );
-      console.warn('[onboarding] workspace doc seeded from parsed data');
+      console.warn(
+        '[onboarding] workspace doc seeded from parsed data:',
+        JSON.stringify(seedResult)
+      );
 
       // Import matching user preferences (localStorage). importLegacyPreferences
       // routes the imported syncPath through setSyncPath (invalidating the
