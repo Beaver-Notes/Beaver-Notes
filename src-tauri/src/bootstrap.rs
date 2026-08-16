@@ -194,48 +194,6 @@ pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
 }
 
 #[cfg(desktop)]
-fn merge_json_preserving_target(target: &mut serde_json::Value, source: serde_json::Value) {
-    match (target, source) {
-        (serde_json::Value::Object(target_map), serde_json::Value::Object(source_map)) => {
-            for (key, source_value) in source_map {
-                if let Some(target_value) = target_map.get_mut(&key) {
-                    merge_json_preserving_target(target_value, source_value);
-                } else {
-                    target_map.insert(key, source_value);
-                }
-            }
-        }
-        _ => {
-            // Keep the current Tauri-side value. Migration must not overwrite newer data.
-        }
-    }
-}
-
-#[cfg(desktop)]
-fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), AppError> {
-    if !source_path.exists() {
-        return Ok(());
-    }
-
-    if !target_path.exists() {
-        fs::copy(source_path, target_path)?;
-        return Ok(());
-    }
-
-    let source_text = fs::read_to_string(source_path)?;
-    let target_text = fs::read_to_string(target_path)?;
-    let source_json = serde_json::from_str::<serde_json::Value>(&source_text)?;
-    let mut target_json =
-        serde_json::from_str::<serde_json::Value>(&target_text)?;
-
-    merge_json_preserving_target(&mut target_json, source_json);
-
-    let serialized = serde_json::to_string_pretty(&target_json)?;
-    fs::write(target_path, format!("{serialized}\n"))?;
-    Ok(())
-}
-
-#[cfg(desktop)]
 fn import_json_file_into_pool(
     path: &Path,
     pool: &crate::db::DbPool,
@@ -320,55 +278,6 @@ fn copy_directory_missing(
 }
 
 #[cfg(desktop)]
-fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), AppError> {
-    if !auth_path.exists() {
-        return Ok(());
-    }
-
-    let auth_text = fs::read_to_string(auth_path)?;
-    let auth_json = serde_json::from_str::<serde_json::Value>(&auth_text)?;
-    let Some(auth_map) = auth_json.as_object() else {
-        return Ok(());
-    };
-
-    let legacy_blob_map = auth_map.get("blobs").and_then(|value| value.as_object());
-
-    let state = app.state::<AppState>();
-    for key in ALLOWED_BLOB_KEYS {
-        let Some(blob) = auth_map
-            .get(*key)
-            .and_then(|value| value.as_str())
-            .or_else(|| {
-                legacy_blob_map
-                    .and_then(|blob_map| blob_map.get(*key))
-                    .and_then(|value| value.as_str())
-            })
-        else {
-            continue;
-        };
-
-        let has_existing = state
-            .cache.secure_blobs
-            .fetch_blob(state.inner(), key)
-            .ok()
-            .flatten()
-            .and_then(|value| String::from_utf8(value).ok())
-            .filter(|value: &String| !value.is_empty())
-            .is_some();
-
-        if has_existing {
-            continue;
-        }
-
-        let _ = state
-            .cache.secure_blobs
-            .store_blob(state.inner(), key, blob.as_bytes().to_vec());
-    }
-
-    Ok(())
-}
-
-#[cfg(desktop)]
 pub(crate) fn dir_has_any_legacy_content(path: &Path) -> bool {
     LEGACY_DATA_FILES
         .iter()
@@ -430,14 +339,11 @@ fn run_migration_core(
     // (store JSONs + all assets), then report as we go.
     // Legacy notes/folders (config.json/data.json) are no longer imported into
     // the data KV store — the frontend converts them straight to Yjs. The store
-    // JSON copies are just settings.json (always) and auth.json (when present).
+    // JSON copy is just settings.json.
     eprintln!(
         "[migration]   skipping legacy notes/folders import (config.json/data.json) — the data KV store stays empty of note rows"
     );
     let mut copy_total = 1; // SETTINGS_STORE
-    if old_dir.join(AUTH_STORE).exists() {
-        copy_total += 1;
-    }
     for folder in ["notes-assets", "file-assets"] {
         let old = old_dir.join(folder);
         if old.exists() {
@@ -459,14 +365,6 @@ fn run_migration_core(
     }
     let mut copy_done = 0u64;
 
-    let old_auth = old_dir.join(AUTH_STORE);
-    if old_auth.exists() {
-        merge_store_file(&old_auth, &new_dir.join(AUTH_STORE))?;
-        merged_store_files.push(AUTH_STORE.to_string());
-        copy_done += 1;
-        emit_migration_progress(app, "copy", copy_done, copy_total);
-    }
-
     let settings_pool = settings_pool(app, state)?;
     let old_settings = old_dir.join(SETTINGS_STORE);
     if import_json_file_into_pool(&old_settings, &settings_pool)? {
@@ -474,23 +372,6 @@ fn run_migration_core(
     }
     copy_done += 1;
     emit_migration_progress(app, "copy", copy_done, copy_total);
-
-    const SETTINGS_KEY_REMAP: &[(&str, &str)] = &[
-        ("color-scheme", "colorScheme"),
-        ("selected-font", "selectedFont"),
-        ("selected-font-code", "selectedCodeFont"),
-        ("selected-dark-text", "selectedDarkText"),
-        ("visibility-menubar", "visibilityMenubar"),
-        ("advanced-settings", "advancedSettings"),
-    ];
-    for (old_key, new_key) in SETTINGS_KEY_REMAP {
-        if crate::db::db_has(&settings_pool, new_key)? {
-            continue; // canonical key already present – don't overwrite
-        }
-        if let Some(value) = crate::db::db_get(&settings_pool, old_key)? {
-            crate::db::db_set(&settings_pool, new_key, &value)?;
-        }
-    }
 
     let mut copied_asset_dirs = Vec::new();
     for folder in ["notes-assets", "file-assets"] {
@@ -529,8 +410,6 @@ fn run_migration_core(
         }
         copied_asset_dirs.push("assets".to_string());
     }
-
-    let _ = import_legacy_auth_blobs(app, &old_dir.join(AUTH_STORE));
 
     // Intentionally non-destructive while migration is being tested.
     // Do not remove or mutate the legacy Electron directory here.
