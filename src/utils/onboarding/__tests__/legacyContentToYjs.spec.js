@@ -2,11 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const appendBatch = vi.fn(async () => {});
 const decryptNoteWithPassword = vi.fn();
+const decryptContent = vi.fn();
+const isAppEncryptedEnvelope = vi.fn();
 vi.mock('@/utils/migration/legacyElectron.js', () => ({ decryptNoteWithPassword }));
 vi.mock('@/lib/native/yjs.js', () => ({ appendBatch }));
 vi.mock('@/lib/yjs/helpers.js', () => ({
   ensureSchema: vi.fn(async () => ({})),
   getDeviceId: vi.fn(() => 'device-1'),
+}));
+vi.mock('@/utils/crypto/encryption.js', () => ({
+  decryptContent,
+  isAppEncryptedEnvelope,
 }));
 vi.mock('@tiptap/y-tiptap', () => ({
   prosemirrorJSONToYDoc: vi.fn(() => ({
@@ -73,5 +79,35 @@ describe('convertLegacyNotesToYjs', () => {
     const result = await convertLegacyNotesToYjs(notes);
     expect(result.converted).toBe(0);
     expect(result.skipped).toBe(1);
+  });
+
+  it('decrypts an app-encrypted ae:6 locked note with the workspace key via decryptContent', async () => {
+    decryptContent.mockResolvedValue({ type: 'doc', content: [] });
+    isAppEncryptedEnvelope.mockReturnValue(true);
+    const envelope = { ae: 6, iv: 'iv', cipher: 'cipher', kid: 'ws' };
+    const notes = [{ id: 'ae-1', isLocked: true, content: envelope }];
+    const result = await convertLegacyNotesToYjs(notes, { legacyPassword: 'pw' });
+    expect(isAppEncryptedEnvelope).toHaveBeenCalledWith(envelope);
+    expect(decryptContent).toHaveBeenCalledWith(envelope);
+    expect(decryptNoteWithPassword).not.toHaveBeenCalled();
+    expect(result.converted).toBe(1);
+    expect(result.failures).toEqual([]);
+  });
+
+  it('skips notes already converted in a prior run (alreadyConvertedIds)', async () => {
+    const notes = [
+      { id: 'n1', content: { type: 'doc', content: [] } },
+      { id: 'n2', content: { type: 'doc', content: [] } },
+    ];
+    const result = await convertLegacyNotesToYjs(notes, {
+      alreadyConvertedIds: new Set(['n1']),
+    });
+    expect(result.skipped).toBe(1);
+    expect(result.converted).toBe(1);
+    expect(appendBatch).toHaveBeenCalledWith(
+      ['n2'],
+      [expect.any(Uint8Array)],
+      ['device-1']
+    );
   });
 });

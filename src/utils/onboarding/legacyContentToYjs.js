@@ -33,20 +33,33 @@ export async function convertLegacyNoteToUpdate(schema, content) {
  * calls in chunks and yielding to the UI between chunks.
  *
  * @param {Array<{id: string, content: object}>} notes
- * @param {{onProgress?: (done: number, total: number, id: string) => void, legacyPassword?: string}} [opts]
+ * @param {{
+ *   onProgress?: (done: number, total: number, id: string) => void,
+ *   legacyPassword?: string,
+ *   alreadyConvertedIds?: Set<string>,
+ * }} [opts]
  * @returns {Promise<{converted: number, skipped: number, failures: string[]}>}
  */
-export async function convertLegacyNotesToYjs(notes = [], { onProgress, legacyPassword } = {}) {
+export async function convertLegacyNotesToYjs(
+  notes = [],
+  { onProgress, legacyPassword, alreadyConvertedIds } = {}
+) {
   const schema = await ensureSchema();
   const device = getDeviceId();
   const failures = [];
   let converted = 0;
   let skipped = 0;
+  const alreadyConverted =
+    alreadyConvertedIds instanceof Set ? alreadyConvertedIds : new Set();
 
   for (let i = 0; i < notes.length; i += CHUNK_SIZE) {
     const chunk = notes.slice(i, i + CHUNK_SIZE);
     const entries = [];
     for (const note of chunk) {
+      if (alreadyConverted.has(note.id)) {
+        skipped++;
+        continue;
+      }
       if (!note?.id || !note.content || typeof note.content !== 'object') {
         skipped++;
         continue;
@@ -64,10 +77,31 @@ export async function convertLegacyNotesToYjs(notes = [], { onProgress, legacyPa
             skipped++;
             continue;
           }
-          const { decryptNoteWithPassword } = await import('@/utils/migration/legacyElectron.js');
-          const ciphertext = note.content.content?.[0];
-          const { plaintext } = await decryptNoteWithPassword(ciphertext, legacyPassword);
-          content = JSON.parse(plaintext);
+          const { isAppEncryptedEnvelope, decryptContent } = await import(
+            '@/utils/crypto/encryption.js'
+          );
+          if (isAppEncryptedEnvelope(note.content)) {
+            // App-encrypted envelope (ae:3/ae:6) — decrypt with the workspace
+            // key. These can appear when a legacy config.json was previously
+            // re-encrypted by migrateLegacyLockedNotes; the legacy password
+            // does not apply to them.
+            content = await decryptContent(note.content);
+          } else {
+            // Legacy CryptoJS or JSON envelope — decrypt with the legacy
+            // password captured during onboarding.
+            const { decryptNoteWithPassword } = await import(
+              '@/utils/migration/legacyElectron.js'
+            );
+            const ciphertext = note.content.content?.[0];
+            if (typeof ciphertext !== 'string') {
+              throw new Error('Locked note has no decryptable ciphertext');
+            }
+            const { plaintext } = await decryptNoteWithPassword(
+              ciphertext,
+              legacyPassword
+            );
+            content = JSON.parse(plaintext);
+          }
         }
 
         const update = await convertLegacyNoteToUpdate(schema, content);

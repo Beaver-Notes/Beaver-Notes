@@ -141,7 +141,7 @@ vi.mock('@/utils/platform/legacyLock', () => ({
   },
 }));
 
-import { migrateLegacyLockedNotes } from '../legacyElectron.js';
+import { migrateLegacyLockedNotes, validateLegacyLockedPassword } from '../legacyElectron.js';
 import { decryptNoteForMemory } from '@/utils/note/serializer.js';
 
 const PLAINTEXT_DOC = JSON.stringify({
@@ -302,5 +302,73 @@ describe('migrateLegacyLockedNotes (workspace-key re-encryption)', () => {
     const decrypted = await decryptNoteForMemory(migratedNote);
     expect(decrypted.content).toStrictEqual(JSON.parse(PLAINTEXT_DOC));
     expect(decrypted.isLocked).toBe(true);
+  });
+});
+
+describe('validateLegacyLockedPassword (read-only validation)', () => {
+  beforeEach(() => {
+    readLegacyDataMock.mockReset();
+    writeLegacyDataMock.mockReset();
+    deriveArgon2KeyMock.mockReset();
+    decryptLegacyCryptoJSMock.mockReset();
+  });
+
+  it('resolves ok with the locked-note count for a correct password', async () => {
+    const note = {
+      id: 'n1',
+      title: 'Locked legacy note',
+      isLocked: true,
+      content: { type: 'doc', content: ['U2FsdGVkX1+mockCiphertext'] },
+    };
+    readLegacyDataMock.mockResolvedValue(
+      JSON.stringify({ data: legacyData(note) })
+    );
+    decryptLegacyCryptoJSMock.mockResolvedValue(PLAINTEXT_DOC);
+
+    const result = await validateLegacyLockedPassword('/legacy/dir', 'correct-pw');
+
+    expect(result).toEqual({ ok: true, count: 1 });
+    expect(decryptLegacyCryptoJSMock).toHaveBeenCalledWith(
+      'U2FsdGVkX1+mockCiphertext',
+      'correct-pw'
+    );
+    // Read-only: nothing is ever written back to config.json.
+    expect(writeLegacyDataMock).not.toHaveBeenCalled();
+  });
+
+  it('throws "Incorrect password" for a wrong password', async () => {
+    const note = {
+      id: 'n2',
+      title: 'Locked legacy note',
+      isLocked: true,
+      content: { type: 'doc', content: ['U2FsdGVkX1+mockCiphertext'] },
+    };
+    readLegacyDataMock.mockResolvedValue(
+      JSON.stringify({ data: legacyData(note) })
+    );
+    decryptLegacyCryptoJSMock.mockRejectedValue(new Error('bad password'));
+
+    await expect(
+      validateLegacyLockedPassword('/legacy/dir', 'wrong-pw')
+    ).rejects.toThrow('Incorrect password');
+    expect(writeLegacyDataMock).not.toHaveBeenCalled();
+  });
+
+  it('resolves ok with count 0 when no locked notes exist', async () => {
+    readLegacyDataMock.mockResolvedValue(
+      JSON.stringify({
+        data: {
+          notes: { n3: { id: 'n3', isLocked: false } },
+          lockStatus: {},
+          isLocked: {},
+        },
+      })
+    );
+
+    const result = await validateLegacyLockedPassword('/legacy/dir', 'any-pw');
+
+    expect(result).toEqual({ ok: true, count: 0 });
+    expect(decryptLegacyCryptoJSMock).not.toHaveBeenCalled();
+    expect(writeLegacyDataMock).not.toHaveBeenCalled();
   });
 });

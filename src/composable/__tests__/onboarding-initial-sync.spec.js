@@ -82,7 +82,7 @@ vi.mock('@/utils/onboarding/remote-vault-join.js', () => ({
 
 vi.mock('@/utils/migration/legacyElectron.js', () => ({
   detectLegacyLockedNotes: vi.fn(async () => ({ hasLocked: false, count: 0 })),
-  migrateLegacyLockedNotes: vi.fn(async () => 0),
+  validateLegacyLockedPassword: vi.fn(async () => ({ ok: true, count: 0 })),
 }));
 
 vi.mock('@/utils/onboarding/platforms.js', () => ({

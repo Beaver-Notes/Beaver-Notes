@@ -176,6 +176,33 @@ export async function detectLegacyLockedNotes(dir) {
   }
 }
 
+/**
+ * Validate the legacy locked-notes password WITHOUT writing anything back.
+ * Decrypts (read-only) the first locked note to confirm the password is
+ * correct. Throws on a wrong password so callers keep the existing
+ * "Incorrect password" error path. The actual per-note decryption + Yjs
+ * conversion happens later, in convertLegacyNotesToYjs.
+ *
+ * @param {string} dir legacy data directory
+ * @param {string} password the submitted legacy password
+ * @returns {Promise<{ok: boolean, count: number}>}
+ */
+export async function validateLegacyLockedPassword(dir, password) {
+  const { data, notes: lockedNotes } = await readLegacyWithLocked(dir);
+  if (!data || lockedNotes.length === 0) {
+    return { ok: true, count: 0 };
+  }
+
+  // Decrypt the first locked note only — enough to prove the password. The
+  // rest are decrypted once, during content conversion. Nothing is persisted.
+  const first = lockedNotes[0];
+  const ciphertext = first?.content?.content?.[0];
+  if (typeof ciphertext === 'string' && ciphertext) {
+    await decryptNoteWithPassword(ciphertext, password);
+  }
+  return { ok: true, count: lockedNotes.length };
+}
+
 export async function migrateLegacyLockedNotes(dir, password) {
   const { data, notes: lockedNotes } = await readLegacyWithLocked(dir);
   if (!data || !lockedNotes.length) return 0;

@@ -31,7 +31,7 @@ import { setSyncPath } from '@/utils/sync/path.js';
 import { forceSyncNow } from '@/utils/sync';
 import {
   detectLegacyLockedNotes,
-  migrateLegacyLockedNotes,
+  validateLegacyLockedPassword,
 } from '@/utils/migration/legacyElectron.js';
 import {
   ALL_PLATFORMS,
@@ -540,12 +540,32 @@ export function useOnboardingFlow({
       const noteList = Object.entries(legacyData?.notes || {}).map(
         ([id, note]) => ({ ...note, id: note.id || id })
       );
+
+      // Load the workspace doc BEFORE converting so a retried migration can
+      // detect notes whose content was already appended in a prior (failed)
+      // attempt. Content lives in per-note Yjs docs, so we verify non-empty
+      // snapshots rather than trusting the seeded meta (which is written for
+      // every note regardless of conversion success).
+      const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
+      const { getWorkspaceDoc } = await import('@/lib/yjs/meta-doc.js');
+      await loadWorkspaceDoc();
+      const seededIds = [...getWorkspaceDoc().getMap('notes').keys()];
+      let alreadyConvertedIds = new Set();
+      if (seededIds.length > 0) {
+        const { getSnapshots } = await import('@/lib/native/yjs.js');
+        const snapshots = await getSnapshots(seededIds).catch(() => ({}));
+        alreadyConvertedIds = new Set(
+          seededIds.filter((id) => (snapshots?.[id]?.length ?? 0) > 0)
+        );
+      }
+
       const convertResult = await convertLegacyNotesToYjs(noteList, {
         onProgress: (done, total) => {
           state.migrationProgress =
             COPY_WEIGHT + Math.round((done / total) * CONVERT_WEIGHT);
         },
         legacyPassword: legacyPassword || undefined,
+        alreadyConvertedIds,
       });
       console.warn(
         '[onboarding] note content conversion complete:',
@@ -554,9 +574,7 @@ export function useOnboardingFlow({
 
       // Seed the workspace doc directly from parsed data (no KV reads).
       state.migrationStatus = 'Migrating workspace…';
-      const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
       const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
-      await loadWorkspaceDoc();
       await seedWorkspaceDocFromData(
         legacyData?.notes || {},
         legacyData?.folders || {},
@@ -567,10 +585,10 @@ export function useOnboardingFlow({
       );
       console.warn('[onboarding] workspace doc seeded from parsed data');
 
-      // Import matching user preferences (localStorage). Re-assert the
-      // imported syncPath: setSetting does not invalidate getSyncPath's
-      // memoized cache, so read it back and re-persist through setSyncPath
-      // (which clears the cache) to guarantee the imported path wins.
+      // Import matching user preferences (localStorage). importLegacyPreferences
+      // routes the imported syncPath through setSyncPath (invalidating the
+      // memoized getSyncPath cache) and skips it for cloud-sync users, so no
+      // read-back re-assert is needed here.
       try {
         const { importLegacyPreferences } = await import(
           '@/utils/onboarding/import-preferences.js'
@@ -578,11 +596,6 @@ export function useOnboardingFlow({
         if (legacyDir) {
           const imported = await importLegacyPreferences(legacyDir);
           console.warn('[onboarding] imported', imported, 'legacy preferences');
-        }
-        const { getSyncPath } = await import('@/utils/sync/path.js');
-        const importedSyncPath = (await getSyncPath()) || '';
-        if (importedSyncPath) {
-          await setSyncPath(importedSyncPath);
         }
       } catch (err) {
         console.warn('[onboarding] preference import failed:', err);
@@ -722,29 +735,33 @@ export function useOnboardingFlow({
   async function handleLegacyPasswordSubmit(password) {
     state.legacyPasswordLoading = true;
     state.legacyPasswordError = '';
-    let migratedCount = 0;
+    let lockedCount = 0;
 
     try {
       const dir = getLegacyDir();
       if (!dir) {
         state.legacyHasLockedNotes = false;
-        return { success: true, migratedCount };
+        return { success: true, migratedCount: lockedCount };
       }
 
       // Keep the submitted password for the whole-note conversion in
       // migrateLegacyData, which runs after this step.
       legacyPassword = password;
 
-      migratedCount = await migrateLegacyLockedNotes(dir, password);
+      // Validate the password read-only (throws on a wrong password) — the
+      // actual decryption + conversion happens once, in migrateLegacyData.
+      // Config.json is never mutated here.
+      const validation = await validateLegacyLockedPassword(dir, password);
+      lockedCount = validation?.count || 0;
       state.legacyHasLockedNotes = false;
-      return { success: true, migratedCount };
+      return { success: true, migratedCount: lockedCount };
     } catch (e) {
       console.error('[onboarding] handleLegacyPasswordSubmit error:', e);
       legacyPassword = '';
       state.legacyPasswordError = e?.message || 'Incorrect password';
       return {
         success: false,
-        migratedCount,
+        migratedCount: lockedCount,
         error: state.legacyPasswordError,
       };
     } finally {
