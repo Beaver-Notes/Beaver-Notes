@@ -624,6 +624,9 @@ export function useOnboardingFlow({
       } catch (err) {
         console.warn('[onboarding] re-seed from imported settings failed:', err);
       }
+      // The legacy per-note password is only needed during conversion; clear it
+      // as soon as the import succeeds so it is never held in memory longer.
+      legacyPassword = '';
       importPhase.value = 'done';
       // Jump the last 10% once everything is actually finished.
       state.migrationProgress = 100;
