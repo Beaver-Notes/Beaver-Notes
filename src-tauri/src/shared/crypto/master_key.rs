@@ -218,6 +218,16 @@ fn is_durable_kind(kind: MasterKeyBackendKind) -> bool {
     )
 }
 
+/// True when at least one durable backend is reachable today, meaning a fresh
+/// master-key mint would be persisted somewhere that survives relaunch (OS
+/// keychain, Secret Service, a device-password enc file, or Android Keystore).
+/// The kernel keyring alone does NOT count — it is `UntilReboot`.
+pub(crate) fn durable_store_available() -> bool {
+    platform_backends()
+        .iter()
+        .any(|b| is_durable_kind(b.kind()) && b.is_alive())
+}
+
 /// Honest availability probe used by `safeStorage:isEncryptionAvailable`. True
 /// when a key can be PRODUCED today: a real key is readable now, or a fresh
 /// mint would land in a durable store. A reachable-but-empty kernel keyring

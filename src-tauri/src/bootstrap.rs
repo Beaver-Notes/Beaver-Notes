@@ -791,10 +791,15 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
 
     // Warm the Keychain-backed master key on a background thread so the
     // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
-    // in-memory cache instead of a ~2.5s cold Keychain read on the startup path.
-    std::thread::spawn(|| {
-        let _ = read_master_key();
-    });
+    // in-memory cache instead of a ~2.5s cold Keychain read on the startup
+    // path. On daemon-less Linux (no durable store yet) this is SKIPPED so the
+    // frontend sees `available=false` and prompts the user to create a device
+    // password BEFORE any key is minted into the reboot-ephemeral kernel keyring.
+    if crate::shared::durable_store_available() {
+        std::thread::spawn(|| {
+            let _ = read_master_key();
+        });
+    }
     prewarm_crypto();
 
     *state.updater.lock().map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
