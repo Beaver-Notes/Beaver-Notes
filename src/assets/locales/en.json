@@ -676,5 +676,12 @@
   "fair": "Fair",
   "strong": "Strong",
   "veryStrong": "Very strong"
+ },
+ "devicePassword": {
+  "secureLocalStorageTitle": "Secure local storage",
+  "secureLocalStorageBody": "Beaver Notes could not find an OS keychain. To keep your account data and passphrase safe on this device, create a device password that encrypts the on-disk key. You will only need it if the system keyring becomes unavailable.",
+  "createDevicePassword": "Create password",
+  "skip": "Skip",
+  "setFailedTitle": "Could not set device password"
  }
 }

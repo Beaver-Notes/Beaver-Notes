@@ -828,6 +828,28 @@ pub(crate) fn encryption_has_remote_key_params(
     Ok(remote_params_differ(&params, local_manifest.as_ref()))
 }
 
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SafeStorageBackendInfo {
+    pub(crate) available: bool,
+    pub(crate) backend: MasterKeyBackendKind,
+    pub(crate) device_password_required: bool,
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn safe_storage_get_backend_info(
+    _state: State<AppState>,
+) -> Result<SafeStorageBackendInfo, AppError> {
+    let backend = master_key_backend();
+    Ok(SafeStorageBackendInfo {
+        available: master_key_available(),
+        backend,
+        device_password_required: matches!(backend, MasterKeyBackendKind::EncryptedFile)
+            && !master_key_available(),
+    })
+}
+
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {

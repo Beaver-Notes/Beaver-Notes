@@ -148,6 +148,7 @@ import { useAppShell } from './composable/useAppShell';
 import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
+import { useDevicePasswordSetup } from './composable/useDevicePasswordSetup';
 import AppNavbar from './components/app/AppNavbar.vue';
 import { getSettingSync } from '@/lib/settings';
 
@@ -167,6 +168,7 @@ export default {
     const mainRef = ref(null);
     const accountStore = useAccountStore();
     const cloudWorkspaces = useCloudWorkspaces();
+    const { maybePrompt: maybePromptDevicePassword } = useDevicePasswordSetup();
     const route = useRoute();
 
     watch(
@@ -218,6 +220,7 @@ export default {
         const hocuspocus = getHocuspocusSync();
         hocuspocus.start();
       }
+      maybePromptDevicePassword();
     });
 
     onBeforeUnmount(() => {

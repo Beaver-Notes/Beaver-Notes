@@ -100,6 +100,7 @@ export const commands = {
 	 */
 	storageReencryptLegacyRows: () => typedError<number, AppError>(__TAURI_INVOKE("storage_reencrypt_legacy_rows")),
 	safeStorageIsAvailable: () => typedError<boolean, AppError>(__TAURI_INVOKE("safe_storage_is_available")),
+	safeStorageGetBackendInfo: () => typedError<SafeStorageBackendInfo, AppError>(__TAURI_INVOKE("safe_storage_get_backend_info")),
 	safeStorageEncrypt: (plainText: string) => typedError<string, AppError>(__TAURI_INVOKE("safe_storage_encrypt", { plainText })),
 	safeStorageDecrypt: (encryptedBase64: string) => typedError<string, AppError>(__TAURI_INVOKE("safe_storage_decrypt", { encryptedBase64 })),
 	safeStorageStoreBlob: (key: string, blob: string) => typedError<null, AppError>(__TAURI_INVOKE("safe_storage_store_blob", { key, blob })),
@@ -363,6 +364,14 @@ export type LegacyMigrationStatus = {
 	targetHasData: boolean,
 };
 
+/**
+ *  Which secure backend currently protects the master key. Mirrors the OS
+ *  keychain on macOS/Windows/iOS, Secret Service or the kernel keyring on
+ *  Linux, and Android Keystore on Android. `EncryptedFile` is the Linux
+ *  device-password fallback.
+ */
+export type MasterKeyBackendKind = "keychain" | "secretService" | "kernelKeyring" | "encryptedFile" | "androidKeystore" | "none";
+
 export type MessageDialogOptions = {
 	title: string | null,
 	message: string,
@@ -385,6 +394,12 @@ export type OpenDialogOptions = {
  *  the recursive `serde_json::Value` enum definition.
  */
 export type RawJson = any;
+
+export type SafeStorageBackendInfo = {
+	available: boolean,
+	backend: MasterKeyBackendKind,
+	devicePasswordRequired: boolean,
+};
 
 export type SaveDialogOptions = {
 	title: string | null,

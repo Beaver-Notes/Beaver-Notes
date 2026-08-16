@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/native/security', () => mocks);
 
-import { storeSecureBlob, loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
+import { storeSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 
 describe('safeStorageBlob availability gating', () => {
   beforeEach(() => {
