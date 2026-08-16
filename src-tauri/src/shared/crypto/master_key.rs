@@ -112,19 +112,27 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
     if let Some(key) = migrate_legacy_master_key()? {
         return Ok(key);
     }
+    select_key_from_backends(&platform_backends(), random_key)
+}
+
+/// Walk the secure backends in priority order. The first backend holding a key
+/// wins. When none do, an error that means "a key exists but we cannot unlock
+/// it today" — `DevicePasswordRequired` or a `WrongPassword` from the enc-file
+/// backend — is surfaced instead of minting over it (which would strand
+/// existing blobs). Otherwise a fresh key is minted and mirrored to every
+/// writable backend. Pure; testable with fake backends.
+fn select_key_from_backends(
+    backends: &[Box<dyn MasterKeyBackend>],
+    mint: impl Fn() -> [u8; 32],
+) -> Result<Vec<u8>, AppError> {
     let mut last_error: Option<AppError> = None;
-    for backend in platform_backends() {
+    for backend in backends {
         match backend.get() {
             Ok(Some(key)) => return Ok(key),
             Ok(None) => {}
             Err(e) => last_error = Some(e),
         }
     }
-
-    // 3. Nothing readable: if the encrypted file is the only durable store and
-    //    the device password is required, surface that instead of minting a new
-    //    key (which would strand existing blobs). A `WrongPassword` from the
-    //    enc-file backend is the same situation and must not mint over it.
     if let Some(e) = last_error {
         if matches!(
             e,
@@ -133,11 +141,8 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
             return Err(AppError::DevicePasswordRequired);
         }
     }
-
-    // 4. First run / all stores empty: mint a fresh key and mirror it to every
-    //    writable backend.
-    let key = random_key();
-    for backend in platform_backends() {
+    let key = mint();
+    for backend in backends {
         let _ = backend.set(&key);
     }
     Ok(key.to_vec())
@@ -558,6 +563,30 @@ pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
 mod tests {
     use super::*;
 
+    struct FakeBackend {
+        kind: MasterKeyBackendKind,
+        stored: Option<Vec<u8>>,
+        fail: bool,
+    }
+
+    impl MasterKeyBackend for FakeBackend {
+        fn kind(&self) -> MasterKeyBackendKind {
+            self.kind
+        }
+        fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+            if self.fail {
+                return Err(AppError::Other("dead".into()));
+            }
+            Ok(self.stored.clone())
+        }
+        fn set(&self, _key: &[u8]) -> Result<(), AppError> {
+            Err(AppError::Other("write disabled in test".into()))
+        }
+        fn is_alive(&self) -> bool {
+            !self.fail
+        }
+    }
+
     #[test]
     fn enc_file_round_trip_with_correct_and_wrong_kek() {
         let kek = [7_u8; 32];
@@ -573,5 +602,69 @@ mod tests {
     fn master_key_backend_kind_serializes_camel_case() {
         let v = serde_json::to_value(MasterKeyBackendKind::SecretService).unwrap();
         assert_eq!(v, serde_json::json!("secretService"));
+        let v = serde_json::to_value(MasterKeyBackendKind::AndroidKeystore).unwrap();
+        assert_eq!(v, serde_json::json!("androidKeystore"));
+    }
+
+    #[test]
+    fn select_returns_first_backend_with_key() {
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::SecretService,
+                stored: None,
+                fail: false,
+            }),
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::KernelKeyring,
+                stored: Some(vec![1_u8; 32]),
+                fail: false,
+            }),
+        ];
+        let key = select_key_from_backends(&backends, random_key).unwrap();
+        assert_eq!(key, vec![1_u8; 32]);
+    }
+
+    #[test]
+    fn select_mints_and_mirrors_when_all_empty() {
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::SecretService,
+                stored: None,
+                fail: false,
+            }),
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::KernelKeyring,
+                stored: None,
+                fail: false,
+            }),
+        ];
+        let key = select_key_from_backends(&backends, random_key).unwrap();
+        assert_eq!(key.len(), 32);
+    }
+
+    #[test]
+    fn select_propagates_device_password_required() {
+        struct NeedsPw(FakeBackend);
+        impl MasterKeyBackend for NeedsPw {
+            fn kind(&self) -> MasterKeyBackendKind {
+                self.0.kind
+            }
+            fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+                Err(AppError::DevicePasswordRequired)
+            }
+            fn set(&self, _k: &[u8]) -> Result<(), AppError> {
+                Ok(())
+            }
+            fn is_alive(&self) -> bool {
+                false
+            }
+        }
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![Box::new(NeedsPw(FakeBackend {
+            kind: MasterKeyBackendKind::EncryptedFile,
+            stored: None,
+            fail: false,
+        }))];
+        let err = select_key_from_backends(&backends, random_key).unwrap_err();
+        assert!(matches!(err, AppError::DevicePasswordRequired));
     }
 }
