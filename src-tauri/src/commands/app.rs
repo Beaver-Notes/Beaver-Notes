@@ -171,6 +171,15 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
 /// a different origin prefix and are ignored.
 const FILE_ORIGIN_PREFIX: &[u8] = b"_file://\0\x01";
 
+/// LevelDB write-ahead log block size in bytes. Records never straddle blocks;
+/// the writer zero-fills the tail of a block and resumes at the next boundary.
+const LEVELDB_BLOCK_SIZE: usize = 32768;
+
+/// Index of the next 32768-byte block boundary after `i`.
+fn next_wal_block_boundary(i: usize) -> usize {
+    (i / LEVELDB_BLOCK_SIZE + 1) * LEVELDB_BLOCK_SIZE
+}
+
 /// Chromium stores each localStorage value as a serialized record whose first
 /// byte is a `\x01` marker; the actual string follows it.
 const VALUE_MARKER: u8 = 0x01;
@@ -198,9 +207,20 @@ fn parse_localstorage_wal_bytes(data: &[u8]) -> serde_json::Map<String, serde_js
         let record_type = data[i + 6];
         let payload = &data[i + 7..];
         if len > payload.len() {
-            break;
+            // Truncated frame — a partially-written final record. Skip to the
+            // next block boundary instead of aborting so earlier records are
+            // kept; if the skip goes past EOF the loop ends naturally.
+            i = next_wal_block_boundary(i);
+            continue;
         }
         match record_type {
+            0 => {
+                // kZeroType — the writer pads the rest of the block after the
+                // last real record. Advance to the next block boundary so the
+                // first record of the next block is not desynced.
+                i = next_wal_block_boundary(i);
+                continue;
+            }
             1 => parse_write_batch(&mut out, &payload[..len]),
             2 => {
                 fragment.clear();
@@ -298,31 +318,45 @@ fn parse_localstorage_wal(log_path: &Path) -> Result<serde_json::Map<String, ser
     Ok(parse_localstorage_wal_bytes(&data))
 }
 
-#[tauri::command]
-#[specta::specta]
-pub(crate) fn migration_read_legacy_preferences(dir: String) -> Result<serde_json::Value, AppError> {
-    #[cfg(desktop)]
-    {
-        let base = std::path::PathBuf::from(&dir);
-        let leveldb = base.join("Local Storage/leveldb");
-        let mut prefs = serde_json::Map::new();
-        if let Ok(entries) = std::fs::read_dir(&leveldb) {
-            for entry in entries.flatten() {
-                let name = entry.file_name();
-                let name_str = name.to_string_lossy().to_string();
-                if !(name_str.ends_with(".log") || name_str.ends_with(".ldb")) {
-                    continue;
-                }
-                if let Ok(prefs_map) = parse_localstorage_wal(&entry.path()) {
-                    for (k, v) in prefs_map {
-                        if v.as_str().map(|s| !s.is_empty()).unwrap_or(false) {
-                            prefs.insert(k, v);
-                        }
+/// Scan every LevelDB write log under `<dir>/Local Storage/leveldb` and merge
+/// the file-origin preferences it contains. I/O + parsing run on a blocking
+/// thread (see `migration_read_legacy_preferences`).
+#[cfg(desktop)]
+fn read_legacy_preferences_blocking(dir: String) -> Result<serde_json::Value, AppError> {
+    let base = std::path::PathBuf::from(&dir);
+    let leveldb = base.join("Local Storage/leveldb");
+    let mut prefs = serde_json::Map::new();
+    if let Ok(entries) = std::fs::read_dir(&leveldb) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy().to_string();
+            if !(name_str.ends_with(".log") || name_str.ends_with(".ldb")) {
+                continue;
+            }
+            if let Ok(prefs_map) = parse_localstorage_wal(&entry.path()) {
+                for (k, v) in prefs_map {
+                    if v.as_str().map(|s| !s.is_empty()).unwrap_or(false) {
+                        prefs.insert(k, v);
                     }
                 }
             }
         }
-        Ok(serde_json::Value::Object(prefs))
+    }
+    Ok(serde_json::Value::Object(prefs))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn migration_read_legacy_preferences(
+    dir: String,
+) -> Result<serde_json::Value, AppError> {
+    #[cfg(desktop)]
+    {
+        // The directory scan + per-log parsing is file I/O heavy; run it on a
+        // blocking thread so the Tauri event loop stays responsive.
+        tokio::task::spawn_blocking(move || read_legacy_preferences_blocking(dir))
+            .await
+            .map_err(|e| AppError::Other(e.to_string()))?
     }
 
     #[cfg(not(desktop))]
@@ -611,5 +645,71 @@ mod tests {
         // Non-file:// origins and META records are ignored.
         assert!(result.get("zoomLevel").is_none());
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// WAL with a record in block 1, a type-0 (zero) record that the writer
+    /// emits right before a 32768-byte block boundary, and a record in block 2.
+    fn build_multi_block_wal() -> Vec<u8> {
+        let block_size = super::LEVELDB_BLOCK_SIZE;
+        let mut bytes = Vec::new();
+        // Block 1: one real record, then zero-padding up to the boundary.
+        bytes.extend_from_slice(&build_record(&[(
+            false,
+            b"_file://\0\x01first",
+            b"\x01value-1",
+        )]));
+        while bytes.len() < block_size - 7 {
+            bytes.push(0);
+        }
+        assert_eq!(bytes.len(), block_size - 7);
+        // kZeroType record header: checksum(4) | length(2, LE)=0 | type(1)=0.
+        bytes.extend_from_slice(&[0; 4]);
+        bytes.extend_from_slice(&0u16.to_le_bytes());
+        bytes.push(0);
+        assert_eq!(bytes.len(), block_size);
+        // Block 2: a second record, starting exactly at the boundary.
+        bytes.extend_from_slice(&build_record(&[(
+            false,
+            b"_file://\0\x01second",
+            b"\x01value-2",
+        )]));
+        bytes
+    }
+
+    #[test]
+    fn parses_records_across_wal_block_boundaries() {
+        let bytes = build_multi_block_wal();
+        let result = parse_localstorage_wal_bytes(&bytes);
+        // First record (block 1) is kept...
+        assert_eq!(
+            result.get("first"),
+            Some(&serde_json::Value::String("value-1".into()))
+        );
+        // ...and the record in block 2 is not lost to the zero record.
+        assert_eq!(
+            result.get("second"),
+            Some(&serde_json::Value::String("value-2".into()))
+        );
+    }
+
+    #[test]
+    fn keeps_records_before_truncated_final_record() {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&build_record(&[(
+            false,
+            b"_file://\0\x01first",
+            b"\x01value-1",
+        )]));
+        // A final record whose header claims a payload that was never written.
+        bytes.extend_from_slice(&[0; 4]); // checksum
+        bytes.extend_from_slice(&100u16.to_le_bytes()); // length = 100
+        bytes.push(1); // kFullType
+        bytes.extend_from_slice(b"short"); // only 5 payload bytes present
+
+        let result = parse_localstorage_wal_bytes(&bytes);
+        assert_eq!(
+            result.get("first"),
+            Some(&serde_json::Value::String("value-1".into()))
+        );
     }
 }
