@@ -130,6 +130,7 @@
               @dragend="handleDragEnd($event.event)"
               @update:label="state.activeLabel = $event"
               @update="noteStore.update($event.noteId, $event.payload)"
+              @move="openMoveForNote"
             />
           </template>
         </section>
@@ -144,10 +145,8 @@
 
       <folder-tree
         v-model="showMoveModal"
-        :notes="selectedNotes"
-        :folders="selectedFolders"
-        :mode="moveMode"
-        @moved="handleMoved"
+        v-bind="resolveMoveModalParams(moveTarget, selectedNotes, selectedFolders, moveMode)"
+        @moved="moveTarget ? handleSingleMoved : handleMoved"
       />
     </div>
 
@@ -170,6 +169,7 @@ import { useDialog } from '@/lib/dialog';
 import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
+import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
@@ -203,6 +203,7 @@ export default {
       sortBy: 'createdAt',
       sortOrder: 'asc',
     });
+    const moveTarget = ref(null);
 
     const sortedNotes = computed(() =>
       memoizedSort({
@@ -368,6 +369,21 @@ export default {
       listenForLabelEvents: true,
     });
 
+    const { showMoveModal } = pageController;
+
+    function openMoveForNote(note) {
+      moveTarget.value = note;
+      showMoveModal.value = true;
+    }
+
+    function handleSingleMoved(result) {
+      if (moveTarget.value) {
+        noteStore.moveToFolder([moveTarget.value.id], result.folderId);
+      }
+      moveTarget.value = null;
+      showMoveModal.value = false;
+    }
+
     const selectionBar = useSelectionBar();
     watch(
       () => pageController.selectedItems.value,
@@ -389,6 +405,9 @@ export default {
       translations,
       folders,
       highlightedFolderIds,
+      moveTarget,
+      openMoveForNote,
+      handleSingleMoved,
       ...pageController,
     };
   },

@@ -185,6 +185,7 @@
               @dragend="handleDragEnd($event.event)"
               @update:label="state.activeLabel = $event"
               @update="noteStore.update($event.noteId, $event.payload)"
+              @move="openMoveForNote"
             />
           </template>
         </section>
@@ -201,10 +202,8 @@
 
       <folder-tree
         v-model="showMoveModal"
-        :notes="selectedNotes"
-        :folders="selectedFolders"
-        :mode="moveMode"
-        @moved="handleMoved"
+        v-bind="resolveMoveModalParams(moveTarget, selectedNotes, selectedFolders, moveMode)"
+        @moved="moveTarget ? handleSingleMoved : handleMoved"
       />
     </div>
     <actions
@@ -235,6 +234,7 @@ import Actions from '@/components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import { noteSearchText } from '@/utils/note/note-search-text.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
+import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
@@ -260,6 +260,7 @@ export default {
       sortBy: 'createdAt',
       sortOrder: 'asc',
     });
+    const moveTarget = ref(null);
     const currentFolderId = computed(() => route.params.id);
 
     const sortedNotes = computed(() =>
@@ -400,6 +401,21 @@ export default {
       listenForLabelEvents: true,
     });
 
+    const { showMoveModal } = pageController;
+
+    function openMoveForNote(note) {
+      moveTarget.value = note;
+      showMoveModal.value = true;
+    }
+
+    function handleSingleMoved(result) {
+      if (moveTarget.value) {
+        noteStore.moveToFolder([moveTarget.value.id], result.folderId);
+      }
+      moveTarget.value = null;
+      showMoveModal.value = false;
+    }
+
     const selectionBar = useSelectionBar();
     watch(
       () => pageController.selectedItems.value,
@@ -453,6 +469,9 @@ export default {
       childFolders,
       notesInFolder,
       folderPath,
+      moveTarget,
+      openMoveForNote,
+      handleSingleMoved,
       ...pageController,
     };
   },

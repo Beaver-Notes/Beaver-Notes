@@ -98,6 +98,7 @@
           @dragend="$emit('dragend', { event: $event, noteId: item.note.id })"
           @update:label="$emit('update:label', $event)"
           @update="$emit('update', { noteId: item.note.id, payload: $event })"
+          @move="$emit('move', $event)"
         />
       </div>
     </div>
@@ -149,6 +150,7 @@ defineEmits([
   'dragend',
   'update:label',
   'update',
+  'move',
 ]);
 
 const containerRef = ref(null);
