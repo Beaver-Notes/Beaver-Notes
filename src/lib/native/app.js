@@ -33,6 +33,10 @@ export function readLegacyData(dir) {
   return backend.invoke('migration:read-legacy-data', { dir });
 }
 
+export function readLegacyPreferences(dir) {
+  return backend.invoke('migration:read-legacy-preferences', { dir });
+}
+
 export function writeLegacyData(dir, content) {
   return backend.invoke('migration:write-legacy-data', { dir, content });
 }

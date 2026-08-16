@@ -127,6 +127,11 @@ const settingDefs = {
     defaultValue: 'folder',
     parse: String,
   },
+  syncPath: {
+    legacyKey: 'default-path',
+    defaultValue: '',
+    parse: String,
+  },
 };
 
 function getSettingDef(key) {
