@@ -73,22 +73,23 @@ export async function convertLegacyNotesToYjs(
               note.content.content[0].startsWith('{')));
 
         if (isLocked) {
-          if (!legacyPassword) {
-            skipped++;
-            continue;
-          }
           const { isAppEncryptedEnvelope, decryptContent } = await import(
             '@/utils/crypto/encryption.js'
           );
+          // App-encrypted envelope (ae:3/ae:6) — decrypt with the workspace
+          // key, which is always available during onboarding. These appear
+          // when a legacy config.json was previously re-encrypted by
+          // migrateLegacyLockedNotes; the legacy password does not apply to
+          // them, so this branch must run regardless of legacyPassword.
           if (isAppEncryptedEnvelope(note.content)) {
-            // App-encrypted envelope (ae:3/ae:6) — decrypt with the workspace
-            // key. These can appear when a legacy config.json was previously
-            // re-encrypted by migrateLegacyLockedNotes; the legacy password
-            // does not apply to them.
             content = await decryptContent(note.content);
           } else {
             // Legacy CryptoJS or JSON envelope — decrypt with the legacy
             // password captured during onboarding.
+            if (!legacyPassword) {
+              skipped++;
+              continue;
+            }
             const { decryptNoteWithPassword } = await import(
               '@/utils/migration/legacyElectron.js'
             );

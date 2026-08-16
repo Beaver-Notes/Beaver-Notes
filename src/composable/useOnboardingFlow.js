@@ -544,18 +544,17 @@ export function useOnboardingFlow({
       // Load the workspace doc BEFORE converting so a retried migration can
       // detect notes whose content was already appended in a prior (failed)
       // attempt. Content lives in per-note Yjs docs, so we verify non-empty
-      // snapshots rather than trusting the seeded meta (which is written for
-      // every note regardless of conversion success).
+      // snapshots across ALL note ids (not just the seeded workspace meta,
+      // which is written for every note and may be empty on a fresh run).
       const { loadWorkspaceDoc } = await import('@/lib/yjs/workspace-doc.js');
-      const { getWorkspaceDoc } = await import('@/lib/yjs/meta-doc.js');
       await loadWorkspaceDoc();
-      const seededIds = [...getWorkspaceDoc().getMap('notes').keys()];
+      const allNoteIds = noteList.map((n) => n.id).filter(Boolean);
       let alreadyConvertedIds = new Set();
-      if (seededIds.length > 0) {
+      if (allNoteIds.length > 0) {
         const { getSnapshots } = await import('@/lib/native/yjs.js');
-        const snapshots = await getSnapshots(seededIds).catch(() => ({}));
+        const snapshots = await getSnapshots(allNoteIds).catch(() => ({}));
         alreadyConvertedIds = new Set(
-          seededIds.filter((id) => (snapshots?.[id]?.length ?? 0) > 0)
+          allNoteIds.filter((id) => (snapshots?.[id]?.length ?? 0) > 0)
         );
       }
 

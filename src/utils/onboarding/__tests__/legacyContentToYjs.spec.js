@@ -94,6 +94,19 @@ describe('convertLegacyNotesToYjs', () => {
     expect(result.failures).toEqual([]);
   });
 
+  it('decrypts an app-encrypted ae:6 locked note even without a legacy password', async () => {
+    decryptContent.mockResolvedValue({ type: 'doc', content: [] });
+    isAppEncryptedEnvelope.mockReturnValue(true);
+    const envelope = { ae: 6, iv: 'iv', cipher: 'cipher', kid: 'ws' };
+    const notes = [{ id: 'ae-2', isLocked: true, content: envelope }];
+    const result = await convertLegacyNotesToYjs(notes);
+    expect(isAppEncryptedEnvelope).toHaveBeenCalledWith(envelope);
+    expect(decryptContent).toHaveBeenCalledWith(envelope);
+    expect(decryptNoteWithPassword).not.toHaveBeenCalled();
+    expect(result.converted).toBe(1);
+    expect(result.skipped).toBe(0);
+  });
+
   it('skips notes already converted in a prior run (alreadyConvertedIds)', async () => {
     const notes = [
       { id: 'n1', content: { type: 'doc', content: [] } },
