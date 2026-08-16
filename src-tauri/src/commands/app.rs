@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use serde_json::json;
 #[allow(unused_imports)]
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, State, Theme};
@@ -160,6 +162,173 @@ pub(crate) fn migration_write_legacy_data(dir: String, content: String) -> Resul
     {
         let _ = (dir, content);
         Ok(())
+    }
+}
+
+/// Prefix of a `file://`-origin localStorage key inside the LevelDB write log:
+/// `_file://\0` origin marker plus a `\x01` flag byte (Chromium writes the
+/// origin and key as one string). Non-file origins (dev server, devtools) use
+/// a different origin prefix and are ignored.
+const FILE_ORIGIN_PREFIX: &[u8] = b"_file://\0\x01";
+
+/// Chromium stores each localStorage value as a serialized record whose first
+/// byte is a `\x01` marker; the actual string follows it.
+const VALUE_MARKER: u8 = 0x01;
+
+/// Parse a Chromium localStorage LevelDB write-ahead log into the final map of
+/// `file://`-origin preference key/value pairs.
+///
+/// The log is a sequence of records framed by `checksum(4) | length(2, LE) |
+/// type(1)` headers followed by `length` payload bytes. Each payload is a
+/// LevelDB WriteBatch: `seq(8) | count(4, LE)` then `count` entries of the
+/// form `type(1) | key_len(varint) | key | [value_len(varint) | value]`.
+/// Entries with type 0 are deletions; everything else is a write. Keys for the
+/// `file://` origin are `_file://\0\x01<preference>` and values are
+/// `\x01<preference-value>`. `META:*`/non-file-origin entries are ignored.
+/// Best-effort: malformed frames, truncated batches, and oversized counts are
+/// skipped.
+fn parse_localstorage_wal_bytes(data: &[u8]) -> serde_json::Map<String, serde_json::Value> {
+    use serde_json::Map;
+    let mut out = Map::new();
+    let mut fragment: Vec<u8> = Vec::new();
+    let mut i = 0usize;
+    while i + 7 <= data.len() {
+        // 7-byte record header; the checksum is not verified.
+        let len = u16::from_le_bytes([data[i + 4], data[i + 5]]) as usize;
+        let record_type = data[i + 6];
+        let payload = &data[i + 7..];
+        if len > payload.len() {
+            break;
+        }
+        match record_type {
+            1 => parse_write_batch(&mut out, &payload[..len]),
+            2 => {
+                fragment.clear();
+                fragment.extend_from_slice(&payload[..len]);
+            }
+            3 => fragment.extend_from_slice(&payload[..len]),
+            4 => {
+                fragment.extend_from_slice(&payload[..len]);
+                parse_write_batch(&mut out, &fragment);
+                fragment.clear();
+            }
+            _ => {}
+        }
+        i += 7 + len;
+    }
+    out
+}
+
+fn parse_write_batch(out: &mut serde_json::Map<String, serde_json::Value>, batch: &[u8]) {
+    use serde_json::Value;
+    if batch.len() < 12 {
+        return;
+    }
+    let count = u32::from_le_bytes([batch[8], batch[9], batch[10], batch[11]]) as usize;
+    if count > 100_000 {
+        return;
+    }
+    let mut p = 12usize;
+    for _ in 0..count {
+        if p >= batch.len() {
+            return;
+        }
+        let entry_type = batch[p];
+        p += 1;
+        let Some((key_len, key_start)) = wal_varint(batch, p) else { return };
+        let key_end = key_start + key_len;
+        if key_end > batch.len() {
+            return;
+        }
+        let key = &batch[key_start..key_end];
+        p = key_end;
+
+        if entry_type == 0 {
+            // Deletion.
+            if let Some(name) = pref_name(key) {
+                out.remove(name);
+            }
+            continue;
+        }
+
+        let Some((value_len, value_start)) = wal_varint(batch, key_end) else { return };
+        let value_end = value_start + value_len;
+        if value_end > batch.len() {
+            return;
+        }
+        p = value_end;
+        if let Some(name) = pref_name(key) {
+            let raw = &batch[value_start..value_end];
+            let bytes = raw.strip_prefix(&[VALUE_MARKER]).unwrap_or(raw);
+            out.insert(
+                name.to_owned(),
+                Value::String(String::from_utf8_lossy(bytes).into_owned()),
+            );
+        }
+    }
+}
+
+fn pref_name<'a>(key: &'a [u8]) -> Option<&'a str> {
+    let name = key.strip_prefix(FILE_ORIGIN_PREFIX)?;
+    Some(std::str::from_utf8(name).unwrap_or_default())
+}
+
+/// Decode a LevelDB varint (7 bits per byte, LSB-first, high bit = more bytes).
+/// Returns `(value, next_index)`.
+fn wal_varint(data: &[u8], mut i: usize) -> Option<(usize, usize)> {
+    let mut value = 0usize;
+    let mut shift = 0u32;
+    while i < data.len() {
+        let byte = data[i];
+        i += 1;
+        value |= usize::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            return Some((value, i));
+        }
+        shift += 7;
+        if shift >= usize::BITS {
+            return None;
+        }
+    }
+    None
+}
+
+fn parse_localstorage_wal(log_path: &Path) -> Result<serde_json::Map<String, serde_json::Value>, AppError> {
+    let data = std::fs::read(log_path).map_err(|e| AppError::Other(e.to_string()))?;
+    Ok(parse_localstorage_wal_bytes(&data))
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn migration_read_legacy_preferences(dir: String) -> Result<serde_json::Value, AppError> {
+    #[cfg(desktop)]
+    {
+        let base = std::path::PathBuf::from(&dir);
+        let leveldb = base.join("Local Storage/leveldb");
+        let mut prefs = serde_json::Map::new();
+        if let Ok(entries) = std::fs::read_dir(&leveldb) {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy().to_string();
+                if !(name_str.ends_with(".log") || name_str.ends_with(".ldb")) {
+                    continue;
+                }
+                if let Ok(prefs_map) = parse_localstorage_wal(&entry.path()) {
+                    for (k, v) in prefs_map {
+                        if v.as_str().map(|s| !s.is_empty()).unwrap_or(false) {
+                            prefs.insert(k, v);
+                        }
+                    }
+                }
+            }
+        }
+        Ok(serde_json::Value::Object(prefs))
+    }
+
+    #[cfg(not(desktop))]
+    {
+        let _ = dir;
+        Ok(serde_json::Value::Object(serde_json::Map::new()))
     }
 }
 
@@ -372,5 +541,75 @@ pub(crate) fn show_edit_context_menu(app: AppHandle, x: f64, y: f64) -> Result<(
     #[cfg(not(desktop))]
     {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{fs, path::PathBuf, time::SystemTime};
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let ts = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("clock ok")
+            .as_nanos();
+        std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
+    }
+
+    /// Build a single LevelDB log record (`checksum | length | type=full |
+    /// WriteBatch`) from `(is_delete, key, value)` entries, mirroring the
+    /// layout Chromium's localStorage writes on disk.
+    fn build_record(entries: &[(bool, &[u8], &[u8])]) -> Vec<u8> {
+        let mut batch = Vec::new();
+        batch.extend_from_slice(&[0; 8]); // sequence number
+        batch.extend_from_slice(&(entries.len() as u32).to_le_bytes());
+        for (is_delete, key, value) in entries {
+            batch.push(if *is_delete { 0 } else { 1 });
+            batch.push(key.len() as u8);
+            batch.extend_from_slice(key);
+            if !is_delete {
+                batch.push(value.len() as u8);
+                batch.extend_from_slice(value);
+            }
+        }
+        let mut record = Vec::new();
+        record.extend_from_slice(&[0; 4]); // checksum (not verified)
+        record.extend_from_slice(&(batch.len() as u16).to_le_bytes());
+        record.push(1); // kFullType
+        record.extend_from_slice(&batch);
+        record
+    }
+
+    #[test]
+    fn parses_chromium_localstorage_wal() {
+        let root = unique_temp_dir("beaver-notes-ls");
+        let _ = fs::create_dir_all(&root.join("Local Storage/leveldb"));
+        let log = root.join("Local Storage/leveldb/000003.log");
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&build_record(&[
+            (false, b"_file://\0\x01selected-font", b"\x01Arimo"),
+            (false, b"_file://\0\x01theme", b"\x01dark"),
+            (false, b"_file://\0\x01color-scheme", b"\x01light"),
+            // Non-file origin (dev server) must be ignored.
+            (false, b"_http://localhost:5173\0\x01zoomLevel", b"\x011"),
+            // META record must be ignored.
+            (false, b"META:file://", b"\x08\x00"),
+        ]));
+        bytes.extend_from_slice(&build_record(&[
+            (true, b"_file://\0\x01theme", b""),
+            (false, b"_file://\0\x01color-scheme", b"\x01pink"),
+        ]));
+        fs::write(&log, &bytes).expect("write wal");
+
+        let result = parse_localstorage_wal(&log).expect("parse");
+        assert_eq!(result.get("selected-font"), Some(&serde_json::Value::String("Arimo".into())));
+        // Later write overrides the earlier one.
+        assert_eq!(result.get("color-scheme"), Some(&serde_json::Value::String("pink".into())));
+        // Deletion entry removes the key.
+        assert!(result.get("theme").is_none());
+        // Non-file:// origins and META records are ignored.
+        assert!(result.get("zoomLevel").is_none());
+        let _ = fs::remove_dir_all(&root);
     }
 }
