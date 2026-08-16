@@ -228,7 +228,7 @@
           v-tooltip.group="translations.card.moveToFolder"
           :aria-label="translations.card.moveToFolder || 'Move to folder'"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-          @click.stop="showMoveModal = true"
+          @click.stop="$emit('move', note)"
         >
           <v-remixicon name="riFolderTransferLine" class="size-5" />
         </button>
@@ -254,7 +254,6 @@
       </p>
     </div>
 
-    <folder-tree v-model="showMoveModal" :notes="[note]" mode="note" />
   </ui-card>
 </template>
 
@@ -268,7 +267,6 @@ import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
-import FolderTree from './FolderTree.vue';
 import { useLabelStore } from '@/store/label';
 import { useSounds } from '@/composable/useSounds';
 
@@ -283,12 +281,11 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update', 'update:label']);
+const emit = defineEmits(['update', 'update:label', 'move']);
 
 const labelStore = useLabelStore();
 const router = useRouter();
 const dialog = useDialog();
-const showMoveModal = ref(false);
 const { play } = useSounds();
 
 const { translations } = useTranslations();
