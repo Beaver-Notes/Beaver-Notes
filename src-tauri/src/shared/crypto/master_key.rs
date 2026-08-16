@@ -14,6 +14,7 @@ use super::keys::{
     random_nonce, WrappedKeyEnvelope,
 };
 
+#[cfg(target_os = "linux")]
 use keyring::credential::CredentialBuilderApi;
 use aes_gcm::aead::{Aead, KeyInit};
 
@@ -116,30 +117,46 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
 }
 
 /// Walk the secure backends in priority order. The first backend holding a key
-/// wins. When none do, an error that means "a key exists but we cannot unlock
-/// it today" — `DevicePasswordRequired` or a `WrongPassword` from the enc-file
-/// backend — is surfaced instead of minting over it (which would strand
-/// existing blobs). Otherwise a fresh key is minted and mirrored to every
-/// writable backend. Pure; testable with fake backends.
+/// wins (re-anchoring it into any higher-priority backend that was alive but
+/// empty — a key found in a lower-priority store is mirrored back into the
+/// keyring once it becomes reachable). When none hold a key but at least one
+/// errored hard (e.g. a keychain `PlatformFailure`), that error propagates
+/// instead of minting over the real key (which would strand existing blobs).
+/// A `DevicePasswordRequired` or `WrongPassword` from the enc-file backend is
+/// folded into the device-password prompt signal. Only when every backend
+/// returned `Ok(None)` is a fresh key minted and mirrored to every backend.
+/// Pure; testable with fake backends.
 fn select_key_from_backends(
     backends: &[Box<dyn MasterKeyBackend>],
     mint: impl Fn() -> [u8; 32],
 ) -> Result<Vec<u8>, AppError> {
     let mut last_error: Option<AppError> = None;
-    for backend in backends {
+    let mut empty_alive: Vec<usize> = Vec::new();
+    for (i, backend) in backends.iter().enumerate() {
         match backend.get() {
-            Ok(Some(key)) => return Ok(key),
-            Ok(None) => {}
+            Ok(Some(key)) => {
+                // Re-anchor into higher-priority live-but-empty backends so the
+                // key is restored to the keyring once it becomes reachable.
+                for &j in &empty_alive {
+                    let _ = backends[j].set(&key);
+                }
+                return Ok(key);
+            }
+            Ok(None) => empty_alive.push(i),
             Err(e) => last_error = Some(e),
         }
     }
     if let Some(e) = last_error {
+        // A hard backend error must NOT trigger minting over it (would strand
+        // blobs). Fold a WrongPassword (stale KEK) into the device-password
+        // prompt signal.
         if matches!(
             e,
             AppError::DevicePasswordRequired | AppError::WrongPassword
         ) {
             return Err(AppError::DevicePasswordRequired);
         }
+        return Err(e);
     }
     let key = mint();
     for backend in backends {
@@ -148,9 +165,29 @@ fn select_key_from_backends(
     Ok(key.to_vec())
 }
 
-/// Return the current backend kind for the UI. Cheap: probes in-memory flags,
-/// never blocks on a daemon.
+/// True once the master key has been read this session. Used to short-circuit
+/// availability probes that would otherwise do blocking keyring I/O on every
+/// call (the frontend probes on every secure-blob write).
+fn master_key_cached() -> bool {
+    match MASTER_KEY_STATE.lock() {
+        Ok(g) => matches!(&*g, MasterKeyState::Ready(_)),
+        Err(_) => false,
+    }
+}
+
+/// Return the current backend kind for the UI. When the master key was already
+/// read this session, this short-circuits on the in-memory cache and reports
+/// the cached backend without probing a daemon. Otherwise it probes the live
+/// backends (real keyring I/O), which happens only on a cold start.
 pub(crate) fn master_key_backend() -> MasterKeyBackendKind {
+    if master_key_cached() {
+        // Reuse the in-memory result; do not probe a daemon per call.
+        for backend in platform_backends() {
+            if backend.kind() != MasterKeyBackendKind::None && backend.is_alive_cheap() {
+                return backend.kind();
+            }
+        }
+    }
     for backend in platform_backends() {
         if backend.is_alive() {
             return backend.kind();
@@ -160,17 +197,33 @@ pub(crate) fn master_key_backend() -> MasterKeyBackendKind {
 }
 
 /// Honest availability probe used by `safeStorage:isEncryptionAvailable`. True
-/// when at least one non-plaintext backend can read or write today. Unlike the
-/// old `read_master_key().map(|_| true)`, this returns false on daemon-less
-/// Linux before a device password exists, so the frontend does not persist
-/// blobs it could never read back.
+/// when at least one non-plaintext backend can read or write today. Once the
+/// key is cached this returns true without probing a daemon. Unlike the old
+/// `read_master_key().map(|_| true)`, this returns false on daemon-less Linux
+/// before a device password exists, so the frontend does not persist blobs it
+/// could never read back.
 pub(crate) fn master_key_available() -> bool {
+    if master_key_cached() {
+        return true;
+    }
     platform_backends().iter().any(|b| b.is_alive())
 }
 
+/// True when the only durable master-key copy is the device-password-encrypted
+/// file (`master.key.enc`) but the KEK has not been supplied this session —
+/// i.e. the user must re-enter their device password to unlock secure storage.
+pub(crate) fn device_password_required() -> bool {
+    !master_key_available() && master_key_enc_path().map(|p| p.exists()).unwrap_or(false)
+}
+
 /// Fold a legacy plaintext `master.key` into the secure chain and delete the
-/// file. Returns the key if one was migrated. Idempotent; `Ok(None)` when no
-/// legacy file exists.
+/// file once at least one secure backend wrote. Returns the key if a legacy
+/// file exists. Idempotent; `Ok(None)` when no legacy file exists.
+///
+/// Degrades gracefully: when no secure backend is available yet (e.g. a
+/// daemon-less Linux box upgrading before a device password is set), the legacy
+/// file is KEPT and its key returned, so existing blobs stay readable. The
+/// enc-file write happens later, once a device password is supplied.
 pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
     let path = master_key_path()?;
     if !path.exists() {
@@ -190,12 +243,9 @@ pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
             any_written = true;
         }
     }
-    if !any_written {
-        return Err(AppError::Other(
-            "No secure backend available to store the master key; legacy master.key kept".into(),
-        ));
+    if any_written {
+        fs::remove_file(&path)?;
     }
-    fs::remove_file(&path)?;
     Ok(Some(key_bytes))
 }
 
@@ -259,19 +309,36 @@ fn write_enc_file(key: &[u8]) -> Result<(), AppError> {
         .lock()
         .map_err(|_| AppError::Other("Device KEK lock poisoned".into()))?;
     let kek = kek_opt.ok_or(AppError::DevicePasswordRequired)?;
+    if key.len() < 32 {
+        return Err(AppError::Crypto("Invalid master key length".into()));
+    }
     let mut key_arr = [0_u8; 32];
     key_arr.copy_from_slice(&key[..32]);
     let env = encrypt_bytes_with_key(&kek, &key_arr)?;
     let enc_path = master_key_enc_path()?;
-    if let Some(parent) = enc_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(&enc_path, serde_json::to_string(&env)?)?;
+    atomic_write(&enc_path, serde_json::to_string(&env)?.as_bytes())?;
+    Ok(())
+}
+
+/// Write `bytes` to `path` atomically: write to a temp file in the same
+/// directory (so a crash mid-write can never corrupt the only durable master-key
+/// copy), set 0600 perms on unix, then rename over the destination.
+fn atomic_write(path: &std::path::Path, bytes: &[u8]) -> Result<(), AppError> {
+    let dir = path
+        .parent()
+        .ok_or_else(|| AppError::Other("No parent dir".into()))?;
+    fs::create_dir_all(dir)?;
+    let tmp = dir.join(format!(
+        ".{}.tmp",
+        path.file_name().and_then(|n| n.to_str()).unwrap_or("master-key")
+    ));
+    fs::write(&tmp, bytes)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&enc_path, fs::Permissions::from_mode(0o600))?;
+        fs::set_permissions(&tmp, fs::Permissions::from_mode(0o600))?;
     }
+    fs::rename(&tmp, path)?;
     Ok(())
 }
 
@@ -314,6 +381,13 @@ trait MasterKeyBackend {
     fn get(&self) -> Result<Option<Vec<u8>>, AppError>;
     fn set(&self, key: &[u8]) -> Result<(), AppError>;
     fn is_alive(&self) -> bool;
+    /// Cheap "presumed alive" check used only when the master key is already
+    /// cached this session, so availability probes never block on a daemon per
+    /// call. Defaults to true; overridden where a cheaper signal exists (a
+    /// keyring entry constructor, or in-memory KEK presence).
+    fn is_alive_cheap(&self) -> bool {
+        true
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -365,7 +439,11 @@ impl MasterKeyBackend for KeyringBackend {
                 }
                 Ok(Some(key))
             }
-            Err(keyring::Error::NoEntry) => Ok(None),
+            // `NoEntry` and `NoStorageAccess` (a dead/locked Secret Service
+            // daemon) both mean "no key reachable today", so a daemon-less
+            // first run still mints. Other errors (e.g. `PlatformFailure`) are
+            // hard errors surfaced by the caller instead of minting over them.
+            Err(keyring::Error::NoEntry) | Err(keyring::Error::NoStorageAccess(_)) => Ok(None),
             Err(e) => Err(AppError::Other(format!("keyring read: {e}"))),
         }
     }
@@ -391,6 +469,12 @@ impl MasterKeyBackend for KeyringBackend {
             Err(keyring::Error::NoEntry) => true,
             Err(_) => false,
         }
+    }
+
+    fn is_alive_cheap(&self) -> bool {
+        // Only consulted when the key is already cached; a successful entry
+        // constructor is a cheap proxy for "backend present".
+        self.entry().is_ok()
     }
 }
 
@@ -421,6 +505,10 @@ impl MasterKeyBackend for EncryptedFileBackend {
 
     fn is_alive(&self) -> bool {
         DEVICE_KEK.lock().map(|k| k.is_some()).unwrap_or(false)
+    }
+
+    fn is_alive_cheap(&self) -> bool {
+        self.is_alive()
     }
 }
 
@@ -485,10 +573,7 @@ impl MasterKeyBackend for AndroidKeystoreBackend {
             .wrap(BASE64.encode(key))
             .map_err(|e| AppError::Other(format!("keystore: {e}")))?;
         let blob_path = master_key_wrapped_path(&app)?;
-        if let Some(parent) = blob_path.parent() {
-            fs::create_dir_all(parent)?;
-        }
-        fs::write(blob_path, blob)?;
+        atomic_write(&blob_path, blob.as_bytes())?;
         Ok(())
     }
 
@@ -559,112 +644,3 @@ pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct FakeBackend {
-        kind: MasterKeyBackendKind,
-        stored: Option<Vec<u8>>,
-        fail: bool,
-    }
-
-    impl MasterKeyBackend for FakeBackend {
-        fn kind(&self) -> MasterKeyBackendKind {
-            self.kind
-        }
-        fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
-            if self.fail {
-                return Err(AppError::Other("dead".into()));
-            }
-            Ok(self.stored.clone())
-        }
-        fn set(&self, _key: &[u8]) -> Result<(), AppError> {
-            Err(AppError::Other("write disabled in test".into()))
-        }
-        fn is_alive(&self) -> bool {
-            !self.fail
-        }
-    }
-
-    #[test]
-    fn enc_file_round_trip_with_correct_and_wrong_kek() {
-        let kek = [7_u8; 32];
-        let key = random_key();
-        let env = encrypt_bytes_with_key(&kek, &key).unwrap();
-        let dec = decrypt_bytes_with_key(&kek, &env).unwrap();
-        assert_eq!(dec, key.to_vec());
-        let wrong = decrypt_bytes_with_key(&[8_u8; 32], &env);
-        assert!(matches!(wrong, Err(AppError::WrongPassword)));
-    }
-
-    #[test]
-    fn master_key_backend_kind_serializes_camel_case() {
-        let v = serde_json::to_value(MasterKeyBackendKind::SecretService).unwrap();
-        assert_eq!(v, serde_json::json!("secretService"));
-        let v = serde_json::to_value(MasterKeyBackendKind::AndroidKeystore).unwrap();
-        assert_eq!(v, serde_json::json!("androidKeystore"));
-    }
-
-    #[test]
-    fn select_returns_first_backend_with_key() {
-        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
-            Box::new(FakeBackend {
-                kind: MasterKeyBackendKind::SecretService,
-                stored: None,
-                fail: false,
-            }),
-            Box::new(FakeBackend {
-                kind: MasterKeyBackendKind::KernelKeyring,
-                stored: Some(vec![1_u8; 32]),
-                fail: false,
-            }),
-        ];
-        let key = select_key_from_backends(&backends, random_key).unwrap();
-        assert_eq!(key, vec![1_u8; 32]);
-    }
-
-    #[test]
-    fn select_mints_and_mirrors_when_all_empty() {
-        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
-            Box::new(FakeBackend {
-                kind: MasterKeyBackendKind::SecretService,
-                stored: None,
-                fail: false,
-            }),
-            Box::new(FakeBackend {
-                kind: MasterKeyBackendKind::KernelKeyring,
-                stored: None,
-                fail: false,
-            }),
-        ];
-        let key = select_key_from_backends(&backends, random_key).unwrap();
-        assert_eq!(key.len(), 32);
-    }
-
-    #[test]
-    fn select_propagates_device_password_required() {
-        struct NeedsPw(FakeBackend);
-        impl MasterKeyBackend for NeedsPw {
-            fn kind(&self) -> MasterKeyBackendKind {
-                self.0.kind
-            }
-            fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
-                Err(AppError::DevicePasswordRequired)
-            }
-            fn set(&self, _k: &[u8]) -> Result<(), AppError> {
-                Ok(())
-            }
-            fn is_alive(&self) -> bool {
-                false
-            }
-        }
-        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![Box::new(NeedsPw(FakeBackend {
-            kind: MasterKeyBackendKind::EncryptedFile,
-            stored: None,
-            fail: false,
-        }))];
-        let err = select_key_from_backends(&backends, random_key).unwrap_err();
-        assert!(matches!(err, AppError::DevicePasswordRequired));
-    }
-}

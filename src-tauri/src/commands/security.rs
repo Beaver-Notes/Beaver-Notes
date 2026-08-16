@@ -845,8 +845,7 @@ pub(crate) fn safe_storage_get_backend_info(
     Ok(SafeStorageBackendInfo {
         available: master_key_available(),
         backend,
-        device_password_required: matches!(backend, MasterKeyBackendKind::EncryptedFile)
-            && !master_key_available(),
+        device_password_required: crate::shared::device_password_required(),
     })
 }
 

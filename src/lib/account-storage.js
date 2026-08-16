@@ -95,9 +95,9 @@ export async function loadSessionToken() {
 }
 
 export async function clearSessionToken() {
-  localStorage.removeItem(SESSION_BLOB_KEY);
   try {
     await clearSecureBlob(SESSION_BLOB_KEY);
+    localStorage.removeItem(SESSION_BLOB_KEY);
   } catch (err) {
     console.error('[accountStorage] clearSessionToken failed:', err);
   }
