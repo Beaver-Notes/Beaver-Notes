@@ -1,11 +1,10 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Condvar, Mutex},
 };
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
-use rand::RngCore;
 
 use super::super::{AppError, SAFE_STORAGE_SERVICE};
 use super::keys::{
@@ -117,10 +116,14 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
 
     // 3. Nothing readable: if the encrypted file is the only durable store and
     //    the device password is required, surface that instead of minting a new
-    //    key (which would strand existing blobs).
+    //    key (which would strand existing blobs). A `WrongPassword` from the
+    //    enc-file backend is the same situation and must not mint over it.
     if let Some(e) = last_error {
-        if matches!(e, AppError::DevicePasswordRequired) {
-            return Err(e);
+        if matches!(
+            e,
+            AppError::DevicePasswordRequired | AppError::WrongPassword
+        ) {
+            return Err(AppError::DevicePasswordRequired);
         }
     }
 
@@ -169,8 +172,16 @@ pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
     let key: [u8; 32] = key_bytes.as_slice().try_into().map_err(|_| {
         AppError::Crypto("Invalid file-based master key length".into())
     })?;
+    let mut any_written = false;
     for backend in platform_backends() {
-        let _ = backend.set(&key);
+        if backend.set(&key).is_ok() {
+            any_written = true;
+        }
+    }
+    if !any_written {
+        return Err(AppError::Other(
+            "No secure backend available to store the master key; legacy master.key kept".into(),
+        ));
     }
     fs::remove_file(&path)?;
     Ok(Some(key_bytes))
@@ -181,15 +192,21 @@ pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
 /// current master key into the encrypted file.
 pub(crate) fn set_device_password(password: &str) -> Result<(), AppError> {
     let kek = derive_device_kek(password)?;
+    let enc_path = master_key_enc_path()?;
+    if enc_path.exists() {
+        // Validate the KEK against the existing file BEFORE caching it, so a
+        // wrong password can never poison the in-memory KEK cache.
+        let raw = fs::read_to_string(&enc_path)?;
+        let env: WrappedKeyEnvelope = serde_json::from_str(&raw)?;
+        decrypt_bytes_with_key(&kek, &env).map_err(|_| AppError::WrongDevicePassword)?;
+    }
     {
         let mut guard = DEVICE_KEK
             .lock()
             .map_err(|_| AppError::Other("Device KEK lock poisoned".into()))?;
         *guard = Some(kek);
     }
-    let enc_path = master_key_enc_path()?;
     if enc_path.exists() {
-        // Validate: a wrong password must fail without clobbering the file.
         let key = safe_storage_read_enc_file()?;
         write_enc_file(&key)?;
     } else {
@@ -350,9 +367,18 @@ impl MasterKeyBackend for KeyringBackend {
     }
 
     fn is_alive(&self) -> bool {
-        // A daemon-backed store is alive if constructing an entry succeeds; the
-        // concrete read may still fail transiently, which the caller tolerates.
-        self.entry().is_ok()
+        // A daemon-backed store is alive only if a real read probe succeeds: on
+        // daemon-less Linux, constructing the entry does no I/O and would
+        // falsely report the SecretService backend as available.
+        let entry = match self.entry() {
+            Ok(e) => e,
+            Err(_) => return false,
+        };
+        match entry.get_password() {
+            Ok(_) => true,
+            Err(keyring::Error::NoEntry) => true,
+            Err(_) => false,
+        }
     }
 }
 
