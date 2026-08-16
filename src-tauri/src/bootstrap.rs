@@ -245,13 +245,20 @@ fn import_json_file_into_pool(
     pool: &crate::db::DbPool,
 ) -> Result<bool, AppError> {
     if !path.exists() {
+        eprintln!("[migration] import_json_file_into_pool: source missing: {}", path.display());
         return Ok(false);
     }
     let text = fs::read_to_string(path)?;
     let json: serde_json::Value = serde_json::from_str(&text)?;
     let Some(map) = json.as_object() else {
+        eprintln!("[migration] import_json_file_into_pool: not a JSON object: {}", path.display());
         return Ok(false);
     };
+    eprintln!(
+        "[migration] import_json_file_into_pool: {} top-level keys: {:?}",
+        path.display(),
+        map.keys().collect::<Vec<_>>()
+    );
     let encrypt = state.crypto.session.read()?.active;
     let (app_key, key_id) = if encrypt {
         let key = crate::shared::current_app_key(state)?.unwrap_or_default();
@@ -263,6 +270,8 @@ fn import_json_file_into_pool(
     for (key, value) in map {
         if COLLECTION_NAMESPACES.contains(&key.as_str()) {
             if let Some(items) = value.as_object() {
+                let mut imported = 0usize;
+                let mut skipped = 0usize;
                 for (id, item) in items {
                     let flat_key = format!("{}.{}", key, id);
                     if !crate::db::db_has(pool, &flat_key)? {
@@ -284,14 +293,42 @@ fn import_json_file_into_pool(
                             &flat_key,
                             &serde_json::to_string(&row)?,
                         )?;
+                        imported += 1;
+                    } else {
+                        skipped += 1;
                     }
                 }
+                eprintln!(
+                    "[migration] import_json_file_into_pool: namespace \"{key}\": {} rows imported, {} already present",
+                    imported, skipped
+                );
                 continue;
+            } else {
+                eprintln!(
+                    "[migration] import_json_file_into_pool: namespace \"{key}\" is not an object (type: {:?}) — skipping",
+                    value
+                );
             }
         }
         if !crate::db::db_has(pool, key)? {
             crate::db::db_set(pool, key, &serde_json::to_string(value)?)?;
         }
+    }
+
+    // Post-import store summary so we can verify what actually landed in KV.
+    match crate::db::db_all(pool) {
+        Ok(rows) => {
+            let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
+            let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
+            eprintln!(
+                "[migration] import_json_file_into_pool: {} done — KV now has {} notes, {} folders, {} total rows",
+                path.display(),
+                notes,
+                folders,
+                rows.len()
+            );
+        }
+        Err(e) => eprintln!("[migration] import_json_file_into_pool: post-import summary failed: {e}"),
     }
     Ok(true)
 }
@@ -427,6 +464,14 @@ fn run_migration_core(
     let new_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
+    eprintln!("[migration] run_migration_core: start");
+    eprintln!("[migration]   legacy dir: {}", old_dir.display());
+    eprintln!("[migration]   target dir: {}", new_dir.display());
+    eprintln!("[migration]   legacy exists: {}", old_dir.exists());
+    eprintln!("[migration]   legacy files: config.json={}, data.json={}",
+        old_dir.join("config.json").exists(),
+        old_dir.join("data.json").exists());
+
     fs::create_dir_all(&new_dir)?;
 
     let mut merged_store_files = Vec::new();
@@ -541,6 +586,27 @@ fn run_migration_core(
     // Intentionally non-destructive while migration is being tested.
     // Do not remove or mutate the legacy Electron directory here.
     // let _ = fs::remove_dir_all(&old_dir);
+
+    // Final KV summary before the marker is written.
+    match crate::db::db_all(&data_pool) {
+        Ok(rows) => {
+            let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
+            let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
+            eprintln!(
+                "[migration] run_migration_core: DONE — data store has {} notes, {} folders, {} total rows",
+                notes,
+                folders,
+                rows.len()
+            );
+        }
+        Err(e) => eprintln!("[migration] run_migration_core: post-import summary failed: {e}"),
+    }
+    eprintln!(
+        "[migration] run_migration_core: writing marker {} — files merged: {:?}, asset dirs: {:?}",
+        marker.display(),
+        merged_store_files,
+        copied_asset_dirs
+    );
 
     fs::write(&marker, b"ok")?;
 

@@ -147,6 +147,8 @@ fn load_store_root_inner(
 
     let mut needs_migration = false;
     let mut plain = Map::new();
+    let mut decrypted_ok = 0usize;
+    let mut decrypted_failed = 0usize;
 
     for (row_key, value) in flat {
         let is_enveloped = matches!(
@@ -155,8 +157,23 @@ fn load_store_root_inner(
         );
 
         let decrypted = if let Some(ref key) = app_key {
-            decrypt_json_from_storage(key, &value, &storage_aad(&row_key))?
-                .unwrap_or_else(|| value.clone())
+            match decrypt_json_from_storage(key, &value, &storage_aad(&row_key)) {
+                Ok(Some(dec)) => {
+                    decrypted_ok += 1;
+                    dec
+                }
+                Ok(None) => {
+                    decrypted_failed += 1;
+                    value.clone()
+                }
+                Err(e) => {
+                    decrypted_failed += 1;
+                    eprintln!(
+                        "[storage] load_store_root_inner: decrypt failed for {row_key}: {e} — returning raw row"
+                    );
+                    value.clone()
+                }
+            }
         } else {
             value.clone()
         };
@@ -166,6 +183,15 @@ fn load_store_root_inner(
         }
 
         plain.insert(row_key, decrypted);
+    }
+
+    if app_key.is_some() && name == DATA_STORE {
+        eprintln!(
+            "[storage] load_store_root_inner: store={name} rows={} decrypted_ok={} decrypted_failed={}",
+            plain.len(),
+            decrypted_ok,
+            decrypted_failed
+        );
     }
 
     if needs_migration {

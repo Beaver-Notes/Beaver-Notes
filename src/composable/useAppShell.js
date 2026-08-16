@@ -537,7 +537,16 @@ export function useAppShell(onboardingCompleted = true) {
     (async () => {
       try {
         const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
-        await migrateNotesContent();
+        const result = await migrateNotesContent();
+        console.warn(
+          '[app] startup content migration complete:',
+          JSON.stringify(result)
+        );
+        if (result?.repaired > 0) {
+          // A repair re-keyed notes in KV AND the workspace doc — re-hydrate
+          // the stores so the repaired notes appear without a relaunch.
+          writeStoresFromWorkspace();
+        }
       } catch (err) {
         console.warn('[app] startup content migration failed:', err);
       }

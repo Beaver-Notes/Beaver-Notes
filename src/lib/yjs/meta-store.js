@@ -185,6 +185,36 @@ export async function seedWorkspaceDocFromKv() {
     storage.get('folders', {}),
   ]);
 
+  console.warn(
+    '[meta-yjs] seedWorkspaceDocFromKv: KV has',
+    Object.keys(kvNotes || {}).length,
+    'notes,',
+    Object.keys(kvFolders || {}).length,
+    'folders,',
+    (kvLabels || []).length,
+    'labels'
+  );
+
+  // Sample the raw note shape so we can tell decrypted notes ({id,title,...})
+  // from undecrypted whole-row envelopes ({ae,enc,iv,kid}).
+  {
+    const sample = Object.entries(kvNotes || {})[0];
+    if (sample) {
+      const [sid, note] = sample;
+      console.warn(
+        '[meta-yjs] seedWorkspaceDocFromKv: sample note:',
+        JSON.stringify({
+          key: sid,
+          keys: note && typeof note === 'object' ? Object.keys(note) : typeof note,
+          ae: note?.ae,
+          hasContent: Boolean(note?.content),
+          hasTitle: Boolean(note?.title),
+          title: note?.title?.slice?.(0, 40),
+        })
+      );
+    }
+  }
+
   const yNotes = doc.getMap('notes');
   const yFolders = doc.getMap('folders');
   const yLabels = doc.getArray('labels');
@@ -207,6 +237,10 @@ export async function seedWorkspaceDocFromKv() {
     'updatedAt',
   ];
 
+  let seededNotes = 0;
+  let seededFolders = 0;
+  let seededLabels = 0;
+
   doc.transact(() => {
     for (const [id, note] of Object.entries(kvNotes)) {
       if (yNotes.has(id)) continue;
@@ -215,20 +249,39 @@ export async function seedWorkspaceDocFromKv() {
         if (note[field] !== undefined) yNote.set(field, note[field]);
       }
       yNotes.set(id, yNote);
+      seededNotes++;
     }
     for (const [id, folder] of Object.entries(kvFolders)) {
       if (yFolders.has(id)) continue;
       const yFolder = new Y.Map();
       for (const [k, v] of Object.entries(folder)) yFolder.set(k, v);
       yFolders.set(id, yFolder);
+      seededFolders++;
     }
     for (const name of kvLabels) {
-      if (!yLabels.toArray().includes(name)) yLabels.push([name]);
+      if (!yLabels.toArray().includes(name)) {
+        yLabels.push([name]);
+        seededLabels++;
+      }
     }
     for (const [k, v] of Object.entries(kvColors)) {
       if (!yLabelColors.has(k)) yLabelColors.set(k, v);
     }
   }, 'seed');
+
+  console.warn(
+    '[meta-yjs] seedWorkspaceDocFromKv: seeded',
+    seededNotes,
+    'notes,',
+    seededFolders,
+    'folders,',
+    seededLabels,
+    'labels — workspace doc now has',
+    yNotes.size,
+    'notes,',
+    yFolders.size,
+    'folders'
+  );
 }
 
 /**

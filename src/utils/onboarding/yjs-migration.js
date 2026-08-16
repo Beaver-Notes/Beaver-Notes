@@ -108,7 +108,34 @@ export async function migrateNotesContent(onProgress = null) {
   const notes = await storage.get('notes', {});
   const noteIds = Object.keys(notes).filter((id) => notes[id]?.content);
 
+  console.warn(
+    `[yjs-content] migrateNotesContent: KV has ${Object.keys(notes || {}).length} note rows, ${noteIds.length} still carry content`
+  );
+
+  // Sample raw note shapes: decrypted notes have {id,title,content}, while
+  // undecrypted whole-row envelopes look like {ae,enc,iv,kid} and have no
+  // readable fields — which is exactly what makes "0 carry content".
+  {
+    const sample = Object.entries(notes || {})[0];
+    if (sample) {
+      const [sid, note] = sample;
+      console.warn(
+        '[yjs-content] migrateNotesContent: sample note:',
+        JSON.stringify({
+          key: sid,
+          keys: note && typeof note === 'object' ? Object.keys(note) : typeof note,
+          ae: note?.ae,
+          hasContent: Boolean(note?.content),
+          hasTitle: Boolean(note?.title),
+        })
+      );
+    }
+  }
+
   if (noteIds.length === 0) {
+    console.warn(
+      `[yjs-content] migrateNotesContent: nothing to migrate (${Object.keys(notes || {}).length} KV notes, none with content)`
+    );
     await storage.set(MIGRATION_FLAG, true, 'settings');
     return 0;
   }
@@ -151,6 +178,19 @@ export async function migrateNotesContent(onProgress = null) {
         }
         repaired++;
         log(`[yjs-content] Repaired note id "${id}" -> "${workingId}"`);
+
+        // The workspace doc is the single source of truth that hydrates the
+        // note store (via writeStoresFromWorkspace). It was seeded from KV
+        // under the ORIGINAL key — an invalid URL key with an empty `id` — so
+        // leaving it stale strands the note: the store merges a note with no
+        // `id` and the notes getter filters it out of the grid. Re-key the
+        // workspace meta alongside the KV row so the repaired note actually
+        // shows up.
+        const { syncNoteMeta, removeNoteMeta } = await import(
+          '@/lib/yjs/workspace-doc.js'
+        );
+        removeNoteMeta(id);
+        syncNoteMeta(note);
       }
 
       const result = await processNote(workingId, { [workingId]: note }, schema, log);

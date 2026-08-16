@@ -512,6 +512,7 @@ export function useOnboardingFlow({
       } else {
         await runOnboardingMigration();
       }
+      console.warn('[onboarding] legacy Electron migration (Rust copy) finished');
 
       // The legacy Electron migration writes KV directly. Convert it to Yjs at
       // import time: seed the workspace Y.Doc from KV metadata (so the stores
@@ -521,14 +522,28 @@ export function useOnboardingFlow({
       const { seedWorkspaceDocFromKv } = await import('@/lib/yjs/meta-store.js');
       await loadWorkspaceDoc();
       await seedWorkspaceDocFromKv();
+      console.warn('[onboarding] workspace doc seeded from KV');
 
       state.migrationStatus = 'Migrating note content…';
       const { migrateNotesContent } = await import('@/utils/onboarding/yjs-migration.js');
-      await migrateNotesContent((progress, noteId) => {
+      const migrationResult = await migrateNotesContent((progress, noteId) => {
         state.migrationProgress =
           COPY_WEIGHT + Math.round((progress / 100) * CONVERT_WEIGHT);
         state.migrationCurrent = noteId || '';
       });
+      console.warn(
+        '[onboarding] note content migration complete:',
+        JSON.stringify(migrationResult)
+      );
+
+      // Dump the correlated native + frontend state so any stranded notes are
+      // visible in the console right after import.
+      try {
+        const { dumpDebugState } = await import('@/lib/debug/bridge.js');
+        await dumpDebugState();
+      } catch (err) {
+        console.warn('[onboarding] debug state dump failed:', err);
+      }
 
       // Build + persist search/link indexes from the imported KV notes (which
       // still carry searchText). This keeps search working without storing the

@@ -6,9 +6,15 @@ const storage = {
   delete: vi.fn(),
 };
 const appendBatch = vi.fn(async () => {});
+const syncNoteMeta = vi.fn();
+const removeNoteMeta = vi.fn();
 
 vi.mock('@/lib/storage', () => ({
   useStorage: () => storage,
+}));
+vi.mock('@/lib/yjs/workspace-doc.js', () => ({
+  syncNoteMeta,
+  removeNoteMeta,
 }));
 vi.mock('@/lib/native/yjs.js', () => ({
   appendBatch,
@@ -61,6 +67,12 @@ describe('migrateNotesContent', () => {
     // The migrated note uses the repaired id, not the URL.
     const repairedKey = storage.set.mock.calls[0][0];
     expect(repairedKey).not.toContain('http');
+    // The workspace doc is re-keyed too, so writeStoresFromWorkspace hydrates
+    // the note with a real id (otherwise the notes getter filters it out and
+    // the grid shows EmptyState even though the note migrated).
+    expect(removeNoteMeta).toHaveBeenCalledWith(badId);
+    expect(syncNoteMeta).toHaveBeenCalledTimes(1);
+    expect(syncNoteMeta.mock.calls[0][0].id).toMatch(/^[A-Za-z0-9_-]{21}$/);
   });
 
   it('is re-runnable and converts remaining KV notes on a later run', async () => {
