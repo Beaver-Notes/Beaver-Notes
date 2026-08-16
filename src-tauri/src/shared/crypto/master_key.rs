@@ -68,9 +68,24 @@ fn master_key_enc_path() -> Result<PathBuf, AppError> {
 }
 
 fn app_data_dir() -> Result<PathBuf, AppError> {
-    dirs::data_local_dir()
-        .map(|d| d.join("com.beavernotes.beaver-notes"))
-        .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))
+    // On Android `dirs::data_local_dir()` resolves to `None` (no `$HOME`), so
+    // the legacy migration and enc-file paths would fail before ever reaching
+    // the Keystore backend. Use the tauri path resolver instead, matching
+    // `master_key_wrapped_path`.
+    #[cfg(target_os = "android")]
+    {
+        use tauri::Manager;
+        let app = android_app_handle()?;
+        app.path()
+            .app_data_dir()
+            .map_err(|e| AppError::Other(format!("cannot resolve app data dir: {e}")))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        dirs::data_local_dir()
+            .map(|d| d.join("com.beavernotes.beaver-notes"))
+            .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))
+    }
 }
 
 /// Read the master key, coalescing concurrent cold reads. Returns the key or
@@ -175,19 +190,13 @@ fn master_key_cached() -> bool {
     }
 }
 
-/// Return the current backend kind for the UI. When the master key was already
-/// read this session, this short-circuits on the in-memory cache and reports
-/// the cached backend without probing a daemon. Otherwise it probes the live
-/// backends (real keyring I/O), which happens only on a cold start.
+/// Return the current backend kind for the UI. Always probes the live backends
+/// with real I/O (`is_alive()`); there is no cached fast path. This is only
+/// called by the display command (`safeStorage:getBackendInfo`), never on the
+/// hot path, so the extra probe cost is fine — and it avoids the old bug where
+/// the lazy entry constructor reported `secretService` on daemon-less Linux
+/// even though the key actually lives in keyutils or the enc file.
 pub(crate) fn master_key_backend() -> MasterKeyBackendKind {
-    if master_key_cached() {
-        // Reuse the in-memory result; do not probe a daemon per call.
-        for backend in platform_backends() {
-            if backend.kind() != MasterKeyBackendKind::None && backend.is_alive_cheap() {
-                return backend.kind();
-            }
-        }
-    }
     for backend in platform_backends() {
         if backend.is_alive() {
             return backend.kind();
@@ -196,24 +205,59 @@ pub(crate) fn master_key_backend() -> MasterKeyBackendKind {
     MasterKeyBackendKind::None
 }
 
+/// True when a key minted into `kind` would survive a relaunch. The kernel
+/// keyring is session-scoped with a ~3-day persistent expiry, so a key held
+/// only there can vanish mid-week; every other backend is durable.
+fn is_durable_kind(kind: MasterKeyBackendKind) -> bool {
+    matches!(
+        kind,
+        MasterKeyBackendKind::Keychain
+            | MasterKeyBackendKind::SecretService
+            | MasterKeyBackendKind::EncryptedFile
+            | MasterKeyBackendKind::AndroidKeystore
+    )
+}
+
 /// Honest availability probe used by `safeStorage:isEncryptionAvailable`. True
-/// when at least one non-plaintext backend can read or write today. Once the
-/// key is cached this returns true without probing a daemon. Unlike the old
-/// `read_master_key().map(|_| true)`, this returns false on daemon-less Linux
-/// before a device password exists, so the frontend does not persist blobs it
-/// could never read back.
+/// when a key can be PRODUCED today: a real key is readable now, or a fresh
+/// mint would land in a durable store. A reachable-but-empty kernel keyring
+/// (KernelKeyring) alone does NOT make storage available — it is session-scoped
+/// with a ~3-day persistent expiry, so a blob persisted on that basis could
+/// become unreadable before the next relaunch. Once the key is cached this
+/// returns true without probing a daemon.
 pub(crate) fn master_key_available() -> bool {
     if master_key_cached() {
         return true;
     }
-    platform_backends().iter().any(|b| b.is_alive())
+    let backends = platform_backends();
+    master_key_available_core(
+        backends.iter().any(|b| matches!(b.get(), Ok(Some(_)))),
+        backends
+            .iter()
+            .any(|b| is_durable_kind(b.kind()) && b.is_alive()),
+    )
+}
+
+fn master_key_available_core(any_key_readable: bool, any_durable_alive: bool) -> bool {
+    any_key_readable || any_durable_alive
 }
 
 /// True when the only durable master-key copy is the device-password-encrypted
 /// file (`master.key.enc`) but the KEK has not been supplied this session —
 /// i.e. the user must re-enter their device password to unlock secure storage.
 pub(crate) fn device_password_required() -> bool {
-    !master_key_available() && master_key_enc_path().map(|p| p.exists()).unwrap_or(false)
+    if master_key_cached() {
+        return false;
+    }
+    let enc_exists = master_key_enc_path().map(|p| p.exists()).unwrap_or(false);
+    let any_key_readable = platform_backends()
+        .iter()
+        .any(|b| matches!(b.get(), Ok(Some(_))));
+    device_password_required_core(enc_exists, any_key_readable)
+}
+
+fn device_password_required_core(enc_exists: bool, any_key_readable: bool) -> bool {
+    enc_exists && !any_key_readable
 }
 
 /// Fold a legacy plaintext `master.key` into the secure chain and delete the
@@ -381,13 +425,6 @@ trait MasterKeyBackend {
     fn get(&self) -> Result<Option<Vec<u8>>, AppError>;
     fn set(&self, key: &[u8]) -> Result<(), AppError>;
     fn is_alive(&self) -> bool;
-    /// Cheap "presumed alive" check used only when the master key is already
-    /// cached this session, so availability probes never block on a daemon per
-    /// call. Defaults to true; overridden where a cheaper signal exists (a
-    /// keyring entry constructor, or in-memory KEK presence).
-    fn is_alive_cheap(&self) -> bool {
-        true
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -439,11 +476,17 @@ impl MasterKeyBackend for KeyringBackend {
                 }
                 Ok(Some(key))
             }
-            // `NoEntry` and `NoStorageAccess` (a dead/locked Secret Service
-            // daemon) both mean "no key reachable today", so a daemon-less
-            // first run still mints. Other errors (e.g. `PlatformFailure`) are
-            // hard errors surfaced by the caller instead of minting over them.
+            // `NoEntry` = store reachable but no entry; `NoStorageAccess` =
+            // daemon present but locked/unpromptable. Both mean "no key
+            // readable today".
             Err(keyring::Error::NoEntry) | Err(keyring::Error::NoStorageAccess(_)) => Ok(None),
+            // A dead Secret Service daemon surfaces as `PlatformFailure`
+            // (zbus connect error). On Linux this is the NORMAL daemon-less
+            // state, so the SecretService backend reports an empty store and
+            // the keyutils / enc-file backends take over. On macOS/Windows/iOS
+            // a `PlatformFailure` means a reachable-but-broken keychain and
+            // must remain a hard error (never mint over it).
+            Err(keyring::Error::PlatformFailure(_)) if cfg!(target_os = "linux") => Ok(None),
             Err(e) => Err(AppError::Other(format!("keyring read: {e}"))),
         }
     }
@@ -469,12 +512,6 @@ impl MasterKeyBackend for KeyringBackend {
             Err(keyring::Error::NoEntry) => true,
             Err(_) => false,
         }
-    }
-
-    fn is_alive_cheap(&self) -> bool {
-        // Only consulted when the key is already cached; a successful entry
-        // constructor is a cheap proxy for "backend present".
-        self.entry().is_ok()
     }
 }
 
@@ -505,10 +542,6 @@ impl MasterKeyBackend for EncryptedFileBackend {
 
     fn is_alive(&self) -> bool {
         DEVICE_KEK.lock().map(|k| k.is_some()).unwrap_or(false)
-    }
-
-    fn is_alive_cheap(&self) -> bool {
-        self.is_alive()
     }
 }
 
@@ -860,5 +893,43 @@ mod tests {
         }))];
         let err = select_key_from_backends(&backends, random_key).unwrap_err();
         assert!(matches!(err, AppError::DevicePasswordRequired));
+    }
+
+    #[test]
+    fn is_durable_kind_excludes_kernel_keyring() {
+        for kind in [
+            MasterKeyBackendKind::Keychain,
+            MasterKeyBackendKind::SecretService,
+            MasterKeyBackendKind::EncryptedFile,
+            MasterKeyBackendKind::AndroidKeystore,
+        ] {
+            assert!(is_durable_kind(kind), "{kind:?} must be durable");
+        }
+        assert!(
+            !is_durable_kind(MasterKeyBackendKind::KernelKeyring),
+            "the kernel keyring is session-scoped and must not count as durable"
+        );
+        assert!(!is_durable_kind(MasterKeyBackendKind::None));
+    }
+
+    #[test]
+    fn availability_core_semantics() {
+        // A reachable-but-empty kernel keyring alone must NOT make storage
+        // available — it is not durable.
+        assert!(!master_key_available_core(false, false));
+        assert!(master_key_available_core(true, false));
+        assert!(master_key_available_core(false, true));
+        assert!(master_key_available_core(true, true));
+    }
+
+    #[test]
+    fn device_password_required_core_semantics() {
+        // Password-gated lockout: enc file present, nothing readable.
+        assert!(device_password_required_core(true, false));
+        // Fresh install: no enc file yet.
+        assert!(!device_password_required_core(false, false));
+        // A readable key (e.g. keyring reachable) means no re-entry required.
+        assert!(!device_password_required_core(true, true));
+        assert!(!device_password_required_core(false, true));
     }
 }
