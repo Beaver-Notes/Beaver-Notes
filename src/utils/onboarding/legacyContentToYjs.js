@@ -33,10 +33,10 @@ export async function convertLegacyNoteToUpdate(schema, content) {
  * calls in chunks and yielding to the UI between chunks.
  *
  * @param {Array<{id: string, content: object}>} notes
- * @param {{onProgress?: (done: number, total: number, id: string) => void}} [opts]
+ * @param {{onProgress?: (done: number, total: number, id: string) => void, legacyPassword?: string}} [opts]
  * @returns {Promise<{converted: number, skipped: number, failures: string[]}>}
  */
-export async function convertLegacyNotesToYjs(notes = [], { onProgress } = {}) {
+export async function convertLegacyNotesToYjs(notes = [], { onProgress, legacyPassword } = {}) {
   const schema = await ensureSchema();
   const device = getDeviceId();
   const failures = [];
@@ -52,7 +52,25 @@ export async function convertLegacyNotesToYjs(notes = [], { onProgress } = {}) {
         continue;
       }
       try {
-        const update = await convertLegacyNoteToUpdate(schema, note.content);
+        let content = note.content;
+        const isLocked =
+          note.isLocked === true ||
+          (typeof note.content.content?.[0] === 'string' &&
+            (note.content.content[0].startsWith('U2FsdGVk') ||
+              note.content.content[0].startsWith('{')));
+
+        if (isLocked) {
+          if (!legacyPassword) {
+            skipped++;
+            continue;
+          }
+          const { decryptNoteWithPassword } = await import('@/utils/migration/legacyElectron.js');
+          const ciphertext = note.content.content?.[0];
+          const { plaintext } = await decryptNoteWithPassword(ciphertext, legacyPassword);
+          content = JSON.parse(plaintext);
+        }
+
+        const update = await convertLegacyNoteToUpdate(schema, content);
         if (update) {
           entries.push({ noteId: note.id, update });
           converted++;
