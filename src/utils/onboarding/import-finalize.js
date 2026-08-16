@@ -6,8 +6,8 @@
  * onboarding chunk until a migration actually runs.
  */
 
-export async function buildImportedSearchIndex() {
-  const { useStorage } = await import('@/lib/storage');
+export async function buildImportedSearchIndex(notesOverride) {
+  const { useNoteStore } = await import('@/store/note');
   const { buildSearchIndex, getSearchIndexJSON } = await import(
     '@/utils/note/search.js'
   );
@@ -17,12 +17,18 @@ export async function buildImportedSearchIndex() {
   } = await import('@/store/note/backlinks.ts');
   const { commands } = await import('@/lib/tauri/bindings');
 
-  const kvNotes = await useStorage('data').get('notes', {});
-  buildSearchIndex(kvNotes);
-  rebuildLinkIndexFromAll(kvNotes);
+  // Source from the caller-provided notes (frontend-led import) or the
+  // in-memory note store; never read KV, which no longer holds note content.
+  const notes =
+    notesOverride ||
+    Object.fromEntries(
+      Object.entries(useNoteStore().data).filter(([id, n]) => n?.id === id)
+    );
+  buildSearchIndex(notes);
+  rebuildLinkIndexFromAll(notes);
 
   const signatures = {};
-  for (const n of Object.values(kvNotes)) {
+  for (const n of Object.values(notes)) {
     if (n?.id) signatures[n.id] = n.updatedAt;
   }
   await commands.indexSave(
