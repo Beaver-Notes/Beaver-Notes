@@ -176,7 +176,7 @@ pub(crate) fn derive_kek_from_manifest(
     }
 }
 
-fn random_key() -> [u8; 32] {
+pub(crate) fn random_key() -> [u8; 32] {
     let mut key = [0_u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
     key
