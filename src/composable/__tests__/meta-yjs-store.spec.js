@@ -204,3 +204,35 @@ describe('seedWorkspaceDocFromKv (import-time conversion)', () => {
     expect(doc.getMap('folders').get('folder-1').get('name')).toBe('Work');
   });
 });
+
+describe('seedWorkspaceDocFromData (frontend-led import)', () => {
+  beforeEach(() => {
+    docHolder.doc = new Y.Doc();
+  });
+
+  it('seeds note meta, folders, labels, colors, and deleted tombstones', async () => {
+    const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
+    const notes = {
+      'note-1': { id: 'note-1', title: 'One', folderId: 'f1', labels: ['alpha'], createdAt: 1, updatedAt: 2 },
+    };
+    const folders = { f1: { id: 'f1', name: 'Folder' } };
+    const labels = ['alpha'];
+    const labelColors = { alpha: '#112233' };
+    const deletedIds = { 'dead-1': 123 };
+    const deletedFolderIds = { 'dead-f1': 456 };
+
+    await seedWorkspaceDocFromData(notes, folders, labels, labelColors, deletedIds, deletedFolderIds);
+
+    const doc = docHolder.doc;
+    const yNote = doc.getMap('notes').get('note-1');
+    expect(yNote.get('id')).toBe('note-1');
+    expect(yNote.get('title')).toBe('One');
+    expect(yNote.get('folderId')).toBe('f1');
+    expect(yNote.has('content')).toBe(false);
+    expect(doc.getMap('folders').get('f1').get('name')).toBe('Folder');
+    expect(doc.getArray('labels').toArray()).toEqual(['alpha']);
+    expect(doc.getMap('labelColors').get('alpha')).toBe('#112233');
+    expect(doc.getMap('deletedNoteIds').get('dead-1')).toBe(123);
+    expect(doc.getMap('deletedFolderIds').get('dead-f1')).toBe(456);
+  });
+});

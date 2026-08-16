@@ -285,6 +285,88 @@ export async function seedWorkspaceDocFromKv() {
 }
 
 /**
+ * Import-time: seed the workspace Y.Doc directly from parsed legacy data
+ * (no KV reads). Writes note meta, folders, the labels array, label colors,
+ * and deleted-id tombstones in a single `'seed'` transaction.
+ *
+ * @param {Record<string, object>} notes  id -> note meta (content excluded)
+ * @param {Record<string, object>} folders id -> folder
+ * @param {string[]} labels
+ * @param {Record<string, string>} labelColors
+ * @param {Record<string, number>} deletedIds
+ * @param {Record<string, number>} deletedFolderIds
+ */
+export async function seedWorkspaceDocFromData(
+  notes,
+  folders,
+  labels,
+  labelColors,
+  deletedIds,
+  deletedFolderIds
+) {
+  const doc = getWorkspaceDoc();
+  const yNotes = doc.getMap('notes');
+  const yFolders = doc.getMap('folders');
+  const yLabels = doc.getArray('labels');
+  const yLabelColors = doc.getMap('labelColors');
+  const yDeletedNotes = doc.getMap('deletedNoteIds');
+  const yDeletedFolders = doc.getMap('deletedFolderIds');
+
+  const SEED_META_FIELDS = [
+    'id',
+    'title',
+    'folderId',
+    'labels',
+    'isArchived',
+    'isLocked',
+    'isBookmarked',
+    'isFullWidth',
+    'createdAt',
+    'updatedAt',
+  ];
+
+  let seededNotes = 0;
+  let seededFolders = 0;
+  let seededLabels = 0;
+
+  doc.transact(() => {
+    for (const [id, note] of Object.entries(notes || {})) {
+      if (yNotes.has(id)) continue;
+      const yNote = new Y.Map();
+      for (const field of SEED_META_FIELDS) {
+        if (note[field] !== undefined) yNote.set(field, note[field]);
+      }
+      yNotes.set(id, yNote);
+      seededNotes++;
+    }
+    for (const [id, folder] of Object.entries(folders || {})) {
+      if (yFolders.has(id)) continue;
+      const yFolder = new Y.Map();
+      for (const [k, v] of Object.entries(folder)) yFolder.set(k, v);
+      yFolders.set(id, yFolder);
+      seededFolders++;
+    }
+    for (const name of labels || []) {
+      if (!yLabels.toArray().includes(name)) {
+        yLabels.push([name]);
+        seededLabels++;
+      }
+    }
+    for (const [k, v] of Object.entries(labelColors || {})) {
+      if (!yLabelColors.has(k)) yLabelColors.set(k, v);
+    }
+    for (const [id, ts] of Object.entries(deletedIds || {})) {
+      yDeletedNotes.set(id, ts);
+    }
+    for (const [id, ts] of Object.entries(deletedFolderIds || {})) {
+      yDeletedFolders.set(id, ts);
+    }
+  }, 'seed');
+
+  return { seededNotes, seededFolders, seededLabels };
+}
+
+/**
  * One-time backfill: notes written before `cardPreview` was persisted (or
  * migrated notes whose content left KV) have no preview source in memory, so
  * their cards are blank on launch until re-saved. For each such note we load
