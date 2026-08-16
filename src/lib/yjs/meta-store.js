@@ -213,7 +213,6 @@ export async function seedWorkspaceDocFromData(
 
   doc.transact(() => {
     for (const [id, note] of Object.entries(notes || {})) {
-      if (yNotes.has(id)) continue;
       const yNote = new Y.Map();
       for (const field of SEED_META_FIELDS) {
         if (note[field] !== undefined) yNote.set(field, note[field]);

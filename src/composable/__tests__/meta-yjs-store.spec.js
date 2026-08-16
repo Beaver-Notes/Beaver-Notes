@@ -171,4 +171,28 @@ describe('seedWorkspaceDocFromData (frontend-led import)', () => {
     expect(doc.getMap('deletedNoteIds').get('dead-1')).toBe(123);
     expect(doc.getMap('deletedFolderIds').get('dead-f1')).toBe(456);
   });
+
+  it('overwrites stale note entries from a prior broken seed (valid ids win)', async () => {
+    // Simulate a stale workspace doc: a note key exists but carries an empty
+    // id (the first broken migration seeded KV envelopes which had no readable
+    // id/title). The parsed legacy data is authoritative and must win.
+    const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
+    const doc = docHolder.doc;
+    const stale = new Y.Map();
+    stale.set('id', '');
+    doc.getMap('notes').set('note-1', stale);
+
+    await seedWorkspaceDocFromData(
+      { 'note-1': { id: 'note-1', title: 'Correct', createdAt: 1, updatedAt: 2 } },
+      {},
+      [],
+      {},
+      {},
+      {}
+    );
+
+    const yNote = doc.getMap('notes').get('note-1');
+    expect(yNote.get('id')).toBe('note-1');
+    expect(yNote.get('title')).toBe('Correct');
+  });
 });
