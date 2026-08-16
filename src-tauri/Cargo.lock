@@ -573,6 +573,7 @@ dependencies = [
  "tauri-plugin-pdf-render",
  "tauri-plugin-safe-area-insets-css",
  "tauri-plugin-scoped-storage",
+ "tauri-plugin-secure-keystore",
  "tauri-plugin-sharesheet",
  "tauri-plugin-single-instance",
  "tauri-plugin-spotsearch",
@@ -6159,6 +6160,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15c76a07946fb84866dc289fef15d69a590a2938cc6de65cb416ce563c97a797"
 dependencies = [
  "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "tauri-plugin-secure-keystore"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",

@@ -43,6 +43,7 @@ tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-safe-area-insets-css = { path = "../vendor/tauri-plugin-safe-area-insets-css" }
+tauri-plugin-secure-keystore = { path = "../vendor/tauri-plugin-secure-keystore" }
 tauri-plugin-pdf-render = { path = "../vendor/tauri-plugin-pdf-render" }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
