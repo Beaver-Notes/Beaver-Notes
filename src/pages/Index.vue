@@ -384,6 +384,10 @@ export default {
       showMoveModal.value = false;
     }
 
+    watch(showMoveModal, (open) => {
+      if (!open) moveTarget.value = null;
+    });
+
     const selectionBar = useSelectionBar();
     watch(
       () => pageController.selectedItems.value,
@@ -408,6 +412,7 @@ export default {
       moveTarget,
       openMoveForNote,
       handleSingleMoved,
+      resolveMoveModalParams,
       ...pageController,
     };
   },
