@@ -128,7 +128,11 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
     if let Some(key) = migrate_legacy_master_key()? {
         return Ok(key);
     }
-    select_key_from_backends(&platform_backends(), random_key)
+    select_key_from_backends(
+        &platform_backends(),
+        random_key,
+        durable_store_available(),
+    )
 }
 
 /// Walk the secure backends in priority order. The first backend holding a key
@@ -138,12 +142,15 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
 /// errored hard (e.g. a keychain `PlatformFailure`), that error propagates
 /// instead of minting over the real key (which would strand existing blobs).
 /// A `DevicePasswordRequired` or `WrongPassword` from the enc-file backend is
-/// folded into the device-password prompt signal. Only when every backend
-/// returned `Ok(None)` is a fresh key minted and mirrored to every backend.
-/// Pure; testable with fake backends.
+/// folded into the device-password prompt signal. A fresh key is minted and
+/// mirrored to every backend ONLY when every backend returned `Ok(None)` AND
+/// at least one durable backend is alive (`durable_alive`) — minting into a
+/// reboot-ephemeral kernel keyring alone would strand blobs once the key
+/// expires. Pure; testable with fake backends.
 fn select_key_from_backends(
     backends: &[Box<dyn MasterKeyBackend>],
     mint: impl Fn() -> [u8; 32],
+    durable_alive: bool,
 ) -> Result<Vec<u8>, AppError> {
     let mut last_error: Option<AppError> = None;
     let mut empty_alive: Vec<usize> = Vec::new();
@@ -172,6 +179,11 @@ fn select_key_from_backends(
             return Err(AppError::DevicePasswordRequired);
         }
         return Err(e);
+    }
+    if !durable_alive {
+        // No durable store to anchor a fresh key: refusing to mint avoids
+        // persisting blobs under a reboot-ephemeral kernel-keyring key.
+        return Err(AppError::SecureStorageUnavailable);
     }
     let key = mint();
     for backend in backends {
@@ -271,13 +283,15 @@ fn device_password_required_core(enc_exists: bool, any_key_readable: bool) -> bo
 }
 
 /// Fold a legacy plaintext `master.key` into the secure chain and delete the
-/// file once at least one secure backend wrote. Returns the key if a legacy
+/// file once at least one DURABLE backend wrote. Returns the key if a legacy
 /// file exists. Idempotent; `Ok(None)` when no legacy file exists.
 ///
-/// Degrades gracefully: when no secure backend is available yet (e.g. a
+/// Degrades gracefully: when no DURABLE backend is available yet (e.g. a
 /// daemon-less Linux box upgrading before a device password is set), the legacy
 /// file is KEPT and its key returned, so existing blobs stay readable. The
-/// enc-file write happens later, once a device password is supplied.
+/// enc-file write happens later, once a device password is supplied. Deleting
+/// on the strength of the kernel keyring alone would strand blobs once that
+/// session-scoped key expires.
 pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
     let path = master_key_path()?;
     if !path.exists() {
@@ -291,13 +305,17 @@ pub(crate) fn migrate_legacy_master_key() -> Result<Option<Vec<u8>>, AppError> {
     let key: [u8; 32] = key_bytes.as_slice().try_into().map_err(|_| {
         AppError::Crypto("Invalid file-based master key length".into())
     })?;
-    let mut any_written = false;
+    let mut durable_written = false;
     for backend in platform_backends() {
-        if backend.set(&key).is_ok() {
-            any_written = true;
+        if backend.set(&key).is_ok() && is_durable_kind(backend.kind()) {
+            durable_written = true;
         }
     }
-    if any_written {
+    // Only delete the plaintext file once a DURABLE backend accepted the key.
+    // On daemon-less Linux with no device password yet, keyutils alone is not
+    // durable — keep the legacy file so existing blobs stay readable; the
+    // enc-file write happens once a device password is supplied.
+    if durable_written {
         fs::remove_file(&path)?;
     }
     Ok(Some(key_bytes))
@@ -788,7 +806,7 @@ mod tests {
                 fail: false,
             }),
         ];
-        let key = select_key_from_backends(&backends, random_key).unwrap();
+        let key = select_key_from_backends(&backends, random_key, false).unwrap();
         assert_eq!(key, vec![1_u8; 32]);
     }
 
@@ -808,7 +826,7 @@ mod tests {
                 Rc::clone(&log1),
             )),
         ];
-        let key = select_key_from_backends(&backends, random_key).unwrap();
+        let key = select_key_from_backends(&backends, random_key, true).unwrap();
         assert_eq!(key.len(), 32);
         let written0 = log0.borrow();
         assert_eq!(written0.len(), 1, "every backend must receive the minted key");
@@ -816,6 +834,55 @@ mod tests {
         let written1 = log1.borrow();
         assert_eq!(written1.len(), 1, "every backend must receive the minted key");
         assert_eq!(written1[0], key);
+    }
+
+    #[test]
+    fn select_refuses_to_mint_without_durable_store() {
+        let log0 = Rc::new(RefCell::new(Vec::new()));
+        let log1 = Rc::new(RefCell::new(Vec::new()));
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                None,
+                Rc::clone(&log0),
+            )),
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                None,
+                Rc::clone(&log1),
+            )),
+        ];
+        let err = select_key_from_backends(&backends, || {
+            panic!("mint must not run when no durable store is alive");
+        }, false)
+        .unwrap_err();
+        assert!(matches!(err, AppError::SecureStorageUnavailable));
+        assert!(
+            log0.borrow().is_empty() && log1.borrow().is_empty(),
+            "no backend may receive a write when minting is refused"
+        );
+    }
+
+    #[test]
+    fn select_mints_with_durable_store_alive() {
+        let log0 = Rc::new(RefCell::new(Vec::new()));
+        let log1 = Rc::new(RefCell::new(Vec::new()));
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::EncryptedFile,
+                None,
+                Rc::clone(&log0),
+            )),
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                None,
+                Rc::clone(&log1),
+            )),
+        ];
+        let key = select_key_from_backends(&backends, random_key, true).unwrap();
+        assert_eq!(key.len(), 32);
+        assert_eq!(log0.borrow().len(), 1, "durable backend must receive the minted key");
+        assert_eq!(log1.borrow().len(), 1, "non-durable backend must also receive the minted key");
     }
 
     #[test]
@@ -846,7 +913,7 @@ mod tests {
         ];
         let err = select_key_from_backends(&backends, || {
             panic!("mint must not run when a backend errors hard");
-        })
+        }, false)
         .unwrap_err();
         assert!(matches!(err, AppError::Other(ref m) if m == "boom"));
         assert!(
@@ -871,7 +938,7 @@ mod tests {
                 Rc::clone(&log1),
             )),
         ];
-        let key = select_key_from_backends(&backends, random_key).unwrap();
+        let key = select_key_from_backends(&backends, random_key, true).unwrap();
         assert_eq!(key, vec![9_u8; 32]);
         let written0 = log0.borrow();
         assert_eq!(written0.len(), 1, "the key must be re-anchored into the higher-priority empty backend");
@@ -901,7 +968,7 @@ mod tests {
             stored: None,
             fail: false,
         }))];
-        let err = select_key_from_backends(&backends, random_key).unwrap_err();
+        let err = select_key_from_backends(&backends, random_key, false).unwrap_err();
         assert!(matches!(err, AppError::DevicePasswordRequired));
     }
 
