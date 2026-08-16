@@ -644,3 +644,221 @@ pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::{cell::RefCell, rc::Rc};
+
+    struct FakeBackend {
+        kind: MasterKeyBackendKind,
+        stored: Option<Vec<u8>>,
+        fail: bool,
+    }
+
+    impl MasterKeyBackend for FakeBackend {
+        fn kind(&self) -> MasterKeyBackendKind {
+            self.kind
+        }
+        fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+            if self.fail {
+                return Err(AppError::Other("dead".into()));
+            }
+            Ok(self.stored.clone())
+        }
+        fn set(&self, _key: &[u8]) -> Result<(), AppError> {
+            Err(AppError::Other("write disabled in test".into()))
+        }
+        fn is_alive(&self) -> bool {
+            !self.fail
+        }
+    }
+
+    /// Like `FakeBackend` but records every key passed to `set` (via a shared
+    /// `Rc<RefCell<..>>` log so the test can inspect it through the trait
+    /// object).
+    struct RecordingBackend {
+        kind: MasterKeyBackendKind,
+        stored: Option<Vec<u8>>,
+        written: Rc<RefCell<Vec<Vec<u8>>>>,
+    }
+
+    impl RecordingBackend {
+        fn new(
+            kind: MasterKeyBackendKind,
+            stored: Option<Vec<u8>>,
+            written: Rc<RefCell<Vec<Vec<u8>>>>,
+        ) -> Self {
+            Self {
+                kind,
+                stored,
+                written,
+            }
+        }
+    }
+
+    impl MasterKeyBackend for RecordingBackend {
+        fn kind(&self) -> MasterKeyBackendKind {
+            self.kind
+        }
+        fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+            Ok(self.stored.clone())
+        }
+        fn set(&self, key: &[u8]) -> Result<(), AppError> {
+            self.written.borrow_mut().push(key.to_vec());
+            Ok(())
+        }
+        fn is_alive(&self) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn enc_file_round_trip_with_correct_and_wrong_kek() {
+        let kek = [7_u8; 32];
+        let key = random_key();
+        let env = encrypt_bytes_with_key(&kek, &key).unwrap();
+        let dec = decrypt_bytes_with_key(&kek, &env).unwrap();
+        assert_eq!(dec, key.to_vec());
+        let wrong = decrypt_bytes_with_key(&[8_u8; 32], &env);
+        assert!(matches!(wrong, Err(AppError::WrongPassword)));
+    }
+
+    #[test]
+    fn master_key_backend_kind_serializes_camel_case() {
+        let v = serde_json::to_value(MasterKeyBackendKind::SecretService).unwrap();
+        assert_eq!(v, serde_json::json!("secretService"));
+        let v = serde_json::to_value(MasterKeyBackendKind::AndroidKeystore).unwrap();
+        assert_eq!(v, serde_json::json!("androidKeystore"));
+    }
+
+    #[test]
+    fn select_returns_first_backend_with_key() {
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::SecretService,
+                stored: None,
+                fail: false,
+            }),
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::KernelKeyring,
+                stored: Some(vec![1_u8; 32]),
+                fail: false,
+            }),
+        ];
+        let key = select_key_from_backends(&backends, random_key).unwrap();
+        assert_eq!(key, vec![1_u8; 32]);
+    }
+
+    #[test]
+    fn select_mints_and_mirrors_when_all_empty() {
+        let log0 = Rc::new(RefCell::new(Vec::new()));
+        let log1 = Rc::new(RefCell::new(Vec::new()));
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::SecretService,
+                None,
+                Rc::clone(&log0),
+            )),
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                None,
+                Rc::clone(&log1),
+            )),
+        ];
+        let key = select_key_from_backends(&backends, random_key).unwrap();
+        assert_eq!(key.len(), 32);
+        let written0 = log0.borrow();
+        assert_eq!(written0.len(), 1, "every backend must receive the minted key");
+        assert_eq!(written0[0], key);
+        let written1 = log1.borrow();
+        assert_eq!(written1.len(), 1, "every backend must receive the minted key");
+        assert_eq!(written1[0], key);
+    }
+
+    #[test]
+    fn select_does_not_mint_when_backend_errors_hardly() {
+        struct HardErrBackend;
+        impl MasterKeyBackend for HardErrBackend {
+            fn kind(&self) -> MasterKeyBackendKind {
+                MasterKeyBackendKind::SecretService
+            }
+            fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+                Err(AppError::Other("boom".into()))
+            }
+            fn set(&self, _key: &[u8]) -> Result<(), AppError> {
+                Ok(())
+            }
+            fn is_alive(&self) -> bool {
+                true
+            }
+        }
+        let log = Rc::new(RefCell::new(Vec::new()));
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(HardErrBackend),
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                None,
+                Rc::clone(&log),
+            )),
+        ];
+        let err = select_key_from_backends(&backends, || {
+            panic!("mint must not run when a backend errors hard");
+        })
+        .unwrap_err();
+        assert!(matches!(err, AppError::Other(ref m) if m == "boom"));
+        assert!(
+            log.borrow().is_empty(),
+            "no mirror-write may happen when minting is skipped"
+        );
+    }
+
+    #[test]
+    fn select_reattaches_key_to_higher_priority_backend() {
+        let log0 = Rc::new(RefCell::new(Vec::new()));
+        let log1 = Rc::new(RefCell::new(Vec::new()));
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::SecretService,
+                None,
+                Rc::clone(&log0),
+            )),
+            Box::new(RecordingBackend::new(
+                MasterKeyBackendKind::KernelKeyring,
+                Some(vec![9_u8; 32]),
+                Rc::clone(&log1),
+            )),
+        ];
+        let key = select_key_from_backends(&backends, random_key).unwrap();
+        assert_eq!(key, vec![9_u8; 32]);
+        let written0 = log0.borrow();
+        assert_eq!(written0.len(), 1, "the key must be re-anchored into the higher-priority empty backend");
+        assert_eq!(written0[0], vec![9_u8; 32]);
+        assert!(log1.borrow().is_empty(), "the source backend must not be rewritten");
+    }
+
+    #[test]
+    fn select_propagates_device_password_required() {
+        struct NeedsPw(FakeBackend);
+        impl MasterKeyBackend for NeedsPw {
+            fn kind(&self) -> MasterKeyBackendKind {
+                self.0.kind
+            }
+            fn get(&self) -> Result<Option<Vec<u8>>, AppError> {
+                Err(AppError::DevicePasswordRequired)
+            }
+            fn set(&self, _k: &[u8]) -> Result<(), AppError> {
+                Ok(())
+            }
+            fn is_alive(&self) -> bool {
+                false
+            }
+        }
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![Box::new(NeedsPw(FakeBackend {
+            kind: MasterKeyBackendKind::EncryptedFile,
+            stored: None,
+            fail: false,
+        }))];
+        let err = select_key_from_backends(&backends, random_key).unwrap_err();
+        assert!(matches!(err, AppError::DevicePasswordRequired));
+    }
+}
