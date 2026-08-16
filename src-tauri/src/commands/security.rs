@@ -831,11 +831,16 @@ pub(crate) fn encryption_has_remote_key_params(
 #[tauri::command]
 #[specta::specta]
 pub(crate) fn safe_storage_is_available(_state: State<AppState>) -> Result<bool, AppError> {
-    // Verify safe storage actually works instead of trusting the keyring flag.
-    // On Linux, KEYRING_AVAILABLE defaults true but the daemon may be dead;
-    // the file-based fallback makes read_master_key() succeed regardless. A
-    // successful probe means a blob written now will be readable next launch.
-    read_master_key().map(|_| true)
+    // Honest probe: report whether a master key can actually be produced by the
+    // secure store right now, rather than trusting a compile-time flag or
+    // papering over backend failures with the file-based fallback.
+    Ok(master_key_available())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn safe_storage_set_device_password(password: String) -> Result<(), AppError> {
+    set_device_password(&password)
 }
 
 #[tauri::command]

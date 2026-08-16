@@ -785,6 +785,10 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
     fs::create_dir_all(&state.files.asset_cache_dir)?;
 
+    // Fold any legacy plaintext `master.key` into the secure chain, then delete
+    // the file. Never fails startup.
+    let _ = crate::shared::migrate_legacy_master_key();
+
     // Warm the Keychain-backed master key on a background thread so the
     // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
     // in-memory cache instead of a ~2.5s cold Keychain read on the startup path.
