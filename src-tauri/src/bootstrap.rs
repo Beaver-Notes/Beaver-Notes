@@ -61,9 +61,6 @@ fn count_files(dir: &std::path::Path) -> u64 {
     n
 }
 
-#[cfg(desktop)]
-const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
-
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
     grant_trusted_path(state, Path::new(&path));
     if app
@@ -240,7 +237,6 @@ fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), AppErr
 
 #[cfg(desktop)]
 fn import_json_file_into_pool(
-    state: &AppState,
     path: &Path,
     pool: &crate::db::DbPool,
 ) -> Result<bool, AppError> {
@@ -259,69 +255,22 @@ fn import_json_file_into_pool(
         path.display(),
         map.keys().collect::<Vec<_>>()
     );
-    let encrypt = state.crypto.session.read()?.active;
-    let (app_key, key_id) = if encrypt {
-        let key = crate::shared::current_app_key(state)?.unwrap_or_default();
-        let key_id = state.crypto.session.read()?.current_items_key_id.clone();
-        (Some(key), key_id)
-    } else {
-        (None, String::new())
-    };
     for (key, value) in map {
-        if COLLECTION_NAMESPACES.contains(&key.as_str()) {
-            if let Some(items) = value.as_object() {
-                let mut imported = 0usize;
-                let mut skipped = 0usize;
-                for (id, item) in items {
-                    let flat_key = format!("{}.{}", key, id);
-                    if !crate::db::db_has(pool, &flat_key)? {
-                        let row = if let Some(key) = app_key {
-                            // Whole-row encrypt (title, folderId, folder metadata
-                            // included) rather than only the note content, so the
-                            // migration never leaves plaintext metadata on disk.
-                            crate::commands::storage::encrypt_store_row_with_key(
-                                &flat_key,
-                                item.clone(),
-                                &key,
-                                &key_id,
-                            )?
-                        } else {
-                            item.clone()
-                        };
-                        crate::db::db_set(
-                            pool,
-                            &flat_key,
-                            &serde_json::to_string(&row)?,
-                        )?;
-                        imported += 1;
-                    } else {
-                        skipped += 1;
-                    }
-                }
-                eprintln!(
-                    "[migration] import_json_file_into_pool: namespace \"{key}\": {} rows imported, {} already present",
-                    imported, skipped
-                );
-                continue;
-            } else {
-                eprintln!(
-                    "[migration] import_json_file_into_pool: namespace \"{key}\" is not an object (type: {:?}) — skipping",
-                    value
-                );
-            }
-        }
         if !crate::db::db_has(pool, key)? {
             crate::db::db_set(pool, key, &serde_json::to_string(value)?)?;
         }
     }
 
     // Post-import store summary so we can verify what actually landed in KV.
+    // Legacy notes/folders collections are no longer written as KV rows — the
+    // frontend converts them straight to Yjs — so only top-level scalar keys
+    // (labels, labelColors, deletedIds, …) appear here.
     match crate::db::db_all(pool) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
             let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
             eprintln!(
-                "[migration] import_json_file_into_pool: {} done — KV now has {} notes, {} folders, {} total rows",
+                "[migration] import_json_file_into_pool: {} done — KV now has {} notes, {} folders (both expected to be 0), {} total rows",
                 path.display(),
                 notes,
                 folders,
@@ -479,7 +428,16 @@ fn run_migration_core(
 
     // Count every file that will be copied so the progress bar has a real total
     // (store JSONs + all assets), then report as we go.
-    let mut copy_total = LEGACY_DATA_FILES.len() as u64 + 1; // + SETTINGS_STORE
+    // Legacy notes/folders (config.json/data.json) are no longer imported into
+    // the data KV store — the frontend converts them straight to Yjs. The store
+    // JSON copies are just settings.json (always) and auth.json (when present).
+    eprintln!(
+        "[migration]   skipping legacy notes/folders import (config.json/data.json) — the data KV store stays empty of note rows"
+    );
+    let mut copy_total = 1; // SETTINGS_STORE
+    if old_dir.join(AUTH_STORE).exists() {
+        copy_total += 1;
+    }
     for folder in ["notes-assets", "file-assets"] {
         let old = old_dir.join(folder);
         if old.exists() {
@@ -501,15 +459,6 @@ fn run_migration_core(
     }
     let mut copy_done = 0u64;
 
-    for legacy_name in LEGACY_DATA_FILES {
-        let old = old_dir.join(legacy_name);
-        if import_json_file_into_pool(state, &old, &data_pool)? {
-            merged_store_files.push((*legacy_name).to_string());
-        }
-        copy_done += 1;
-        emit_migration_progress(app, "copy", copy_done, copy_total);
-    }
-
     let old_auth = old_dir.join(AUTH_STORE);
     if old_auth.exists() {
         merge_store_file(&old_auth, &new_dir.join(AUTH_STORE))?;
@@ -520,7 +469,7 @@ fn run_migration_core(
 
     let settings_pool = settings_pool(app, state)?;
     let old_settings = old_dir.join(SETTINGS_STORE);
-    if import_json_file_into_pool(state, &old_settings, &settings_pool)? {
+    if import_json_file_into_pool(&old_settings, &settings_pool)? {
         merged_store_files.push(SETTINGS_STORE.to_string());
     }
     copy_done += 1;
@@ -587,13 +536,15 @@ fn run_migration_core(
     // Do not remove or mutate the legacy Electron directory here.
     // let _ = fs::remove_dir_all(&old_dir);
 
-    // Final KV summary before the marker is written.
+    // Final KV summary before the marker is written. The data store is
+    // intentionally empty of legacy note/folder rows — the frontend converts
+    // them to Yjs instead of the app reading them back from KV.
     match crate::db::db_all(&data_pool) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
             let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
             eprintln!(
-                "[migration] run_migration_core: DONE — data store has {} notes, {} folders, {} total rows",
+                "[migration] run_migration_core: DONE — data store has {} notes, {} folders (both expected to be 0), {} total rows",
                 notes,
                 folders,
                 rows.len()
@@ -1032,7 +983,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_byte_range;
+    use super::*;
 
     #[test]
     fn range_absent_returns_none() {
@@ -1068,5 +1019,43 @@ mod tests {
         assert_eq!(parse_byte_range("bytes=100-200", 100), Err(()));
         assert_eq!(parse_byte_range("bytes=20-10", 100), Err(()));
         assert_eq!(parse_byte_range("bytes=0-", 0), Err(()));
+    }
+
+    #[cfg(desktop)]
+    mod desktop_migration_tests {
+        use super::*;
+        use std::time::SystemTime;
+
+        fn unique_temp_dir(prefix: &str) -> PathBuf {
+            let ts = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("clock ok")
+                .as_nanos();
+            std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
+        }
+
+        #[test]
+        fn import_json_ignores_notes_collection() {
+            use std::io::Write;
+            let root = unique_temp_dir("beaver-notes-nocoll");
+            let _ = fs::create_dir_all(&root);
+            let db_path = root.join("data.db");
+            let pool = crate::db::open_pool(&db_path).expect("pool");
+
+            let fixture = root.join("config.json");
+            let mut f = fs::File::create(&fixture).expect("create");
+            write!(
+                f,
+                r#"{{"notes": {{"n1": {{"id":"n1","title":"T"}}}}, "folders": {{"f1": {{"id":"f1"}}}}, "labels": ["a"]}}"#
+            )
+            .expect("write");
+
+            let imported = import_json_file_into_pool(&fixture, &pool).expect("import");
+            assert!(imported);
+            let rows = crate::db::db_all(&pool).expect("rows");
+            assert!(rows.keys().all(|k| !k.starts_with("notes.") && !k.starts_with("folders.")));
+            assert!(rows.contains_key("labels"));
+            let _ = fs::remove_dir_all(&root);
+        }
     }
 }
