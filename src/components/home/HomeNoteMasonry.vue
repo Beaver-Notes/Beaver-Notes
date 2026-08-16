@@ -54,6 +54,7 @@
         "
       >
         <home-note-card
+          :note-id="item.note.id"
           :note="item.note"
           :is-locked="item.note.isLocked"
           :disable-open="selectionMode"

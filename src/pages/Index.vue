@@ -170,6 +170,7 @@ import { sortArray } from '@/utils/helpers/index.js';
 import { memoizedSort } from '@/utils/helpers/memoized-sort.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
 import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
+import { useNoteMove } from '@/composable/useNoteMove';
 import HomeNoteMasonry from '@/components/home/HomeNoteMasonry.vue';
 import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
@@ -203,7 +204,6 @@ export default {
       sortBy: 'createdAt',
       sortOrder: 'asc',
     });
-    const moveTarget = ref(null);
 
     const sortedNotes = computed(() =>
       memoizedSort({
@@ -370,23 +370,7 @@ export default {
     });
 
     const { showMoveModal } = pageController;
-
-    function openMoveForNote(note) {
-      moveTarget.value = note;
-      showMoveModal.value = true;
-    }
-
-    function handleSingleMoved(result) {
-      if (moveTarget.value) {
-        noteStore.moveToFolder([moveTarget.value.id], result.folderId);
-      }
-      moveTarget.value = null;
-      showMoveModal.value = false;
-    }
-
-    watch(showMoveModal, (open) => {
-      if (!open) moveTarget.value = null;
-    });
+    const noteMove = useNoteMove(showMoveModal);
 
     const selectionBar = useSelectionBar();
     watch(
@@ -409,9 +393,7 @@ export default {
       translations,
       folders,
       highlightedFolderIds,
-      moveTarget,
-      openMoveForNote,
-      handleSingleMoved,
+      ...noteMove,
       resolveMoveModalParams,
       ...pageController,
     };

@@ -206,8 +206,6 @@ const folderCountLabel = computed(() =>
 async function handleMove() {
   if (isMoving.value) return;
   isMoving.value = true;
-  show.value = false;
-  emit('update:modelValue', false);
   try {
     if (props.mode === 'folder' && props.folders.length) {
       await Promise.all(
@@ -226,6 +224,8 @@ async function handleMove() {
     console.error('Move failed:', error);
   } finally {
     isMoving.value = false;
+    show.value = false;
+    emit('update:modelValue', false);
   }
 }
 </script>

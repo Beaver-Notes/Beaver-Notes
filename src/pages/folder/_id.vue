@@ -235,6 +235,7 @@ import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import { noteSearchText } from '@/utils/note/note-search-text.js';
 import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
 import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
+import { useNoteMove } from '@/composable/useNoteMove';
 import { useSelectionBar } from '@/composable/useSelectionBar';
 
 export default {
@@ -260,7 +261,6 @@ export default {
       sortBy: 'createdAt',
       sortOrder: 'asc',
     });
-    const moveTarget = ref(null);
     const currentFolderId = computed(() => route.params.id);
 
     const sortedNotes = computed(() =>
@@ -402,23 +402,7 @@ export default {
     });
 
     const { showMoveModal } = pageController;
-
-    function openMoveForNote(note) {
-      moveTarget.value = note;
-      showMoveModal.value = true;
-    }
-
-    function handleSingleMoved(result) {
-      if (moveTarget.value) {
-        noteStore.moveToFolder([moveTarget.value.id], result.folderId);
-      }
-      moveTarget.value = null;
-      showMoveModal.value = false;
-    }
-
-    watch(showMoveModal, (open) => {
-      if (!open) moveTarget.value = null;
-    });
+    const noteMove = useNoteMove(showMoveModal);
 
     const selectionBar = useSelectionBar();
     watch(
@@ -473,9 +457,7 @@ export default {
       childFolders,
       notesInFolder,
       folderPath,
-      moveTarget,
-      openMoveForNote,
-      handleSingleMoved,
+      ...noteMove,
       resolveMoveModalParams,
       ...pageController,
     };
