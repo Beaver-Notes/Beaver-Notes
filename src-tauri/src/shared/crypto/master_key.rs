@@ -144,9 +144,11 @@ fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
 /// A `DevicePasswordRequired` or `WrongPassword` from the enc-file backend is
 /// folded into the device-password prompt signal. A fresh key is minted and
 /// mirrored to every backend ONLY when every backend returned `Ok(None)` AND
-/// at least one durable backend is alive (`durable_alive`) — minting into a
-/// reboot-ephemeral kernel keyring alone would strand blobs once the key
-/// expires. Pure; testable with fake backends.
+/// at least one durable backend is alive (`durable_alive`) AND that durable
+/// backend's `set` actually succeeds — minting into a reboot-ephemeral kernel
+/// keyring alone would strand blobs once the key expires, and so would a
+/// durable backend that probes alive but fails its write. Pure; testable with
+/// fake backends.
 fn select_key_from_backends(
     backends: &[Box<dyn MasterKeyBackend>],
     mint: impl Fn() -> [u8; 32],
@@ -186,8 +188,20 @@ fn select_key_from_backends(
         return Err(AppError::SecureStorageUnavailable);
     }
     let key = mint();
+    let mut durable_written = false;
     for backend in backends {
-        let _ = backend.set(&key);
+        // The `durable_alive` guard probed a durable backend alive moments ago;
+        // this loop verifies the write actually landed. A durable backend can
+        // fail its `set` right after a successful `get` probe (daemon crash,
+        // locked/read-only store), which would otherwise leave the key only in
+        // the reboot-ephemeral kernel keyring. Non-durable keyutils writes are
+        // still attempted (best-effort mirror) but don't count.
+        if backend.set(&key).is_ok() && is_durable_kind(backend.kind()) {
+            durable_written = true;
+        }
+    }
+    if !durable_written {
+        return Err(AppError::SecureStorageUnavailable);
     }
     Ok(key.to_vec())
 }
@@ -883,6 +897,36 @@ mod tests {
         assert_eq!(key.len(), 32);
         assert_eq!(log0.borrow().len(), 1, "durable backend must receive the minted key");
         assert_eq!(log1.borrow().len(), 1, "non-durable backend must also receive the minted key");
+    }
+
+    #[test]
+    fn select_fails_when_no_durable_write_succeeds() {
+        // Durable-alive backends whose `set` all fail (daemon crashed between
+        // the `is_alive`/`get` probe and the write, store went read-only, ...).
+        // The minted key must NOT be returned: persisting blobs under a key
+        // that only lives in the kernel keyring would strand them at reboot.
+        let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::SecretService,
+                stored: None,
+                fail: false,
+            }),
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::EncryptedFile,
+                stored: None,
+                fail: false,
+            }),
+            Box::new(FakeBackend {
+                kind: MasterKeyBackendKind::KernelKeyring,
+                stored: None,
+                fail: false,
+            }),
+        ];
+        let err = select_key_from_backends(&backends, random_key, true).unwrap_err();
+        assert!(
+            matches!(err, AppError::SecureStorageUnavailable),
+            "minting must fail when no durable backend accepted the write"
+        );
     }
 
     #[test]
