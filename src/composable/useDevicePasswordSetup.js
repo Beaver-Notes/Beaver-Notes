@@ -54,11 +54,13 @@ export function useDevicePasswordSetup() {
     setupState.value = 'prompting';
     dialog.prompt({
       title:
+        translations.value.devicePassword?.devicePasswordReentryTitle ||
         translations.value.devicePassword?.reentryTitle ||
         'Enter your device password',
       body:
+        translations.value.devicePassword?.devicePasswordReentryBody ||
         translations.value.devicePassword?.reentryBody ||
-        'Secure storage on this device is encrypted with a device password. Enter it to unlock your account data.',
+        'Enter your device password to unlock secure storage.',
       icon: 'riShieldKeyholeLine',
       password: true,
       okText:
@@ -99,16 +101,22 @@ export function useDevicePasswordSetup() {
     }
     if (!info) return;
 
-    // Re-entry: `master.key.enc` exists but the KEK has not been supplied this
+    // Re-entry: the only durable master-key copy is the device-password-
+    // encrypted file (`master.key.enc`) and the KEK has not been supplied this
     // session (e.g. after a reboot on a daemon-less box). This MUST ignore
-    // DONE_KEY, otherwise there is no path to unlock secure storage again.
+    // DONE_KEY — otherwise there is no path back to secure storage — and it
+    // clears DONE_KEY on success so a later create gate can fire afresh.
+    // After the C2 availability fix, `available` is false in BOTH this case and
+    // the fresh-install case, so `devicePasswordRequired` is the disambiguator.
     if (info.devicePasswordRequired) {
       promptReentry();
       return;
     }
 
-    // Create: no enc file yet and no keychain reachable. Gated on DONE_KEY so
-    // the one-time setup prompt is not shown again once created or skipped.
+    // Create: a fresh daemon-less install — no durable store reachable (the
+    // reachable-but-empty kernel keyring is not durable), no password gate, no
+    // key readable today. Gated on DONE_KEY so the one-time setup prompt is not
+    // shown again once created or skipped.
     if (info.available) return;
     const done = localStorage.getItem(DONE_KEY);
     if (done) return;

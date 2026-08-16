@@ -168,7 +168,10 @@ export default {
     const mainRef = ref(null);
     const accountStore = useAccountStore();
     const cloudWorkspaces = useCloudWorkspaces();
-    const { maybePrompt: maybePromptDevicePassword } = useDevicePasswordSetup();
+    const {
+      setupState: devicePasswordSetupState,
+      maybePrompt: maybePromptDevicePassword,
+    } = useDevicePasswordSetup();
     const route = useRoute();
 
     watch(
@@ -180,6 +183,43 @@ export default {
       },
       { immediate: true }
     );
+
+    // After a successful device-password re-entry, the master key becomes
+    // readable again — but the startup session hydration already failed (it
+    // ran before the KEK was supplied), so the user would stay logged out
+    // until restart. Re-run the minimal hydration: load the now-readable
+    // session token, mark the store authenticated, and fetch the profile.
+    const hydrateAccountSessionAfterDeviceUnlock = async () => {
+      if (accountStore.isAuthenticated) return;
+      const { loadSessionToken } = await import('@/lib/account-storage');
+      const token = await loadSessionToken().catch(() => null);
+      if (!token) return;
+      accountStore.setStatus('authenticated');
+      import('@/lib/api/account')
+        .then(({ getAccount }) =>
+          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
+            if (!data) return;
+            accountStore.setProfile(data.profile);
+            accountStore.setSubscription(data.subscription);
+            accountStore.setDevices(data.devices || []);
+          })
+        )
+        .catch(() => {});
+      const { useWorkspaceStore } = await import('@/store/workspace.ts');
+      useWorkspaceStore()
+        .retrieve()
+        .catch((err) =>
+          console.warn(
+            '[app] workspace hydrate after device unlock failed:',
+            err
+          )
+        );
+    };
+
+    watch(devicePasswordSetupState, async (state) => {
+      if (state !== 'done') return;
+      await hydrateAccountSessionAfterDeviceUnlock();
+    });
 
     // When onboarding completes and we leave the Onboarding route, flip the
     // reactive flag. This triggers the watcher below which starts init + hocuspocus.

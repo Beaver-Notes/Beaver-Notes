@@ -685,6 +685,8 @@
   "setFailedTitle": "Could not set device password",
   "reentryTitle": "Enter your device password",
   "reentryBody": "Secure storage on this device is encrypted with a device password. Enter it to unlock your account data.",
+  "devicePasswordReentryTitle": "Enter your device password",
+  "devicePasswordReentryBody": "Enter your device password to unlock secure storage.",
   "unlockDevicePassword": "Unlock"
  }
 }

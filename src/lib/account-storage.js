@@ -65,6 +65,11 @@ export async function saveSessionToken(token) {
 
 export async function loadSessionToken() {
   try {
+    // Opportunistically scrub a legacy plaintext backup written before the
+    // no-plaintext-fallback rule.
+    if (localStorage.getItem(SESSION_BLOB_KEY + '_plain')) {
+      localStorage.removeItem(SESSION_BLOB_KEY + '_plain');
+    }
     // Try secure storage first
     if (await safeStorageAvailable()) {
       try {
@@ -98,6 +103,7 @@ export async function clearSessionToken() {
   try {
     await clearSecureBlob(SESSION_BLOB_KEY);
     localStorage.removeItem(SESSION_BLOB_KEY);
+    localStorage.removeItem(SESSION_BLOB_KEY + '_plain');
   } catch (err) {
     console.error('[accountStorage] clearSessionToken failed:', err);
   }
