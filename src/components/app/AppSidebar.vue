@@ -252,6 +252,31 @@
         </transition>
       </button>
 
+      <transition name="fade-fast">
+        <div
+          v-if="syncProgressStore.isSyncing && syncProgressStore.phase"
+          class="px-3 pb-2"
+        >
+          <div class="flex items-center gap-2 mb-1">
+            <div class="animate-spin">
+              <v-remixicon name="riLoader4Line" size="12" class="text-primary" />
+            </div>
+            <span class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+              {{ syncProgressStore.phaseMessage }}
+            </span>
+          </div>
+          <div
+            v-if="syncProgressStore.total > 0"
+            class="h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+          >
+            <div
+              class="h-full rounded-full bg-primary transition-all duration-300"
+              :style="{ width: syncProgressStore.progress + '%' }"
+            />
+          </div>
+        </div>
+      </transition>
+
       <button
         v-tooltip:right="
           !expanded
@@ -336,6 +361,7 @@ import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
 import FolderCustomizeModal from '../home/FolderCustomizeModal.vue';
+import { useSyncProgressStore } from '@/store/sync-progress';
 
 export default {
   components: { WorkspaceSwitcher, FolderCustomizeModal },
@@ -344,6 +370,7 @@ export default {
     const router = useRouter();
     const route = useRoute();
     const spinning = ref(false);
+    const syncProgressStore = useSyncProgressStore();
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
@@ -613,6 +640,7 @@ export default {
       translations,
       theme,
       spinning,
+      syncProgressStore,
       addNote,
       addFolder,
       manualSync,
