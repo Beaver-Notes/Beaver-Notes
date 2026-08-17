@@ -231,6 +231,14 @@ export class SyncEngine {
     // installs (no folder, no account) must not pay for cycles on every
     // visibility change / foreground wake / force. `syncing` was already set
     // synchronously so concurrent enqueueSync callers still coalesce.
+    const { getSettingSync } = await import('@/lib/settings');
+    const onboardingCompleted = getSettingSync('onboardingCompleted');
+    if (!onboardingCompleted) {
+      logger.info('[sync] onboarding not completed → skip cycle');
+      t?.end();
+      this._resolveSkip();
+      return;
+    }
     const syncPath = await getSyncPath();
     const activeTransportNames = this.getActiveTransports();
     if (!syncPath && activeTransportNames.includes('local')) {
@@ -268,7 +276,9 @@ export class SyncEngine {
       // errors and deferred pulls. Skip the cycle gracefully instead.
       if (activeTransportNames.includes('cloud')) {
         const keyReady = await syncKeyReady().catch(() => false);
-        if (!keyReady && (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled()) {
+        const encEnabled = (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled();
+        logger.info('[sync][debug] syncKeyReady:', keyReady, 'isEncryptionEnabled:', encEnabled);
+        if (!keyReady && encEnabled) {
           logger.info('[sync] encryption enabled but key not ready — deferring cycle');
           try { emit('sync:status', { status: 'unlock-required' }); } catch {}
           notifySyncLocked();
@@ -282,19 +292,25 @@ export class SyncEngine {
         let syncPassphrase = null;
         try {
           syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
-        } catch {
+        } catch (e) {
+          logger.warn('[sync][debug] loadSecureBlob(encryptionPassphraseBlob) failed:', e?.message || e);
           syncPassphrase = null;
         }
+        logger.info('[sync][debug] syncPassphrase from secure storage:', syncPassphrase ? `present (${syncPassphrase.length} chars)` : 'NULL');
         let fetchedRemote = false;
         try {
           const fetched = await fetchCloudKeyParams();
           fetchedRemote = !!fetched;
-        } catch {
+          logger.info('[sync][debug] fetchCloudKeyParams result:', fetchedRemote, 'fetchedKeys:', fetched ? Object.keys(fetched) : null);
+        } catch (e) {
+          logger.warn('[sync][debug] fetchCloudKeyParams failed:', e?.message || e);
         }
         try {
+          logger.info('[sync][debug] calling reconcileSyncKeyParams with passphrase:', syncPassphrase ? 'present' : 'undefined');
           await reconcileSyncKeyParams(syncPassphrase || undefined);
+          logger.info('[sync][debug] reconcileSyncKeyParams completed successfully');
         } catch (e) {
-          console.warn('[sync] key-params reconcile failed:', e);
+          logger.warn('[sync] key-params reconcile failed:', e);
         }
         // Only publish if the server doesn't already have key params.
         // If we just fetched them, publishing would overwrite the vault owner's
@@ -339,6 +355,7 @@ export class SyncEngine {
             try {
               pullResult = await transport.pull(cursors);
             } catch (e) {
+              logger.warn(`[sync][debug] ${name} pull error:`, e?.code, e?.message, e);
               if (e?.code === 'unlock-required') {
                 console.warn('[sync] pull deferred — encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
