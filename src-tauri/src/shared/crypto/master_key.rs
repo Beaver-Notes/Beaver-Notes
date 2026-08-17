@@ -197,7 +197,21 @@ fn select_key_from_backends(
         }
     }
     if !durable_written {
-        return Err(AppError::SecureStorageUnavailable);
+        // Durable write failed (e.g. GNOME Keyring locked, no device password
+        // for enc-file).  Fall back to an in-memory-only key so the session
+        // can still encrypt/decrypt.  Blobs written with this key are
+        // encrypted (not plaintext) but will not survive a restart — the user
+        // will be prompted for their device password on next launch.
+        eprintln!(
+            "[master_key] WARNING: no durable backend accepted the key — \
+             blobs are encrypted but key is session-scoped only"
+        );
+        for backend in backends {
+            if !is_durable_kind(backend.kind()) {
+                let _ = backend.set(&key);
+            }
+        }
+        return Ok(key.to_vec());
     }
     // Only now mirror to non-durable backends (kernel keyring) — the durable
     // anchor is already in place, so the key cannot be stranded on reboot.
@@ -554,7 +568,19 @@ impl MasterKeyBackend for KeyringBackend {
         };
         match entry.get_password() {
             Ok(_) => true,
-            Err(keyring::Error::NoEntry) => true,
+            // Entry doesn't exist yet — verify write capability with a probe.
+            // Without this, `master_key_available()` returns true (daemon
+            // reachable) but `set()` later fails (keyring locked, D-Bus write
+            // denied), causing encryptString to throw.
+            Err(keyring::Error::NoEntry) => {
+                match entry.set_password("__probe__") {
+                    Ok(()) => {
+                        let _ = entry.delete_password();
+                        true
+                    }
+                    Err(_) => false,
+                }
+            }
             Err(_) => false,
         }
     }
@@ -903,11 +929,11 @@ mod tests {
     }
 
     #[test]
-    fn select_fails_when_no_durable_write_succeeds() {
+    fn select_returns_ephemeral_key_when_no_durable_write_succeeds() {
         // Durable-alive backends whose `set` all fail (daemon crashed between
         // the `is_alive`/`get` probe and the write, store went read-only, ...).
-        // The minted key must NOT be returned: persisting blobs under a key
-        // that only lives in the kernel keyring would strand them at reboot.
+        // The minted key IS returned as session-scoped: blobs are encrypted
+        // (not plaintext) but won't survive a restart.
         let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
             Box::new(FakeBackend {
                 kind: MasterKeyBackendKind::SecretService,
@@ -925,20 +951,16 @@ mod tests {
                 fail: false,
             }),
         ];
-        let err = select_key_from_backends(&backends, random_key, true).unwrap_err();
-        assert!(
-            matches!(err, AppError::SecureStorageUnavailable),
-            "minting must fail when no durable backend accepted the write"
-        );
+        let key = select_key_from_backends(&backends, random_key, true).unwrap();
+        assert_eq!(key.len(), 32, "must return a valid 32-byte key");
     }
 
     #[test]
-    fn select_fails_when_only_keyutils_write_succeeds() {
+    fn select_returns_ephemeral_key_when_only_keyutils_write_succeeds() {
         // Durable backends probe alive (via `get`/`is_alive`) but their `set`
         // fails moments later; only the KernelKeyring backend accepts the
-        // write. The keyutils mirror must NOT run — adopting a reboot-ephemeral
-        // keyring key on the next `read_master_key()` would strand blobs once
-        // the key expires.
+        // write. The key IS returned as session-scoped, and the keyutils
+        // mirror runs so the key is available for the current session.
         let keyutils = Rc::new(RefCell::new(Vec::new()));
         let backends: Vec<Box<dyn MasterKeyBackend>> = vec![
             Box::new(FakeBackend {
@@ -957,14 +979,11 @@ mod tests {
                 fail: false,
             }),
         ];
-        let err = select_key_from_backends(&backends, random_key, true).unwrap_err();
+        let key = select_key_from_backends(&backends, random_key, true).unwrap();
+        assert_eq!(key.len(), 32, "must return a valid 32-byte key");
         assert!(
-            matches!(err, AppError::SecureStorageUnavailable),
-            "minting must fail when the only successful write is the non-durable kernel keyring"
-        );
-        assert!(
-            keyutils.borrow().is_empty(),
-            "the keyutils mirror must NOT run when no durable write landed"
+            !keyutils.borrow().is_empty(),
+            "the keyutils mirror must run so the session has a working key"
         );
     }
 
