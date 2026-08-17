@@ -193,6 +193,13 @@ export async function getSnapshotUrls(workspaceId, token, noteIds) {
   }, { timeoutMs: 30000 });
 }
 
+export async function getSnapshotDownloadUrls(workspaceId, noteIds) {
+  return getClient().post('/sync/snapshot-download-urls', {
+    workspaceId,
+    noteIds,
+  }, { timeoutMs: 30000 });
+}
+
 export async function createWorkspace(name, orgId) {
   return getClient().post('/workspaces', { name, orgId }, { timeoutMs: 15000 });
 }
