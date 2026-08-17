@@ -385,24 +385,34 @@ export class CloudTransport extends Transport {
       noteId,
       checkpoint: noteCursor || {},
     }));
-    // Track which notes had non-empty cursors before pull to detect actual mismatches
-    const notesWithCursor = new Set();
+    // Track which notes had non-empty cursors BEFORE this pull (not just initialized from server state)
+    // to detect actual mismatches. Notes initialized from server state at 0/0 are expected to have
+    // zero updates on first pull after bootstrap.
+    const notesWithPreExistingCursor = new Set();
     for (const [noteId, noteCursor] of Object.entries(noteCursors)) {
       const hasCursor = noteCursor && Object.keys(noteCursor).length > 0;
-      if (hasCursor) notesWithCursor.add(noteId);
+      if (hasCursor) {
+        // Check if this cursor was just initialized from server state at 0/0
+        const deviceId = getSyncDeviceId();
+        const cursorForDevice = noteCursor[deviceId];
+        const isFreshlyInitializedFromServer = cursorForDevice && cursorForDevice.ts === 0 && cursorForDevice.sequence === 0;
+        if (!isFreshlyInitializedFromServer) {
+          notesWithPreExistingCursor.add(noteId);
+        }
+      }
     }
     logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
     const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
     const totalUpdates = resultNoteIds.reduce((sum, nid) => sum + (result.notes[nid]?.updates?.length || 0), 0);
     logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
-    // Only warn for notes that had a non-empty cursor locally but got zero updates.
-    // This avoids false positives when server only has snapshots (checkpoint 0/0) and client
-    // correctly initializes cursor to 0/0 — zero updates is expected in that case.
+    // Only warn for notes that had a pre-existing local cursor (not just initialized from server at 0/0)
+    // but got zero updates. This avoids false positives when server only has snapshots (checkpoint 0/0)
+    // and client correctly initializes cursor to 0/0 — zero updates is expected in that case.
     if (resultNoteIds.length > 0 && totalUpdates === 0) {
-      const mismatchedNotes = resultNoteIds.filter((nid) => notesWithCursor.has(nid));
+      const mismatchedNotes = resultNoteIds.filter((nid) => notesWithPreExistingCursor.has(nid));
       if (mismatchedNotes.length > 0) {
-        logger.warn('[sync][debug] server returned notes but zero updates for notes with local cursor — possible cursor mismatch:', mismatchedNotes);
+        logger.warn('[sync][debug] server returned notes but zero updates for notes with pre-existing local cursor — possible cursor mismatch:', mismatchedNotes);
       } else {
         logger.info('[sync][debug] server returned notes with zero updates (expected for snapshot-only notes)');
       }
