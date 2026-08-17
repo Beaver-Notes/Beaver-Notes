@@ -346,6 +346,7 @@ export class SyncEngine {
       // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
       let cloudBlocked = false;
       if (shouldPull) {
+        try { emit('sync:progress', { phase: 'pull', processed: 0, total: 0 }); } catch {}
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
@@ -411,6 +412,9 @@ export class SyncEngine {
                   }
                 }
               }
+            }
+            if (updates.length > 0) {
+              try { emit('sync:progress', { phase: 'pull', processed: updates.length, total: updates.length }); } catch {}
             }
 
             const allSucceeded = succeeded.every(Boolean);
