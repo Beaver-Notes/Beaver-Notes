@@ -266,8 +266,8 @@ export class CloudTransport extends Transport {
         }
         const blob = await response.blob();
         const arrayBuf = await blob.arrayBuffer();
-        const b64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
-        downloadedItems.push({ _noteId: noteId, data: b64, key: `bootstrap-${noteId}`, snapshotTs });
+        const envelope = new TextDecoder().decode(arrayBuf);
+        downloadedItems.push({ _noteId: noteId, data: envelope, key: `bootstrap-${noteId}`, snapshotTs });
       } catch (err) {
         console.warn(`[sync] bootstrap: download error for ${noteId}:`, err?.message);
       }
@@ -930,7 +930,7 @@ export class CloudTransport extends Transport {
               noteId,
               update: Array.from(state),
             }, `${noteId}-${noteTs}`);
-            snapshots.push({ noteId, data: btoa(encrypted) });
+            snapshots.push({ noteId, data: btoa(encrypted), noteTs });
             noteIds.push(noteId);
           }
         } finally {
@@ -958,7 +958,7 @@ export class CloudTransport extends Transport {
 
     for (let i = 0; i < snapshots.length; i += CONCURRENT) {
       const batch = snapshots.slice(i, i + CONCURRENT);
-      await Promise.all(batch.map(async ({ noteId, data }) => {
+      await Promise.all(batch.map(async ({ noteId, data, noteTs: snapNoteTs }) => {
         const { url, key } = urls[noteId];
         const bytes = Uint8Array.from(atob(data), c => c.charCodeAt(0));
         const response = await fetch(url, {
@@ -973,7 +973,7 @@ export class CloudTransport extends Transport {
           snapshotKey: key,
           checkpointTs: 0,
           checkpointSequence: 0,
-          snapshotTs: noteTs,
+          snapshotTs: snapNoteTs,
         });
       }));
       logger.info(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
