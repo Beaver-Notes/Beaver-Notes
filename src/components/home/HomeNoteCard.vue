@@ -26,7 +26,7 @@
           {{ note.title || translations.card.untitledNote }}
         </div>
         <div
-          v-if="note.labels.length !== 0"
+          v-if="note.labels?.length"
           class="text-primary dark:text-primary mt-2 mb-1 w-full flex flex-wrap gap-1"
         >
           <span

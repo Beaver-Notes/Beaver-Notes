@@ -331,7 +331,13 @@ export class CloudTransport extends Transport {
           syncNoteMeta({
             id: noteId,
             title: '',
+            folderId: '',
+            labels: [],
+            isArchived: false,
             isLocked: false,
+            isBookmarked: false,
+            isFullWidth: false,
+            createdAt: 0,
             updatedAt: 0,
             preview: '',
             cardPreview: {},
