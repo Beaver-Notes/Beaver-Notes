@@ -512,6 +512,23 @@ export class CloudTransport extends Transport {
       );
       const nullCount = decryptedPayloads.filter((p) => !p).length;
       logger.info(`[sync][debug] decryptBatch returned ${decryptedPayloads.length} items, ${nullCount} null`);
+
+      // When SOME items fail batch decryption (e.g. encrypted with a collab
+      // key instead of the sync key), retry those individually.  Items that
+      // still fail are skipped — a partial sync is better than stalling
+      // forever on one undecryptable update.
+      if (nullCount > 0 && nullCount < decryptedPayloads.length) {
+        for (let i = 0; i < decryptedPayloads.length; i++) {
+          if (decryptedPayloads[i]) continue;
+          try {
+            decryptedPayloads[i] = await decryptJSON(parseResults[i].raw, parseResults[i].aadSuffix);
+          } catch (individualErr) {
+            logger.warn(`[sync][debug] item ${i} individual decrypt also failed — skipping:`, individualErr?.code, individualErr?.message);
+            decryptedPayloads[i] = null;
+          }
+        }
+      }
+
       if (decryptedPayloads[0]) {
         const p = decryptedPayloads[0];
         logger.warn('[sync][debug] first decrypted payload shape:', JSON.stringify({
@@ -534,25 +551,28 @@ export class CloudTransport extends Transport {
           decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
         } catch (caughtError) {
           logger.warn('[sync][debug] individual decryptJSON failed:', caughtError?.code, caughtError?.message);
-          // Preserve the real cause: KEY_LOCKED means the key is loaded but
-          // locked; DECRYPT_FAILED means the local key doesn't match the sync
-          // data. Collapsing both to 'unlock-required' hid the mismatch and
-          // made the engine defer forever with a misleading message.
-          const error = new Error(caughtError?.message || 'Remote update cannot be decrypted');
-          error.code = caughtError?.code || 'unlock-required';
-          throw error;
+          decryptedPayloads.push(null);
         }
       }
+    }
+
+    // Count how many items survived decryption. If NONE survived, the key
+    // is genuinely locked or unavailable — surface that to the caller so
+    // the engine can defer.  If SOME survived, continue with a partial sync.
+    const survivingCount = decryptedPayloads.filter((p) => p !== null).length;
+    if (survivingCount === 0 && decryptedPayloads.length > 0) {
+      logger.warn('[sync] all decrypted payloads are null — key may be locked');
+      const error = new Error('Remote update cannot be decrypted');
+      error.code = 'unlock-required';
+      throw error;
     }
 
     for (let i = 0; i < parseResults.length; i++) {
       const { parsed } = parseResults[i];
       const payload = decryptedPayloads[i];
       if (!payload) {
-        logger.warn(`[sync][debug] decryptedPayloads[${i}] is null — throwing unlock-required. Envelope version:`, parseResults[i]?.parsed?.v, 'noteId:', parsed?.docId);
-        const error = new Error('Remote update cannot be decrypted');
-        error.code = 'unlock-required';
-        throw error;
+        logger.warn(`[sync][debug] skipping undecryptable item ${i} (noteId: ${parsed?.docId}, ts: ${parsed?.ts})`);
+        continue;
       }
       // Use the payload's seq if present; otherwise fall back to the envelope's
       // seq from the filename key.  Older payloads may not include seq in the
