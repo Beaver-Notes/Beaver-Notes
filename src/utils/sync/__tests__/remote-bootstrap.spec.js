@@ -65,6 +65,24 @@ const fakeServer = {
       nextCheckpoint: { deviceId: 'remote-device', ts: 202, sequence: 2 },
       hasMore: false,
     },
+    'remote-note-a:fresh-device/0/0': {
+      updates: [{
+        noteId: 'remote-note-a',
+        key: 'remote-note-a~~remote-device~~201~~1.yjs.json',
+        data: btoa(encryptedA),
+      }],
+      nextCheckpoint: { deviceId: 'remote-device', ts: 201, sequence: 1 },
+      hasMore: true,
+    },
+    'remote-note-b:fresh-device/0/0': {
+      updates: [{
+        noteId: 'remote-note-b',
+        key: 'remote-note-b~~remote-device~~202~~2.yjs.json',
+        data: btoa(encryptedB),
+      }],
+      nextCheckpoint: { deviceId: 'remote-device', ts: 202, sequence: 2 },
+      hasMore: false,
+    },
     'remote-note-a:remote-device/201/1': { updates: [], hasMore: false },
     'remote-note-b:remote-device/202/2': { updates: [], hasMore: false },
     'local-note:fresh-device/301/2': { updates: [], hasMore: false },
@@ -266,8 +284,8 @@ describe('remote bootstrap integration contract', () => {
     const pulls = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/pull-batch');
     expect(pulls.map((call) => call.body.notes.map((note) => ({ noteId: note.noteId, checkpoint: note.checkpoint })))).toEqual([
       [
-        { noteId: 'remote-note-a', checkpoint: {} },
-        { noteId: 'remote-note-b', checkpoint: {} },
+        { noteId: 'remote-note-a', checkpoint: { 'fresh-device': { ts: 0, sequence: 0 } } },
+        { noteId: 'remote-note-b', checkpoint: { 'fresh-device': { ts: 0, sequence: 0 } } },
       ],
       [
         { noteId: 'remote-note-a', checkpoint: { 'remote-device': { ts: 203, sequence: 2 } } },
@@ -290,7 +308,7 @@ describe('remote bootstrap integration contract', () => {
     const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
     const storage = { cursors: {}, get: vi.fn(async () => storage.cursors), set: vi.fn(async (_key, value) => { storage.cursors = value; }) };
     loadSecureBlob.mockResolvedValue('wrong-passphrase');
-    fakeServer.pullResponses['remote-note-a:null'].updates[0].data = btoa(decryptFailureFixture);
+    fakeServer.pullResponses['remote-note-a:fresh-device/0/0'].updates[0].data = btoa(decryptFailureFixture);
     const cloud = new CloudTransport({ passphraseProvider: () => 'wrong-passphrase', getTransportSetting: () => 'remote', getAccountState: () => ({ isAuth: true, plan: 'pro' }) });
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 

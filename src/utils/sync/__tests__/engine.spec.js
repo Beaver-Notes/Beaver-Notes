@@ -47,6 +47,10 @@ vi.mock('@/lib/native/fs', () => ({
   writeFile: vi.fn(() => Promise.resolve()),
 }));
 
+vi.mock('@/lib/settings', () => ({
+  getSettingSync: vi.fn((key) => key === 'onboardingCompleted' || key === 'syncTransport' ? 'remote' : undefined),
+}));
+
 vi.mock('@tauri-apps/api/event', () => ({
   emit: vi.fn(),
 }));

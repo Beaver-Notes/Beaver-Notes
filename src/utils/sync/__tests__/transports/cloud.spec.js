@@ -262,7 +262,7 @@ describe('CloudTransport', () => {
           },
         },
       });
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
 
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, seq: 3 });
@@ -292,7 +292,7 @@ describe('CloudTransport', () => {
           },
         },
       });
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'bad' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'bad', checkpointTs: 0, checkpointSequence: 0 }] });
 
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'remote-device', ts: 50, seq: 0 });
@@ -305,14 +305,14 @@ describe('CloudTransport', () => {
     it('discovers notes from remote workspace state without reading the folder transport', async () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
       const { readDir } = await import('@/lib/native/fs');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'server-note' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'server-note', checkpointTs: 0, checkpointSequence: 0 }] });
       pullUpdates.mockResolvedValue({ notes: { 'server-note': { updates: [], nextCheckpoint: null, hasMore: false } } });
 
       await transport.pull({});
 
       expect(getRemoteState).toHaveBeenCalled();
       expect(pullUpdates).toHaveBeenCalledWith('workspace-1', expect.arrayContaining([
-        expect.objectContaining({ noteId: 'server-note', checkpoint: {} }),
+        expect.objectContaining({ noteId: 'server-note', checkpoint: { 'mock-device': { ts: 0, sequence: 0 } } }),
       ]));
       expect(readDir).not.toHaveBeenCalled();
     });
@@ -335,7 +335,7 @@ describe('CloudTransport', () => {
 
     it('discovers a newly created server note when local cursors already exist', async () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'later-note' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'later-note', checkpointTs: 0, checkpointSequence: 0 }] });
       pullUpdates.mockResolvedValue({ notes: {
         note: { updates: [], hasMore: false },
         'later-note': { updates: [], hasMore: false },
@@ -344,7 +344,7 @@ describe('CloudTransport', () => {
       await transport.pull({ 'workspace-1': { note: {} } });
 
       expect(pullUpdates).toHaveBeenCalledWith('workspace-1', expect.arrayContaining([
-        expect.objectContaining({ noteId: 'later-note' }),
+        expect.objectContaining({ noteId: 'later-note', checkpoint: { 'mock-device': { ts: 0, sequence: 0 } } }),
       ]));
     });
 
@@ -372,7 +372,7 @@ describe('CloudTransport', () => {
     ])('rejects a pulled update with a mismatched %s and does not advance its page', async (_field, change) => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, seq: 1 });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': {
@@ -394,7 +394,7 @@ describe('CloudTransport', () => {
     ])('rejects a pulled update with an invalid %s', async (_field, change) => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
       parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, seq: 1 });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': {
@@ -411,7 +411,7 @@ describe('CloudTransport', () => {
 
     it('rejects a malformed page checkpoint before returning a cursor delta', async () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a' }] });
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': { updates: [], nextCheckpoint: { deviceId: 'device-a', ts: -1, sequence: 1 }, hasMore: true },
       } });
@@ -423,7 +423,7 @@ describe('CloudTransport', () => {
   it('sends the complete per-device cursor map instead of one latest checkpoint', async () => {
     const { pullUpdates } = await import('../../remote-yjs.js');
     const { getRemoteState } = await import('../../remote-yjs.js');
-    getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a' }] });
+    getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
     pullUpdates.mockResolvedValue({ notes: { 'note-a': { updates: [], hasMore: false } } });
 
     await transport.pull({

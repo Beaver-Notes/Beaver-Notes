@@ -351,8 +351,9 @@ export class CloudTransport extends Transport {
       this._serverProbeComplete = false;
     }
     // Bootstrap from server snapshots if local workspace is empty
+    let bootstrapped = false;
     try {
-      const bootstrapped = await this._bootstrapFromSnapshots(state);
+      bootstrapped = await this._bootstrapFromSnapshots(state);
       if (bootstrapped) {
         logger.info('[sync] bootstrap complete — re-fetching remote state');
         state = await getRemoteState(workspaceId);
@@ -360,21 +361,51 @@ export class CloudTransport extends Transport {
     } catch (err) {
       console.warn('[sync] bootstrap failed (continuing with pull):', err?.message);
     }
+    // Initialize cursors from server checkpoint for notes that don't have local cursors yet.
+    // This prevents "cursor mismatch" when server only has snapshots (checkpointTs/Sequence = 0)
+    // and client sends empty checkpoint {}.
     for (const document of state.documents) {
-      if (document.noteId) noteCursors[document.noteId] ||= {};
+      if (!document.noteId) continue;
+      if (!noteCursors[document.noteId]) {
+        const deviceId = getSyncDeviceId();
+        const checkpointTs = document.checkpointTs ?? 0;
+        const checkpointSequence = document.checkpointSequence ?? 0;
+        noteCursors[document.noteId] = {
+          [deviceId]: { ts: checkpointTs, sequence: checkpointSequence },
+        };
+        logger.info('[sync][debug] initialized cursor from server state', {
+          noteId: document.noteId,
+          checkpointTs,
+          checkpointSequence,
+        });
+      }
     }
 
     const notes = Object.entries(noteCursors).map(([noteId, noteCursor]) => ({
       noteId,
       checkpoint: noteCursor || {},
     }));
+    // Track which notes had non-empty cursors before pull to detect actual mismatches
+    const notesWithCursor = new Set();
+    for (const [noteId, noteCursor] of Object.entries(noteCursors)) {
+      const hasCursor = noteCursor && Object.keys(noteCursor).length > 0;
+      if (hasCursor) notesWithCursor.add(noteId);
+    }
     logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
     const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
     const totalUpdates = resultNoteIds.reduce((sum, nid) => sum + (result.notes[nid]?.updates?.length || 0), 0);
     logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
+    // Only warn for notes that had a non-empty cursor locally but got zero updates.
+    // This avoids false positives when server only has snapshots (checkpoint 0/0) and client
+    // correctly initializes cursor to 0/0 — zero updates is expected in that case.
     if (resultNoteIds.length > 0 && totalUpdates === 0) {
-      logger.warn('[sync][debug] server returned notes but zero updates — possible cursor mismatch');
+      const mismatchedNotes = resultNoteIds.filter((nid) => notesWithCursor.has(nid));
+      if (mismatchedNotes.length > 0) {
+        logger.warn('[sync][debug] server returned notes but zero updates for notes with local cursor — possible cursor mismatch:', mismatchedNotes);
+      } else {
+        logger.info('[sync][debug] server returned notes with zero updates (expected for snapshot-only notes)');
+      }
     }
     const updates = [];
     const cursorsDelta = {};
