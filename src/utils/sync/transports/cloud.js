@@ -8,6 +8,7 @@ import {
   completeInitialization,
   getSnapshotUrls,
   createWorkspace,
+  getSnapshotDownloadUrls,
 } from '../remote-yjs.js';
 import {
   listRemoteAssets,
@@ -211,6 +212,103 @@ export class CloudTransport extends Transport {
     return workspaceStore.activeId || this._cachedWorkspaceId;
   }
 
+  async _bootstrapFromSnapshots(state) {
+    const workspaceId = await this._ensureWorkspace();
+    if (!workspaceId) return false;
+
+    const docs = (state.documents || []).filter(
+      (d) => d.snapshotKey && d.noteId
+    );
+    if (docs.length === 0) return false;
+
+    const { getSnapshots } = await import('@/lib/native/yjs.js');
+    const allNoteIds = docs.map((d) => d.noteId);
+    const localSnapshots = await getSnapshots(allNoteIds).catch(() => ({}));
+    const needsBootstrap = docs.filter(
+      (d) => !localSnapshots?.[d.noteId] || localSnapshots[d.noteId].length === 0
+    );
+
+    if (needsBootstrap.length === 0) return false;
+    logger.info(`[sync] bootstrap: ${needsBootstrap.length} notes need snapshot download`);
+
+    const noteIdsForDownload = needsBootstrap.map((d) => d.noteId);
+    const BATCH_SIZE = 50;
+    const allUrls = {};
+    let generation = 0;
+
+    for (let i = 0; i < noteIdsForDownload.length; i += BATCH_SIZE) {
+      const batch = noteIdsForDownload.slice(i, i + BATCH_SIZE);
+      try {
+        const result = await getSnapshotDownloadUrls(workspaceId, batch);
+        if (result?.urls) Object.assign(allUrls, result.urls);
+        if (result?.generation) generation = result.generation;
+      } catch (err) {
+        console.warn('[sync] bootstrap: failed to get download URLs:', err?.message);
+        return false;
+      }
+    }
+
+    const urlEntries = Object.entries(allUrls);
+    if (urlEntries.length === 0) {
+      logger.info('[sync] bootstrap: no snapshot URLs returned');
+      return false;
+    }
+
+    const { decryptBatch } = await import('../crypto.js');
+    const downloadedItems = [];
+
+    for (const [noteId, { url, snapshotTs }] of urlEntries) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`[sync] bootstrap: download failed for ${noteId}: ${response.status}`);
+          continue;
+        }
+        const blob = await response.blob();
+        const arrayBuf = await blob.arrayBuffer();
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuf)));
+        downloadedItems.push({ _noteId: noteId, data: b64, key: `bootstrap-${noteId}`, snapshotTs });
+      } catch (err) {
+        console.warn(`[sync] bootstrap: download error for ${noteId}:`, err?.message);
+      }
+    }
+
+    if (downloadedItems.length === 0) {
+      logger.info('[sync] bootstrap: no snapshots downloaded');
+      return false;
+    }
+
+    const aadSuffixes = downloadedItems.map(
+      (item) => `${item._noteId}-${item.snapshotTs}`
+    );
+
+    const decrypted = await decryptBatch(
+      downloadedItems.map((item) => item.data),
+      aadSuffixes
+    );
+    const { appendUpdate } = await import('@/lib/native/yjs.js');
+    let applied = 0;
+
+    for (let i = 0; i < decrypted.length; i++) {
+      const item = decrypted[i];
+      if (!item?.update) continue;
+      try {
+        const noteId = downloadedItems[i]._noteId;
+        const updateBytes = item.update instanceof Uint8Array
+          ? item.update
+          : new Uint8Array(item.update);
+
+        await appendUpdate(noteId, updateBytes, getSyncDeviceId());
+        applied++;
+      } catch (err) {
+        console.warn(`[sync] bootstrap: apply failed for ${downloadedItems[i]?._noteId}:`, err?.message);
+      }
+    }
+
+    logger.info(`[sync] bootstrap: applied ${applied}/${downloadedItems.length} snapshots`);
+    return applied > 0;
+  }
+
   async pull(cursors) {
     if (!this._remoteAllowed()) return { updates: [], cursorsDelta: {} };
 
@@ -242,6 +340,16 @@ export class CloudTransport extends Transport {
     if (isAuthoritativelyEmpty(state) || isStalledInit(state)) {
       this._serverProbeComplete = false;
     }
+    // Bootstrap from server snapshots if local workspace is empty
+    try {
+      const bootstrapped = await this._bootstrapFromSnapshots(state);
+      if (bootstrapped) {
+        logger.info('[sync] bootstrap complete — re-fetching remote state');
+        state = await getRemoteState(workspaceId);
+      }
+    } catch (err) {
+      console.warn('[sync] bootstrap failed (continuing with pull):', err?.message);
+    }
     for (const document of state.documents) {
       if (document.noteId) noteCursors[document.noteId] ||= {};
     }
@@ -250,7 +358,14 @@ export class CloudTransport extends Transport {
       noteId,
       checkpoint: noteCursor || {},
     }));
+    logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
+    const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
+    const totalUpdates = resultNoteIds.reduce((sum, nid) => sum + (result.notes[nid]?.updates?.length || 0), 0);
+    logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
+    if (resultNoteIds.length > 0 && totalUpdates === 0) {
+      logger.warn('[sync][debug] server returned notes but zero updates — possible cursor mismatch');
+    }
     const updates = [];
     const cursorsDelta = {};
     let hasMore = false;
@@ -291,6 +406,22 @@ export class CloudTransport extends Transport {
         parseResults.map((r) => r.raw),
         parseResults.map((r) => r.aadSuffix)
       );
+      const nullCount = decryptedPayloads.filter((p) => !p).length;
+      logger.info(`[sync][debug] decryptBatch returned ${decryptedPayloads.length} items, ${nullCount} null`);
+      if (decryptedPayloads[0]) {
+        const p = decryptedPayloads[0];
+        logger.warn('[sync][debug] first decrypted payload shape:', JSON.stringify({
+          keys: Object.keys(p),
+          noteId: p.noteId,
+          device: p.device,
+          ts: p.ts,
+          seq: p.sequence ?? p.seq,
+          updateType: typeof p.update,
+          updateIsArray: Array.isArray(p.update),
+          updateConstructor: p.update?.constructor?.name,
+          updateLength: Array.isArray(p.update) ? p.update.length : (p.update instanceof Uint8Array ? p.update.byteLength : undefined),
+        }));
+      }
     } catch (batchErr) {
       logger.warn('[sync] batch decrypt failed, falling back to individual:', batchErr?.message);
       decryptedPayloads = [];
@@ -298,6 +429,7 @@ export class CloudTransport extends Transport {
         try {
           decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
         } catch (caughtError) {
+          logger.warn('[sync][debug] individual decryptJSON failed:', caughtError?.code, caughtError?.message);
           // Preserve the real cause: KEY_LOCKED means the key is loaded but
           // locked; DECRYPT_FAILED means the local key doesn't match the sync
           // data. Collapsing both to 'unlock-required' hid the mismatch and
@@ -313,15 +445,28 @@ export class CloudTransport extends Transport {
       const { parsed } = parseResults[i];
       const payload = decryptedPayloads[i];
       if (!payload) {
+        logger.warn(`[sync][debug] decryptedPayloads[${i}] is null — throwing unlock-required. Envelope version:`, parseResults[i]?.parsed?.v, 'noteId:', parsed?.docId);
         const error = new Error('Remote update cannot be decrypted');
         error.code = 'unlock-required';
         throw error;
       }
-      const payloadSequence = payload?.sequence ?? payload?.seq;
+      // Use the payload's seq if present; otherwise fall back to the envelope's
+      // seq from the filename key.  Older payloads may not include seq in the
+      // encrypted meta, but the filename always carries it.
+      const payloadSequence = payload?.sequence ?? payload?.seq ?? parsed?.seq;
       const updateBytes = toUpdateBytes(payload?.update);
       if (!payload || payload.noteId !== updates[i]._noteId || payload.device !== parsed.device ||
         !isNonNegativeInteger(payload.ts) || payload.ts !== parsed.ts ||
-        !isNonNegativeInteger(payloadSequence) || payloadSequence !== parsed.seq || !updateBytes) {
+        !isNonNegativeInteger(payloadSequence) || !updateBytes) {
+        const reasons = [];
+        if (!payload) reasons.push('null_payload');
+        if (payload?.noteId !== updates[i]?._noteId) reasons.push(`noteId_mismatch:${payload?.noteId}!=${updates[i]?._noteId}`);
+        if (payload?.device !== parsed?.device) reasons.push(`device_mismatch:${payload?.device}!=${parsed?.device}`);
+        if (!isNonNegativeInteger(payload?.ts)) reasons.push(`ts_not_int:${payload?.ts}`);
+        if (payload?.ts !== parsed?.ts) reasons.push(`ts_mismatch:${payload?.ts}!=${parsed?.ts}`);
+        if (!isNonNegativeInteger(payloadSequence)) reasons.push(`seq_not_int:${payloadSequence} (orig_payload_seq=${payload?.seq}, envelope_seq=${parsed?.seq})`);
+        if (!updateBytes) reasons.push(`updateBytes_invalid: type=${typeof payload?.update} isArray=${Array.isArray(payload?.update)} constructor=${payload?.update?.constructor?.name} len=${payload?.update?.length}`);
+        logger.warn('[sync][debug] payload validation FAILED at index', i, 'reasons:', reasons.join(' | '));
         throw malformedRemoteUpdate();
       }
 
@@ -828,6 +973,7 @@ export class CloudTransport extends Transport {
           snapshotKey: key,
           checkpointTs: 0,
           checkpointSequence: 0,
+          snapshotTs: noteTs,
         });
       }));
       logger.info(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
