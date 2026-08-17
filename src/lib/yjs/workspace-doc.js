@@ -8,7 +8,7 @@
  */
 
 import * as Y from 'yjs';
-import { appendUpdate, getSnapshot } from '@/lib/native/yjs.js';
+import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { readDir as readSyncDir } from '@/lib/native/fs';
 import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
@@ -133,7 +133,7 @@ export async function loadWorkspaceDoc() {
 
   if (!persistHandlerAttached) {
     doc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'hocuspocus') return;
       pendingMetaUpdates.push(update);
       scheduleMetaFlush();
     });
@@ -145,17 +145,51 @@ export async function loadWorkspaceDoc() {
     persistHandlerAttached = true;
   }
 
+  let snapshotLoaded = false;
   try {
     const snapshot = await getSnapshot(META_DOC_ID);
     if (snapshot && snapshot.length > 0) {
-      Y.applyUpdate(
-        doc,
-        toUint8Array(snapshot),
-        'load'
-      );
+      Y.applyUpdate(doc, toUint8Array(snapshot), 'load');
+      snapshotLoaded = true;
     }
   } catch (err) {
-    console.error('[meta-yjs] Failed to load snapshot:', err);
+    console.error('[meta-yjs] snapshot corrupted — attempting recovery from updates:', err?.message);
+    // The compacted snapshot is unreadable (e.g. Unknown content type).
+    // Fall through to update-replay recovery below.
+  }
+
+  // Recovery: replay individual updates, skipping any that are corrupted.
+  // This handles cases where the compacted snapshot is invalid but the
+  // underlying update history in SQLite is still partially intact.
+  if (!snapshotLoaded) {
+    try {
+      const updates = await getUpdates(META_DOC_ID);
+      if (Array.isArray(updates) && updates.length > 0) {
+        let applied = 0;
+        for (const upd of updates) {
+          try {
+            const bytes = upd?.update
+              ? toUint8Array(upd.update)
+              : upd instanceof Uint8Array
+                ? upd
+                : null;
+            if (bytes && bytes.byteLength > 0) {
+              Y.applyUpdate(doc, bytes, 'load');
+              applied++;
+            }
+          } catch {
+            // Skip corrupted individual updates — best-effort recovery
+          }
+        }
+        if (applied > 0) {
+          console.warn(`[meta-yjs] recovered ${applied}/${updates.length} updates from history`);
+        } else {
+          console.warn('[meta-yjs] all updates corrupted — starting with empty workspace doc');
+        }
+      }
+    } catch (updateErr) {
+      console.warn('[meta-yjs] update replay also failed:', updateErr?.message);
+    }
   }
 
   registerActiveDoc(META_DOC_ID, doc);

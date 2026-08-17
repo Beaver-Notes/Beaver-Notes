@@ -66,6 +66,7 @@ export async function decryptJSON(raw, aad = '') {
       return { ...res.meta, update: base64ToBuf(res.update) };
     } catch (e) {
       const msg = String(e?.message ?? e);
+      console.warn('[sync][debug] decryptJSON v4/v5 failed:', msg, 'aad:', aad);
       if (msg.includes('KEY_LOCKED')) {
         throw new SyncCryptoError(
           'Encryption is locked. Unlock it in Settings to sync.',
@@ -92,6 +93,10 @@ export async function decryptJSON(raw, aad = '') {
 export async function decryptBatch(rawEnvelopes, aads) {
   if (!rawEnvelopes.length) return [];
   const results = await syncDecryptBatch(rawEnvelopes, aads);
+  const nullCount = results.filter((r) => !r).length;
+  if (nullCount > 0) {
+    console.warn(`[sync][debug] decryptBatch: ${nullCount}/${results.length} items returned null from Rust`);
+  }
   return results.map((res) => {
     if (!res) return null;
     return { ...res.meta, update: base64ToBuf(res.update) };
@@ -113,6 +118,8 @@ export async function encryptBatch(payloads, aads) {
   return syncEncryptBatch(metas, dataB64s, aads);
 }
 
+// Sync key lifecycle is managed entirely by the Rust backend (safeStorage).
+// This function exists as an API placeholder for callers that need a no-op hook.
 export function clearSyncKey() {}
 
 export function syncAssetName(localFilename) {

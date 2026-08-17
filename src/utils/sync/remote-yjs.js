@@ -80,7 +80,19 @@ export async function pushUpdates(workspaceId, notes) {
   const client = getClient();
   const deviceId = getSyncDeviceId();
 
-  const chunks = chunkItems(notes, (n) => JSON.stringify(n).length);
+  function estimateNoteSize(n) {
+  // Estimate size without full serialization: noteId string + updates array overhead
+  // Each update has key (~60 chars) + data (base64, variable) + metadata (~50 chars)
+  let size = (n.noteId?.length || 0) + 64; // base overhead
+  if (n.updates) {
+    for (const u of n.updates) {
+      size += (u.key?.length || 0) + (u.data?.length || 0) + 64;
+    }
+  }
+  return size;
+}
+
+const chunks = chunkItems(notes, estimateNoteSize);
 
   let accepted = 0;
   let duplicate = 0;

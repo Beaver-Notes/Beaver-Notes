@@ -32,7 +32,7 @@ import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import * as Y from 'yjs';
-import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
+import { getSnapshot, getSnapshots, getUpdates } from '@/lib/native/yjs.js';
 import { toUint8Array, applyUpdatesToDoc } from '@/lib/yjs/helpers.js';
 import { META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { logger } from '@/utils/logger';
@@ -157,11 +157,6 @@ export class CloudTransport extends Transport {
     return this._cloudBuffer;
   }
 
-  _getWorkspaceId() {
-    const workspaceStore = useWorkspaceStore();
-    return workspaceStore.activeId;
-  }
-
   async _ensureWorkspace() {
     const workspaceStore = useWorkspaceStore();
     if (workspaceStore.activeId) return workspaceStore.activeId;
@@ -235,14 +230,12 @@ export class CloudTransport extends Transport {
     const noteIdsForDownload = needsBootstrap.map((d) => d.noteId);
     const BATCH_SIZE = 50;
     const allUrls = {};
-    let generation = 0;
 
     for (let i = 0; i < noteIdsForDownload.length; i += BATCH_SIZE) {
       const batch = noteIdsForDownload.slice(i, i + BATCH_SIZE);
       try {
         const result = await getSnapshotDownloadUrls(workspaceId, batch);
         if (result?.urls) Object.assign(allUrls, result.urls);
-        if (result?.generation) generation = result.generation;
       } catch (err) {
         console.warn('[sync] bootstrap: failed to get download URLs:', err?.message);
         return false;
@@ -297,6 +290,7 @@ export class CloudTransport extends Transport {
       aadSuffixes
     );
     const { appendUpdate } = await import('@/lib/native/yjs.js');
+    const { applyRemote } = await import('@/lib/yjs/shared.js');
     let applied = 0;
 
     for (let i = 0; i < decrypted.length; i++) {
@@ -309,6 +303,9 @@ export class CloudTransport extends Transport {
           : new Uint8Array(item.update);
 
         await appendUpdate(noteId, updateBytes, getSyncDeviceId());
+        // Hydrate any active in-memory Y.Doc so editors show content
+        // immediately without waiting for a full reload.
+        applyRemote(noteId, updateBytes);
         applied++;
       } catch (err) {
         console.warn(`[sync] bootstrap: apply failed for ${downloadedItems[i]?._noteId}:`, err?.message);
@@ -316,6 +313,34 @@ export class CloudTransport extends Transport {
     }
 
     logger.info(`[sync] bootstrap: applied ${applied}/${downloadedItems.length} snapshots`);
+    // Persist note metadata to the workspace Y.Doc `notes` map so that
+    // writeStoresFromWorkspace() can hydrate the Pinia stores and the UI
+    // displays notes instead of an empty state.
+    const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
+    const yNotes = getWorkspaceDoc().getMap('notes');
+    for (let i = 0; i < decrypted.length; i++) {
+      const item = decrypted[i];
+      if (!item?.update) continue;
+      try {
+        const noteId = downloadedItems[i]._noteId;
+        // Only inject placeholder meta if the note is NOT already in the
+        // workspace doc. If it already exists (from a prior seed, Hocuspocus
+        // sync, or local edits), preserve the real title/preview rather
+        // than overwriting with empty strings.
+        if (!yNotes.has(noteId)) {
+          syncNoteMeta({
+            id: noteId,
+            title: '',
+            isLocked: false,
+            updatedAt: 0,
+            preview: '',
+            cardPreview: {},
+          });
+        }
+      } catch (err) {
+        console.warn(`[sync] bootstrap: syncNoteMeta failed for ${downloadedItems[i]?._noteId}:`, err?.message);
+      }
+    }
     return applied > 0;
   }
 
@@ -338,6 +363,7 @@ export class CloudTransport extends Transport {
       // In both cases, reset and let the push phase try to create/fetch a valid workspace.
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
         logger.info('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
+        try { emit('sync:status', { status: 'workspace-reset', message: `Server returned ${e?.status}, workspace reset` }); } catch {}
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
         this._cachedWorkspaceId = null;
@@ -364,12 +390,25 @@ export class CloudTransport extends Transport {
     // Initialize cursors from server checkpoint for notes that don't have local cursors yet.
     // This prevents "cursor mismatch" when server only has snapshots (checkpointTs/Sequence = 0)
     // and client sends empty checkpoint {}.
+    const deviceId = getSyncDeviceId();
+    const serverNoteIds = state.documents.filter(d => d.noteId).map(d => d.noteId);
+    const localSnapshots = serverNoteIds.length > 0
+      ? await getSnapshots(serverNoteIds).catch(() => ({}))
+      : {};
     for (const document of state.documents) {
       if (!document.noteId) continue;
       if (!noteCursors[document.noteId]) {
-        const deviceId = getSyncDeviceId();
         const checkpointTs = document.checkpointTs ?? 0;
         const checkpointSequence = document.checkpointSequence ?? 0;
+        // If the server only has a snapshot (checkpoint 0/0) and we already
+        // have a local snapshot for this note, skip initializing a cursor.
+        // This prevents re-pulling ALL snapshot-only notes every cycle.
+        const hasLocalSnapshot = localSnapshots?.[document.noteId]?.length > 0;
+        const serverAtZero = checkpointTs === 0 && checkpointSequence === 0;
+        if (serverAtZero && hasLocalSnapshot) {
+          // We already have the full state — no cursor needed.
+          continue;
+        }
         noteCursors[document.noteId] = {
           [deviceId]: { ts: checkpointTs, sequence: checkpointSequence },
         };
@@ -429,6 +468,14 @@ export class CloudTransport extends Transport {
         if (!validateCheckpoint(checkpoint)) throw malformedRemoteUpdate();
         cursorsDelta[workspaceId] ||= {};
         cursorsDelta[workspaceId][noteId] = checkpointMap(checkpoint);
+      } else {
+        // No nextCheckpoint from server (e.g. snapshot-only notes).
+        // Still record the current cursor so it is persisted and not
+        // re-initialized from 0/0 on the next pull cycle.
+        cursorsDelta[workspaceId] ||= {};
+        cursorsDelta[workspaceId][noteId] = noteCursors[noteId]
+          ? checkpointMap(noteCursors[noteId])
+          : { [getSyncDeviceId()]: { ts: 0, sequence: 0 } };
       }
       hasMore ||= page.hasMore === true;
     }
@@ -1042,7 +1089,7 @@ export class CloudTransport extends Transport {
     const appDir = await getAppDirectory();
     if (appDir) {
       const assetKeys = [];
-      const assetFiles = [];
+      const assetFilesMap = new Map();
       for (const assetType of ASSET_TYPES) {
         const localBase = `${appDir}/${assetType}`;
         const noteDirIds = await readDir(localBase).catch(() => []);
@@ -1052,7 +1099,7 @@ export class CloudTransport extends Transport {
           for (const file of files) {
             const flatKey = encodeAssetKey(assetType, nid, file);
             assetKeys.push(flatKey);
-            assetFiles.push({ key: flatKey, localPath: `${noteDir}/${file}` });
+            assetFilesMap.set(flatKey, { key: flatKey, localPath: `${noteDir}/${file}` });
           }
         }
       }
@@ -1073,7 +1120,7 @@ export class CloudTransport extends Transport {
 
         const assetEntries = [];
         for (const assetKey of toUploadKeys) {
-          const file = assetFiles.find(f => f.key === assetKey);
+          const file = assetFilesMap.get(assetKey);
           if (!file) continue;
           try {
             const bytes = await readFileBinaryBytes(file.localPath);
@@ -1390,6 +1437,8 @@ export class CloudTransport extends Transport {
 
       logger.info(`[sync] batch download: ${allUrls.length}/${keys.length} presigned URLs`);
 
+      const presignedKeys = new Set(allUrls.map((u) => u.assetKey));
+
       const CONCURRENT = 3;
       const RETRY_DELAYS = [2000, 4000, 8000];
       for (let i = 0; i < allUrls.length; i += CONCURRENT) {
@@ -1439,7 +1488,7 @@ export class CloudTransport extends Transport {
 
       // Fallback for any keys that didn't get presigned URLs
       for (const op of downloads) {
-        if (!allUrls.find((u) => u.assetKey === op.flatKey)) {
+        if (!presignedKeys.has(op.flatKey)) {
           const failures = this._failedDownloads.get(op.flatKey) || 0;
           if (failures >= DOWNLOAD_BACKOFF_THRESHOLD) continue;
           try {

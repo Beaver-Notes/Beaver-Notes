@@ -51,6 +51,7 @@ import { detectRemoteVaultJoin, completeRemoteVaultJoin } from '@/utils/onboardi
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import { getApiClient } from '@/lib/api/client';
 import { loadSessionToken } from '@/lib/account-storage';
+import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 
 // Steps that live inside the persistent wizard frame (fixed card / bottom
 // sheet). 'welcome' and 'finish' are full-screen hero steps and are not
@@ -852,6 +853,12 @@ export function useOnboardingFlow({
     state.openingWorkspace = true;
     try {
       await markOnboardingCompleted();
+      // Hydrate Pinia stores from the workspace Y.Doc before navigating away.
+      // The workspace doc may have been seeded with legacy/imported notes during
+      // onboarding (via seedWorkspaceDocFromData), but Pinia stores are not
+      // automatically populated — writeStoresFromWorkspace must be called so
+      // the UI displays the correct note count instead of an empty state.
+      await writeStoresFromWorkspace();
       // Kick off the first sync now that the transport + sync path (or cloud
       // account) are configured. The engine was initialized at boot; without
       // this explicit call the initial pull/push waits for a manual trigger

@@ -12,6 +12,7 @@
 import { writeYjsUpdate } from './sync-yjs.js';
 import { encryptJSON } from './crypto.js';
 
+const MAX_QUEUE_SIZE = 5000;
 const pendingSyncWrites = [];
 let flushing = false;
 let cloudBuffer = null;
@@ -48,31 +49,52 @@ export function hasPendingWrites() {
  */
 
 /**
+ * Drain pending writes into an array of {commitsDir, noteId, update} entries.
+ * Does NOT touch cloudBuffer — callers handle that themselves.
+ */
+function drainPending() {
+  return pendingSyncWrites.splice(0).map((w) => ({
+    commitsDir: w.commitsDir,
+    noteId: w.noteId,
+    update: new Uint8Array(w.update),
+  }));
+}
+
+/**
+ * Wait for an in-progress flush to finish, then run a callback.
+ * Returns a promise that resolves with the callback's result.
+ */
+function waitForFlush(callback) {
+  return new Promise((resolve) => {
+    const check = async () => {
+      if (flushing) { setTimeout(check, 50); return; }
+      resolve(await callback());
+    };
+    check();
+  });
+}
+
+/**
  * Flush pending writes using the provided write function.
  * Returns the list of flushed entries for downstream consumers (e.g. remote push).
  * @param {WriteFn} writeFn - called for each entry with (noteId, update)
  * @returns {Promise<Array<{noteId: string, update: Uint8Array}>>}
  */
 export async function flushPendingSyncWritesTo(writeFn) {
-  if (flushing) return [];
+  if (flushing) {
+    return waitForFlush(() => flushPendingSyncWritesTo(writeFn));
+  }
   flushing = true;
   const flushed = [];
   try {
     while (pendingSyncWrites.length > 0) {
-      const batch = pendingSyncWrites.splice(0);
-      const byDir = new Map();
-      for (const w of batch) {
-        if (!byDir.has(w.commitsDir)) byDir.set(w.commitsDir, []);
-        byDir.get(w.commitsDir).push({ noteId: w.noteId, update: new Uint8Array(w.update) });
-      }
-      for (const [, entries] of byDir) {
-        for (const { noteId, update } of entries) {
-          try {
-            await writeFn(noteId, update);
-            flushed.push({ noteId, update });
-          } catch (err) {
-            console.warn('[sync] failed to flush pending write for', noteId, err);
-          }
+      const entries = drainPending();
+      for (const { noteId, update } of entries) {
+        try {
+          await writeFn(noteId, update);
+          flushed.push({ noteId, update });
+        } catch (err) {
+          console.warn('[sync] failed to flush pending write for', noteId, err);
         }
       }
     }
@@ -83,38 +105,36 @@ export async function flushPendingSyncWritesTo(writeFn) {
 }
 
 export function queueSyncWrite(commitsDir, noteId, update) {
+  if (pendingSyncWrites.length >= MAX_QUEUE_SIZE) {
+    console.warn('[sync] pending writes queue full, dropping oldest entries');
+    pendingSyncWrites.splice(0, pendingSyncWrites.length - MAX_QUEUE_SIZE + 100);
+  }
   pendingSyncWrites.push({ commitsDir, noteId, update: new Uint8Array(update) });
   syncTrigger?.();
 }
 
 export async function flushPendingSyncWrites() {
-  if (flushing) return;
+  if (flushing) {
+    return waitForFlush(() => flushPendingSyncWrites());
+  }
   flushing = true;
   try {
     while (pendingSyncWrites.length > 0) {
-      const batch = pendingSyncWrites.splice(0);
-
       // Cloud-only mode: buffer in memory instead of writing to disk
       if (cloudBuffer) {
+        const batch = pendingSyncWrites.splice(0);
         for (const w of batch) {
           cloudBuffer.push({ noteId: w.noteId, update: new Uint8Array(w.update) });
         }
         continue;
       }
 
-      // Folder sync mode: write encrypted files to commits directory
-      const byDir = new Map();
-      for (const w of batch) {
-        if (!byDir.has(w.commitsDir)) byDir.set(w.commitsDir, []);
-        byDir.get(w.commitsDir).push({ noteId: w.noteId, update: new Uint8Array(w.update) });
-      }
-      for (const [dir, entries] of byDir) {
-        for (const { noteId, update } of entries) {
-          try {
-            await writeYjsUpdate(dir, noteId, update, encryptJSON);
-          } catch (err) {
-            console.warn('[sync] failed to flush pending write for', noteId, err);
-          }
+      const entries = drainPending();
+      for (const { commitsDir, noteId, update } of entries) {
+        try {
+          await writeYjsUpdate(commitsDir, noteId, update, encryptJSON);
+        } catch (err) {
+          console.warn('[sync] failed to flush pending write for', noteId, err);
         }
       }
     }

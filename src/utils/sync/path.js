@@ -64,7 +64,7 @@ export async function getSyncPath() {
 
 export async function setSyncPath(pathValue) {
   const normalized =
-    typeof pathValue === 'string' ? pathValue.trim() : String(pathValue || '');
+    typeof pathValue === 'string' ? pathValue.trim() : (pathValue ?? '');
 
   cachedSyncPath = normalized;
 

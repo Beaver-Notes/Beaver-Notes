@@ -215,7 +215,7 @@ export function useNoteYjs() {
     }
 
     newDoc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'hocuspocus') return;
       pendingUpdates.push(update);
       scheduleFlush();
     });
@@ -232,10 +232,14 @@ export function useNoteYjs() {
     } catch (err) {
       console.warn('[yjs] note-key provisioning skipped:', err);
     }
-    hocuspocus.joinNoteRoom(noteId, newDoc);
-
+    // Register in the global active-docs map BEFORE joining the room so that
+    // any WS updates arriving during the join handshake are applied to the
+    // in-memory Y.Doc instead of being silently dropped.
     currentDoc = newDoc;
     registerActiveDoc(noteId, newDoc);
+
+    hocuspocus.joinNoteRoom(noteId, newDoc);
+
     doc.value = newDoc;
     ready.value = true;
     t?.end();

@@ -232,6 +232,8 @@ export class SyncEngine {
     // visibility change / foreground wake / force. `syncing` was already set
     // synchronously so concurrent enqueueSync callers still coalesce.
     const { getSettingSync } = await import('@/lib/settings');
+    const { isEncryptionEnabled } = await import('@/utils/crypto/encryption.js');
+    const { bufToBase64 } = await import('@/utils/crypto/codec.js');
     const onboardingCompleted = getSettingSync('onboardingCompleted');
     if (!onboardingCompleted) {
       logger.info('[sync] onboarding not completed → skip cycle');
@@ -276,7 +278,7 @@ export class SyncEngine {
       // errors and deferred pulls. Skip the cycle gracefully instead.
       if (activeTransportNames.includes('cloud')) {
         const keyReady = await syncKeyReady().catch(() => false);
-        const encEnabled = (await import('@/utils/crypto/encryption.js')).isEncryptionEnabled();
+        const encEnabled = isEncryptionEnabled();
         logger.info('[sync][debug] syncKeyReady:', keyReady, 'isEncryptionEnabled:', encEnabled);
         if (!keyReady && encEnabled) {
           logger.info('[sync] encryption enabled but key not ready — deferring cycle');
@@ -351,6 +353,7 @@ export class SyncEngine {
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
+          let cursorsDirty = false;
           while (hasMore) {
             let pullResult;
             try {
@@ -375,13 +378,11 @@ export class SyncEngine {
             }
             const { updates } = pullResult;
             logger.info(`[sync] ${name} pull got ${updates.length} updates`);
-            let cursorsDirty = false;
             const succeeded = Array.from({ length: updates.length }, () => false);
 
             if (updates.length > 0) {
               let batchApplied = false;
               try {
-                const { bufToBase64 } = await import('@/utils/crypto/codec.js');
                 await appendBatch(
                   updates.map((u) => u.noteId),
                   updates.map((u) => bufToBase64(u.update)),
@@ -429,7 +430,6 @@ export class SyncEngine {
               if (name === 'cloud' && pullResult.cursorsDelta) {
                 cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
               }
-              if (cursorsDirty) await this._saveCursors(cursors);
             } else if (!allSucceeded) {
               hasMore = false;
               break;
@@ -437,6 +437,7 @@ export class SyncEngine {
             if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
           }
+          if (cursorsDirty) await this._saveCursors(cursors);
         }
       } else {
         logger.info('[sync] pull skipped — nothing to sync');
@@ -529,7 +530,9 @@ export class SyncEngine {
         this.pending = false;
         const pendingForce = this._pendingForce;
         this._pendingForce = false;
-        this._runCycle(pendingForce);
+        this._runCycle(pendingForce).catch((err) => {
+          console.error('[sync] recursive cycle failed:', err);
+        });
       }
     }
   }

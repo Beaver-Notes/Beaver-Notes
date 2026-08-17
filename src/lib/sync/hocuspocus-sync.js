@@ -62,6 +62,7 @@ export function useHocuspocusSync() {
   let messageQueue = Promise.resolve()
 
   const activeRooms = new Map()
+  const docToRoom = new Map() // reverse index: Y.Doc -> roomName (O(1) broadcast lookup)
   const pendingQueue = []
 
   function getWebSocketUrl() {
@@ -86,8 +87,11 @@ export function useHocuspocusSync() {
       pendingQueue.push(buffer)
       return
     }
-    pendingQueue.push(buffer)
-    flushPending()
+    try {
+      ws.send(buffer)
+    } catch {
+      pendingQueue.push(buffer)
+    }
   }
 
   function flushPending() {
@@ -104,10 +108,7 @@ export function useHocuspocusSync() {
   }
 
   function sendStateless(json) {
-    const payload = new TextEncoder().encode(json)
-    const buf = new Uint8Array(payload.length)
-    buf.set(payload)
-    sendBinary(buf.buffer)
+    sendBinary(new TextEncoder().encode(json).buffer)
   }
 
   async function handleServerMessage(buffer) {
@@ -332,9 +333,7 @@ export function useHocuspocusSync() {
     )
       return
 
-    const roomName = [...activeRooms.keys()].find(
-      (name) => activeRooms.get(name)?.doc === doc,
-    )
+    const roomName = docToRoom.get(doc)
     if (!roomName) return
 
     scheduleBroadcast(roomName, update)
@@ -379,6 +378,7 @@ export function useHocuspocusSync() {
     if (activeRooms.has(roomName)) return
 
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
+    docToRoom.set(doc, roomName)
     registerActiveDoc(noteId, doc)
 
     attachRoomHandlers(doc)
@@ -393,6 +393,8 @@ export function useHocuspocusSync() {
    */
   function leaveNoteRoom(noteId) {
     const roomName = buildRoomName(getActiveWorkspaceId() || '', noteId)
+    const room = activeRooms.get(roomName)
+    if (room?.doc) docToRoom.delete(room.doc)
     activeRooms.delete(roomName)
     dropPendingBroadcast(roomName)
     unregisterActiveDoc(noteId)
@@ -404,6 +406,7 @@ export function useHocuspocusSync() {
 
     const doc = getWorkspaceDoc()
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
+    docToRoom.set(doc, roomName)
 
     attachRoomHandlers(doc)
     requestInitialSync(doc)
@@ -440,7 +443,10 @@ export function useHocuspocusSync() {
     }
 
     ws.onmessage = (event) => {
-      messageQueue = messageQueue.then(() => handleServerMessage(event.data))
+      messageQueue = messageQueue.then(
+        () => handleServerMessage(event.data),
+        () => {} // prevent one failed message from killing the queue
+      )
     }
 
     ws.onclose = () => {
@@ -481,8 +487,13 @@ export function useHocuspocusSync() {
     }
     connected = false
     activeRooms.clear()
+    docToRoom.clear()
     collabKeys.clear()
     clearUnwrappedKeyCache()
+    for (const [, entry] of broadcastBuffers) {
+      if (entry.timer) clearTimeout(entry.timer)
+    }
+    broadcastBuffers.clear()
     pendingQueue.length = 0
   }
 
@@ -492,8 +503,9 @@ export function useHocuspocusSync() {
   }
 
   function handleWorkspaceSwitch(workspaceId) {
-    for (const [roomName] of activeRooms) {
+    for (const [roomName, room] of activeRooms) {
       if (roomName.startsWith('workspace:')) {
+        if (room?.doc) docToRoom.delete(room.doc)
         activeRooms.delete(roomName)
       }
     }
@@ -513,6 +525,7 @@ export function useHocuspocusSync() {
 
     const roomName = buildRoomName(workspaceId, noteId)
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
+    docToRoom.set(doc, roomName)
 
     attachRoomHandlers(doc)
     requestInitialSync(doc)

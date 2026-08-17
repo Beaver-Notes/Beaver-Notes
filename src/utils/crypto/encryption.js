@@ -150,15 +150,18 @@ export async function tryRestoreKeyFromSafeStorage() {
 
 async function _doRestoreKey() {
   const next = await refreshState();
-  if (!next?.enabled || next?.unlocked) {
-    return !!next?.unlocked;
-  }
 
+  if (next?.unlocked) return true;
+
+  // Try to restore the key from secure storage even when getEncryptionState
+  // reports enabled:false — on restart the Rust backend may not yet know
+  // encryption is configured until the passphrase is re-submitted.  The
+  // presence of a saved blob proves encryption was set up.
   let passphrase;
   try {
     passphrase = await loadSecureBlob(BLOB_KEY);
-  } catch (err) {
-    console.warn('[encryption] _doRestoreKey: loadSecureBlob failed:', err);
+  } catch {
+    // No blob saved or secure storage unavailable — encryption was never set up
     return false;
   }
   if (!passphrase) return false;
