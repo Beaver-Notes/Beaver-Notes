@@ -28,7 +28,7 @@ required-features = ["specta-gen"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-webdriver-automation = { git = "https://github.com/danielraffel/tauri-webdriver", optional = true }
 tauri-plugin-debug-bridge = { version = "0.4.1", optional = true }
 tauri-plugin-fs = "2"
