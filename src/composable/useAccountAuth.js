@@ -446,6 +446,7 @@ export function useAccountAuth() {
       }
 
       accountStore.setSeedStatus('seeding');
+      accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
       // Trigger a force sync — this will handle seeding through the
       // proper serialized path (seedCloudOnce) in the normal sync cycle.
       await engine.forceSyncNow();

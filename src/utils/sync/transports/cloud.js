@@ -825,6 +825,7 @@ export class CloudTransport extends Transport {
   }
 
   async _seedCloudOptimized(onProgress) {
+    const { emit } = await import('@tauri-apps/api/event');
     if (!this._remoteAllowed()) return false;
 
     const workspaceId = await this._ensureWorkspace();
@@ -947,6 +948,7 @@ export class CloudTransport extends Transport {
 
     logger.info(`[sync] cloud seed: uploading ${snapshots.length} snapshots via presigned URLs`);
     if (onProgress) onProgress({ phase: 'presign', uploaded: 0, total: snapshots.length });
+    try { emit('sync:progress', { phase: 'presign', processed: 0, total: snapshots.length }); } catch {}
 
     const { urls, generation } = await getSnapshotUrls(workspaceId, claim.token, noteIds);
     if (!urls || Object.keys(urls).length !== snapshots.length) {
@@ -978,6 +980,7 @@ export class CloudTransport extends Transport {
       }));
       logger.info(`[sync] cloud seed: uploaded ${Math.min(i + CONCURRENT, snapshots.length)}/${snapshots.length} snapshots`);
       if (onProgress) onProgress({ phase: 'snapshots', uploaded: Math.min(i + CONCURRENT, snapshots.length), total: snapshots.length });
+      try { emit('sync:progress', { phase: 'snapshots', processed: Math.min(i + CONCURRENT, snapshots.length), total: snapshots.length }); } catch {}
     }
 
     logger.info('[sync] cloud seed: seeding assets');
@@ -1015,6 +1018,7 @@ export class CloudTransport extends Transport {
           console.warn('[sync] cloud seed: could not list remote assets, uploading all:', err?.message);
         }
         if (onProgress) onProgress({ phase: 'assets', uploaded: 0, total: toUploadKeys.length });
+        try { emit('sync:progress', { phase: 'assets', processed: 0, total: toUploadKeys.length }); } catch {}
 
         const assetEntries = [];
         for (const assetKey of toUploadKeys) {
@@ -1050,6 +1054,7 @@ export class CloudTransport extends Transport {
             logger.warn(`[sync] cloud seed: batch ${bi + 1}/${batches.length} failed:`, err?.message || err);
           }
           if (onProgress) onProgress({ phase: 'assets', uploaded: assetsUploaded, total: toUploadKeys.length });
+          try { emit('sync:progress', { phase: 'assets', processed: assetsUploaded, total: toUploadKeys.length }); } catch {}
         }
       }
     }
@@ -1057,6 +1062,7 @@ export class CloudTransport extends Transport {
     logger.info(`[sync] cloud seed: ${documents.length} snapshots uploaded, proceeding to asset upload`);
     logger.info('[sync] cloud seed: completing initialization');
     if (onProgress) onProgress({ phase: 'finalizing', uploaded: snapshots.length, total: snapshots.length });
+    try { emit('sync:progress', { phase: 'finalizing', processed: snapshots.length, total: snapshots.length }); } catch {}
 
     await completeInitialization(workspaceId, claim.token, generation, documents, requiredAssetKeys);
     this._serverProbeComplete = true;
@@ -1073,6 +1079,7 @@ export class CloudTransport extends Transport {
 
     logger.info('[sync] cloud seed: completed successfully');
     if (onProgress) onProgress({ phase: 'done', uploaded: snapshots.length, total: snapshots.length });
+    try { emit('sync:progress', { phase: 'done', processed: snapshots.length, total: snapshots.length }); } catch {}
 
     return snapshots.length > 0;
   } catch (err) {
