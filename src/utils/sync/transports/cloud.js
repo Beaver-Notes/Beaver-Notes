@@ -213,6 +213,7 @@ export class CloudTransport extends Transport {
   }
 
   async _bootstrapFromSnapshots(state) {
+    const { emit } = await import('@tauri-apps/api/event');
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) return false;
 
@@ -257,7 +258,10 @@ export class CloudTransport extends Transport {
     const { decryptBatch } = await import('../crypto.js');
     const downloadedItems = [];
 
-    for (const [noteId, { url, snapshotTs }] of urlEntries) {
+    try { emit('sync:progress', { phase: 'bootstrap', processed: 0, total: urlEntries.length }); } catch {}
+
+    for (let i = 0; i < urlEntries.length; i++) {
+      const [noteId, { url, snapshotTs }] = urlEntries[i];
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -270,6 +274,12 @@ export class CloudTransport extends Transport {
         downloadedItems.push({ _noteId: noteId, data: envelope, key: `bootstrap-${noteId}`, snapshotTs });
       } catch (err) {
         console.warn(`[sync] bootstrap: download error for ${noteId}:`, err?.message);
+      }
+      // Throttle: emit every 10 items and on last item
+      if ((i + 1) % 10 === 0 || i === urlEntries.length - 1) {
+        try {
+          emit('sync:progress', { phase: 'bootstrap', processed: i + 1, total: urlEntries.length });
+        } catch {}
       }
     }
 
