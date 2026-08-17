@@ -115,24 +115,16 @@
 
         <transition name="setting-fade">
           <div
-            v-if="syncProgress?.phase === 'assets' && syncProgress.total > 0"
+            v-if="syncProgressStore.isSyncing && syncProgressStore.total > 0"
             class="px-4 pb-4"
           >
             <p class="text-xs text-primary">
-              {{ Math.min(100, Math.floor((syncProgress.processed /
-              syncProgress.total) * 100)) }}%)
+              {{ syncProgressStore.phaseMessage }}
             </p>
             <div class="mt-1.5 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
               <div
                 class="h-1.5 rounded bg-primary dark:bg-primary/80 transition-all duration-200"
-                :style="{
-                  width: `${Math.min(
-                    100,
-                    Math.floor(
-                      (syncProgress.processed / syncProgress.total) * 100
-                    )
-                  )}%`,
-                }"
+                :style="{ width: syncProgressStore.progress + '%' }"
               />
             </div>
           </div>
@@ -484,6 +476,7 @@ import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';
 import { useAccountStore } from '@/store/account';
+import { useSyncProgressStore } from '@/store/sync-progress';
 import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
@@ -533,12 +526,13 @@ export default {
       }
     }
 
+    const syncProgressStore = useSyncProgressStore();
+
     const {
       state,
       defaultPath,
       chooseDefaultPath,
       clearPath,
-      syncProgress,
       exportData,
       importData,
     } = useSettingsData({
@@ -596,7 +590,7 @@ export default {
       defaultPath,
       chooseDefaultPath,
       clearPath,
-      syncProgress,
+      syncProgressStore,
       cloudSync,
       SYNC_TRANSPORT,
       exportData,

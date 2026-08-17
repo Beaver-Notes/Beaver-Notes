@@ -2,7 +2,7 @@ import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
-import { listen } from '@tauri-apps/api/event';
+
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
@@ -16,7 +16,7 @@ import {
 import { useAppStore } from '@/store/app';
 import { useI18nStore } from '@/store/i18n';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
-import { markRaw } from 'vue';
+
 import {
   clearAssetPassphrase,
   clearSecureBlob,
@@ -75,9 +75,6 @@ export function useSettingsData({
     lastUpdated: null,
     zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
   });
-
-  const syncProgress = ref(null);
-  let unlistenSyncProgress = null;
 
   const defaultPath = ref('');
 
@@ -444,22 +441,6 @@ export function useSettingsData({
     void setSetting('timeFormat', timeFormat.value);
   };
 
-  function registerSyncProgressListener() {
-    if (unlistenSyncProgress) return;
-    (async () => {
-      unlistenSyncProgress = await listen('sync:progress', (event) => {
-        syncProgress.value = markRaw(event.payload);
-      });
-    })();
-  }
-
-  function unregisterSyncProgressListener() {
-    if (unlistenSyncProgress) {
-      unlistenSyncProgress();
-      unlistenSyncProgress = null;
-    }
-  }
-
   onMounted(() => {
     void (async () => {
       defaultPath.value = await getSyncPath();
@@ -499,9 +480,7 @@ export function useSettingsData({
     chooseDefaultPath,
     clearPath,
     nukeAppDebugOnly,
-    syncProgress,
-    registerSyncProgressListener,
-    unregisterSyncProgressListener,
+
     toggleAdvancedSettings,
     toggleSpellcheck,
     applySpellcheckAttribute,
