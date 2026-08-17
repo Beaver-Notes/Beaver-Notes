@@ -1045,14 +1045,16 @@ export class CloudTransport extends Transport {
           try {
             const result = await seedBatchUploadAssets(batch);
             assetsUploaded += (result.uploaded || 0) + (result.skipped || 0);
+            logger.info(`[sync] cloud seed: asset batch ${bi + 1}/${batches.length} done — uploaded: ${result.uploaded || 0}, skipped: ${result.skipped || 0} (${assetsUploaded}/${toUploadKeys.length} total)`);
           } catch (err) {
-            console.warn(`[sync] cloud seed: batch ${bi + 1} failed:`, err?.message);
+            logger.warn(`[sync] cloud seed: batch ${bi + 1}/${batches.length} failed:`, err?.message || err);
           }
           if (onProgress) onProgress({ phase: 'assets', uploaded: assetsUploaded, total: toUploadKeys.length });
         }
       }
     }
 
+    logger.info(`[sync] cloud seed: ${documents.length} snapshots uploaded, proceeding to asset upload`);
     logger.info('[sync] cloud seed: completing initialization');
     if (onProgress) onProgress({ phase: 'finalizing', uploaded: snapshots.length, total: snapshots.length });
 
