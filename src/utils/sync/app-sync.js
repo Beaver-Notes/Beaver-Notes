@@ -2,6 +2,7 @@ import { initSyncEngine, getSyncEngine } from './engine.js';
 import { useStorage } from '@/lib/storage';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
+import { useSyncProgressStore } from '@/store/sync-progress';
 import { getSyncPath } from './path.js';
 import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { LocalFolderTransport } from './transports/local-folder.js';
@@ -21,6 +22,9 @@ function passphraseProvider() {
  * folder a sync cycle is a no-op.
  */
 export async function initAppSync() {
+  const syncProgressStore = useSyncProgressStore();
+  syncProgressStore.startListening();
+
   initSyncEngine({
     transports: {
       local: new LocalFolderTransport({ passphraseProvider }),
