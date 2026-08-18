@@ -100,3 +100,20 @@ export async function joinWorkspace(token, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
   return client.post(`/workspaces/join/${encodeURIComponent(token)}`, {}, { signal });
 }
+
+export async function getWorkspaceMembers(workspaceId, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.get(`/workspaces/${encodeURIComponent(workspaceId)}/members`, { signal });
+}
+
+export async function provisionWorkspaceKey(workspaceId, userId, wrappedKey, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  return client.post(`/workspaces/${encodeURIComponent(workspaceId)}/keys`, { userId, wrappedKey }, { signal });
+}
+
+export async function getWorkspaceKey(workspaceId, { baseUrl, signal } = {}) {
+  const client = getClient(baseUrl);
+  const raw = await client.get('/workspaces', { signal });
+  const ws = (raw?.workspaces ?? []).find((w) => w.id === workspaceId);
+  return ws?.wrappedKey ?? null;
+}

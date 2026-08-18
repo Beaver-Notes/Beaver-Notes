@@ -8,6 +8,8 @@ import {
   addMember as apiAddMember,
   removeMember as apiRemoveMember,
   joinWorkspace as apiJoinWorkspace,
+  getWorkspaceMembers as apiGetWorkspaceMembers,
+  provisionWorkspaceKey as apiProvisionWorkspaceKey,
 } from '@/lib/api/workspaces';
 import { normalizeWorkspaceList } from '@/lib/api/types';
 
@@ -121,6 +123,7 @@ export function useCloudWorkspaces() {
           activeId.value = workspaces.value[0].id;
         }
         await registerCloudWorkspaces(workspaces.value, accountStore);
+        void autoProvisionPendingKeys();
         // Removal reconciliation must not hold `loading` during the delete loop.
         void reconcileRemovedSharedWorkspaces(workspaces.value);
       } catch (err) {
@@ -225,6 +228,50 @@ export function useCloudWorkspaces() {
     return raw;
   }
 
+  async function provisionKeysForMember(workspaceId, memberUserId) {
+    const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+    const { unwrapNoteKey, wrapNoteKeyForRecipient } = await import('@/utils/crypto/note-key');
+
+    const identity = await loadOrCreateIdentity();
+    if (!identity?.privateKeyHex || !identity?.publicKeyHex) return false;
+
+    const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
+    const ws = raw?.workspaces?.find((w) => w.id === workspaceId);
+    if (!ws?.wrappedKey) return false;
+
+    const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, ws.wrappedKey);
+    const wrappedForTarget = await wrapNoteKeyForRecipient(identity.publicKeyHex, workspaceKeyHex);
+    await apiProvisionWorkspaceKey(workspaceId, memberUserId, wrappedForTarget, { baseUrl: activeBaseUrl() });
+    return true;
+  }
+
+  async function autoProvisionPendingKeys() {
+    const accountStore = useAccountStore();
+    const userId = accountStore.profile?.id;
+    if (!userId) return;
+
+    for (const ws of workspaces.value) {
+      if (ws.role !== 'owner' && ws.role !== 'admin') continue;
+      if (!ws.wrappedKey) continue;
+
+      try {
+        const { members } = await apiGetWorkspaceMembers(ws.id, { baseUrl: activeBaseUrl() });
+        const pending = (members || []).filter(
+          (m) => m.userId !== userId && m.hasKeyPair && !m.hasWrappedKey
+        );
+        for (const member of pending) {
+          try {
+            await provisionKeysForMember(ws.id, member.userId);
+          } catch (err) {
+            console.warn(`[useCloudWorkspaces] failed to provision key for ${member.userId} in ${ws.id}:`, err?.message);
+          }
+        }
+      } catch (err) {
+        console.warn(`[useCloudWorkspaces] failed to check members for ${ws.id}:`, err?.message);
+      }
+    }
+  }
+
   return {
     workspaces,
     activeId,
@@ -241,5 +288,7 @@ export function useCloudWorkspaces() {
     addMember,
     removeMember,
     joinWorkspace,
+    provisionKeysForMember,
+    autoProvisionPendingKeys,
   };
 }
