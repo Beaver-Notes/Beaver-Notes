@@ -378,10 +378,6 @@ export class CloudTransport extends Transport {
       throw e;
     }
     if (!isValidRemoteState(state)) throw malformedRemoteState();
-    // If the server is empty or has a stalled init, allow the push phase to re-seed.
-    if (isAuthoritativelyEmpty(state) || isStalledInit(state)) {
-      this._serverProbeComplete = false;
-    }
     // Bootstrap from server snapshots if local workspace is empty
     let bootstrapped = false;
     try {
