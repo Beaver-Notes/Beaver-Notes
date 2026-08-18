@@ -266,6 +266,13 @@ export function useHocuspocusSync() {
           room.readOnly = msg.readOnly === true
           room.role = msg.role || (msg.readOnly ? 'viewer' : 'editor')
         }
+      } else if (msg.type === 'notification') {
+        // Server notified us that another device pushed updates for the
+        // given noteIds.  Trigger an immediate sync pull instead of
+        // waiting for the next 30-second timer tick.  fire-and-forget.
+        import('@/utils/sync/engine').then(({ forceSyncNow }) => {
+          forceSyncNow().catch(() => {})
+        }).catch(() => {})
       }
     } catch {
       // ignore parse errors

@@ -160,9 +160,17 @@ export class SyncEngine {
   /**
    * Start the pull-only periodic timer. Fires every PULL_ONLY_INTERVAL_MS
    * to pull remote changes from other devices. Only pulls — does not push.
+   *
+   * Cloud-only sync relies entirely on WebSocket notifications from
+   * Hocuspocus for real-time pull triggers — no polling timer needed.
+   * The timer is only started for folder sync which has no notification
+   * mechanism.
    */
   startPullTimer() {
     if (this._pullTimer !== null) return;
+    const transports = this.getActiveTransports();
+    const cloudOnly = transports.length === 1 && transports[0] === 'cloud';
+    if (cloudOnly) return;
     this._pullTimer = setInterval(async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       if (this.syncing) return;
