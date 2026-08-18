@@ -313,6 +313,25 @@ export class CloudTransport extends Transport {
     }
 
     logger.info(`[sync] bootstrap: applied ${applied}/${downloadedItems.length} snapshots`);
+    // Create local snapshots from the downloaded data so future pulls
+    // don't re-bootstrap. We downloaded full snapshots; write them
+    // directly to the snapshot table via compactUpdates.
+    const { compactUpdates } = await import('@/lib/native/yjs.js');
+    const noteIdsBootstrapped = new Set(downloadedItems.map(d => d._noteId));
+    for (const noteId of noteIdsBootstrapped) {
+      try {
+        // Find the downloaded snapshot for this note
+        const item = downloadedItems.find(d => d._noteId === noteId);
+        if (item?.update) {
+          const snapshotBytes = item.update instanceof Uint8Array
+            ? item.update
+            : new Uint8Array(item.update);
+          await compactUpdates(noteId, snapshotBytes);
+        }
+      } catch (err) {
+        console.warn(`[sync] bootstrap: compact failed for ${noteId}:`, err?.message);
+      }
+    }
     // Persist note metadata to the workspace Y.Doc `notes` map so that
     // writeStoresFromWorkspace() can hydrate the Pinia stores and the UI
     // displays notes instead of an empty state.
