@@ -210,12 +210,12 @@ export class CloudTransport extends Transport {
   async _bootstrapFromSnapshots(state) {
     const { emit } = await import('@tauri-apps/api/event');
     const workspaceId = await this._ensureWorkspace();
-    if (!workspaceId) return false;
+    if (!workspaceId) return { bootstrapped: false, noteIds: [] };
 
     const docs = (state.documents || []).filter(
       (d) => d.snapshotKey && d.noteId
     );
-    if (docs.length === 0) return false;
+    if (docs.length === 0) return { bootstrapped: false, noteIds: [] };
 
     const { getSnapshots } = await import('@/lib/native/yjs.js');
     const allNoteIds = docs.map((d) => d.noteId);
@@ -224,8 +224,10 @@ export class CloudTransport extends Transport {
       (d) => !localSnapshots?.[d.noteId] || localSnapshots[d.noteId].length === 0
     );
 
-    if (needsBootstrap.length === 0) return false;
+    if (needsBootstrap.length === 0) return { bootstrapped: false, noteIds: [] };
     logger.info(`[sync] bootstrap: ${needsBootstrap.length} notes need snapshot download`);
+
+    const bootstrappedNoteIds = needsBootstrap.map((d) => d.noteId);
 
     const noteIdsForDownload = needsBootstrap.map((d) => d.noteId);
     const BATCH_SIZE = 50;
@@ -238,14 +240,14 @@ export class CloudTransport extends Transport {
         if (result?.urls) Object.assign(allUrls, result.urls);
       } catch (err) {
         console.warn('[sync] bootstrap: failed to get download URLs:', err?.message);
-        return false;
+        return { bootstrapped: false, noteIds: [] };
       }
     }
 
     const urlEntries = Object.entries(allUrls);
     if (urlEntries.length === 0) {
       logger.info('[sync] bootstrap: no snapshot URLs returned');
-      return false;
+      return { bootstrapped: false, noteIds: [] };
     }
 
     const { decryptBatch } = await import('../crypto.js');
@@ -366,7 +368,7 @@ export class CloudTransport extends Transport {
         console.warn(`[sync] bootstrap: syncNoteMeta failed for ${downloadedItems[i]?._noteId}:`, err?.message);
       }
     }
-    return applied > 0;
+    return { bootstrapped: applied > 0, noteIds: bootstrappedNoteIds };
   }
 
   async pull(cursors) {
@@ -398,15 +400,32 @@ export class CloudTransport extends Transport {
     }
     if (!isValidRemoteState(state)) throw malformedRemoteState();
     // Bootstrap from server snapshots if local workspace is empty
-    let bootstrapped = false;
+    let bootstrapResult = { bootstrapped: false, noteIds: [] };
     try {
-      bootstrapped = await this._bootstrapFromSnapshots(state);
-      if (bootstrapped) {
+      bootstrapResult = await this._bootstrapFromSnapshots(state);
+      if (bootstrapResult.bootstrapped) {
         logger.info('[sync] bootstrap complete — re-fetching remote state');
         state = await getRemoteState(workspaceId);
       }
     } catch (err) {
       console.warn('[sync] bootstrap failed (continuing with pull):', err?.message);
+    }
+    // After bootstrap, explicitly initialize cursors for bootstrapped notes
+    // in the noteCursors object so they're included in the normal cursor
+    // persistence flow. The normal cursor init below skips notes with local
+    // snapshots at server checkpoint 0/0, but we need to ensure the cursor
+    // is in noteCursors so it gets persisted via cursorsDelta.
+    if (bootstrapResult.bootstrapped && bootstrapResult.noteIds.length > 0) {
+      const deviceId = getSyncDeviceId();
+      for (const noteId of bootstrapResult.noteIds) {
+        const doc = state.documents.find(d => d.noteId === noteId);
+        if (!noteCursors[noteId]) {
+          noteCursors[noteId] = {
+            [deviceId]: { ts: doc?.checkpointTs ?? 0, sequence: doc?.checkpointSequence ?? 0 }
+          };
+        }
+      }
+      logger.info('[sync] bootstrap: initialized cursors for', bootstrapResult.noteIds.length, 'notes');
     }
     // Initialize cursors from server checkpoint for notes that don't have local cursors yet.
     // This prevents "cursor mismatch" when server only has snapshots (checkpointTs/Sequence = 0)

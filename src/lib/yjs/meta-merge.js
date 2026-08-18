@@ -23,7 +23,7 @@ export function mergeNoteEntry(existing, meta) {
   } else if (meta.cardPreview && meta.cardPreview.blocks) {
     // Preview is persisted in the workspace doc — no content load, no
     // ProseMirror conversion. This is what keeps launch fast.
-    merged.cardPreview = meta.cardPreview;
+    merged.cardPreview = JSON.parse(JSON.stringify(meta.cardPreview));
   } else if (existing.cardPreview) {
     merged.cardPreview = existing.cardPreview;
   } else {
