@@ -1018,7 +1018,7 @@ export class CloudTransport extends Transport {
         noteId: META_DOC_ID,
         update: Array.from(wsState),
       }, `${META_DOC_ID}-${ts}`);
-      snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted) });
+      snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted), noteTs: ts });
       noteIds.push(META_DOC_ID);
     }
 
