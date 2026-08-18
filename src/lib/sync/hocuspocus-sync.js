@@ -447,6 +447,14 @@ export function useHocuspocusSync() {
       }
 
       flushPending()
+
+      // Trigger an immediate HTTP pull to fetch any updates that arrived
+      // while this device was offline.  Notifications missed during the
+      // offline window are not replayed, so without this pull the device
+      // would stay stale until the user foregrounds the app.
+      import('@/utils/sync/engine').then(({ forceSyncNow }) => {
+        forceSyncNow().catch(() => {})
+      }).catch(() => {})
     }
 
     ws.onmessage = (event) => {
