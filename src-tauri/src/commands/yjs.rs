@@ -105,7 +105,8 @@ pub(crate) async fn yjs_append_batch(
         .map(|u| BASE64.decode(u))
         .collect::<Result<Vec<_>, _>>()?;
     let pool = data_pool(&app, &state)?;
-    tokio::task::spawn_blocking(move || crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices))
+    let key = yjs_encryption_key(&state)?;
+    tokio::task::spawn_blocking(move || crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices, key))
         .await
         .map_err(|e| AppError::Other(e.to_string()))?
 }

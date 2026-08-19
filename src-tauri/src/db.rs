@@ -523,6 +523,7 @@ pub(crate) fn yjs_append_batch(
     note_ids: &[String],
     updates: &[Vec<u8>],
     devices: &[String],
+    key: Option<[u8; 32]>,
 ) -> Result<usize, AppError> {
     let _t = crate::shared::speed_log::scope("db.yjs_append_batch");
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
@@ -535,9 +536,13 @@ pub(crate) fn yjs_append_batch(
             .map_err(|e| AppError::Other(e.to_string()))?;
         let now = chrono::Utc::now().timestamp_millis();
         for i in 0..note_ids.len() {
+            let stored = match key {
+                Some(k) => encrypt_yjs_blob(&k, &updates[i])?,
+                None => updates[i].clone(),
+            };
             stmt.execute(rusqlite::params![
                 note_ids[i],
-                updates[i],
+                stored,
                 devices[i],
                 now,
             ])
