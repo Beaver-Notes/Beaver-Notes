@@ -1,5 +1,5 @@
 import { getSyncPath } from './path.js';
-import { SYNC_ROOT_DIR, STORAGE_KEY } from './constants.js';
+import { SYNC_ROOT_DIR } from './constants.js';
 import { syncAssets } from './sync-assets.js';
 import {
   flushPendingSyncWrites,
@@ -7,7 +7,6 @@ import {
   setSyncTrigger,
   hasPendingWrites,
 } from './pending-writes.js';
-import { mergeCursorDelta } from './transports/transport.js';
 import { applyRemote } from '@/composable/useNoteYjs.js';
 import { appendUpdate, appendBatch } from '@/lib/native/yjs.js';
 import { getAppDirectory, notify } from '@/lib/native/app';
@@ -85,25 +84,6 @@ export function getSyncEngine() {
 export function initSyncEngine(deps) {
   engine = new SyncEngine(deps);
   return engine;
-}
-
-function mergeCursors(cursors, delta, remote) {
-  if (!remote) return mergeCursorDelta(cursors, delta);
-  let changed = false;
-  for (const [workspaceId, notes] of Object.entries(delta || {})) {
-    cursors[workspaceId] ||= {};
-    for (const [noteId, devices] of Object.entries(notes || {})) {
-      cursors[workspaceId][noteId] ||= {};
-      for (const [deviceId, value] of Object.entries(devices || {})) {
-        const previous = cursors[workspaceId][noteId][deviceId];
-        if (!previous || value.ts > previous.ts || (value.ts === previous.ts && value.sequence > previous.sequence)) {
-          cursors[workspaceId][noteId][deviceId] = value;
-          changed = true;
-        }
-      }
-    }
-  }
-  return changed;
 }
 
 export class SyncEngine {
@@ -353,8 +333,6 @@ export class SyncEngine {
 
       await flushPendingSyncWrites();
 
-      const cursors = await this._loadCursors();
-
       // Only pull when there's a reason: forced sync, foreground wake, or pending local writes.
       // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
       let cloudBlocked = false;
@@ -364,11 +342,10 @@ export class SyncEngine {
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
-          let cursorsDirty = false;
           while (hasMore) {
             let pullResult;
             try {
-              pullResult = await transport.pull(cursors);
+              pullResult = await transport.pull();
             } catch (e) {
               logger.warn(`[sync][debug] ${name} pull error:`, e?.code, e?.message, e);
               if (e?.code === 'unlock-required') {
@@ -431,6 +408,7 @@ export class SyncEngine {
 
             const allSucceeded = succeeded.every(Boolean);
             if (allSucceeded) {
+              // Save state vectors for affected notes (replaces cursor tracking)
               if (updates.length > 0) {
                 const affectedNoteIds = new Set(updates.map((u) => u.noteId));
                 for (const noteId of affectedNoteIds) {
@@ -444,9 +422,6 @@ export class SyncEngine {
                   }
                 }
               }
-              if (name === 'cloud' && pullResult.cursorsDelta) {
-                cursorsDirty = mergeCursors(cursors, pullResult.cursorsDelta, true) || cursorsDirty;
-              }
             } else if (!allSucceeded) {
               hasMore = false;
               break;
@@ -454,7 +429,6 @@ export class SyncEngine {
             if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
           }
-          if (cursorsDirty) await this._saveCursors(cursors);
         }
       } else {
         logger.info('[sync] pull skipped — nothing to sync');
@@ -477,7 +451,7 @@ export class SyncEngine {
           let pushResult;
           for (let attempt = 0; attempt < 3; attempt++) {
             try {
-              pushResult = await transport.push(cursors, { force: this._forceFlush });
+              pushResult = await transport.push({ force: this._forceFlush });
               break;
             } catch (err) {
               if (err?.code === 'unlock-required') throw err;
@@ -487,9 +461,6 @@ export class SyncEngine {
           }
           logger.info(`[sync] ${name} push done`, { pushed: pushResult.pushed });
           if (pushResult.pushed > 0) pushedAny = true;
-          if (pushResult.cursorsDelta && mergeCursors(cursors, pushResult.cursorsDelta, name === 'cloud')) {
-            await this._saveCursors(cursors);
-          }
         }
       } else {
         logger.info('[sync] push skipped — pull-only mode');
@@ -552,14 +523,6 @@ export class SyncEngine {
         });
       }
     }
-  }
-
-  async _loadCursors() {
-    return this.storage.get(STORAGE_KEY.SYNC_CURSORS, {}, 'settings');
-  }
-
-  async _saveCursors(cursors) {
-    return this.storage.set(STORAGE_KEY.SYNC_CURSORS, cursors, 'settings');
   }
 }
 

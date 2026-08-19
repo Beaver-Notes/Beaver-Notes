@@ -22,9 +22,9 @@ export class LocalFolderTransport extends Transport {
     this.passphraseProvider = passphraseProvider;
   }
 
-  async pull(_cursors) {
+  async pull() {
     const syncPath = await getSyncPath();
-    if (!syncPath) return { updates: [], cursorsDelta: {} };
+    if (!syncPath) return { updates: [] };
 
     const commitsDir = await ensureCommitsDir(syncPath);
     const { decryptJSON } = await import('../crypto.js');
@@ -49,11 +49,11 @@ export class LocalFolderTransport extends Transport {
       seq: u.seq ?? 0,
     }));
 
-    return { updates, cursorsDelta: {} };
+    return { updates };
   }
 
-  async push(_cursors) {
-    return { updates: [], cursorsDelta: {}, pushed: 0 };
+  async push() {
+    return { updates: [], pushed: 0 };
   }
 
   async seedOnce() {

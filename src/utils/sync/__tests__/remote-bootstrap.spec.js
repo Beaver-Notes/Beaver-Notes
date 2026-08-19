@@ -221,7 +221,7 @@ describe('remote bootstrap integration contract', () => {
     const applied = [];
     const storage = {
       cursors: {},
-      get: vi.fn(async () => storage.cursors),
+      get: vi.fn(async () => ({})),
       set: vi.fn(async (_key, value) => { storage.cursors = structuredClone(value); }),
     };
     const { applyRemote } = await import('@/composable/useNoteYjs.js');
@@ -240,7 +240,7 @@ describe('remote bootstrap integration contract', () => {
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
     await engine.enqueueSync(true);
-    const replay = await cloud.push({}, { force: true });
+    const replay = await cloud.push({ force: true });
 
     expect(writeFile).toHaveBeenCalledWith('/sync/BeaverNotesSync/keyParams.json', remoteParams);
     expect(reconcileSyncKeyParams).toHaveBeenCalledWith('correct-passphrase');
@@ -267,18 +267,6 @@ describe('remote bootstrap integration contract', () => {
     ]);
     expect(replay).toMatchObject({
       pushed: 2,
-      cursorsDelta: {
-        'remote-workspace': {
-          'local-note': { 'fresh-device': { ts: 301, sequence: 2 } },
-        },
-      },
-    });
-    expect(storage.cursors).toEqual({
-      'remote-workspace': {
-        'remote-note-a': { 'remote-device': { ts: 203, sequence: 2 } },
-        'remote-note-b': { 'remote-device': { ts: 202, sequence: 2 } },
-        'local-note': { 'fresh-device': { ts: 301, sequence: 2 } },
-      },
     });
 
     const pulls = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/pull-batch');
@@ -288,8 +276,8 @@ describe('remote bootstrap integration contract', () => {
         { noteId: 'remote-note-b', checkpoint: {} },
       ],
       [
-        { noteId: 'remote-note-a', checkpoint: { 'remote-device': { ts: 203, sequence: 2 } } },
-        { noteId: 'remote-note-b', checkpoint: { 'remote-device': { ts: 202, sequence: 2 } } },
+        { noteId: 'remote-note-a', checkpoint: {} },
+        { noteId: 'remote-note-b', checkpoint: {} },
       ],
     ]);
     const pushes = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/push-batch');
@@ -303,10 +291,10 @@ describe('remote bootstrap integration contract', () => {
     expect(pushes[1].body.notes[0].updates).toHaveLength(2);
   });
 
-  it('blocks application and cursor advancement when decryption fails', async () => {
+  it('blocks application when decryption fails', async () => {
     const { applyRemote } = await import('@/composable/useNoteYjs.js');
     const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
-    const storage = { cursors: {}, get: vi.fn(async () => storage.cursors), set: vi.fn(async (_key, value) => { storage.cursors = value; }) };
+    const storage = { cursors: {}, get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
     loadSecureBlob.mockResolvedValue('wrong-passphrase');
     fakeServer.pullResponses['remote-note-a:null'].updates[0].data = btoa(decryptFailureFixture);
     fakeServer.pullResponses['remote-note-b:null'].updates[0].data = btoa(decryptFailureFixture);

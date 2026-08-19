@@ -112,7 +112,7 @@ describe('CloudTransport', () => {
       const { readDir } = await import('@/lib/native/fs');
       readDir.mockResolvedValue([]);
       await transport.push({});
-      const result = await transport.push({}, { force: true });
+      const result = await transport.push({ force: true });
       expect(result.throttled).toBeUndefined();
     });
   });
@@ -159,7 +159,7 @@ describe('CloudTransport', () => {
       readDir.mockResolvedValue([]);
       await downgradableTransport.push({});
       plan = 'free';
-      const result = await downgradableTransport.push({}, { force: true });
+      const result = await downgradableTransport.push({ force: true });
       expect(result.pushed).toBe(0);
     });
   });
@@ -211,12 +211,9 @@ describe('CloudTransport', () => {
       const { pushUpdates } = await import('../../remote-yjs.js');
       pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoint: { ts: 200, sequence: 5, deviceId: 'mock-device' } });
 
-      const cursors = {};
-      const result = await transport.push(cursors);
+      const result = await transport.push({ force: true });
 
-      expect(result.cursorsDelta).toEqual({
-        'workspace-1': { 'note-a': { 'mock-device': { ts: 200, sequence: 5 } } },
-      });
+      expect(result.pushed).toBe(1);
     });
   });
 
@@ -273,9 +270,6 @@ describe('CloudTransport', () => {
       expect(result.updates).toHaveLength(1);
       expect(result.updates[0].noteId).toBe('note-a');
       expect(result.updates[0].device).toBe('remote-device');
-      expect(result.cursorsDelta).toEqual({
-        'workspace-1': { 'note-a': { 'remote-device': { ts: 100, sequence: 3 } } },
-      });
     });
 
     it('skips entries that fail decrypt', async () => {
@@ -317,8 +311,9 @@ describe('CloudTransport', () => {
       expect(readDir).not.toHaveBeenCalled();
     });
 
-    it('returns one continuation page and its cursor delta', async () => {
-      const { pullUpdates } = await import('../../remote-yjs.js');
+    it('returns one continuation page and hasMore flag', async () => {
+      const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
+      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note', checkpointTs: 0, checkpointSequence: 0 }] });
       pullUpdates
         .mockResolvedValueOnce({ notes: { note: {
           updates: [],
@@ -326,14 +321,13 @@ describe('CloudTransport', () => {
           hasMore: true,
         } } });
 
-      const result = await transport.pull({ 'workspace-1': { note: { 'remote-device': { ts: 0, sequence: 0 } } } });
+      const result = await transport.pull();
 
       expect(pullUpdates).toHaveBeenCalledTimes(1);
-      expect(result.cursorsDelta['workspace-1'].note['remote-device']).toEqual({ ts: 1, sequence: 1 });
       expect(result.hasMore).toBe(true);
     });
 
-    it('discovers a newly created server note when local cursors already exist', async () => {
+    it('discovers a newly created server note', async () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'later-note', checkpointTs: 0, checkpointSequence: 0 }] });
       pullUpdates.mockResolvedValue({ notes: {
@@ -341,7 +335,7 @@ describe('CloudTransport', () => {
         'later-note': { updates: [], hasMore: false },
       } });
 
-      await transport.pull({ 'workspace-1': { note: {} } });
+      await transport.pull();
 
       expect(pullUpdates).toHaveBeenCalledWith('workspace-1', expect.arrayContaining([
         expect.objectContaining({ noteId: 'later-note', checkpoint: {} }),
@@ -408,39 +402,19 @@ describe('CloudTransport', () => {
 
       await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
     });
-
-    it('rejects a malformed page checkpoint before returning a cursor delta', async () => {
-      const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
-      pullUpdates.mockResolvedValue({ notes: {
-        'note-a': { updates: [], nextCheckpoint: { deviceId: 'device-a', ts: -1, sequence: 1 }, hasMore: true },
-      } });
-
-      await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
-    });
   });
 
-  it('sends the complete per-device cursor map instead of one latest checkpoint', async () => {
+  it('sends empty checkpoint to the server', async () => {
     const { pullUpdates } = await import('../../remote-yjs.js');
     const { getRemoteState } = await import('../../remote-yjs.js');
     getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
     pullUpdates.mockResolvedValue({ notes: { 'note-a': { updates: [], hasMore: false } } });
 
-    await transport.pull({
-      'workspace-1': {
-        'note-a': {
-          'device-a': { ts: 100, sequence: 1 },
-          'device-b': { ts: 50, sequence: 8 },
-        },
-      },
-    });
+    await transport.pull();
 
     expect(pullUpdates).toHaveBeenCalledWith('workspace-1', [{
       noteId: 'note-a',
-      checkpoint: {
-        'device-a': { ts: 100, sequence: 1 },
-        'device-b': { ts: 50, sequence: 8 },
-      },
+      checkpoint: {},
     }]);
   });
 
@@ -451,7 +425,7 @@ describe('CloudTransport', () => {
       transport._serverProbeComplete = true;
       pushUpdates.mockRejectedValueOnce(new Error('offline'));
 
-      await expect(transport.push({}, { force: true })).rejects.toThrow('offline');
+      await expect(transport.push({ force: true })).rejects.toThrow('offline');
       expect(transport.getCloudBuffer()).toHaveLength(1);
 
       pushUpdates.mockResolvedValueOnce({
@@ -459,11 +433,8 @@ describe('CloudTransport', () => {
         duplicate: 1,
         checkpoint: { ts: 10, sequence: 4, deviceId: 'mock-device' },
       });
-      const result = await transport.push({}, { force: true });
+      const result = await transport.push({ force: true });
       expect(result.pushed).toBe(2);
-      expect(result.cursorsDelta).toEqual({
-        'workspace-1': { note: { 'mock-device': { ts: 10, sequence: 4 } } },
-      });
     });
 
     it('keeps checkpoints per note and removes only acknowledged pending updates', async () => {
@@ -479,11 +450,8 @@ describe('CloudTransport', () => {
         checkpoints: { first: { deviceId: 'mock-device', ts: 10, sequence: 1 } },
       });
 
-      const result = await transport.push({}, { force: true });
+      const result = await transport.push({ force: true });
 
-      expect(result.cursorsDelta).toEqual({
-        'workspace-1': { first: { 'mock-device': { ts: 10, sequence: 1 } } },
-      });
       expect(transport.getCloudBuffer()).toHaveLength(1);
       expect(transport.getCloudBuffer()[0].noteId).toBe('second');
     });
@@ -501,17 +469,17 @@ describe('CloudTransport', () => {
           note: { deviceId: 'mock-device', ts: 11, sequence: 1 },
         } });
 
-      await transport.push({}, { force: true });
+      await transport.push({ force: true });
       liveBuffer.push({ noteId: 'note', update: new Uint8Array([2]) });
-      await transport.push({}, { force: true });
+      await transport.push({ force: true });
 
       expect(pushUpdates).toHaveBeenCalledTimes(2);
       expect(pushUpdates.mock.calls[1][1][0].updates[0].data).toBe(btoa('encrypted'));
     });
 
-    it('returns the new empty push contract', async () => {
-      const result = await transport.push({}, { force: true });
-      expect(result).toEqual({ updates: [], cursorsDelta: {}, pushed: 0 });
+    it('returns the empty push contract', async () => {
+      const result = await transport.push({ force: true });
+      expect(result).toEqual({ updates: [], pushed: 0 });
       expect(result).not.toHaveProperty('stored');
       expect(result).not.toHaveProperty('sizeBytes');
     });
@@ -536,17 +504,6 @@ describe('CloudTransport', () => {
       transport._serverProbeComplete = false;
     };
 
-    it('does not reset a stale cursor when the normalized server probe is populated', async () => {
-      await configureStaleCursorProbe();
-      const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
-      getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'other-note' }] });
-
-      await transport.push({ 'workspace-1': { 'note-a': { 'mock-device': { ts: 200, sequence: 1 } } } }, { force: true });
-
-      expect(pushUpdates).not.toHaveBeenCalled();
-      expect(transport._serverProbeComplete).toBe(true);
-    });
-
     it('resets and pushes when the normalized stale-cursor probe is empty', async () => {
       await configureStaleCursorProbe();
       const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
@@ -556,7 +513,7 @@ describe('CloudTransport', () => {
       getRemoteState.mockResolvedValue({ status: 'empty', documents: [] });
       pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoints: {} });
 
-      await transport.push({ 'workspace-1': { 'note-a': { 'mock-device': { ts: 200, sequence: 1 } } } }, { force: true });
+      await transport.push({ force: true });
 
       expect(pushUpdates).toHaveBeenCalled();
     });
@@ -665,17 +622,6 @@ describe('CloudTransport', () => {
       expect(completeInitialization).toHaveBeenCalledTimes(1);
     });
 
-    it('keeps the stale probe incomplete after a state query failure', async () => {
-      await configureStaleCursorProbe();
-      const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
-      getRemoteState.mockRejectedValue(new Error('offline'));
-
-      await transport.push({ 'workspace-1': { 'note-a': { 'mock-device': { ts: 200, sequence: 1 } } } }, { force: true });
-
-      expect(pushUpdates).not.toHaveBeenCalled();
-      expect(transport._serverProbeComplete).toBe(false);
-    });
-
     it.each([
       undefined,
       null,
@@ -687,7 +633,7 @@ describe('CloudTransport', () => {
       const { getRemoteState, pushUpdates } = await import('../../remote-yjs.js');
       getRemoteState.mockResolvedValue(state);
 
-      await expect(transport.push({ 'workspace-1': { 'note-a': { 'mock-device': { ts: 200, sequence: 1 } } } }, { force: true }))
+      await expect(transport.push({ force: true }))
         .rejects.toMatchObject({ code: 'sync-state-invalid' });
 
       expect(pushUpdates).not.toHaveBeenCalled();

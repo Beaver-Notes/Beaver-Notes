@@ -313,6 +313,24 @@ export class CloudTransport extends Transport {
     }
 
     logger.info(`[sync] bootstrap: applied ${applied}/${downloadedItems.length} snapshots`);
+
+    // Cache snapshots so getSnapshots() finds them next cycle and we
+    // don't re-bootstrap endlessly.
+    const { compactUpdates } = await import('@/lib/native/yjs.js');
+    for (let i = 0; i < decrypted.length; i++) {
+      const item = decrypted[i];
+      if (!item?.update) continue;
+      const noteId = downloadedItems[i]._noteId;
+      try {
+        const snapshotBytes = item.update instanceof Uint8Array
+          ? item.update
+          : new Uint8Array(item.update);
+        await compactUpdates(noteId, snapshotBytes);
+      } catch (err) {
+        console.warn(`[sync] bootstrap: compact failed for ${noteId}:`, err?.message);
+      }
+    }
+
     // Persist note metadata to the workspace Y.Doc `notes` map so that
     // writeStoresFromWorkspace() can hydrate the Pinia stores and the UI
     // displays notes instead of an empty state.
@@ -350,30 +368,28 @@ export class CloudTransport extends Transport {
     return applied > 0;
   }
 
-  async pull(cursors) {
-    if (!this._remoteAllowed()) return { updates: [], cursorsDelta: {} };
+  async pull() {
+    if (!this._remoteAllowed()) return { updates: [] };
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) {
       logger.info('[sync] cloud pull: no active workspace');
-      return { updates: [], cursorsDelta: {} };
+      return { updates: [] };
     }
 
-    const noteCursors = Object.fromEntries(Object.entries(cursors[workspaceId] || {}));
     let state;
     try {
       state = await getRemoteState(workspaceId);
     } catch (e) {
       // 404 means the workspace has no sync state yet (brand new workspace).
       // 403 means user is not a workspace member — workspace may be stale.
-      // In both cases, reset and let the push phase try to create/fetch a valid workspace.
       if (e?.status === 404 || e?.statusCode === 404 || e?.status === 403 || e?.statusCode === 403) {
         logger.info('[sync] cloud pull: /sync/state returned', e?.status, '— resetting workspace');
         try { emit('sync:status', { status: 'workspace-reset', message: `Server returned ${e?.status}, workspace reset` }); } catch {}
         const workspaceStore = useWorkspaceStore();
         workspaceStore.activeId = null;
         this._cachedWorkspaceId = null;
-        return { updates: [], cursorsDelta: {} };
+        return { updates: [] };
       }
       throw e;
     }
@@ -389,49 +405,23 @@ export class CloudTransport extends Transport {
     } catch (err) {
       console.warn('[sync] bootstrap failed (continuing with pull):', err?.message);
     }
-    // Ensure all server-known notes have cursor entries.
-    // New notes (no local cursor) start with empty checkpoint {} which
-    // tells the server to return ALL updates. Yjs CRDT handles deduplication
-    // so re-applying known updates is safe and idempotent.
-    for (const document of state.documents) {
-      if (!document.noteId) continue;
-      if (!noteCursors[document.noteId]) {
-        noteCursors[document.noteId] = {};
-      }
-    }
-
+    // Always send empty checkpoint — request ALL updates from the server.
+    // Yjs CRDT handles deduplication so re-applying known updates is safe.
+    // State vectors (not per-device cursors) track what we've seen locally.
     const notes = state.documents
       .filter(d => d.noteId)
-      .map(d => ({
-        noteId: d.noteId,
-        checkpoint: noteCursors[d.noteId] || {},
-      }));
+      .map(d => ({ noteId: d.noteId, checkpoint: {} }));
     logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
     const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
     const totalUpdates = resultNoteIds.reduce((sum, nid) => sum + (result.notes[nid]?.updates?.length || 0), 0);
     logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
     const updates = [];
-    const cursorsDelta = {};
     let hasMore = false;
-    for (const [noteId] of Object.entries(noteCursors)) {
+    for (const { noteId } of notes) {
       const page = result.notes?.[noteId] || { updates: [], hasMore: false };
       if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
       for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
-      if (page.nextCheckpoint) {
-        const checkpoint = page.nextCheckpoint;
-        if (!validateCheckpoint(checkpoint)) throw malformedRemoteUpdate();
-        cursorsDelta[workspaceId] ||= {};
-        cursorsDelta[workspaceId][noteId] = checkpointMap(checkpoint);
-      } else {
-        // No nextCheckpoint from server (e.g. snapshot-only notes).
-        // Still record the current cursor so it is persisted and not
-        // re-initialized from 0/0 on the next pull cycle.
-        cursorsDelta[workspaceId] ||= {};
-        cursorsDelta[workspaceId][noteId] = noteCursors[noteId]
-          ? checkpointMap(noteCursors[noteId])
-          : { [getSyncDeviceId()]: { ts: 0, sequence: 0 } };
-      }
       hasMore ||= page.hasMore === true;
     }
 
@@ -556,35 +546,28 @@ export class CloudTransport extends Transport {
       });
     }
 
-    return { updates: decodedUpdates, cursorsDelta, hasMore };
+    return { updates: decodedUpdates, hasMore };
   }
 
-  async push(cursors, opts = {}) {
+  async push(opts = {}) {
     if (!this._remoteAllowed()) {
       logger.info('[sync] cloud push: _remoteAllowed=false');
-      return { updates: [], cursorsDelta: {}, pushed: 0 };
+      return { updates: [], pushed: 0 };
     }
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) {
       logger.info('[sync] cloud push: no active workspace');
-      return { updates: [], cursorsDelta: {}, pushed: 0 };
+      return { updates: [], pushed: 0 };
     }
 
     const force = opts?.force === true;
     if (!force && this._throttled()) {
       logger.info('[sync] cloud push: throttled');
-      return { updates: [], cursorsDelta: {}, pushed: 0, throttled: true };
+      return { updates: [], pushed: 0, throttled: true };
     }
 
     const ownDeviceId = getSyncDeviceId();
-    const remoteCursor = cursors[workspaceId] || {};
-    const ownCursor = Object.values(remoteCursor).reduce((latest, note) => {
-      const candidate = note?.[ownDeviceId];
-      return candidate && (candidate.ts > latest.ts || (candidate.ts === latest.ts && candidate.sequence > latest.sequence))
-        ? { ts: candidate.ts, sequence: candidate.sequence }
-        : latest;
-    }, { ts: 0, sequence: 0 });
 
     // If the push phase hasn't probed the server yet, try seeding.
     // seedCloudOnce() checks the server state and only proceeds if empty/stalled.
@@ -604,9 +587,9 @@ export class CloudTransport extends Transport {
     if (this._cloudBuffer.length > 0) {
       const { encryptJSON, encryptBatch } = await import('../crypto.js');
       const nextSequences = new Map();
-      const batch = this._cloudBuffer.map((item) => ({
+      const batch = this._cloudBuffer.map((item, i) => ({
         ...item,
-        sequence: (nextSequences.get(item.noteId) ?? remoteCursor[item.noteId]?.[ownDeviceId]?.sequence ?? 0) + 1,
+        sequence: i + 1,
       }));
       for (const item of batch) nextSequences.set(item.noteId, item.sequence);
 
@@ -656,15 +639,8 @@ export class CloudTransport extends Transport {
       logger.info('[sync] cloud push (cloud-only) totalPushed:', totalPushed);
       this._lastPushedAt = Date.now();
 
-      const cursorsDelta = {};
+      // Remove acknowledged items from the in-memory buffer
       const checkpoints = acknowledgedCheckpoints(result, [...notesMap.keys()]);
-      for (const [noteId, checkpoint] of Object.entries(checkpoints)) {
-        if (checkpoint?.deviceId !== ownDeviceId) continue;
-        cursorsDelta[workspaceId] ||= {};
-        cursorsDelta[workspaceId][noteId] = {
-          [ownDeviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence },
-        };
-      }
       const acknowledged = new Set();
       for (const item of batch) {
         const checkpoint = checkpoints[item.noteId];
@@ -673,47 +649,29 @@ export class CloudTransport extends Transport {
       for (let index = this._cloudBuffer.length - 1; index >= 0; index--) {
         if (acknowledged.has(batch[index])) this._cloudBuffer.splice(index, 1);
       }
-      return { updates: [], cursorsDelta, pushed: totalPushed };
+      return { updates: [], pushed: totalPushed };
     }
 
     // Folder sync mode: read from commits directory
     const commitsDir = await getCommitsDir();
     if (!commitsDir) {
-      return { updates: [], cursorsDelta: {}, pushed: 0 };
+      return { updates: [], pushed: 0 };
     }
 
     const allFiles = await readDir(commitsDir).catch(() => []);
     const pushedFiles = allFiles.filter((f) => f.endsWith(YJS_UPDATE_EXT) && f !== '._seeded');
-    logger.info('[sync] cloud push commitsDir:', commitsDir, '| files:', pushedFiles.length, '/', allFiles.length, '| cursor:', JSON.stringify(ownCursor));
+    logger.info('[sync] cloud push commitsDir:', commitsDir, '| files:', pushedFiles.length, '/', allFiles.length);
 
-    // Build full file map (all devices, for probe check)
-    const allFilesByNoteId = new Map();
+    // Build file map (own device only — push everything, server deduplicates)
+    const filesByNoteId = new Map();
     for (const file of pushedFiles) {
       const parsed = parseSyncFilename(file);
-      if (!parsed) continue;
-      if (!allFilesByNoteId.has(parsed.docId)) {
-        allFilesByNoteId.set(parsed.docId, []);
-      }
-      allFilesByNoteId.get(parsed.docId).push({ file, parsed });
-    }
-
-    // Filter by cursor (current device only)
-    let filesByNoteId = new Map();
-    for (const [noteId, files] of allFilesByNoteId) {
-      const filtered = files.filter(({ parsed }) =>
-        parsed.device === ownDeviceId &&
-        (() => {
-          const noteCursor = remoteCursor[parsed.docId]?.[ownDeviceId] || { ts: 0, sequence: 0 };
-          return parsed.ts > noteCursor.ts || (parsed.ts === noteCursor.ts && (parsed.seq ?? 0) > noteCursor.sequence);
-        })()
-      );
-      if (filtered.length > 0) filesByNoteId.set(noteId, filtered);
+      if (!parsed || parsed.device !== ownDeviceId) continue;
+      if (!filesByNoteId.has(parsed.docId)) filesByNoteId.set(parsed.docId, []);
+      filesByNoteId.get(parsed.docId).push({ file, parsed });
     }
 
     let totalPushed = 0;
-    let pushCursorTs = ownCursor.ts;
-    let pushCursorSeq = ownCursor.sequence;
-    let acknowledgedCheckpoint = null;
 
     // Collect all note updates for batch push
     const PUSH_VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;
@@ -750,11 +708,6 @@ export class CloudTransport extends Transport {
         });
         batchBytes += fileBytes;
 
-        if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
-          pushCursorTs = parsed.ts;
-          pushCursorSeq = parsed.seq ?? 0;
-        }
-
         if (noteUpdates.length >= CLOUD_PUSH_MAX_FILES_PER_POST) break;
       }
 
@@ -769,94 +722,17 @@ export class CloudTransport extends Transport {
       try {
         const result = await remotePushUpdates(workspaceId, batchNotes);
         totalPushed = (result.accepted || 0) + (result.duplicate || 0);
-        acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
         logger.info('[sync] cloud push result:', JSON.stringify(result));
       } catch (e) {
         console.error('[sync] cloud push error:', e?.status, e?.message, JSON.stringify(e?.body) || '');
         throw e;
       }
-    } else if (ownCursor.ts > 0 && allFilesByNoteId.size > 0 && !this._serverProbeComplete) {
-      logger.info('[sync] cloud push: cursor stale check — cursor:', JSON.stringify(ownCursor), 'files:', allFilesByNoteId.size);
-      // Cursor says "already pushed" but server might be empty (reset, data loss).
-      // Probe once: pull with empty cursor for first note. If server returns nothing, it's empty.
-      let probePush = false;
-      try {
-        let state;
-        try {
-          state = await getRemoteState(workspaceId);
-        } catch (stateErr) {
-          // 404 = workspace has no sync state yet, treat as empty
-          // 403 = user is not a workspace member, reset workspace
-          if (stateErr?.status === 404 || stateErr?.statusCode === 404) {
-            logger.info('[sync] cloud push: probe got 404 — treating as empty workspace');
-            state = { status: 'empty', documents: [] };
-          } else if (stateErr?.status === 403 || stateErr?.statusCode === 403) {
-            logger.info('[sync] cloud push: probe got 403 — resetting workspace');
-            const workspaceStore = useWorkspaceStore();
-            workspaceStore.activeId = null;
-            this._cachedWorkspaceId = null;
-            this._serverProbeComplete = true;
-            return { updates: [], cursorsDelta: {}, pushed: 0 };
-          } else {
-            throw stateErr;
-          }
-        }
-        if (!isValidRemoteState(state)) {
-          throw malformedRemoteState();
-        }
-        const serverEmpty = isAuthoritativelyEmpty(state);
-        logger.info('[sync] cloud push: probe state — empty:', serverEmpty, 'status:', state?.status);
-        if (!serverEmpty) {
-          this._serverProbeComplete = true;
-        } else {
-          logger.info('[sync] cloud push: probe found empty server, resetting stale cursor');
-          pushCursorTs = 0;
-          pushCursorSeq = 0;
-          filesByNoteId = allFilesByNoteId;
-          batchNotes = [];
-          for (const [noteId, files] of filesByNoteId) {
-            const noteUpdates = [];
-            for (const { file, parsed } of files) {
-              let raw;
-              try { raw = await readFile(path.join(commitsDir, file)); } catch { continue; }
-              if (!raw) continue;
-               noteUpdates.push({ key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.seq ?? 0}${YJS_UPDATE_EXT}`, data: btoa(typeof raw === 'string' ? raw : raw.toString()), deviceId: parsed.device, ts: parsed.ts, sequence: parsed.seq ?? 0 });
-              if (parsed.ts > pushCursorTs || (parsed.ts === pushCursorTs && (parsed.seq ?? 0) > pushCursorSeq)) {
-                pushCursorTs = parsed.ts;
-                pushCursorSeq = parsed.seq ?? 0;
-              }
-            }
-            if (noteUpdates.length > 0) batchNotes.push({ noteId, updates: noteUpdates });
-          }
-          if (batchNotes.length > 0) {
-            probePush = true;
-            const result = await remotePushUpdates(workspaceId, batchNotes);
-            totalPushed = (result.accepted || 0) + (result.duplicate || 0);
-            acknowledgedCheckpoint = acknowledgedCheckpoints(result, [...filesByNoteId.keys()]);
-            this._serverProbeComplete = true;
-          }
-        }
-      } catch (e) {
-        if (probePush) throw e;
-        if (e?.code === 'sync-state-invalid') throw e;
-        logger.info('[sync] cloud push: probe failed:', e?.status, e?.message);
-        // Server unreachable — will retry next cycle (don't set _serverProbeComplete)
-      }
     }
 
-    logger.info('[sync] cloud push totalPushed:', totalPushed, '| cursor:', JSON.stringify({ ts: pushCursorTs, seq: pushCursorSeq }));
+    logger.info('[sync] cloud push totalPushed:', totalPushed);
     this._lastPushedAt = Date.now();
 
-    const cursorsDelta = {};
-    for (const [noteId, checkpoint] of Object.entries(acknowledgedCheckpoint || {})) {
-      if (checkpoint?.deviceId !== ownDeviceId) continue;
-      cursorsDelta[workspaceId] ||= {};
-      cursorsDelta[workspaceId][noteId] = {
-        [ownDeviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence },
-      };
-    }
-
-    return { updates: [], cursorsDelta, pushed: totalPushed };
+    return { updates: [], pushed: totalPushed };
   }
 
   async seedOnce() {
