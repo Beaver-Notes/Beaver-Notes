@@ -197,8 +197,15 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, st
 /**
  * List Yjs update files from other devices in the commits/ directory.
  * Returns entries sorted by timestamp.
+ *
+ * @param {string} commitsDir
+ * @param {Object} cursors — legacy cursor map (kept for backwards compat)
+ * @param {Function} decryptJSON
+ * @param {Record<string, number>} [stateVector] — optional { [deviceId]: maxClock }
+ *   for pre-decrypt seq filtering.  When provided, updates with seq <= clock are
+ *   skipped without reading or decrypting the file.
  */
-export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
+export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, stateVector) {
   let files;
   try {
     files = await readSyncDir(commitsDir);
@@ -213,9 +220,18 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
     if (!parsed) continue;
 
     // Cheap, pre-decrypt filtering using filename metadata:
-    // skip our own files and anything already covered by the cursor.
+    // skip our own files and anything already covered by the state vector or cursor.
     if (parsed.device === deviceId) continue;
 
+    // State vector filtering: skip if seq <= maxClock for this device.
+    // This is the primary filter — avoids decrypting known updates.
+    if (stateVector) {
+      const maxClock = stateVector[parsed.device];
+      if (maxClock != null && (parsed.seq ?? 0) <= maxClock) continue;
+    }
+
+    // Legacy cursor filtering (kept for backwards compat with callers that
+    // still pass cursors instead of a state vector).
     const cursorKey = `yjs-${parsed.device}`;
     const seen = cursors[cursorKey];
     const seenTs = seen?.ts ?? 0;

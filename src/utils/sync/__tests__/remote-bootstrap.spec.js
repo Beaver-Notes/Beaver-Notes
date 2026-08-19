@@ -53,7 +53,7 @@ const fakeServer = {
         key: 'remote-note-a~~remote-device~~201~~1.yjs.json',
         data: btoa(encryptedA),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 201, sequence: 1 },
+      nextCheckpoint: { 'remote-device': { ts: 201, sequence: 1 } },
       hasMore: true,
     },
     'remote-note-b:null': {
@@ -62,7 +62,7 @@ const fakeServer = {
         key: 'remote-note-b~~remote-device~~202~~2.yjs.json',
         data: btoa(encryptedB),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 202, sequence: 2 },
+      nextCheckpoint: { 'remote-device': { ts: 202, sequence: 2 } },
       hasMore: false,
     },
     'remote-note-a:fresh-device/0/0': {
@@ -71,7 +71,7 @@ const fakeServer = {
         key: 'remote-note-a~~remote-device~~201~~1.yjs.json',
         data: btoa(encryptedA),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 201, sequence: 1 },
+      nextCheckpoint: { 'remote-device': { ts: 201, sequence: 1 } },
       hasMore: true,
     },
     'remote-note-b:fresh-device/0/0': {
@@ -80,7 +80,7 @@ const fakeServer = {
         key: 'remote-note-b~~remote-device~~202~~2.yjs.json',
         data: btoa(encryptedB),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 202, sequence: 2 },
+      nextCheckpoint: { 'remote-device': { ts: 202, sequence: 2 } },
       hasMore: false,
     },
     'remote-note-a:remote-device/201/1': { updates: [], hasMore: false },
@@ -172,7 +172,7 @@ vi.mock('../sync-yjs.js', async () => await vi.importActual('../sync-yjs.js'));
 vi.mock('../path.js', () => ({ getSyncPath: vi.fn(async () => '/sync') }));
 vi.mock('../sync-assets.js', () => ({ syncAssets: vi.fn(async () => {}) }));
 vi.mock('@/composable/useNoteYjs.js', () => ({ applyRemote: vi.fn() }));
-vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}), appendBatch: vi.fn(async () => {}) }));
+vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}), appendBatch: vi.fn(async () => {}), compactUpdates: vi.fn(async () => {}), getStateVector: vi.fn(async () => ({})) }));
 vi.mock('@/lib/native/app', () => ({ getAppDirectory: vi.fn(async () => '/app') }));
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: {
@@ -195,6 +195,16 @@ vi.mock('@/lib/tauri-bridge', () => ({
 vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()) }));
 vi.mock('@/lib/yjs/helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
 vi.mock('@/lib/yjs/workspace-doc', () => ({ syncDeletedAssets: vi.fn() }));
+vi.mock('@/lib/yjs/shared.js', () => ({ applyRemote: vi.fn(), getActiveDoc: vi.fn(() => null) }));
+vi.mock('../state-vector.js', () => ({
+  loadStateVector: vi.fn(() => null),
+  saveStateVector: vi.fn(),
+  getCurrentStateVector: vi.fn(async () => ({})),
+  isUpdateKnown: vi.fn(() => false),
+  mergeStateVectors: vi.fn(() => ({})),
+  loadServerCheckpoint: vi.fn(() => null),
+  saveServerCheckpoint: vi.fn(),
+}));
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({ loadSecureBlob: vi.fn(async () => 'correct-passphrase') }));
 vi.mock('@tauri-apps/api/event', () => ({ emit: vi.fn() }));
 vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: vi.fn(() => ({ activeId: 'remote-workspace' })) }));
@@ -202,6 +212,7 @@ vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: vi.fn(() => ({ activ
 describe('remote bootstrap integration contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     fakeServer.calls = [];
     fakeServer.pushResults = [];
     fakeServer.acceptedIdentities.clear();
@@ -211,7 +222,7 @@ describe('remote bootstrap integration contract', () => {
         key: 'remote-note-a~~remote-device~~203~~2.yjs.json',
         data: btoa(encryptedA2),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 203, sequence: 2 },
+      nextCheckpoint: { 'remote-device': { ts: 203, sequence: 2 } },
       hasMore: false,
     };
     fakeServer.pullResponses['remote-note-a:remote-device/203/2'] = { updates: [], hasMore: false };

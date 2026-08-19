@@ -74,12 +74,23 @@ vi.mock('../../compression.js', () => ({
   isGzipCompressed: vi.fn(() => false),
 }));
 
+vi.mock('../state-vector.js', () => ({
+  loadStateVector: vi.fn(() => null),
+  saveStateVector: vi.fn(),
+  getCurrentStateVector: vi.fn(async () => ({})),
+  isUpdateKnown: vi.fn(() => false),
+  mergeStateVectors: vi.fn(() => ({})),
+  loadServerCheckpoint: vi.fn(() => null),
+  saveServerCheckpoint: vi.fn(),
+}));
+
 describe('CloudTransport', () => {
   const defaultAccountState = () => ({ isAuth: true, plan: 'starter' });
   let transport;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
     transport = new CloudTransport({
       passphraseProvider: vi.fn(() => 'mock-pass'),

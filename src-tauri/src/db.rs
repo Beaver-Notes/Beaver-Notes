@@ -400,17 +400,28 @@ pub(crate) fn yjs_get_snapshots(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| AppError::Other(e.to_string()))?;
 
+    // Determine which notes have stale or missing snapshots. A note is "stale"
+    // when there are unencrypted content rows newer than the snapshot, or when
+    // no snapshot exists at all.  Encrypted rows (re-encryptions of existing
+    // content pulled from another device) do NOT invalidate the snapshot —
+    // otherwise every pull triggers a false-stale rebuild and an endless
+    // bootstrap loop.
+    let stale_query = format!(
+        "SELECT DISTINCT nc.note_id FROM note_content nc \
+         LEFT JOIN yjs_snapshots ys ON nc.note_id = ys.note_id \
+         WHERE nc.note_id IN ({placeholders}) \
+           AND (length(nc.data) < 4 OR substr(nc.data, 1, 4) != X'424E5931') \
+           AND (ys.note_id IS NULL OR nc.created_at > ys.updated_at)"
+    );
     let mut stmt = conn
-        .prepare(&format!(
-            "SELECT note_id, MAX(created_at) FROM note_content WHERE note_id IN ({placeholders}) GROUP BY note_id"
-        ))
+        .prepare(&stale_query)
         .map_err(|e| AppError::Other(e.to_string()))?;
     let rows = stmt
         .query_map(rusqlite::params_from_iter(note_ids.iter()), |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            Ok(row.get::<_, String>(0)?)
         })
         .map_err(|e| AppError::Other(e.to_string()))?;
-    let latest: HashMap<String, i64> = rows
+    let stale_notes: std::collections::HashSet<String> = rows
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| AppError::Other(e.to_string()))?
         .into_iter()
@@ -421,11 +432,8 @@ pub(crate) fn yjs_get_snapshots(
     // of the `yjs_get_snapshots` cost.
     let decrypted: Vec<(String, Vec<u8>)> = snapshots
         .par_iter()
-        .filter(|(note_id, data, updated_at)| {
-            let stale = latest
-                .get(note_id)
-                .is_some_and(|&t| t > *updated_at);
-            !data.is_empty() && !stale && (key.is_some() || !is_encrypted_yjs_blob(data))
+        .filter(|(note_id, data, _updated_at)| {
+            !data.is_empty() && !stale_notes.contains(note_id) && (key.is_some() || !is_encrypted_yjs_blob(data))
         })
         .map(|(note_id, data, _)| {
             let bytes = match key {
@@ -552,6 +560,9 @@ pub(crate) fn yjs_append_batch(
     key: Option<[u8; 32]>,
 ) -> Result<usize, AppError> {
     let _t = crate::shared::speed_log::scope("db.yjs_append_batch");
+    if note_ids.len() != updates.len() || note_ids.len() != devices.len() {
+        return Err(AppError::Other("yjs_append_batch: array length mismatch".into()));
+    }
     let mut conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let tx = conn.transaction().map_err(|e| AppError::Other(e.to_string()))?;
     {
@@ -617,7 +628,8 @@ fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> 
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let latest: Option<i64> = conn
         .query_row(
-            "SELECT MAX(created_at) FROM note_content WHERE note_id = ?1",
+            "SELECT MAX(created_at) FROM note_content WHERE note_id = ?1 \
+             AND (length(data) < 4 OR substr(data, 1, 4) != X'424E5931')",
             rusqlite::params![note_id],
             |r| r.get(0),
         )

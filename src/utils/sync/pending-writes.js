@@ -105,6 +105,15 @@ export async function flushPendingSyncWritesTo(writeFn) {
   return flushed;
 }
 
+/**
+ * Discard all pending writes.  Called after vault key adoption to prevent
+ * stale writes (encrypted with the pre-adoption key) from being flushed to
+ * disk or pushed to the server.
+ */
+export function clearPendingWrites() {
+  pendingSyncWrites.length = 0;
+}
+
 export function queueSyncWrite(commitsDir, noteId, update) {
   if (pendingSyncWrites.length >= MAX_QUEUE_SIZE) {
     console.warn('[sync] pending writes queue full, dropping oldest entries');

@@ -22,11 +22,13 @@ import {
 } from '../remote-assets.js';
 import { parseSyncFilename } from '../sync-yjs.js';
 import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
+import { getSyncPath } from '../path.js';
 import { writeInitialSnapshots } from './seed.js';
 import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
 import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
+import { loadServerCheckpoint, saveServerCheckpoint } from '../state-vector.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
@@ -405,12 +407,15 @@ export class CloudTransport extends Transport {
     } catch (err) {
       console.warn('[sync] bootstrap failed (continuing with pull):', err?.message);
     }
-    // Always send empty checkpoint — request ALL updates from the server.
-    // Yjs CRDT handles deduplication so re-applying known updates is safe.
-    // State vectors (not per-device cursors) track what we've seen locally.
+    // Send stored server checkpoints so the server only returns updates we
+    // haven't seen yet.  Falls back to empty checkpoint for notes without a
+    // stored checkpoint (first pull after migration).
     const notes = state.documents
       .filter(d => d.noteId)
-      .map(d => ({ noteId: d.noteId, checkpoint: {} }));
+      .map(d => ({
+        noteId: d.noteId,
+        checkpoint: loadServerCheckpoint(d.noteId) || {},
+      }));
     logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
     const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
@@ -423,6 +428,11 @@ export class CloudTransport extends Transport {
       if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
       for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
       hasMore ||= page.hasMore === true;
+      // Save the server's nextCheckpoint for this note so the next pull only
+      // requests updates newer than what we just received.
+      if (page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
+        saveServerCheckpoint(noteId, page.nextCheckpoint);
+      }
     }
 
     const { decryptJSON, decryptBatch } = await import('../crypto.js');
@@ -650,6 +660,13 @@ export class CloudTransport extends Transport {
         if (acknowledged.has(batch[index])) this._cloudBuffer.splice(index, 1);
       }
       return { updates: [], pushed: totalPushed };
+    }
+
+    // Cloud-only with empty buffer: nothing to push from memory.
+    // In cloud-only mode the folder path is skipped — files there may be
+    // stale (encrypted with a pre-vault-adopt key) and should not be pushed.
+    if (!getSyncPath()) {
+      return { updates: [], pushed: 0 };
     }
 
     // Folder sync mode: read from commits directory

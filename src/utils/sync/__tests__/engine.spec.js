@@ -13,9 +13,16 @@ vi.mock('@/composable/useNoteYjs.js', () => ({
   applyRemote: vi.fn(),
 }));
 
+vi.mock('@/lib/yjs/shared.js', () => ({
+  applyRemote: vi.fn(),
+  getActiveDoc: vi.fn(() => null),
+}));
+
 vi.mock('@/lib/native/yjs.js', () => ({
   appendUpdate: vi.fn(() => Promise.resolve()),
   appendBatch: vi.fn(() => Promise.resolve()),
+  compactUpdates: vi.fn(() => Promise.resolve()),
+  getStateVector: vi.fn(() => Promise.resolve({})),
 }));
 
 vi.mock('@/lib/native/app', () => ({

@@ -181,7 +181,7 @@ pub(crate) async fn yjs_get_state_vector(
   let result = tokio::task::spawn_blocking(move || crate::db::yjs_get_state_vector(&pool, &note_id, key))
     .await
     .map_err(|e| AppError::Other(e.to_string()))??;
-  Ok(result.map(serde_json::to_value).transpose()?.unwrap_or_default())
+  Ok(result.map(serde_json::to_value).transpose()?.unwrap_or(serde_json::json!({})))
 }
 
 /// Delete all existing updates for a note and replace them with a single

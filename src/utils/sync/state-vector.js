@@ -103,3 +103,41 @@ export function mergeStateVectors(docId, remoteSV) {
   saveStateVector(docId, merged);
   return merged;
 }
+
+// ── Server checkpoint storage (for cloud pull efficiency) ────────────────────
+// The cloud server uses per-device { ts, sequence } checkpoints for its
+// pull-batch endpoint.  Storing the server's nextCheckpoint after each pull
+// lets us send only NEW updates on the next pull instead of re-downloading
+// everything.
+
+const CHECKPOINT_STORAGE_KEY = 'syncServerCheckpoints';
+
+/**
+ * Load the stored server checkpoint for a note.
+ * @param {string} noteId
+ * @returns {Record<string, {ts: number, sequence: number}>|null} e.g. { "device-a": { ts: 123, sequence: 5 } }
+ */
+export function loadServerCheckpoint(noteId) {
+  try {
+    const raw = localStorage.getItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save a server checkpoint for a note.
+ * @param {string} noteId
+ * @param {Record<string, {ts: number, sequence: number}>} checkpoint
+ */
+export function saveServerCheckpoint(noteId, checkpoint) {
+  try {
+    if (checkpoint && Object.keys(checkpoint).length > 0) {
+      localStorage.setItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`, JSON.stringify(checkpoint));
+    }
+  } catch {
+    // storage full or unavailable — non-critical
+  }
+}

@@ -19,7 +19,9 @@ import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams } from './vault-key-params.js';
 import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
-import { mergeStateVectors, getCurrentStateVector, saveStateVector } from './state-vector.js';
+import * as Y from 'yjs';
+import { getCurrentStateVector, saveStateVector } from './state-vector.js';
+import { getActiveDoc } from '@/lib/yjs/shared.js';
 import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
@@ -342,6 +344,7 @@ export class SyncEngine {
           const transport = this.transports[name];
           logger.info(`[sync] ${name} pull start`);
           let hasMore = true;
+          const pullAffectedNotes = new Set();
           while (hasMore) {
             let pullResult;
             try {
@@ -412,6 +415,7 @@ export class SyncEngine {
               if (updates.length > 0) {
                 const affectedNoteIds = new Set(updates.map((u) => u.noteId));
                 for (const noteId of affectedNoteIds) {
+                  pullAffectedNotes.add(noteId);
                   try {
                     const sv = await getCurrentStateVector(noteId);
                     if (sv && Object.keys(sv).length > 0) {
@@ -428,6 +432,27 @@ export class SyncEngine {
             }
             if (updates.length > 0) gotUpdates = true;
             hasMore = pullResult.hasMore === true;
+          }
+
+          // Compact snapshot cache for notes that received updates.
+          // This prevents the staleness check from false-positiving on the
+          // newly added rows (which are encrypted re-encryptions of the same
+          // content) and avoids an endless bootstrap loop.
+          if (pullAffectedNotes.size > 0) {
+            const { compactUpdates } = await import('@/lib/native/yjs.js');
+            for (const noteId of pullAffectedNotes) {
+              try {
+                const doc = getActiveDoc(noteId);
+                if (doc) {
+                  const state = Y.encodeStateAsUpdate(doc);
+                  if (state.byteLength > 0) {
+                    await compactUpdates(noteId, state);
+                  }
+                }
+              } catch {
+                // non-critical — snapshot cache may be stale but sync still works
+              }
+            }
           }
         }
       } else {

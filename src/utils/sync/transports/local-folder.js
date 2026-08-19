@@ -8,12 +8,22 @@ import { YJS_UPDATE_EXT } from '../constants.js';
 import { readDir, writeFile } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 
-function isUpdateKnown(noteId, device, seq) {
-  const sv = loadStateVector(noteId);
-  if (!sv) return false;
-  const clientClock = sv[device];
-  if (clientClock == null) return false;
-  return (seq ?? 0) <= clientClock;
+/**
+ * Merge per-note state vectors into a single flat map for pre-decrypt
+ * filtering across all notes in the commits/ directory.
+ * @param {Record<string, Record<string, number>>} allStateVectors — { noteId: { device: clock } }
+ * @returns {Record<string, number>} — { device: maxClock across all notes }
+ */
+function mergeAllStateVectors(allStateVectors) {
+  const merged = {};
+  for (const sv of Object.values(allStateVectors)) {
+    for (const [device, clock] of Object.entries(sv)) {
+      if (clock > (merged[device] ?? 0)) {
+        merged[device] = clock;
+      }
+    }
+  }
+  return merged;
 }
 
 export class LocalFolderTransport extends Transport {
@@ -29,19 +39,36 @@ export class LocalFolderTransport extends Transport {
     const commitsDir = await ensureCommitsDir(syncPath);
     const { decryptJSON } = await import('../crypto.js');
 
+    // Collect state vectors for all notes to enable pre-decrypt filtering.
+    // listRemoteYjsUpdates will skip files whose seq <= maxClock for the device.
+    const allStateVectors = {};
+    try {
+      const files = await readDir(commitsDir).catch(() => []);
+      const noteIds = new Set();
+      for (const file of files) {
+        if (!file.endsWith(YJS_UPDATE_EXT)) continue;
+        const match = file.match(/^(.+?)~~/);
+        if (match) noteIds.add(match[1]);
+      }
+      for (const noteId of noteIds) {
+        const sv = loadStateVector(noteId);
+        if (sv) allStateVectors[noteId] = sv;
+      }
+    } catch {
+      // non-critical — proceed without state vectors
+    }
+
     const remoteYjsUpdates = await listRemoteYjsUpdates(
       commitsDir,
       {},
-      decryptJSON
+      decryptJSON,
+      // Pass combined state vector for pre-decrypt filtering.  Since files
+      // from different notes are interleaved in the commits/ dir, we merge
+      // all per-note state vectors into one flat map for the filter.
+      mergeAllStateVectors(allStateVectors)
     ).catch(() => []);
 
-    const filteredUpdates = [];
-    for (const u of remoteYjsUpdates) {
-      if (isUpdateKnown(u.noteId, u.device, u.seq)) continue;
-      filteredUpdates.push(u);
-    }
-
-    const updates = filteredUpdates.map((u) => ({
+    const updates = remoteYjsUpdates.map((u) => ({
       noteId: u.noteId,
       update: u.update,
       device: u.device,
