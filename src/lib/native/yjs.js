@@ -12,6 +12,10 @@ export function getUpdates(noteId) {
   return backend.invoke('yjs:getUpdates', noteId);
 }
 
+export function getStateVector(noteId) {
+  return backend.invoke('yjs:getStateVector', noteId);
+}
+
 export function getSnapshot(noteId) {
   return backend.invoke('yjs:getSnapshot', noteId);
 }

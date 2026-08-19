@@ -155,7 +155,7 @@ function _nextWriteSeq() {
   return _writeSeq;
 }
 
-export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON) {
+export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, stateVector) {
   const ts = Date.now();
   const seq = _nextWriteSeq();
   const payload = {
@@ -165,6 +165,9 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON) {
     noteId,
     update,
   };
+  if (stateVector) {
+    payload.stateVector = stateVector;
+  }
   const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
   const fileName = yjsFileName(noteId, ts, seq);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
@@ -175,7 +178,7 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON) {
  * Used on first sync (commits dir empty) so new devices get the full
  * workspace without needing a separate genesis file.
  */
-export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON) {
+export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, stateVector) {
   const ts = Date.now();
   const payload = {
     device: deviceId,
@@ -183,6 +186,9 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON) {
     noteId: docId,
     update: state,
   };
+  if (stateVector) {
+    payload.stateVector = stateVector;
+  }
   const encrypted = await encryptJSON(payload, `${docId}-snapshot-${ts}`);
   const fileName = yjsSnapshotFileName(docId, ts);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
@@ -238,6 +244,7 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON) {
       seq: parsed.seq ?? payload.seq ?? 0,
       noteId: payload.noteId,
       update: new Uint8Array(payload.update),
+      stateVector: payload.stateVector || null,
     });
   }
 
@@ -297,7 +304,8 @@ export async function compactWorkspaceYjs(commitsDir, decryptJSON, encryptJSON) 
     }
 
     const state = Y.encodeStateAsUpdate(doc);
-    await writeYjsSnapshot(commitsDir, docId, state, encryptJSON);
+    const sv = Y.encodeStateVector(doc);
+    await writeYjsSnapshot(commitsDir, docId, state, encryptJSON, sv);
 
     for (const { file } of entries) {
       await removeSyncPath(path.join(commitsDir, file)).catch(() => {});

@@ -210,12 +210,12 @@ export class CloudTransport extends Transport {
   async _bootstrapFromSnapshots(state) {
     const { emit } = await import('@tauri-apps/api/event');
     const workspaceId = await this._ensureWorkspace();
-    if (!workspaceId) return { bootstrapped: false, noteIds: [] };
+    if (!workspaceId) return false;
 
     const docs = (state.documents || []).filter(
       (d) => d.snapshotKey && d.noteId
     );
-    if (docs.length === 0) return { bootstrapped: false, noteIds: [] };
+    if (docs.length === 0) return false;
 
     const { getSnapshots } = await import('@/lib/native/yjs.js');
     const allNoteIds = docs.map((d) => d.noteId);
@@ -224,10 +224,8 @@ export class CloudTransport extends Transport {
       (d) => !localSnapshots?.[d.noteId] || localSnapshots[d.noteId].length === 0
     );
 
-    if (needsBootstrap.length === 0) return { bootstrapped: false, noteIds: [] };
+    if (needsBootstrap.length === 0) return false;
     logger.info(`[sync] bootstrap: ${needsBootstrap.length} notes need snapshot download`);
-
-    const bootstrappedNoteIds = needsBootstrap.map((d) => d.noteId);
 
     const noteIdsForDownload = needsBootstrap.map((d) => d.noteId);
     const BATCH_SIZE = 50;
@@ -240,14 +238,14 @@ export class CloudTransport extends Transport {
         if (result?.urls) Object.assign(allUrls, result.urls);
       } catch (err) {
         console.warn('[sync] bootstrap: failed to get download URLs:', err?.message);
-        return { bootstrapped: false, noteIds: [] };
+        return false;
       }
     }
 
     const urlEntries = Object.entries(allUrls);
     if (urlEntries.length === 0) {
       logger.info('[sync] bootstrap: no snapshot URLs returned');
-      return { bootstrapped: false, noteIds: [] };
+      return false;
     }
 
     const { decryptBatch } = await import('../crypto.js');
@@ -315,25 +313,6 @@ export class CloudTransport extends Transport {
     }
 
     logger.info(`[sync] bootstrap: applied ${applied}/${downloadedItems.length} snapshots`);
-    // Create local snapshots from the downloaded data so future pulls
-    // don't re-bootstrap. We downloaded full snapshots; write them
-    // directly to the snapshot table via compactUpdates.
-    const { compactUpdates } = await import('@/lib/native/yjs.js');
-    const noteIdsBootstrapped = new Set(downloadedItems.map(d => d._noteId));
-    for (const noteId of noteIdsBootstrapped) {
-      try {
-        // Find the downloaded snapshot for this note
-        const item = downloadedItems.find(d => d._noteId === noteId);
-        if (item?.update) {
-          const snapshotBytes = item.update instanceof Uint8Array
-            ? item.update
-            : new Uint8Array(item.update);
-          await compactUpdates(noteId, snapshotBytes);
-        }
-      } catch (err) {
-        console.warn(`[sync] bootstrap: compact failed for ${noteId}:`, err?.message);
-      }
-    }
     // Persist note metadata to the workspace Y.Doc `notes` map so that
     // writeStoresFromWorkspace() can hydrate the Pinia stores and the UI
     // displays notes instead of an empty state.
@@ -368,7 +347,7 @@ export class CloudTransport extends Transport {
         console.warn(`[sync] bootstrap: syncNoteMeta failed for ${downloadedItems[i]?._noteId}:`, err?.message);
       }
     }
-    return { bootstrapped: applied > 0, noteIds: bootstrappedNoteIds };
+    return applied > 0;
   }
 
   async pull(cursors) {
@@ -400,102 +379,38 @@ export class CloudTransport extends Transport {
     }
     if (!isValidRemoteState(state)) throw malformedRemoteState();
     // Bootstrap from server snapshots if local workspace is empty
-    let bootstrapResult = { bootstrapped: false, noteIds: [] };
+    let bootstrapped = false;
     try {
-      bootstrapResult = await this._bootstrapFromSnapshots(state);
-      if (bootstrapResult.bootstrapped) {
+      bootstrapped = await this._bootstrapFromSnapshots(state);
+      if (bootstrapped) {
         logger.info('[sync] bootstrap complete — re-fetching remote state');
         state = await getRemoteState(workspaceId);
       }
     } catch (err) {
       console.warn('[sync] bootstrap failed (continuing with pull):', err?.message);
     }
-    // After bootstrap, explicitly initialize cursors for bootstrapped notes
-    // in the noteCursors object so they're included in the normal cursor
-    // persistence flow. The normal cursor init below skips notes with local
-    // snapshots at server checkpoint 0/0, but we need to ensure the cursor
-    // is in noteCursors so it gets persisted via cursorsDelta.
-    if (bootstrapResult.bootstrapped && bootstrapResult.noteIds.length > 0) {
-      const deviceId = getSyncDeviceId();
-      for (const noteId of bootstrapResult.noteIds) {
-        const doc = state.documents.find(d => d.noteId === noteId);
-        if (!noteCursors[noteId]) {
-          noteCursors[noteId] = {
-            [deviceId]: { ts: doc?.checkpointTs ?? 0, sequence: doc?.checkpointSequence ?? 0 }
-          };
-        }
-      }
-      logger.info('[sync] bootstrap: initialized cursors for', bootstrapResult.noteIds.length, 'notes');
-    }
-    // Initialize cursors from server checkpoint for notes that don't have local cursors yet.
-    // This prevents "cursor mismatch" when server only has snapshots (checkpointTs/Sequence = 0)
-    // and client sends empty checkpoint {}.
-    const deviceId = getSyncDeviceId();
-    const serverNoteIds = state.documents.filter(d => d.noteId).map(d => d.noteId);
-    const localSnapshots = serverNoteIds.length > 0
-      ? await getSnapshots(serverNoteIds).catch(() => ({}))
-      : {};
+    // Ensure all server-known notes have cursor entries.
+    // New notes (no local cursor) start with empty checkpoint {} which
+    // tells the server to return ALL updates. Yjs CRDT handles deduplication
+    // so re-applying known updates is safe and idempotent.
     for (const document of state.documents) {
       if (!document.noteId) continue;
       if (!noteCursors[document.noteId]) {
-        const checkpointTs = document.checkpointTs ?? 0;
-        const checkpointSequence = document.checkpointSequence ?? 0;
-        // If the server only has a snapshot (checkpoint 0/0) and we already
-        // have a local snapshot for this note, skip initializing a cursor.
-        // This prevents re-pulling ALL snapshot-only notes every cycle.
-        const hasLocalSnapshot = localSnapshots?.[document.noteId]?.length > 0;
-        const serverAtZero = checkpointTs === 0 && checkpointSequence === 0;
-        if (serverAtZero && hasLocalSnapshot) {
-          // We already have the full state — no cursor needed.
-          continue;
-        }
-        noteCursors[document.noteId] = {
-          [deviceId]: { ts: checkpointTs, sequence: checkpointSequence },
-        };
-        logger.info('[sync][debug] initialized cursor from server state', {
-          noteId: document.noteId,
-          checkpointTs,
-          checkpointSequence,
-        });
+        noteCursors[document.noteId] = {};
       }
     }
 
-    const notes = Object.entries(noteCursors).map(([noteId, noteCursor]) => ({
-      noteId,
-      checkpoint: noteCursor || {},
-    }));
-    // Track which notes had non-empty cursors BEFORE this pull (not just initialized from server state)
-    // to detect actual mismatches. Notes initialized from server state at 0/0 are expected to have
-    // zero updates on first pull after bootstrap.
-    const notesWithPreExistingCursor = new Set();
-    for (const [noteId, noteCursor] of Object.entries(noteCursors)) {
-      const hasCursor = noteCursor && Object.keys(noteCursor).length > 0;
-      if (hasCursor) {
-        // Check if this cursor was just initialized from server state at 0/0
-        const deviceId = getSyncDeviceId();
-        const cursorForDevice = noteCursor[deviceId];
-        const isFreshlyInitializedFromServer = cursorForDevice && cursorForDevice.ts === 0 && cursorForDevice.sequence === 0;
-        if (!isFreshlyInitializedFromServer) {
-          notesWithPreExistingCursor.add(noteId);
-        }
-      }
-    }
+    const notes = state.documents
+      .filter(d => d.noteId)
+      .map(d => ({
+        noteId: d.noteId,
+        checkpoint: noteCursors[d.noteId] || {},
+      }));
     logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
     const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
     const totalUpdates = resultNoteIds.reduce((sum, nid) => sum + (result.notes[nid]?.updates?.length || 0), 0);
     logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
-    // Only warn for notes that had a pre-existing local cursor (not just initialized from server at 0/0)
-    // but got zero updates. This avoids false positives when server only has snapshots (checkpoint 0/0)
-    // and client correctly initializes cursor to 0/0 — zero updates is expected in that case.
-    if (resultNoteIds.length > 0 && totalUpdates === 0) {
-      const mismatchedNotes = resultNoteIds.filter((nid) => notesWithPreExistingCursor.has(nid));
-      if (mismatchedNotes.length > 0) {
-        logger.warn('[sync][debug] server returned notes but zero updates for notes with pre-existing local cursor — possible cursor mismatch:', mismatchedNotes);
-      } else {
-        logger.info('[sync][debug] server returned notes with zero updates (expected for snapshot-only notes)');
-      }
-    }
     const updates = [];
     const cursorsDelta = {};
     let hasMore = false;

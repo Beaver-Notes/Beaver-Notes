@@ -32,7 +32,8 @@ async function processNote(noteId, commitsDir) {
     }
     const state = Y.encodeStateAsUpdate(doc);
     if (state.byteLength > 0) {
-      await writeYjsSnapshot(commitsDir, noteId, state, encryptJSON);
+      const sv = Y.encodeStateVector(doc);
+      await writeYjsSnapshot(commitsDir, noteId, state, encryptJSON, sv);
     }
   } catch (err) {
     console.warn('[sync] initial snapshot failed for', noteId, err);
@@ -45,7 +46,8 @@ export async function writeInitialSnapshots(commitsDir) {
   const workspaceDoc = getWorkspaceDoc();
 
   const wsState = Y.encodeStateAsUpdate(workspaceDoc);
-  await writeYjsSnapshot(commitsDir, META_DOC_ID, wsState, encryptJSON);
+  const wsSV = Y.encodeStateVector(workspaceDoc);
+  await writeYjsSnapshot(commitsDir, META_DOC_ID, wsState, encryptJSON, wsSV);
 
   const notesMap = workspaceDoc.getMap('notes');
   const VALID_NOTE_ID_RE = /^[a-zA-Z0-9_-]{1,256}$/;

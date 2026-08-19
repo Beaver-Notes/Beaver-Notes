@@ -11,6 +11,7 @@
 
 import { writeYjsUpdate } from './sync-yjs.js';
 import { encryptJSON } from './crypto.js';
+import { getCurrentStateVector } from './state-vector.js';
 
 const MAX_QUEUE_SIZE = 5000;
 const pendingSyncWrites = [];
@@ -132,7 +133,8 @@ export async function flushPendingSyncWrites() {
       const entries = drainPending();
       for (const { commitsDir, noteId, update } of entries) {
         try {
-          await writeYjsUpdate(commitsDir, noteId, update, encryptJSON);
+          const sv = await getCurrentStateVector(noteId);
+          await writeYjsUpdate(commitsDir, noteId, update, encryptJSON, sv);
         } catch (err) {
           console.warn('[sync] failed to flush pending write for', noteId, err);
         }

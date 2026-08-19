@@ -1,11 +1,20 @@
 import { Transport } from './transport.js';
 import { listRemoteYjsUpdates, compactWorkspaceYjs } from '../sync-yjs.js';
 import { writeInitialSnapshots } from './seed.js';
+import { loadStateVector } from '../state-vector.js';
 import { getSyncPath } from '../path.js';
 import { ensureCommitsDir } from '../sync-repository.js';
 import { YJS_UPDATE_EXT } from '../constants.js';
 import { readDir, writeFile } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
+
+function isUpdateKnown(noteId, device, seq) {
+  const sv = loadStateVector(noteId);
+  if (!sv) return false;
+  const clientClock = sv[device];
+  if (clientClock == null) return false;
+  return (seq ?? 0) <= clientClock;
+}
 
 export class LocalFolderTransport extends Transport {
   constructor({ passphraseProvider }) {
@@ -13,7 +22,7 @@ export class LocalFolderTransport extends Transport {
     this.passphraseProvider = passphraseProvider;
   }
 
-  async pull(cursors) {
+  async pull(_cursors) {
     const syncPath = await getSyncPath();
     if (!syncPath) return { updates: [], cursorsDelta: {} };
 
@@ -22,11 +31,17 @@ export class LocalFolderTransport extends Transport {
 
     const remoteYjsUpdates = await listRemoteYjsUpdates(
       commitsDir,
-      cursors,
+      {},
       decryptJSON
     ).catch(() => []);
 
-    const updates = remoteYjsUpdates.map((u) => ({
+    const filteredUpdates = [];
+    for (const u of remoteYjsUpdates) {
+      if (isUpdateKnown(u.noteId, u.device, u.seq)) continue;
+      filteredUpdates.push(u);
+    }
+
+    const updates = filteredUpdates.map((u) => ({
       noteId: u.noteId,
       update: u.update,
       device: u.device,

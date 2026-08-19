@@ -169,6 +169,21 @@ pub(crate) async fn yjs_get_updates(
   .map_err(|e| AppError::Other(e.to_string()))?
 }
 
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn yjs_get_state_vector(
+  app: AppHandle,
+  note_id: String,
+  state: State<'_, AppState>,
+) -> Result<serde_json::Value, AppError> {
+  let pool = data_pool(&app, &state)?;
+  let key = yjs_encryption_key(&state)?;
+  let result = tokio::task::spawn_blocking(move || crate::db::yjs_get_state_vector(&pool, &note_id, key))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
+  Ok(result.map(serde_json::to_value).transpose()?.unwrap_or_default())
+}
+
 /// Delete all existing updates for a note and replace them with a single
 /// compressed Yjs state vector (snapshot).  Keeps the row count bounded.
 /// Dispatched to a blocking thread: rewrites every row + encrypts a multi-MB

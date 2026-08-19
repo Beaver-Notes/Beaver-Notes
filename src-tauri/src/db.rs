@@ -338,6 +338,32 @@ pub(crate) fn yjs_get_snapshot(
     Ok(snapshot)
 }
 
+/// Return the current Yjs state vector for a note as a JSON object
+/// mapping client IDs to their highest clock values.  Returns `None` when
+/// the note has no stored data (empty state vector).
+pub(crate) fn yjs_get_state_vector(
+    pool: &DbPool,
+    note_id: &str,
+    key: Option<[u8; 32]>,
+) -> Result<Option<std::collections::HashMap<String, i64>>, AppError> {
+    let _t = crate::shared::speed_log::scope("db.yjs_get_state_vector");
+    let rows = yjs_get_updates(pool, note_id, key)?;
+    if rows.is_empty() {
+        return Ok(None);
+    }
+    let mut doc = Doc::new();
+    for (_, blob) in rows {
+        let update = Update::decode_v1(&blob).map_err(|e| AppError::Other(e.to_string()))?;
+        doc.apply_update(update).map_err(|e| AppError::Other(e.to_string()))?;
+    }
+    let sv = doc.get_state_vector();
+    let mut map = std::collections::HashMap::new();
+    for (client, clock) in sv.iter() {
+        map.insert(client.to_string(), *clock as i64);
+    }
+    Ok(Some(map))
+}
+
 /// Return the fresh merged Yjs snapshot for many notes in a single pass
 /// (one SQL query for the snapshot cache, one for the latest update timestamp),
 /// avoiding the N+1 IPC/SQL round-trips of calling `yjs_get_snapshot` per note.

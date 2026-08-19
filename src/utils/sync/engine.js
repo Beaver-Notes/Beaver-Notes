@@ -20,6 +20,7 @@ import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams } from './vault-key-params.js';
 import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
+import { mergeStateVectors, getCurrentStateVector, saveStateVector } from './state-vector.js';
 import { logger } from '@/utils/logger';
 
 const PULL_ONLY_INTERVAL_MS = 30_000;
@@ -430,11 +431,17 @@ export class SyncEngine {
 
             const allSucceeded = succeeded.every(Boolean);
             if (allSucceeded) {
-              if (name !== 'cloud') {
-                for (const upd of updates) {
-                  const delta = {};
-                  delta[`yjs-${upd.device}`] = { ts: upd.ts, seq: upd.seq };
-                  if (mergeCursorDelta(cursors, delta)) cursorsDirty = true;
+              if (updates.length > 0) {
+                const affectedNoteIds = new Set(updates.map((u) => u.noteId));
+                for (const noteId of affectedNoteIds) {
+                  try {
+                    const sv = await getCurrentStateVector(noteId);
+                    if (sv && Object.keys(sv).length > 0) {
+                      saveStateVector(noteId, sv);
+                    }
+                  } catch {
+                    // non-critical
+                  }
                 }
               }
               if (name === 'cloud' && pullResult.cursorsDelta) {
