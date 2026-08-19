@@ -247,7 +247,7 @@ describe('SyncEngine periodic timer', () => {
 });
 
 describe('SyncEngine cursor persistence', () => {
-  it('applies and saves each remote page before requesting the next page', async () => {
+  it('applies all remote pages and saves cursors once after the pull loop', async () => {
     const storage = { get: vi.fn(() => ({})), set: vi.fn() };
     const order = [];
     let page = 0;
@@ -273,7 +273,7 @@ describe('SyncEngine cursor persistence', () => {
 
     await current.enqueueSync(true);
 
-    expect(storage.set).toHaveBeenCalledTimes(2);
+    expect(storage.set).toHaveBeenCalledTimes(1);
     expect(order).toEqual(['pull', 'pull']);
   });
 

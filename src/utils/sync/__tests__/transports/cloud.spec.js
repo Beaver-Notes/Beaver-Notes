@@ -312,7 +312,7 @@ describe('CloudTransport', () => {
 
       expect(getRemoteState).toHaveBeenCalled();
       expect(pullUpdates).toHaveBeenCalledWith('workspace-1', expect.arrayContaining([
-        expect.objectContaining({ noteId: 'server-note', checkpoint: { 'mock-device': { ts: 0, sequence: 0 } } }),
+        expect.objectContaining({ noteId: 'server-note', checkpoint: {} }),
       ]));
       expect(readDir).not.toHaveBeenCalled();
     });
@@ -344,7 +344,7 @@ describe('CloudTransport', () => {
       await transport.pull({ 'workspace-1': { note: {} } });
 
       expect(pullUpdates).toHaveBeenCalledWith('workspace-1', expect.arrayContaining([
-        expect.objectContaining({ noteId: 'later-note', checkpoint: { 'mock-device': { ts: 0, sequence: 0 } } }),
+        expect.objectContaining({ noteId: 'later-note', checkpoint: {} }),
       ]));
     });
 

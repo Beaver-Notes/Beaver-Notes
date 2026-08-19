@@ -454,6 +454,7 @@ export class CloudTransport extends Transport {
     }
 
     let decryptedPayloads;
+    let sawDecryptFailed = false;
     try {
       decryptedPayloads = await decryptBatch(
         parseResults.map((r) => r.raw),
@@ -473,6 +474,7 @@ export class CloudTransport extends Transport {
             decryptedPayloads[i] = await decryptJSON(parseResults[i].raw, parseResults[i].aadSuffix);
           } catch (individualErr) {
             logger.warn(`[sync][debug] item ${i} individual decrypt also failed — skipping:`, individualErr?.code, individualErr?.message);
+            if (individualErr?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
             decryptedPayloads[i] = null;
           }
         }
@@ -493,6 +495,7 @@ export class CloudTransport extends Transport {
         }));
       }
     } catch (batchErr) {
+      if (batchErr?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
       logger.warn('[sync] batch decrypt failed, falling back to individual:', batchErr?.message);
       decryptedPayloads = [];
       for (const r of parseResults) {
@@ -500,6 +503,7 @@ export class CloudTransport extends Transport {
           decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
         } catch (caughtError) {
           logger.warn('[sync][debug] individual decryptJSON failed:', caughtError?.code, caughtError?.message);
+          if (caughtError?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
           decryptedPayloads.push(null);
         }
       }
@@ -512,7 +516,7 @@ export class CloudTransport extends Transport {
     if (survivingCount === 0 && decryptedPayloads.length > 0) {
       logger.warn('[sync] all decrypted payloads are null — key may be locked');
       const error = new Error('Remote update cannot be decrypted');
-      error.code = 'unlock-required';
+      error.code = sawDecryptFailed ? 'DECRYPT_FAILED' : 'unlock-required';
       throw error;
     }
 
