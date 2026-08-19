@@ -561,26 +561,56 @@ pub(crate) async fn sync_decrypt_batch(
         let results: Vec<Option<SyncDecryptedPayload>> = envelopes
             .par_iter()
             .zip(aads.par_iter())
-            .map(|(enc, aad)| {
-                let envelope: Value = serde_json::from_str(enc).ok()?;
+            .enumerate()
+            .map(|(i, (enc, aad))| {
+                let envelope: Value = match serde_json::from_str(enc) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("[sync][rust][debug] [{}] json_parse failed: {}", i, e);
+                        return None;
+                    }
+                };
                 let v = envelope.get("v").and_then(Value::as_u64).unwrap_or(0) as u8;
                 let iv = envelope.get("iv").and_then(Value::as_str).unwrap_or_default();
                 let enc_str = envelope.get("enc").and_then(Value::as_str).unwrap_or_default();
 
                 if v == SYNC_PAYLOAD_VERSION {
-                    let bytes = aead_decrypt_bytes(&key, iv, enc_str, aad).ok()?;
-                    let meta: SyncMeta = serde_json::from_value(
+                    let bytes = match aead_decrypt_bytes(&key, iv, enc_str, aad) {
+                        Ok(b) => b,
+                        Err(e) => {
+                            eprintln!("[sync][rust][debug] [{}] decrypt failed v{}: {} (aad={})", i, v, e, aad);
+                            return None;
+                        }
+                    };
+                    let meta: SyncMeta = match serde_json::from_value(
                         envelope.get("meta").cloned().unwrap_or(Value::Null),
-                    )
-                    .ok()?;
+                    ) {
+                        Ok(m) => m,
+                        Err(e) => {
+                            eprintln!("[sync][rust][debug] [{}] meta_parse failed v{}: {}", i, v, e);
+                            return None;
+                        }
+                    };
                     Some(SyncDecryptedPayload {
                         meta,
                         update: BASE64.encode(bytes),
                     })
                 } else if v == PROTOCOL_VERSION {
                     let legacy = SyncEnvelope { v, iv: iv.to_string(), enc: enc_str.to_string() };
-                    let value = aead_decrypt_json(&key, &legacy, aad).ok()?;
-                    let meta: SyncMeta = serde_json::from_value(value.clone()).ok()?;
+                    let value = match aead_decrypt_json(&key, &legacy, aad) {
+                        Ok(v) => v,
+                        Err(e) => {
+                            eprintln!("[sync][rust][debug] [{}] decrypt_legacy failed v{}: {}", i, v, e);
+                            return None;
+                        }
+                    };
+                    let meta: SyncMeta = match serde_json::from_value(value.clone()) {
+                        Ok(m) => m,
+                        Err(e) => {
+                            eprintln!("[sync][rust][debug] [{}] meta_parse_legacy failed v{}: {}", i, v, e);
+                            return None;
+                        }
+                    };
                     let update_arr = value
                         .get("update")
                         .and_then(Value::as_array)
@@ -595,10 +625,19 @@ pub(crate) async fn sync_decrypt_batch(
                         update: BASE64.encode(bytes),
                     })
                 } else {
+                    eprintln!("[sync][rust][debug] [{}] unsupported envelope version: {}", i, v);
                     None
                 }
             })
             .collect();
+
+        let null_count = results.iter().filter(|r| r.is_none()).count();
+        if null_count > 0 {
+            eprintln!(
+                "[sync][rust][debug] sync_decrypt_batch: {}/{} items failed",
+                null_count, results.len()
+            );
+        }
 
         Ok(results)
     })

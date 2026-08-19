@@ -18,7 +18,7 @@ import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { syncDeletedAssets } from '@/lib/yjs/workspace-doc';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
-import { fetchCloudKeyParams, publishCloudKeyParams, cloudKeyParamsReachable } from './vault-key-params.js';
+import { fetchCloudKeyParams } from './vault-key-params.js';
 import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
 import { logger } from '@/utils/logger';
 
@@ -322,12 +322,14 @@ export class SyncEngine {
         } catch (e) {
           logger.warn('[sync] key-params reconcile failed:', e);
         }
-        // Only publish if the server doesn't already have key params.
-        // If we just fetched them, publishing would overwrite the vault owner's
-        // key params with this device's local key params (which may differ).
-        if (cloudKeyParamsReachable() && !fetchedRemote) {
-          publishCloudKeyParams().catch(() => {});
-        }
+        // Never auto-publish key params during reconcile.
+        // Key params are published explicitly by:
+        //   1. seedCloudOnce – when the first device seeds the vault
+        //   2. adoptAndPublishVaultKeyParams – when a joining device adopts
+        // Auto-publishing here creates a race: if fetchCloudKeyParams returns
+        // 404 (intermittent), the server's existing params get overwritten with
+        // this device's local (different) params, breaking decryption for all
+        // other devices.
       }
 
       if (syncPath) {

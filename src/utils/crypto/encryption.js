@@ -78,7 +78,9 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams().catch(() => {});
+    // Await reconcile first — it writes keyParams.json to disk via Rust.
+    // Only then can publishCloudKeyParams read and publish it to the server.
+    await reconcileSyncKeyParams().catch(() => {});
     import('@/utils/sync/vault-key-params.js')
       .then((m) => m.publishCloudKeyParams())
       .catch(() => {});
@@ -102,7 +104,7 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams(passphrase).catch(() => {});
+    await reconcileSyncKeyParams(passphrase).catch(() => {});
     import('@/utils/sync/vault-key-params.js')
       .then((m) => m.publishCloudKeyParams())
       .catch(() => {});
