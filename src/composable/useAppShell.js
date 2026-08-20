@@ -103,6 +103,10 @@ export function useAppShell(onboardingCompleted = true) {
 
   useSoundActions();
 
+  // Background key-distributor instance (assigned once auth/sync is up).
+  let keyDistributor = null;
+  const handleKeyDistributorFocus = () => keyDistributor?.tick();
+
   const uiState = useUiState();
   const retrieved = ref(false);
   const animateRouteChange = ref(true);
@@ -582,6 +586,17 @@ export function useAppShell(onboardingCompleted = true) {
     initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // Background key-distributor: lets an already-provisioned device re-wrap a
+    // note's content key for a newly-linked device that requested it. Started
+    // only once the user is authenticated/sync is up (guarded inside the task);
+    // lifecycle wiring is registered in the synchronous setup scope below.
+    if (accountStore.isAuthenticated) {
+      const { useKeyDistributor } = await import('@/composable/useKeyDistributor');
+      keyDistributor = useKeyDistributor();
+      keyDistributor.start();
+      window.addEventListener('focus', handleKeyDistributorFocus);
+    }
+
     performance.mark('init:done');
     logStartupTiming();
   };
@@ -759,6 +774,8 @@ export function useAppShell(onboardingCompleted = true) {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', handleKeyDistributorFocus);
+    keyDistributor?.stop();
     getSyncEngine()?.stopPullTimer();
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)

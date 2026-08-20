@@ -22,6 +22,23 @@ import {
 } from '@/utils/crypto/note-key';
 import { loadAccountDeviceId, saveAccountDeviceId } from '@/lib/account-storage';
 
+// Module-level so the key-distributor background task can resolve a note's
+// collaborator device public keys without spinning up the full composable.
+export async function fetchCollaboratorPublicKeys(noteId) {
+  const accountStore = useAccountStore();
+  const baseUrl = accountStore.serverUrl;
+  try {
+    return await apiListPublicKeys(noteId, { baseUrl });
+  } catch (err) {
+    // First touch of a note: the caller may not be a collaborator yet.
+    // Listing invitations auto-grants the self-invitation, after which the
+    // public-keys endpoint (gated to collaborators) accepts the request.
+    if (err?.status !== 403) throw err;
+    await apiList(noteId, { baseUrl });
+    return apiListPublicKeys(noteId, { baseUrl });
+  }
+}
+
 export function useNoteSharing() {
   const accountStore = useAccountStore();
   const collaboratorStore = useCollaboratorStore();
@@ -125,19 +142,6 @@ export function useNoteSharing() {
     } catch (err) {
       console.error('[useNoteSharing] getKey failed:', err);
       return null;
-    }
-  }
-
-  async function fetchCollaboratorPublicKeys(noteId) {
-    try {
-      return await apiListPublicKeys(noteId, { baseUrl: activeBaseUrl() });
-    } catch (err) {
-      // First touch of a note: the caller may not be a collaborator yet.
-      // Listing invitations auto-grants the self-invitation, after which the
-      // public-keys endpoint (gated to collaborators) accepts the request.
-      if (err?.status !== 403) throw err;
-      await apiList(noteId, { baseUrl: activeBaseUrl() });
-      return apiListPublicKeys(noteId, { baseUrl: activeBaseUrl() });
     }
   }
 
