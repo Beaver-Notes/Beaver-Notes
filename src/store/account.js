@@ -173,17 +173,3 @@ export const useAccountStore = defineStore('account', {
     },
   },
 });
-
-// Lazy accessor for non-setup modules (e.g. the key-distributor background
-// task) that only need to read auth state. Delegating through a proxy lets us
-// import it at module load without requiring an active Pinia instance; the
-// store is only resolved the first time a property is read (at runtime, with
-// Pinia active).
-export const accountStore = new Proxy(
-  {},
-  {
-    get(_target, prop) {
-      return useAccountStore()[prop];
-    },
-  }
-);

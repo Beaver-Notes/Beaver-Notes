@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/collaboration';
 import { recoverNoteKeyFromEnvelopes, wrapNoteKeyForRecipient } from '@/utils/crypto/note-key';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import { accountStore } from '@/store/account';
+import { useAccountStore } from '@/store/account';
 
 // Resolve a target device's public key. The brief lets callers pass either a
 // `resolvePublicKey(noteId, targetDeviceId)` function or a plain
@@ -18,7 +18,7 @@ export async function fulfillPendingRequests({
   baseUrl,
   signal,
 } = {}) {
-  if (!accountStore.isAuthenticated) return;
+  if (!useAccountStore().isAuthenticated) return;
 
   const id = identity ?? (await loadOrCreateIdentity());
   const resolver =
@@ -31,7 +31,7 @@ export async function fulfillPendingRequests({
       const noteKeyHex = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, id, req.noteId);
       if (!noteKeyHex) continue; // we don't hold this note's key; skip
 
-      const pub = resolver(req.noteId, req.targetDeviceId);
+      const pub = await resolver(req.noteId, req.targetDeviceId);
       if (!pub) continue; // can't resolve target device's public key
 
       const wrappedKey = await wrapNoteKeyForRecipient(pub, noteKeyHex);

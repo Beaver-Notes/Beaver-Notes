@@ -559,7 +559,7 @@ export function useAppShell(onboardingCompleted = true) {
       const accountStore = useAccountStore();
       // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
       // useAccountAuth components which may not have mounted yet.
-      if (!accountStore.isAuthenticated) {
+      if (!useAccountStore().isAuthenticated) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
         if (token) {
@@ -567,7 +567,7 @@ export function useAppShell(onboardingCompleted = true) {
           accountStore.setStatus('authenticated');
         }
       }
-      if (accountStore.isAuthenticated) {
+      if (useAccountStore().isAuthenticated) {
         // Fetch profile/subscription so _remoteAllowed has plan info for sync
         import('@/lib/api/account').then(({ getAccount }) => {
           getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
@@ -590,7 +590,7 @@ export function useAppShell(onboardingCompleted = true) {
     // note's content key for a newly-linked device that requested it. Started
     // only once the user is authenticated/sync is up (guarded inside the task);
     // lifecycle wiring is registered in the synchronous setup scope below.
-    if (accountStore.isAuthenticated) {
+    if (useAccountStore().isAuthenticated) {
       const { useKeyDistributor } = await import('@/composable/useKeyDistributor');
       keyDistributor = useKeyDistributor();
       keyDistributor.start();
