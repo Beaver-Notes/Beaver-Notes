@@ -80,13 +80,17 @@ export async function setupEncryption(passphrase) {
     state.loaded = !!result?.state?.unlocked;
     // Fetch server key params FIRST so reconcile adopts the vault owner's keys
     // instead of writing this device's own keys and overwriting the server.
-    const { fetchCloudKeyParams, publishCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-    const fetchedRemote = await fetchCloudKeyParams().catch(() => null);
-    await reconcileSyncKeyParams().catch(() => {});
-    // Only publish if no remote key params existed (this is the first device).
-    if (!fetchedRemote) {
-      await publishCloudKeyParams().catch(() => {});
-    }
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    // Adopt the server's keys using the passphrase so we decrypt with the
+    // correct key immediately — without this, submitEncryptionPassword created
+    // a local key and all subsequent writes use the wrong key until the first
+    // engine cycle's reconcile runs.
+    await reconcileSyncKeyParams(passphrase).catch(() => {});
+    // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
+    // (workspace not loaded, network glitch, 404), publishCloudKeyParams would
+    // overwrite the vault owner's keys with this device's freshly-generated key.
+    // Key params are published only by seedCloudOnce and adoptVaultKey.
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -107,15 +111,12 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    // Fetch server key params FIRST so reconcile adopts the vault owner's keys
-    // instead of writing this device's own keys and overwriting the server.
-    const { fetchCloudKeyParams, publishCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-    const fetchedRemote = await fetchCloudKeyParams().catch(() => null);
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys.
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    // Adopt the server's keys with the passphrase — same as setupEncryption.
     await reconcileSyncKeyParams(passphrase).catch(() => {});
-    // Only publish if no remote key params existed (this is the first device).
-    if (!fetchedRemote) {
-      await publishCloudKeyParams().catch(() => {});
-    }
+    // NEVER auto-publish key params here — see setupEncryption comment.
     return { ok: true };
   } catch (err) {
     const msg = err?.message || String(err);

@@ -280,8 +280,11 @@ export class SyncEngine {
         }
       }
 
-      // Vault key params: reconcile and publish only on force/foreground cycles
-      if (_force || isForegroundWake) {
+      // Vault key params: reconcile on EVERY cycle so a joining device adopts
+      // the vault owner's keys as soon as possible.  Previously this only ran
+      // on force/foreground cycles, meaning a failed first reconcile left the
+      // device using its own local key until the next force sync.
+      {
         let syncPassphrase = null;
         try {
           syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
@@ -289,19 +292,15 @@ export class SyncEngine {
           logger.warn('[sync][debug] loadSecureBlob(encryptionPassphraseBlob) failed:', e?.message || e);
           syncPassphrase = null;
         }
-        logger.info('[sync][debug] syncPassphrase from secure storage:', syncPassphrase ? `present (${syncPassphrase.length} chars)` : 'NULL');
         let fetchedRemote = false;
         try {
           const fetched = await fetchCloudKeyParams();
           fetchedRemote = !!fetched;
-          logger.info('[sync][debug] fetchCloudKeyParams result:', fetchedRemote, 'fetchedKeys:', fetched ? Object.keys(fetched) : null);
         } catch (e) {
           logger.warn('[sync][debug] fetchCloudKeyParams failed:', e?.message || e);
         }
         try {
-          logger.info('[sync][debug] calling reconcileSyncKeyParams with passphrase:', syncPassphrase ? 'present' : 'undefined');
           await reconcileSyncKeyParams(syncPassphrase || undefined);
-          logger.info('[sync][debug] reconcileSyncKeyParams completed successfully');
         } catch (e) {
           logger.warn('[sync] key-params reconcile failed:', e);
         }
