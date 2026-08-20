@@ -22,8 +22,11 @@ import {
   toUint8Array,
 } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
-import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { getHocuspocusSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/hocuspocus-sync';
 import { useWorkspaceStore } from '@/store/workspace';
+import { getWorkspaceKey } from '@/lib/api/workspaces';
+import { loadOrCreateIdentity } from '@/utils/crypto/identity';
+import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
 // Re-export store hydration so consumers keep a single import path
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-store.js';
@@ -197,9 +200,50 @@ export async function loadWorkspaceDoc() {
   const hocuspocus = getHocuspocusSync();
   const workspaceStore = useWorkspaceStore();
   const wsId = workspaceStore.activeId;
-  if (wsId) hocuspocus.joinMetaRoom(wsId);
+  if (wsId) {
+    // The workspace meta doc is encrypted with the WORKSPACE key (the same
+    // key used to decrypt the workspace doc). Supply it to the Hocuspocus
+    // meta room BEFORE joining so inbound encrypted meta updates can be
+    // decrypted — without this the meta doc corrupts and the notes grid
+    // goes blank on other devices.
+    await ensureMetaRoomKey(wsId).catch((err) => {
+      console.warn('[meta-yjs] could not derive workspace meta key:', err?.message || err);
+    });
+    hocuspocus.joinMetaRoom(wsId);
+  }
 
   return doc;
+}
+
+/**
+ * Derive the workspace key and register it on the Hocuspocus meta room.
+ * Mirrors the per-note key wiring in useNoteYjs.js (setRoomKey around
+ * useNoteYjs.js:230) but uses the WORKSPACE key instead of a per-note key.
+ *
+ * The wrapped key is preferred from the local workspace store (no network),
+ * falling back to an API fetch via getWorkspaceKey(wsId).
+ */
+export async function ensureMetaRoomKey(wsId) {
+  if (!wsId) return;
+  const workspaceStore = useWorkspaceStore();
+  const ws =
+    workspaceStore.activeWorkspace ||
+    workspaceStore.workspaces?.find((w) => w.id === wsId);
+  let wrappedKey = ws?.wrappedKey ?? null;
+  if (!wrappedKey) {
+    wrappedKey = await getWorkspaceKey(wsId);
+  }
+  if (!wrappedKey) {
+    console.warn('[meta-yjs] no wrapped key available for workspace', wsId);
+    return;
+  }
+  const identity = await loadOrCreateIdentity();
+  if (!identity?.privateKeyHex) {
+    console.warn('[meta-yjs] missing encryption identity for meta key');
+    return;
+  }
+  const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
+  await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
 }
 
 let observerTimer = null;

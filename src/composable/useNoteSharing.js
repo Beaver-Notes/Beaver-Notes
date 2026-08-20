@@ -122,6 +122,11 @@ export function useNoteSharing() {
   async function ensureNoteKey(noteId) {
     if (!accountStore.isAuthenticated) return null;
 
+    // Register the caller as the note's owner collaborator (idempotent: only
+    // bootstraps when the note has zero collaborators) and ensure the key
+    // envelope context exists. Non-fatal so note creation/opening never breaks.
+    await ensureKey(noteId).catch(() => {});
+
     const identity = await loadOrCreateIdentity();
 
     // First touch of a note: the caller may not be a collaborator yet.

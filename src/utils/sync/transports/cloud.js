@@ -31,7 +31,7 @@ import { localAssetName } from '../crypto.js';
 import { loadServerCheckpoint, saveServerCheckpoint } from '../state-vector.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
+import { mergeIntoMap, syncNoteMeta } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import * as Y from 'yjs';
 import { getSnapshot, getSnapshots, getUpdates } from '@/lib/native/yjs.js';
@@ -548,6 +548,40 @@ export class CloudTransport extends Transport {
         ts: payload.ts,
         seq: payloadSequence,
       });
+    }
+
+    // Persist note metadata to the workspace Y.Doc `notes` map for any note
+    // that arrived via this pull but is NOT yet present locally. This mirrors
+    // the placeholder-meta injection performed during bootstrap so a freshly
+    // pulled note (e.g. created on another device while this one was offline)
+    // also appears as a card even without a live Hocuspocus connection. Notes
+    // already in the workspace doc keep their real title/preview.
+    const yNotes = getWorkspaceDoc().getMap('notes');
+    const seenIds = new Set();
+    for (const upd of decodedUpdates) {
+      const noteId = upd?.noteId;
+      if (!noteId || seenIds.has(noteId)) continue;
+      seenIds.add(noteId);
+      if (!yNotes.has(noteId)) {
+        try {
+          syncNoteMeta({
+            id: noteId,
+            title: '',
+            folderId: '',
+            labels: [],
+            isArchived: false,
+            isLocked: false,
+            isBookmarked: false,
+            isFullWidth: false,
+            createdAt: upd.ts || Date.now(),
+            updatedAt: upd.ts || Date.now(),
+            preview: '',
+            cardPreview: null,
+          });
+        } catch (metaErr) {
+          console.warn(`[sync] cloud pull: meta injection failed for ${noteId}:`, metaErr?.message);
+        }
+      }
     }
 
     return { updates: decodedUpdates, hasMore };
