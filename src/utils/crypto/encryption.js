@@ -78,12 +78,15 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    // Await reconcile first — it writes keyParams.json to disk via Rust.
-    // Only then can publishCloudKeyParams read and publish it to the server.
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys
+    // instead of writing this device's own keys and overwriting the server.
+    const { fetchCloudKeyParams, publishCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    const fetchedRemote = await fetchCloudKeyParams().catch(() => null);
     await reconcileSyncKeyParams().catch(() => {});
-    await import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Only publish if no remote key params existed (this is the first device).
+    if (!fetchedRemote) {
+      await publishCloudKeyParams().catch(() => {});
+    }
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -104,10 +107,15 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys
+    // instead of writing this device's own keys and overwriting the server.
+    const { fetchCloudKeyParams, publishCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    const fetchedRemote = await fetchCloudKeyParams().catch(() => null);
     await reconcileSyncKeyParams(passphrase).catch(() => {});
-    await import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Only publish if no remote key params existed (this is the first device).
+    if (!fetchedRemote) {
+      await publishCloudKeyParams().catch(() => {});
+    }
     return { ok: true };
   } catch (err) {
     const msg = err?.message || String(err);
