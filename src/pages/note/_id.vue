@@ -25,7 +25,19 @@
         </div>
         <div class="flex-1"></div>
         <note-actions
-          v-bind="{ editor, id, note, showSearch, goBack, peers: presence.peers, localColor: presence.localColor?.value, localName: accountStore.profile?.username || 'Anonymous', showHistory, showComments, isShared }"
+          v-bind="{
+            editor,
+            id,
+            note,
+            showSearch,
+            goBack,
+            peers: presence.peers,
+            localColor: presence.localColor?.value,
+            localName: accountStore.profile?.username || 'Anonymous',
+            showHistory,
+            showComments,
+            isShared,
+          }"
           @toggle-search="showSearch = !showSearch"
           @toggle-history="showHistory = !showHistory"
           @toggle-comments="toggleComments"
@@ -90,7 +102,9 @@
           <button
             class="ui-button py-2 text-center h-10 relative transition focus:ring-1 ring-secondary bg-input py-2 px-3 rounded-lg w-64"
             @click="
-              appEncryptedLocked ? unlockAppEncryption() : noteStore.unlockNote(note.id)
+              appEncryptedLocked
+                ? unlockAppEncryption()
+                : noteStore.unlockNote(note.id)
             "
           >
             {{
@@ -128,10 +142,7 @@
           @keyup.down="autoScroll"
           @comment-activated="onCommentActivated"
         />
-        <div
-          v-if="yjsReady && !editor"
-          class="editor-skeleton"
-        >
+        <div v-if="yjsReady && !editor" class="editor-skeleton">
           <div class="space-y-4 animate-pulse">
             <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-3/4" />
             <div class="h-4 bg-neutral-200 dark:bg-neutral-700 rounded w-1/2" />
@@ -174,7 +185,6 @@ import {
   onUnmounted,
 } from 'vue';
 import { debounce } from '@/utils/helpers/index.js';
-import { isTitleFocused } from './titleGuard.js';
 import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
@@ -240,16 +250,13 @@ export default {
     const id = computed(() => route.params.id);
     const note = computed(() => noteStore.getById(id.value));
     const appEncryptedLocked = computed(
-      () => !!note.value && isEncryptedContent(note.value.content)
+      () => !!note.value && isEncryptedContent(note.value.content),
     );
     const isLocked = computed(
-      () => !!note.value && (note.value.isLocked || appEncryptedLocked.value)
+      () => !!note.value && (note.value.isLocked || appEncryptedLocked.value),
     );
     const { translations } = useTranslations();
 
-    // App-global audio recorder: when a recording that targets THIS note
-    // stops, insert the audio node into the editor. If the editor is not
-    // ready, fall back to appending into the note's stored content.
     const recorder = useAudioRecorder();
 
     function handleRecordingStopped(payload) {
@@ -267,23 +274,14 @@ export default {
           noteId,
           filePath,
           noteStore,
-          cursorPos
+          cursorPos,
         ).catch((error) => {
           console.error('Failed to insert recording into note:', error);
         });
       }
     }
-
-    // Subscribe in setup scope, not onMounted: router.currentRoute already
-    // reflects the target note before this page finishes mounting (slow
-    // devices: Yjs hydration/decrypt), and the global pill defers insertion
-    // to this page whenever the route points here. An onMounted-only
-    // subscription would leave a window where neither path inserts and the
-    // recorded file is silently orphaned.
     const stopRecorderListener = recorder.onStopped(handleRecordingStopped);
 
-    // Mark this note as the open editor so the recording pill defers to us
-    // (authority, not the route — no route-transition double insert).
     recorder.openNoteId.value = id.value;
 
     const pushNoteMenuContext = () => {
@@ -293,23 +291,19 @@ export default {
           noteEditable: !isLocked.value,
           noteLocked: isLocked.value,
           inReaderMode: uiState.inReaderMode,
-        })
+        }),
       );
     };
 
-    // Keep the native menu's Format/Insert items in sync with the note's
-    // editable state (load, lock/unlock) and reader mode. Debounced by
-    // pushMenuContext; desktop only.
     watch(
       () => [id.value, isLocked.value, uiState.inReaderMode],
       () => pushNoteMenuContext(),
-      { immediate: true }
+      { immediate: true },
     );
 
     const hocuspocus = getHocuspocusSync();
     const roomRole = computed(() => hocuspocus.getRoomRole(id.value));
 
-    // Yjs document management for note content
     const {
       doc: ydoc,
       ready: yjsReady,
@@ -319,20 +313,18 @@ export default {
       observeTitle: yjsObserveTitle,
     } = useNoteYjs();
 
-    // Presence
     const awareness = ydoc.value ? new Awareness(ydoc.value) : null;
     const accountStore = useAccountStore();
     const presence = usePresence(
       awareness,
       accountStore.profile?.id || 'anonymous',
-      accountStore.profile?.username || 'Anonymous'
+      accountStore.profile?.username || 'Anonymous',
     );
 
     onMounted(() => {
       presence.init();
     });
 
-    // Update presence when profile loads (profile may arrive after init)
     watch(
       () => accountStore.profile?.username,
       (name) => {
@@ -340,14 +332,13 @@ export default {
           presence.setLocalState({ name });
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     onUnmounted(() => {
       presence.destroy();
     });
 
-    // Sharing — fetch collaborators to determine if note is shared
     const isShared = computed(() => sharing.collaborators.value.length > 0);
     watch(
       id,
@@ -360,14 +351,15 @@ export default {
           }
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
-    // Comments — toggle sidebar + fetch threads when note becomes shared
     function toggleComments() {
       showComments.value = !showComments.value;
       if (showComments.value && isShared.value) {
-        commentStore.fetchThreads(id.value, { baseUrl: accountStore.serverUrl });
+        commentStore.fetchThreads(id.value, {
+          baseUrl: accountStore.serverUrl,
+        });
       }
     }
     function closeComments() {
@@ -378,10 +370,12 @@ export default {
       () => [isShared.value, id.value],
       async ([shared, noteId]) => {
         if (shared && noteId && accountStore.isAuthenticated) {
-          commentStore.fetchThreads(noteId, { baseUrl: accountStore.serverUrl });
+          commentStore.fetchThreads(noteId, {
+            baseUrl: accountStore.serverUrl,
+          });
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
     onUnmounted(() => {
       commentStore.reset();
@@ -395,7 +389,7 @@ export default {
       () => commentStore.showSidebar,
       (open) => {
         if (open) showComments.value = true;
-      }
+      },
     );
 
     // Persistence
@@ -490,7 +484,7 @@ export default {
           noteStore.convertNote(n);
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     // Title / content handlers
@@ -547,7 +541,7 @@ export default {
           console.error('[yjs] Failed to load note:', err);
         });
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     // Lifecycle
@@ -613,7 +607,8 @@ export default {
     onUnmounted(() => {
       stopTitleObserver();
       stopRecorderListener();
-      if (recorder.openNoteId.value === id.value) recorder.openNoteId.value = null;
+      if (recorder.openNoteId.value === id.value)
+        recorder.openNoteId.value = null;
       window.removeEventListener('beforeunload', handleBeforeUnload);
       removeGlobalShortcuts();
       removeEditorListeners();
@@ -622,9 +617,7 @@ export default {
     onBeforeRouteLeave((to) => {
       // Leave the native menu on a neutral screen while the next route is
       // being resolved; the app-shell watcher repaints it on arrival.
-      pushMenuContext(
-        buildMenuContext({ routeName: to.name })
-      );
+      pushMenuContext(buildMenuContext({ routeName: to.name }));
       void persistCurrentNote(editor.value, titleDiv.value, route.params.id, {
         wait: false,
       });
@@ -674,8 +667,13 @@ export default {
         if (!n) {
           focusEditor();
         }
-      }
+      },
     );
+
+    function isTitleFocused(titleEl) {
+      if (!titleEl) return false;
+      return document.activeElement === titleEl;
+    }
 
     watch(
       () => note.value,
@@ -684,13 +682,16 @@ export default {
         if (!titleDiv.value) return;
         // Prefer store title, fall back to Yjs title, then empty
         const stored = newNote?.title || yjsGetTitle() || '';
-        if (!isTitleFocused(titleDiv.value) && titleDiv.value.textContent !== stored) {
+        if (
+          !isTitleFocused(titleDiv.value) &&
+          titleDiv.value.textContent !== stored
+        ) {
           titleDiv.value.textContent = stored;
         }
         autoResizeTitle();
         titleInitialized = true;
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     // Sync remote Yjs title changes back to the store and to the div
@@ -705,13 +706,17 @@ export default {
             updateNote(id.value, { title });
           }
           // Sync to div if it doesn't match (skip while the title is focused)
-          if (!isTitleFocused(titleDiv.value) && titleDiv.value && titleDiv.value.textContent !== title) {
+          if (
+            !isTitleFocused(titleDiv.value) &&
+            titleDiv.value &&
+            titleDiv.value.textContent !== title
+          ) {
             titleDiv.value.textContent = title;
             autoResizeTitle();
           }
         });
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     return {

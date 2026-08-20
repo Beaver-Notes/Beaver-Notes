@@ -9,7 +9,7 @@ use std::{
 
 use http::{
     header::{
-        ACCESS_CONTROL_ALLOW_ORIGIN, ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
+        ACCEPT_RANGES, ACCESS_CONTROL_ALLOW_ORIGIN, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_TYPE,
     },
     Response, StatusCode,
 };
@@ -338,14 +338,17 @@ pub(crate) fn app_storage_dir(app: &AppHandle, state: &AppState) -> Result<PathB
     if let Ok(override_dir) = std::env::var("BEAVER_NOTES_DATA_DIR") {
         let p = PathBuf::from(override_dir);
         if !p.exists() {
-            fs::create_dir_all(&p).map_err(|e| AppError::Other(format!("Failed to create data dir: {e}")))?;
+            fs::create_dir_all(&p)
+                .map_err(|e| AppError::Other(format!("Failed to create data dir: {e}")))?;
         }
         return Ok(p);
     }
     if let Some(ref portable_dir) = state.files.portable_storage_dir {
         return Ok(portable_dir.clone());
     }
-    app.path().app_data_dir().map_err(|e| AppError::Other(e.to_string()))
+    app.path()
+        .app_data_dir()
+        .map_err(|e| AppError::Other(e.to_string()))
 }
 
 #[derive(Clone, Serialize, specta::Type, Deserialize, PartialEq)]
@@ -832,11 +835,16 @@ pub(crate) fn path_for_name(
 ) -> Result<PathBuf, AppError> {
     match name {
         "userData" => app_storage_dir(app, state),
-        "appData" => app.path().data_dir().map_err(|e| AppError::Other(e.to_string())),
+        "appData" => app
+            .path()
+            .data_dir()
+            .map_err(|e| AppError::Other(e.to_string())),
         "desktop" => {
             #[cfg(desktop)]
             {
-                app.path().desktop_dir().map_err(|e| AppError::Other(e.to_string()))
+                app.path()
+                    .desktop_dir()
+                    .map_err(|e| AppError::Other(e.to_string()))
             }
             #[cfg(not(desktop))]
             {
@@ -846,8 +854,14 @@ pub(crate) fn path_for_name(
                     .map_err(|e| AppError::Other(e.to_string()))
             }
         }
-        "documents" => app.path().document_dir().map_err(|e| AppError::Other(e.to_string())),
-        "temp" => app.path().temp_dir().map_err(|e| AppError::Other(e.to_string())),
+        "documents" => app
+            .path()
+            .document_dir()
+            .map_err(|e| AppError::Other(e.to_string())),
+        "temp" => app
+            .path()
+            .temp_dir()
+            .map_err(|e| AppError::Other(e.to_string())),
         _ => Err(AppError::Other(format!("Unsupported path name: {name}"))),
     }
 }
@@ -873,7 +887,9 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
 ) -> Result<PathBuf, AppError> {
     let prefix = format!("{scheme}://");
     if !url.starts_with(&prefix) {
-        return Err(AppError::Other(format!("Invalid {scheme} protocol URL: {url}")));
+        return Err(AppError::Other(format!(
+            "Invalid {scheme} protocol URL: {url}"
+        )));
     }
 
     let relative = url[prefix.len()..]
@@ -884,30 +900,40 @@ pub(crate) fn resolve_asset_path_from_protocol_url(
         .next()
         .unwrap_or_default()
         .trim();
-    let decoded = urlencoding::decode(relative).map_err(|e| AppError::Other(e.to_string()))?.to_string();
+    let decoded = urlencoding::decode(relative)
+        .map_err(|e| AppError::Other(e.to_string()))?
+        .to_string();
 
     // Strict: decoded asset paths must be relative (no absolute paths / prefixes).
     if Path::new(&decoded).is_absolute() {
-        return Err(AppError::Other(format!("Asset path must be relative: {url}")));
+        return Err(AppError::Other(format!(
+            "Asset path must be relative: {url}"
+        )));
     }
     #[cfg(target_os = "windows")]
     {
         if decoded.starts_with("\\\\") {
-            return Err(AppError::Other(format!("Asset path must be relative: {url}")));
+            return Err(AppError::Other(format!(
+                "Asset path must be relative: {url}"
+            )));
         }
     }
 
     let root_name = match scheme {
         "assets" | "file-assets" => "assets",
         _ => {
-            return Err(AppError::Other(format!("Unsupported asset scheme: {scheme}")));
+            return Err(AppError::Other(format!(
+                "Unsupported asset scheme: {scheme}"
+            )));
         }
     };
     let state = app.state::<AppState>();
     let base = app_storage_dir(app, state.inner())?.join(root_name);
     let resolved = base.join(decoded);
     if !is_path_inside(&base, &resolved) {
-        return Err(AppError::Other(format!("Asset path escapes base directory: {url}")));
+        return Err(AppError::Other(format!(
+            "Asset path escapes base directory: {url}"
+        )));
     }
     Ok(resolved)
 }
@@ -955,7 +981,9 @@ pub(crate) fn assert_path_access(
 ) -> Result<(), AppError> {
     let mut allowed_roots = vec![
         app_storage_dir(app, state)?,
-        app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?,
+        app.path()
+            .temp_dir()
+            .map_err(|e| AppError::Other(e.to_string()))?,
     ];
 
     for key in ["syncPath", "defaultPath", "default-path"] {
@@ -1102,8 +1130,7 @@ pub(crate) fn cached_or_decrypted_asset(
     let file_size = metadata.len();
 
     let mut magic = [0u8; 4];
-    fs::File::open(path)
-        .and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))?;
+    fs::File::open(path).and_then(|mut f| std::io::Read::read_exact(&mut f, &mut magic))?;
 
     if !is_encrypted_asset_header(&magic, file_size) {
         return Ok(path.to_path_buf());
@@ -1129,7 +1156,9 @@ pub(crate) fn cached_or_decrypted_asset(
         key
     } else {
         current_app_key(app_state.inner())?.ok_or_else(|| {
-            AppError::Other("App encryption is locked. Unlock before opening encrypted assets.".into())
+            AppError::Other(
+                "App encryption is locked. Unlock before opening encrypted assets.".into(),
+            )
         })?
     };
     decrypt_asset_streaming(path, &cache_path, &key)?;
@@ -1219,12 +1248,10 @@ pub(crate) fn protocol_response_with_range(
     if let Some(cr) = content_range {
         builder = builder.header(CONTENT_RANGE, cr);
     }
-    builder
-        .body(Cow::Owned(bytes))
-        .unwrap_or_else(|_| {
-            let empty: &'static [u8] = b"";
-            let mut r = Response::new(Cow::Borrowed(empty));
-            *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
-            r
-        })
+    builder.body(Cow::Owned(bytes)).unwrap_or_else(|_| {
+        let empty: &'static [u8] = b"";
+        let mut r = Response::new(Cow::Borrowed(empty));
+        *r.status_mut() = StatusCode::INTERNAL_SERVER_ERROR;
+        r
+    })
 }

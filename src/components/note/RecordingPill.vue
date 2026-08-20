@@ -1,12 +1,7 @@
 <template>
-  <div
-    v-if="isRecording"
-    class="fixed z-[70] bottom-6 left-1/2 -translate-x-1/2 mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]"
-    role="region"
-    aria-label="Audio recording"
-  >
+  <ui-pill v-if="isRecording" role="region" aria-label="Audio recording">
     <div
-      class="flex items-center gap-0.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 py-1 pl-1.5 pr-1.5 shadow-xl backdrop-blur-sm"
+      class="flex items-center gap-0.5 py-1 pl-1.5 pr-1.5"
     >
       <button
         type="button"
@@ -15,8 +10,14 @@
         @click="goToTargetNote"
       >
         <span class="rec-dot size-2.5 shrink-0 rounded-full bg-red-500" />
-        <span class="shrink-0 text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{{ formattedTime }}</span>
-        <span class="max-w-[11rem] truncate text-sm text-neutral-500 dark:text-neutral-400">{{ recordingNoteTitle }}</span>
+        <span
+          class="shrink-0 text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100"
+          >{{ formattedTime }}</span
+        >
+        <span
+          class="max-w-[11rem] truncate text-sm text-neutral-500 dark:text-neutral-400"
+          >{{ recordingNoteTitle }}</span
+        >
       </button>
       <button
         type="button"
@@ -24,7 +25,10 @@
         :aria-label="isPaused ? 'Resume recording' : 'Pause recording'"
         @click.stop="pauseResume()"
       >
-        <v-remixicon :name="isPaused ? 'riPlayFill' : 'riPauseFill'" class="size-4" />
+        <v-remixicon
+          :name="isPaused ? 'riPlayFill' : 'riPauseFill'"
+          class="size-4"
+        />
       </button>
       <button
         type="button"
@@ -35,7 +39,7 @@
         <v-remixicon name="riStopCircleLine" class="size-5 text-red-500" />
       </button>
     </div>
-  </div>
+  </ui-pill>
 </template>
 
 <script>
@@ -57,16 +61,13 @@ export default {
       return note?.title || 'Recording';
     });
 
-    const goToTargetLabel = computed(() =>
-      `Go to note: ${recordingNoteTitle.value}`
+    const goToTargetLabel = computed(
+      () => `Go to note: ${recordingNoteTitle.value}`,
     );
 
     function goToTargetNote() {
       const route = router.currentRoute.value;
-      if (
-        route.name === 'Note' &&
-        route.params.id === targetNoteId.value
-      ) {
+      if (route.name === 'Note' && route.params.id === targetNoteId.value) {
         return;
       }
       router.push({ name: 'Note', params: { id: targetNoteId.value } });
@@ -80,11 +81,14 @@ export default {
       const { filePath, noteId, cursorPos } = payload;
       if (noteId === recorder.openNoteId.value) return;
       payload.markConsumed();
-      void insertAudioIntoClosedNote(noteId, filePath, noteStore, cursorPos).catch(
-        (error) => {
-          console.error('Failed to insert recording into note:', error);
-        }
-      );
+      void insertAudioIntoClosedNote(
+        noteId,
+        filePath,
+        noteStore,
+        cursorPos,
+      ).catch((error) => {
+        console.error('Failed to insert recording into note:', error);
+      });
     });
 
     return {

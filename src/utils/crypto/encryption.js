@@ -81,7 +81,7 @@ export async function setupEncryption(passphrase) {
     // Await reconcile first — it writes keyParams.json to disk via Rust.
     // Only then can publishCloudKeyParams read and publish it to the server.
     await reconcileSyncKeyParams().catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
+    await import('@/utils/sync/vault-key-params.js')
       .then((m) => m.publishCloudKeyParams())
       .catch(() => {});
     return { ok: true };
@@ -105,7 +105,7 @@ export async function verifyPassphrase(passphrase) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     await reconcileSyncKeyParams(passphrase).catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
+    await import('@/utils/sync/vault-key-params.js')
       .then((m) => m.publishCloudKeyParams())
       .catch(() => {});
     return { ok: true };
@@ -131,6 +131,13 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    // Discard any pending writes that were queued before vault key adoption.
+    // These were encrypted with the pre-adoption local key and must not be
+    // flushed to disk or pushed to the server.
+    try {
+      const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
+      clearPendingWrites();
+    } catch {}
     return { ok: true };
   } catch (err) {
     console.error('[encryption] vault adopt failed:', err);

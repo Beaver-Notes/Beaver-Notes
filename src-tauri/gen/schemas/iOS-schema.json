@@ -7053,6 +7053,54 @@
           "markdownDescription": "Denies the write_text_file command without any pre-configured scope."
         },
         {
+          "description": "Enables the deleteKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-deleteKey",
+          "markdownDescription": "Enables the deleteKey command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the hasKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-hasKey",
+          "markdownDescription": "Enables the hasKey command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unwrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-unwrap",
+          "markdownDescription": "Enables the unwrap command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the wrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-wrap",
+          "markdownDescription": "Enables the wrap command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the deleteKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-deleteKey",
+          "markdownDescription": "Denies the deleteKey command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the hasKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-hasKey",
+          "markdownDescription": "Denies the hasKey command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unwrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-unwrap",
+          "markdownDescription": "Denies the unwrap command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the wrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-wrap",
+          "markdownDescription": "Denies the wrap command without any pre-configured scope."
+        },
+        {
           "description": "Default plugin permissions.\n#### This default permission set includes:\n\n- `sharesheet:allow-share-text`\n- `sharesheet:allow-share-file`",
           "type": "string",
           "const": "sharesheet:default",

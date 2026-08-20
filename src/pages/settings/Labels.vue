@@ -1,34 +1,26 @@
 <template>
   <div class="general mb-14 w-full max-w-2xl">
-    <section>
-      <header class="flex items-center justify-between mb-4 px-1">
-        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
-          {{ translations.labels?.title || 'Labels' }}
-        </p>
-        <span
-          class="text-[10px] font-medium text-neutral-400 bg-neutral-100 dark:bg-neutral-900 px-2 py-0.5 rounded-full"
-        >
-          {{ sortedLabels.length }} {{ translations.labels?.total || 'total' }}
-        </span>
-      </header>
-
+    <settings-group
+      :title="translations.labels?.title || 'Labels'"
+      :badge="`${sortedLabels.length} ${translations.labels?.total || 'total'}`"
+    >
       <p
         v-if="labelStore.data.length === 0"
-        class="text-sm text-neutral-500 dark:text-neutral-400 py-6 border-2 border-dashed border-neutral-200 dark:border-neutral-800 rounded-xl text-center"
+        class="text-sm text-neutral-500 dark:text-neutral-400 px-4 py-8 text-center"
       >
         {{ translations.labels?.emptyPrefix || 'No labels yet. Type' }}
         <code
-          class="bg-neutral-100 dark:bg-neutral-900 px-1 rounded text-primary"
+          class="bg-neutral-100 dark:bg-neutral-800 px-1 rounded text-primary"
           >#label</code
         >
         {{ translations.labels?.emptySuffix || 'to start.' }}
       </p>
 
-      <div v-else class="flex flex-wrap gap-2">
+      <div v-else class="p-3 flex flex-wrap gap-2">
         <div
           v-for="name in sortedLabels"
           :key="name"
-          class="group relative flex items-center gap-2 pl-2 pr-2 py-1.5 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 transition-all duration-200 rounded-lg cursor-default"
+          class="group relative flex items-center gap-2 pl-2 pr-2 py-1.5 bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 transition-all duration-200 rounded-lg cursor-default"
         >
           <div class="relative flex-shrink-0 flex items-center">
             <div
@@ -41,6 +33,7 @@
               type="color"
               class="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
               :value="labelStore.getColor(name) || primaryColor"
+              :aria-label="`Color for #${name}`"
               @input="onColorInput(name, $event.target.value)"
             />
           </div>
@@ -65,6 +58,7 @@
             >
               <button
                 class="p-1 hover:bg-red-50 dark:hover:bg-red-950/30 rounded text-neutral-400 hover:text-red-500 transition-colors"
+                :aria-label="`Delete label ${name}`"
                 @click.stop="deleteLabel(name)"
               >
                 <v-remixicon name="riDeleteBin6Line" size="14" />
@@ -73,7 +67,7 @@
           </div>
         </div>
       </div>
-    </section>
+    </settings-group>
   </div>
 </template>
 
@@ -83,6 +77,7 @@ import { useLabelStore } from '@/store/label';
 import { useNoteStore } from '@/store/note';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
+import SettingsGroup from '@/components/settings/SettingsGroup.vue';
 
 const labelStore = useLabelStore();
 const noteStore = useNoteStore();

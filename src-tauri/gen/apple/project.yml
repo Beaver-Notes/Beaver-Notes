@@ -77,7 +77,6 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: LAF7ZJN6TW
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: '"AppIcon 1" "AppIcon 2" "AppIcon 3" "AppIcon 4" "AppIcon 5" "AppIcon 6" "AppIcon 7" "AppIcon 8"'
         ENABLE_BITCODE: false
         ARCHS: [arm64]

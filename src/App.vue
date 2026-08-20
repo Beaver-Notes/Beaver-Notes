@@ -42,7 +42,12 @@
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
-    <app-sidebar v-if="onboardingCompleted" v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
+    <app-sidebar
+      v-if="onboardingCompleted"
+      v-show="showSidebar"
+      class="mobile:hidden shrink-0"
+      aria-label="Sidebar"
+    />
     <main
       id="app-main"
       ref="mainRef"
@@ -77,6 +82,7 @@
         :style="bottomBannerStyle"
       >
         <ui-banner
+          icon="riLockLine"
           :content="syncLockBannerCopy.content"
           :primary-text="syncLockBannerCopy.primaryText"
           :secondary-text="syncLockBannerCopy.secondaryText"
@@ -92,6 +98,7 @@
         :style="bottomBannerStyle"
       >
         <ui-banner
+          icon="riLockLine"
           :content="appEncryptionMigrationBannerCopy.content"
           :primary-text="appEncryptionMigrationBannerCopy.primaryText"
           :secondary-text="appEncryptionMigrationBannerCopy.secondaryText"
@@ -132,7 +139,12 @@
     @cancel="handleImportCancel"
   />
 
-  <div id="a11y-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+  <div
+    id="a11y-live-region"
+    aria-live="polite"
+    aria-atomic="true"
+    class="sr-only"
+  ></div>
 </template>
 
 <script>
@@ -181,7 +193,7 @@ export default {
           await cloudWorkspaces.fetchWorkspaces();
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     // After a successful device-password re-entry, the master key becomes
@@ -202,7 +214,7 @@ export default {
             accountStore.setProfile(data.profile);
             accountStore.setSubscription(data.subscription);
             accountStore.setDevices(data.devices || []);
-          })
+          }),
         )
         .catch(() => {});
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
@@ -211,8 +223,8 @@ export default {
         .catch((err) =>
           console.warn(
             '[app] workspace hydrate after device unlock failed:',
-            err
-          )
+            err,
+          ),
         );
     };
 
@@ -230,23 +242,20 @@ export default {
           const done = getSettingSync('onboardingCompleted');
           if (done) onboardingCompleted.value = true;
         }
-      }
+      },
     );
 
     // When onboardingCompleted flips true (first-time user finishing onboarding),
     // run the shell init in the background and start hocuspocus.
-    watch(
-      onboardingCompleted,
-      (val) => {
-        if (val) {
-          shell.initializeWorkspace().catch((err) => {
-            console.error('[app] workspace init after onboarding failed:', err);
-          });
-          const hocuspocus = getHocuspocusSync();
-          hocuspocus.start();
-        }
+    watch(onboardingCompleted, (val) => {
+      if (val) {
+        shell.initializeWorkspace().catch((err) => {
+          console.error('[app] workspace init after onboarding failed:', err);
+        });
+        const hocuspocus = getHocuspocusSync();
+        hocuspocus.start();
       }
-    );
+    });
 
     function skipToMain() {
       const main = document.getElementById('app-main');

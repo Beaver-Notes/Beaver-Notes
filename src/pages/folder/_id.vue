@@ -104,7 +104,7 @@
                   $event,
                   'folder',
                   childFolder.id,
-                  getAllVisibleItems
+                  getAllVisibleItems,
                 )
               "
               @touchstart="
@@ -170,7 +170,7 @@
                   $event.event,
                   'note',
                   $event.noteId,
-                  getAllVisibleItems
+                  getAllVisibleItems,
                 )
               "
               @item-touchstart="
@@ -191,18 +191,23 @@
         </section>
       </template>
 
-      <div v-else class="text-center">
-        <ui-beaver-character class="mx-auto w-40" />
-        <p
-          class="max-w-md mx-auto dark:text-[color:var(--selected-dark-text)] text-gray-600 mt-2"
-        >
-          {{ translations.index.newNote || '-' }}
-        </p>
-      </div>
+      <empty-state
+        v-if="
+          noteStore.notes.length === 0 && folderStore.rootFolders.length === 0
+        "
+        class="flex items-center justify-center min-h-[calc(100vh-250px)]"
+      />
 
       <folder-tree
         v-model="showMoveModal"
-        v-bind="resolveMoveModalParams(moveTarget, selectedNotes, selectedFolders, moveMode)"
+        v-bind="
+          resolveMoveModalParams(
+            moveTarget,
+            selectedNotes,
+            selectedFolders,
+            moveMode,
+          )
+        "
         @moved="moveTarget ? handleSingleMoved : handleMoved"
       />
     </div>
@@ -268,7 +273,7 @@ export default {
         data: noteStore.notes,
         order: state.sortOrder,
         key: state.sortBy,
-      })
+      }),
     );
 
     const notes = computed(() => filterNotes(sortedNotes.value));
@@ -278,14 +283,14 @@ export default {
 
       let childFolders = folderStore.folders.filter(
         (f) =>
-          f.parentId === currentFolderId.value && !folderStore.deletedIds[f.id]
+          f.parentId === currentFolderId.value && !folderStore.deletedIds[f.id],
       );
 
       // Filter by archive status:
       // In archive view, show only archived folders
       // In normal view, show only non-archived folders
       childFolders = childFolders.filter((f) =>
-        isArchiveView ? f.isArchived : !f.isArchived
+        isArchiveView ? f.isArchived : !f.isArchived,
       );
 
       return {
@@ -333,10 +338,10 @@ export default {
             // Index unavailable — linear fallback
             isMatch = isLabelQuery
               ? labels.some((label) =>
-                  label.toLocaleLowerCase().includes(labelQuery)
+                  label.toLocaleLowerCase().includes(labelQuery),
                 )
               : labels.some((label) =>
-                  label.toLocaleLowerCase().includes(queryLower)
+                  label.toLocaleLowerCase().includes(queryLower),
                 ) ||
                 normalizedTitle.toLocaleLowerCase().includes(queryLower) ||
                 noteSearchText(note).toLowerCase().includes(queryLower);
@@ -414,7 +419,7 @@ export default {
           onMove: pageController.bulkMove,
         });
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     const folder = computed(() => {
@@ -487,7 +492,9 @@ export default {
 }
 
 .sort-cards-enter-active {
-  transition: opacity 0.01ms linear, transform 0.01ms linear;
+  transition:
+    opacity 0.01ms linear,
+    transform 0.01ms linear;
 }
 
 .sort-cards-enter-from {
@@ -501,7 +508,9 @@ export default {
   }
 
   .sort-cards-enter-active {
-    transition: opacity 200ms ease, transform 200ms ease;
+    transition:
+      opacity 200ms ease,
+      transform 200ms ease;
   }
 }
 </style>

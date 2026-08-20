@@ -87,16 +87,6 @@ export function useNoteSharing() {
       }
       return key.value;
     } catch (err) {
-      if (err?.status === 403) {
-        try {
-          await apiList(noteId, { baseUrl: activeBaseUrl() });
-          const retry = await apiCreateKey(noteId, { baseUrl: activeBaseUrl() });
-          if (retry?.key) key.value = retry.key;
-          return key.value;
-        } catch {
-          return null;
-        }
-      }
       console.error('[useNoteSharing] ensureKey failed:', err);
       return null;
     }
@@ -111,16 +101,6 @@ export function useNoteSharing() {
       }
       return key.value;
     } catch (err) {
-      if (err?.status === 403) {
-        try {
-          await apiList(noteId, { baseUrl: activeBaseUrl() });
-          const retry = await apiGetKey(noteId, { baseUrl: activeBaseUrl() });
-          if (retry?.key) key.value = retry.key;
-          return key.value;
-        } catch {
-          return null;
-        }
-      }
       console.error('[useNoteSharing] getKey failed:', err);
       return null;
     }

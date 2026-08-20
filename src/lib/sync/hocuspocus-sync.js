@@ -273,28 +273,6 @@ export function useHocuspocusSync() {
         import('@/utils/sync/engine').then(({ forceSyncNow }) => {
           forceSyncNow().catch(() => {})
         }).catch(() => {})
-      } else if (msg.type === 'awareness' && msg.clientId && msg.state) {
-        // Remote awareness update — apply to local awareness
-        if (localAwareness) {
-          try {
-            localAwareness.states.set(msg.clientId, msg.state)
-            localAwareness.emit('update', { added: [], updated: [msg.clientId], removed: [] })
-          } catch (err) {
-            console.warn('[hocuspocus] Failed to apply remote awareness:', err.message)
-          }
-        }
-      } else if (msg.type === 'awareness-sync' && msg.states) {
-        // Full awareness sync on join — apply all remote states
-        if (localAwareness) {
-          try {
-            for (const { clientId, state } of msg.states) {
-              localAwareness.states.set(clientId, state)
-            }
-            localAwareness.emit('update', { added: [], updated: Array.from(msg.states.map(s => s.clientId)), removed: [] })
-          } catch (err) {
-            console.warn('[hocuspocus] Failed to apply awareness sync:', err.message)
-          }
-        }
       }
     } catch {
       // ignore parse errors
@@ -380,15 +358,6 @@ export function useHocuspocusSync() {
     encoding.writeVarUint(encoder, 2)
     encoding.writeVarUint8Array(encoder, update)
     sendBinary(encoding.toUint8Array(encoder).buffer)
-    
-    // Also send awareness state to server via stateless message for cross-device sync
-    const state = localAwareness.getLocalState()
-    if (state && Object.keys(state).length > 0) {
-      sendStateless(JSON.stringify({
-        type: 'awareness',
-        state,
-      }))
-    }
   }
 
   function attachRoomHandlers(doc) {

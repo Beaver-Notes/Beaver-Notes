@@ -520,8 +520,8 @@ export default {
       const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const items = [];
 
-      for (const note of Object.values(noteStore.data)) {
-        if (note.id && !note.isArchived && note.updatedAt > cutoff) {
+      for (const note of noteStore.notes) {
+        if (!note.isArchived && note.updatedAt > cutoff) {
           items.push({
             id: note.id,
             updatedAt: note.updatedAt,
@@ -531,9 +531,8 @@ export default {
         }
       }
 
-      for (const folder of Object.values(folderStore.data)) {
+      for (const folder of folderStore.folders) {
         if (
-          folder.id &&
           !folderStore.deletedIds[folder.id] &&
           !folder.isArchived &&
           folder.updatedAt > cutoff

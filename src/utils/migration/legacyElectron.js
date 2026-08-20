@@ -251,6 +251,12 @@ export async function migrateLegacyLockedNotes(dir, password) {
       note.isLocked = true;
       note.updatedAt = Date.now();
       migrated += 1;
+
+      // Persist note metadata to the workspace Y.Doc `notes` map so the
+      // UI can display the migrated note in the new app. This ensures the
+      // note appears in the Pinia store after workspace doc hydration.
+      const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
+      syncNoteMeta(note);
     } catch (err) {
       console.warn(`[legacy-electron] failed to migrate note ${note.id}:`, err);
     }

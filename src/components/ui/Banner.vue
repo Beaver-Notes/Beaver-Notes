@@ -3,7 +3,7 @@
     role="status"
     class="flex items-center space-x-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4"
   >
-    <v-remixicon name="riDownloadLine" class="text-lg text-primary" />
+    <v-remixicon :name="icon" class="text-lg text-primary" />
 
     <p class="flex-grow text-gray-800 dark:text-gray-100">
       {{ content }}
@@ -31,6 +31,7 @@
 export default {
   name: 'Banner',
   props: {
+    icon: { type: String, default: 'riDownloadLine' },
     content: { type: String, required: true },
     primaryText: { type: String, default: 'Primary' },
     secondaryText: { type: String, default: 'Secondary' },

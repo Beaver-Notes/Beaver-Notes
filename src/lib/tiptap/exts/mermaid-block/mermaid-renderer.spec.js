@@ -34,12 +34,19 @@ describe('mermaid-renderer', () => {
     unmount();
   });
 
-  it('shows raw source with a badge for an unsupported diagram type', async () => {
+  it('renders an SVG for pie (newly supported type)', async () => {
     const { host, unmount } = mount('pie\n  "Cats" : 7\n  "Dogs" : 3');
+    await nextTick();
+    expect(host.querySelector('.mermaid-viewer svg')).toBeTruthy();
+    unmount();
+  });
+
+  it('shows raw source with a badge for an unsupported diagram type', async () => {
+    const { host, unmount } = mount('gantt\n  section A\n    task1 : a1, 2024-01-01, 30d');
     await nextTick();
     expect(host.querySelector('.mermaid-viewer svg')).toBeFalsy();
     expect(host.querySelector('.mermaid-fallback-badge')).toBeTruthy();
-    expect(host.querySelector('.mermaid-fallback-code').textContent).toContain('pie');
+    expect(host.querySelector('.mermaid-fallback-code').textContent).toContain('gantt');
     unmount();
   });
 

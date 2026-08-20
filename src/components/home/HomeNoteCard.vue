@@ -290,15 +290,17 @@ const { play } = useSounds();
 
 const { translations } = useTranslations();
 
-const preview = computed(
-  () =>
-    props.note?.cardPreview || {
-      blocks: [],
-      hasMore: false,
-      mediaCount: 0,
-      visibleMediaCount: 0,
-    }
-);
+const preview = computed(() => {
+  const cp = props.note?.cardPreview;
+  return cp && (cp.blocks?.length || cp.hasMore || cp.mediaCount)
+    ? cp
+    : {
+        blocks: [],
+        hasMore: false,
+        mediaCount: 0,
+        visibleMediaCount: 0,
+      };
+});
 
 const previewMeta = computed(() => {
   const extraVisuals = Math.max(

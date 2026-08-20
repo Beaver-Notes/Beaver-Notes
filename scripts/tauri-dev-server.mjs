@@ -1,9 +1,16 @@
 import { spawn } from 'node:child_process';
 import net from 'node:net';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const rootDir = process.cwd();
+
+// Save the terminal's TMPDIR so the Xcode build script can find the
+// server-addr file that `cargo tauri ios dev` writes to temp_dir().
+// Xcode overrides TMPDIR for build phases, causing a mismatch.
+if (process.env.TMPDIR) {
+  writeFileSync(join(rootDir, 'src-tauri', '.tmpdir'), process.env.TMPDIR);
+}
 const isWindows = process.platform === 'win32';
 const viteBin = join(
   rootDir,

@@ -194,25 +194,6 @@ export async function loadWorkspaceDoc() {
 
   registerActiveDoc(META_DOC_ID, doc);
 
-  // Validate recovered state before joining meta room
-  const notesMap = doc.getMap('notes');
-  const foldersMap = doc.getMap('folders');
-  const noteCount = notesMap.size;
-  const folderCount = foldersMap.size;
-  const isEmptyWorkspace = noteCount === 0 && folderCount === 0;
-  
-  // If we recovered but have zero notes AND zero folders, and this isn't a fresh workspace,
-  // the recovery may have produced invalid state. Log but continue (user can re-sync).
-  if (isEmptyWorkspace && wsId) {
-    try {
-      const { getSettingSync } = await import('@/lib/settings');
-      const hasSyncedBefore = getSettingSync('hasCompletedInitialSync');
-      if (hasSyncedBefore) {
-        console.warn('[meta-yjs] Recovered empty workspace doc for existing workspace — possible corruption');
-      }
-    } catch {}
-  }
-
   const hocuspocus = getHocuspocusSync();
   const workspaceStore = useWorkspaceStore();
   const wsId = workspaceStore.activeId;
@@ -394,7 +375,7 @@ export function syncNoteMeta(note) {
         ).slice(0, 400);
       } else if (field === 'cardPreview') {
         if (note.cardPreview && typeof note.cardPreview === 'object') {
-          meta.cardPreview = JSON.parse(JSON.stringify(note.cardPreview));
+          meta.cardPreview = note.cardPreview;
         }
       } else if (note[field] !== undefined) {
         meta[field] = note[field];
