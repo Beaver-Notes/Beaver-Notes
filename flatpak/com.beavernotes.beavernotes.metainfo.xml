@@ -46,14 +46,23 @@
   <url type="translate">https://docs.beavernotes.com/Dev/translate/</url>
   <url type="vcs-browser">https://github.com/Beaver-Notes/Beaver-Notes</url>
   <releases>
-    <release version="5.0.0" date="2026-08-10">
-      <url type="details">https://github.com/Beaver-Notes/Beaver-Notes/releases/tag/5.0.0</url>
+    <release version="5.0.0-beta.2" date="2026-08-13">
+      <url type="details">https://github.com/Beaver-Notes/Beaver-Notes/releases/tag/5.0.0-beta.2</url>
       <description>
-        <p>Major release with improved Linux packaging</p>
+        <p>This beta release brings a redesigned onboarding experience, improved synchronization, stronger encryption, and a number of usability and performance improvements.</p>
         <ul>
-          <li>FHS-compliant binary tarballs</li>
-          <li>AppImage support</li>
-          <li>Updated Flatpak packaging</li>
+          <li>Redesigned onboarding with improved animations and stability.</li>
+          <li>Added table merge and split operations.</li>
+          <li>Added an exit button when searching in the editor.</li>
+          <li>Improved folder-based synchronization with Yjs.</li>
+          <li>Improved encryption performance and security.</li>
+          <li>Fixed loading of larger images and media files.</li>
+          <li>Improved the emoji picker and empty states.</li>
+          <li>Added ARMv8 AES/PMULL hardware acceleration for Apple Silicon.</li>
+          <li>Improved Mermaid diagram rendering with beautiful-mermaid.</li>
+          <li>Fixed label duplication and portable data location issues.</li>
+          <li>Improved application performance, error handling, and overall stability.</li>
+          <li>Numerous internal improvements to code organization, type safety, and development tooling.</li>
         </ul>
       </description>
     </release>
