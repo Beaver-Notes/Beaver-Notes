@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 vi.mock('@/store/account', () => ({
+  useAccountStore: () => ({ isAuthenticated: true }),
   accountStore: { isAuthenticated: true },
 }));
 vi.mock('@/lib/api/collaboration', () => ({
