@@ -12,9 +12,15 @@ import {
   generateInviteLink as apiGenerateLink,
   listInviteLinks as apiListLinks,
   revokeInviteLink as apiRevokeLink,
+  requestKeyDistribution,
 } from '@/lib/api/collaboration';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
-import { provisionNoteKey, clearUnwrappedKeyCache } from '@/utils/crypto/note-key';
+import {
+  provisionNoteKey,
+  recoverNoteKeyFromEnvelopes,
+  clearUnwrappedKeyCache,
+} from '@/utils/crypto/note-key';
+import { loadAccountDeviceId, saveAccountDeviceId } from '@/lib/account-storage';
 
 export function useNoteSharing() {
   const accountStore = useAccountStore();
@@ -29,6 +35,22 @@ export function useNoteSharing() {
 
   function activeBaseUrl() {
     return accountStore.serverUrl;
+  }
+
+  async function ensureDeviceId() {
+    let id = await loadAccountDeviceId();
+    if (!id) {
+      id =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+      try {
+        await saveAccountDeviceId(id);
+      } catch (err) {
+        console.error('[useNoteSharing] saveAccountDeviceId failed:', err);
+      }
+    }
+    return id;
   }
 
   async function fetchCollaborators(noteId) {
@@ -142,7 +164,20 @@ export function useNoteSharing() {
       }
     };
 
-    const noteKeyHex = await provisionNoteKey({
+    const deviceId = await ensureDeviceId();
+
+    const raw = await getKey();
+    const noteKeyHex = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, identity, noteId);
+    if (noteKeyHex) {
+      key.value = noteKeyHex;
+      return noteKeyHex;
+    }
+
+    // Fresh note — provision a new key fanning out to every device of every
+    // collaborator. If the note already has a key but this device has no
+    // envelope yet (late joiner), provisionNoteKey refuses to rotate and we
+    // request an online device of this account to re-distribute to us.
+    const fresh = await provisionNoteKey({
       getKey,
       listPublicKeys: () => fetchCollaboratorPublicKeys(noteId),
       storeRecipients: (recipients) =>
@@ -150,8 +185,15 @@ export function useNoteSharing() {
       identity,
       noteId,
     });
-    if (noteKeyHex) key.value = noteKeyHex;
-    return noteKeyHex;
+    if (fresh) {
+      key.value = fresh;
+      return fresh;
+    }
+
+    // Late joiner with no envelope: ask another device to re-wrap the existing
+    // key for this device. Caller shows "setting up on this device…".
+    await requestKeyDistribution(noteId, deviceId).catch(() => {});
+    return null;
   }
 
   async function invite(noteId, identifier, role = 'editor') {
