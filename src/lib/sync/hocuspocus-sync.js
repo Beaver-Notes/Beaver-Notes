@@ -50,8 +50,29 @@ export function setAwareness(awareness) {
   localAwareness = awareness
 }
 
-export function useHocuspocusSync() {
+export function getWebSocketUrl() {
   const accountStore = useAccountStore()
+  const configured =
+    import.meta.env.VITE_BEAVER_SYNC_WS_URL ||
+    import.meta.env.VITE_HOCUSPOCUS_URL
+  let base
+  if (configured) {
+    base = configured.replace(/\/+$/, '')
+  } else {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    base = `${protocol}//${window.location.host}`
+  }
+  const token = accountStore.token
+  const query = token ? `?token=${encodeURIComponent(token)}` : ''
+  return query ? `${base}/${query}` : base
+}
+
+function isAuthenticated() {
+  const accountStore = useAccountStore()
+  return accountStore.status === 'authenticated' && !!accountStore.token
+}
+
+export function useHocuspocusSync() {
   const workspaceStore = useWorkspaceStore()
 
   let ws = null
@@ -64,19 +85,6 @@ export function useHocuspocusSync() {
   const activeRooms = new Map()
   const docToRoom = new Map() // reverse index: Y.Doc -> roomName (O(1) broadcast lookup)
   const pendingQueue = []
-
-  function getWebSocketUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const hocuspocusHost =
-      import.meta.env.VITE_HOCUSPOCUS_URL || window.location.host
-    return `${protocol}//${hocuspocusHost}/hocuspocus`
-  }
-
-  function isAuthenticated() {
-    return (
-      accountStore.status === 'authenticated' && !!accountStore.token
-    )
-  }
 
   function getActiveWorkspaceId() {
     return workspaceStore.activeId

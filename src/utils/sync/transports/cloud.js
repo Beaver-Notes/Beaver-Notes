@@ -7,9 +7,9 @@ import {
   claimInitialization,
   completeInitialization,
   getSnapshotUrls,
-  createWorkspace,
   getSnapshotDownloadUrls,
 } from '../remote-yjs.js';
+import { createWorkspace } from '@/lib/api/workspaces.js';
 import {
   listRemoteAssets,
   uploadAsset,
@@ -186,14 +186,8 @@ export class CloudTransport extends Transport {
       } else {
         // No workspaces — auto-create one
         logger.info('[sync] cloud: no workspaces found, creating default workspace');
-        const profile = accountStore.profile;
-        const orgId = accountStore.activeOrgId || profile?.organizationId;
-        if (!orgId) {
-          console.warn('[sync] cloud: no orgId available, cannot create workspace');
-          return null;
-        }
         try {
-          const created = await createWorkspace('Default', orgId);
+          const created = await createWorkspace('Default');
           if (created?.id) {
             workspaceStore.activeId = created.id;
             this._cachedWorkspaceId = created.id;
@@ -665,7 +659,7 @@ export class CloudTransport extends Transport {
     // Cloud-only with empty buffer: nothing to push from memory.
     // In cloud-only mode the folder path is skipped — files there may be
     // stale (encrypted with a pre-vault-adopt key) and should not be pushed.
-    if (!getSyncPath()) {
+    if (!(await getSyncPath())) {
       return { updates: [], pushed: 0 };
     }
 

@@ -206,6 +206,7 @@ export default {
       const { loadSessionToken } = await import('@/lib/account-storage');
       const token = await loadSessionToken().catch(() => null);
       if (!token) return;
+      accountStore.setToken(token);
       accountStore.setStatus('authenticated');
       import('@/lib/api/account')
         .then(({ getAccount }) =>

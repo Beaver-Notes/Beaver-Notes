@@ -41,6 +41,7 @@ screenshots/
 *.log
 *.orig
 .env.development
+.env.local
 
 package-lock.json
 

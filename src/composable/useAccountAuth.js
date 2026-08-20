@@ -152,6 +152,7 @@ export function useAccountAuth() {
     if (persist) {
       await persistToken(token, user);
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
@@ -311,6 +312,7 @@ export function useAccountAuth() {
     await clearAllAccountStorage();
     resetApiClient();
     setStatus('anonymous');
+    accountStore.setToken(null);
     accountStore.setProfile(null);
     accountStore.setSubscription(null);
     accountStore.setDevices([]);
@@ -403,6 +405,7 @@ export function useAccountAuth() {
       }
       return false;
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     const cached = await loadCachedProfile();
     if (cached) accountStore.setProfile(cached);

@@ -7,6 +7,7 @@ export const useAccountStore = defineStore('account', {
     status: 'anonymous',
     serverUrl:
       getSettingSync('beaverAccountServerUrl') || 'https://api.beavernotes.com',
+    token: null,
     accounts: [],
     activeAccountId: null,
     activeOrgId: null,
@@ -23,10 +24,10 @@ export const useAccountStore = defineStore('account', {
   }),
 
   getters: {
-    isAuthenticated: (state) => state.status === 'authenticated',
+    isAuthenticated: (state) => state.status === 'authenticated' && !!state.token,
     isAnonymous: (state) => state.status === 'anonymous',
     isAuthenticating: (state) => state.status === 'authenticating',
-    hasAccount: (state) => state.status === 'authenticated',
+    hasAccount: (state) => state.status === 'authenticated' && !!state.token,
 
     activeAccount: (state) =>
       state.accounts.find((a) => a.id === state.activeAccountId) ?? null,
@@ -93,6 +94,10 @@ export const useAccountStore = defineStore('account', {
 
     setServerUrl(url) {
       this.serverUrl = (url || '').trim();
+    },
+
+    setToken(token) {
+      this.token = token || null;
     },
 
     setProfile(profile) {
