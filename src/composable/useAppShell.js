@@ -559,6 +559,7 @@ export function useAppShell(onboardingCompleted = true) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
         if (token) {
+          accountStore.setToken(token);
           accountStore.setStatus('authenticated');
         }
       }

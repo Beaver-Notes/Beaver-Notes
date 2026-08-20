@@ -13,7 +13,9 @@ import {
   decryptUpdate,
   isValidCollabKey,
 } from '@/utils/crypto/collab'
-import { clearUnwrappedKeyCache } from '@/utils/crypto/note-key'
+import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
+import { loadOrCreateIdentity } from '@/utils/crypto/identity'
+import { getWorkspaceKey } from '@/lib/api/workspaces'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
@@ -29,7 +31,7 @@ function buildRoomName(workspaceId, noteId) {
   return `workspace:${workspaceId}:note:${noteId}`
 }
 
-function buildMetaRoomName(workspaceId) {
+export function buildMetaRoomName(workspaceId) {
   return `workspace:${workspaceId}:meta`
 }
 
@@ -50,8 +52,61 @@ export function setAwareness(awareness) {
   localAwareness = awareness
 }
 
-export function useHocuspocusSync() {
+/**
+ * Derive the workspace key and register it on the Hocuspocus meta room so
+ * inbound meta updates can be decrypted. Mirrors the per-note key wiring in
+ * useNoteYjs.js (setRoomKey around useNoteYjs.js:230) but uses the WORKSPACE
+ * key rather than a per-note key.
+ *
+ * The wrapped key is preferred from the local workspace store (no network),
+ * falling back to an API fetch via getWorkspaceKey(wsId).
+ */
+export async function ensureMetaRoomKey(workspaceId) {
+  if (!workspaceId) return
+  const workspaceStore = useWorkspaceStore()
+  const ws =
+    workspaceStore.activeWorkspace ||
+    workspaceStore.workspaces?.find((w) => w.id === workspaceId)
+  let wrappedKey = ws?.wrappedKey ?? null
+  if (!wrappedKey) {
+    wrappedKey = await getWorkspaceKey(workspaceId)
+  }
+  if (!wrappedKey) {
+    console.warn('[hocuspocus] no wrapped key available for workspace', workspaceId)
+    return
+  }
+  const identity = await loadOrCreateIdentity()
+  if (!identity?.privateKeyHex) {
+    console.warn('[hocuspocus] missing encryption identity for meta key')
+    return
+  }
+  const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey)
+  await setRoomKey(buildMetaRoomName(workspaceId), workspaceKeyHex)
+}
+
+export function getWebSocketUrl() {
   const accountStore = useAccountStore()
+  const configured =
+    import.meta.env.VITE_BEAVER_SYNC_WS_URL ||
+    import.meta.env.VITE_HOCUSPOCUS_URL
+  let base
+  if (configured) {
+    base = configured.replace(/\/+$/, '')
+  } else {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    base = `${protocol}//${window.location.host}`
+  }
+  const token = accountStore.token
+  const query = token ? `?token=${encodeURIComponent(token)}` : ''
+  return query ? `${base}/${query}` : base
+}
+
+function isAuthenticated() {
+  const accountStore = useAccountStore()
+  return accountStore.status === 'authenticated' && !!accountStore.token
+}
+
+export function useHocuspocusSync() {
   const workspaceStore = useWorkspaceStore()
 
   let ws = null
@@ -64,19 +119,6 @@ export function useHocuspocusSync() {
   const activeRooms = new Map()
   const docToRoom = new Map() // reverse index: Y.Doc -> roomName (O(1) broadcast lookup)
   const pendingQueue = []
-
-  function getWebSocketUrl() {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const hocuspocusHost =
-      import.meta.env.VITE_HOCUSPOCUS_URL || window.location.host
-    return `${protocol}//${hocuspocusHost}/hocuspocus`
-  }
-
-  function isAuthenticated() {
-    return (
-      accountStore.status === 'authenticated' && !!accountStore.token
-    )
-  }
 
   function getActiveWorkspaceId() {
     return workspaceStore.activeId
@@ -181,6 +223,18 @@ export function useHocuspocusSync() {
                       'hocuspocus',
                     )
                   } else {
+                    // No collab key for this room. Workspace rooms
+                    // (note + meta) are ALWAYS encrypted, so a missing key
+                    // means we cannot decrypt — applying the raw ciphertext
+                    // would corrupt the Y.Doc (e.g. blank notes grid).
+                    // Skip rather than corrupt. Non-workspace rooms (if any)
+                    // fall back to the previous plaintext behavior.
+                    if (roomName.startsWith('workspace:')) {
+                      console.warn(
+                        `[hocuspocus] dropping encrypted update for ${roomName}: no room key set`,
+                      )
+                      continue
+                    }
                     syncProtocol.readUpdate(
                       msg,
                       room.doc,
@@ -412,10 +466,22 @@ export function useHocuspocusSync() {
     if (activeRooms.has(roomName)) return
 
     const doc = getWorkspaceDoc()
+
+    // Register the doc/room BEFORE deriving the key so any inbound messages
+    // are routed, then ensure the workspace key is set before we request the
+    // initial sync. The meta doc is encrypted with the WORKSPACE key; without
+    // it inbound meta updates are dropped/applied as ciphertext and the notes
+    // grid goes blank on secondary devices.
     activeRooms.set(roomName, { doc, readOnly: false, role: 'editor' })
     docToRoom.set(doc, roomName)
 
     attachRoomHandlers(doc)
+    // Fire-and-forget: key derivation (ML-KEM) is fast and the WebSocket
+    // round-trip is slower, so the key is virtually always set before the
+    // server's sync reply is processed. If it fails we still join the room.
+    ensureMetaRoomKey(workspaceId).catch((err) => {
+      console.warn('[hocuspocus] meta room key not set:', err?.message || err)
+    })
     requestInitialSync(doc)
   }
 
