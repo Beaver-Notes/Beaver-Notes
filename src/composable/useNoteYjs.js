@@ -201,6 +201,11 @@ export function useNoteYjs() {
 
   async function load(noteId, initialContent, initialTitle) {
     const t = speed('yjs_load_note');
+    // Reset the per-note "setting up on this device" flag up front so a stale
+    // `true` from a previous note can't leak into this note if its note-key
+    // resolution throws before `applyNoteKeyResult` runs.
+    pendingSetup.value = false;
+
     // Flush any pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);

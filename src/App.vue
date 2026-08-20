@@ -295,6 +295,18 @@ export default {
         shell.isDistributingKeys.value && !distributionBannerDismissed.value
     );
 
+    // Re-surface the banner if key distribution is still ongoing on a later
+    // poll: once `isDistributingKeys` flips back to `true` (after a dismiss),
+    // clear the dismissal so the banner re-appears for the new cycle.
+    watch(
+      () => shell.isDistributingKeys.value,
+      (distributing, wasDistributing) => {
+        if (distributing && !wasDistributing) {
+          distributionBannerDismissed.value = false;
+        }
+      },
+    );
+
     onMounted(() => {
       if (onboardingCompleted.value) {
         const hocuspocus = getHocuspocusSync();
