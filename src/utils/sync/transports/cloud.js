@@ -249,8 +249,15 @@ export class CloudTransport extends Transport {
 
     try { emit('sync:progress', { phase: 'bootstrap', processed: 0, total: urlEntries.length }); } catch {}
 
+    const docByNoteId = new Map(docs.map((d) => [d.noteId, d]));
     for (let i = 0; i < urlEntries.length; i++) {
       const [noteId, { url, snapshotTs }] = urlEntries[i];
+      // The seed encrypts content snapshots with AAD `${noteId}-${noteTs}`
+      // where noteTs is the timestamp it stored on the document. The download
+      // URL may return a *different* snapshotTs (server-generated), which would
+      // cause an AAD mismatch. Keep the document's own timestamp so we can try
+      // it as a decrypt candidate below.
+      const docNoteTs = docByNoteId.get(noteId)?.noteTs ?? docByNoteId.get(noteId)?.snapshotTs;
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -260,7 +267,7 @@ export class CloudTransport extends Transport {
         const blob = await response.blob();
         const arrayBuf = await blob.arrayBuffer();
         const envelope = new TextDecoder().decode(arrayBuf);
-        downloadedItems.push({ _noteId: noteId, data: envelope, key: `bootstrap-${noteId}`, snapshotTs });
+        downloadedItems.push({ _noteId: noteId, data: envelope, key: `bootstrap-${noteId}`, snapshotTs, noteTs: docNoteTs });
       } catch (err) {
         console.warn(`[sync] bootstrap: download error for ${noteId}:`, err?.message);
       }
@@ -277,14 +284,44 @@ export class CloudTransport extends Transport {
       return false;
     }
 
-    const aadSuffixes = downloadedItems.map(
-      (item) => `${item._noteId}-${item.snapshotTs}`
-    );
+    // The seed encrypts the content snapshot with AAD `${noteId}-${noteTs}`
+    // (cloud.js:931, where noteTs is the timestamp stored on the document),
+    // but `_bootstrapFromSnapshots` historically decrypted with
+    // `${noteId}-${snapshotTs}` taken from the server (cloud.js:281). When
+    // those two values differ, AES-GCM fails closed and decryptBatch returns
+    // null, so bootstrap writes nothing and loadStateIntoDoc then falls back
+    // to a stale/corrupt cached snapshot → Yjs decode error.
+    //
+    // To stay backward compatible with snapshots already stored under either
+    // AAD, try each plausible suffix and accept the first that decrypts.
+    const candidateSuffixesFor = (item) => {
+      const suffixes = [`${item.snapshotTs}`];
+      if (item.noteTs != null) suffixes.push(`${item.noteTs}`);
+      suffixes.push('snapshot-', '0');
+      return suffixes;
+    };
 
-    const decrypted = await decryptBatch(
-      downloadedItems.map((item) => item.data),
-      aadSuffixes
-    );
+    const decrypted = new Array(downloadedItems.length).fill(null);
+    const suffixesByItem = downloadedItems.map(candidateSuffixesFor);
+    const maxCandidates = suffixesByItem.reduce((m, s) => Math.max(m, s.length), 0);
+
+    for (let c = 0; c < maxCandidates; c++) {
+      const pending = [];
+      for (let i = 0; i < downloadedItems.length; i++) {
+        if (decrypted[i] == null && suffixesByItem[i][c] != null) pending.push(i);
+      }
+      if (pending.length === 0) break;
+      const aads = pending.map(
+        (i) => `${downloadedItems[i]._noteId}-${suffixesByItem[i][c]}`
+      );
+      const res = await decryptBatch(
+        pending.map((i) => downloadedItems[i].data),
+        aads
+      );
+      pending.forEach((i, k) => {
+        if (res[k] != null) decrypted[i] = res[k];
+      });
+    }
     const { appendUpdate } = await import('@/lib/native/yjs.js');
     const { applyRemote } = await import('@/lib/yjs/shared.js');
     let applied = 0;

@@ -59,7 +59,20 @@ async function loadStateIntoDoc(newDoc, noteId) {
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
-      Y.applyUpdate(newDoc, toUint8Array(snapshot));
+      const bytes = toUint8Array(snapshot);
+      // Validate the snapshot in an isolated doc before mutating the live
+      // document. A corrupt/garbage snapshot (e.g. an AAD mismatch during
+      // cloud bootstrap) would otherwise partially mutate newDoc and surface
+      // later as "Incomplete document" / "Length out of range" /
+      // "contentRefs[info & BITS5] is not a function". If it fails to decode,
+      // discard it and fall back to replaying incremental updates.
+      const probe = new Y.Doc();
+      try {
+        Y.applyUpdate(probe, bytes);
+      } finally {
+        probe.destroy();
+      }
+      Y.applyUpdate(newDoc, bytes);
       t?.end();
       return;
     }
