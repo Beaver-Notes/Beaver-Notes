@@ -25,6 +25,15 @@ import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
 
+// Map the result of note-key resolution to the per-note "setting up on this
+// device" UI flag. Returns true when no key is available yet — ensureNoteKey
+// filed a distribution request and this device is waiting for an online peer
+// to re-wrap the note key for it. Pure + exported so it can be unit-tested
+// without instantiating the (lifecycle-bound) composable.
+export function applyNoteKeyResult(noteKeyHex) {
+  return !noteKeyHex;
+}
+
 async function retryWrite(fn, label) {
   for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
     try {
@@ -143,6 +152,9 @@ const COMPACT_UPDATE_THRESHOLD = 100;
 export function useNoteYjs() {
   const doc = shallowRef(null);
   const ready = ref(false);
+  // True while this device is waiting for a note key to be distributed to it
+  // (late joiner). Surfaces the transient "Setting up on this device…" state.
+  const pendingSetup = ref(false);
   let currentNoteId = null;
   let currentDoc = null;
 
@@ -253,18 +265,19 @@ export function useNoteYjs() {
       scheduleFlush();
     });
 
-    const hocuspocus = getHocuspocusSync();
-    try {
-      const workspaceStore = useWorkspaceStore();
-      const sharing = useNoteSharing();
-      const noteKeyHex = await sharing.ensureNoteKey(noteId);
-      if (noteKeyHex && workspaceStore.activeId) {
-        const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
-        await setRoomKey(roomName, noteKeyHex);
+      const hocuspocus = getHocuspocusSync();
+      try {
+        const workspaceStore = useWorkspaceStore();
+        const sharing = useNoteSharing();
+        const noteKeyHex = await sharing.ensureNoteKey(noteId);
+        pendingSetup.value = applyNoteKeyResult(noteKeyHex);
+        if (noteKeyHex && workspaceStore.activeId) {
+          const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
+          await setRoomKey(roomName, noteKeyHex);
+        }
+      } catch (err) {
+        console.warn('[yjs] note-key provisioning skipped:', err);
       }
-    } catch (err) {
-      console.warn('[yjs] note-key provisioning skipped:', err);
-    }
     // Register in the global active-docs map BEFORE joining the room so that
     // any WS updates arriving during the join handshake are applied to the
     // in-memory Y.Doc instead of being silently dropped.
@@ -332,5 +345,5 @@ export function useNoteYjs() {
     }
   });
 
-  return { doc, ready, load, getTitle, setTitle, observeTitle };
+  return { doc, ready, pendingSetup, load, getTitle, setTitle, observeTitle };
 }

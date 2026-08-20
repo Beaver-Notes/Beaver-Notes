@@ -107,6 +107,27 @@
         />
       </div>
 
+      <div
+        v-show="showDistributionBanner"
+        class="flex fixed bottom-0 mx-auto align-center items-center w-full z-50"
+        :class="
+          updateBanner.show || syncLockBanner.show || appEncryptionMigrationBanner.show
+            ? 'mb-16'
+            : ''
+        "
+        :style="bottomBannerStyle"
+      >
+        <ui-banner
+          icon="riSyncLine"
+          :content="
+            translations.app?.finishingSetupOnDevice ||
+            'Finishing setup on your other device…'
+          "
+          :primary-text="translations.app?.dismiss || 'Dismiss'"
+          @button-1="dismissDistributionBanner"
+        />
+      </div>
+
       <undo-banner :position-style="bottomBannerStyle" />
 
       <div class="route-stage">
@@ -148,7 +169,7 @@
 </template>
 
 <script>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import ImportFolderPicker from './components/home/ImportFolderPicker.vue';
 import AppSidebar from './components/app/AppSidebar.vue';
@@ -265,6 +286,15 @@ export default {
       }
     }
 
+    const distributionBannerDismissed = ref(false);
+    function dismissDistributionBanner() {
+      distributionBannerDismissed.value = true;
+    }
+    const showDistributionBanner = computed(
+      () =>
+        shell.isDistributingKeys.value && !distributionBannerDismissed.value
+    );
+
     onMounted(() => {
       if (onboardingCompleted.value) {
         const hocuspocus = getHocuspocusSync();
@@ -280,7 +310,14 @@ export default {
       }
     });
 
-    return { ...shell, mainRef, skipToMain, onboardingCompleted };
+    return {
+      ...shell,
+      mainRef,
+      skipToMain,
+      onboardingCompleted,
+      showDistributionBanner,
+      dismissDistributionBanner,
+    };
   },
 };
 </script>

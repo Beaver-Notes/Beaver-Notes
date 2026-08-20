@@ -75,6 +75,12 @@
         <note-toolbar v-else v-bind="{ editor, id, note, showSearch }" />
       </template>
       <div
+        v-if="pendingSetup"
+        class="flex items-center gap-2 mb-4 text-sm text-neutral-500 dark:text-neutral-400"
+      >
+        <span>{{ translations.note?.settingUpOnDevice || 'Setting up on this device…' }}</span>
+      </div>
+      <div
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
@@ -307,6 +313,7 @@ export default {
     const {
       doc: ydoc,
       ready: yjsReady,
+      pendingSetup,
       load: yjsLoad,
       getTitle: yjsGetTitle,
       setTitle: yjsSetTitle,
@@ -744,6 +751,7 @@ export default {
       isLocked,
       yjsReady,
       ydoc,
+      pendingSetup,
       awareness,
       presence,
       isShared,
