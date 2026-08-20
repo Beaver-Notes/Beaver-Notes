@@ -56,16 +56,19 @@ async function seedFromTipJson(ydoc, contentJson) {
 
 async function loadStateIntoDoc(newDoc, noteId) {
   const t = speed('yjs_load_snapshot');
+  let snapshotWasCorrupt = false;
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
+      // Defensive decode: the bytes fed to Yjs MUST be valid Yjs binary. The
+      // snapshot arrives as a base64 string over IPC (or a raw Uint8Array) and
+      // toUint8Array normalizes both to a Uint8Array. A corrupt/garbage
+      // snapshot (base64 string / JSON / half-decrypted blob from a bad cloud
+      // bootstrap) fails here and is discarded instead of mutating newDoc.
       const bytes = toUint8Array(snapshot);
-      // Validate the snapshot in an isolated doc before mutating the live
-      // document. A corrupt/garbage snapshot (e.g. an AAD mismatch during
-      // cloud bootstrap) would otherwise partially mutate newDoc and surface
-      // later as "Incomplete document" / "Length out of range" /
-      // "contentRefs[info & BITS5] is not a function". If it fails to decode,
-      // discard it and fall back to replaying incremental updates.
+      // Validate the snapshot in an isolated doc before touching the live
+      // document. If it fails to decode, drop it and fall back to replaying
+      // incremental updates.
       const probe = new Y.Doc();
       try {
         Y.applyUpdate(probe, bytes);
@@ -77,6 +80,9 @@ async function loadStateIntoDoc(newDoc, noteId) {
       return;
     }
   } catch (err) {
+    // Snapshot decode failed ("Unknown content type", "Incomplete document",
+    // ...). Mark it so we can repair the cached copy after replaying updates.
+    snapshotWasCorrupt = true;
     console.error(`[yjs] Failed to load snapshot for ${noteId}:`, err);
   }
 
@@ -85,6 +91,20 @@ async function loadStateIntoDoc(newDoc, noteId) {
     applyUpdatesToDoc(newDoc, updates);
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
+  }
+
+  // Repair a corrupt cached snapshot with the freshly reconstructed state so it
+  // doesn't re-trigger the decode error on every subsequent open. Best-effort:
+  // a failure here only means we'll fall back again next time.
+  if (snapshotWasCorrupt && newDoc.store) {
+    try {
+      const rebuilt = Y.encodeStateAsUpdate(newDoc);
+      if (rebuilt.byteLength > 0) {
+        await compactUpdates(noteId, rebuilt);
+      }
+    } catch (repairErr) {
+      console.warn(`[yjs] could not repair snapshot for ${noteId}:`, repairErr);
+    }
   }
   t?.end();
 }

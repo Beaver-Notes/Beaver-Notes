@@ -216,8 +216,33 @@ export class CloudTransport extends Transport {
     const { getSnapshots } = await import('@/lib/native/yjs.js');
     const allNoteIds = docs.map((d) => d.noteId);
     const localSnapshots = await getSnapshots(allNoteIds).catch(() => ({}));
+    // A cached snapshot that no longer decodes as valid Yjs is worse than a
+    // missing one: loadStateIntoDoc discards it and falls back to replay, but the
+    // corrupt row persists and re-triggers the "Unknown content type" decode
+    // error on every open. Treat a corrupt cached snapshot exactly like a
+    // missing one so bootstrap re-downloads the server's authoritative copy and
+    // overwrites the bad one (the bytes fed to Yjs must be valid Yjs binary —
+    // a base64 string / JSON / half-decrypted blob would surface here as a
+    // decode throw and is replaced, not applied).
+    const cachedSnapshotIsCorrupt = (raw) => {
+      if (!raw || raw.length === 0) return false;
+      try {
+        const probe = new Y.Doc();
+        try {
+          Y.applyUpdate(probe, toUint8Array(raw));
+        } finally {
+          probe.destroy();
+        }
+        return false;
+      } catch {
+        return true;
+      }
+    };
     const needsBootstrap = docs.filter(
-      (d) => !localSnapshots?.[d.noteId] || localSnapshots[d.noteId].length === 0
+      (d) =>
+        !localSnapshots?.[d.noteId] ||
+        localSnapshots[d.noteId].length === 0 ||
+        cachedSnapshotIsCorrupt(localSnapshots[d.noteId])
     );
 
     if (needsBootstrap.length === 0) return false;
@@ -927,7 +952,7 @@ export class CloudTransport extends Transport {
         ts,
         seq: 0,
         noteId: META_DOC_ID,
-        update: Array.from(wsState),
+        update: wsState,
       }, `${META_DOC_ID}-${ts}`);
       snapshots.push({ noteId: META_DOC_ID, data: btoa(encrypted), noteTs: ts });
       noteIds.push(META_DOC_ID);
@@ -964,7 +989,7 @@ export class CloudTransport extends Transport {
               ts: noteTs,
               seq: 0,
               noteId,
-              update: Array.from(state),
+              update: state,
             }, `${noteId}-${noteTs}`);
             snapshots.push({ noteId, data: btoa(encrypted), noteTs });
             noteIds.push(noteId);
