@@ -160,9 +160,10 @@ export function useAccountAuth() {
     // E2E identity: ensure a keypair exists and the server knows its public key
     try {
       const identity = await loadOrCreateIdentity();
+      const deviceId = await ensureDeviceId();
       const userKem = accountStore.profile?.kemPublicKey;
       if (!userKem || userKem !== identity.publicKeyHex) {
-        await publishIdentity(identity);
+        await publishIdentity(identity, deviceId);
         await fetchProfile();
       }
     } catch (err) {
