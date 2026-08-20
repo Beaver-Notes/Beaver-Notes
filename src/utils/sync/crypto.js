@@ -119,7 +119,7 @@ export async function encryptBatch(payloads, aads) {
 }
 
 // Sync key lifecycle is managed entirely by the Rust backend (safeStorage).
-// This function exists as an API placeholder for callers that need a no-op hook.
+// @deprecated This is a no-op kept for backward compatibility with dynamic imports.
 export function clearSyncKey() {}
 
 export function syncAssetName(localFilename) {

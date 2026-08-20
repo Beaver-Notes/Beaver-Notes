@@ -322,7 +322,8 @@ export class SyncEngine {
           await syncAssets(localDir, syncDir, (progress) => {
             try { emit('sync:progress', progress); } catch {}
           });
-        } catch {
+        } catch (err) {
+          logger.error('[sync] asset sync failed:', err?.message || err);
         }
       }
 
@@ -352,7 +353,7 @@ export class SyncEngine {
             } catch (e) {
               logger.warn(`[sync][debug] ${name} pull error:`, e?.code, e?.message, e);
               if (e?.code === 'unlock-required') {
-                console.warn('[sync] pull deferred — encryption is locked or not configured');
+                logger.warn('[sync] pull deferred — encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
                 notifySyncLocked();
                 if (name === 'cloud') cloudBlocked = true;
@@ -496,7 +497,7 @@ export class SyncEngine {
         await this.transports.cloud.syncAssets((progress) => {
           try { emit('sync:progress', progress); } catch {}
         }).catch((err) => {
-          console.warn('[sync] cloud asset sync failed:', err?.message);
+          logger.warn('[sync] cloud asset sync failed:', err?.message);
         });
         logger.info('[sync] cloud syncAssets done');
       }
@@ -516,8 +517,8 @@ export class SyncEngine {
       if (gotUpdates || pushedAny) notifySyncCompleted();
       logger.info('[sync] cycle complete ok');
     } catch (err) {
-      console.error('[sync] Sync failed:', err);
-      console.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
+      logger.error('[sync] Sync failed:', err);
+      logger.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
       notifySyncFailed();
       const status = err?.code === 'unlock-required' ? 'unlock-required' :
@@ -544,7 +545,7 @@ export class SyncEngine {
         const pendingForce = this._pendingForce;
         this._pendingForce = false;
         this._runCycle(pendingForce).catch((err) => {
-          console.error('[sync] recursive cycle failed:', err);
+          logger.error('[sync] recursive cycle failed:', err);
         });
       }
     }

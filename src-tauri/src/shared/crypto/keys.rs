@@ -720,9 +720,6 @@ pub(crate) fn unlock_key_from_manifest(
             return Err(AppError::WrongPassword);
         }
     }
-    if key.len() != 32 {
-        return Err(AppError::Crypto("Wrapped key is corrupted.".into()));
-    }
     let mut out = [0_u8; 32];
     out.copy_from_slice(&key[..32]);
     Ok((out, kek))

@@ -117,7 +117,7 @@ pub(crate) async fn asset_crypto_migrate_dir(
                 Err(e) => {
                     eprintln!("[asset-migration] FAILED: {} | error: {}", current, e);
                     // If the key is not loaded, every file will fail — abort early.
-                    if e.to_string().contains("App encryption is enabled but locked") {
+                    if matches!(e, AppError::EncryptionLocked) {
                         return Err(AppError::Other(format!(
                             "App encryption key is not loaded. Unlock it before migrating assets. (First failure: {})",
                             current
@@ -324,7 +324,7 @@ pub(crate) fn encryption_encrypt_note_payload(
     plain_bytes: Vec<u8>,
 ) -> Result<RawJson, AppError> {
     let key = current_app_key(state.inner())?
-        .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
+        .ok_or(AppError::EncryptionLocked)?;
     let key_id = state
         .crypto
         .session
@@ -1001,19 +1001,11 @@ pub(crate) fn passwd_record_failure(state: State<AppState>) -> Result<FailureRes
     *failures += 1;
     let mut lockout_guard = state.security.lockout_until.lock()?;
     let now = SystemTime::now();
-    let already_locked = lockout_guard
-        .map(|until| until > now)
-        .unwrap_or(false);
 
     if *failures >= LOCKOUT_THRESHOLD {
         // Set or extend the lockout; never start a new lockout in the past.
-        let extra = if already_locked {
-            LOCKOUT_BASE_SECS
-        } else {
-            LOCKOUT_BASE_SECS
-        };
         let base = lockout_guard.unwrap_or(now);
-        let new_until = (if base > now { base } else { now }) + Duration::from_secs(extra);
+        let new_until = (if base > now { base } else { now }) + Duration::from_secs(LOCKOUT_BASE_SECS);
         let capped = now + Duration::from_secs(LOCKOUT_MAX_SECS);
         *lockout_guard = Some(new_until.min(capped));
     }
@@ -1094,7 +1086,7 @@ pub(crate) async fn encryption_decrypt_asset_stream(
 
     let raw = fs::read(&path_buf)?;
     let key = current_app_key(&state_inner)?
-        .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
+        .ok_or(AppError::EncryptionLocked)?;
 
     if is_encrypted_asset_buffer(&raw) {
         let metadata = fs::metadata(&path_buf)?;
@@ -1129,7 +1121,7 @@ pub(crate) async fn encryption_encrypt_asset_stream(
     let state_inner = state.inner();
 
     let key = current_app_key(&state_inner)?
-        .ok_or_else(|| AppError::Other("App encryption is enabled but locked.".into()))?;
+        .ok_or(AppError::EncryptionLocked)?;
     let temp_path = path_buf.with_extension("enc.tmp");
     encrypt_asset_streaming(&path_buf, &temp_path, &key)?;
     fs::rename(&temp_path, &path_buf)?;
