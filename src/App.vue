@@ -184,6 +184,7 @@ import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import { useDevicePasswordSetup } from './composable/useDevicePasswordSetup';
 import AppNavbar from './components/app/AppNavbar.vue';
 import { getSettingSync } from '@/lib/settings';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   components: {
@@ -196,6 +197,7 @@ export default {
     RecordingPill,
   },
   setup() {
+    const { translations } = useTranslations();
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
     const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
@@ -329,6 +331,7 @@ export default {
       onboardingCompleted,
       showDistributionBanner,
       dismissDistributionBanner,
+      translations,
     };
   },
 };
