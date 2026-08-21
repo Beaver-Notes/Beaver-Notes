@@ -2,8 +2,14 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import WordCountPill from '../WordCountPill.vue';
+import { usePillDock } from '@/composable/usePillDock';
 
-const { updateMock } = vi.hoisted(() => ({ updateMock: vi.fn() }));
+const { expandedPill, toggle } = usePillDock();
+
+const { updateMock, isRecordingRef } = vi.hoisted(() => ({
+  updateMock: vi.fn(),
+  isRecordingRef: { value: false },
+}));
 
 vi.mock('@/store/note', () => ({
   useNoteStore: () => ({ update: updateMock }),
@@ -11,6 +17,10 @@ vi.mock('@/store/note', () => ({
 
 vi.mock('@/composable/useTranslations', () => ({
   useTranslations: () => ({ translations: { value: { noteActions: {} } } }),
+}));
+
+vi.mock('@/composable/useAudioRecorder', () => ({
+  useAudioRecorder: () => ({ isRecording: isRecordingRef }),
 }));
 
 // Slot-rendering stubs: real ui-popover teleports + uses floating-ui, which
@@ -131,5 +141,68 @@ describe('WordCountPill', () => {
     });
     wrapper.vm.clearLimit();
     expect(updateMock).toHaveBeenCalledWith('n1', { wordCountLimit: null });
+  });
+});
+
+describe('WordCountPill pill dock', () => {
+  beforeEach(() => {
+    updateMock.mockClear();
+    isRecordingRef.value = false;
+    expandedPill.value = null;
+  });
+
+  function mountDocked() {
+    return mount(WordCountPill, {
+      props: { editor: makeEditor(123), note: makeNote(500) },
+      ...globalStubs,
+    });
+  }
+
+  it('stays fully expanded when solo (no recording)', async () => {
+    const wrapper = mount(WordCountPill, {
+      props: { editor: makeEditor(123), note: makeNote() },
+      ...globalStubs,
+    });
+    await nextTick();
+    expect(wrapper.text()).toContain('123 words');
+    const trigger = wrapper.find('button');
+    expect(trigger.attributes('aria-expanded')).toBeUndefined();
+    // Solo tap opens the popover as before; it must not touch dock state.
+    await trigger.trigger('click');
+    expect(expandedPill.value).toBe(null);
+  });
+
+  it('collapses to the ring by default while recording', async () => {
+    isRecordingRef.value = true;
+    const wrapper = mountDocked();
+    await nextTick();
+    // Label hidden (collapsed), ring present, toggle reflects collapsed state.
+    const label = wrapper.find('span');
+    expect(label.classes()).toContain('max-w-0');
+    expect(label.classes()).toContain('opacity-0');
+    expect(wrapper.find('svg').exists()).toBe(true);
+    expect(wrapper.find('button').attributes('aria-expanded')).toBe('false');
+  });
+
+  it('expands after toggle("word-count") while recording', async () => {
+    isRecordingRef.value = true;
+    expandedPill.value = 'recording';
+    const wrapper = mountDocked();
+    await nextTick();
+    expect(wrapper.find('span').classes()).toContain('max-w-0');
+
+    toggle('word-count');
+    await nextTick();
+    const label = wrapper.find('span');
+    expect(label.classes()).toContain('opacity-100');
+    expect(wrapper.find('button').attributes('aria-expanded')).toBe('true');
+  });
+
+  it('tapping a collapsed pill expands it instead of opening the popover', async () => {
+    isRecordingRef.value = true;
+    const wrapper = mountDocked();
+    await nextTick();
+    await wrapper.find('button').trigger('click');
+    expect(expandedPill.value).toBe('word-count');
   });
 });

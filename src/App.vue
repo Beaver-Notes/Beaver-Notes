@@ -8,6 +8,10 @@
     class="safe-area-overlay safe-area-overlay--bottom"
   />
   <app-command-prompt />
+  <div
+    id="pill-dock"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]"
+  ></div>
   <recording-pill />
   <app-encryption-gate
     v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
