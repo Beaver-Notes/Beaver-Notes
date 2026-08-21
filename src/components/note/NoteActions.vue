@@ -221,6 +221,19 @@
           />
         </div>
 
+        <button
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          :class="{ 'text-primary': note.showWordCount }"
+          @click="toggleWordCount"
+        >
+          <v-remixicon name="riParagraph" />
+          <span
+            class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+          >
+            {{ translations.noteActions?.wordCount || 'Word count' }}
+          </span>
+        </button>
+
         <hr class="border-t my-1 border-neutral-200 dark:border-neutral-700" />
 
         <!-- Copy note content -->
@@ -461,6 +474,12 @@ export default {
       });
     }
 
+    function toggleWordCount() {
+      noteStore.update(props.note.id, {
+        showWordCount: !props.note.showWordCount,
+      });
+    }
+
     function copyNoteContent() {
       let text = '';
       if (props.editor) {
@@ -503,6 +522,7 @@ export default {
       toggleBookmark,
       toggleArchive,
       toggleFullWidth,
+      toggleWordCount,
       copyNoteContent,
       lockNote,
       syncStickyState,
