@@ -23,10 +23,11 @@ vi.mock('@/composable/useAudioRecorder', () => ({
   useAudioRecorder: () => ({ isRecording: isRecordingRef }),
 }));
 
-// Slot-rendering stubs: real ui-popover teleports + uses floating-ui, which
-// these assertions don't need.
+// Slot-rendering stub: real ui-pill brings styling this spec doesn't need.
+// v-remixicon is registered globally by the app, so isolated mounts stub it.
 const UiPill = { template: '<div><slot /></div>' };
-const UiPopover = { template: '<div><slot name="trigger" /><slot /></div>' };
+// Bind the prop back out so tests can assert on the icon name.
+const VRemixicon = { template: '<i :name="name" />', props: ['name'] };
 
 function makeEditor(words) {
   return {
@@ -42,9 +43,14 @@ function makeNote(wordCountLimit = null) {
 
 const globalStubs = {
   global: {
-    stubs: { 'ui-pill': UiPill, 'ui-popover': UiPopover },
+    stubs: { 'ui-pill': UiPill, 'v-remixicon': VRemixicon },
   },
 };
+
+// The expandable region holding count + inline limit editor.
+function bodyOf(wrapper) {
+  return wrapper.find('div.overflow-hidden');
+}
 
 describe('WordCountPill', () => {
   beforeEach(() => {
@@ -58,7 +64,11 @@ describe('WordCountPill', () => {
     });
     await nextTick();
     expect(wrapper.text()).toContain('123 words');
-    expect(wrapper.find('svg').exists()).toBe(false);
+    // No limit: the neutral dot-ring replaces the progress ring.
+    expect(wrapper.findAll('circle')[0].classes()).toContain(
+      'stroke-neutral-300'
+    );
+    expect(wrapper.findAll('circle')).toHaveLength(1);
   });
 
   it('shows ring and ratio with a limit', async () => {
@@ -142,6 +152,43 @@ describe('WordCountPill', () => {
     wrapper.vm.clearLimit();
     expect(updateMock).toHaveBeenCalledWith('n1', { wordCountLimit: null });
   });
+
+  it('renders the inline limit editor as an interactive number input when solo', async () => {
+    const wrapper = mount(WordCountPill, {
+      props: { editor: makeEditor(123), note: makeNote(500) },
+      ...globalStubs,
+    });
+    await nextTick();
+    const input = wrapper.find('input[type="number"]');
+    expect(input.exists()).toBe(true);
+    expect(input.attributes('min')).toBe('1');
+    expect(input.attributes('placeholder')).toBe('500');
+    // Solo pill is always expanded: the body must stay interactive.
+    expect(bodyOf(wrapper).attributes('inert')).toBeUndefined();
+  });
+
+  it('exposes set and clear actions via remix icon names', async () => {
+    const wrapper = mount(WordCountPill, {
+      props: { editor: makeEditor(10), note: makeNote(500) },
+      ...globalStubs,
+    });
+    await nextTick();
+    const icons = wrapper.findAll('i');
+    expect(icons.map((icon) => icon.attributes('name'))).toEqual([
+      'riCheckLine',
+      'riCloseLine',
+    ]);
+  });
+
+  it('matches recording pill sizing', async () => {
+    const wrapper = mount(WordCountPill, {
+      props: { editor: makeEditor(10), note: makeNote(500) },
+      ...globalStubs,
+    });
+    await nextTick();
+    expect(wrapper.find('button').classes()).toContain('h-9');
+    expect(wrapper.find('span').classes()).toContain('text-sm');
+  });
 });
 
 describe('WordCountPill pill dock', () => {
@@ -167,19 +214,21 @@ describe('WordCountPill pill dock', () => {
     expect(wrapper.text()).toContain('123 words');
     const trigger = wrapper.find('button');
     expect(trigger.attributes('aria-expanded')).toBeUndefined();
-    // Solo tap opens the popover as before; it must not touch dock state.
+    // Solo tap toggles nothing; it must not touch dock state.
     await trigger.trigger('click');
     expect(expandedPill.value).toBe(null);
+    expect(bodyOf(wrapper).attributes('inert')).toBeUndefined();
   });
 
   it('collapses to the ring by default while recording', async () => {
     isRecordingRef.value = true;
     const wrapper = mountDocked();
     await nextTick();
-    // Label hidden (collapsed), ring present, toggle reflects collapsed state.
-    const label = wrapper.find('span');
-    expect(label.classes()).toContain('max-w-0');
-    expect(label.classes()).toContain('opacity-0');
+    // Body hidden (collapsed), ring present, toggle reflects collapsed state.
+    const body = bodyOf(wrapper);
+    expect(body.classes()).toContain('max-w-0');
+    expect(body.classes()).toContain('opacity-0');
+    expect(body.attributes('inert')).toBeDefined();
     expect(wrapper.find('svg').exists()).toBe(true);
     expect(wrapper.find('button').attributes('aria-expanded')).toBe('false');
   });
@@ -189,12 +238,13 @@ describe('WordCountPill pill dock', () => {
     expandedPill.value = 'recording';
     const wrapper = mountDocked();
     await nextTick();
-    expect(wrapper.find('span').classes()).toContain('max-w-0');
+    expect(bodyOf(wrapper).classes()).toContain('max-w-0');
 
     toggle('word-count');
     await nextTick();
-    const label = wrapper.find('span');
-    expect(label.classes()).toContain('opacity-100');
+    const body = bodyOf(wrapper);
+    expect(body.classes()).toContain('opacity-100');
+    expect(body.attributes('inert')).toBeUndefined();
     expect(wrapper.find('button').attributes('aria-expanded')).toBe('true');
   });
 
