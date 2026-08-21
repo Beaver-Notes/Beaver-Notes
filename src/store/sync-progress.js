@@ -64,13 +64,12 @@ export const useSyncProgressStore = defineStore('syncProgress', {
       return fn ? fn(state) : state.message || 'Syncing...';
     },
     attention: (state) => {
-      if (state.status === 'syncing') return null;
+      if (state.lastAction) {
+        return { tone: state.lastAction.tone ?? 'action', text: state.lastAction.text, status: state.lastAction.status };
+      }
       const described = describeStatus(state.status, state.message);
       if (described.tone) {
         return { tone: described.tone, text: described.text, status: state.status };
-      }
-      if (state.lastAction) {
-        return { tone: state.lastAction.tone ?? 'action', text: state.lastAction.text, status: state.lastAction.status };
       }
       return null;
     },
@@ -91,15 +90,12 @@ export const useSyncProgressStore = defineStore('syncProgress', {
         if (described.tone === 'action') {
           this.lastAction = { status, text: described.text, at: Date.now() };
           notifyOnce(status, described.text);
-        } else if (status === 'complete' || status === 'syncing') {
-          this.lastAction = null;
         }
         if (status === 'complete') {
           this.phase = '';
           this.progress = 0;
           this.total = 0;
           this.processed = 0;
-          this.lastAction = null;
         }
       });
 
