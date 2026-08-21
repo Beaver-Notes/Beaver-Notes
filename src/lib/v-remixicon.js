@@ -7,6 +7,7 @@ import {
   RiSendPlaneFill,
   RiAddFill,
   RiAddLine,
+  RiAlertLine,
   RiArchiveDrawerLine,
   RiArchiveLine,
   RiArrowDownLine,
@@ -178,6 +179,7 @@ import {
 const RemixIcons = {
   riAddFill: RiAddFill,
   riAddLine: RiAddLine,
+  riAlertLine: RiAlertLine,
   riArchiveDrawerLine: RiArchiveDrawerLine,
   riArchiveLine: RiArchiveLine,
   riArrowDownLine: RiArrowDownLine,
