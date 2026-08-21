@@ -54,6 +54,7 @@ import { getSettingSync } from '@/lib/settings';
 import { getSyncPath } from '../path.js';
 import { getApiClient } from '@/lib/api/client';
 import { loadSessionToken } from '@/lib/account-storage';
+import { backend } from '@/lib/tauri-bridge';
 
 describe('cloudKeyParamsReachable', () => {
   it('is true when authed, paid, and transport wants cloud', () => {
@@ -92,7 +93,18 @@ describe('publishCloudKeyParams', () => {
 });
 
 describe('vault API payloads', () => {
-  it('derives a deterministic proof bound to workspace + blob, independent of the challenge', async () => {
+  afterEach(() => {
+    // Restore the module-wide default so later suites keep resolving paths.
+    backend.invoke.mockImplementation(() => Promise.resolve('/app'));
+  });
+
+  it('derives proofs through the rust bridge, bound to workspace + blob, independent of the challenge', async () => {
+    const derive = vi.fn(
+      (_channel, { passphrase, workspaceId, keyParamsBlob }) =>
+        Promise.resolve(`proof:${passphrase}:${workspaceId}:${keyParamsBlob}`)
+    );
+    backend.invoke.mockImplementation(derive);
+
     const first = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'challenge');
     const second = await deriveVaultPassphraseProof('vault-passphrase', 'ws-a', 'blob-a', 'challenge');
     const differentWorkspace = await deriveVaultPassphraseProof('vault-passphrase', 'ws-b', 'blob-a', 'challenge');
@@ -102,12 +114,19 @@ describe('vault API payloads', () => {
 
     // The proof must be stable across requests so publish and verify can be
     // compared later — the per-request challenge is a freshness token handled
-    // by the server, NOT part of the KDF salt.
+    // by the server, NOT part of derivation.
     expect(first).toBe(second);
     expect(first).toBe(differentChallenge);
     expect(first).not.toBe(differentBlob);
     expect(first).not.toBe(differentWorkspace);
     expect(first).not.toBe(differentPassphrase);
+
+    // Derivation is delegated to the Rust command; the challenge never crosses the bridge.
+    expect(backend.invoke).toHaveBeenCalledWith('vault:deriveProof', {
+      passphrase: 'vault-passphrase',
+      workspaceId: 'ws-a',
+      keyParamsBlob: 'blob-a',
+    });
   });
 });
 

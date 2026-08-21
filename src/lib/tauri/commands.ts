@@ -81,6 +81,7 @@ const commandAliases = {
   'crypto:getCachedDecryptedNote': 'encryption_get_cached_decrypted_note',
   'crypto:decryptLegacyNote': 'decrypt_legacy_cryptojs_note',
   'crypto:deriveArgon2Key': 'derive_argon2_key',
+  'vault:deriveProof': 'vault_derive_proof',
   'passwd:hash': 'passwd_hash',
   'passwd:compare': 'passwd_compare',
   'passwd:recordFailure': 'passwd_record_failure',
@@ -321,6 +322,12 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       return {
         ...withKeyVariants('passphrase', payload?.passphrase),
         ...(payload?.keyParams != null ? withKeyVariants('keyParams', payload.keyParams) : {}),
+      };
+    case 'vault:deriveProof':
+      return {
+        ...withKeyVariants('passphrase', payload?.passphrase),
+        ...withKeyVariants('workspace_id', payload?.workspaceId ?? payload?.workspace_id),
+        ...withKeyVariants('key_params_blob', payload?.keyParamsBlob ?? payload?.key_params_blob),
       };
     case 'passwd:hash':
       return withKeyVariants('password', payload);

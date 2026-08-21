@@ -127,7 +127,16 @@ vi.mock('@/lib/native/fs', () => ({
 }));
 
 vi.mock('@/lib/tauri-bridge', () => ({
-  backend: { invoke: vi.fn() },
+  backend: {
+    invoke: vi.fn((channel, payload) =>
+      // Vault proof derivation moved to the Rust side; stand in for it here
+      // with a deterministic value bound to workspace + blob so the live
+      // publish/verify round-trip still carries a real (mock) proof.
+      channel === 'vault:deriveProof'
+        ? Promise.resolve(`proof:${payload?.workspaceId ?? ''}:${payload?.keyParamsBlob ?? ''}`)
+        : undefined
+    ),
+  },
   path: { join: (...parts) => parts.join('/') },
 }));
 

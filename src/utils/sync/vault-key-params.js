@@ -1,5 +1,5 @@
 import { getSyncPath } from './path.js';
-import { path } from '@/lib/tauri-bridge';
+import { path, backend } from '@/lib/tauri-bridge';
 import { ensureDir, writeFile, readData, pathExists } from '@/lib/native/fs';
 import { getAppDirectory } from '@/lib/native/app';
 import { getSettingSync } from '@/lib/settings';
@@ -12,7 +12,6 @@ import { logger } from '@/utils/logger';
 
 export const RESERVED_KEY_PARAMS_KEY = '__key_params__.json';
 const KEY_PARAMS_SUBDIR = 'BeaverNotesSync';
-const PROOF_ITERATIONS = 120000;
 let fetchedCloudKeyParams = null;
 
 function keyParamsPath(syncPath) {
@@ -37,31 +36,12 @@ function decodeKeyParams(raw) {
 }
 
 export async function deriveVaultPassphraseProof(passphrase, workspaceId, keyParamsBlob, _challenge) {
-  // The proof must be stable across publish and verify, so it can be stored
-  // as a hash and compared later. The per-request `challenge` is a freshness
-  // token checked separately by the server — it must NOT be part of the KDF
-  // salt, otherwise every request (which mints a new challenge) would derive a
-  // different proof and verification could never match the stored hash.
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(passphrase),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-  const bits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode(`beaver-vault-proof-v1:${workspaceId}:${keyParamsBlob}`),
-      iterations: PROOF_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    key,
-    256
-  );
-  const bytes = new Uint8Array(bits);
-  return btoa(String.fromCharCode(...bytes));
+  // Derivation lives in Rust: BLAKE3 over the Argon2id KEK, domain-separated
+  // by workspace + key params. The proof is stable across publish and verify
+  // so the server can store it hashed and compare later. The per-request
+  // `challenge` is kept in the signature for call-site compatibility but is a
+  // freshness token checked separately by the server — never part of the proof.
+  return backend.invoke('vault:deriveProof', { passphrase, workspaceId, keyParamsBlob });
 }
 
 export function getFetchedCloudKeyParams() {
