@@ -38,8 +38,8 @@
               </div>
             </div>
             <div>
-              <slot name="actions"></slot>
               <slot></slot>
+              <slot name="actions"></slot>
             </div>
           </ui-card>
         </div>
@@ -124,7 +124,7 @@ export default {
         if (!value) resetDrag();
         toggleBodyOverflow(value);
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     watch(show, (value) => {
@@ -197,7 +197,7 @@ export default {
       touchCurrentY.value = touch.clientY;
       touchStartTime.value = performance.now();
       touchStartedOnScrollable.value = Boolean(
-        getScrollableParent(event.target)?.scrollTop > 0
+        getScrollableParent(event.target)?.scrollTop > 0,
       );
       isDragging.value = false;
     }
@@ -241,10 +241,14 @@ export default {
         el.style.transition = `transform ${dur} var(--ease-spring), opacity ${dur} var(--ease-standard)`;
         el.style.transform = 'translate3d(0, 0, 0)';
         el.style.opacity = '1';
-        el.addEventListener('transitionend', () => {
-          el.style.transition = '';
-          resetDrag();
-        }, { once: true });
+        el.addEventListener(
+          'transitionend',
+          () => {
+            el.style.transition = '';
+            resetDrag();
+          },
+          { once: true },
+        );
       } else {
         resetDrag();
       }
@@ -277,7 +281,8 @@ export default {
 
 .modal-enter-active .modal-ui__content,
 .modal-leave-active .modal-ui__content {
-  transition: opacity var(--motion-base) var(--ease-standard),
+  transition:
+    opacity var(--motion-base) var(--ease-standard),
     transform var(--motion-base) var(--ease-standard);
   transform: translate3d(0, 0, 0) scale(1);
   opacity: 1;
