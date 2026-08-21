@@ -626,16 +626,16 @@ fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>,
 /// (`updated_at`), meaning the snapshot must be rebuilt before it can be served.
 fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> Result<bool, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
-    let latest: Option<i64> = conn
+    let latest: Option<Option<i64>> = conn
         .query_row(
             "SELECT MAX(created_at) FROM note_content WHERE note_id = ?1 \
              AND (length(data) < 4 OR substr(data, 1, 4) != X'424E5931')",
             rusqlite::params![note_id],
-            |r| r.get(0),
+            |r| r.get::<_, Option<i64>>(0),
         )
         .optional()
         .map_err(|e| AppError::Other(e.to_string()))?;
-    Ok(latest.is_some_and(|latest| latest > snapshot_updated_at))
+    Ok(latest.flatten().is_some_and(|latest| latest > snapshot_updated_at))
 }
 
 fn write_snapshot(

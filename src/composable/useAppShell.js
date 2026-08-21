@@ -18,6 +18,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
+import { useAccountStore } from '@/store/account';
 import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
@@ -568,7 +569,6 @@ export function useAppShell(onboardingCompleted = true) {
     // transport, path pick) works without an app restart. Autosync is always
     // on — periodic sync runs whenever the app is visible.
     try {
-      const { useAccountStore } = await import('@/store/account');
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const accountStore = useAccountStore();
       // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
@@ -653,7 +653,6 @@ export function useAppShell(onboardingCompleted = true) {
       if (path.startsWith('join/')) {
         const token = path.slice('join/'.length);
         if (!token) return;
-        const { useAccountStore } = await import('@/store/account');
         const accountStore = useAccountStore();
         if (!accountStore.isAuthenticated) {
           console.warn('[deep-link] Cannot join note: not authenticated');

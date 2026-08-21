@@ -118,7 +118,7 @@
         :style="bottomBannerStyle"
       >
         <ui-banner
-          icon="riSyncLine"
+          icon="riRefreshLine"
           :content="
             translations.app?.finishingSetupOnDevice ||
             'Finishing setup on your other device…'
