@@ -79,25 +79,3 @@ export async function joinViaInviteLink(token, { baseUrl, signal } = {}) {
   const response = await client.post(`/collaboration/join/${encodeURIComponent(token)}`, {}, { signal });
   return response;
 }
-
-export async function requestKeyDistribution(noteId, targetDeviceId, { baseUrl, signal } = {}) {
-  const client = getClient(baseUrl);
-  return client.post(
-    `/collaboration/keys/${encodeURIComponent(noteId)}/distribute-request`,
-    { targetDeviceId },
-    { signal }
-  );
-}
-
-export async function listKeyDistributionRequests({ baseUrl, signal } = {}) {
-  const client = getClient(baseUrl);
-  return client.get('/collaboration/keys/distribute-requests', { signal });
-}
-
-export async function deleteKeyDistributionRequest(noteId, targetDeviceId, { baseUrl, signal } = {}) {
-  const client = getClient(baseUrl);
-  return client.delete(
-    `/collaboration/keys/distribute-requests/${encodeURIComponent(noteId)}/${encodeURIComponent(targetDeviceId)}`,
-    { signal }
-  );
-}

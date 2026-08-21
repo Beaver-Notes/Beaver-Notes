@@ -26,10 +26,10 @@ const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
 
 // Map the result of note-key resolution to the per-note "setting up on this
-// device" UI flag. Returns true when no key is available yet — ensureNoteKey
-// filed a distribution request and this device is waiting for an online peer
-// to re-wrap the note key for it. Pure + exported so it can be unit-tested
-// without instantiating the (lifecycle-bound) composable.
+// device" UI flag. Returns true when no key is available yet — with fan-out
+// inert until the teams phase, callers keep this false instead of spinning.
+// Pure + exported so it can be unit-tested without instantiating the
+// (lifecycle-bound) composable.
 export function applyNoteKeyResult(noteKeyHex) {
   return !noteKeyHex;
 }
@@ -203,7 +203,7 @@ export function useNoteYjs() {
     const t = speed('yjs_load_note');
     // Reset the per-note "setting up on this device" flag up front so a stale
     // `true` from a previous note can't leak into this note if its note-key
-    // resolution throws before `applyNoteKeyResult` runs.
+    // resolution throws before the key result is applied.
     pendingSetup.value = false;
 
     // Flush any pending updates for the *previous* note before switching.
@@ -275,7 +275,6 @@ export function useNoteYjs() {
         const workspaceStore = useWorkspaceStore();
         const sharing = useNoteSharing();
         const noteKeyHex = await sharing.ensureNoteKey(noteId);
-        pendingSetup.value = applyNoteKeyResult(noteKeyHex);
         if (noteKeyHex && workspaceStore.activeId) {
           const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
           await setRoomKey(roomName, noteKeyHex);

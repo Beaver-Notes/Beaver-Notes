@@ -12,15 +12,15 @@ import {
   generateInviteLink as apiGenerateLink,
   listInviteLinks as apiListLinks,
   revokeInviteLink as apiRevokeLink,
-  requestKeyDistribution,
 } from '@/lib/api/collaboration';
+import { getSettingSync } from '@/lib/settings';
+import { logger } from '@/utils/logger';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
 import {
   provisionNoteKey,
   recoverNoteKeyFromEnvelopes,
   clearUnwrappedKeyCache,
 } from '@/utils/crypto/note-key';
-import { loadAccountDeviceId, saveAccountDeviceId } from '@/lib/account-storage';
 
 // Module-level so the key-distributor background task can resolve a note's
 // collaborator device public keys without spinning up the full composable.
@@ -52,22 +52,6 @@ export function useNoteSharing() {
 
   function activeBaseUrl() {
     return accountStore.serverUrl;
-  }
-
-  async function ensureDeviceId() {
-    let id = await loadAccountDeviceId();
-    if (!id) {
-      id =
-        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-          ? crypto.randomUUID()
-          : `dev-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
-      try {
-        await saveAccountDeviceId(id);
-      } catch (err) {
-        console.error('[useNoteSharing] saveAccountDeviceId failed:', err);
-      }
-    }
-    return id;
   }
 
   async function fetchCollaborators(noteId) {
@@ -148,6 +132,10 @@ export function useNoteSharing() {
   async function ensureNoteKey(noteId) {
     if (!accountStore.isAuthenticated) return null;
 
+    // Per-note ML-KEM fan-out stays dormant on personal paths: it must never
+    // fire unless team collaboration is explicitly enabled (teams phase).
+    if (!getSettingSync('collaborationEnabled')) return null;
+
     // Register the caller as the note's owner collaborator (idempotent: only
     // bootstraps when the note has zero collaborators) and ensure the key
     // envelope context exists. Non-fatal so note creation/opening never breaks.
@@ -167,8 +155,6 @@ export function useNoteSharing() {
         return apiGetKey(noteId, { baseUrl: activeBaseUrl() });
       }
     };
-
-    const deviceId = await ensureDeviceId();
 
     const raw = await getKey();
     const noteKeyHex = await recoverNoteKeyFromEnvelopes(raw?.wrappedKeys, identity, noteId);
@@ -194,9 +180,9 @@ export function useNoteSharing() {
       return fresh;
     }
 
-    // Late joiner with no envelope: ask another device to re-wrap the existing
-    // key for this device. Caller shows "setting up on this device…".
-    await requestKeyDistribution(noteId, deviceId).catch(() => {});
+    // Late joiner with no envelope: re-wrap requests arrive with the teams
+    // phase. Caller shows "setting up on this device…" until then.
+    logger.info('[notes] sharing arrives with teams phase');
     return null;
   }
 

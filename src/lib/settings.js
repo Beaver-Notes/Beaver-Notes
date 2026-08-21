@@ -127,6 +127,11 @@ const settingDefs = {
     defaultValue: 'folder',
     parse: String,
   },
+  collaborationEnabled: {
+    legacyKey: 'collaborationEnabled',
+    defaultValue: false,
+    parse: (value) => value === true || value === 'true',
+  },
   syncPath: {
     legacyKey: 'default-path',
     defaultValue: '',
