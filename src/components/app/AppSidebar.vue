@@ -277,6 +277,24 @@
         </div>
       </transition>
 
+      <transition name="fade-fast">
+        <button
+          v-if="syncProgressStore.attention"
+          class="px-3 pb-2 w-full flex items-center gap-2 text-left"
+          :class="syncProgressStore.attention.tone === 'action'
+            ? 'text-red-600 dark:text-red-400'
+            : 'text-neutral-500 dark:text-neutral-400'"
+          @click="openSyncSettings"
+        >
+          <v-remixicon
+            :name="syncProgressStore.attention.tone === 'action' ? 'riAlertLine' : 'riCloudLine'"
+            size="14"
+            class="shrink-0"
+          />
+          <span class="text-[11px] truncate">{{ syncProgressStore.attention.text }}</span>
+        </button>
+      </transition>
+
       <button
         v-tooltip:right="
           !expanded
@@ -516,6 +534,10 @@ export default {
       router.push(`/folder/${folderId}`);
     }
 
+    function openSyncSettings() {
+      router.push({ name: 'Settings-Data' });
+    }
+
     const recentItems = computed(() => {
       const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const items = [];
@@ -635,6 +657,7 @@ export default {
       goArchive,
 
       openNote,
+      openSyncSettings,
       titlebarInset,
       translations,
       theme,

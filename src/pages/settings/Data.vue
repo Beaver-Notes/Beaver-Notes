@@ -88,6 +88,17 @@
         </div>
 
         <div
+          v-if="syncProgressStore.attention?.tone === 'action'"
+          class="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm flex items-center justify-between gap-2"
+          role="alert"
+        >
+          <span>{{ syncProgressStore.attention.text }}</span>
+          <button class="shrink-0 opacity-70 hover:opacity-100" aria-label="Dismiss" @click="syncProgressStore.dismissError()">
+            <v-remixicon name="riCloseLine" size="16" />
+          </button>
+        </div>
+
+        <div
           v-if="state.syncPath || (cloudSync.isAuthenticated && cloudSync.isPaid)"
           class="border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between gap-3 px-4 py-3.5"
         >
@@ -520,7 +531,7 @@ export default {
         lastSyncAt.value = Date.now();
         localStorage.setItem('sync:lastRunAt', String(lastSyncAt.value));
       } catch {
-        // Toast handled by existing 'sync:error' listener
+        // Failure surfaces via syncProgressStore.attention (sync:status listener)
       } finally {
         syncState.value = { syncing: false };
       }
