@@ -2,7 +2,7 @@ import { describe, test, expect, beforeAll, vi } from 'vitest';
 import { createApiClient } from '@/lib/api/client.js';
 const WSImpl = (await import('ws').catch(() => null))?.WebSocket ?? globalThis.WebSocket;
 
-const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:3000';
+const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:4000';
 const WS = process.env.VITE_TEST_WS_URL || 'ws://localhost:8080';
 
 // Shared, mutable session state used by the mocked account-store / token loader.

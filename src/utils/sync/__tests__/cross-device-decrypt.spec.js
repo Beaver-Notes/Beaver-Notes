@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeAll, vi } from 'vitest';
 import * as Y from 'yjs';
 
-const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:3000';
+const API = process.env.VITE_TEST_BACKEND_URL || 'http://localhost:4000';
 
 // ─── Shared, process-wide state (same module instance for both "devices") ───
 // In a real deployment device A and device B would each have their own native
