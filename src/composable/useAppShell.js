@@ -52,14 +52,6 @@ import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
 // module (see src/composable/__tests__/menu-context.spec.js).
 export { buildMenuContext };
 
-// Pure derivation for the global "finishing setup on another device" banner.
-// True while there are any pending key-distribution requests for this account.
-// Exported so it can be unit-tested without instantiating the lifecycle-bound
-// shell composable.
-export function computeIsDistributingKeys(requests) {
-  return Array.isArray(requests) && requests.length > 0;
-}
-
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
 
@@ -111,16 +103,6 @@ export function useAppShell(onboardingCompleted = true) {
   const appStore = useAppStore();
 
   useSoundActions();
-
-  // Background key-distributor instance (assigned once auth/sync is up).
-  let keyDistributor = null;
-  const handleKeyDistributorFocus = () => keyDistributor?.tick();
-
-  // Global "finishing setup on another device" banner. True while this account
-  // has outstanding key-distribution requests (a newly-linked device waiting
-  // for a note key to be re-wrapped for it).
-  const isDistributingKeys = ref(false);
-  let distributionPollTimer = null;
 
   const uiState = useUiState();
   const retrieved = ref(false);
@@ -600,37 +582,6 @@ export function useAppShell(onboardingCompleted = true) {
     initAppSync();
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Background key-distributor: lets an already-provisioned device re-wrap a
-    // note's content key for a newly-linked device that requested it. Started
-    // only once the user is authenticated/sync is up (guarded inside the task);
-    // lifecycle wiring is registered in the synchronous setup scope below.
-    if (useAccountStore().isAuthenticated) {
-      const { useKeyDistributor } = await import('@/composable/useKeyDistributor');
-      keyDistributor = useKeyDistributor();
-      keyDistributor.start();
-      window.addEventListener('focus', handleKeyDistributorFocus);
-
-      // Poll for outstanding key-distribution requests so the global
-      // "finishing setup on another device" banner reflects reality. The
-      // polling is best-effort: a transient failure simply leaves the banner
-      // in its last state until the next tick.
-      const refreshDistributionBanner = async () => {
-        try {
-          const { listKeyDistributionRequests } = await import(
-            '@/lib/api/collaboration'
-          );
-          const { requests } = await listKeyDistributionRequests().catch(
-            () => ({ requests: [] })
-          );
-          isDistributingKeys.value = computeIsDistributingKeys(requests);
-        } catch {
-          // keep last state
-        }
-      };
-      refreshDistributionBanner();
-      distributionPollTimer = setInterval(refreshDistributionBanner, 15000);
-    }
-
     performance.mark('init:done');
     logStartupTiming();
   };
@@ -807,12 +758,6 @@ export function useAppShell(onboardingCompleted = true) {
     if (removeBeforeRouteGuard) removeBeforeRouteGuard();
     if (removeRouteGuard) removeRouteGuard();
     document.removeEventListener('visibilitychange', handleVisibilityChange);
-    window.removeEventListener('focus', handleKeyDistributorFocus);
-    keyDistributor?.stop();
-    if (distributionPollTimer) {
-      clearInterval(distributionPollTimer);
-      distributionPollTimer = null;
-    }
     getSyncEngine()?.stopPullTimer();
     unlistenFns.forEach((subscription) => {
       Promise.resolve(subscription)
@@ -950,7 +895,6 @@ export function useAppShell(onboardingCompleted = true) {
     refreshEncryptionGate,
     handleEncryptionUnlocked,
     updateBanner,
-    isDistributingKeys,
     appEncryptionMigrationBanner,
     appEncryptionMigrationBannerCopy,
     dismissAppEncryptionMigrationBanner,

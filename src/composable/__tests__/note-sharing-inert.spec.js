@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Full API-layer mock: proves ensureNoteKey makes zero collaboration calls on
-// personal notes. requestKeyDistribution is deliberately absent — it must no
-// longer exist as an export at all.
+// personal notes. The legacy request-queue exports are deliberately absent —
+// they must no longer exist as exports at all.
 vi.mock('@/lib/api/collaboration', () => ({
   createCollaborationKey: vi.fn().mockResolvedValue({}),
   getCollaborationKey: vi.fn().mockResolvedValue({ wrappedKeys: [], noteHasKey: false }),
@@ -81,7 +81,7 @@ describe('personal notes keep ML-KEM fan-out inert', () => {
     expect(provisionNoteKey).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves no key-distribution path for a late joiner to file a request through', async () => {
+  it('leaves no request-queue path for a late joiner to file a request through', async () => {
     localStorage.setItem('collaborationEnabled', 'true');
     provisionNoteKey.mockResolvedValue(null);
 
@@ -91,7 +91,9 @@ describe('personal notes keep ML-KEM fan-out inert', () => {
     const result = await useNoteSharing().ensureNoteKey('note-1');
 
     expect(result).toBeNull();
-    expect(actualApi.requestKeyDistribution).toBeUndefined();
+    expect(
+      Object.keys(actualApi).some((k) => /distribut/i.test(k))
+    ).toBe(false);
     expect(info).toHaveBeenCalledWith('[notes] sharing arrives with teams phase');
     info.mockRestore();
   });
