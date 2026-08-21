@@ -172,6 +172,12 @@
       :editor="editor"
       class="mobile:hidden ipad:hidden"
     />
+    <word-count-pill
+      v-if="editor && !isLocked && note.showWordCount"
+      :editor="editor"
+      :note="note"
+      class="mobile:hidden ipad:hidden"
+    />
     <comment-sidebar
       v-if="showComments && isShared"
       :note-id="id"
@@ -206,6 +212,7 @@ import NoteEditor from '@/components/note/NoteEditor.vue';
 import NoteActions from '@/components/note/NoteActions.vue';
 import NoteSearch from '@/components/note/NoteSearch.vue';
 import NoteHeadingsProgress from '@/components/note/NoteHeadingsProgress.vue';
+import WordCountPill from '@/components/note/WordCountPill.vue';
 import NoteBacklinks from '@/components/note/NoteBacklinks.vue';
 import { useAppStore } from '../../store/app';
 import { useAccountStore } from '@/store/account';
@@ -230,6 +237,7 @@ export default {
     NoteSearch,
     NoteToolbar,
     NoteHeadingsProgress,
+    WordCountPill,
     NoteBacklinks,
     CommentSidebar,
   },
