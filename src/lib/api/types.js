@@ -229,6 +229,7 @@ export function normalizeWorkspace(raw) {
     storageUsedBytes: Number(raw.storageUsedBytes) || 0,
     createdAt: raw.createdAt || null,
     wrappedKey: raw.wrappedKey || null,
+    vaultWrappedKeys: raw.vaultWrappedKeys || null,
     nameEncrypted: raw.nameEncrypted || null,
     orgId: raw.orgId || null,
     emoji: raw.emoji || null,

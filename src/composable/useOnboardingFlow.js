@@ -47,8 +47,9 @@ import { readLegacyData } from '@/lib/native/app';
 import { backend } from '@/lib/tauri-bridge';
 import logoUrl from '@/assets/images/logo-transparent.png';
 import { fetchCloudKeyParams, getFetchedCloudKeyParams, deriveVaultPassphraseProof } from '@/utils/sync/vault-key-params.js';
-import { detectRemoteVaultJoin, completeRemoteVaultJoin } from '@/utils/onboarding/remote-vault-join.js';
+import { detectRemoteVaultJoin, completeRemoteVaultJoin, adoptWorkspaceKeysFromVault } from '@/utils/onboarding/remote-vault-join.js';
 import { useWorkspaceStore } from '@/store/workspace.ts';
+import { useCloudWorkspaces } from '@/composable/useCloudWorkspaces';
 import { getApiClient } from '@/lib/api/client';
 import { loadSessionToken } from '@/lib/account-storage';
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
@@ -221,6 +222,16 @@ export function useOnboardingFlow({
         if (!result?.ok) {
           encryptionPasswordError.value = result?.error || 'Failed to join this vault.';
           return;
+        }
+        // The session AEK is now available: recover the joined workspace's key
+        // from its passphrase-recoverable envelope (if the creator published
+        // one) and seed the local key cache so nothing needs an ML-KEM fetch.
+        try {
+          const cloud = useCloudWorkspaces();
+          const joined = cloud.workspaces.value.find((w) => w.id === workspaceId);
+          await adoptWorkspaceKeysFromVault(joined);
+        } catch (recoverErr) {
+          console.warn('[onboarding][vault-adopt] workspace key recovery skipped:', recoverErr?.message || recoverErr);
         }
         goToNextStep();
         return;

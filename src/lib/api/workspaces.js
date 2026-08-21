@@ -5,6 +5,65 @@ import { importCollabKey } from '@/utils/crypto/collab';
 import { bytesToHex } from '@/utils/crypto/hex';
 import { wrapNoteKeyForRecipient, unwrapNoteKey } from '@/utils/crypto/note-key';
 import { encryptName, decryptName } from '@/utils/crypto/comment-crypto';
+import { encryptJSON, decryptJSON } from '@/utils/sync/crypto';
+
+// AAD domain binding vault-wrapped workspace key envelopes to their purpose,
+// so they can never be replayed as (or from) regular sync payloads.
+export const VAULT_WRAPPED_KEYS_AAD = 'beaver-workspace-keys:v1';
+
+// Raw workspace keys by workspace id. Seeded when we create a workspace and
+// after recovering the key via the vault passphrase on join; consumers
+// (ensureMetaRoomKey, workspace name encryption) check it before falling back
+// to the network fetch + ML-KEM unwrap path.
+const workspaceKeyCache = new Map();
+
+export function getCachedWorkspaceKey(workspaceId) {
+  return workspaceKeyCache.get(workspaceId) ?? null;
+}
+
+export function setCachedWorkspaceKey(workspaceId, workspaceKeyHex) {
+  if (!workspaceId || typeof workspaceKeyHex !== 'string' || !workspaceKeyHex) return;
+  workspaceKeyCache.set(workspaceId, workspaceKeyHex);
+}
+
+/**
+ * Wrap the raw workspace key under the session AEK so any member who recovers
+ * their encryption password (vault passphrase adoption) can re-derive the
+ * workspace key locally instead of waiting for an ML-KEM re-wrap.
+ * Returns the base64 envelope string stored server-side as vault_wrapped_keys.
+ */
+export async function buildVaultWrappedKeys(workspaceKeyHex) {
+  const payload = new TextEncoder().encode(JSON.stringify({ workspaceKey: workspaceKeyHex }));
+  return encryptJSON(
+    {
+      update: payload,
+      device: 'beaver-vault',
+      ts: Date.now(),
+      noteId: 'workspace-keys',
+    },
+    VAULT_WRAPPED_KEYS_AAD
+  );
+}
+
+/**
+ * Inverse of buildVaultWrappedKeys: decrypt the envelope with the session AEK
+ * and recover `{ workspaceKeyHex }`. Returns null for missing/tampered input
+ * or a locked key rather than throwing — recovery is best-effort.
+ */
+export async function unwrapWorkspaceKeysFromVault(vaultWrappedKeys) {
+  if (!vaultWrappedKeys || typeof vaultWrappedKeys !== 'string') return null;
+  try {
+    const res = await decryptJSON(vaultWrappedKeys, VAULT_WRAPPED_KEYS_AAD);
+    if (!res?.update) return null;
+    const decoded = JSON.parse(new TextDecoder().decode(res.update));
+    const workspaceKeyHex = decoded?.workspaceKey;
+    return typeof workspaceKeyHex === 'string' && workspaceKeyHex
+      ? { workspaceKeyHex }
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 function getClient(baseUrl) {
   return getApiClient(baseUrl ? { baseUrl } : undefined);
@@ -23,11 +82,16 @@ async function provisionWorkspacePayload(name) {
   const wrappedKey = await wrapNoteKeyForRecipient(identity.publicKeyHex, workspaceKeyHex);
   const key = await importCollabKey(workspaceKeyHex);
   const nameEncrypted = await encryptName(key, name);
-  return {
+  // Passphrase-recoverable copy of the workspace key, stored server-side so
+  // members who adopt the vault passphrase can unwrap it without ML-KEM.
+  const vaultWrappedKeys = await buildVaultWrappedKeys(workspaceKeyHex);
+  const body = {
     nameEncrypted,
     recipients: [{ userId, wrappedKey }],
     orgId,
+    vaultWrappedKeys,
   };
+  return { body, workspaceKeyHex };
 }
 
 async function decryptWorkspaceName(ws, identity) {
@@ -62,8 +126,10 @@ export async function getWorkspaces({ baseUrl, signal } = {}) {
 
 export async function createWorkspace(name, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
-  const payload = await provisionWorkspacePayload(name);
-  return client.post('/workspaces', payload, { signal });
+  const { body, workspaceKeyHex } = await provisionWorkspacePayload(name);
+  const res = await client.post('/workspaces', body, { signal });
+  if (res?.id) setCachedWorkspaceKey(res.id, workspaceKeyHex);
+  return res;
 }
 
 export async function renameWorkspace(id, nameEncrypted, { baseUrl, signal } = {}) {

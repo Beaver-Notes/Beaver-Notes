@@ -10,6 +10,7 @@ import {
   joinWorkspace as apiJoinWorkspace,
   getWorkspaceMembers as apiGetWorkspaceMembers,
   provisionWorkspaceKey as apiProvisionWorkspaceKey,
+  getCachedWorkspaceKey,
 } from '@/lib/api/workspaces';
 import { normalizeWorkspaceList } from '@/lib/api/types';
 
@@ -182,19 +183,22 @@ export function useCloudWorkspaces() {
     const ws = workspaces.value.find((w) => w.id === id);
     if (!ws) throw new Error('Workspace not found');
 
-    const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
-    const { unwrapNoteKey } = await import('@/utils/crypto/note-key');
     const { importCollabKey } = await import('@/utils/crypto/collab');
     const { encryptName } = await import('@/utils/crypto/comment-crypto');
 
-    const identity = await loadOrCreateIdentity();
-    if (!identity?.privateKeyHex) throw new Error('Missing encryption identity');
-
-    const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
-    const wsData = raw.find((w) => w.id === id);
-    if (!wsData?.wrappedKey) throw new Error('Cannot decrypt workspace key');
-
-    const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wsData.wrappedKey);
+    // Prefer the locally cached raw key (seeded at creation or after
+    // vault-passphrase recovery) to skip the fetch + ML-KEM unwrap path.
+    let workspaceKeyHex = getCachedWorkspaceKey(id);
+    if (!workspaceKeyHex) {
+      const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+      const { unwrapNoteKey } = await import('@/utils/crypto/note-key');
+      const identity = await loadOrCreateIdentity();
+      if (!identity?.privateKeyHex) throw new Error('Missing encryption identity');
+      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
+      const wsData = raw.find((w) => w.id === id);
+      if (!wsData?.wrappedKey) throw new Error('Cannot decrypt workspace key');
+      workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wsData.wrappedKey);
+    }
     const key = await importCollabKey(workspaceKeyHex);
     const nameEncrypted = await encryptName(key, newName);
 

@@ -24,7 +24,7 @@ import {
 import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
 import { getHocuspocusSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/hocuspocus-sync';
 import { useWorkspaceStore } from '@/store/workspace';
-import { getWorkspaceKey } from '@/lib/api/workspaces';
+import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
 import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
@@ -220,11 +220,17 @@ export async function loadWorkspaceDoc() {
  * Mirrors the per-note key wiring in useNoteYjs.js (setRoomKey around
  * useNoteYjs.js:230) but uses the WORKSPACE key instead of a per-note key.
  *
- * The wrapped key is preferred from the local workspace store (no network),
- * falling back to an API fetch via getWorkspaceKey(wsId).
+ * The key is preferred from the local workspace-key cache (seeded at creation
+ * or after vault-passphrase recovery — no network), then from the workspace
+ * store's wrapped key, falling back to an API fetch via getWorkspaceKey(wsId).
  */
 export async function ensureMetaRoomKey(wsId) {
   if (!wsId) return;
+  let workspaceKeyHex = getCachedWorkspaceKey(wsId);
+  if (workspaceKeyHex) {
+    await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+    return;
+  }
   const workspaceStore = useWorkspaceStore();
   const ws =
     workspaceStore.activeWorkspace ||
@@ -242,7 +248,7 @@ export async function ensureMetaRoomKey(wsId) {
     console.warn('[meta-yjs] missing encryption identity for meta key');
     return;
   }
-  const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
+  workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
   await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
 }
 

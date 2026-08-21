@@ -15,7 +15,7 @@ import {
 } from '@/utils/crypto/collab'
 import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
-import { getWorkspaceKey } from '@/lib/api/workspaces'
+import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
@@ -58,11 +58,17 @@ export function setAwareness(awareness) {
  * useNoteYjs.js (setRoomKey around useNoteYjs.js:230) but uses the WORKSPACE
  * key rather than a per-note key.
  *
- * The wrapped key is preferred from the local workspace store (no network),
- * falling back to an API fetch via getWorkspaceKey(wsId).
+ * The key is preferred from the local workspace-key cache (seeded at creation
+ * or after vault-passphrase recovery — no network), then from the workspace
+ * store's wrapped key, falling back to an API fetch via getWorkspaceKey(wsId).
  */
 export async function ensureMetaRoomKey(workspaceId) {
   if (!workspaceId) return
+  const cachedHex = getCachedWorkspaceKey(workspaceId)
+  if (cachedHex) {
+    await setRoomKey(buildMetaRoomName(workspaceId), cachedHex)
+    return
+  }
   const workspaceStore = useWorkspaceStore()
   const ws =
     workspaceStore.activeWorkspace ||
