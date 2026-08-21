@@ -401,16 +401,15 @@ pub(crate) fn yjs_get_snapshots(
         .map_err(|e| AppError::Other(e.to_string()))?;
 
     // Determine which notes have stale or missing snapshots. A note is "stale"
-    // when there are unencrypted content rows newer than the snapshot, or when
-    // no snapshot exists at all.  Encrypted rows (re-encryptions of existing
-    // content pulled from another device) do NOT invalidate the snapshot —
-    // otherwise every pull triggers a false-stale rebuild and an endless
-    // bootstrap loop.
+    // when ANY content row — plaintext or encrypted — is newer than the
+    // snapshot, or when no snapshot exists at all. Encrypted rows must count:
+    // sync-pulled updates are persisted encrypted (yjs_append_batch), so
+    // ignoring them would serve forever-stale snapshots on devices that join
+    // a vault and receive their content exclusively via sync.
     let stale_query = format!(
         "SELECT DISTINCT nc.note_id FROM note_content nc \
          LEFT JOIN yjs_snapshots ys ON nc.note_id = ys.note_id \
          WHERE nc.note_id IN ({placeholders}) \
-           AND (length(nc.data) < 4 OR substr(nc.data, 1, 4) != X'424E5931') \
            AND (ys.note_id IS NULL OR nc.created_at > ys.updated_at)"
     );
     let mut stmt = conn
@@ -624,12 +623,14 @@ fn read_snapshot(pool: &DbPool, note_id: &str) -> Result<Option<(Vec<u8>, i64)>,
 
 /// True when any stored update for `note_id` is newer than the cached snapshot
 /// (`updated_at`), meaning the snapshot must be rebuilt before it can be served.
+/// Both plaintext and encrypted rows count: sync-pulled updates are stored
+/// encrypted, and excluding them made snapshots permanently stale on devices
+/// whose content arrives exclusively via sync.
 fn snapshot_is_stale(pool: &DbPool, note_id: &str, snapshot_updated_at: i64) -> Result<bool, AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
     let latest: Option<Option<i64>> = conn
         .query_row(
-            "SELECT MAX(created_at) FROM note_content WHERE note_id = ?1 \
-             AND (length(data) < 4 OR substr(data, 1, 4) != X'424E5931')",
+            "SELECT MAX(created_at) FROM note_content WHERE note_id = ?1",
             rusqlite::params![note_id],
             |r| r.get::<_, Option<i64>>(0),
         )
@@ -683,5 +684,108 @@ mod tests {
             .expect("pragma");
         assert_eq!(timeout, 5000, "busy_timeout must be set to avoid SQLITE_BUSY");
         let _ = fs::remove_dir_all(&root);
+    }
+
+    fn test_pool(prefix: &str) -> (DbPool, PathBuf) {
+        let root = unique_temp_dir(prefix);
+        let _ = fs::create_dir_all(&root);
+        let pool = open_pool(&root.join("data.db")).expect("pool");
+        (pool, root)
+    }
+
+    /// A row written plaintext (key unavailable at write time) must be returned
+    /// as-is when later read with a key — decrypt passes non-magic blobs through.
+    #[test]
+    fn plaintext_row_readable_with_key() {
+        let (pool, root) = test_pool("beaver-notes-db-plain-read");
+        let original = b"plain yjs update bytes".to_vec();
+        yjs_append(&pool, "n1", &original, "devA", None).expect("append");
+        let rows = yjs_get_updates(&pool, "n1", Some([1u8; 32])).expect("read");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].1, original);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// A row written encrypted round-trips with the same key, is stored under
+    /// the BNY1 magic, and fails closed (never yields ciphertext) without a key.
+    #[test]
+    fn encrypted_row_roundtrips_and_fails_closed_without_key() {
+        let (pool, root) = test_pool("beaver-notes-db-enc-roundtrip");
+        let original = b"secret yjs update bytes".to_vec();
+        yjs_append(&pool, "n1", &original, "devA", Some([2u8; 32])).expect("append");
+
+        let conn = pool.get().expect("conn");
+        let stored: Vec<u8> = conn
+            .query_row("SELECT data FROM note_content WHERE note_id = 'n1'", [], |r| r.get(0))
+            .expect("row");
+        assert!(is_encrypted_yjs_blob(&stored), "row must carry BNY1 magic at rest");
+
+        let rows = yjs_get_updates(&pool, "n1", Some([2u8; 32])).expect("read");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].1, original);
+
+        // Without the key the row cannot be produced; the call must fail closed
+        // rather than return ciphertext or silently drop content.
+        assert!(matches!(
+            yjs_get_updates(&pool, "n1", None),
+            Err(AppError::EncryptionLocked)
+        ));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Plaintext and encrypted rows for the same note coexist and both come
+    /// back intact when read with a key (key adopted after some rows were
+    /// written — the vault-join timing).
+    #[test]
+    fn mixed_plaintext_and_encrypted_rows_coexist() {
+        let (pool, root) = test_pool("beaver-notes-db-mixed");
+        let first = b"pre-key local update".to_vec();
+        let second = b"post-key synced update".to_vec();
+        yjs_append(&pool, "n1", &first, "devB", None).expect("append plain");
+        yjs_append(&pool, "n1", &second, "devB", Some([3u8; 32])).expect("append enc");
+
+        let rows = yjs_get_updates(&pool, "n1", Some([3u8; 32])).expect("read");
+        assert_eq!(rows.len(), 2, "both rows must survive a keyed read");
+        assert_eq!(rows[0].1, first);
+        assert_eq!(rows[1].1, second);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Regression: updates persisted ENCRYPTED by the sync engine after a
+    /// snapshot was cached must invalidate that snapshot. Ignoring encrypted
+    /// rows made restarts serve the pre-sync (empty) meta snapshot forever.
+    #[test]
+    fn encrypted_rows_invalidate_cached_snapshot() {
+        let (pool, root) = test_pool("beaver-notes-db-stale-enc");
+        let key = [4u8; 32];
+        write_snapshot(&pool, "meta", b"cached state", Some(key)).expect("cache snapshot");
+        let cached_at = latest_snapshot_updated_at(&pool, "meta");
+
+        // Simulate sync pulling a later update (encrypted, newer than the cache).
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        yjs_append(&pool, "meta", b"second synced update", "devB", Some(key)).expect("append");
+
+        assert!(
+            snapshot_is_stale(&pool, "meta", cached_at).expect("stale"),
+            "encrypted rows newer than the snapshot must mark it stale"
+        );
+
+        // Plaintext rows must keep counting too (pre-existing contract).
+        write_snapshot(&pool, "n2", b"cached state", Some(key)).expect("cache snapshot 2");
+        let cached_at2 = latest_snapshot_updated_at(&pool, "n2");
+        std::thread::sleep(std::time::Duration::from_millis(15));
+        yjs_append(&pool, "n2", b"local update", "devA", None).expect("append plain");
+        assert!(snapshot_is_stale(&pool, "n2", cached_at2).expect("stale plain"));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    fn latest_snapshot_updated_at(pool: &DbPool, note_id: &str) -> i64 {
+        let conn = pool.get().expect("conn");
+        conn.query_row(
+            "SELECT updated_at FROM yjs_snapshots WHERE note_id = ?1",
+            rusqlite::params![note_id],
+            |r| r.get(0),
+        )
+        .expect("snapshot row")
     }
 }
