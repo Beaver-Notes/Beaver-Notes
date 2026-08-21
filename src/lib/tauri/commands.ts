@@ -290,7 +290,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
         ...withKeyVariants('password', payload?.password),
       };
     case 'encryption:encryptNotePayload':
-      return withKeyVariants('plain_json', payload);
+      return withKeyVariants('plain_bytes', payload);
     case 'encryption:decryptNotePayload':
       return withKeyVariants('payload', payload);
     case 'sync:encryptPayload':

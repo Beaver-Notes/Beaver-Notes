@@ -40,6 +40,20 @@ describe('invokeCommand payload normalization', () => {
     expect(invoke).toHaveBeenCalledWith('encryption_has_remote_key_params', {});
   });
 
+  it('sends encryption:encryptNotePayload bytes as plain_bytes, not plain_json', async () => {
+    const bytes = [104, 101, 108, 108, 111];
+    await invokeCommand('encryption:encryptNotePayload', bytes);
+    expect(invoke).toHaveBeenCalledWith(
+      'encryption_encrypt_note_payload',
+      expect.objectContaining({ plain_bytes: bytes })
+    );
+    const args = invoke.mock.calls.find(
+      (call) => call[0] === 'encryption_encrypt_note_payload'
+    )[1];
+    expect(Array.isArray(args.plain_bytes)).toBe(true);
+    expect(Object.keys(args)).not.toContain('plain_json');
+  });
+
   it('normalizes workspace:registerCloud to snake_case Rust args', async () => {
     await invokeCommand('workspace:registerCloud', {
       id: 'w1',
