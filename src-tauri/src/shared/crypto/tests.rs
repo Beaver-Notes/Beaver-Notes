@@ -1,17 +1,20 @@
 #[cfg(test)]
 mod characterization {
     use base64::Engine;
-    use crate::shared::crypto::keys::{
-        aead_decrypt_bytes, aead_encrypt_bytes, derive_kek_argon2id,
-    };
+    use crate::shared::crypto::keys::{aead_decrypt_bytes, aead_encrypt_bytes};
 
-    /// Characterization vector for argon2id key derivation (Argon2id t=2,
-    /// m=32MiB, p=2). Bumping ARGON2_MEMORY_KIB changes this — update the vector
-    /// together with the constant.
+    /// Characterization vector for argon2id key derivation under the legacy
+    /// parameters (t=2, m=32MiB, p=2), pinned explicitly so bumping the module
+    /// defaults does not invalidate it. Vaults created before a KDF parameter
+    /// bump keep these params in their manifest and must keep deriving the same
+    /// KEK forever.
     #[test]
     fn derive_kek_argon2id_known_vector() {
+        use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
+
         let salt = [0x42u8; 16];
-        let key = derive_kek_argon2id("test-passphrase", &salt).unwrap();
+        let key = derive_kek_argon2id_with_params("test-passphrase", &salt, 32 * 1024, 2, 2)
+            .unwrap();
         assert_eq!(
             key,
             [
@@ -19,6 +22,20 @@ mod characterization {
                 214, 162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
             ]
         );
+    }
+
+    /// New vaults must be created with Amendment 1 KDF parameters
+    /// (128 MiB memory, t=3, p=4). Existing vaults are unaffected: their
+    /// manifests store per-vault params.
+    #[test]
+    fn new_manifests_use_amendment1_kdf_params() {
+        use crate::shared::crypto::keys::create_encryption_manifest;
+
+        let (manifest, _data, _kek) =
+            create_encryption_manifest("personal", "check", "correct horse").unwrap();
+        assert_eq!(manifest.argon2_memory_kib, Some(131_072));
+        assert_eq!(manifest.argon2_iterations, Some(3));
+        assert_eq!(manifest.argon2_parallelism, Some(4));
     }
 
     /// A vault created under older Argon2id parameters must keep unlocking: the

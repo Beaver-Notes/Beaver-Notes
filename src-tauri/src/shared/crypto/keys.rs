@@ -28,9 +28,9 @@ use tauri::AppHandle;
 use super::super::{app_encryption_manifest_path, get_settings_value, AppError, AppState};
 
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
-pub(crate) const ARGON2_MEMORY_KIB: u32 = 32 * 1024;
-pub(crate) const ARGON2_ITERATIONS: u32 = 2;
-pub(crate) const ARGON2_PARALLELISM: u32 = 2;
+pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
+pub(crate) const ARGON2_ITERATIONS: u32 = 3;
+pub(crate) const ARGON2_PARALLELISM: u32 = 4;
 pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 4;
 pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v4";
 pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
