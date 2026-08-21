@@ -167,6 +167,14 @@ function normalizeBinaryData(data: unknown): string {
   return bufToBase64(textEncoder.encode(String(data)));
 }
 
+// Yjs payloads are binary, never plain text. A string arriving here is already
+// base64 (encoded once by src/lib/native/yjs.js) and must pass through
+// untouched — normalizeBinaryData would utf8+base64 it a second time.
+function normalizeYjsBinary(data: unknown): string {
+  if (typeof data === 'string') return data;
+  return normalizeBinaryData(data);
+}
+
 function normalizePayload(channel: Channel, payload: Payload): Record<string, unknown> {
   switch (channel) {
     case 'app:spellcheck':
@@ -332,13 +340,13 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'yjs:append':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
-        ...withKeyVariants('update', normalizeBinaryData(payload?.update)),
+        ...withKeyVariants('update', normalizeYjsBinary(payload?.update)),
         ...withKeyVariants('device', payload?.device ?? ''),
       };
     case 'yjs:appendBatch':
       return {
         ...withKeyVariants('noteIds', payload?.noteIds),
-        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeBinaryData(u)) : [],
+        updates: Array.isArray(payload?.updates) ? payload.updates.map((u: unknown) => normalizeYjsBinary(u)) : [],
         ...withKeyVariants('devices', payload?.devices ?? []),
       };
     case 'yjs:getUpdates':
@@ -352,7 +360,7 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
     case 'yjs:compact':
       return {
         ...withKeyVariants('noteId', payload?.noteId),
-        ...withKeyVariants('snapshot', normalizeBinaryData(payload?.snapshot)),
+        ...withKeyVariants('snapshot', normalizeYjsBinary(payload?.snapshot)),
       };
     case 'yjs:compactBatch':
       return withKeyVariants('noteId', payload);
