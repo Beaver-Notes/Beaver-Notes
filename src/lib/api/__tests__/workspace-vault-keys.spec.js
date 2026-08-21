@@ -96,6 +96,8 @@ const {
   createWorkspace,
   getCachedWorkspaceKey,
 } = await import('../workspaces.js');
+const { syncEncryptPayload } = await import('@/lib/native/security.js');
+const { decryptJSON } = await import('@/utils/sync/crypto.js');
 const { adoptWorkspaceKeysFromVault } = await import('@/utils/onboarding/remote-vault-join.js');
 
 const HEX = 'ab'.repeat(32);
@@ -147,10 +149,26 @@ describe('vault-wrapped workspace keys', () => {
     parsed.enc = (parsed.enc.startsWith('A') ? 'B' : 'A') + parsed.enc.slice(1);
     expect(await unwrapWorkspaceKeysFromVault(JSON.stringify(parsed))).toBeNull();
 
-    // A different AAD (regular sync payload semantics) must not unwrap either.
-    const foreign = await buildVaultWrappedKeys(HEX);
-    const swapped = JSON.parse(foreign);
-    void swapped;
+    // An envelope sealed under a different AAD (regular sync payload
+    // semantics) must not unwrap: AES-GCM authentication fails on the domain
+    // mismatch -> null.
+    const foreignAad = 'beaver-notes:regular-sync:v1';
+    const foreignEnv = await syncEncryptPayload(
+      JSON.stringify({ device: 'beaver-vault', ts: Date.now(), noteId: 'workspace-keys' }),
+      bytesToB64(new TextEncoder().encode(JSON.stringify({ workspaceKey: HEX }))),
+      foreignAad
+    );
+    // Sanity: the very same envelope decrypts cleanly under its own AAD, so
+    // the rejection below can only come from the cross-domain binding.
+    const ownDomain = await decryptJSON(foreignEnv, foreignAad);
+    expect(ownDomain).toEqual(
+      expect.objectContaining({ device: 'beaver-vault', noteId: 'workspace-keys' })
+    );
+    expect(JSON.parse(new TextDecoder().decode(ownDomain.update))).toEqual({
+      workspaceKey: HEX,
+    });
+    expect(await unwrapWorkspaceKeysFromVault(foreignEnv)).toBeNull();
+
     expect(await unwrapWorkspaceKeysFromVault('{}')).toBeNull();
   });
 
