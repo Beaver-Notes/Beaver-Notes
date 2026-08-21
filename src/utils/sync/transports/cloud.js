@@ -843,9 +843,6 @@ export class CloudTransport extends Transport {
   }
 
   async seedOnce() {
-    // Cloud-only mode: skip disk-based seeding
-    if (this._cloudBuffer) return;
-
     const commitsDir = await getCommitsDir();
     if (!commitsDir) return;
 
