@@ -52,7 +52,8 @@ export async function getCurrentStateVector(docId) {
   try {
     const sv = await getStateVector(docId);
     return sv && typeof sv === 'object' ? sv : {};
-  } catch {
+  } catch (err) {
+    console.warn('[state-vector] getCurrentStateVector failed for', docId, err);
     return {};
   }
 }

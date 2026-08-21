@@ -54,6 +54,14 @@ describe('invokeCommand payload normalization', () => {
     expect(Object.keys(args)).not.toContain('plain_json');
   });
 
+  it('forwards yjs:getStateVector to yjs_get_state_vector with the note id', async () => {
+    await invokeCommand('yjs:getStateVector', { noteId: 'note-1' });
+    expect(invoke).toHaveBeenCalledWith(
+      'yjs_get_state_vector',
+      expect.objectContaining({ noteId: 'note-1' })
+    );
+  });
+
   it('normalizes workspace:registerCloud to snake_case Rust args', async () => {
     await invokeCommand('workspace:registerCloud', {
       id: 'w1',

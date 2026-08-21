@@ -12,6 +12,7 @@ import {
   appendBatch,
   compactUpdates,
   getUpdates,
+  getStateVector,
 } from '@/lib/native/yjs.js';
 
 const toB64 = (bytes) => btoa(String.fromCharCode(...bytes));
@@ -79,5 +80,17 @@ describe('native yjs IPC binary contract', () => {
     invoke.mockResolvedValue([]);
     await getUpdates('note-1');
     expect(invoke).toHaveBeenCalledWith('yjs:getUpdates', 'note-1');
+  });
+
+  it('getStateVector sends an object payload with the note id', async () => {
+    invoke.mockResolvedValue({ 'device-a': 3 });
+    const sv = await getStateVector('note-1');
+    expect(sv).toEqual({ 'device-a': 3 });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    const [channel, payload] = invoke.mock.calls[0];
+    expect(channel).toBe('yjs:getStateVector');
+    expect(typeof payload).toBe('object');
+    expect(payload).not.toBeNull();
+    expect(payload.noteId).toBe('note-1');
   });
 });

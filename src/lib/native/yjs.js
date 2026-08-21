@@ -29,7 +29,7 @@ export function getUpdates(noteId) {
 }
 
 export function getStateVector(noteId) {
-  return backend.invoke('yjs:getStateVector', noteId);
+  return backend.invoke('yjs:getStateVector', { noteId });
 }
 
 export function getSnapshot(noteId) {

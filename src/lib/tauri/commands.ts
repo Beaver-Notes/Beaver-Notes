@@ -115,6 +115,7 @@ const commandAliases = {
   'yjs:append': 'yjs_append',
   'yjs:appendBatch': 'yjs_append_batch',
   'yjs:getUpdates': 'yjs_get_updates',
+  'yjs:getStateVector': 'yjs_get_state_vector',
   'yjs:getSnapshot': 'yjs_get_snapshot',
   'yjs:getSnapshots': 'yjs_get_snapshots',
   'yjs:compact': 'yjs_compact',
@@ -342,6 +343,8 @@ function normalizePayload(channel: Channel, payload: Payload): Record<string, un
       };
     case 'yjs:getUpdates':
       return withKeyVariants('noteId', payload);
+    case 'yjs:getStateVector':
+      return withKeyVariants('noteId', payload?.noteId ?? payload);
     case 'yjs:getSnapshot':
       return withKeyVariants('noteId', payload);
     case 'yjs:getSnapshots':
