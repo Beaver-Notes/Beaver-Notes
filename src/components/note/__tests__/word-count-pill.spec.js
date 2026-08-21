@@ -47,9 +47,17 @@ const globalStubs = {
   },
 };
 
-// The expandable region holding count + inline limit editor.
+// The expandable region holding the view/editor swap.
 function bodyOf(wrapper) {
   return wrapper.find('div.overflow-hidden');
+}
+
+// The view↔edit swap uses <Transition mode="out-in">; jsdom reports no CSS
+// durations, but the swap still resolves a couple of ticks later.
+async function flushSwap() {
+  await nextTick();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await nextTick();
 }
 
 describe('WordCountPill', () => {
@@ -57,18 +65,15 @@ describe('WordCountPill', () => {
     updateMock.mockClear();
   });
 
-  it('shows plain word count without a limit', async () => {
+  it('shows plain word count without a limit and no ring', async () => {
     const wrapper = mount(WordCountPill, {
       props: { editor: makeEditor(123), note: makeNote() },
       ...globalStubs,
     });
     await nextTick();
     expect(wrapper.text()).toContain('123 words');
-    // No limit: the neutral dot-ring replaces the progress ring.
-    expect(wrapper.findAll('circle')[0].classes()).toContain(
-      'stroke-neutral-300'
-    );
-    expect(wrapper.findAll('circle')).toHaveLength(1);
+    // Ring only exists once a limit is set; no placeholder ring either.
+    expect(wrapper.find('svg').exists()).toBe(false);
   });
 
   it('shows ring and ratio with a limit', async () => {
@@ -130,44 +135,53 @@ describe('WordCountPill', () => {
     expect(wrapper.vm.limitInput).toBe('');
   });
 
-  it('clears the limit on invalid input', () => {
+  it('clears the limit on invalid input and exits editing', () => {
     const wrapper = mount(WordCountPill, {
       props: { editor: makeEditor(10), note: makeNote(500) },
       ...globalStubs,
     });
     wrapper.vm.limitInput = '-3';
+    wrapper.vm.isEditing = true;
     wrapper.vm.applyLimit();
     expect(updateMock).toHaveBeenCalledWith('n1', { wordCountLimit: null });
+    expect(wrapper.vm.isEditing).toBe(false);
 
     wrapper.vm.limitInput = 'not-a-number';
+    wrapper.vm.isEditing = true;
     wrapper.vm.applyLimit();
     expect(updateMock).toHaveBeenCalledWith('n1', { wordCountLimit: null });
+    expect(wrapper.vm.isEditing).toBe(false);
   });
 
-  it('clears the limit via clearLimit', () => {
-    const wrapper = mount(WordCountPill, {
-      props: { editor: makeEditor(10), note: makeNote(500) },
-      ...globalStubs,
-    });
-    wrapper.vm.clearLimit();
-    expect(updateMock).toHaveBeenCalledWith('n1', { wordCountLimit: null });
-  });
-
-  it('renders the inline limit editor as an interactive number input when solo', async () => {
+  it('reveals the limit editor via the + trigger and commits on Set', async () => {
     const wrapper = mount(WordCountPill, {
       props: { editor: makeEditor(123), note: makeNote(500) },
       ...globalStubs,
     });
     await nextTick();
+    // View state: no editor until the trigger is tapped.
+    expect(wrapper.find('input[type="number"]').exists()).toBe(false);
+    expect(bodyOf(wrapper).attributes('inert')).toBeUndefined();
+
+    await wrapper.find('i[name="riAddLine"]').trigger('click');
+    await flushSwap();
+    expect(wrapper.vm.isEditing).toBe(true);
+
     const input = wrapper.find('input[type="number"]');
     expect(input.exists()).toBe(true);
     expect(input.attributes('min')).toBe('1');
-    expect(input.attributes('placeholder')).toBe('500');
-    // Solo pill is always expanded: the body must stay interactive.
-    expect(bodyOf(wrapper).attributes('inert')).toBeUndefined();
+    expect(input.attributes('placeholder')).toBe('None');
+
+    await input.setValue('250');
+    const setButton = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Set');
+    await setButton.trigger('click');
+    expect(updateMock).toHaveBeenCalledWith('n1', { wordCountLimit: 250 });
+    expect(wrapper.vm.isEditing).toBe(false);
   });
 
-  it('exposes set and clear actions via remix icon names', async () => {
+  it('exposes the add-limit trigger via remix icon name', async () => {
     const wrapper = mount(WordCountPill, {
       props: { editor: makeEditor(10), note: makeNote(500) },
       ...globalStubs,
@@ -175,8 +189,7 @@ describe('WordCountPill', () => {
     await nextTick();
     const icons = wrapper.findAll('i');
     expect(icons.map((icon) => icon.attributes('name'))).toEqual([
-      'riCheckLine',
-      'riCloseLine',
+      'riAddLine',
     ]);
   });
 
@@ -198,9 +211,9 @@ describe('WordCountPill pill dock', () => {
     expandedPill.value = null;
   });
 
-  function mountDocked() {
+  function mountDocked(note = makeNote(500)) {
     return mount(WordCountPill, {
-      props: { editor: makeEditor(123), note: makeNote(500) },
+      props: { editor: makeEditor(123), note },
       ...globalStubs,
     });
   }
@@ -231,6 +244,15 @@ describe('WordCountPill pill dock', () => {
     expect(body.attributes('inert')).toBeDefined();
     expect(wrapper.find('svg').exists()).toBe(true);
     expect(wrapper.find('button').attributes('aria-expanded')).toBe('false');
+  });
+
+  it('shows the bare count when collapsed without a limit', async () => {
+    isRecordingRef.value = true;
+    const wrapper = mountDocked(makeNote());
+    await nextTick();
+    const trigger = wrapper.find('button');
+    expect(trigger.text()).toContain('123');
+    expect(wrapper.find('svg').exists()).toBe(false);
   });
 
   it('expands after toggle("word-count") while recording', async () => {

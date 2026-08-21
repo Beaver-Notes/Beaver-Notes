@@ -2,7 +2,7 @@
   <teleport to="#pill-dock" :disabled="!dockTarget">
     <ui-pill :fixed="false" :aria-label="ariaLabel">
       <div class="flex items-center py-1 pl-1.5 pr-1.5">
-        <!-- Toggle: ring when a limit exists, neutral dot-ring otherwise -->
+        <!-- Island toggle: progress ring when limited, bare count while collapsed -->
         <button
           type="button"
           class="flex h-9 shrink-0 items-center rounded-full px-2 transition-transform duration-200 ease-[var(--ease-snappy)] active:scale-95 motion-reduce:transition-none"
@@ -15,43 +15,58 @@
             <circle cx="8" cy="8" r="6.5" fill="none" stroke-width="2.5" stroke-linecap="round"
               :stroke-dasharray="circumference" :stroke-dashoffset="dashOffset" :class="ringClass" />
           </svg>
-          <svg v-else width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-            <circle cx="8" cy="8" r="6.5" fill="none" stroke-width="2.5" class="stroke-neutral-300 dark:stroke-neutral-600" />
-          </svg>
+          <span
+            v-else-if="!isExpanded"
+            class="shrink-0 text-sm font-mono tabular-nums text-neutral-500 dark:text-neutral-400"
+            >{{ words }}</span
+          >
         </button>
 
-        <!-- Expandable body: count + inline limit editor -->
+        <!-- Expandable body: view swaps in place for the compact limit editor -->
         <div
           class="flex items-center gap-0.5 overflow-hidden transition-[max-width,opacity] duration-300 ease-[var(--ease-snappy)] motion-reduce:transition-none"
           :class="isExpanded ? 'max-w-[26rem] opacity-100' : 'max-w-0 opacity-0'"
           :inert="!isExpanded"
         >
-          <span class="shrink-0 whitespace-nowrap pl-1 text-sm font-semibold tabular-nums text-neutral-900 dark:text-neutral-100">{{ countLabel }}</span>
-          <input
-            v-model="limitInput"
-            type="number"
-            min="1"
-            :placeholder="limit ? String(limit) : ''"
-            :aria-label="translations.noteActions?.wordLimit || 'Word limit'"
-            class="h-7 w-16 shrink-0 rounded-full border border-neutral-300 bg-transparent px-2.5 text-sm tabular-nums outline-none focus:border-primary dark:border-neutral-600"
-            @keydown.enter="applyLimit"
-          />
-          <button
-            type="button"
-            class="flex shrink-0 items-center justify-center rounded-full size-9 hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-neutral-500 dark:text-neutral-400"
-            :aria-label="translations.noteActions?.setLimit || 'Set'"
-            @click="applyLimit"
+          <Transition
+            mode="out-in"
+            enter-active-class="transition duration-200 ease-[var(--ease-snappy)] motion-reduce:transition-none"
+            leave-active-class="transition duration-200 ease-[var(--ease-snappy)] motion-reduce:transition-none"
+            enter-from-class="opacity-0 scale-95"
+            leave-to-class="opacity-0 scale-95"
           >
-            <v-remixicon name="riCheckLine" class="size-4" />
-          </button>
-          <button
-            type="button"
-            class="flex shrink-0 items-center justify-center rounded-full size-9 hover:bg-black/5 dark:hover:bg-white/10 transition-colors text-neutral-500 dark:text-neutral-400"
-            :aria-label="translations.noteActions?.clearLimit || 'Clear'"
-            @click="clearLimit"
-          >
-            <v-remixicon name="riCloseLine" class="size-4" />
-          </button>
+            <div v-if="!isEditing" key="view" class="flex items-center gap-0.5">
+              <span
+                class="shrink-0 whitespace-nowrap pl-1 text-sm font-medium font-mono tabular-nums tracking-tight text-neutral-900 dark:text-neutral-100"
+                >{{ countLabel }}</span
+              >
+              <button
+                type="button"
+                class="flex shrink-0 items-center justify-center rounded-full p-0.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
+                :aria-label="translations.noteActions?.setLimit || 'Set word limit'"
+                @click.stop="openEdit"
+              >
+                <v-remixicon name="riAddLine" class="size-4" />
+              </button>
+            </div>
+            <div v-else key="edit" class="flex items-center gap-1 whitespace-nowrap">
+              <span class="text-[11px] font-medium text-neutral-400">Limit:</span>
+              <input
+                v-model="limitInput"
+                type="number"
+                min="1"
+                placeholder="None"
+                :aria-label="translations.noteActions?.wordLimit || 'Word limit'"
+                class="w-16 rounded-md border border-neutral-300 dark:border-neutral-600 bg-transparent px-1.5 py-0.5 text-xs font-mono tabular-nums placeholder:text-neutral-400 focus:outline-none focus:border-primary"
+                @keydown.enter="applyLimit"
+              />
+              <button
+                type="button"
+                class="rounded px-1.5 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+                @click="applyLimit"
+              >{{ translations.noteActions?.setLimit || 'Set' }}</button>
+            </div>
+          </Transition>
         </div>
       </div>
     </ui-pill>
@@ -101,6 +116,7 @@ export default {
 
     const words = ref(0);
     const limitInput = ref('');
+    const isEditing = ref(false);
 
     const limit = computed(() => props.note.wordCountLimit);
     const ratio = computed(() =>
@@ -132,6 +148,10 @@ export default {
     // typing costs at most one traversal per 200ms instead of per keystroke.
     const debouncedReadWords = debounce(readWords, 200);
 
+    function openEdit() {
+      isEditing.value = true;
+    }
+
     function applyLimit() {
       // NaN fails the > 0 check, so empty/garbage/negative input clears.
       const parsed = parseInt(limitInput.value, 10);
@@ -139,11 +159,7 @@ export default {
         wordCountLimit: parsed > 0 ? parsed : null,
       });
       limitInput.value = '';
-    }
-
-    function clearLimit() {
-      noteStore.update(props.note.id, { wordCountLimit: null });
-      limitInput.value = '';
+      isEditing.value = false;
     }
 
     onMounted(() => {
@@ -158,6 +174,7 @@ export default {
     return {
       translations,
       limit,
+      words,
       limitInput,
       circumference: RING_CIRCUMFERENCE,
       dashOffset,
@@ -167,9 +184,10 @@ export default {
       dockTarget,
       docked,
       isExpanded,
+      isEditing,
+      openEdit,
       onTriggerClick,
       applyLimit,
-      clearLimit,
     };
   },
 };
