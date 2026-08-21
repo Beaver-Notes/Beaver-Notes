@@ -5,7 +5,7 @@
     @close="$emit('update:modelValue', false)"
   >
     <template #header>
-      <span class="font-semibold text-base">
+      <span class="font-semibold text-lg mb-3">
         {{ isEdit ? (translations.card?.rename || 'Edit folder') : (translations.sidebar?.newFolder || 'New folder') }}
       </span>
     </template>
@@ -29,7 +29,6 @@
     <div class="space-y-4">
       <ui-input
         v-model="name"
-        :label="translations.card?.untitledFolder || 'Name'"
         :placeholder="translations.card?.untitledFolder || 'Folder name'"
         autofocus
         @keydown.enter="save"
