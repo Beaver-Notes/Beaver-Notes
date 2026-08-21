@@ -242,4 +242,15 @@ mod characterization {
         let dec = decrypt_yjs_blob(&key, &enc).unwrap();
         assert_eq!(dec, data);
     }
+
+    #[test]
+    fn vault_proof_is_deterministic_and_domain_bound() {
+        use crate::commands::security::vault_proof_impl;
+
+        let a = vault_proof_impl("pw", "ws-1", "blob");
+        let b = vault_proof_impl("pw", "ws-1", "blob");
+        let c = vault_proof_impl("pw", "ws-2", "blob");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
 }

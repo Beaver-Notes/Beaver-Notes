@@ -216,6 +216,7 @@ pub fn run() {
             commands::security::encryption_clear_decrypted_caches,
             commands::security::decrypt_legacy_cryptojs_note,
             commands::security::derive_argon2_key,
+            commands::security::vault_derive_proof,
             commands::dialogs::dialog_open,
             commands::dialogs::dialog_message,
             commands::dialogs::dialog_save,

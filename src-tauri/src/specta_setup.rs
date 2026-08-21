@@ -99,6 +99,7 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::security::encryption_clear_decrypted_caches)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::decrypt_legacy_cryptojs_note)(&mut types),
                 specta::_fn_datatype!(crate::commands::security::derive_argon2_key)(&mut types),
+                specta::_fn_datatype!(crate::commands::security::vault_derive_proof)(&mut types),
                 // ── Dialogs ──────────────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::dialogs::dialog_open)(&mut types),
                 specta::_fn_datatype!(crate::commands::dialogs::dialog_message)(&mut types),

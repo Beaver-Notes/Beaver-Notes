@@ -178,6 +178,7 @@ export const commands = {
 	encryptionClearDecryptedCaches: () => typedError<null, AppError>(__TAURI_INVOKE("encryption_clear_decrypted_caches")),
 	decryptLegacyCryptojsNote: (ciphertextB64: string, password: string) => typedError<string, AppError>(__TAURI_INVOKE("decrypt_legacy_cryptojs_note", { ciphertextB64, password })),
 	deriveArgon2Key: (passphrase: string, salt: string | null) => typedError<string, AppError>(__TAURI_INVOKE("derive_argon2_key", { passphrase, salt })),
+	vaultDeriveProof: (passphrase: string, workspaceId: string, keyParamsBlob: string) => typedError<string, AppError>(__TAURI_INVOKE("vault_derive_proof", { passphrase, workspaceId, keyParamsBlob })),
 	dialogOpen: (props: OpenDialogOptions) => typedError<DialogResult, AppError>(__TAURI_INVOKE("dialog_open", { props })),
 	dialogMessage: (props: MessageDialogOptions) => typedError<null, AppError>(__TAURI_INVOKE("dialog_message", { props })),
 	dialogSave: (props: SaveDialogOptions) => typedError<SaveDialogResult, AppError>(__TAURI_INVOKE("dialog_save", { props })),

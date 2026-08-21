@@ -1189,3 +1189,35 @@ pub(crate) async fn derive_argon2_key(
     .map_err(to_error)??;
     Ok(hex::encode(result))
 }
+
+/// Fixed application-level salt for the vault-proof KEK. This is a domain
+/// separator, not user data: decryption keys use per-vault random salts, this
+/// derivation exists only so the auth verifier is bound to real key material.
+const VAULT_PROOF_KEK_SALT: &[u8] = b"beaver-vault-kek:v2";
+
+pub(crate) fn vault_proof_impl(pw: &str, ws: &str, blob: &str) -> String {
+    let kek = crate::shared::derive_kek_argon2id(pw, VAULT_PROOF_KEK_SALT)
+        .expect("argon2id derivation with fixed application salt and pinned params cannot fail");
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&kek);
+    hasher.update(b"beaver-vault-proof:v2:");
+    hasher.update(ws.as_bytes());
+    hasher.update(b":");
+    hasher.update(blob.as_bytes());
+    BASE64.encode(hasher.finalize().as_bytes())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn vault_derive_proof(
+    passphrase: String,
+    workspace_id: String,
+    key_params_blob: String,
+) -> Result<String, AppError> {
+    let proof = tokio::task::spawn_blocking(move || {
+        vault_proof_impl(&passphrase, &workspace_id, &key_params_blob)
+    })
+    .await
+    .map_err(to_error)?;
+    Ok(proof)
+}
