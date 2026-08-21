@@ -1,15 +1,12 @@
 <template>
   <div
     v-if="show"
-    :class="[fixed ? 'fixed z-[70]' : '', fixed ? position : '']"
-    role="region"
-    :aria-label="ariaLabel"
+    class="flex items-center gap-0.5 rounded-full border border-neutral-200 py-1 px-1.5 shadow-xl dark:border-neutral-800 bg-white/[0.97] dark:bg-neutral-900/[0.97]"
+    :class="fixed ? `fixed z-[70] ${position}` : ''"
+    :role="ariaLabel ? 'region' : undefined"
+    :aria-label="ariaLabel || undefined"
   >
-    <div
-      class="flex items-center gap-0.5 rounded-full border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 py-1 pl-1.5 pr-1.5 shadow-xl backdrop-blur-sm"
-    >
-      <slot />
-    </div>
+    <slot />
   </div>
 </template>
 
