@@ -31,6 +31,13 @@ pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
 pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
 pub(crate) const ARGON2_ITERATIONS: u32 = 3;
 pub(crate) const ARGON2_PARALLELISM: u32 = 4;
+/// Original Argon2id parameters used by historical v3 note envelopes and v3
+/// manifests before Amendment 1. Pinned forever: the legacy Electron migration
+/// flow (`derive_argon2_key`) derives note KEKs through these constants, so a
+/// bump here would make every existing locked note undecryptable.
+pub(crate) const LEGACY_ARGON2_MEMORY_KIB: u32 = 32768; // 32 MiB
+pub(crate) const LEGACY_ARGON2_ITERATIONS: u32 = 2;
+pub(crate) const LEGACY_ARGON2_PARALLELISM: u32 = 2;
 pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 4;
 pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v4";
 pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
@@ -118,6 +125,23 @@ pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 
         ARGON2_MEMORY_KIB,
         ARGON2_ITERATIONS,
         ARGON2_PARALLELISM,
+    )
+}
+
+/// Derive a KEK under the pinned LEGACY_ARGON2_* parameters. Used exclusively
+/// by the legacy-note migration path (`derive_argon2_key` command), which must
+/// reproduce historical v3 derivations byte-for-byte regardless of any future
+/// change to the module defaults.
+pub(crate) fn derive_kek_argon2id_legacy(
+    passphrase: &str,
+    salt: &[u8],
+) -> Result<[u8; 32], AppError> {
+    derive_kek_argon2id_with_params(
+        passphrase,
+        salt,
+        LEGACY_ARGON2_MEMORY_KIB,
+        LEGACY_ARGON2_ITERATIONS,
+        LEGACY_ARGON2_PARALLELISM,
     )
 }
 

@@ -1180,7 +1180,10 @@ pub(crate) async fn derive_argon2_key(
     };
     let passphrase_for_task = passphrase.clone();
     let result = tokio::task::spawn_blocking(move || {
-        crate::shared::derive_kek_argon2id(&passphrase_for_task, &salt)
+        // Historical v3 Argon2-locked notes were derived under the legacy
+        // parameter set; pin it explicitly so module-default bumps never
+        // break migration of existing notes.
+        crate::shared::derive_kek_argon2id_legacy(&passphrase_for_task, &salt)
     })
     .await
     .map_err(to_error)??;

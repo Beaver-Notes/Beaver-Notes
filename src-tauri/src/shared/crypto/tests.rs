@@ -24,6 +24,38 @@ mod characterization {
         );
     }
 
+    /// The `derive_argon2_key` command is the sole derivation path for
+    /// historical v3 Argon2-locked notes via the legacy Electron migration
+    /// flow (src/utils/migration/legacyElectron.js). Those notes were locked
+    /// under the original parameter set, so the command must stay pinned to
+    /// these explicit legacy numbers (m=32768 KiB / t=2 / p=2) even if the
+    /// module-default ARGON2_* constants are bumped again.
+    #[tokio::test]
+    async fn derive_argon2_key_command_is_pinned_to_legacy_kdf_params() {
+        use crate::commands::security::derive_argon2_key;
+        use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
+
+        let passphrase = "test-passphrase";
+        let salt = [0x42u8; 16];
+
+        let hex_out = derive_argon2_key(passphrase.to_string(), Some(hex::encode(salt)))
+            .await
+            .expect("command derive");
+        let from_command = hex::decode(&hex_out).unwrap();
+
+        // Explicit legacy constants on purpose: referencing the module
+        // constants would let a defaults bump silently invalidate every
+        // historical note.
+        let expected = derive_kek_argon2id_with_params(passphrase, &salt, 32768, 2, 2).unwrap();
+        assert_eq!(from_command, expected);
+
+        let known_vector: [u8; 32] = [
+            221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214,
+            162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2,
+        ];
+        assert_eq!(from_command, known_vector);
+    }
+
     /// New vaults must be created with Amendment 1 KDF parameters
     /// (128 MiB memory, t=3, p=4). Existing vaults are unaffected: their
     /// manifests store per-vault params.
