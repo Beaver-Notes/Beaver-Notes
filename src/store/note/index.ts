@@ -69,8 +69,8 @@ export interface NoteData {
   isArchived: boolean;
   isLocked: boolean;
   isFullWidth: boolean;
-  showWordCount: boolean;
-  wordCountLimit: number | null;
+  showWordCount?: boolean;
+  wordCountLimit?: number | null;
   folderId: string | null;
   preview?: string;
   searchText?: string;
