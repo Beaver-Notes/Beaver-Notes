@@ -24,6 +24,7 @@ import CodeBlock from './exts/code-block';
 import LinkNote from './exts/link-note';
 import FileEmbed from './exts/file-block';
 import Audio from './exts/audio-block';
+import DatabaseBlock from './exts/database-block';
 import Text from '@tiptap/extension-text';
 import CollapseHeading from './exts/collapse-heading';
 import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
@@ -98,6 +99,7 @@ function createBaseExtensions({ yjs = false } = {}) {
     greenCallout,
     LinkNote,
     FileEmbed,
+    DatabaseBlock,
     ColumnContainer,
     Column,
     MultiColumn,

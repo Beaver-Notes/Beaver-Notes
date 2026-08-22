@@ -392,6 +392,12 @@ export default {
         description: 'columnsDescription',
         action: (chain) => chain.insertMultiColumn(2),
       },
+      {
+        icon: 'riLayoutGridLine',
+        name: 'database',
+        description: 'databaseDescription',
+        action: (chain) => chain.setDatabaseBlock({}),
+      },
     ]);
 
     function scrollToSelected() {

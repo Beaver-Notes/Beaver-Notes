@@ -168,7 +168,9 @@
   "bold": "Bold",
   "bulletList": "Bullet list",
   "checkList": "Check list",
-  "codeBlock": "Code block",
+   "codeBlock": "Code block",
+   "database": "Database",
+   "databaseDescription": "Insert an embedded database",
   "delete": "Delete current note",
   "deleteColumn": "Delete column",
   "deleteRow": "Delete row",
@@ -669,7 +671,9 @@
   "renameDatabase": "Rename database",
   "deleteDatabase": "Delete database",
   "deleteConfirmTitle": "Delete this database?",
-  "deleteConfirmBody": "All of its rows will be permanently deleted. This action cannot be undone."
+   "deleteConfirmBody": "All of its rows will be permanently deleted. This action cannot be undone.",
+   "createOrLink": "Create or link a database",
+   "newDatabase": "New database"
  },
  "importSource": {
   "obsidian": "Obsidian",
