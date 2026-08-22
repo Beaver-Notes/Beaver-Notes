@@ -36,7 +36,7 @@ const computedRows = computed(() => {
   void props.version
   if (!props.schema.columns.some((c) => COMPUTED_TYPES.includes(c.type))) return null
   const m = new Map()
-  for (const r of viewRows.value) m.set(r.id, computeCache.get(props.schema, r, {}))
+  for (const r of viewRows.value) m.set(r.id, computeCache.get(props.schema, r, { getRows: () => props.rows }))
   return m
 })
 function computedFor(row, column) {
@@ -92,12 +92,16 @@ const t = computed(() => translations.value.database || {})
 </script>
 
 <template>
-  <div class="relative min-h-0 flex-1 overflow-auto">
+  <div class="relative min-h-0 flex-1 overflow-auto" role="table">
     <div
+      role="row"
       class="sticky top-0 z-10 flex items-stretch border-b bg-white transition-colors duration-100 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
     >
       <template v-for="(c, i) in ordered" :key="c.id">
-        <div :class="i === 0 ? 'w-[240px] shrink-0' : 'min-w-[160px] flex-1 border-l border-neutral-200 dark:border-neutral-700'">
+        <div
+          role="columnheader"
+          :class="i === 0 ? 'w-[240px] shrink-0' : 'min-w-[160px] flex-1 border-l border-neutral-200 dark:border-neutral-700'"
+        >
           <ui-popover
             placement="bottom-start"
             :model-value="openMenu === c.id"
@@ -171,6 +175,7 @@ const t = computed(() => translations.value.database || {})
       v-for="r in viewRows"
       :key="r.id"
       :data-test="`row-${r.id}`"
+      role="row"
       class="group flex border-b transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700"
       @dblclick="emit('open-row', r.id)"
     >

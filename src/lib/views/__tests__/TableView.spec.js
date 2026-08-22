@@ -144,4 +144,14 @@ describe('TableView', () => {
     const w = mountView({ schema: s })
     expect(w.text()).toContain('1970')
   })
+
+  it('unique_id column numbers rows 1..n', () => {
+    const s = {
+      ...schema,
+      columns: [...schema.columns, { id: 'uid', name: '#', type: 'unique_id', config: {} }],
+    }
+    s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'uid'] } }
+    const w = mountView({ schema: s, rows })
+    expect(w.findAll('[data-test^=row-]').map((r) => r.find('[data-test$=-uid]').text())).toEqual(['1', '2'])
+  })
 })
