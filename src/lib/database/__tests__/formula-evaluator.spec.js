@@ -57,4 +57,15 @@ describe('formula-evaluator', () => {
   it('extractRefs finds prop names', () => {
     expect([...extractRefs('if(prop("A") > prop("B"), now(), today())')].sort()).toEqual(['A','B'])
   })
+  it('mixed date↔string ordering comparisons yield null', () => {
+    expect(ev('"2026-01-05" < now()')).toBeNull()
+    expect(ev('now() < "2026-01-05"')).toBeNull()
+    expect(ev('now() < now()')).toBe(false) // date↔date still orders
+  })
+  it('inherited FUNCS members are unknown functions', () => {
+    let err
+    try { ev('[1].constructor()') } catch (e) { err = e }
+    expect(err).toBeInstanceOf(FormulaError)
+    expect(err.message).toMatch(/Unknown function/)
+  })
 })

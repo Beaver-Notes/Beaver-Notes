@@ -239,6 +239,7 @@ export function evaluate(ast, ctx = {}) {
     if (op === '==') return eqV(l, r)
     if (op === '!=') return !eqV(l, r)
     const dl = toDateV(l), dr = toDateV(r)
+    if ((dl ? 1 : 0) !== (dr ? 1 : 0)) return null // mixed date↔non-date ordering is meaningless
     let a, b
     if (dl && dr) { a = dl.valueOf(); b = dr.valueOf() }
     else if (typeof l === 'string' && typeof r === 'string') { a = l.toLowerCase(); b = r.toLowerCase() }
@@ -298,7 +299,7 @@ export function evaluate(ast, ctx = {}) {
         if (LAMBDA_FNS.has(name)) return evalLambdaFn(name, args, env)
     }
     const f = FUNCS[name]
-    if (!f) throw new FormulaError(`Unknown function "${name}"`)
+    if (!Object.hasOwn(FUNCS, name) || !f) throw new FormulaError(`Unknown function "${name}"`)
     return f.fn(ctx, ...args.map((a) => evalNode(a, env)))
   }
 
