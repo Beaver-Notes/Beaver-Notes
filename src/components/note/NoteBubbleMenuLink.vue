@@ -6,12 +6,14 @@
     <!-- View Mode -->
     <div v-if="!isEditing" class="flex items-center gap-2">
       <button
+        v-keep-focus
         class="flex-1 min-w-10 text-left text-secondary hover:text-primary hover:underline truncate px-2 py-1 rounded transition-colors"
         @click="handleClick"
       >
         {{ displayLink }}
       </button>
       <button
+        v-keep-focus
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         :title="translations.editor?.editLink || 'Edit link'"
         @click="startEditing"
@@ -19,6 +21,7 @@
         <v-remixicon name="riPencilLine" class="size-5" />
       </button>
       <button
+        v-keep-focus
         class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
         :title="translations.editor?.removeLink || 'Remove link'"
         @click="removeLink"
@@ -44,6 +47,7 @@
           @keyup.enter="saveAndClose"
         />
         <button
+          v-keep-focus
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
           :title="translations.common?.cancel || 'Cancel'"
           @click="cancelEditing"
@@ -51,6 +55,7 @@
           <v-remixicon name="riCloseLine" class="size-5" />
         </button>
         <button
+          v-keep-focus
           class="h-8 w-8 rounded-lg hoverable transition-colors flex items-center justify-center"
           :title="translations.common?.save || 'Save'"
           :disabled="!currentLinkVal.trim()"

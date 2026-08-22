@@ -14,14 +14,7 @@ const TRANSPORT_OPTIONS = [
     icon: 'riCloudLine',
     title: 'Cloud sync',
     description:
-      'Sync through Beaver Sync (Basic plan and up). End-to-end encrypted.',
-  },
-  {
-    value: SYNC_TRANSPORT.BOTH,
-    icon: 'riShieldStarLine',
-    title: 'Both',
-    description:
-      'Write to the local folder and to Beaver Sync at the same time.',
+      'Sync through Beaver Sync (Starter plan and up). End-to-end encrypted.',
   },
 ];
 

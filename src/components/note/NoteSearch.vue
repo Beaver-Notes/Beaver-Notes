@@ -11,6 +11,7 @@
       >
         <!-- Regex Toggle Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="translations.search.useRegex"
           icon
           @click="toggleRegex"
@@ -50,6 +51,7 @@
 
         <!-- Clear Search Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="translations.search.clear"
           icon
           @click="clearSearch"
@@ -59,6 +61,7 @@
 
         <!-- Replace Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="translations.searchReplace?.altEnter || 'Alt+Enter'"
           :disabled="!state.replaceWith"
           @click="replaceText"
@@ -68,6 +71,7 @@
 
         <!-- Replace All Button -->
         <ui-button
+          v-keep-focus
           v-tooltip="
             translations.searchReplace?.ctrlAltEnter || 'Ctrl+Alt+Enter'
           "
@@ -79,6 +83,7 @@
 
         <!-- Case Sensitivity Toggle -->
         <ui-button
+          v-keep-focus
           :class="{ 'text-primary': state.caseSensitive }"
           @click="toggleCaseSensitive"
         >
@@ -86,7 +91,11 @@
         </ui-button>
 
         <!-- Find Previous Button -->
-        <ui-button :disabled="!state.query" @click="findPreviousResult">
+        <ui-button
+          v-keep-focus
+          :disabled="!state.query"
+          @click="findPreviousResult"
+        >
           <v-remixicon
             name="riArrowUpLine"
             class="dark:text-neutral-200 text-neutral-600"
@@ -94,14 +103,14 @@
         </ui-button>
 
         <!-- Find Next Button -->
-        <ui-button :disabled="!state.query" @click="findNextResult">
+        <ui-button v-keep-focus :disabled="!state.query" @click="findNextResult">
           <v-remixicon
             name="riArrowDownLine"
             class="dark:text-neutral-200 text-neutral-600"
           />
         </ui-button>
 
-        <ui-button @click="$emit('close')">
+        <ui-button v-keep-focus @click="$emit('close')">
           <v-remixicon
             name="riCloseLine"
             class="dark:text-neutral-200 text-neutral-600"
@@ -140,6 +149,7 @@
           <div class="flex items-center space-x-1">
             <!-- Find Previous Button -->
             <ui-button
+              v-keep-focus
               :disabled="
                 !state.query ||
                 (props.editor?.storage?.searchAndReplace?.results?.length ||
@@ -157,6 +167,7 @@
 
             <!-- Find Next Button -->
             <ui-button
+              v-keep-focus
               :disabled="
                 !state.query ||
                 (props.editor?.storage?.searchAndReplace?.results?.length ||
@@ -175,6 +186,7 @@
 
           <!-- Toggle Replace Button -->
           <ui-button
+            v-keep-focus
             icon
             class="p-2"
             @click="state.showReplace = !state.showReplace"
@@ -186,7 +198,7 @@
           </ui-button>
 
           <!-- Close Button -->
-          <ui-button icon class="p-2" @click="$emit('close')">
+          <ui-button v-keep-focus icon class="p-2" @click="$emit('close')">
             <v-remixicon
               name="riCloseLine"
               class="w-4 h-4 text-neutral-600 dark:text-neutral-400"
@@ -215,6 +227,7 @@
               <div class="flex items-center space-x-1">
                 <!-- Replace Button -->
                 <ui-button
+                  v-keep-focus
                   :disabled="!state.replaceWith || !state.query"
                   class="px-3 py-2 text-xs"
                   @click="replaceText"
@@ -224,6 +237,7 @@
 
                 <!-- Replace All Button -->
                 <ui-button
+                  v-keep-focus
                   :disabled="!state.replaceWith || !state.query"
                   class="px-3 py-2 text-xs"
                   @click="replaceAllText"
@@ -233,6 +247,7 @@
 
                 <!-- Case Sensitivity Toggle -->
                 <ui-button
+                  v-keep-focus
                   :class="[
                     'p-2 transition-colors',
                     state.caseSensitive

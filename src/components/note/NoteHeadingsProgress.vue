@@ -1,6 +1,7 @@
 <template>
   <div class="note-headings-progress">
     <div
+      v-if="visibleHeadings.length"
       class="fixed right-4 top-1/2 -translate-y-1/2 z-40"
       @mouseenter="onEnter"
       @mouseleave="onLeave"
@@ -274,7 +275,7 @@ export default {
     }
 
     function onEnter() {
-      if (isTouchDevice.value) return;
+      if (!headings.value.length || isTouchDevice.value) return;
       clearTimeout(hoverTimeout);
       showMenu.value = true;
       const r = railRef.value?.getBoundingClientRect();
@@ -296,6 +297,7 @@ export default {
     }
 
     function onClickRail() {
+      if (!headings.value.length) return;
       if (isTouchDevice.value) {
         showMenu.value = !showMenu.value;
       } else if (!showMenu.value) {

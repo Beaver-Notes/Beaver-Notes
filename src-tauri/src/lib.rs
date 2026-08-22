@@ -64,6 +64,7 @@ pub fn run() {
         builder = builder
             .plugin(tauri_plugin_safe_area_insets_css::init())
             .plugin(tauri_plugin_haptics::init())
+            .plugin(tauri_plugin_secure_keystore::init())
             .plugin(tauri_plugin_pdf_render::init())
             .plugin(tauri_plugin_sharesheet::init());
     }
@@ -133,6 +134,7 @@ pub fn run() {
             commands::app::migration_run_with_path,
             commands::app::migration_read_legacy_data,
             commands::app::migration_write_legacy_data,
+            commands::app::migration_read_legacy_preferences,
             commands::app::show_notification,
             commands::app::set_spellcheck,
             commands::app::set_zoom,
@@ -142,6 +144,7 @@ pub fn run() {
             commands::app::set_high_contrast,
             commands::app::get_high_contrast,
             commands::app::change_menu_visibility,
+            commands::app::update_menu,
             commands::app::app_ready,
             commands::app::helper_relaunch,
             commands::app::helper_get_path,
@@ -173,12 +176,15 @@ pub fn run() {
             commands::storage::storage_has,
             commands::storage::storage_clear,
             commands::storage::storage_reencrypt_legacy_rows,
+            commands::debug::debug_dump_state,
             commands::security::safe_storage_is_available,
+            commands::security::safe_storage_get_backend_info,
             commands::security::safe_storage_encrypt,
             commands::security::safe_storage_decrypt,
             commands::security::safe_storage_store_blob,
             commands::security::safe_storage_fetch_blob,
             commands::security::safe_storage_clear_blob,
+            commands::security::safe_storage_set_device_password,
             commands::security::asset_crypto_set_passphrase,
             commands::security::asset_crypto_clear_passphrase,
             commands::security::asset_crypto_migrate_dir,
@@ -210,6 +216,7 @@ pub fn run() {
             commands::security::encryption_clear_decrypted_caches,
             commands::security::decrypt_legacy_cryptojs_note,
             commands::security::derive_argon2_key,
+            commands::security::vault_derive_proof,
             commands::dialogs::dialog_open,
             commands::dialogs::dialog_message,
             commands::dialogs::dialog_save,
@@ -228,6 +235,7 @@ pub fn run() {
             commands::yjs::yjs_append,
             commands::yjs::yjs_append_batch,
             commands::yjs::yjs_get_updates,
+            commands::yjs::yjs_get_state_vector,
             commands::yjs::yjs_get_snapshot,
             commands::yjs::yjs_get_snapshots,
             commands::yjs::yjs_compact,
@@ -239,11 +247,15 @@ pub fn run() {
             commands::workspace::workspace_list,
             commands::workspace::workspace_get_active,
             commands::workspace::workspace_create,
+            commands::workspace::workspace_register_cloud,
             commands::workspace::workspace_switch,
             commands::workspace::workspace_rename,
             commands::workspace::workspace_delete,
         ])
         .setup(|app| {
+            #[cfg(target_os = "android")]
+            crate::shared::set_android_app_handle(app.handle().clone());
+
             bootstrap::setup_app(app)?;
 
             // Listen for deep links when the app is already running (from tauri-plugin-deep-link)

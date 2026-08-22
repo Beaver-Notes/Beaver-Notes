@@ -1,11 +1,7 @@
 <template>
   <transition name="undo-banner">
-    <div
-      v-show="visible"
-      class="flex fixed bottom-0 mx-auto items-center w-full mobile:flex hidden z-[51]"
-      :style="positionStyle"
-    >
-      <div class="flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg py-3 px-4 max-w-md mx-auto shadow-md mb-4">
+    <ui-pill v-show="visible" :style="positionStyle">
+      <div class="flex items-center gap-1.5 py-1 pl-1.5 pr-1.5">
         <v-remixicon name="riArrowGoBackLine" class="text-lg text-primary" />
 
         <p class="flex-grow text-sm text-gray-800 dark:text-gray-100">
@@ -19,7 +15,7 @@
           {{ t?.card?.undo || 'Undo' }}
         </button>
       </div>
-    </div>
+    </ui-pill>
   </transition>
 </template>
 
@@ -46,11 +42,15 @@ export default {
       if (!action) return '';
       switch (action.type) {
         case 'bulk-delete': {
-          const noteCount = action.items?.filter((i) => i.type === 'note').length || 0;
-          const folderCount = action.items?.filter((i) => i.type === 'folder').length || 0;
+          const noteCount =
+            action.items?.filter((i) => i.type === 'note').length || 0;
+          const folderCount =
+            action.items?.filter((i) => i.type === 'folder').length || 0;
           const parts = [];
-          if (noteCount) parts.push(`${noteCount} ${t?.card?.notes || 'notes'}`);
-          if (folderCount) parts.push(`${folderCount} ${t?.card?.folders || 'folders'}`);
+          if (noteCount)
+            parts.push(`${noteCount} ${t?.card?.notes || 'notes'}`);
+          if (folderCount)
+            parts.push(`${folderCount} ${t?.card?.folders || 'folders'}`);
           return `${parts.join(' & ')} ${t?.card?.deleted || 'deleted'}`;
         }
         case 'toggle-archive':
@@ -83,7 +83,7 @@ export default {
       () => undoStore.lastAction,
       (action) => {
         if (action) show(action);
-      }
+      },
     );
 
     onUnmounted(() => {
@@ -98,7 +98,9 @@ export default {
 <style scoped>
 .undo-banner-enter-active,
 .undo-banner-leave-active {
-  transition: opacity 0.2s var(--ease-standard), transform 0.2s var(--ease-standard);
+  transition:
+    opacity 0.2s var(--ease-standard),
+    transform 0.2s var(--ease-standard);
 }
 .undo-banner-enter-from,
 .undo-banner-leave-to {

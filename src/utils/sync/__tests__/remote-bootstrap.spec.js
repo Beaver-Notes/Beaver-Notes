@@ -6,25 +6,25 @@ import { SyncEngine } from '../engine.js';
 const remoteParams = '{"version":3,"saltHex":"42424242424242424242424242424242"}';
 const encryptedA = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 201, seq: 1, noteId: 'remote-note-a' },
+  meta: { device: 'remote-device', ts: 201, sequence: 1, noteId: 'remote-note-a' },
   iv: '899d735435b9b78e4aa12b6099315c29ca21952d902fd126',
   enc: 'Iaw+Pnuujg3krTMSb13BRomkyA==',
 });
 const encryptedB = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 202, seq: 2, noteId: 'remote-note-b' },
+  meta: { device: 'remote-device', ts: 202, sequence: 2, noteId: 'remote-note-b' },
   iv: '1d5acfefd2fd2894703a7205db4fb5f2d8796633d083e0b8',
   enc: 'ec6gIYHDL4cZKpotuYIYQoGV',
 });
 const encryptedA2 = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 203, seq: 2, noteId: 'remote-note-a' },
+  meta: { device: 'remote-device', ts: 203, sequence: 2, noteId: 'remote-note-a' },
   iv: 'ab85367ec5b629e2b4e0f0503236357a673c0a67e6b905f5',
   enc: 'Lq1ScbYUisgRvn3N8uS2vhw=',
 });
 const decryptFailureFixture = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 201, seq: 1, noteId: 'remote-note-a' },
+  meta: { device: 'remote-device', ts: 201, sequence: 1, noteId: 'remote-note-a' },
   iv: '899d735435b9b78e4aa12b6099315c29ca21952d902fd126',
   enc: 'Iaw+Pnuujg3krTMSb13BRomkzA==',
 });
@@ -53,7 +53,7 @@ const fakeServer = {
         key: 'remote-note-a~~remote-device~~201~~1.yjs.json',
         data: btoa(encryptedA),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 201, sequence: 1 },
+      nextCheckpoint: { 'remote-device': { ts: 201, sequence: 1 } },
       hasMore: true,
     },
     'remote-note-b:null': {
@@ -62,7 +62,25 @@ const fakeServer = {
         key: 'remote-note-b~~remote-device~~202~~2.yjs.json',
         data: btoa(encryptedB),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 202, sequence: 2 },
+      nextCheckpoint: { 'remote-device': { ts: 202, sequence: 2 } },
+      hasMore: false,
+    },
+    'remote-note-a:fresh-device/0/0': {
+      updates: [{
+        noteId: 'remote-note-a',
+        key: 'remote-note-a~~remote-device~~201~~1.yjs.json',
+        data: btoa(encryptedA),
+      }],
+      nextCheckpoint: { 'remote-device': { ts: 201, sequence: 1 } },
+      hasMore: true,
+    },
+    'remote-note-b:fresh-device/0/0': {
+      updates: [{
+        noteId: 'remote-note-b',
+        key: 'remote-note-b~~remote-device~~202~~2.yjs.json',
+        data: btoa(encryptedB),
+      }],
+      nextCheckpoint: { 'remote-device': { ts: 202, sequence: 2 } },
       hasMore: false,
     },
     'remote-note-a:remote-device/201/1': { updates: [], hasMore: false },
@@ -133,7 +151,7 @@ vi.mock('../sync-repository.js', () => ({
 }));
 vi.mock('@/lib/settings', () => ({ getSettingSync: vi.fn(() => 'remote') }));
 vi.mock('@/store/account', () => ({ useAccountStore: vi.fn(() => ({ isAuthenticated: true, subscription: { plan: 'pro' }, serverUrl: 'https://sync.test' })) }));
-vi.mock('@/lib/api/types', () => ({ SYNC_TRANSPORT: { REMOTE: 'remote', BOTH: 'both', FOLDER: 'folder' }, canUseCloudSync: vi.fn(() => true) }));
+vi.mock('@/lib/api/types', () => ({ SYNC_TRANSPORT: { REMOTE: 'remote', FOLDER: 'folder' }, normalizeSyncTransport: (v) => v === 'remote' ? 'remote' : 'folder', canUseCloudSync: vi.fn(() => true) }));
 vi.mock('@/lib/native/fs', () => ({
   ensureDir: vi.fn(async () => {}),
   writeFile: vi.fn(async () => {}),
@@ -154,7 +172,7 @@ vi.mock('../sync-yjs.js', async () => await vi.importActual('../sync-yjs.js'));
 vi.mock('../path.js', () => ({ getSyncPath: vi.fn(async () => '/sync') }));
 vi.mock('../sync-assets.js', () => ({ syncAssets: vi.fn(async () => {}) }));
 vi.mock('@/composable/useNoteYjs.js', () => ({ applyRemote: vi.fn() }));
-vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}), appendBatch: vi.fn(async () => {}) }));
+vi.mock('@/lib/native/yjs.js', () => ({ appendUpdate: vi.fn(async () => {}), appendBatch: vi.fn(async () => {}), compactUpdates: vi.fn(async () => {}), getStateVector: vi.fn(async () => ({})) }));
 vi.mock('@/lib/native/app', () => ({ getAppDirectory: vi.fn(async () => '/app') }));
 vi.mock('@/lib/tauri-bridge', () => ({
   backend: {
@@ -175,8 +193,18 @@ vi.mock('@/lib/tauri-bridge', () => ({
   path: { join: (...parts) => parts.join('/') },
 }));
 vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()) }));
-vi.mock('@/utils/yjs-helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
+vi.mock('@/lib/yjs/helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
 vi.mock('@/lib/yjs/workspace-doc', () => ({ syncDeletedAssets: vi.fn() }));
+vi.mock('@/lib/yjs/shared.js', () => ({ applyRemote: vi.fn(), getActiveDoc: vi.fn(() => null) }));
+vi.mock('../state-vector.js', () => ({
+  loadStateVector: vi.fn(() => null),
+  saveStateVector: vi.fn(),
+  getCurrentStateVector: vi.fn(async () => ({})),
+  isUpdateKnown: vi.fn(() => false),
+  mergeStateVectors: vi.fn(() => ({})),
+  loadServerCheckpoint: vi.fn(() => null),
+  saveServerCheckpoint: vi.fn(),
+}));
 vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({ loadSecureBlob: vi.fn(async () => 'correct-passphrase') }));
 vi.mock('@tauri-apps/api/event', () => ({ emit: vi.fn() }));
 vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: vi.fn(() => ({ activeId: 'remote-workspace' })) }));
@@ -184,6 +212,7 @@ vi.mock('@/store/workspace.ts', () => ({ useWorkspaceStore: vi.fn(() => ({ activ
 describe('remote bootstrap integration contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     fakeServer.calls = [];
     fakeServer.pushResults = [];
     fakeServer.acceptedIdentities.clear();
@@ -193,7 +222,7 @@ describe('remote bootstrap integration contract', () => {
         key: 'remote-note-a~~remote-device~~203~~2.yjs.json',
         data: btoa(encryptedA2),
       }],
-      nextCheckpoint: { deviceId: 'remote-device', ts: 203, sequence: 2 },
+      nextCheckpoint: { 'remote-device': { ts: 203, sequence: 2 } },
       hasMore: false,
     };
     fakeServer.pullResponses['remote-note-a:remote-device/203/2'] = { updates: [], hasMore: false };
@@ -203,7 +232,7 @@ describe('remote bootstrap integration contract', () => {
     const applied = [];
     const storage = {
       cursors: {},
-      get: vi.fn(async () => storage.cursors),
+      get: vi.fn(async () => ({})),
       set: vi.fn(async (_key, value) => { storage.cursors = structuredClone(value); }),
     };
     const { applyRemote } = await import('@/composable/useNoteYjs.js');
@@ -222,7 +251,7 @@ describe('remote bootstrap integration contract', () => {
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
     await engine.enqueueSync(true);
-    const replay = await cloud.push({}, { force: true });
+    const replay = await cloud.push({ force: true });
 
     expect(writeFile).toHaveBeenCalledWith('/sync/BeaverNotesSync/keyParams.json', remoteParams);
     expect(reconcileSyncKeyParams).toHaveBeenCalledWith('correct-passphrase');
@@ -249,18 +278,6 @@ describe('remote bootstrap integration contract', () => {
     ]);
     expect(replay).toMatchObject({
       pushed: 2,
-      cursorsDelta: {
-        'remote-workspace': {
-          'local-note': { 'fresh-device': { ts: 301, sequence: 2 } },
-        },
-      },
-    });
-    expect(storage.cursors).toEqual({
-      'remote-workspace': {
-        'remote-note-a': { 'remote-device': { ts: 203, sequence: 2 } },
-        'remote-note-b': { 'remote-device': { ts: 202, sequence: 2 } },
-        'local-note': { 'fresh-device': { ts: 301, sequence: 2 } },
-      },
     });
 
     const pulls = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/pull-batch');
@@ -270,8 +287,8 @@ describe('remote bootstrap integration contract', () => {
         { noteId: 'remote-note-b', checkpoint: {} },
       ],
       [
-        { noteId: 'remote-note-a', checkpoint: { 'remote-device': { ts: 203, sequence: 2 } } },
-        { noteId: 'remote-note-b', checkpoint: { 'remote-device': { ts: 202, sequence: 2 } } },
+        { noteId: 'remote-note-a', checkpoint: {} },
+        { noteId: 'remote-note-b', checkpoint: {} },
       ],
     ]);
     const pushes = fakeServer.calls.filter((call) => call.method === 'POST' && call.url === '/yjs/push-batch');
@@ -285,16 +302,19 @@ describe('remote bootstrap integration contract', () => {
     expect(pushes[1].body.notes[0].updates).toHaveLength(2);
   });
 
-  it('blocks application and cursor advancement when decryption fails', async () => {
+  it('blocks application when decryption fails', async () => {
     const { applyRemote } = await import('@/composable/useNoteYjs.js');
     const { loadSecureBlob } = await import('@/utils/crypto/safeStorageBlob.js');
-    const storage = { cursors: {}, get: vi.fn(async () => storage.cursors), set: vi.fn(async (_key, value) => { storage.cursors = value; }) };
+    const storage = { cursors: {}, get: vi.fn(async () => ({})), set: vi.fn(async () => {}) };
     loadSecureBlob.mockResolvedValue('wrong-passphrase');
     fakeServer.pullResponses['remote-note-a:null'].updates[0].data = btoa(decryptFailureFixture);
+    fakeServer.pullResponses['remote-note-b:null'].updates[0].data = btoa(decryptFailureFixture);
     const cloud = new CloudTransport({ passphraseProvider: () => 'wrong-passphrase', getTransportSetting: () => 'remote', getAccountState: () => ({ isAuth: true, plan: 'pro' }) });
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
-    await engine.enqueueSync(true);
+    // Decrypt mismatch is a hard error (DECRYPT_FAILED), not a deferral: the
+    // cycle must reject and neither apply remote data nor advance the cursor.
+    await expect(engine.enqueueSync(true)).rejects.toMatchObject({ code: 'DECRYPT_FAILED' });
     expect(applyRemote).not.toHaveBeenCalled();
     expect(storage.set).not.toHaveBeenCalled();
   });

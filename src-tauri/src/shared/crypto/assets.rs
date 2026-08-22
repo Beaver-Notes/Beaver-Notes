@@ -304,9 +304,7 @@ pub(crate) fn encrypt_asset(
     if !is_local_asset_path(app, target_path) || is_encrypted_asset_buffer(input) {
         return Ok(input.to_vec());
     }
-    let key = current_app_key(state)?.ok_or(AppError::Other(
-        "App encryption is enabled but locked. Unlock before writing assets.".into(),
-    ))?;
+    let key = current_app_key(state)?.ok_or(AppError::EncryptionLocked)?;
     encrypt_asset_bytes_with_key(input, &key)
 }
 

@@ -50,10 +50,11 @@
 <script setup>
 import { computed, ref, onMounted } from 'vue';
 import { useTranslations } from '@/composable/useTranslations';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 
 const { translations } = useTranslations();
 
-const isMac = /Mac|iPhone/i.test(navigator.platform);
+const isMac = isMacOSRuntime();
 const cmdKey = isMac ? '⌘' : 'Ctrl';
 
 const shortcuts = computed(() => [

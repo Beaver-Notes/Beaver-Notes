@@ -28,7 +28,7 @@ required-features = ["specta-gen"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-webdriver-automation = { git = "https://github.com/danielraffel/tauri-webdriver", optional = true }
 tauri-plugin-debug-bridge = { version = "0.4.1", optional = true }
 tauri-plugin-fs = "2"
@@ -43,6 +43,7 @@ tauri-plugin-audio-recorder = "0.1"
 tauri-plugin-single-instance = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-safe-area-insets-css = { path = "../vendor/tauri-plugin-safe-area-insets-css" }
+tauri-plugin-secure-keystore = { path = "../vendor/tauri-plugin-secure-keystore" }
 tauri-plugin-pdf-render = { path = "../vendor/tauri-plugin-pdf-render" }
 r2d2 = "0.8"
 r2d2_sqlite = "0.24"
@@ -56,6 +57,7 @@ chacha20poly1305 = "0.10"
 aes = "0.8"
 cbc = "0.1"
 argon2 = { version = "0.5", features = ["alloc"] }
+blake3 = "1"
 hmac = "0.12"
 pbkdf2 = { version = "0.12", features = ["hmac"] }
 sha2 = "0.10"
@@ -79,10 +81,10 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tauri-plugin-swipe-back-ios = "1.0.0"
 tauri-plugin-biometry = "0.2"
 tauri-plugin-app-icon = "0.1.0"
-tauri-plugin-scoped-storage = "=1.5.0"
 specta = { version = "=2.0.0-rc.25", features = ["serde_json", "function"] }
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 specta-typescript = { version = "0.0.12", features = ["serde"] }
+tauri-plugin-scoped-storage = "1.5.1"
 
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
@@ -156,8 +158,6 @@ opt-level = 3
 [profile.release.package.aes]
 opt-level = 3
 [profile.release.package.aes-gcm]
-opt-level = 3
-[profile.release.package.chacha20]
 opt-level = 3
 [profile.release.package.chacha20poly1305]
 opt-level = 3

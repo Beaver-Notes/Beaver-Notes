@@ -5,7 +5,6 @@
 
 import * as Y from 'yjs';
 import { getSnapshots } from '@/lib/native/yjs.js';
-import { useStorage } from '@/lib/storage';
 import { buildNotePreview } from '@/utils/note/cardPreview.js';
 import { isEncryptedContent } from '@/utils/crypto/encryption.js';
 import { extractTextFromContent } from '@/utils/note/serializer.js';
@@ -13,14 +12,12 @@ import { useFolderStore } from '@/store/folder';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { saveNote } from '@/store/note/index';
-import { yMapToObj, toUint8Array } from '@/utils/yjs-helpers.js';
+import { yMapToObj, toUint8Array } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from './meta-doc.js';
 import {
   mergeNoteEntry,
   diffRemovedNoteIds,
 } from './meta-merge.js';
-
-const storage = useStorage();
 
 function buildNotePreviewFromContent(merged, content) {
   return buildNotePreview({
@@ -142,12 +139,13 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   // Batch-load Yjs snapshots for notes that have no in-memory content source
   // (single round-trip instead of one IPC call per note).
   if (pendingPreviews.length > 0) {
+    const tmp = new Y.Doc();
     try {
       const snapshots = await getSnapshots(pendingPreviews);
+      const { syncNoteMeta } = await import('./workspace-doc.js');
       for (const id of pendingPreviews) {
         const snapshot = snapshots?.[id];
         if (!snapshot || snapshot.length === 0) continue;
-        const tmp = new Y.Doc();
         Y.applyUpdate(tmp, toUint8Array(snapshot));
         const content = await yXmlFragmentToProsemirrorJSON(
           tmp.getXmlFragment('content')
@@ -159,41 +157,45 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
         if (!merged.preview) merged.preview = preview;
         // Persist the built preview so the next launch reads it from the
         // workspace doc instead of loading + converting the content again.
-        const { syncNoteMeta } = await import('./workspace-doc.js');
         syncNoteMeta(merged);
       }
     } catch (err) {
       console.warn('[meta-yjs] batch preview load failed', err);
+    } finally {
+      tmp.destroy();
     }
   }
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
 }
 
 /**
- * Import-only: populate the workspace Y.Doc from KV data written by the legacy
- * Electron migration. The Rust import writes KV directly; this is the on-import
- * conversion that makes the Y.Doc (and therefore the stores, via
- * `writeStoresFromWorkspace`) the source of truth. Runs once, only during
- * onboarding import — never in the runtime.
+ * Import-time: seed the workspace Y.Doc directly from parsed legacy data
+ * (no KV reads). Writes note meta, folders, the labels array, label colors,
+ * and deleted-id tombstones in a single `'seed'` transaction.
+ *
+ * @param {Record<string, object>} notes  id -> note meta (content excluded)
+ * @param {Record<string, object>} folders id -> folder
+ * @param {string[]} labels
+ * @param {Record<string, string>} labelColors
+ * @param {Record<string, number>} deletedIds
+ * @param {Record<string, number>} deletedFolderIds
  */
-export async function seedWorkspaceDocFromKv() {
+export async function seedWorkspaceDocFromData(
+  notes,
+  folders,
+  labels,
+  labelColors,
+  deletedIds,
+  deletedFolderIds
+) {
   const doc = getWorkspaceDoc();
-  const [kvNotes, kvLabels, kvColors, kvFolders] = await Promise.all([
-    storage.get('notes', {}),
-    storage.get('labels', []),
-    storage.get('labelColors', {}),
-    storage.get('folders', {}),
-  ]);
-
   const yNotes = doc.getMap('notes');
   const yFolders = doc.getMap('folders');
   const yLabels = doc.getArray('labels');
   const yLabelColors = doc.getMap('labelColors');
+  const yDeletedNotes = doc.getMap('deletedNoteIds');
+  const yDeletedFolders = doc.getMap('deletedFolderIds');
 
-  // Lightweight fields only. Full searchText/preview bloat the workspace doc
-  // and make every launch transfer megabytes; search runs from the persisted
-  // search index (built at import), previews are built once and persisted as
-  // cardPreview.
   const SEED_META_FIELDS = [
     'id',
     'title',
@@ -207,28 +209,44 @@ export async function seedWorkspaceDocFromKv() {
     'updatedAt',
   ];
 
+  let seededNotes = 0;
+  let seededFolders = 0;
+  let seededLabels = 0;
+
   doc.transact(() => {
-    for (const [id, note] of Object.entries(kvNotes)) {
-      if (yNotes.has(id)) continue;
+    for (const [id, note] of Object.entries(notes || {})) {
       const yNote = new Y.Map();
       for (const field of SEED_META_FIELDS) {
         if (note[field] !== undefined) yNote.set(field, note[field]);
       }
       yNotes.set(id, yNote);
+      seededNotes++;
     }
-    for (const [id, folder] of Object.entries(kvFolders)) {
+    for (const [id, folder] of Object.entries(folders || {})) {
       if (yFolders.has(id)) continue;
       const yFolder = new Y.Map();
       for (const [k, v] of Object.entries(folder)) yFolder.set(k, v);
       yFolders.set(id, yFolder);
+      seededFolders++;
     }
-    for (const name of kvLabels) {
-      if (!yLabels.toArray().includes(name)) yLabels.push([name]);
+    for (const name of labels || []) {
+      if (!yLabels.toArray().includes(name)) {
+        yLabels.push([name]);
+        seededLabels++;
+      }
     }
-    for (const [k, v] of Object.entries(kvColors)) {
+    for (const [k, v] of Object.entries(labelColors || {})) {
       if (!yLabelColors.has(k)) yLabelColors.set(k, v);
     }
+    for (const [id, ts] of Object.entries(deletedIds || {})) {
+      yDeletedNotes.set(id, ts);
+    }
+    for (const [id, ts] of Object.entries(deletedFolderIds || {})) {
+      yDeletedFolders.set(id, ts);
+    }
   }, 'seed');
+
+  return { seededNotes, seededFolders, seededLabels };
 }
 
 /**
@@ -259,30 +277,33 @@ export async function backfillNotePreviews() {
     return;
   }
 
-  for (const [id, snapshot] of Object.entries(snapshots)) {
-    const note = noteStore.data[id];
-    if (!note || !snapshot || snapshot.length === 0) continue;
-    try {
-      const tmp = new Y.Doc();
-      Y.applyUpdate(tmp, toUint8Array(snapshot));
-      const content = await yXmlFragmentToProsemirrorJSON(
-        tmp.getXmlFragment('content')
-      );
-      if (!content || !content.content?.length) continue;
+  const tmp = new Y.Doc();
+  try {
+    const { syncNoteMeta } = await import('./workspace-doc.js');
+    for (const [id, snapshot] of Object.entries(snapshots)) {
+      const note = noteStore.data[id];
+      if (!note || !snapshot || snapshot.length === 0) continue;
+      try {
+        Y.applyUpdate(tmp, toUint8Array(snapshot));
+        const content = await yXmlFragmentToProsemirrorJSON(
+          tmp.getXmlFragment('content')
+        );
+        if (!content || !content.content?.length) continue;
 
-      const previewText = extractTextFromContent(content);
-      const { cardPreview, preview } = buildNotePreview({
-        content,
-        preview: previewText,
-      });
-      note.cardPreview = cardPreview;
-      note.preview = preview;
-      await saveNote(id, note);
-      // Import syncNoteMeta lazily to avoid circular dep at module evaluation
-      const { syncNoteMeta } = await import('./workspace-doc.js');
-      syncNoteMeta(note);
-    } catch (err) {
-      console.warn('[meta-yjs] preview backfill failed for', id, err);
+        const previewText = extractTextFromContent(content);
+        const { cardPreview, preview } = buildNotePreview({
+          content,
+          preview: previewText,
+        });
+        note.cardPreview = cardPreview;
+        note.preview = preview;
+        await saveNote(id, note);
+        syncNoteMeta(note);
+      } catch (err) {
+        console.warn('[meta-yjs] preview backfill failed for', id, err);
+      }
     }
+  } finally {
+    tmp.destroy();
   }
 }

@@ -69,6 +69,8 @@ export interface NoteData {
   isArchived: boolean;
   isLocked: boolean;
   isFullWidth: boolean;
+  showWordCount?: boolean;
+  wordCountLimit?: number | null;
   folderId: string | null;
   preview?: string;
   searchText?: string;
@@ -319,6 +321,8 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
       isArchived: false,
       isLocked: false,
       isFullWidth: false,
+      showWordCount: false,
+      wordCountLimit: null,
       ...note,
       folderId,
     } as NoteData;

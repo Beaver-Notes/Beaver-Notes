@@ -8,7 +8,7 @@
  */
 
 import * as Y from 'yjs';
-import { appendUpdate, getSnapshot } from '@/lib/native/yjs.js';
+import { appendUpdate, getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { readDir as readSyncDir } from '@/lib/native/fs';
 import { getCommitsDir } from '@/utils/sync/sync-repository.js';
 import { writeYjsSnapshot } from '@/utils/sync/sync-yjs.js';
@@ -20,10 +20,13 @@ import {
   getDeviceId,
   objToYMap,
   toUint8Array,
-} from '@/utils/yjs-helpers.js';
+} from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
-import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { getHocuspocusSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/hocuspocus-sync';
 import { useWorkspaceStore } from '@/store/workspace';
+import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
+import { loadOrCreateIdentity } from '@/utils/crypto/identity';
+import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
 // Re-export store hydration so consumers keep a single import path
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-store.js';
@@ -133,7 +136,7 @@ export async function loadWorkspaceDoc() {
 
   if (!persistHandlerAttached) {
     doc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'hocuspocus') return;
       pendingMetaUpdates.push(update);
       scheduleMetaFlush();
     });
@@ -145,17 +148,51 @@ export async function loadWorkspaceDoc() {
     persistHandlerAttached = true;
   }
 
+  let snapshotLoaded = false;
   try {
     const snapshot = await getSnapshot(META_DOC_ID);
     if (snapshot && snapshot.length > 0) {
-      Y.applyUpdate(
-        doc,
-        toUint8Array(snapshot),
-        'load'
-      );
+      Y.applyUpdate(doc, toUint8Array(snapshot), 'load');
+      snapshotLoaded = true;
     }
   } catch (err) {
-    console.error('[meta-yjs] Failed to load snapshot:', err);
+    console.error('[meta-yjs] snapshot corrupted — attempting recovery from updates:', err?.message);
+    // The compacted snapshot is unreadable (e.g. Unknown content type).
+    // Fall through to update-replay recovery below.
+  }
+
+  // Recovery: replay individual updates, skipping any that are corrupted.
+  // This handles cases where the compacted snapshot is invalid but the
+  // underlying update history in SQLite is still partially intact.
+  if (!snapshotLoaded) {
+    try {
+      const updates = await getUpdates(META_DOC_ID);
+      if (Array.isArray(updates) && updates.length > 0) {
+        let applied = 0;
+        for (const upd of updates) {
+          try {
+            const bytes = upd?.update
+              ? toUint8Array(upd.update)
+              : upd instanceof Uint8Array
+                ? upd
+                : null;
+            if (bytes && bytes.byteLength > 0) {
+              Y.applyUpdate(doc, bytes, 'load');
+              applied++;
+            }
+          } catch {
+            // Skip corrupted individual updates — best-effort recovery
+          }
+        }
+        if (applied > 0) {
+          console.warn(`[meta-yjs] recovered ${applied}/${updates.length} updates from history`);
+        } else {
+          console.warn('[meta-yjs] all updates corrupted — starting with empty workspace doc');
+        }
+      }
+    } catch (updateErr) {
+      console.warn('[meta-yjs] update replay also failed:', updateErr?.message);
+    }
   }
 
   registerActiveDoc(META_DOC_ID, doc);
@@ -163,9 +200,56 @@ export async function loadWorkspaceDoc() {
   const hocuspocus = getHocuspocusSync();
   const workspaceStore = useWorkspaceStore();
   const wsId = workspaceStore.activeId;
-  if (wsId) hocuspocus.joinMetaRoom(wsId);
+  if (wsId) {
+    // The workspace meta doc is encrypted with the WORKSPACE key (the same
+    // key used to decrypt the workspace doc). Supply it to the Hocuspocus
+    // meta room BEFORE joining so inbound encrypted meta updates can be
+    // decrypted — without this the meta doc corrupts and the notes grid
+    // goes blank on other devices.
+    await ensureMetaRoomKey(wsId).catch((err) => {
+      console.warn('[meta-yjs] could not derive workspace meta key:', err?.message || err);
+    });
+    hocuspocus.joinMetaRoom(wsId);
+  }
 
   return doc;
+}
+
+/**
+ * Derive the workspace key and register it on the Hocuspocus meta room.
+ * Mirrors the per-note key wiring in useNoteYjs.js (setRoomKey around
+ * useNoteYjs.js:230) but uses the WORKSPACE key instead of a per-note key.
+ *
+ * The key is preferred from the local workspace-key cache (seeded at creation
+ * or after vault-passphrase recovery — no network), then from the workspace
+ * store's wrapped key, falling back to an API fetch via getWorkspaceKey(wsId).
+ */
+export async function ensureMetaRoomKey(wsId) {
+  if (!wsId) return;
+  let workspaceKeyHex = getCachedWorkspaceKey(wsId);
+  if (workspaceKeyHex) {
+    await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
+    return;
+  }
+  const workspaceStore = useWorkspaceStore();
+  const ws =
+    workspaceStore.activeWorkspace ||
+    workspaceStore.workspaces?.find((w) => w.id === wsId);
+  let wrappedKey = ws?.wrappedKey ?? null;
+  if (!wrappedKey) {
+    wrappedKey = await getWorkspaceKey(wsId);
+  }
+  if (!wrappedKey) {
+    console.warn('[meta-yjs] no wrapped key available for workspace', wsId);
+    return;
+  }
+  const identity = await loadOrCreateIdentity();
+  if (!identity?.privateKeyHex) {
+    console.warn('[meta-yjs] missing encryption identity for meta key');
+    return;
+  }
+  workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
+  await setRoomKey(buildMetaRoomName(wsId), workspaceKeyHex);
 }
 
 let observerTimer = null;
@@ -364,4 +448,36 @@ export function syncDeletedNoteIds(deletedIds) {
 
 export function syncDeletedAssets(deletedAssets) {
   syncTombstoneMap('deletedAssets', deletedAssets || {});
+}
+
+/**
+ * Create untitled placeholder meta entries for note ids that arrived via a
+ * remote pull/bootstrap but are not yet present in the workspace doc's
+ * `notes` map. Ids that already exist (e.g. because applyRemote merged the
+ * sender's titled meta entries first) are skipped so real titles are never
+ * shadowed by a fresher empty placeholder, and META_DOC_ID is always filtered
+ * so the shared meta doc can never materialize as a ghost note card.
+ */
+export function reconcileUnknownNotePlaceholders(noteIds) {
+  const doc = getWorkspaceDoc();
+  const yNotes = doc.getMap('notes');
+  const pending = [...new Set(noteIds)].filter(
+    (id) => id && id !== META_DOC_ID && !yNotes.has(id)
+  );
+  for (const id of pending) {
+    syncNoteMeta({
+      id,
+      title: '',
+      folderId: '',
+      labels: [],
+      isArchived: false,
+      isLocked: false,
+      isBookmarked: false,
+      isFullWidth: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      preview: '',
+      cardPreview: {},
+    });
+  }
 }

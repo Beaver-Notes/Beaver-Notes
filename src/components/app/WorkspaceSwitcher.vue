@@ -1,6 +1,6 @@
 <template>
   <div v-if="isAuthenticated">
-    <ui-popover :placement="expanded ? 'bottom-start' : 'right-start'">
+    <ui-popover v-model="popoverOpen" :placement="expanded ? 'bottom-start' : 'right-start'">
       <template #trigger>
         <!-- Expanded: full-width pill trigger -->
         <div
@@ -102,12 +102,21 @@
           />
           </button>
           <button
-            v-if="isPaid && (ws.role === 'owner' || ws.role === 'admin')"
+            v-if="canManageWorkspace(ws)"
             class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
             @click.stop="promptRename(ws)"
             aria-label="Rename workspace"
           >
             <v-remixicon name="riEditLine" size="12" class="text-neutral-400" />
+          </button>
+          <button
+            v-if="canManageWorkspace(ws)"
+            class="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-opacity"
+            style="right: 1.5rem"
+            @click.stop="goToTeamSettings"
+            aria-label="Team settings"
+          >
+            <v-remixicon name="riSettingsLine" size="12" class="text-neutral-400" />
           </button>
         </div>
 
@@ -148,9 +157,11 @@
 
 <script>
 import { ref, computed, onMounted, nextTick } from 'vue';
+import { useRouter } from 'vue-router';
 import emitter from 'tiny-emitter/instance';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useAccountStore } from '@/store/account';
+import { getPlans } from '@/lib/api/plans';
 
 function clearSettingsLocalStorage() {
   const settingsKeys = [
@@ -187,7 +198,10 @@ export default {
   setup() {
     const workspaceStore = useWorkspaceStore();
     const accountStore = useAccountStore();
+    const router = useRouter();
     const triggerEl = ref(null);
+    const popoverOpen = ref(false);
+    const dashboardFlag = ref(false);
 
     const workspaces = computed(() => workspaceStore.workspaces);
     const activeId = computed(() => workspaceStore.activeId);
@@ -203,8 +217,22 @@ export default {
     const isAuthenticated = computed(() => accountStore.isAuthenticated);
     const isPaid = computed(() => accountStore.isPaidPlan);
 
+    function canManageWorkspace(ws) {
+      return (
+        dashboardFlag.value &&
+        (ws.role === 'owner' || ws.role === 'admin')
+      );
+    }
+
     onMounted(async () => {
       await workspaceStore.retrieve();
+      if (accountStore.isAuthenticated) {
+        getPlans({ baseUrl: accountStore.serverUrl })
+          .then((plans) => {
+            dashboardFlag.value = Boolean(plans?.flags?.dashboard);
+          })
+          .catch(() => { /* plans optional */ });
+      }
       await nextTick();
     });
 
@@ -254,6 +282,11 @@ export default {
       });
     }
 
+    function goToTeamSettings() {
+      popoverOpen.value = false;
+      router.push('/settings/workspace');
+    }
+
     function promptJoin() {
       emitter.emit('show-dialog', 'prompt', {
         title: 'Join Workspace',
@@ -282,6 +315,7 @@ export default {
 
     return {
       triggerEl,
+      popoverOpen,
       workspaces,
       activeId,
       activeName,
@@ -289,9 +323,11 @@ export default {
       activeRole,
       isAuthenticated,
       isPaid,
+      canManageWorkspace,
       switchWorkspace,
       promptCreate,
       promptRename,
+      goToTeamSettings,
       promptJoin,
     };
   },

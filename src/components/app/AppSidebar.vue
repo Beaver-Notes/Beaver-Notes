@@ -67,7 +67,7 @@
           expanded ? 'w-full px-3 gap-3' : 'justify-center w-9',
           'text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100',
         ]"
-        @click="addFolder"
+        @click="openCreateFolderModal"
       >
         <v-remixicon name="riFolderAddLine" size="20" class="shrink-0" />
         <transition name="fade-fast">
@@ -252,6 +252,49 @@
         </transition>
       </button>
 
+      <transition name="fade-fast">
+        <div
+          v-if="syncProgressStore.isSyncing && syncProgressStore.phase"
+          class="px-3 pb-2"
+        >
+          <div class="flex items-center gap-2 mb-1">
+            <div class="animate-spin">
+              <v-remixicon name="riLoader4Line" size="12" class="text-primary" />
+            </div>
+            <span class="text-[11px] text-neutral-500 dark:text-neutral-400 truncate">
+              {{ syncProgressStore.phaseMessage }}
+            </span>
+          </div>
+          <div
+            v-if="syncProgressStore.total > 0"
+            class="h-1 rounded-full bg-neutral-200 dark:bg-neutral-700 overflow-hidden"
+          >
+            <div
+              class="h-full rounded-full bg-primary transition-all duration-300"
+              :style="{ width: syncProgressStore.progress + '%' }"
+            />
+          </div>
+        </div>
+      </transition>
+
+      <transition name="fade-fast">
+        <button
+          v-if="syncProgressStore.attention"
+          class="px-3 pb-2 w-full flex items-center gap-2 text-left"
+          :class="syncProgressStore.attention.tone === 'action'
+            ? 'text-red-600 dark:text-red-400'
+            : 'text-neutral-500 dark:text-neutral-400'"
+          @click="openSyncSettings"
+        >
+          <v-remixicon
+            :name="syncProgressStore.attention.tone === 'action' ? 'riAlertLine' : 'riCloudLine'"
+            size="14"
+            class="shrink-0"
+          />
+          <span class="text-[11px] truncate">{{ syncProgressStore.attention.text }}</span>
+        </button>
+      </transition>
+
       <button
         v-tooltip:right="
           !expanded
@@ -312,6 +355,13 @@
         </transition>
       </router-link>
     </div>
+
+    <folder-customize-modal
+      v-model="showCreateFolderModal"
+      :folder="null"
+      :parent-id="currentFolderId"
+      @saved="onFolderCreated"
+    />
   </aside>
 </template>
 
@@ -325,16 +375,20 @@ import emitter from 'tiny-emitter/instance';
 import { forceSyncNow } from '@/utils/sync';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
 import { useAppShellActions } from '@/composable/useAppShellActions';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
+import FolderCustomizeModal from '../home/FolderCustomizeModal.vue';
+import { useSyncProgressStore } from '@/store/sync-progress';
 
 export default {
-  components: { WorkspaceSwitcher },
+  components: { WorkspaceSwitcher, FolderCustomizeModal },
   setup() {
     const { play } = useSounds();
     const router = useRouter();
     const route = useRoute();
     const spinning = ref(false);
+    const syncProgressStore = useSyncProgressStore();
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
@@ -363,7 +417,23 @@ export default {
       createShortcutMap,
     } = useAppShellActions();
 
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const showCreateFolderModal = ref(false);
+    const currentFolderId = computed(
+      () =>
+        route.name === 'Folder'
+          ? (route.params.id ?? null)
+          : null
+    );
+
+    function openCreateFolderModal() {
+      showCreateFolderModal.value = true;
+    }
+
+    function onFolderCreated() {
+      showCreateFolderModal.value = false;
+    }
+
+    const isMacOS = isMacOSRuntime();
     const keyBinding = isMacOS ? 'Cmd' : 'Ctrl';
 
     onMounted(() => {
@@ -464,12 +534,16 @@ export default {
       router.push(`/folder/${folderId}`);
     }
 
+    function openSyncSettings() {
+      router.push({ name: 'Settings-Data' });
+    }
+
     const recentItems = computed(() => {
       const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
       const items = [];
 
-      for (const note of Object.values(noteStore.data)) {
-        if (note.id && !note.isArchived && note.updatedAt > cutoff) {
+      for (const note of noteStore.notes) {
+        if (!note.isArchived && note.updatedAt > cutoff) {
           items.push({
             id: note.id,
             updatedAt: note.updatedAt,
@@ -479,9 +553,8 @@ export default {
         }
       }
 
-      for (const folder of Object.values(folderStore.data)) {
+      for (const folder of folderStore.folders) {
         if (
-          folder.id &&
           !folderStore.deletedIds[folder.id] &&
           !folder.isArchived &&
           folder.updatedAt > cutoff
@@ -529,6 +602,10 @@ export default {
     onMounted(() => {
       _unregSidebarShortcuts = bindGlobalShortcuts(
         createShortcutMap({
+          'mod+shift+f': () => {
+            if (route.name === 'Note') return false;
+            openCreateFolderModal();
+          },
           'mod+shift+l': () =>
             theme.setTheme(theme.isDark() ? 'light' : 'dark'),
           'mod+shift+y': () => manualSync(),
@@ -580,15 +657,21 @@ export default {
       goArchive,
 
       openNote,
+      openSyncSettings,
       titlebarInset,
       translations,
       theme,
       spinning,
+      syncProgressStore,
       addNote,
       addFolder,
       manualSync,
       keyBinding,
       folderStore,
+      showCreateFolderModal,
+      currentFolderId,
+      openCreateFolderModal,
+      onFolderCreated,
     };
   },
 };

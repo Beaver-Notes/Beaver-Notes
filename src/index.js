@@ -5,6 +5,7 @@ import router from './router';
 import compsUi from './lib/comps-ui';
 import { backend } from './lib/tauri-bridge';
 import { getStoredZoomLevel, setStoredZoomLevel } from '@/utils/ui/zoom';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { getSettingSync } from '@/lib/settings';
 import { initializeThemeHandling } from './utils/themeHandler';
 import './assets/css/fonts.css';
@@ -38,7 +39,7 @@ if (isPhoneRuntime) {
   });
 }
 
-if (!navigator.platform.includes('Mac')) {
+if (!isMacOSRuntime()) {
   document.documentElement.classList.add('custom-scrollbar');
 }
 

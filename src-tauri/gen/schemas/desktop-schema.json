@@ -4425,36 +4425,6 @@
           "markdownDescription": "Denies the unminimize command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the debug bridge plugin. Allows the eval callback command.\n#### This default permission set includes:\n\n- `allow-eval-callback`\n- `allow-console-callback`",
-          "type": "string",
-          "const": "debug-bridge:default",
-          "markdownDescription": "Default permissions for the debug bridge plugin. Allows the eval callback command.\n#### This default permission set includes:\n\n- `allow-eval-callback`\n- `allow-console-callback`"
-        },
-        {
-          "description": "Enables the console_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:allow-console-callback",
-          "markdownDescription": "Enables the console_callback command without any pre-configured scope."
-        },
-        {
-          "description": "Enables the eval_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:allow-eval-callback",
-          "markdownDescription": "Enables the eval_callback command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the console_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:deny-console-callback",
-          "markdownDescription": "Denies the console_callback command without any pre-configured scope."
-        },
-        {
-          "description": "Denies the eval_callback command without any pre-configured scope.",
-          "type": "string",
-          "const": "debug-bridge:deny-eval-callback",
-          "markdownDescription": "Denies the eval_callback command without any pre-configured scope."
-        },
-        {
           "description": "Allows reading the opened deep link via the get_current command\n#### This default permission set includes:\n\n- `allow-get-current`",
           "type": "string",
           "const": "deep-link:default",
@@ -7033,6 +7003,54 @@
           "type": "string",
           "const": "scoped-storage:deny-write-text-file",
           "markdownDescription": "Denies the write_text_file command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the deleteKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-deleteKey",
+          "markdownDescription": "Enables the deleteKey command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the hasKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-hasKey",
+          "markdownDescription": "Enables the hasKey command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the unwrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-unwrap",
+          "markdownDescription": "Enables the unwrap command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the wrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:allow-wrap",
+          "markdownDescription": "Enables the wrap command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the deleteKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-deleteKey",
+          "markdownDescription": "Denies the deleteKey command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the hasKey command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-hasKey",
+          "markdownDescription": "Denies the hasKey command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the unwrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-unwrap",
+          "markdownDescription": "Denies the unwrap command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the wrap command without any pre-configured scope.",
+          "type": "string",
+          "const": "secure-keystore:deny-wrap",
+          "markdownDescription": "Denies the wrap command without any pre-configured scope."
         },
         {
           "description": "Default permissions for the SpotSearch plugin\n#### This default permission set includes:\n\n- `allow-enable-indexing`\n- `allow-index-items`\n- `allow-delete-items`\n- `allow-delete-domain`",

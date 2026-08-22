@@ -28,6 +28,7 @@ import Text from '@tiptap/extension-text';
 import CollapseHeading from './exts/collapse-heading';
 import SearchAndReplace from '@sereneinserenade/tiptap-search-and-replace';
 import Dropcursor from '@tiptap/extension-dropcursor';
+import { CharacterCount } from '@tiptap/extensions';
 import {
   blueCallout,
   yellowCallout,
@@ -55,7 +56,7 @@ import FontSize from 'tiptap-extension-font-size';
 import TextAlign from '@tiptap/extension-text-align';
 import Paper from './exts/paper-block';
 import { dropFile } from './exts/drop-file';
-import { getTranslations } from '@/utils/getTranslations';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 import { getSettingSync } from '@/lib/settings';
 const translations = getTranslations();
 
@@ -143,6 +144,7 @@ function createBaseExtensions({ yjs = false } = {}) {
     Audio,
     SearchAndReplace.configure(),
     TextStyle,
+    CharacterCount,
     TextAlign.configure({
       types: ['heading', 'paragraph'],
     }),

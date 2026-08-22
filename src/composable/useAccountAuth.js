@@ -152,6 +152,7 @@ export function useAccountAuth() {
     if (persist) {
       await persistToken(token, user);
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     if (user) accountStore.setProfile(user);
     if (subscription) accountStore.setSubscription(subscription);
@@ -159,9 +160,10 @@ export function useAccountAuth() {
     // E2E identity: ensure a keypair exists and the server knows its public key
     try {
       const identity = await loadOrCreateIdentity();
+      const deviceId = await ensureDeviceId();
       const userKem = accountStore.profile?.kemPublicKey;
       if (!userKem || userKem !== identity.publicKeyHex) {
-        await publishIdentity(identity);
+        await publishIdentity(identity, deviceId);
         await fetchProfile();
       }
     } catch (err) {
@@ -311,6 +313,7 @@ export function useAccountAuth() {
     await clearAllAccountStorage();
     resetApiClient();
     setStatus('anonymous');
+    accountStore.setToken(null);
     accountStore.setProfile(null);
     accountStore.setSubscription(null);
     accountStore.setDevices([]);
@@ -403,6 +406,7 @@ export function useAccountAuth() {
       }
       return false;
     }
+    accountStore.setToken(token);
     setStatus('authenticated');
     const cached = await loadCachedProfile();
     if (cached) accountStore.setProfile(cached);
@@ -419,7 +423,8 @@ export function useAccountAuth() {
     const transportSetting = await import('@/lib/settings').then(
       (m) => m.getSettingSync('syncTransport')
     );
-    if (transportSetting && transportSetting !== 'remote' && transportSetting !== 'both') {
+    const { normalizeSyncTransport } = await import('@/lib/api/types.js');
+    if (transportSetting && normalizeSyncTransport(transportSetting) !== 'remote') {
       return false;
     }
 
@@ -445,6 +450,7 @@ export function useAccountAuth() {
       }
 
       accountStore.setSeedStatus('seeding');
+      accountStore.setSeedProgress({ phase: 'starting', uploaded: 0, total: 0 });
       // Trigger a force sync — this will handle seeding through the
       // proper serialized path (seedCloudOnce) in the normal sync cycle.
       await engine.forceSyncNow();

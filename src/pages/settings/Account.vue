@@ -78,7 +78,7 @@
             />
             <ui-input
               v-model="signInPassword"
-              type="password"
+              :password="true"
               class="w-full"
               :placeholder="
                 translations.account?.passwordPlaceholder || 'Password'
@@ -528,7 +528,7 @@
         <div v-else class="flex flex-col gap-2">
           <ui-input
             v-model="deletePassword"
-            type="password"
+            :password="true"
             class="w-full"
             :placeholder="
               translations.account?.confirmPasswordPlaceholder || 'Password'
@@ -564,7 +564,6 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useAccountStore } from '@/store/account';
 import { PLAN_NAMES } from '@/lib/api/types';
-import { isKeyLoaded } from '@/utils/crypto/encryption.js';
 
 export default {
   setup() {
@@ -576,25 +575,22 @@ export default {
 
     const showVaultImportPrompt = ref(false);
 
+    // Detect whether the sync source holds a vault that differs from this
+    // device's local manifest. Uses hasRemoteVaultKeyParams() (native
+    // remote_params_differ) as the authoritative signal — it is true when the
+    // remote vault differs from local OR no local manifest exists — so the
+    // prompt shows even when a (possibly wrong) local key is already loaded.
+    // fetchCloudKeyParams() first ensures the downloaded params are current.
     async function checkVaultImportNeeded() {
       if (!accountStore.isAuthenticated) {
         showVaultImportPrompt.value = false;
         return;
       }
-      // Already has encryption key loaded — no prompt needed
-      if (isKeyLoaded()) {
-        showVaultImportPrompt.value = false;
-        return;
-      }
       try {
         const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-        const { detectRemoteVaultJoin } = await import('@/utils/onboarding/remote-vault-join.js');
         const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
-        const hasVault = await detectRemoteVaultJoin({
-          fetchCloudKeyParams,
-          hasRemoteVaultKeyParams,
-        }).catch(() => false);
-        showVaultImportPrompt.value = hasVault;
+        await fetchCloudKeyParams({ force: true }).catch(() => null);
+        showVaultImportPrompt.value = await hasRemoteVaultKeyParams();
       } catch {
         showVaultImportPrompt.value = false;
       }
@@ -619,6 +615,7 @@ export default {
             okText: translations.value.account?.importVault || 'Import',
             cancelText: translations.value.dialog?.cancel || 'Cancel',
             placeholder: translations.value.settings?.password || 'Vault password',
+            password: true,
             onConfirm: async (pass) => {
               if (!pass) {
                 dialog.alert({
@@ -630,7 +627,9 @@ export default {
               }
               try {
                 const { adoptVaultKey } = await import('@/utils/crypto/encryption.js');
-                const res = await adoptVaultKey(pass);
+                const { getFetchedCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+                const fetched = getFetchedCloudKeyParams();
+                const res = await adoptVaultKey(pass, fetched?.paramsBlob);
                 if (!res.ok) {
                   dialog.alert({
                     title: translations.value.settings?.alertTitle || 'Alert',

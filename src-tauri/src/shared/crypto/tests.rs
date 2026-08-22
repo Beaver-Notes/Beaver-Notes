@@ -1,17 +1,20 @@
 #[cfg(test)]
 mod characterization {
     use base64::Engine;
-    use crate::shared::crypto::keys::{
-        aead_decrypt_bytes, aead_encrypt_bytes, derive_kek_argon2id,
-    };
+    use crate::shared::crypto::keys::{aead_decrypt_bytes, aead_encrypt_bytes};
 
-    /// Characterization vector for argon2id key derivation (Argon2id t=2,
-    /// m=32MiB, p=2). Bumping ARGON2_MEMORY_KIB changes this — update the vector
-    /// together with the constant.
+    /// Characterization vector for argon2id key derivation under the legacy
+    /// parameters (t=2, m=32MiB, p=2), pinned explicitly so bumping the module
+    /// defaults does not invalidate it. Vaults created before a KDF parameter
+    /// bump keep these params in their manifest and must keep deriving the same
+    /// KEK forever.
     #[test]
     fn derive_kek_argon2id_known_vector() {
+        use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
+
         let salt = [0x42u8; 16];
-        let key = derive_kek_argon2id("test-passphrase", &salt).unwrap();
+        let key = derive_kek_argon2id_with_params("test-passphrase", &salt, 32 * 1024, 2, 2)
+            .unwrap();
         assert_eq!(
             key,
             [
@@ -19,6 +22,52 @@ mod characterization {
                 214, 162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2
             ]
         );
+    }
+
+    /// The `derive_argon2_key` command is the sole derivation path for
+    /// historical v3 Argon2-locked notes via the legacy Electron migration
+    /// flow (src/utils/migration/legacyElectron.js). Those notes were locked
+    /// under the original parameter set, so the command must stay pinned to
+    /// these explicit legacy numbers (m=32768 KiB / t=2 / p=2) even if the
+    /// module-default ARGON2_* constants are bumped again.
+    #[tokio::test]
+    async fn derive_argon2_key_command_is_pinned_to_legacy_kdf_params() {
+        use crate::commands::security::derive_argon2_key;
+        use crate::shared::crypto::keys::derive_kek_argon2id_with_params;
+
+        let passphrase = "test-passphrase";
+        let salt = [0x42u8; 16];
+
+        let hex_out = derive_argon2_key(passphrase.to_string(), Some(hex::encode(salt)))
+            .await
+            .expect("command derive");
+        let from_command = hex::decode(&hex_out).unwrap();
+
+        // Explicit legacy constants on purpose: referencing the module
+        // constants would let a defaults bump silently invalidate every
+        // historical note.
+        let expected = derive_kek_argon2id_with_params(passphrase, &salt, 32768, 2, 2).unwrap();
+        assert_eq!(from_command, expected);
+
+        let known_vector: [u8; 32] = [
+            221, 42, 242, 15, 75, 62, 8, 70, 81, 192, 238, 53, 164, 126, 41, 147, 78, 46, 214,
+            162, 6, 159, 190, 121, 43, 176, 60, 127, 207, 195, 201, 2,
+        ];
+        assert_eq!(from_command, known_vector);
+    }
+
+    /// New vaults must be created with Amendment 1 KDF parameters
+    /// (128 MiB memory, t=3, p=4). Existing vaults are unaffected: their
+    /// manifests store per-vault params.
+    #[test]
+    fn new_manifests_use_amendment1_kdf_params() {
+        use crate::shared::crypto::keys::create_encryption_manifest;
+
+        let (manifest, _data, _kek) =
+            create_encryption_manifest("personal", "check", "correct horse").unwrap();
+        assert_eq!(manifest.argon2_memory_kib, Some(131_072));
+        assert_eq!(manifest.argon2_iterations, Some(3));
+        assert_eq!(manifest.argon2_parallelism, Some(4));
     }
 
     /// A vault created under older Argon2id parameters must keep unlocking: the
@@ -43,6 +92,51 @@ mod characterization {
         let expected =
             derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
         assert_eq!(from_manifest, expected);
+    }
+
+    /// Sync vault join must derive the items key with the params' stored Argon2
+    /// settings — not the module defaults. A vault published under 16 MiB must
+    /// join with the correct passphrase (a WrongPassword here means the derive
+    /// ignored the params and used 32 MiB).
+    #[test]
+    fn derive_items_key_from_params_respects_stored_argon2_memory() {
+        use base64::Engine;
+        use crate::shared::crypto::keys::{
+            create_encryption_manifest, derive_items_key_from_params,
+            derive_kek_argon2id_with_params, encrypt_bytes_with_key, KeyParams, PROTOCOL_VERSION,
+        };
+
+        let passphrase = "test-passphrase";
+        let (manifest, data_key, _) =
+            create_encryption_manifest("app", "check", passphrase).unwrap();
+
+        // Simulate a vault created under 16 MiB: derive a 16 MiB KEK and wrap
+        // the same data_key with it, exactly as a 16 MiB vault would.
+        let salt = hex::decode(manifest.argon2_salt_hex.as_ref().unwrap()).unwrap();
+        let kek_16mb = derive_kek_argon2id_with_params(passphrase, &salt, 16 * 1024, 2, 2).unwrap();
+        let wrapped_16mb = encrypt_bytes_with_key(&kek_16mb, &data_key).unwrap();
+
+        let params = KeyParams {
+            version: PROTOCOL_VERSION,
+            kdf: "argon2id".to_string(),
+            salt_hex: manifest
+                .argon2_salt_hex
+                .clone()
+                .unwrap_or(manifest.salt_hex),
+            argon2_memory_kib: 16 * 1024,
+            argon2_iterations: 2,
+            argon2_parallelism: 2,
+            wrapped_items_key: wrapped_16mb,
+        };
+
+        let (items_key, _kek) = derive_items_key_from_params(&params, passphrase).unwrap();
+        assert_eq!(items_key, data_key);
+
+        // Wrong passphrase still fails cleanly.
+        assert!(matches!(
+            derive_items_key_from_params(&params, "wrong-passphrase"),
+            Err(crate::shared::error::AppError::WrongPassword)
+        ));
     }
 
     /// Round-trip: a note encrypted for storage can be decrypted back.
@@ -147,5 +241,16 @@ mod characterization {
         assert!(is_encrypted_yjs_blob(&enc));
         let dec = decrypt_yjs_blob(&key, &enc).unwrap();
         assert_eq!(dec, data);
+    }
+
+    #[test]
+    fn vault_proof_is_deterministic_and_domain_bound() {
+        use crate::commands::security::vault_proof_impl;
+
+        let a = vault_proof_impl("pw", "ws-1", "blob");
+        let b = vault_proof_impl("pw", "ws-1", "blob");
+        let c = vault_proof_impl("pw", "ws-2", "blob");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
     }
 }

@@ -1,6 +1,6 @@
 <template>
   <div
-    class="flex flex-col md:flex-row items-start md:space-x-4 space-y-2 md:space-y-0"
+    class="flex flex-col md:flex-row items-start md:space-x-4 space-y-2 md:space-y-0 mb-6"
   >
     <!-- Search input -->
     <div class="w-full md:flex-1 rtl:ml-4">
@@ -93,6 +93,7 @@ import emitter from 'tiny-emitter/instance';
 import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import { useLabelStore } from '@/store/label';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { debounce } from '@/utils/helpers/index.js';
 
 export default {
@@ -106,7 +107,7 @@ export default {
   setup(props, { emit }) {
     const { translations } = useTranslations();
     const labelStore = useLabelStore();
-    const isMacOS = navigator.platform.toUpperCase().includes('MAC');
+    const isMacOS = isMacOSRuntime();
 
     const activeSuggestionIndex = ref(-1);
 

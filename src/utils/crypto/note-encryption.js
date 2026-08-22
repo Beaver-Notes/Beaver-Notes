@@ -50,6 +50,7 @@ export function useNoteEncryption({ noteId }) {
       okText: t.settings?.unlock || 'Unlock',
       cancelText: t.dialog?.close || 'Close',
       placeholder: t.settings?.password || 'Passphrase',
+      password: true,
       onConfirm: async (passphrase) => {
         try {
           const result = await verifyPassphrase(passphrase);

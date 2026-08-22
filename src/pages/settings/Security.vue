@@ -12,62 +12,6 @@
           }}
         </p>
 
-        <div class="mb-4">
-          <p class="text-xs text-neutral-500 dark:text-neutral-400 mb-2">
-            {{
-              translations.settings.appPasswordDesc ||
-              'Protects all notes on this device.'
-            }}
-          </p>
-          <template v-if="hasPassword">
-            <div class="flex items-center gap-2">
-              <span
-                class="flex-1 text-sm text-neutral-600 dark:text-neutral-300"
-              >
-                <v-remixicon
-                  name="riShieldCheckLine"
-                  class="inline mr-1 text-primary"
-                  size="16"
-                />
-                {{
-                  translations.settings.passwordSet || 'App password is set'
-                }}
-              </span>
-              <ui-button class="text-sm" @click="changePasswordDialog">
-                {{ translations.settings.changePassword || 'Change' }}
-              </ui-button>
-            </div>
-          </template>
-          <template v-else>
-            <div class="flex items-center gap-2">
-              <ui-input
-                v-model="passwordInput"
-                type="password"
-                class="flex-1"
-                :aria-label="
-                  translations.settings.globalPassword || 'App password'
-                "
-                :aria-describedby="securityError ? 'security-error' : undefined"
-                :placeholder="
-                  translations.settings.choosePassword || 'Set your app password...'
-                "
-                @keyup.enter="setAppPassword"
-              />
-              <ui-button :disabled="!passwordInput" @click="setAppPassword">
-                {{ translations.settings.setPassword || 'Set password' }}
-              </ui-button>
-            </div>
-            <p
-              v-if="securityError"
-              id="security-error"
-              role="alert"
-              class="text-sm text-red-500 mt-1"
-            >
-              {{ securityError }}
-            </p>
-          </template>
-        </div>
-
         <div class="py-3">
           <div class="flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
@@ -88,14 +32,6 @@
               {{ translations.settings.encryptionAlwaysOn || 'Always on' }}
             </span>
           </div>
-
-          <ui-button
-            class="text-sm mt-3"
-            :disabled="encryptionBusy"
-            @click="importVaultFromSync"
-          >
-            Import vault from sync
-          </ui-button>
 
           <p
             v-if="encryptionError"
@@ -184,7 +120,6 @@
 import { computed, onMounted, ref } from 'vue';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import {
   isKeyLoaded,
@@ -192,8 +127,6 @@ import {
   verifyPassphrase,
   lockEncryptionKey,
   generateRecoveryCode,
-  adoptVaultKey,
-  hasRemoteVaultKeyParams,
 } from '@/utils/crypto/encryption.js';
 import {
   migrateAssetEncryption,
@@ -205,12 +138,7 @@ import { publishCloudKeyParams } from '@/utils/sync/vault-key-params.js';
 
 const { translations } = useTranslations();
 const dialog = useDialog();
-const passwordStore = usePasswordStore();
 const noteStore = useNoteStore();
-
-const passwordInput = ref('');
-const securityError = ref('');
-const hasPassword = ref(!!passwordStore.appPassword);
 
 const keyLoaded = ref(isKeyLoaded());
 const encryptionBusy = ref(false);
@@ -245,148 +173,6 @@ const encryptionProgressLabel = computed(() => {
       return translations.settings?.processingNotes || 'Processing notes';
   }
 });
-
-function showDialogAlert(message, onConfirm) {
-  dialog.alert({
-    title: translations.value.settings.alertTitle || 'Alert',
-    body: message,
-    okText: translations.value.dialog?.close || 'Close',
-    ...(onConfirm ? { onConfirm } : {}),
-  });
-}
-
-async function importVaultFromSync() {
-  encryptionError.value = '';
-  let has = false;
-  try {
-    const { fetchCloudKeyParams } = await import(
-      '@/utils/sync/vault-key-params.js'
-    );
-    const fetched = await fetchCloudKeyParams({ force: true }).catch(() => null);
-    // If fetch succeeded, vault exists. Otherwise fall back to native check.
-    has = fetched || await hasRemoteVaultKeyParams();
-  } catch (e) {
-    encryptionError.value = e?.message || 'Failed to check the sync source.';
-    return;
-  }
-  if (!has) {
-    showDialogAlert(
-      translations.value.settings?.noRemoteVault ||
-        'No existing vault found in your sync source.'
-    );
-    return;
-  }
-  dialog.confirm({
-    title: 'Import vault from sync',
-    body: 'Importing will replace this device\u2019s encryption key. Notes encrypted with a different key may no longer be readable.',
-    icon: 'riShieldKeyholeLine',
-    okText: 'Import',
-    cancelText: 'Cancel',
-    onConfirm: () => {
-      dialog.prompt({
-        title: 'Enter this vault\u2019s password',
-        body: 'Enter the password for the existing encrypted vault in your sync source.',
-        icon: 'riLockLine',
-        okText: 'Import',
-        cancelText: 'Cancel',
-        placeholder: 'Vault password',
-        onConfirm: async (pass) => {
-          if (!pass) {
-            showDialogAlert(
-              translations.value.settings?.invalidPassword ||
-                'Enter the vault password.'
-            );
-            return;
-          }
-          try {
-            const res = await adoptVaultKey(pass);
-            if (!res.ok) {
-              showDialogAlert(
-                res.error || 'Failed to import the vault. Check the password.'
-              );
-              return;
-            }
-            showDialogAlert(
-              translations.value.settings?.vaultImported ||
-                'Vault imported. The app will reload.',
-              () => window.location.reload()
-            );
-          } catch (e) {
-            showDialogAlert(e?.message || 'Failed to import the vault.');
-          }
-        },
-      });
-    },
-  });
-}
-
-async function resetPasswordDialog() {
-  dialog.prompt({
-    title: translations.value.settings.resetPasswordTitle,
-    body:
-      translations.value.settings.body ||
-      'This data is encrypted, you need to input the password to get access',
-    icon: 'riLockLine',
-    okText: translations.value.settings.next,
-    cancelText: translations.value.settings.cancel,
-    placeholder: translations.value.settings.password,
-    onConfirm: async (currentPassword) => {
-      if (!currentPassword) {
-        showDialogAlert(translations.value.settings.invalidPassword);
-        return;
-      }
-
-      const isCurrentPasswordValid = await passwordStore.isValidPassword(
-        currentPassword
-      );
-      if (!isCurrentPasswordValid) {
-        showDialogAlert(translations.value.settings.wrongCurrentPassword);
-        return;
-      }
-
-      dialog.prompt({
-        title: translations.value.settings.enterNewPassword,
-        okText: translations.value.settings.resetPassword,
-        body: translations.value.settings.warning,
-        cancelText: translations.value.settings.cancel,
-        placeholder: translations.value.settings.newPassword,
-        onConfirm: async (newPassword) => {
-          if (!newPassword) {
-            showDialogAlert(translations.value.settings.invalidPassword);
-            return;
-          }
-
-          try {
-            await passwordStore.resetPassword(currentPassword, newPassword);
-            await verifyPassphrase(newPassword);
-            hasPassword.value = true;
-            showDialogAlert(translations.value.settings.passwordResetSuccess);
-          } catch (error) {
-            console.error('Error resetting password:', error);
-            showDialogAlert(translations.value.settings.passwordResetError);
-          }
-        },
-      });
-    },
-  });
-}
-
-async function setAppPassword() {
-  securityError.value = '';
-  if (!passwordInput.value?.trim()) return;
-  try {
-    await passwordStore.setAppPassword(passwordInput.value);
-    await verifyPassphrase(passwordInput.value);
-    hasPassword.value = true;
-    passwordInput.value = '';
-  } catch (error) {
-    securityError.value = String(error);
-  }
-}
-
-function changePasswordDialog() {
-  resetPasswordDialog();
-}
 
 function refreshKeyLoaded() {
   keyLoaded.value = isKeyLoaded();
@@ -478,6 +264,7 @@ async function changeEncryptionPassphrase() {
     cancelText: translations.value.settings.cancel || 'Cancel',
     placeholder:
       translations.value.settings.currentPassphrase || 'Current passphrase',
+    password: true,
     onConfirm: async (currentPass) => {
       if (!currentPass) return;
 
@@ -500,6 +287,7 @@ async function changeEncryptionPassphrase() {
           cancelText: translations.value.settings.cancel || 'Cancel',
           placeholder:
             translations.value.settings.newPassphrase || 'New passphrase',
+          password: true,
           onConfirm: async (newPass) => {
             if (!newPass) return;
             if (newPass.length < 8) {
@@ -520,6 +308,7 @@ async function changeEncryptionPassphrase() {
               placeholder:
                 translations.value.settings.confirmPassphrasePlaceholder ||
                 'Confirm passphrase',
+              password: true,
               onConfirm: async (confirmPass) => {
                 if (newPass !== confirmPass) {
                   encryptionError.value = 'Passphrases do not match.';
@@ -633,9 +422,7 @@ function lockNow() {
   keyLoaded.value = false;
 }
 
-onMounted(async () => {
-  await passwordStore.retrieve();
-  hasPassword.value = !!passwordStore.appPassword;
+onMounted(() => {
   refreshKeyLoaded();
 });
 </script>

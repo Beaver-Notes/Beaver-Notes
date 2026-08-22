@@ -127,6 +127,16 @@ const settingDefs = {
     defaultValue: 'folder',
     parse: String,
   },
+  collaborationEnabled: {
+    legacyKey: 'collaborationEnabled',
+    defaultValue: false,
+    parse: (value) => value === true || value === 'true',
+  },
+  syncPath: {
+    legacyKey: 'default-path',
+    defaultValue: '',
+    parse: String,
+  },
 };
 
 function getSettingDef(key) {
@@ -200,4 +210,10 @@ export async function hydrateSettingsStore(keys = Object.keys(settingDefs)) {
     })
   );
   return Object.fromEntries(entries);
+}
+
+export function invalidateSettingMirrors(keys) {
+  for (const key of keys) {
+    mirrorToLocalStorage(key, null);
+  }
 }

@@ -1,18 +1,13 @@
 <template>
-  <div class="general space-y-8 mb-14 w-full max-w-xl">
-    <!-- App theme -->
-    <section>
-      <p class="mb-2">{{ translations.appearance.appTheme || '-' }}</p>
-      <div
-        class="flex ltr:space-x-4 text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
-      >
+  <div class="general mb-14 w-full max-w-xl space-y-6">
+    <settings-group :title="translations.appearance.appTheme || 'Theme'">
+      <div class="px-4 py-4 flex gap-3">
         <button
           v-for="item in themes"
           :key="item.name"
-          :class="{
-            'ring-1 ring-primary': theme.currentTheme.value === item.name,
-          }"
-          class="bg-input p-2 rtl:mx-2 rounded-lg transition"
+          class="flex-1 rounded-lg border-2 p-2 transition text-neutral-600 dark:text-[color:var(--selected-dark-text)]"
+          :class="theme.currentTheme.value === item.name ? 'border-primary' : 'border-transparent'"
+          :aria-pressed="theme.currentTheme.value === item.name"
           @click="theme.setTheme(item.name)"
         >
           <img
@@ -20,60 +15,40 @@
             decoding="async"
             width="160"
             height="100"
-            class="w-40 border-2 mb-1 rounded-lg"
+            class="w-full border mb-1 rounded-lg"
           />
           <p class="capitalize text-center text-sm">
             {{ translations.appearance[item.name] || item.name }}
           </p>
         </button>
       </div>
-    </section>
-    <!-- Accent Color -->
-    <section>
-      <p class="mb-2">{{ translations.appearance.colorScheme || '-' }}</p>
-      <div class="w-full items-center justify-center flex gap-4">
-        <button
-          class="bg-red-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'red' }"
-          @click="setColor('red')"
-        ></button>
-        <button
-          class="bg-amber-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'amber' }"
-          @click="setColor('amber')"
-        ></button>
-        <button
-          class="bg-emerald-500 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'green' }"
-          @click="setColor('green')"
-        ></button>
-        <button
-          class="bg-blue-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'blue' }"
-          @click="setColor('blue')"
-        ></button>
-        <button
-          class="bg-purple-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'purple' }"
-          @click="setColor('purple')"
-        ></button>
-        <button
-          class="bg-pink-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'pink' }"
-          @click="setColor('pink')"
-        ></button>
-        <button
-          class="bg-neutral-400 p-2 w-10 h-10 rounded-full focus:ring-primary transition"
-          :class="{ 'ring-1 ring-primary': state.accentColor === 'neutral' }"
-          @click="setColor('neutral')"
-        ></button>
-      </div>
-    </section>
-    <!-- Interface size -->
-    <section>
-      <p class="mb-2">{{ translations.appearance.interfaceSize || '-' }}</p>
+    </settings-group>
 
-      <div class="grid grid-cols-4 gap-4">
+    <settings-group :title="translations.appearance.colorScheme || 'Accent color'">
+      <div class="px-4 py-4 flex flex-wrap gap-3">
+        <button
+          v-for="c in accentColors"
+          :key="c.key"
+          type="button"
+          class="w-10 h-10 rounded-full transition focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary dark:focus:ring-offset-neutral-900"
+          :class="c.class"
+          :aria-label="c.label"
+          :aria-pressed="state.accentColor === c.key"
+          :title="c.label"
+          @click="setColor(c.key)"
+        >
+          <span
+            v-if="state.accentColor === c.key"
+            class="flex items-center justify-center w-full h-full"
+          >
+            <v-remixicon name="riCheckLine" size="18" class="text-white drop-shadow" />
+          </span>
+        </button>
+      </div>
+    </settings-group>
+
+    <settings-group :title="translations.appearance.interfaceSize || 'Interface size'">
+      <div class="px-4 py-4 grid grid-cols-4 gap-3">
         <button
           v-for="opt in [
             {
@@ -98,42 +73,38 @@
             },
           ]"
           :key="opt.key"
-          class="bg-input p-2 rounded-lg border transition focus:outline-none focus:ring-1 focus:ring-primary"
-          :class="{
-            'ring-1 ring-primary border-primary':
-              String(state.zoomLevel) === opt.key,
-          }"
+          class="bg-white dark:bg-neutral-950 p-2 rounded-lg border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
+          :class="String(state.zoomLevel) === opt.key ? 'border-primary' : 'border-neutral-200 dark:border-neutral-800'"
           :aria-pressed="String(state.zoomLevel) === opt.key"
           type="button"
           @click="setZoom(Number(opt.key))"
         >
-          <!-- Fixed-size preview frame -->
           <div
-            class="w-full h-20 bg-white dark:bg-neutral-900 rounded border mb-4 overflow-hidden relative"
+            class="w-full h-16 bg-neutral-50 dark:bg-neutral-900 rounded mb-2 overflow-hidden relative"
             :style="`--s:${opt.s}`"
           >
-            <!-- Centered, scale-compensated wrapper (prevents clipping at any scale) -->
             <div class="fit-scale">
               <div class="p-1 text-center text-xs leading-4">
                 <div class="font-semibold mb-1 truncate">Lorem Ipsum</div>
-                <div
-                  class="text-neutral-600 dark:text-neutral-300 line-clamp-3"
-                >
+                <div class="text-neutral-600 dark:text-neutral-300 line-clamp-3">
                   Lorem ipsum dolor sit amet, consectetur adipiscing elit.
                 </div>
               </div>
             </div>
           </div>
-
-          <p class="capitalize text-center text-sm">{{ opt.label }}</p>
+          <p class="capitalize text-center text-xs">{{ opt.label }}</p>
         </button>
       </div>
-    </section>
-    <!-- Font -->
-    <section>
-      <p class="mb-2">{{ translations.appearance.selectFont || '-' }}</p>
-      <div class="flex gap-2 items-center">
+    </settings-group>
+
+    <settings-group :title="translations.appearance.font || 'Typography'">
+      <settings-row
+        control-id="appearance-font"
+        :label="translations.appearance.selectFont || 'Interface font'"
+        control-class="w-full sm:w-56"
+      >
         <ui-select
+          id="appearance-font"
           v-model="state.selectedFont"
           class="w-full"
           :search="true"
@@ -160,14 +131,15 @@
             </option>
           </optgroup>
         </ui-select>
-      </div>
-    </section>
-    <!-- Code Font Section -->
-    <section>
-      <p class="mb-2">{{ translations.appearance.selectCodeFont || '-' }}</p>
-      <div class="flex items-center gap-2">
+      </settings-row>
+
+      <settings-row
+        control-id="appearance-code-font"
+        :label="translations.appearance.selectCodeFont || 'Code font'"
+        control-class="w-full sm:w-56"
+      >
         <ui-select
-          id="codeFontSelect"
+          id="appearance-code-font"
           v-model="state.selectedCodeFont"
           class="w-full"
           @change="updateCodeFont"
@@ -183,50 +155,43 @@
             Source Code Pro
           </option>
         </ui-select>
-      </div>
-    </section>
+      </settings-row>
+    </settings-group>
 
-    <section>
-      <p class="mb-2">{{ translations.appearance.interfaceOptions || '-' }}</p>
-      <div>
-        <div class="space-y-1">
-          <!-- High contrast text (OLED) -->
-          <div class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left">
-                {{ translations.appearance.clearFont || '-' }}
-              </span>
-            </div>
-            <ui-switch v-model="ClearFontChecked" @change="toggleClearFont" />
-          </div>
-          <!-- Menubar visibility -->
-          <div v-if="!isMacOS" class="flex items-center py-2 justify-between">
-            <div>
-              <span class="block text-lg align-left">
-                {{ translations.appearance.menuBarVisibility || '-' }}
-              </span>
-            </div>
-            <ui-switch
-              v-model="visibilityMenubar"
-              @change="toggleVisibilityOfMenubar"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-    <!-- App Icon -->
-    <section v-if="isMobileRuntime && iconsSupported">
-      <p class="mb-2">{{ translations.appearance.appIcon || 'App Icon' }}</p>
-      <div class="grid grid-cols-4 gap-3">
+    <settings-group :title="translations.appearance.interfaceOptions || 'Interface options'">
+      <settings-row
+        control-id="appearance-clear-font"
+        :label="translations.appearance.clearFont || 'High contrast text'"
+        description="Sharper text color, easier to read on OLED screens."
+      >
+        <ui-switch id="appearance-clear-font" v-model="ClearFontChecked" @change="toggleClearFont" />
+      </settings-row>
+
+      <settings-row
+        v-if="isDesktopRuntime && !isMacOS"
+        control-id="appearance-menubar"
+        :label="translations.appearance.menuBarVisibility || 'Menu bar'"
+        description="Show the application menu bar."
+      >
+        <ui-switch
+          id="appearance-menubar"
+          v-model="visibilityMenubar"
+          @change="toggleVisibilityOfMenubar"
+        />
+      </settings-row>
+    </settings-group>
+
+    <settings-group v-if="isMobileRuntime && iconsSupported" :title="translations.appearance.appIcon || 'App icon'">
+      <div class="px-4 py-4 grid grid-cols-4 gap-3">
         <button
           v-for="icon in alternateIcons"
           :key="icon.key"
-          class="flex flex-col items-center gap-1 p-2 rounded-lg bg-input border transition focus:outline-none focus:ring-1 focus:ring-primary"
-          :class="{
-            'ring-1 ring-primary border-primary':
-              currentIconName === icon.name ||
-              (!currentIconName && icon.isDefault),
-          }"
+          class="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition focus:outline-none focus:ring-1 focus:ring-primary"
+          :class="
+            currentIconName === icon.name || (!currentIconName && icon.isDefault)
+              ? 'border-primary'
+              : 'border-transparent'
+          "
           @click="
             icon.isDefault ? handleResetIcon() : handleChangeIcon(icon.name)
           "
@@ -244,7 +209,7 @@
           </span>
         </button>
       </div>
-    </section>
+    </settings-group>
   </div>
 </template>
 
@@ -268,6 +233,7 @@ import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
 import { getSystemFonts, setMenuVisibility } from '@/lib/native/app';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { backend } from '@/lib/tauri-bridge';
 import {
   isSupported,
@@ -275,8 +241,11 @@ import {
   changeIcon,
   resetIcon,
 } from '@/lib/native/app-icon';
+import SettingsGroup from '@/components/settings/SettingsGroup.vue';
+import SettingsRow from '@/components/settings/SettingsRow.vue';
 
 export default {
+  components: { SettingsGroup, SettingsRow },
   setup() {
     const { translations } = useTranslations();
     const appStore = useAppStore();
@@ -308,9 +277,7 @@ export default {
 
     let defaultPath = '';
 
-    const isMacOS = computed(() =>
-      window.navigator.platform.toLowerCase().includes('mac')
-    );
+    const isMacOS = computed(() => isMacOSRuntime());
 
     const ClearFontChecked = computed({
       get: () => getSettingSync('selectedDarkText') === '#CCCCCC',
@@ -324,10 +291,24 @@ export default {
       },
     });
 
+    const THEME_COLOR_CLASSES = [
+      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light', 'dark',
+    ];
+
+    const accentColors = [
+      { key: 'red', label: 'Red', class: 'bg-red-500' },
+      { key: 'amber', label: 'Amber', class: 'bg-amber-400' },
+      { key: 'green', label: 'Green', class: 'bg-emerald-500' },
+      { key: 'blue', label: 'Blue', class: 'bg-blue-400' },
+      { key: 'purple', label: 'Purple', class: 'bg-purple-400' },
+      { key: 'pink', label: 'Pink', class: 'bg-pink-400' },
+      { key: 'neutral', label: 'Neutral', class: 'bg-neutral-400' },
+    ];
+
     const setColor = (color) => {
       const root = document.documentElement;
       root.classList.forEach((cls) => {
-        if (cls !== 'light' && cls !== 'dark') {
+        if (THEME_COLOR_CLASSES.includes(cls)) {
           root.classList.remove(cls);
         }
       });
@@ -425,6 +406,7 @@ export default {
     const setZoom = (newZoomLevel) => {
       state.zoomLevel = setStoredZoomLevel(newZoomLevel, { reload: true });
     };
+    const isDesktopRuntime = backend.isDesktopRuntime();
     const isMobileRuntime = backend.isMobileRuntime();
     const isIOSRuntime = backend.isIOSRuntime();
     const iconsSupported = ref(false);
@@ -520,11 +502,13 @@ export default {
       visibilityMenubar,
       toggleVisibilityOfMenubar,
       isMacOS,
+      isDesktopRuntime,
       toggleDirectionPreference,
       updateFont,
       updateCodeFont,
       setZoom,
       setColor,
+      accentColors,
       defaultFonts,
       systemFonts,
       appStore,

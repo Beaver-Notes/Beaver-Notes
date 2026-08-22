@@ -9,80 +9,16 @@ import {
 export function useSettingsSecurity({
   dialog,
   _noteStore,
-  passwordStore,
   translations,
-  showDialogAlert,
 }) {
   const keyLoaded = ref(isKeyLoaded());
   const encryptionBusy = ref(false);
   const encryptionError = ref('');
   const passwordInput = ref('');
   const securityError = ref('');
-  const hasPassword = ref(!!passwordStore.appPassword);
-
-  async function resetPasswordDialog() {
-    dialog.prompt({
-      title: translations.value.settings.resetPasswordTitle,
-      okText: translations.value.settings.next,
-      cancelText: translations.value.settings.cancel,
-      placeholder: translations.value.settings.password,
-      onConfirm: async (currentPassword) => {
-        if (!currentPassword) {
-          showDialogAlert(translations.value.settings.invalidPassword);
-          return;
-        }
-
-        const isCurrentPasswordValid = await passwordStore.isValidPassword(
-          currentPassword
-        );
-        if (!isCurrentPasswordValid) {
-          showDialogAlert(translations.value.settings.wrongCurrentPassword);
-          return;
-        }
-
-        dialog.prompt({
-          title: translations.value.settings.enterNewPassword,
-          okText: translations.value.settings.resetPassword,
-          body: translations.value.settings.warning,
-          cancelText: translations.value.settings.cancel,
-          placeholder: translations.value.settings.newPassword,
-          onConfirm: async (newPassword) => {
-            if (!newPassword) {
-              showDialogAlert(translations.value.settings.invalidPassword);
-              return;
-            }
-
-            try {
-              await passwordStore.resetPassword(currentPassword, newPassword);
-              await verifyPassphrase(newPassword);
-              hasPassword.value = true;
-              showDialogAlert(translations.value.settings.passwordResetSuccess);
-            } catch (error) {
-              console.error('Error resetting password:', error);
-              showDialogAlert(translations.value.settings.passwordResetError);
-            }
-          },
-        });
-      },
-    });
-  }
-
-  async function setAppPassword() {
-    securityError.value = '';
-    if (!passwordInput.value?.trim()) return;
-
-    try {
-      await passwordStore.setAppPassword(passwordInput.value);
-      await verifyPassphrase(passwordInput.value);
-      hasPassword.value = true;
-      passwordInput.value = '';
-    } catch (error) {
-      securityError.value = String(error);
-    }
-  }
 
   function changePasswordDialog() {
-    void resetPasswordDialog();
+    void changeEncryptionPassphrase();
   }
 
   function refreshKeyLoaded() {
@@ -105,6 +41,7 @@ export function useSettingsSecurity({
       cancelText: translations.value.settings.cancel || 'Cancel',
       placeholder:
         translations.value.settings.currentPassphrase || 'Current passphrase',
+      password: true,
       onConfirm: async (currentPass) => {
         if (!currentPass) return;
 
@@ -127,6 +64,7 @@ export function useSettingsSecurity({
             cancelText: translations.value.settings.cancel || 'Cancel',
             placeholder:
               translations.value.settings.newPassphrase || 'New passphrase',
+            password: true,
             onConfirm: async (newPass) => {
               if (!newPass) return;
               if (newPass.length < 6) {
@@ -146,6 +84,7 @@ export function useSettingsSecurity({
                 placeholder:
                   translations.value.settings.confirmPassphrasePlaceholder ||
                   'Confirm passphrase',
+                password: true,
                 onConfirm: async (confirmPass) => {
                   if (newPass !== confirmPass) {
                     encryptionError.value = 'Passphrases do not match.';
@@ -201,9 +140,6 @@ export function useSettingsSecurity({
     encryptionError,
     passwordInput,
     securityError,
-    hasPassword,
-    resetPasswordDialog,
-    setAppPassword,
     changePasswordDialog,
     changeEncryptionPassphrase,
     lockNow,

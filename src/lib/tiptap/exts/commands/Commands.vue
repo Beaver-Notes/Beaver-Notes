@@ -53,6 +53,7 @@ import dayjs from '@/lib/dayjs';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useEditorImage } from '@/utils/assets/editor-image';
+import { useAudioRecorder } from '@/composable/useAudioRecorder';
 import { saveFile } from '@/utils/assets/storage.js';
 import { openDialog } from '@/lib/native/dialog';
 
@@ -82,6 +83,7 @@ export default {
   setup(props) {
     const instance = getCurrentInstance();
     const editorImage = useEditorImage(props.editor);
+    const recorder = useAudioRecorder();
     const selectedIndex = ref(0);
 
     const { translations } = useTranslations();
@@ -354,6 +356,15 @@ export default {
         description: 'audioDescription',
         action: (chain) => {
           handleAudioSelect();
+          return chain;
+        },
+      },
+      {
+        icon: 'riMicLine',
+        name: 'record',
+        description: 'recordAudioDescription',
+        action: (chain) => {
+          recorder.start(props.id, props.editor.state.selection.from);
           return chain;
         },
       },

@@ -61,9 +61,6 @@ fn count_files(dir: &std::path::Path) -> u64 {
     n
 }
 
-#[cfg(desktop)]
-const COLLECTION_NAMESPACES: &[&str] = &["notes", "folders"];
-
 pub(crate) fn queue_or_emit_file_open(app: &AppHandle, state: &AppState, path: String) {
     grant_trusted_path(state, Path::new(&path));
     if app
@@ -197,101 +194,48 @@ pub(crate) fn legacy_store_dir(app: &AppHandle) -> Option<PathBuf> {
 }
 
 #[cfg(desktop)]
-fn merge_json_preserving_target(target: &mut serde_json::Value, source: serde_json::Value) {
-    match (target, source) {
-        (serde_json::Value::Object(target_map), serde_json::Value::Object(source_map)) => {
-            for (key, source_value) in source_map {
-                if let Some(target_value) = target_map.get_mut(&key) {
-                    merge_json_preserving_target(target_value, source_value);
-                } else {
-                    target_map.insert(key, source_value);
-                }
-            }
-        }
-        _ => {
-            // Keep the current Tauri-side value. Migration must not overwrite newer data.
-        }
-    }
-}
-
-#[cfg(desktop)]
-fn merge_store_file(source_path: &Path, target_path: &Path) -> Result<(), AppError> {
-    if !source_path.exists() {
-        return Ok(());
-    }
-
-    if !target_path.exists() {
-        fs::copy(source_path, target_path)?;
-        return Ok(());
-    }
-
-    let source_text = fs::read_to_string(source_path)?;
-    let target_text = fs::read_to_string(target_path)?;
-    let source_json = serde_json::from_str::<serde_json::Value>(&source_text)?;
-    let mut target_json =
-        serde_json::from_str::<serde_json::Value>(&target_text)?;
-
-    merge_json_preserving_target(&mut target_json, source_json);
-
-    let serialized = serde_json::to_string_pretty(&target_json)?;
-    fs::write(target_path, format!("{serialized}\n"))?;
-    Ok(())
-}
-
-#[cfg(desktop)]
 fn import_json_file_into_pool(
-    state: &AppState,
     path: &Path,
     pool: &crate::db::DbPool,
 ) -> Result<bool, AppError> {
     if !path.exists() {
+        eprintln!("[migration] import_json_file_into_pool: source missing: {}", path.display());
         return Ok(false);
     }
     let text = fs::read_to_string(path)?;
     let json: serde_json::Value = serde_json::from_str(&text)?;
     let Some(map) = json.as_object() else {
+        eprintln!("[migration] import_json_file_into_pool: not a JSON object: {}", path.display());
         return Ok(false);
     };
-    let encrypt = state.crypto.session.read()?.active;
-    let (app_key, key_id) = if encrypt {
-        let key = crate::shared::current_app_key(state)?.unwrap_or_default();
-        let key_id = state.crypto.session.read()?.current_items_key_id.clone();
-        (Some(key), key_id)
-    } else {
-        (None, String::new())
-    };
+    eprintln!(
+        "[migration] import_json_file_into_pool: {} top-level keys: {:?}",
+        path.display(),
+        map.keys().collect::<Vec<_>>()
+    );
     for (key, value) in map {
-        if COLLECTION_NAMESPACES.contains(&key.as_str()) {
-            if let Some(items) = value.as_object() {
-                for (id, item) in items {
-                    let flat_key = format!("{}.{}", key, id);
-                    if !crate::db::db_has(pool, &flat_key)? {
-                        let row = if let Some(key) = app_key {
-                            // Whole-row encrypt (title, folderId, folder metadata
-                            // included) rather than only the note content, so the
-                            // migration never leaves plaintext metadata on disk.
-                            crate::commands::storage::encrypt_store_row_with_key(
-                                &flat_key,
-                                item.clone(),
-                                &key,
-                                &key_id,
-                            )?
-                        } else {
-                            item.clone()
-                        };
-                        crate::db::db_set(
-                            pool,
-                            &flat_key,
-                            &serde_json::to_string(&row)?,
-                        )?;
-                    }
-                }
-                continue;
-            }
-        }
         if !crate::db::db_has(pool, key)? {
             crate::db::db_set(pool, key, &serde_json::to_string(value)?)?;
         }
+    }
+
+    // Post-import store summary so we can verify what actually landed in KV.
+    // Legacy notes/folders collections are no longer written as KV rows — the
+    // frontend converts them straight to Yjs — so only top-level scalar keys
+    // (labels, labelColors, deletedIds, …) appear here.
+    match crate::db::db_all(pool) {
+        Ok(rows) => {
+            let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
+            let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
+            eprintln!(
+                "[migration] import_json_file_into_pool: {} done — KV now has {} notes, {} folders (both expected to be 0), {} total rows",
+                path.display(),
+                notes,
+                folders,
+                rows.len()
+            );
+        }
+        Err(e) => eprintln!("[migration] import_json_file_into_pool: post-import summary failed: {e}"),
     }
     Ok(true)
 }
@@ -328,61 +272,6 @@ fn copy_directory_missing(
                 emit_migration_progress(app, "copy", *done, total);
             }
         }
-    }
-
-    Ok(())
-}
-
-#[cfg(desktop)]
-fn import_legacy_auth_blobs(app: &AppHandle, auth_path: &Path) -> Result<(), AppError> {
-    if !auth_path.exists() {
-        return Ok(());
-    }
-
-    let auth_text = fs::read_to_string(auth_path)?;
-    let auth_json = serde_json::from_str::<serde_json::Value>(&auth_text)?;
-    let Some(auth_map) = auth_json.as_object() else {
-        return Ok(());
-    };
-
-    let legacy_blob_map = auth_map.get("blobs").and_then(|value| value.as_object());
-
-    let state = app.state::<AppState>();
-    for key in ALLOWED_BLOB_KEYS {
-        let Some(blob) = auth_map
-            .get(*key)
-            .and_then(|value| value.as_str())
-            .or_else(|| {
-                legacy_blob_map
-                    .and_then(|blob_map| blob_map.get(*key))
-                    .and_then(|value| value.as_str())
-            })
-        else {
-            continue;
-        };
-
-        let has_existing = state
-            .cache.secure_blobs
-            .fetch_blob(state.inner(), key)
-            .ok()
-            .flatten()
-            .and_then(|value| String::from_utf8(value).ok())
-            .filter(|value: &String| !value.is_empty())
-            .is_some()
-            || keyring_entry(key)
-                .ok()
-                .and_then(|entry| entry.get_password().ok())
-                .filter(|value: &String| !value.is_empty())
-                .is_some();
-
-        if has_existing {
-            continue;
-        }
-
-        let _ = state
-            .cache.secure_blobs
-            .store_blob(state.inner(), key, blob.as_bytes().to_vec());
-        let _ = keyring_entry(key).and_then(|entry| entry.set_password(blob).map_err(|e| AppError::Other(e.to_string())));
     }
 
     Ok(())
@@ -433,6 +322,14 @@ fn run_migration_core(
     let new_dir = crate::shared::app_storage_dir(app, state)?;
     let marker = new_dir.join(".legacy-store-migrated");
 
+    eprintln!("[migration] run_migration_core: start");
+    eprintln!("[migration]   legacy dir: {}", old_dir.display());
+    eprintln!("[migration]   target dir: {}", new_dir.display());
+    eprintln!("[migration]   legacy exists: {}", old_dir.exists());
+    eprintln!("[migration]   legacy files: config.json={}, data.json={}",
+        old_dir.join("config.json").exists(),
+        old_dir.join("data.json").exists());
+
     fs::create_dir_all(&new_dir)?;
 
     let mut merged_store_files = Vec::new();
@@ -440,7 +337,13 @@ fn run_migration_core(
 
     // Count every file that will be copied so the progress bar has a real total
     // (store JSONs + all assets), then report as we go.
-    let mut copy_total = LEGACY_DATA_FILES.len() as u64 + 1; // + SETTINGS_STORE
+    // Legacy notes/folders (config.json/data.json) are no longer imported into
+    // the data KV store — the frontend converts them straight to Yjs. The store
+    // JSON copy is just settings.json.
+    eprintln!(
+        "[migration]   skipping legacy notes/folders import (config.json/data.json) — the data KV store stays empty of note rows"
+    );
+    let mut copy_total = 1; // SETTINGS_STORE
     for folder in ["notes-assets", "file-assets"] {
         let old = old_dir.join(folder);
         if old.exists() {
@@ -462,47 +365,13 @@ fn run_migration_core(
     }
     let mut copy_done = 0u64;
 
-    for legacy_name in LEGACY_DATA_FILES {
-        let old = old_dir.join(legacy_name);
-        if import_json_file_into_pool(state, &old, &data_pool)? {
-            merged_store_files.push((*legacy_name).to_string());
-        }
-        copy_done += 1;
-        emit_migration_progress(app, "copy", copy_done, copy_total);
-    }
-
-    let old_auth = old_dir.join(AUTH_STORE);
-    if old_auth.exists() {
-        merge_store_file(&old_auth, &new_dir.join(AUTH_STORE))?;
-        merged_store_files.push(AUTH_STORE.to_string());
-        copy_done += 1;
-        emit_migration_progress(app, "copy", copy_done, copy_total);
-    }
-
     let settings_pool = settings_pool(app, state)?;
     let old_settings = old_dir.join(SETTINGS_STORE);
-    if import_json_file_into_pool(state, &old_settings, &settings_pool)? {
+    if import_json_file_into_pool(&old_settings, &settings_pool)? {
         merged_store_files.push(SETTINGS_STORE.to_string());
     }
     copy_done += 1;
     emit_migration_progress(app, "copy", copy_done, copy_total);
-
-    const SETTINGS_KEY_REMAP: &[(&str, &str)] = &[
-        ("color-scheme", "colorScheme"),
-        ("selected-font", "selectedFont"),
-        ("selected-font-code", "selectedCodeFont"),
-        ("selected-dark-text", "selectedDarkText"),
-        ("visibility-menubar", "visibilityMenubar"),
-        ("advanced-settings", "advancedSettings"),
-    ];
-    for (old_key, new_key) in SETTINGS_KEY_REMAP {
-        if crate::db::db_has(&settings_pool, new_key)? {
-            continue; // canonical key already present – don't overwrite
-        }
-        if let Some(value) = crate::db::db_get(&settings_pool, old_key)? {
-            crate::db::db_set(&settings_pool, new_key, &value)?;
-        }
-    }
 
     let mut copied_asset_dirs = Vec::new();
     for folder in ["notes-assets", "file-assets"] {
@@ -542,11 +411,32 @@ fn run_migration_core(
         copied_asset_dirs.push("assets".to_string());
     }
 
-    let _ = import_legacy_auth_blobs(app, &old_dir.join(AUTH_STORE));
-
     // Intentionally non-destructive while migration is being tested.
     // Do not remove or mutate the legacy Electron directory here.
     // let _ = fs::remove_dir_all(&old_dir);
+
+    // Final KV summary before the marker is written. The data store is
+    // intentionally empty of legacy note/folder rows — the frontend converts
+    // them to Yjs instead of the app reading them back from KV.
+    match crate::db::db_all(&data_pool) {
+        Ok(rows) => {
+            let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
+            let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
+            eprintln!(
+                "[migration] run_migration_core: DONE — data store has {} notes, {} folders (both expected to be 0), {} total rows",
+                notes,
+                folders,
+                rows.len()
+            );
+        }
+        Err(e) => eprintln!("[migration] run_migration_core: post-import summary failed: {e}"),
+    }
+    eprintln!(
+        "[migration] run_migration_core: writing marker {} — files merged: {:?}, asset dirs: {:?}",
+        marker.display(),
+        merged_store_files,
+        copied_asset_dirs
+    );
 
     fs::write(&marker, b"ok")?;
 
@@ -798,6 +688,10 @@ fn migrate_to_workspace_layout(app: &AppHandle, state: &AppState) -> Result<(), 
         id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
         name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
         created_at: now,
+        workspace_type: "personal".into(),
+        org_id: None,
+        owner_id: None,
+        cloud_sync: false,
     };
     let registry_json = serde_json::json!({
         "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
@@ -826,6 +720,10 @@ fn ensure_default_workspace_in_registry(
             id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
             name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: now,
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         };
         let registry_json = serde_json::json!({
             "activeWorkspace": crate::shared::DEFAULT_WORKSPACE_ID,
@@ -844,6 +742,10 @@ fn ensure_default_workspace_in_registry(
             id: crate::shared::DEFAULT_WORKSPACE_ID.to_string(),
             name: crate::shared::DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: now,
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         };
         let mut new_registry = registry;
         new_registry.push(default_ws);
@@ -864,6 +766,17 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     // ── Workspace migration (must run BEFORE any settings_pool call) ──────
     migrate_to_workspace_layout(app.handle(), state.inner())?;
 
+    // The separate app-password store was retired — one workspace passphrase
+    // protects everything now. Delete the legacy `password.enc` file on the
+    // first launch after the upgrade; never fails startup if it is absent.
+    {
+        let app_dir = crate::shared::app_storage_dir(app.handle(), state.inner())?;
+        let legacy_password_file = app_dir.join("password.enc");
+        if legacy_password_file.exists() {
+            let _ = std::fs::remove_file(&legacy_password_file);
+        }
+    }
+
     sync_roots_from_settings(app.handle(), state.inner());
     grant_trusted_path(
         &state,
@@ -872,12 +785,21 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
     grant_trusted_path(&state, &app.path().temp_dir().map_err(|e| AppError::Other(e.to_string()))?);
     fs::create_dir_all(&state.files.asset_cache_dir)?;
 
+    // Fold any legacy plaintext `master.key` into the secure chain, then delete
+    // the file. Never fails startup.
+    let _ = crate::shared::migrate_legacy_master_key();
+
     // Warm the Keychain-backed master key on a background thread so the
     // frontend's first `loadSecureBlob('encryptionPassphraseBlob')` hits the
-    // in-memory cache instead of a ~2.5s cold Keychain read on the startup path.
-    std::thread::spawn(|| {
-        let _ = read_master_key();
-    });
+    // in-memory cache instead of a ~2.5s cold Keychain read on the startup
+    // path. On daemon-less Linux (no durable store yet) this is SKIPPED so the
+    // frontend sees `available=false` and prompts the user to create a device
+    // password BEFORE any key is minted into the reboot-ephemeral kernel keyring.
+    if crate::shared::durable_store_available() {
+        std::thread::spawn(|| {
+            let _ = read_master_key();
+        });
+    }
     prewarm_crypto();
 
     *state.updater.lock().map_err(|e| AppError::Other(e.to_string()))? = UpdaterState {
@@ -949,7 +871,7 @@ pub(crate) fn setup_app(app: &mut App<Wry>) -> Result<(), AppError> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_byte_range;
+    use super::*;
 
     #[test]
     fn range_absent_returns_none() {
@@ -985,5 +907,43 @@ mod tests {
         assert_eq!(parse_byte_range("bytes=100-200", 100), Err(()));
         assert_eq!(parse_byte_range("bytes=20-10", 100), Err(()));
         assert_eq!(parse_byte_range("bytes=0-", 0), Err(()));
+    }
+
+    #[cfg(desktop)]
+    mod desktop_migration_tests {
+        use super::*;
+        use std::time::SystemTime;
+
+        fn unique_temp_dir(prefix: &str) -> PathBuf {
+            let ts = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("clock ok")
+                .as_nanos();
+            std::env::temp_dir().join(format!("{prefix}-{ts}-{}", std::process::id()))
+        }
+
+        #[test]
+        fn import_json_ignores_notes_collection() {
+            use std::io::Write;
+            let root = unique_temp_dir("beaver-notes-nocoll");
+            let _ = fs::create_dir_all(&root);
+            let db_path = root.join("data.db");
+            let pool = crate::db::open_pool(&db_path).expect("pool");
+
+            let fixture = root.join("config.json");
+            let mut f = fs::File::create(&fixture).expect("create");
+            write!(
+                f,
+                r#"{{"notes": {{"n1": {{"id":"n1","title":"T"}}}}, "folders": {{"f1": {{"id":"f1"}}}}, "labels": ["a"]}}"#
+            )
+            .expect("write");
+
+            let imported = import_json_file_into_pool(&fixture, &pool).expect("import");
+            assert!(imported);
+            let rows = crate::db::db_all(&pool).expect("rows");
+            assert!(rows.keys().all(|k| !k.starts_with("notes.") && !k.starts_with("folders.")));
+            assert!(rows.contains_key("labels"));
+            let _ = fs::remove_dir_all(&root);
+        }
     }
 }

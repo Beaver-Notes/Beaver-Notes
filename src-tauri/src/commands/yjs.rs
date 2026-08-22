@@ -105,7 +105,8 @@ pub(crate) async fn yjs_append_batch(
         .map(|u| BASE64.decode(u))
         .collect::<Result<Vec<_>, _>>()?;
     let pool = data_pool(&app, &state)?;
-    tokio::task::spawn_blocking(move || crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices))
+    let key = yjs_encryption_key(&state)?;
+    tokio::task::spawn_blocking(move || crate::db::yjs_append_batch(&pool, &note_ids, &updates, &devices, key))
         .await
         .map_err(|e| AppError::Other(e.to_string()))?
 }
@@ -166,6 +167,21 @@ pub(crate) async fn yjs_get_updates(
   })
   .await
   .map_err(|e| AppError::Other(e.to_string()))?
+}
+
+#[tauri::command]
+#[specta::specta]
+pub(crate) async fn yjs_get_state_vector(
+  app: AppHandle,
+  note_id: String,
+  state: State<'_, AppState>,
+) -> Result<serde_json::Value, AppError> {
+  let pool = data_pool(&app, &state)?;
+  let key = yjs_encryption_key(&state)?;
+  let result = tokio::task::spawn_blocking(move || crate::db::yjs_get_state_vector(&pool, &note_id, key))
+    .await
+    .map_err(|e| AppError::Other(e.to_string()))??;
+  Ok(result.map(serde_json::to_value).transpose()?.unwrap_or(serde_json::json!({})))
 }
 
 /// Delete all existing updates for a note and replace them with a single

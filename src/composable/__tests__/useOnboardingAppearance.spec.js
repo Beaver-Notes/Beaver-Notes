@@ -77,8 +77,15 @@ describe('useOnboardingAppearance', () => {
     const { state, goToStep, appearance } = setup();
     await appearance.prepareFreshWorkspace();
     expect(applyOnboardingFreshPreferences).toHaveBeenCalled();
-    expect(goToStep).toHaveBeenCalledWith('password');
+    expect(goToStep).toHaveBeenCalledWith('finish');
     expect(state.savingPreferences).toBe(false);
+  });
+
+  it('useDefaultPreferences targets the first wizard card step', async () => {
+    const { goToStep, appearance } = setup();
+    await appearance.useDefaultPreferences();
+    expect(applyOnboardingFreshPreferences).toHaveBeenCalled();
+    expect(goToStep).toHaveBeenCalledWith('account');
   });
 
   it('applyFreshAndGo surfaces errors and still clears the saving flag', async () => {

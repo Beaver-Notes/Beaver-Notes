@@ -8,6 +8,9 @@ import {
   addMember as apiAddMember,
   removeMember as apiRemoveMember,
   joinWorkspace as apiJoinWorkspace,
+  getWorkspaceMembers as apiGetWorkspaceMembers,
+  provisionWorkspaceKey as apiProvisionWorkspaceKey,
+  getCachedWorkspaceKey,
 } from '@/lib/api/workspaces';
 import { normalizeWorkspaceList } from '@/lib/api/types';
 
@@ -18,6 +21,77 @@ const error = ref('');
 
 let fetchController = null;
 let fetchInFlight = null;
+
+export function computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces) {
+  const backendIds = new Set((backendWorkspaces || []).map((w) => w.id));
+  return (localWorkspaces || [])
+    .filter((w) => w.workspaceType === 'shared' && w.cloudSync && !backendIds.has(w.id))
+    .map((w) => w.id);
+}
+
+async function reconcileRemovedSharedWorkspaces(backendWorkspaces) {
+  try {
+    const {
+      listLocalWorkspaces,
+      getActiveLocalWorkspace,
+      switchLocalWorkspace,
+      deleteLocalWorkspace,
+    } = await import('@/lib/native/workspaces');
+    const localWorkspaces = (await listLocalWorkspaces().catch(() => [])) || [];
+    const removed = computeRemovedSharedWorkspaces(localWorkspaces, backendWorkspaces);
+    if (removed.length === 0) return;
+
+    const active = await getActiveLocalWorkspace().catch(() => null);
+    const activeId = active?.id;
+    const remainingPersonal = localWorkspaces.find(
+      (w) => w.workspaceType === 'personal' && !removed.includes(w.id)
+    );
+    const fallbackId = remainingPersonal?.id ?? 'default';
+
+    for (const id of removed) {
+      try {
+        if (id === activeId) {
+          await switchLocalWorkspace(fallbackId);
+        }
+        await deleteLocalWorkspace(id);
+      } catch (err) {
+        console.warn(
+          `[useCloudWorkspaces] could not delete removed shared workspace ${id}:`,
+          err?.message || err
+        );
+      }
+    }
+  } catch (err) {
+    console.warn('[useCloudWorkspaces] local workspace reconciliation skipped:', err);
+  }
+}
+
+async function registerCloudWorkspaces(backendWorkspaces, accountStore) {
+  if (!Array.isArray(backendWorkspaces) || backendWorkspaces.length === 0) return;
+  const { registerLocalWorkspace } = await import('@/lib/native/workspaces');
+  const personalOrgId =
+    accountStore.activeAccount?.organizations?.[0]?.id ??
+    accountStore.activeOrgId ??
+    null;
+  for (const ws of backendWorkspaces) {
+    const isShared = Boolean(ws.orgId) && ws.orgId !== personalOrgId;
+    try {
+      await registerLocalWorkspace({
+        id: ws.id,
+        name: ws.name,
+        orgId: ws.orgId,
+        ownerId: ws.ownerId,
+        workspaceType: isShared ? 'shared' : 'personal',
+        createdAt: ws.createdAt,
+      });
+    } catch (err) {
+      console.warn(
+        `[useCloudWorkspaces] could not register workspace ${ws.id}:`,
+        err?.message || err
+      );
+    }
+  }
+}
 
 export function useCloudWorkspaces() {
   const accountStore = useAccountStore();
@@ -49,6 +123,10 @@ export function useCloudWorkspaces() {
         if (!activeId.value && workspaces.value.length > 0) {
           activeId.value = workspaces.value[0].id;
         }
+        await registerCloudWorkspaces(workspaces.value, accountStore);
+        void autoProvisionPendingKeys();
+        // Removal reconciliation must not hold `loading` during the delete loop.
+        void reconcileRemovedSharedWorkspaces(workspaces.value);
       } catch (err) {
         if (err?.name === 'AbortError') return;
         error.value = err?.message || 'Failed to load workspaces';
@@ -75,6 +153,7 @@ export function useCloudWorkspaces() {
       };
       workspaces.value.push(ws);
       activeId.value = ws.id;
+      void registerCloudWorkspaces([ws], accountStore);
       return ws;
     } catch (err) {
       error.value = err?.message || 'Failed to create workspace';
@@ -104,19 +183,22 @@ export function useCloudWorkspaces() {
     const ws = workspaces.value.find((w) => w.id === id);
     if (!ws) throw new Error('Workspace not found');
 
-    const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
-    const { unwrapNoteKey } = await import('@/utils/crypto/note-key');
     const { importCollabKey } = await import('@/utils/crypto/collab');
     const { encryptName } = await import('@/utils/crypto/comment-crypto');
 
-    const identity = await loadOrCreateIdentity();
-    if (!identity?.privateKeyHex) throw new Error('Missing encryption identity');
-
-    const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
-    const wsData = raw.find((w) => w.id === id);
-    if (!wsData?.wrappedKey) throw new Error('Cannot decrypt workspace key');
-
-    const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wsData.wrappedKey);
+    // Prefer the locally cached raw key (seeded at creation or after
+    // vault-passphrase recovery) to skip the fetch + ML-KEM unwrap path.
+    let workspaceKeyHex = getCachedWorkspaceKey(id);
+    if (!workspaceKeyHex) {
+      const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+      const { unwrapNoteKey } = await import('@/utils/crypto/note-key');
+      const identity = await loadOrCreateIdentity();
+      if (!identity?.privateKeyHex) throw new Error('Missing encryption identity');
+      const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
+      const wsData = raw.find((w) => w.id === id);
+      if (!wsData?.wrappedKey) throw new Error('Cannot decrypt workspace key');
+      workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, wsData.wrappedKey);
+    }
     const key = await importCollabKey(workspaceKeyHex);
     const nameEncrypted = await encryptName(key, newName);
 
@@ -150,6 +232,50 @@ export function useCloudWorkspaces() {
     return raw;
   }
 
+  async function provisionKeysForMember(workspaceId, memberUserId) {
+    const { loadOrCreateIdentity } = await import('@/utils/crypto/identity');
+    const { unwrapNoteKey, wrapNoteKeyForRecipient } = await import('@/utils/crypto/note-key');
+
+    const identity = await loadOrCreateIdentity();
+    if (!identity?.privateKeyHex || !identity?.publicKeyHex) return false;
+
+    const raw = await apiGetWorkspaces({ baseUrl: activeBaseUrl() });
+    const ws = raw?.workspaces?.find((w) => w.id === workspaceId);
+    if (!ws?.wrappedKey) return false;
+
+    const workspaceKeyHex = await unwrapNoteKey(identity.privateKeyHex, ws.wrappedKey);
+    const wrappedForTarget = await wrapNoteKeyForRecipient(identity.publicKeyHex, workspaceKeyHex);
+    await apiProvisionWorkspaceKey(workspaceId, memberUserId, wrappedForTarget, { baseUrl: activeBaseUrl() });
+    return true;
+  }
+
+  async function autoProvisionPendingKeys() {
+    const accountStore = useAccountStore();
+    const userId = accountStore.profile?.id;
+    if (!userId) return;
+
+    for (const ws of workspaces.value) {
+      if (ws.role !== 'owner' && ws.role !== 'admin') continue;
+      if (!ws.wrappedKey) continue;
+
+      try {
+        const { members } = await apiGetWorkspaceMembers(ws.id, { baseUrl: activeBaseUrl() });
+        const pending = (members || []).filter(
+          (m) => m.userId !== userId && m.hasKeyPair && !m.hasWrappedKey
+        );
+        for (const member of pending) {
+          try {
+            await provisionKeysForMember(ws.id, member.userId);
+          } catch (err) {
+            console.warn(`[useCloudWorkspaces] failed to provision key for ${member.userId} in ${ws.id}:`, err?.message);
+          }
+        }
+      } catch (err) {
+        console.warn(`[useCloudWorkspaces] failed to check members for ${ws.id}:`, err?.message);
+      }
+    }
+  }
+
   return {
     workspaces,
     activeId,
@@ -166,5 +292,7 @@ export function useCloudWorkspaces() {
     addMember,
     removeMember,
     joinWorkspace,
+    provisionKeysForMember,
+    autoProvisionPendingKeys,
   };
 }

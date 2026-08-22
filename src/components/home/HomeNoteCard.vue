@@ -26,7 +26,7 @@
           {{ note.title || translations.card.untitledNote }}
         </div>
         <div
-          v-if="note.labels.length !== 0"
+          v-if="note.labels?.length"
           class="text-primary dark:text-primary mt-2 mb-1 w-full flex flex-wrap gap-1"
         >
           <span
@@ -228,7 +228,7 @@
           v-tooltip.group="translations.card.moveToFolder"
           :aria-label="translations.card.moveToFolder || 'Move to folder'"
           class="note-card__action size-7 aspect-square flex items-center justify-center rounded-lg hover:bg-black/5 dark:hover:bg-white/10 invisible group-hover:visible"
-          @click.stop="showMoveModal = true"
+          @click.stop="$emit('move', note)"
         >
           <v-remixicon name="riFolderTransferLine" class="size-5" />
         </button>
@@ -254,7 +254,6 @@
       </p>
     </div>
 
-    <folder-tree v-model="showMoveModal" :notes="[note]" mode="note" />
   </ui-card>
 </template>
 
@@ -262,14 +261,12 @@
 import dayjs from '@/lib/dayjs';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
 import { verifyPassphrase } from '@/utils/crypto/encryption.js';
 import { useGroupTooltip } from '@/composable/groupTooltip';
 import { getSettingSync } from '@/lib/settings';
 import { useTranslations } from '@/composable/useTranslations';
 import { useRouter } from 'vue-router';
 import { useDialog } from '@/lib/dialog';
-import FolderTree from './FolderTree.vue';
 import { useLabelStore } from '@/store/label';
 import { useSounds } from '@/composable/useSounds';
 
@@ -284,25 +281,26 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update', 'update:label']);
+const emit = defineEmits(['update', 'update:label', 'move']);
 
 const labelStore = useLabelStore();
 const router = useRouter();
 const dialog = useDialog();
-const showMoveModal = ref(false);
 const { play } = useSounds();
 
 const { translations } = useTranslations();
 
-const preview = computed(
-  () =>
-    props.note?.cardPreview || {
-      blocks: [],
-      hasMore: false,
-      mediaCount: 0,
-      visibleMediaCount: 0,
-    }
-);
+const preview = computed(() => {
+  const cp = props.note?.cardPreview;
+  return cp && (cp.blocks?.length || cp.hasMore || cp.mediaCount)
+    ? cp
+    : {
+        blocks: [],
+        hasMore: false,
+        mediaCount: 0,
+        visibleMediaCount: 0,
+      };
+});
 
 const previewMeta = computed(() => {
   const extraVisuals = Math.max(
@@ -454,6 +452,15 @@ function mediaIcon(tone) {
 
 .note-card.active-note .group-hover\:visible {
   visibility: visible;
+}
+
+/* Touch-primary devices (phones, tablets without a mouse): hover is unreliable,
+   so keep card actions visible instead of hover-revealed. */
+@media (hover: none) {
+  .note-card .invisible.group-hover\:visible,
+  .note-card__action.invisible {
+    visibility: visible !important;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {

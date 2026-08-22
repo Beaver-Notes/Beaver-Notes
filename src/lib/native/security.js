@@ -7,6 +7,14 @@ export function isEncryptionAvailable() {
   return backend.invoke('safeStorage:isEncryptionAvailable');
 }
 
+export function getSafeStorageBackendInfo() {
+  return backend.invoke('safeStorage:getBackendInfo');
+}
+
+export function setDevicePassword(password) {
+  return backend.invoke('safeStorage:setDevicePassword', password);
+}
+
 export function encryptString(plainText) {
   return backend.invoke('safeStorage:encryptString', plainText);
 }

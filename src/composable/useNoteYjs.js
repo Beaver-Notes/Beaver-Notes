@@ -13,7 +13,7 @@ import {
   applyUpdatesToDoc,
   toUint8Array,
   ensureSchema,
-} from '@/utils/yjs-helpers.js';
+} from '@/lib/yjs/helpers.js';
 import { getHocuspocusSync, setRoomKey } from '@/lib/sync/hocuspocus-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
@@ -24,6 +24,15 @@ import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared.js';
 
 const MAX_WRITE_RETRIES = 3;
 const WRITE_RETRY_DELAY_MS = 200;
+
+// Map the result of note-key resolution to the per-note "setting up on this
+// device" UI flag. Returns true when no key is available yet — with fan-out
+// inert until the teams phase, callers keep this false instead of spinning.
+// Pure + exported so it can be unit-tested without instantiating the
+// (lifecycle-bound) composable.
+export function applyNoteKeyResult(noteKeyHex) {
+  return !noteKeyHex;
+}
 
 async function retryWrite(fn, label) {
   for (let attempt = 1; attempt <= MAX_WRITE_RETRIES; attempt++) {
@@ -56,14 +65,33 @@ async function seedFromTipJson(ydoc, contentJson) {
 
 async function loadStateIntoDoc(newDoc, noteId) {
   const t = speed('yjs_load_snapshot');
+  let snapshotWasCorrupt = false;
   try {
     const snapshot = await getSnapshot(noteId);
     if (snapshot && snapshot.length > 0) {
-      Y.applyUpdate(newDoc, toUint8Array(snapshot));
+      // Defensive decode: the bytes fed to Yjs MUST be valid Yjs binary. The
+      // snapshot arrives as a base64 string over IPC (or a raw Uint8Array) and
+      // toUint8Array normalizes both to a Uint8Array. A corrupt/garbage
+      // snapshot (base64 string / JSON / half-decrypted blob from a bad cloud
+      // bootstrap) fails here and is discarded instead of mutating newDoc.
+      const bytes = toUint8Array(snapshot);
+      // Validate the snapshot in an isolated doc before touching the live
+      // document. If it fails to decode, drop it and fall back to replaying
+      // incremental updates.
+      const probe = new Y.Doc();
+      try {
+        Y.applyUpdate(probe, bytes);
+      } finally {
+        probe.destroy();
+      }
+      Y.applyUpdate(newDoc, bytes);
       t?.end();
       return;
     }
   } catch (err) {
+    // Snapshot decode failed ("Unknown content type", "Incomplete document",
+    // ...). Mark it so we can repair the cached copy after replaying updates.
+    snapshotWasCorrupt = true;
     console.error(`[yjs] Failed to load snapshot for ${noteId}:`, err);
   }
 
@@ -72,6 +100,20 @@ async function loadStateIntoDoc(newDoc, noteId) {
     applyUpdatesToDoc(newDoc, updates);
   } catch (err) {
     console.error(`[yjs] Failed to load updates for ${noteId}:`, err);
+  }
+
+  // Repair a corrupt cached snapshot with the freshly reconstructed state so it
+  // doesn't re-trigger the decode error on every subsequent open. Best-effort:
+  // a failure here only means we'll fall back again next time.
+  if (snapshotWasCorrupt && newDoc.store) {
+    try {
+      const rebuilt = Y.encodeStateAsUpdate(newDoc);
+      if (rebuilt.byteLength > 0) {
+        await compactUpdates(noteId, rebuilt);
+      }
+    } catch (repairErr) {
+      console.warn(`[yjs] could not repair snapshot for ${noteId}:`, repairErr);
+    }
   }
   t?.end();
 }
@@ -110,6 +152,9 @@ const COMPACT_UPDATE_THRESHOLD = 100;
 export function useNoteYjs() {
   const doc = shallowRef(null);
   const ready = ref(false);
+  // True while this device is waiting for a note key to be distributed to it
+  // (late joiner). Surfaces the transient "Setting up on this device…" state.
+  const pendingSetup = ref(false);
   let currentNoteId = null;
   let currentDoc = null;
 
@@ -156,6 +201,11 @@ export function useNoteYjs() {
 
   async function load(noteId, initialContent, initialTitle) {
     const t = speed('yjs_load_note');
+    // Reset the per-note "setting up on this device" flag up front so a stale
+    // `true` from a previous note can't leak into this note if its note-key
+    // resolution throws before the key result is applied.
+    pendingSetup.value = false;
+
     // Flush any pending updates for the *previous* note before switching.
     if (flushTimer) {
       clearTimeout(flushTimer);
@@ -215,27 +265,31 @@ export function useNoteYjs() {
     }
 
     newDoc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'hocuspocus') return;
       pendingUpdates.push(update);
       scheduleFlush();
     });
 
-    const hocuspocus = getHocuspocusSync();
-    try {
-      const workspaceStore = useWorkspaceStore();
-      const sharing = useNoteSharing();
-      const noteKeyHex = await sharing.ensureNoteKey(noteId);
-      if (noteKeyHex && workspaceStore.activeId) {
-        const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
-        await setRoomKey(roomName, noteKeyHex);
+      const hocuspocus = getHocuspocusSync();
+      try {
+        const workspaceStore = useWorkspaceStore();
+        const sharing = useNoteSharing();
+        const noteKeyHex = await sharing.ensureNoteKey(noteId);
+        if (noteKeyHex && workspaceStore.activeId) {
+          const roomName = `workspace:${workspaceStore.activeId}:note:${noteId}`;
+          await setRoomKey(roomName, noteKeyHex);
+        }
+      } catch (err) {
+        console.warn('[yjs] note-key provisioning skipped:', err);
       }
-    } catch (err) {
-      console.warn('[yjs] note-key provisioning skipped:', err);
-    }
-    hocuspocus.joinNoteRoom(noteId, newDoc);
-
+    // Register in the global active-docs map BEFORE joining the room so that
+    // any WS updates arriving during the join handshake are applied to the
+    // in-memory Y.Doc instead of being silently dropped.
     currentDoc = newDoc;
     registerActiveDoc(noteId, newDoc);
+
+    hocuspocus.joinNoteRoom(noteId, newDoc);
+
     doc.value = newDoc;
     ready.value = true;
     t?.end();
@@ -295,5 +349,5 @@ export function useNoteYjs() {
     }
   });
 
-  return { doc, ready, load, getTitle, setTitle, observeTitle };
+  return { doc, ready, pendingSetup, load, getTitle, setTitle, observeTitle };
 }

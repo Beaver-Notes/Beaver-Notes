@@ -7,6 +7,7 @@
       <ui-popover>
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="translations.toolbar?.turnInto || 'Turn into'"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 px-2 rounded-lg transition-colors flex items-center gap-1.5 text-sm font-medium text-neutral-700 dark:text-neutral-300"
           >
@@ -48,6 +49,7 @@
             class="flex items-center justify-between w-24 h-8 p-0.5 rounded-lg bg-neutral-50 dark:bg-neutral-900 overflow-hidden flex-shrink-0"
           >
             <button
+              v-keep-focus
               type="button"
               class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-lg transition-colors"
               @click.stop="
@@ -68,6 +70,7 @@
             />
 
             <button
+              v-keep-focus
               type="button"
               class="w-6 h-6 flex items-center justify-center hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 focus:outline-none rounded-lg transition-colors"
               @click.stop="
@@ -82,6 +85,7 @@
 
         <div class="flex flex-col max-h-44 overflow-y-auto no-scrollbar w-24">
           <button
+            v-keep-focus
             class="w-full p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs font-medium text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
             @click="
               editor.chain().focus().unsetFontSize().run();
@@ -94,6 +98,7 @@
           <button
             v-for="size in [10, 12, 14, 16, 18, 20, 24, 28, 32, 36]"
             :key="size"
+            v-keep-focus
             class="w-full p-1.5 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 text-left text-xs text-neutral-600 dark:text-neutral-400 transition-colors cursor-pointer"
             @click="
               editor
@@ -114,6 +119,7 @@
       <ui-popover>
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="'Align'"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 px-2 rounded-lg transition-colors flex items-center gap-1 text-neutral-600 dark:text-neutral-400"
           >
@@ -153,6 +159,7 @@
       <template v-for="item in visibleItems" :key="item.id">
         <button
           v-if="fmtMap[item.id]"
+          v-keep-focus
           v-tooltip.group="fmtMap[item.id].title"
           :class="
             editor.isActive(fmtMap[item.id].state)
@@ -168,6 +175,7 @@
 
       <button
         v-if="canComment"
+        v-keep-focus
         v-tooltip.group="translations.comments?.title || 'Comment'"
         class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
         @click="createCommentOnSelection"
@@ -181,6 +189,7 @@
       >
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="translations.menu.link"
             :class="
               editor.isActive('link')
@@ -208,6 +217,7 @@
               @keyup.enter="saveLinkInput"
             />
             <button
+              v-keep-focus
               class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-neutral-500"
               :title="translations.common?.cancel || 'Cancel'"
               @click="closeLinkInput"
@@ -215,6 +225,7 @@
               <v-remixicon name="riCloseLine" class="size-4" />
             </button>
             <button
+              v-keep-focus
               class="h-7 w-7 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors flex items-center justify-center text-primary"
               :title="translations.common?.save || 'Save'"
               :disabled="!linkInputValue.trim()"
@@ -265,6 +276,7 @@
       <ui-popover>
         <template #trigger>
           <button
+            v-keep-focus
             v-tooltip.group="translations.menu.highlight"
             class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
           >
@@ -285,6 +297,7 @@
 
           <div class="grid grid-cols-4 gap-1.5 mb-4 justify-items-center">
             <button
+              v-keep-focus
               class="w-7 h-7 flex items-center justify-center rounded-lg border hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-400 transition-colors"
               @click="editor.chain().focus().unsetColor().run()"
             >
@@ -294,6 +307,7 @@
             <button
               v-for="c in textColors"
               :key="c"
+              v-keep-focus
               class="w-7 h-7 rounded-lg border border-neutral-100 dark:border-neutral-800 hover:scale-105 active:scale-95 transition-transform flex items-center justify-center"
               :style="{ backgroundColor: c + '22' }"
               @click="setTextColor(c)"
@@ -314,6 +328,7 @@
 
           <div class="grid grid-cols-4 gap-1.5 justify-items-center">
             <button
+              v-keep-focus
               class="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 text-xs font-medium transition-colors"
               @click="editor.commands.unsetHighlight()"
             >
@@ -323,6 +338,7 @@
             <button
               v-for="c in highlighterColors"
               :key="c"
+              v-keep-focus
               :class="[
                 'w-7 h-7 rounded-lg hover:scale-105 active:scale-95 transition-transform shadow-sm border border-black/5',
                 c,

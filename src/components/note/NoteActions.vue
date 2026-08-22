@@ -221,6 +221,19 @@
           />
         </div>
 
+        <button
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          :class="{ 'text-primary': note.showWordCount }"
+          @click="toggleWordCount"
+        >
+          <v-remixicon name="riParagraph" />
+          <span
+            class="block text-sm font-medium dark:text-[color:var(--selected-dark-text)]"
+          >
+            {{ translations.noteActions?.wordCount || 'Word count' }}
+          </span>
+        </button>
+
         <hr class="border-t my-1 border-neutral-200 dark:border-neutral-700" />
 
         <!-- Copy note content -->
@@ -251,7 +264,7 @@
     class="editor-actions-mobile-shell sticky z-[160] no-print transition-opacity duration-150 w-full bg-white/90 dark:bg-neutral-900/90 top-0 mb-4 hidden mobile:flex"
     :style="shellStyle"
   >
-    <div class="flex w-full items-center justify-between p-1.5">
+    <div class="flex w-full items-center justify-between">
       <button
         aria-label="Back"
         class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
@@ -364,7 +377,6 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useNoteMenu } from '@/composable/useNoteMenu';
 import { useNoteStore } from '@/store/note';
-import { usePasswordStore } from '@/store/passwd';
 import { useClipboard } from '@/composable/clipboard';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
@@ -414,63 +426,33 @@ export default {
     );
 
     function lockNote() {
-      const passwordStore = usePasswordStore();
-      const noteStore = useNoteStore();
       const dialog = useDialog();
+      const noteStore = useNoteStore();
       const { translations } = useTranslations();
       const t = translations.value.card;
       const dlg = translations.value.dialog;
       const settings = translations.value.settings;
 
-      passwordStore.retrieve().then((hasSharedKey) => {
-        if (!hasSharedKey) {
-          dialog.prompt({
-            title: t.enterPasswd || 'Set a password',
-            okText: t.setKey || 'Set Key',
-            body: t.warning || 'Set a password to lock this note.',
-            cancelText: t.cancel || 'Cancel',
-            placeholder: t.password || 'Password',
-            onConfirm: async (newKey) => {
-              if (newKey) {
-                try {
-                  await passwordStore.setAppPassword(newKey);
-                  await verifyPassphrase(newKey);
-                  await noteStore.lockNote(props.note.id, newKey);
-                } catch {
-                  dialog.alert({
-                    title: t.keyFail || 'Error',
-                    body: t.keyFail || 'Failed to lock note.',
-                    okText: dlg?.close || 'Close',
-                  });
-                }
-              }
-            },
-          });
-        } else {
-          dialog.prompt({
-            title: t.enterPasswd || 'Enter password',
-            body:
-              t.warning ||
-              'Warning, if you forget your password, you will lose access to your locked notes.',
-            icon: 'riLockLine',
-            okText: t.lock || 'Lock',
-            cancelText: t.cancel || 'Cancel',
-            placeholder: t.password || 'Password',
-            onConfirm: async (enteredPassword) => {
-              const isValid =
-                await passwordStore.isValidPassword(enteredPassword);
-              if (isValid) {
-                await noteStore.lockNote(props.note.id, enteredPassword);
-              } else {
-                dialog.alert({
-                  title: settings?.alertTitle || 'Alert',
-                  body: t.wrongPasswd || 'Wrong password.',
-                  okText: dlg?.close || 'Close',
-                });
-              }
-            },
-          });
-        }
+      dialog.prompt({
+        title: t.enterPasswd || 'Enter passphrase',
+        body: t.warning || 'Enter your workspace passphrase to lock this note.',
+        icon: 'riLockLine',
+        okText: t.lock || 'Lock',
+        cancelText: t.cancel || 'Cancel',
+        placeholder: t.password || 'Passphrase',
+        password: true,
+        onConfirm: async (enteredPassword) => {
+          const result = await verifyPassphrase(enteredPassword);
+          if (result.ok) {
+            await noteStore.lockNote(props.note.id);
+          } else {
+            dialog.alert({
+              title: settings?.alertTitle || 'Alert',
+              body: result.error || t.wrongPasswd || 'Wrong passphrase.',
+              okText: dlg?.close || 'Close',
+            });
+          }
+        },
       });
     }
 
@@ -489,6 +471,12 @@ export default {
     function toggleFullWidth() {
       noteStore.update(props.note.id, {
         isFullWidth: !props.note.isFullWidth,
+      });
+    }
+
+    function toggleWordCount() {
+      noteStore.update(props.note.id, {
+        showWordCount: !props.note.showWordCount,
       });
     }
 
@@ -534,6 +522,7 @@ export default {
       toggleBookmark,
       toggleArchive,
       toggleFullWidth,
+      toggleWordCount,
       copyNoteContent,
       lockNote,
       syncStickyState,

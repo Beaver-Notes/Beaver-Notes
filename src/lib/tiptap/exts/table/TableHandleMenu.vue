@@ -144,7 +144,7 @@
 
 <script>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { getTranslations } from '@/utils/getTranslations';
+import { getTranslations } from '@/utils/i18n/getTranslations';
 import { getTable, getRowCells, getColumnCells, selectLastCell, TABLE_COLOR_SWATCHES, TABLE_ALIGN_OPTIONS } from './tiptap-table-utils.js';
 import { moveTableRow, moveTableColumn } from '@tiptap/pm/tables';
 

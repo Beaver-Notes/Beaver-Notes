@@ -2,11 +2,12 @@ name: beaver-notes
 options:
   bundleIdPrefix: com.beavernotes.beaver-notes
   deploymentTarget:
-    iOS: 14.0
+    iOS: 15.0
 fileGroups: [../../src]
 configs:
   debug: debug
   release: release
+packages: {}
 settingGroups:
   app:
     base:
@@ -41,6 +42,23 @@ targets:
         LSRequiresIPhoneOS: true
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
+        NSMicrophoneUsageDescription: Beaver Notes uses the microphone to record audio notes.
+        ITSAppUsesNonExemptEncryption: false
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoadsInWebContent: true
+        CFBundleIcons:
+          CFBundleAlternateIcons:
+            AppIcon 1: {}
+            AppIcon 2: {}
+            AppIcon 3: {}
+            AppIcon 4: {}
+            AppIcon 5: {}
+            AppIcon 6: {}
+            AppIcon 7: {}
+            AppIcon 8: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UISupportedInterfaceOrientations~ipad:
@@ -59,7 +77,6 @@ targets:
     settings:
       base:
         CODE_SIGN_STYLE: Automatic
-        DEVELOPMENT_TEAM: LAF7ZJN6TW
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: '"AppIcon 1" "AppIcon 2" "AppIcon 3" "AppIcon 4" "AppIcon 5" "AppIcon 6" "AppIcon 7" "AppIcon 8"'
         ENABLE_BITCODE: false
         ARCHS: [arm64]

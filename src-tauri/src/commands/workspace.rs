@@ -28,6 +28,10 @@ pub(crate) fn workspace_get_active(
             id: id.clone(),
             name: DEFAULT_WORKSPACE_NAME.to_string(),
             created_at: String::new(),
+            workspace_type: "personal".into(),
+            org_id: None,
+            owner_id: None,
+            cloud_sync: false,
         });
     Ok(ws)
 }
@@ -69,6 +73,10 @@ pub(crate) fn workspace_create(
         id: id.clone(),
         name,
         created_at: now,
+        workspace_type: "personal".into(),
+        org_id: None,
+        owner_id: None,
+        cloud_sync: false,
     };
 
     let mut registry = load_workspace_registry(&app, &state)?;
@@ -79,6 +87,57 @@ pub(crate) fn workspace_create(
     save_active_workspace_id(&app, &state, &id)?;
     swap_data_pool(&app, &state, &id)?;
     swap_settings_pool(&app, &state, &id)?;
+
+    Ok(ws)
+}
+
+/// Register a backend (cloud) workspace in the local registry so local mirrors
+/// of shared/cloud workspaces participate in removal reconciliation. Creates
+/// the workspace directory and DBs on first registration (like `workspace_create`),
+/// upserts the entry, and never changes the active workspace.
+#[tauri::command]
+#[specta::specta]
+pub(crate) fn workspace_register_cloud(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    name: String,
+    org_id: Option<String>,
+    owner_id: Option<String>,
+    workspace_type: Option<String>,
+    created_at: Option<String>,
+) -> Result<WorkspaceInfo, AppError> {
+    if id.is_empty() || id == DEFAULT_WORKSPACE_ID {
+        return Err(AppError::Other("Invalid workspace id".into()));
+    }
+
+    let ws_dir = workspace_root(&app, &state)?.join(&id);
+    if !ws_dir.exists() {
+        std::fs::create_dir_all(&ws_dir)?;
+        let data_path = ws_dir.join("data.db");
+        let _data_pool = crate::db::open_pool(&data_path)?;
+        let settings_path = ws_dir.join("settings.db");
+        let _settings_pool = crate::db::open_pool(&settings_path)?;
+    }
+
+    let now = created_at.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let ws = WorkspaceInfo {
+        id: id.clone(),
+        name,
+        created_at: now,
+        workspace_type: workspace_type.unwrap_or_else(|| "shared".into()),
+        org_id,
+        owner_id,
+        cloud_sync: true,
+    };
+
+    let mut registry = load_workspace_registry(&app, &state)?;
+    if let Some(existing) = registry.iter_mut().find(|w| w.id == id) {
+        *existing = ws.clone();
+    } else {
+        registry.push(ws.clone());
+    }
+    save_workspace_registry(&app, &state, &registry)?;
 
     Ok(ws)
 }

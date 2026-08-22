@@ -357,6 +357,8 @@
   "utilities": "Utilities",
   "warning": "Warning, if you forget your password, you'll lose access to your locked notes, and setting a new password will require knowing the old one.",
   "wrongCurrentPassword": "Wrong password, please try again",
+  "wrongBackupPassword": "Wrong backup password. The imported backup was encrypted with a password you set when exporting it, not your current workspace passphrase.",
+  "wrongWorkspacePassphrase": "Wrong workspace passphrase. The workspace passphrase is the passphrase you set during onboarding.",
   "todayDateFormat": "Today's date format",
   "todayDateFormatPlaceholder": "Enter date format (e.g., YYYY-MM-DD)",
   "currentTime": "Current time",
@@ -574,6 +576,11 @@
   "lockNote": "Lock note",
   "delete": "Delete",
   "fullWidth": "Full width",
+  "wordCount": "Word count",
+  "words": "words",
+  "wordLimit": "Word limit",
+  "setLimit": "Set",
+  "clearLimit": "Clear",
   "copied": "Copied!",
   "copyContent": "Copy content",
   "searchHeadings": "Search headings…",
@@ -674,5 +681,17 @@
   "fair": "Fair",
   "strong": "Strong",
   "veryStrong": "Very strong"
+ },
+ "devicePassword": {
+  "secureLocalStorageTitle": "Secure local storage",
+  "secureLocalStorageBody": "Beaver Notes could not find an OS keychain. To keep your account data and passphrase safe on this device, create a device password that encrypts the on-disk key. You will only need it if the system keyring becomes unavailable.",
+  "createDevicePassword": "Create password",
+  "skip": "Skip",
+  "setFailedTitle": "Could not set device password",
+  "reentryTitle": "Enter your device password",
+  "reentryBody": "Secure storage on this device is encrypted with a device password. Enter it to unlock your account data.",
+  "devicePasswordReentryTitle": "Enter your device password",
+  "devicePasswordReentryBody": "Enter your device password to unlock secure storage.",
+  "unlockDevicePassword": "Unlock"
  }
 }

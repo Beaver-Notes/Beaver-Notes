@@ -31,7 +31,7 @@
       <ui-input
         ref="passwordInput"
         v-model="password"
-        type="password"
+        :password="true"
         :placeholder="translations.settings?.password || 'Passphrase'"
         class="mt-4 w-full"
         :disabled="busy"

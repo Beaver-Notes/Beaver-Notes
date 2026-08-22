@@ -12,7 +12,7 @@ import {
 } from './constants.js';
 import { mergeIntoMap } from '@/lib/yjs/workspace-doc';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { yMapToObj } from '@/utils/yjs-helpers.js';
+import { yMapToObj } from '@/lib/yjs/helpers.js';
 
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -27,6 +27,7 @@ function yieldToUi() {
 // debounced note saves) reuse the previous result instead of re-reading disk.
 
 const REMOTE_LISTING_TTL_MS = 30000;
+const MAX_CACHE_ENTRIES = 500;
 
 const remoteListingCache = new Map();
 
@@ -40,6 +41,11 @@ async function cachedReadDir(dirPath, useCache) {
   const entries = await readSyncDir(dirPath)
     .then((e) => e.filter((n) => !isIgnoredAssetEntry(n)))
     .catch(() => []);
+  // Evict oldest entries when cache exceeds limit
+  if (remoteListingCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = remoteListingCache.keys().next().value;
+    remoteListingCache.delete(oldest);
+  }
   remoteListingCache.set(dirPath, { t: Date.now(), entries });
   return entries;
 }
@@ -106,6 +112,8 @@ export async function syncAssets(
         cachedReadDir(remoteNoteDir, true),
       ]);
 
+      const localFileSet = new Set(localFiles);
+
       // map remote filenames (potentially .enc legacy) to local names
       const remoteFileMap = Object.fromEntries(
         remoteFiles.map((f) => [localAssetName(f), f])
@@ -116,7 +124,7 @@ export async function syncAssets(
 
       for (const file of allNames) {
         const assetKey = `${assetType}/${noteId}/${file}`;
-        const hasLocally = localFiles.includes(file);
+        const hasLocally = localFileSet.has(file);
         const remoteName = remoteFileMap[file];
         const hasRemotely = Boolean(remoteName);
 

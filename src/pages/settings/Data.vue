@@ -88,6 +88,17 @@
         </div>
 
         <div
+          v-if="syncProgressStore.attention?.tone === 'action'"
+          class="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm flex items-center justify-between gap-2"
+          role="alert"
+        >
+          <span>{{ syncProgressStore.attention.text }}</span>
+          <button class="shrink-0 opacity-70 hover:opacity-100" aria-label="Dismiss" @click="syncProgressStore.dismissError()">
+            <v-remixicon name="riCloseLine" size="16" />
+          </button>
+        </div>
+
+        <div
           v-if="state.syncPath || (cloudSync.isAuthenticated && cloudSync.isPaid)"
           class="border-t border-neutral-200 dark:border-neutral-700 flex items-center justify-between gap-3 px-4 py-3.5"
         >
@@ -115,24 +126,16 @@
 
         <transition name="setting-fade">
           <div
-            v-if="syncProgress?.phase === 'assets' && syncProgress.total > 0"
+            v-if="syncProgressStore.isSyncing && syncProgressStore.total > 0"
             class="px-4 pb-4"
           >
             <p class="text-xs text-primary">
-              {{ Math.min(100, Math.floor((syncProgress.processed /
-              syncProgress.total) * 100)) }}%)
+              {{ syncProgressStore.phaseMessage }}
             </p>
             <div class="mt-1.5 h-1.5 rounded bg-primary/70 dark:bg-primary/20">
               <div
                 class="h-1.5 rounded bg-primary dark:bg-primary/80 transition-all duration-200"
-                :style="{
-                  width: `${Math.min(
-                    100,
-                    Math.floor(
-                      (syncProgress.processed / syncProgress.total) * 100
-                    )
-                  )}%`,
-                }"
+                :style="{ width: syncProgressStore.progress + '%' }"
               />
             </div>
           </div>
@@ -431,24 +434,6 @@
             </p>
           </div>
           <div class="mt-auto space-y-2 pt-2">
-            <label
-              class="editor-checkbox text-sm text-neutral-700 dark:text-neutral-200"
-            >
-              <input v-model="state.withPassword" type="checkbox" />
-              <span>{{
-                translations.settings.encryptPasswd || 'Encrypt'
-              }}</span>
-            </label>
-            <expand-transition>
-              <ui-input
-                v-if="state.withPassword"
-                v-model="state.password"
-                :placeholder="translations.settings.password || 'Password'"
-                class="w-full"
-                style="-webkit-text-security: disc"
-                autofocus
-              />
-            </expand-transition>
             <ui-button class="w-full" @click="exportData(defaultPath)">{{
               translations.settings.exportData || 'Export'
             }}</ui-button>
@@ -498,14 +483,15 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsData } from '@/composable/useSettingsData';
 import { useSettingsCloudSync } from '@/utils/sync/settings-cloud-sync';
 import { useImportExport } from '@/utils/import/import-export';
-import { usePasswordStore } from '@/store/passwd';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
 import { useStorage } from '@/lib/storage';
 import { useAccountStore } from '@/store/account';
+import { useSyncProgressStore } from '@/store/sync-progress';
 import { getAccount } from '@/lib/api/account';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 import { clipboard } from '@/lib/tauri-bridge';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { forceSyncNow } from '@/utils/sync';
 
 export default {
@@ -513,13 +499,10 @@ export default {
     const { translations } = useTranslations();
     const dialog = useDialog();
     const storage = useStorage();
-    const passwordStore = usePasswordStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
     const accountStore = useAccountStore();
-    const isMacOS = computed(() =>
-      window.navigator.platform.toLowerCase().includes('mac')
-    );
+    const isMacOS = computed(() => isMacOSRuntime());
 
     const lastSyncAt = ref(Number(localStorage.getItem('sync:lastRunAt') || 0));
     const syncState = ref({ syncing: false });
@@ -548,25 +531,25 @@ export default {
         lastSyncAt.value = Date.now();
         localStorage.setItem('sync:lastRunAt', String(lastSyncAt.value));
       } catch {
-        // Toast handled by existing 'sync:error' listener
+        // Failure surfaces via syncProgressStore.attention (sync:status listener)
       } finally {
         syncState.value = { syncing: false };
       }
     }
+
+    const syncProgressStore = useSyncProgressStore();
 
     const {
       state,
       defaultPath,
       chooseDefaultPath,
       clearPath,
-      syncProgress,
       exportData,
       importData,
     } = useSettingsData({
       dialog,
       folderStore,
       noteStore,
-      passwordStore,
       storage,
       translations,
     });
@@ -618,7 +601,7 @@ export default {
       defaultPath,
       chooseDefaultPath,
       clearPath,
-      syncProgress,
+      syncProgressStore,
       cloudSync,
       SYNC_TRANSPORT,
       exportData,
@@ -646,38 +629,3 @@ export default {
   },
 };
 </script>
-<style scoped>
-.editor-checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.editor-checkbox input[type='checkbox'] {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 9999px;
-  border: 2px solid #ccc;
-  cursor: pointer;
-  position: relative;
-  margin: 0;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-.editor-checkbox input[type='checkbox']:checked {
-  @apply bg-primary border-primary;
-}
-.editor-checkbox input[type='checkbox']:checked::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 16px;
-  height: 16px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10.0007 15.1709L19.1931 5.97852L20.6073 7.39273L10.0007 17.9993L3.63672 11.6354L5.05093 10.2212L10.0007 15.1709Z' fill='white'/%3E%3C/svg%3E");
-  background-size: contain;
-  background-repeat: no-repeat;
-  background-position: center;
-  transform: translate(-50%, -50%);
-}
-</style>

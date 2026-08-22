@@ -8,6 +8,11 @@
     class="safe-area-overlay safe-area-overlay--bottom"
   />
   <app-command-prompt />
+  <div
+    id="pill-dock"
+    class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2 mobile:bottom-[calc(var(--app-keyboard-inset-bottom)+4.25rem)]"
+  ></div>
+  <recording-pill />
   <app-encryption-gate
     v-if="appEncryptionGate.show && !appEncryptionGate.deriving"
     @unlocked="handleEncryptionUnlocked"
@@ -41,13 +46,18 @@
   </div>
 
   <div class="flex h-screen w-screen overflow-hidden">
-    <app-sidebar v-if="onboardingCompleted" v-show="showSidebar" class="mobile:hidden shrink-0" aria-label="Sidebar" />
+    <app-sidebar
+      v-if="onboardingCompleted"
+      v-show="showSidebar"
+      class="mobile:hidden shrink-0"
+      aria-label="Sidebar"
+    />
     <main
       id="app-main"
       ref="mainRef"
       v-if="retrieved"
       data-testid="app-main"
-      class="flex-1 min-w-0 overflow-y-auto mobile:pl-0 print:p-2"
+      class="flex-1 min-w-0 overflow-y-auto mobile:pl-0 mobile:scroll-pb-[calc(var(--app-keyboard-inset-bottom)+4.5rem)] print:p-2"
       :style="mainStyle"
       tabindex="-1"
     >
@@ -76,6 +86,7 @@
         :style="bottomBannerStyle"
       >
         <ui-banner
+          icon="riLockLine"
           :content="syncLockBannerCopy.content"
           :primary-text="syncLockBannerCopy.primaryText"
           :secondary-text="syncLockBannerCopy.secondaryText"
@@ -91,6 +102,7 @@
         :style="bottomBannerStyle"
       >
         <ui-banner
+          icon="riLockLine"
           :content="appEncryptionMigrationBannerCopy.content"
           :primary-text="appEncryptionMigrationBannerCopy.primaryText"
           :secondary-text="appEncryptionMigrationBannerCopy.secondaryText"
@@ -131,7 +143,12 @@
     @cancel="handleImportCancel"
   />
 
-  <div id="a11y-live-region" aria-live="polite" aria-atomic="true" class="sr-only"></div>
+  <div
+    id="a11y-live-region"
+    aria-live="polite"
+    aria-atomic="true"
+    class="sr-only"
+  ></div>
 </template>
 
 <script>
@@ -142,12 +159,15 @@ import AppSidebar from './components/app/AppSidebar.vue';
 import AppCommandPrompt from './components/app/AppCommandPrompt.vue';
 import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
+import RecordingPill from './components/note/RecordingPill.vue';
 import { useAppShell } from './composable/useAppShell';
 import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
+import { useDevicePasswordSetup } from './composable/useDevicePasswordSetup';
 import AppNavbar from './components/app/AppNavbar.vue';
 import { getSettingSync } from '@/lib/settings';
+import { useTranslations } from '@/composable/useTranslations';
 
 export default {
   components: {
@@ -157,13 +177,19 @@ export default {
     AppNavbar,
     ImportFolderPicker,
     AppEncryptionGate,
+    RecordingPill,
   },
   setup() {
+    const { translations } = useTranslations();
     const onboardingCompleted = ref(getSettingSync('onboardingCompleted'));
     const shell = useAppShell(onboardingCompleted.value);
     const mainRef = ref(null);
     const accountStore = useAccountStore();
     const cloudWorkspaces = useCloudWorkspaces();
+    const {
+      setupState: devicePasswordSetupState,
+      maybePrompt: maybePromptDevicePassword,
+    } = useDevicePasswordSetup();
     const route = useRoute();
 
     watch(
@@ -173,8 +199,46 @@ export default {
           await cloudWorkspaces.fetchWorkspaces();
         }
       },
-      { immediate: true }
+      { immediate: true },
     );
+
+    // After a successful device-password re-entry, the master key becomes
+    // readable again — but the startup session hydration already failed (it
+    // ran before the KEK was supplied), so the user would stay logged out
+    // until restart. Re-run the minimal hydration: load the now-readable
+    // session token, mark the store authenticated, and fetch the profile.
+    const hydrateAccountSessionAfterDeviceUnlock = async () => {
+      if (accountStore.isAuthenticated) return;
+      const { loadSessionToken } = await import('@/lib/account-storage');
+      const token = await loadSessionToken().catch(() => null);
+      if (!token) return;
+      accountStore.setToken(token);
+      accountStore.setStatus('authenticated');
+      import('@/lib/api/account')
+        .then(({ getAccount }) =>
+          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
+            if (!data) return;
+            accountStore.setProfile(data.profile);
+            accountStore.setSubscription(data.subscription);
+            accountStore.setDevices(data.devices || []);
+          }),
+        )
+        .catch(() => {});
+      const { useWorkspaceStore } = await import('@/store/workspace.ts');
+      useWorkspaceStore()
+        .retrieve()
+        .catch((err) =>
+          console.warn(
+            '[app] workspace hydrate after device unlock failed:',
+            err,
+          ),
+        );
+    };
+
+    watch(devicePasswordSetupState, async (state) => {
+      if (state !== 'done') return;
+      await hydrateAccountSessionAfterDeviceUnlock();
+    });
 
     // When onboarding completes and we leave the Onboarding route, flip the
     // reactive flag. This triggers the watcher below which starts init + hocuspocus.
@@ -185,23 +249,20 @@ export default {
           const done = getSettingSync('onboardingCompleted');
           if (done) onboardingCompleted.value = true;
         }
-      }
+      },
     );
 
     // When onboardingCompleted flips true (first-time user finishing onboarding),
     // run the shell init in the background and start hocuspocus.
-    watch(
-      onboardingCompleted,
-      (val) => {
-        if (val) {
-          shell.initializeWorkspace().catch((err) => {
-            console.error('[app] workspace init after onboarding failed:', err);
-          });
-          const hocuspocus = getHocuspocusSync();
-          hocuspocus.start();
-        }
+    watch(onboardingCompleted, (val) => {
+      if (val) {
+        shell.initializeWorkspace().catch((err) => {
+          console.error('[app] workspace init after onboarding failed:', err);
+        });
+        const hocuspocus = getHocuspocusSync();
+        hocuspocus.start();
       }
-    );
+    });
 
     function skipToMain() {
       const main = document.getElementById('app-main');
@@ -215,6 +276,7 @@ export default {
         const hocuspocus = getHocuspocusSync();
         hocuspocus.start();
       }
+      maybePromptDevicePassword();
     });
 
     onBeforeUnmount(() => {
@@ -224,7 +286,13 @@ export default {
       }
     });
 
-    return { ...shell, mainRef, skipToMain, onboardingCompleted };
+    return {
+      ...shell,
+      mainRef,
+      skipToMain,
+      onboardingCompleted,
+      translations,
+    };
   },
 };
 </script>

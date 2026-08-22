@@ -2,8 +2,9 @@ import { initSyncEngine, getSyncEngine } from './engine.js';
 import { useStorage } from '@/lib/storage';
 import { getSettingSync } from '@/lib/settings';
 import { useAccountStore } from '@/store/account';
+import { useSyncProgressStore } from '@/store/sync-progress';
 import { getSyncPath } from './path.js';
-import { SYNC_TRANSPORT } from '@/lib/api/types';
+import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { LocalFolderTransport } from './transports/local-folder.js';
 import { CloudTransport } from './transports/cloud.js';
 
@@ -21,6 +22,9 @@ function passphraseProvider() {
  * folder a sync cycle is a no-op.
  */
 export async function initAppSync() {
+  const syncProgressStore = useSyncProgressStore();
+  syncProgressStore.startListening();
+
   initSyncEngine({
     transports: {
       local: new LocalFolderTransport({ passphraseProvider }),
@@ -39,10 +43,9 @@ export async function initAppSync() {
     },
     storage: useStorage(),
     getActiveTransports: () => {
-      const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
+      const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
       if (transport === SYNC_TRANSPORT.FOLDER) return ['local'];
-      if (transport === SYNC_TRANSPORT.REMOTE) return ['cloud'];
-      return ['local', 'cloud'];
+      return ['cloud'];
     },
   });
 
@@ -54,7 +57,7 @@ export async function initAppSync() {
   // for them. Once a folder is chosen (or the user signs in and enables cloud)
   // the engine cycles get triggered on demand / via useAppShell.
   const syncPath = await getSyncPath();
-  const transport = getSettingSync('syncTransport') || SYNC_TRANSPORT.FOLDER;
+  const transport = normalizeSyncTransport(getSettingSync('syncTransport'));
   const wantsCloud = transport !== SYNC_TRANSPORT.FOLDER;
   const accountStore = useAccountStore();
   const hasSyncTarget =

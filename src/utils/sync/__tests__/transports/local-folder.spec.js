@@ -50,7 +50,7 @@ describe('LocalFolderTransport', () => {
       const { getSyncPath } = await import('../../path.js');
       getSyncPath.mockResolvedValue(null);
       const result = await transport.pull({});
-      expect(result).toEqual({ updates: [], cursorsDelta: {} });
+      expect(result).toEqual({ updates: [] });
     });
 
     it('returns updates from listRemoteYjsUpdates', async () => {
@@ -58,7 +58,7 @@ describe('LocalFolderTransport', () => {
       getSyncPath.mockResolvedValue('/mock/sync');
       const { listRemoteYjsUpdates } = await import('../../sync-yjs.js');
       listRemoteYjsUpdates.mockResolvedValue([
-        { device: 'other-device', ts: 100, seq: 0, noteId: 'note-a', update: new Uint8Array([1, 2, 3]) },
+        { device: 'other-device', ts: 100, sequence: 0, noteId: 'note-a', update: new Uint8Array([1, 2, 3]) },
       ]);
 
       const { ensureCommitsDir } = await import('../../sync-repository.js');
@@ -78,14 +78,14 @@ describe('LocalFolderTransport', () => {
       listRemoteYjsUpdates.mockRejectedValue(new Error('fail'));
 
       const result = await transport.pull({});
-      expect(result).toEqual({ updates: [], cursorsDelta: {} });
+      expect(result).toEqual({ updates: [] });
     });
   });
 
   describe('push', () => {
     it('returns no-op (folder writes happen outside engine cycle)', async () => {
       const result = await transport.push({});
-      expect(result).toEqual({ updates: [], cursorsDelta: {}, pushed: 0 });
+      expect(result).toEqual({ updates: [], pushed: 0 });
     });
   });
 

@@ -113,24 +113,67 @@ export function useSettingsAccount({ dialog, translations }) {
 
   async function detectAndPromptVaultJoin() {
     try {
-      const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
-      const { detectRemoteVaultJoin } = await import('@/utils/onboarding/remote-vault-join.js');
-      const { hasRemoteVaultKeyParams } = await import('@/utils/crypto/encryption.js');
-      const { isKeyLoaded } = await import('@/utils/crypto/encryption.js');
+      const { fetchCloudKeyParams, getFetchedCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+      const { hasRemoteVaultKeyParams, adoptVaultKey } = await import('@/utils/crypto/encryption.js');
 
-      // If encryption key is already loaded, no need to prompt
-      if (isKeyLoaded()) return;
-
-      const hasVault = await detectRemoteVaultJoin({
-        fetchCloudKeyParams,
-        hasRemoteVaultKeyParams,
-      }).catch(() => false);
+      // Authoritative signal: the remote vault differs from this device's local
+      // manifest (or no local manifest exists). We deliberately do NOT skip when
+      // a local key is loaded — a wrong local key must still be re-imported.
+      await fetchCloudKeyParams({ force: true }).catch(() => null);
+      const hasVault = await hasRemoteVaultKeyParams().catch(() => false);
 
       if (hasVault) {
-        dialog.alert({
+        dialog.confirm({
           title: translations.value.account?.vaultDetected || 'Vault detected',
-          body: translations.value.account?.vaultDetectedBody || 'A vault was found in your sync source. Go to Settings > Security > "Import vault from sync" to unlock your notes.',
-          okText: translations.value.dialog?.close || 'Close',
+          body: translations.value.account?.vaultDetectedBody || 'A vault was found in your sync source. Import it to unlock your notes.',
+          icon: 'riShieldKeyholeLine',
+          okText: translations.value.account?.importVault || 'Import',
+          cancelText: translations.value.dialog?.cancel || 'Cancel',
+          onConfirm: () => {
+            dialog.prompt({
+              title: translations.value.account?.vaultPasswordTitle || 'Enter vault password',
+              body: translations.value.account?.vaultPasswordBody || 'Enter the password for the existing encrypted vault in your sync source.',
+              icon: 'riLockLine',
+              okText: translations.value.account?.importVault || 'Import',
+              cancelText: translations.value.dialog?.cancel || 'Cancel',
+              placeholder: translations.value.settings?.password || 'Vault password',
+              password: true,
+              onConfirm: async (pass) => {
+                if (!pass) {
+                  dialog.alert({
+                    title: translations.value.settings?.alertTitle || 'Alert',
+                    body: translations.value.settings?.invalidPassword || 'Enter the vault password.',
+                    okText: translations.value.dialog?.close || 'Close',
+                  });
+                  return;
+                }
+                try {
+                  const fetched = getFetchedCloudKeyParams();
+                  const res = await adoptVaultKey(pass, fetched?.paramsBlob);
+                  if (!res.ok) {
+                    dialog.alert({
+                      title: translations.value.settings?.alertTitle || 'Alert',
+                      body: res.error || 'Failed to import the vault. Check the password.',
+                      okText: translations.value.dialog?.close || 'Close',
+                    });
+                    return;
+                  }
+                  dialog.alert({
+                    title: translations.value.account?.vaultImported || 'Vault imported',
+                    body: translations.value.account?.vaultImportedBody || 'The vault has been imported. The app will reload.',
+                    okText: translations.value.dialog?.close || 'Close',
+                    onConfirm: () => window.location.reload(),
+                  });
+                } catch (e) {
+                  dialog.alert({
+                    title: translations.value.settings?.alertTitle || 'Alert',
+                    body: e?.message || 'Failed to import the vault.',
+                    okText: translations.value.dialog?.close || 'Close',
+                  });
+                }
+              },
+            });
+          },
         });
       }
     } catch (e) {

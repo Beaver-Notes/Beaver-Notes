@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    sync::{atomic::Ordering, Condvar, Mutex},
 };
 
 use aes_gcm::{
@@ -19,7 +18,6 @@ use chacha20poly1305::{
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use hmac::Hmac;
-use keyring::Entry;
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -27,15 +25,19 @@ use serde_json::Value;
 use sha2::Sha256;
 use tauri::AppHandle;
 
-use super::super::{
-    app_encryption_manifest_path, get_settings_value, AppError, AppState, SAFE_STORAGE_SERVICE,
-};
+use super::super::{app_encryption_manifest_path, get_settings_value, AppError, AppState};
 
-pub(crate) const SAFE_STORAGE_MASTER_ACCOUNT: &str = "__safe_storage_master_key__";
 pub(crate) const PBKDF2_ITERATIONS: u32 = 100_000;
-pub(crate) const ARGON2_MEMORY_KIB: u32 = 32 * 1024;
-pub(crate) const ARGON2_ITERATIONS: u32 = 2;
-pub(crate) const ARGON2_PARALLELISM: u32 = 2;
+pub(crate) const ARGON2_MEMORY_KIB: u32 = 131_072; // 128 MiB (Amendment 1)
+pub(crate) const ARGON2_ITERATIONS: u32 = 3;
+pub(crate) const ARGON2_PARALLELISM: u32 = 4;
+/// Original Argon2id parameters used by historical v3 note envelopes and v3
+/// manifests before Amendment 1. Pinned forever: the legacy Electron migration
+/// flow (`derive_argon2_key`) derives note KEKs through these constants, so a
+/// bump here would make every existing locked note undecryptable.
+pub(crate) const LEGACY_ARGON2_MEMORY_KIB: u32 = 32768; // 32 MiB
+pub(crate) const LEGACY_ARGON2_ITERATIONS: u32 = 2;
+pub(crate) const LEGACY_ARGON2_PARALLELISM: u32 = 2;
 pub(crate) const ENCRYPTION_MANIFEST_VERSION: u8 = 4;
 pub(crate) const APP_PASSWORD_CHECK: &str = "BeaverNotes-app-manifest-v4";
 pub(crate) const APP_ENCRYPTION_SCOPE: &str = "app";
@@ -109,8 +111,6 @@ pub(crate) struct EncryptionManifest {
     pub(crate) recovery_kek: Option<WrappedKeyEnvelope>,
 }
 
-const MASTER_KEY_FILE: &str = "master.key";
-
 fn derive_kek(passphrase: &str, salt: &[u8]) -> [u8; 32] {
     let _t = crate::shared::speed_log::scope("keys.derive_kek_pbkdf2");
     let mut key = [0_u8; 32];
@@ -125,6 +125,23 @@ pub(crate) fn derive_kek_argon2id(passphrase: &str, salt: &[u8]) -> Result<[u8; 
         ARGON2_MEMORY_KIB,
         ARGON2_ITERATIONS,
         ARGON2_PARALLELISM,
+    )
+}
+
+/// Derive a KEK under the pinned LEGACY_ARGON2_* parameters. Used exclusively
+/// by the legacy-note migration path (`derive_argon2_key` command), which must
+/// reproduce historical v3 derivations byte-for-byte regardless of any future
+/// change to the module defaults.
+pub(crate) fn derive_kek_argon2id_legacy(
+    passphrase: &str,
+    salt: &[u8],
+) -> Result<[u8; 32], AppError> {
+    derive_kek_argon2id_with_params(
+        passphrase,
+        salt,
+        LEGACY_ARGON2_MEMORY_KIB,
+        LEGACY_ARGON2_ITERATIONS,
+        LEGACY_ARGON2_PARALLELISM,
     )
 }
 
@@ -176,7 +193,7 @@ pub(crate) fn derive_kek_from_manifest(
     }
 }
 
-fn random_key() -> [u8; 32] {
+pub(crate) fn random_key() -> [u8; 32] {
     let mut key = [0_u8; 32];
     rand::thread_rng().fill_bytes(&mut key);
     key
@@ -527,7 +544,17 @@ pub(crate) fn derive_items_key_from_params(
     passphrase: &str,
 ) -> Result<([u8; 32], [u8; 32]), AppError> {
     let salt = hex::decode(params.salt_hex.trim())?;
-    let kek = derive_kek_argon2id(passphrase, &salt)?;
+    // Use the KDF parameters the vault was published with — never the module
+    // defaults. A vault may have been created with different Argon2 settings
+    // (e.g. a legacy 16 MiB manifest), and deriving with the defaults yields a
+    // different KEK and a spurious WrongPassword for the correct passphrase.
+    let kek = derive_kek_argon2id_with_params(
+        passphrase,
+        &salt,
+        params.argon2_memory_kib,
+        params.argon2_iterations,
+        params.argon2_parallelism,
+    )?;
     let items_key = decrypt_bytes_with_key(&kek, &params.wrapped_items_key)
         .map_err(|_| AppError::WrongPassword)?;
     if items_key.len() != 32 {
@@ -716,9 +743,6 @@ pub(crate) fn unlock_key_from_manifest(
         if check != password_check.as_bytes() {
             return Err(AppError::WrongPassword);
         }
-    }
-    if key.len() != 32 {
-        return Err(AppError::Crypto("Wrapped key is corrupted.".into()));
     }
     let mut out = [0_u8; 32];
     out.copy_from_slice(&key[..32]);
@@ -995,137 +1019,6 @@ pub(crate) fn decrypt_note_row_from_storage(
         }
     }
     Ok(Value::Object(note))
-}
-
-/// Master-key resolution state. `Loading` means a thread is currently inside
-/// the (slow) Keychain/file read; concurrent cold callers wait on
-/// `MASTER_KEY_CONDVAR` and reuse the single result instead of issuing several
-/// Keychain IPC round-trips (each of which costs seconds on macOS).
-enum MasterKeyState {
-    Pending,
-    Loading,
-    Ready(Vec<u8>),
-}
-
-static MASTER_KEY_STATE: Mutex<MasterKeyState> = Mutex::new(MasterKeyState::Pending);
-static MASTER_KEY_CONDVAR: Condvar = Condvar::new();
-
-pub(crate) fn read_master_key() -> Result<Vec<u8>, AppError> {
-    let _t = crate::shared::speed_log::scope("keys.read_master_key");
-    let mut state = MASTER_KEY_STATE
-        .lock()
-        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-    loop {
-        match &*state {
-            MasterKeyState::Ready(key) => return Ok(key.clone()),
-            MasterKeyState::Pending => break,
-            MasterKeyState::Loading => {
-                state = MASTER_KEY_CONDVAR
-                    .wait(state)
-                    .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-            }
-        }
-    }
-    *state = MasterKeyState::Loading;
-    drop(state);
-
-    let result = read_master_key_from_store();
-
-    let mut state = MASTER_KEY_STATE
-        .lock()
-        .map_err(|_| AppError::Other("Master key lock poisoned".into()))?;
-    match &result {
-        Ok(key) => *state = MasterKeyState::Ready(key.clone()),
-        // Transient Keychain failures retry next call.
-        Err(_) => *state = MasterKeyState::Pending,
-    }
-    MASTER_KEY_CONDVAR.notify_all();
-    result
-}
-
-fn read_master_key_from_store() -> Result<Vec<u8>, AppError> {
-    if super::KEYRING_AVAILABLE.load(Ordering::Relaxed) {
-        if let Ok(entry) = Entry::new(SAFE_STORAGE_SERVICE, SAFE_STORAGE_MASTER_ACCOUNT) {
-            if let Ok(stored) = entry.get_password() {
-                return BASE64.decode(stored.as_bytes()).map_err(AppError::from);
-            }
-
-            let mut key = vec![0_u8; 32];
-            rand::thread_rng().fill_bytes(&mut key);
-            if entry.set_password(&BASE64.encode(&key)).is_ok() {
-                return Ok(key);
-            }
-        }
-        super::KEYRING_AVAILABLE.store(false, Ordering::Relaxed);
-    }
-
-    file_based_master_key()
-}
-
-pub(crate) fn file_based_master_key() -> Result<Vec<u8>, AppError> {
-    let app_dir = dirs::data_local_dir()
-        .ok_or_else(|| AppError::Other("Cannot determine data directory".into()))?
-        .join("com.beavernotes.beaver-notes");
-    let key_path = app_dir.join(MASTER_KEY_FILE);
-
-    if !key_path.exists() {
-        // Fail closed: never mint a fresh plaintext master key next to the
-        // data when the OS keychain is unavailable.
-        return Err(AppError::Other(
-            "OS keychain unavailable and no existing master key file found.".into(),
-        ));
-    }
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let perms = fs::metadata(&key_path)?.permissions();
-        if perms.mode() & 0o077 != 0 {
-            fs::set_permissions(&key_path, fs::Permissions::from_mode(0o600))?;
-        }
-    }
-    let raw = fs::read_to_string(&key_path)?;
-    let key_bytes = BASE64.decode(raw.trim().as_bytes())?;
-    if key_bytes.len() != 32 {
-        return Err(AppError::Crypto(
-            "Invalid file-based master key length".into(),
-        ));
-    }
-    Ok(key_bytes)
-}
-
-pub(crate) fn safe_storage_encrypt_bytes(bytes: &[u8]) -> Result<String, AppError> {
-    let key = read_master_key()?;
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    let mut iv = [0_u8; 12];
-    rand::thread_rng().fill_bytes(&mut iv);
-    let encrypted = cipher.encrypt(Nonce::from_slice(&iv), bytes)?;
-    let mut payload = iv.to_vec();
-    payload.extend_from_slice(&encrypted);
-    Ok(BASE64.encode(payload))
-}
-
-pub(crate) fn safe_storage_decrypt_bytes(value: &str) -> Result<Vec<u8>, AppError> {
-    let key = read_master_key()?;
-    let payload = BASE64.decode(value.as_bytes())?;
-    if payload.len() < 13 {
-        return Err(AppError::Crypto("Invalid encrypted payload".into()));
-    }
-    let (iv, ciphertext) = payload.split_at(12);
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key));
-    cipher
-        .decrypt(Nonce::from_slice(iv), ciphertext)
-        .map_err(AppError::from)
-}
-
-pub(crate) fn allowed_blob_key(key: &str) -> Result<(), AppError> {
-    if super::super::ALLOWED_BLOB_KEYS.contains(&key) {
-        Ok(())
-    } else {
-        Err(AppError::Other(format!(
-            "[safeStorage] Unsupported blob key: {key}"
-        )))
-    }
 }
 
 #[cfg(test)]

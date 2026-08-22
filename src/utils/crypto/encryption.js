@@ -78,10 +78,19 @@ export async function setupEncryption(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams().catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys
+    // instead of writing this device's own keys and overwriting the server.
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    // Adopt the server's keys using the passphrase so we decrypt with the
+    // correct key immediately — without this, submitEncryptionPassword created
+    // a local key and all subsequent writes use the wrong key until the first
+    // engine cycle's reconcile runs.
+    await reconcileSyncKeyParams(passphrase).catch(() => {});
+    // NEVER auto-publish key params here.  If fetchCloudKeyParams returned null
+    // (workspace not loaded, network glitch, 404), publishCloudKeyParams would
+    // overwrite the vault owner's keys with this device's freshly-generated key.
+    // Key params are published only by seedCloudOnce and adoptVaultKey.
     return { ok: true };
   } catch (err) {
     console.error('[encryption] setup failed:', err);
@@ -102,14 +111,17 @@ export async function verifyPassphrase(passphrase) {
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
-    reconcileSyncKeyParams(passphrase).catch(() => {});
-    import('@/utils/sync/vault-key-params.js')
-      .then((m) => m.publishCloudKeyParams())
-      .catch(() => {});
+    // Fetch server key params FIRST so reconcile adopts the vault owner's keys.
+    const { fetchCloudKeyParams } = await import('@/utils/sync/vault-key-params.js');
+    await fetchCloudKeyParams().catch(() => null);
+    // Adopt the server's keys with the passphrase — same as setupEncryption.
+    await reconcileSyncKeyParams(passphrase).catch(() => {});
+    // NEVER auto-publish key params here — see setupEncryption comment.
     return { ok: true };
   } catch (err) {
-    console.error('[encryption] verify failed:', err);
-    return { ok: false, error: err?.message || String(err) };
+    const msg = err?.message || String(err);
+    console.error('[encryption] verify failed:', msg);
+    return { ok: false, error: msg };
   }
 }
 
@@ -128,6 +140,13 @@ export async function adoptVaultKey(passphrase, keyParams) {
     state.enabled = !!result?.state?.enabled;
     state.loaded = !!result?.state?.unlocked;
     persistSecureBlobInBackground(BLOB_KEY, passphrase, 'encryption');
+    // Discard any pending writes that were queued before vault key adoption.
+    // These were encrypted with the pre-adoption local key and must not be
+    // flushed to disk or pushed to the server.
+    try {
+      const { clearPendingWrites } = await import('@/utils/sync/pending-writes.js');
+      clearPendingWrites();
+    } catch {}
     return { ok: true };
   } catch (err) {
     console.error('[encryption] vault adopt failed:', err);
@@ -149,15 +168,18 @@ export async function tryRestoreKeyFromSafeStorage() {
 
 async function _doRestoreKey() {
   const next = await refreshState();
-  if (!next?.enabled || next?.unlocked) {
-    return !!next?.unlocked;
-  }
 
+  if (next?.unlocked) return true;
+
+  // Try to restore the key from secure storage even when getEncryptionState
+  // reports enabled:false — on restart the Rust backend may not yet know
+  // encryption is configured until the passphrase is re-submitted.  The
+  // presence of a saved blob proves encryption was set up.
   let passphrase;
   try {
     passphrase = await loadSecureBlob(BLOB_KEY);
-  } catch (err) {
-    console.warn('[encryption] _doRestoreKey: loadSecureBlob failed:', err);
+  } catch {
+    // No blob saved or secure storage unavailable — encryption was never set up
     return false;
   }
   if (!passphrase) return false;
@@ -166,7 +188,7 @@ async function _doRestoreKey() {
   if (!result.ok) {
     console.warn(
       '[encryption] _doRestoreKey: verifyPassphrase failed:',
-      result.error
+      result.error || 'Unknown error'
     );
     return false;
   }

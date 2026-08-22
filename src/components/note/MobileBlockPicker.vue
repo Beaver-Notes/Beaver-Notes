@@ -20,6 +20,7 @@
         <button
           v-for="(item, index) in filteredItems"
           :key="index"
+          v-keep-focus
           class="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl border bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-600 transition-colors"
           :disabled="item.disabled"
           @click="handleItemClick(item)"

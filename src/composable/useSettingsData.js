@@ -1,8 +1,8 @@
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
-import { hexToBuf, base64ToBuf, bufToBase64 } from '@/utils/crypto/codec.js';
+import { hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { getSettingSync, setSetting } from '@/lib/settings';
 import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
-import { listen } from '@tauri-apps/api/event';
+
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
 import { path } from '@/lib/tauri-bridge';
@@ -16,34 +16,20 @@ import {
 import { useAppStore } from '@/store/app';
 import { useI18nStore } from '@/store/i18n';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
-import { markRaw } from 'vue';
+
 import {
   clearAssetPassphrase,
   clearSecureBlob,
 } from '@/lib/native/security.js';
-import { ensureKeyReadyForWrite } from '@/utils/crypto/encryption.js';
+import {
+  ensureKeyReadyForWrite,
+  verifyPassphrase,
+} from '@/utils/crypto/encryption.js';
 
 import {
   ONBOARDING_LANGUAGE_CONFIG,
   getLanguageDirection,
 } from '@/utils/i18n/languages.js';
-
-async function encryptSettings(plaintext, password) {
-  const salt = crypto.getRandomValues(new Uint8Array(32));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
-  const aesKey = await crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
-    key, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
-  );
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, aesKey, new TextEncoder().encode(plaintext));
-  return JSON.stringify({
-    v: 1,
-    salt: Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join(''),
-    iv: Array.from(iv).map(b => b.toString(16).padStart(2, '0')).join(''),
-    cipher: bufToBase64(new Uint8Array(ct)),
-  });
-}
 
 async function decryptSettings(ciphertext, password) {
   const parsed = JSON.parse(ciphertext);
@@ -63,7 +49,6 @@ export function useSettingsData({
   dialog,
   folderStore,
   noteStore: _noteStore,
-  passwordStore,
   storage,
   translations,
 }) {
@@ -87,14 +72,9 @@ export function useSettingsData({
 
   const state = reactive({
     syncPath: '',
-    password: '',
-    withPassword: false,
     lastUpdated: null,
     zoomLevel: (+getSettingSync('zoomLevel') || 1).toFixed(1),
   });
-
-  const syncProgress = ref(null);
-  let unlistenSyncProgress = null;
 
   const defaultPath = ref('');
 
@@ -199,14 +179,7 @@ export function useSettingsData({
       if (canceled) return;
 
       let data = await storage.store();
-      data.appPassword = storage.get('sharedKey');
       data.lockedNotes = JSON.parse(localStorage.getItem('lockedNotes'));
-      await passwordStore.retrieve();
-      data.appPassword = passwordStore.appPassword;
-
-      if (state.withPassword) {
-        data = await encryptSettings(JSON.stringify(data), state.password);
-      }
 
       const { default: dayjs } = await import('@/lib/dayjs');
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
@@ -224,9 +197,6 @@ export function useSettingsData({
           `${translations.value.settings.exportMessage}"${folderName}"`
         );
       }
-
-      state.withPassword = false;
-      state.password = '';
     } catch (error) {
       console.error(error);
     }
@@ -281,10 +251,6 @@ export function useSettingsData({
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        if (result.appPassword) {
-          await passwordStore.importAppPassword(result.appPassword);
-        }
-
         if (result.lockStatus !== null && result.lockStatus !== undefined) {
           localStorage.setItem('lockStatus', JSON.stringify(result.lockStatus));
         }
@@ -300,27 +266,64 @@ export function useSettingsData({
         );
       };
 
-      if (typeof data === 'string') {
-        dialog.prompt({
-          title: translations.value.settings.inputPassword,
-          body: translations.value.settings.body,
-          okText: translations.value.settings.import,
-          cancelText: translations.value.settings.cancel,
-          placeholder: translations.value.settings.password,
-          onConfirm: async (pass) => {
+      // Two import formats:
+      //   string → legacy `encryptSettings`-encrypted backup whose password
+      //             was arbitrary (never the workspace passphrase). Decrypt it
+      //             with that backup password directly; do NOT verify the
+      //             workspace passphrase.
+      //   object → the new workspace-encrypted export. Require the workspace
+      //             passphrase and merge only when verifyPassphrase succeeds
+      //             (this also unlocks the workspace key so merged rows are
+      //             encrypted with the current key).
+      dialog.prompt({
+        title: translations.value.settings.inputPassword,
+        body: translations.value.settings.body,
+        okText: translations.value.settings.import,
+        cancelText: translations.value.settings.cancel,
+        placeholder: translations.value.settings.password,
+        password: true,
+        onConfirm: async (pass) => {
+          if (!pass) {
+            showAlert(translations.value.settings.invalidPassword);
+            return false;
+          }
+
+          if (typeof data === 'string') {
             try {
               const result = await decryptSettings(data, pass);
               await finishImport(JSON.parse(result));
             } catch {
-              showAlert(translations.value.settings.invalidPassword);
+              showAlert(
+                translations.value.settings.wrongBackupPassword ||
+                  'Wrong backup password'
+              );
               return false;
             }
-          },
-        });
-        return;
-      }
+            return true;
+          }
 
-      await finishImport(data);
+          const verification = await verifyPassphrase(pass);
+          if (!verification.ok) {
+            showAlert(
+              translations.value.settings.wrongWorkspacePassphrase ||
+                verification.error ||
+                translations.value.settings.invalidPassword
+            );
+            return false;
+          }
+
+          try {
+            await finishImport(data);
+          } catch {
+            showAlert(
+              translations.value.settings.wrongWorkspacePassphrase ||
+                translations.value.settings.invalidPassword
+            );
+            return false;
+          }
+          return true;
+        },
+      });
     } catch (error) {
       console.error(error);
     }
@@ -438,22 +441,6 @@ export function useSettingsData({
     void setSetting('timeFormat', timeFormat.value);
   };
 
-  function registerSyncProgressListener() {
-    if (unlistenSyncProgress) return;
-    (async () => {
-      unlistenSyncProgress = await listen('sync:progress', (event) => {
-        syncProgress.value = markRaw(event.payload);
-      });
-    })();
-  }
-
-  function unregisterSyncProgressListener() {
-    if (unlistenSyncProgress) {
-      unlistenSyncProgress();
-      unlistenSyncProgress = null;
-    }
-  }
-
   onMounted(() => {
     void (async () => {
       defaultPath.value = await getSyncPath();
@@ -493,9 +480,7 @@ export function useSettingsData({
     chooseDefaultPath,
     clearPath,
     nukeAppDebugOnly,
-    syncProgress,
-    registerSyncProgressListener,
-    unregisterSyncProgressListener,
+
     toggleAdvancedSettings,
     toggleSpellcheck,
     applySpellcheckAttribute,

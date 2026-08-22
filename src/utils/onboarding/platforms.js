@@ -153,6 +153,10 @@ export const ONBOARDING_IMPORT_SOURCE_MAP = Object.fromEntries(
   PLATFORMS.filter((p) => p.sourceMap).map((p) => [p.id, p.sourceMap])
 );
 
+export function isPlatformVisible(p, { isMacOS, isTouch }) {
+  return (!p.macOnly || isMacOS) && (!isTouch || !p.desktopOnly);
+}
+
 export function getMigrationSourceCopy(platformId) {
   const platform = PLATFORMS.find((p) => p.id === platformId);
   if (!platform) return 'Choose a source before starting the import.';

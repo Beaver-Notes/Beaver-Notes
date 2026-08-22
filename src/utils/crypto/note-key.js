@@ -52,6 +52,27 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
  *
  * Returns the note key hex, or null (never provision/rotate on ambiguity).
  */
+/**
+ * Try each envelope with the local private key; return the first that unwraps
+ * to a valid note key. Caches the result against `noteId`.
+ */
+export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, log = console) {
+  for (const env of envelopes || []) {
+    const wrappedKey = env?.wrappedKey ?? env;
+    if (!wrappedKey) continue;
+    try {
+      const k = await unwrapNoteKey(identity.privateKeyHex, wrappedKey);
+      if (k && isValidCollabKey(k)) {
+        if (noteId) unwrappedKeyCache.set(noteId, k);
+        return k;
+      }
+    } catch {
+      // envelope not for this device — try the next one
+    }
+  }
+  return null;
+}
+
 export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients, identity, noteId, log = console }) {
   if (noteId && unwrappedKeyCache.has(noteId)) {
     return unwrappedKeyCache.get(noteId);
@@ -107,7 +128,7 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     const recipients = [];
     for (const c of keypairCollabs) {
       const wrappedKey = await wrapNoteKeyForRecipient(c.kemPublicKey, noteKeyHex);
-      recipients.push({ userId: c.userId, wrappedKey });
+      recipients.push({ userId: c.userId, deviceId: c.deviceId || 'default', wrappedKey });
     }
     const stored = await storeRecipients(recipients);
 
@@ -116,13 +137,13 @@ export async function provisionNoteKey({ getKey, listPublicKeys, storeRecipients
     if (stored?.existing) {
       try {
         const winner = await getKey();
-        if (winner?.wrappedKey) {
-          const winnerKey = await unwrapNoteKey(identity.privateKeyHex, winner.wrappedKey);
-          if (winnerKey && isValidCollabKey(winnerKey)) {
-            if (noteId) unwrappedKeyCache.set(noteId, winnerKey);
-            return winnerKey;
-          }
-        }
+        const winnerKey = await recoverNoteKeyFromEnvelopes(
+          winner?.wrappedKeys || (winner?.wrappedKey ? [winner] : []),
+          identity,
+          noteId,
+          log
+        );
+        if (winnerKey) return winnerKey;
       } catch (err) {
         log.warn?.('[provisionNoteKey] failed to recover concurrently-provisioned note key:', err);
       }

@@ -27,7 +27,7 @@
     </div>
 
     <!-- :key is coarse on purpose — 'wizard' stays constant across
-         customize → password so the frame (card / bottom sheet) never
+         account → customize so the frame (card / bottom sheet) never
          remounts; only its inner content slides. -->
     <div
       :key="topLevelKey"
@@ -71,7 +71,7 @@
               <p
                 class="text-base leading-relaxed text-neutral-600 dark:text-neutral-400 max-w-sm"
               >
-                Lets start by customizing your settings, or use the defaults.
+                Let's get set up — sign in, secure your notes, then import and customize.
               </p>
             </div>
           </div>
@@ -99,7 +99,7 @@
         </div>
       </div>
 
-      <!-- ── Wizard: customize → import → account → sync → password ──
+      <!-- ── Wizard: account → sync → password → import → customize ──
            One persistent modal frame (ui-modal renders as a fixed centered
            card on desktop and a bottom sheet on mobile automatically). Only
            the inner content transitions between steps. -->
@@ -456,7 +456,7 @@
                           </p>
                           <ui-input
                             v-model="legacyPasswordValue"
-                            type="password"
+                            :password="true"
                             placeholder="Old password"
                             class="w-full"
                             @keyup.enter="submitLegacyPassword"
@@ -964,7 +964,7 @@
                           />
                           <ui-input
                             v-model="signInPassword"
-                            type="password"
+                            :password="true"
                             class="w-full"
                             :placeholder="
                               translations.account?.passwordPlaceholder ||
@@ -1324,13 +1324,13 @@ import { useStorage } from '@/lib/storage';
 import { useStore } from '@/store';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
-import { usePasswordStore } from '@/store/passwd';
 import { useAccountStore } from '@/store/account';
 import { clipboard } from '@/lib/tauri-bridge';
 import { useSounds } from '@/composable/useSounds';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
+import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { CURTAIN_DURATIONS } from '@/utils/onboarding/index.js';
 
 const { hold: CURTAIN_HOLD, open: CURTAIN_OPEN } = CURTAIN_DURATIONS;
@@ -1344,13 +1344,10 @@ export default {
     const store = useStore();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
-    const isMacOS =
-      typeof window !== 'undefined' &&
-      window.navigator.platform.toLowerCase().includes('mac');
+    const isMacOS = isMacOSRuntime();
 
     const { translations } = useTranslations();
     const accountStore = useAccountStore();
-    const passwordStore = usePasswordStore();
 
     // Lazy-load useImportExport (tiptap, marked, ~13MB) only when import is triggered
     const importExportRef = ref(null);
@@ -1438,7 +1435,6 @@ export default {
       if (!legacyPasswordValue.value) return;
       const result = await flow.handleLegacyPasswordSubmit(
         legacyPasswordValue.value,
-        passwordStore,
       );
       if (result.success) legacyPasswordValue.value = '';
     }

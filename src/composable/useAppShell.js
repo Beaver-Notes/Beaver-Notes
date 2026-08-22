@@ -18,11 +18,12 @@ import { useTranslations } from '@/composable/useTranslations';
 import Mousetrap from '@/lib/mousetrap';
 import emitter from 'tiny-emitter/instance';
 import { useAppStore } from '@/store/app';
+import { useAccountStore } from '@/store/account';
 import { useStore } from '@/store';
 
 import { importBEA } from '@/utils/share/BEA';
 import { backend, onFileOpened } from '@/lib/tauri-bridge';
-import { appReady, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
+import { appReady, notify, setMenuVisibility, setZoomLevel } from '@/lib/native/app';
 import {
   checkForUpdates,
   getAutoUpdateStatus,
@@ -44,6 +45,12 @@ import {
 } from '@/lib/yjs/workspace-doc';
 import { getSyncEngine } from '@/utils/sync/engine.js';
 import { initAppSync } from '@/utils/sync/app-sync.js';
+
+import { buildMenuContext, pushMenuContext } from '@/utils/ui/menuContext';
+
+// Re-export the pure helper so it stays unit-testable via this composable
+// module (see src/composable/__tests__/menu-context.spec.js).
+export { buildMenuContext };
 
 const ONBOARDING_ROUTE_NAME = 'Onboarding';
 const SETTINGS_ROUTE_PREFIX = '/settings';
@@ -156,6 +163,23 @@ export function useAppShell(onboardingCompleted = true) {
     return true;
   });
 
+  // Keep the native menu in sync with the current screen. Desktop only — the
+  // native menu is a desktop concept. Debounced (~150ms) so rapid navigation
+  // coalesces into a single rebuild; the last context wins.
+  watch(
+    () => [route.name, uiState.inReaderMode],
+    () => {
+      if (!backend.isDesktopRuntime()) return;
+      pushMenuContext(
+        buildMenuContext({
+          routeName: route.name,
+          inReaderMode: uiState.inReaderMode,
+        })
+      );
+    },
+    { immediate: true }
+  );
+
   let maxVisualViewportHeight = 0;
   let pendingBlurTimeout = null;
   let removeMobileKeyboardListeners = () => {};
@@ -208,6 +232,10 @@ export function useAppShell(onboardingCompleted = true) {
         '--app-keyboard-inset-bottom',
         visible ? '8px' : 'var(--app-safe-area-bottom)'
       );
+      document.documentElement.style.setProperty(
+        '--app-note-page-padding',
+        `calc(56px + var(--app-keyboard-inset-bottom) + 0.75rem)`
+      );
     },
     { immediate: true }
   );
@@ -229,10 +257,6 @@ export function useAppShell(onboardingCompleted = true) {
       rootStyle.setProperty('--safe-area-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-keyboard-inset-bottom', bottomInsetValue);
       rootStyle.setProperty('--app-toolbar-bottom', bottomInsetValue);
-      rootStyle.setProperty(
-        '--app-note-page-padding',
-        `calc(54px + ${bottomInsetValue} + 0.75rem)`
-      );
     } catch (error) {
       console.warn('Safe area inset CSS plugin failed to initialize:', error);
     }
@@ -486,9 +510,9 @@ export function useAppShell(onboardingCompleted = true) {
     }
 
     // Load the unified workspace Y.Doc first — it is the single source of
-    // truth for all note/folder/label metadata.  On first run after legacy
-    // migration the doc may still be empty, so seed it from the KV stores
-    // before wiring observers.
+    // truth for all note/folder/label metadata. On first run after legacy
+    // migration the doc is seeded from parsed data during onboarding before
+    // observers are wired.
     await loadWorkspaceDoc();
     performance.mark('init:workspace-doc');
     observeWorkspace(writeStoresFromWorkspace);
@@ -503,7 +527,7 @@ export function useAppShell(onboardingCompleted = true) {
     // One-time whole-row re-encryption of legacy migration rows (which left
     // note titles and folder metadata as plaintext JSON on disk). Idempotent.
     backend.invoke('storage:reencryptLegacyRows').catch((err) => {
-      console.warn('[app] legacy row re-encryption failed:', err);
+      console.warn('[app] legacy row re-encryption failed:', err?.message || err);
     });
 
     await refreshSyncLockBanner();
@@ -527,19 +551,19 @@ export function useAppShell(onboardingCompleted = true) {
     // transport, path pick) works without an app restart. Autosync is always
     // on — periodic sync runs whenever the app is visible.
     try {
-      const { useAccountStore } = await import('@/store/account');
       const { useWorkspaceStore } = await import('@/store/workspace.ts');
       const accountStore = useAccountStore();
       // Ensure auth is hydrated before sync — hydrate() runs in onMounted of
       // useAccountAuth components which may not have mounted yet.
-      if (!accountStore.isAuthenticated) {
+      if (!useAccountStore().isAuthenticated) {
         const { loadSessionToken } = await import('@/lib/account-storage');
         const token = await loadSessionToken().catch(() => null);
         if (token) {
+          accountStore.setToken(token);
           accountStore.setStatus('authenticated');
         }
       }
-      if (accountStore.isAuthenticated) {
+      if (useAccountStore().isAuthenticated) {
         // Fetch profile/subscription so _remoteAllowed has plan info for sync
         import('@/lib/api/account').then(({ getAccount }) => {
           getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
@@ -580,7 +604,6 @@ export function useAppShell(onboardingCompleted = true) {
       if (path.startsWith('join/')) {
         const token = path.slice('join/'.length);
         if (!token) return;
-        const { useAccountStore } = await import('@/store/account');
         const accountStore = useAccountStore();
         if (!accountStore.isAuthenticated) {
           console.warn('[deep-link] Cannot join note: not authenticated');
@@ -634,6 +657,16 @@ export function useAppShell(onboardingCompleted = true) {
         updateBanner.secondaryText = bannerData.secondaryText;
         updateBanner.version = bannerData.version;
         updateBanner.show = true;
+        if (!backend.isTouchRuntime()) {
+          const copy = translations.value.app || {};
+          notify({
+            title: copy.updateAvailableTitle || 'Update available',
+            body:
+              copy.updateAvailableBody ||
+              bannerData.content ||
+              'An update is ready to install.',
+          }).catch(() => {});
+        }
       }),
       backend.listen('spellcheck-changed', () => {}),
       backend.listen('deep-link://received', (_, payload) => {

@@ -32,7 +32,7 @@ export async function loadOrCreateIdentity() {
   return identity;
 }
 
-export async function publishIdentity(identity = null) {
+export async function publishIdentity(identity = null, deviceId = null) {
   const id = identity ?? (await loadOrCreateIdentity());
-  return setKeypair(id.publicKeyHex, {});
+  return setKeypair(id.publicKeyHex, { deviceId });
 }

@@ -10,6 +10,8 @@ export const commands = {
 	workspaceGetActive: () => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_get_active")),
 	/**  Create a new workspace and switch to it. */
 	workspaceCreate: (name: string, copySettings: boolean | null) => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_create", { name, copySettings })),
+	/**  Register a backend (cloud) workspace in the local registry. */
+	workspaceRegisterCloud: (id: string, name: string, orgId: string | null, ownerId: string | null, workspaceType: string | null, createdAt: string | null) => typedError<WorkspaceInfo, AppError>(__TAURI_INVOKE("workspace_register_cloud", { id, name, orgId, ownerId, workspaceType, createdAt })),
 	/**  Switch the active workspace. The frontend must reload stores after this. */
 	workspaceSwitch: (id: string) => typedError<null, AppError>(__TAURI_INVOKE("workspace_switch", { id })),
 	/**  Rename a workspace. */
@@ -28,6 +30,10 @@ export type WorkspaceInfo = {
 	id: string,
 	name: string,
 	createdAt: string,
+	workspaceType: string,
+	orgId: string | null,
+	ownerId: string | null,
+	cloudSync: boolean,
 };
 
 /* Tauri Specta runtime */
