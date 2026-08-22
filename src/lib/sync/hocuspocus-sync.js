@@ -12,12 +12,53 @@ import {
 import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
+import { encryptMapValue, decryptMapValue } from '@/utils/crypto/content-encrypt'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
 
 // Content encryption keys per room (roomName -> CryptoKey)
 const contentKeys = new Map()
+
+const ENCRYPTED_MAP_KEYS = ['title', 'content']
+
+function setupContentEncryption(doc, roomName) {
+  const key = contentKeys.get(roomName)
+  if (!key) return
+
+  const map = doc.getMap('note')
+  map.observe(async (event) => {
+    for (const [changedKey] of event.changes.keys) {
+      const val = map.get(changedKey)
+      if (ENCRYPTED_MAP_KEYS.includes(changedKey) && typeof val === 'string') {
+        try {
+          const encrypted = await encryptMapValue(key, changedKey, val)
+          map.set(changedKey, encrypted, 'hocuspocus')
+        } catch (err) {
+          console.warn(`[hocuspocus] failed to encrypt ${changedKey}:`, err.message)
+        }
+      }
+    }
+  })
+}
+
+async function decryptMapValues(doc, roomName) {
+  const key = contentKeys.get(roomName)
+  if (!key) return
+
+  const map = doc.getMap('note')
+  for (const mapKey of ENCRYPTED_MAP_KEYS) {
+    const val = map.get(mapKey)
+    if (val instanceof Uint8Array) {
+      try {
+        const decrypted = await decryptMapValue(key, mapKey, val)
+        map.set(mapKey, decrypted, 'hocuspocus')
+      } catch (err) {
+        console.warn(`[hocuspocus] failed to decrypt ${mapKey}:`, err.message)
+      }
+    }
+  }
+}
 
 function buildRoomName(workspaceId, noteId) {
   return `workspace:${workspaceId}:note:${noteId}`
@@ -121,11 +162,19 @@ export function useHocuspocusSync() {
     const roomName = buildRoomName(workspaceId, noteId)
     if (activeProviders.has(roomName)) return
 
+    setupContentEncryption(doc, roomName)
+
     const wsUrl = getWebSocketUrl()
     const provider = new WebsocketProvider(wsUrl, roomName, doc, {
       connect: true,
       params: {},
       awareness: new awarenessProtocol.Awareness(doc),
+    })
+
+    provider.on('sync', async (isSynced) => {
+      if (isSynced) {
+        await decryptMapValues(doc, roomName)
+      }
     })
 
     activeProviders.set(roomName, provider)
