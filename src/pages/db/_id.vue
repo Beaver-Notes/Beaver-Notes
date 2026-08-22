@@ -9,6 +9,8 @@ import DatabaseToolbar from '@/components/database/DatabaseToolbar.vue'
 import TableView from '@/lib/views/TableView.vue'
 import KanbanView from '@/lib/views/KanbanView.vue'
 import CalendarView from '@/lib/views/CalendarView.vue'
+import GalleryView from '@/lib/views/GalleryView.vue'
+import ListView from '@/lib/views/ListView.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -328,6 +330,20 @@ function deleteSchema() {
         :version="version"
         :view="view"
         @add-row-on-date="addRowOnDate"
+      />
+      <gallery-view
+        v-else-if="view.type === 'gallery'"
+        :schema="schema"
+        :rows="rows"
+        :version="version"
+        :view="view"
+      />
+      <list-view
+        v-else-if="view.type === 'list'"
+        :schema="schema"
+        :rows="rows"
+        :version="version"
+        :view="view"
       />
       <div v-else class="flex flex-1 items-center justify-center text-sm text-neutral-500">
         {{ t.viewUnsupported || "This view type isn't available yet" }}
