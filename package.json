@@ -149,6 +149,7 @@
     "vue-router": "^4.0.11",
     "y-prosemirror": "^1.2.6",
     "y-protocols": "^1.0.7",
+    "y-websocket": "^3.1.0",
     "yjs": "^13.6.31"
   },
   "resolutions": {
