@@ -7,8 +7,6 @@ import { getWorkspaceDoc } from '@/lib/yjs/meta-doc'
 import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared'
 import {
   importCollabKey,
-  encryptUpdate,
-  decryptUpdate,
   isValidCollabKey,
 } from '@/utils/crypto/collab'
 import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
@@ -20,9 +18,6 @@ const collabKeys = new Map()
 
 // Content encryption keys per room (roomName -> CryptoKey)
 const contentKeys = new Map()
-
-// Map keys to encrypt for content-level E2EE
-const ENCRYPTED_MAP_KEYS = ['title', 'content']
 
 function buildRoomName(workspaceId, noteId) {
   return `workspace:${workspaceId}:note:${noteId}`
@@ -119,15 +114,6 @@ export function useHocuspocusSync() {
     }
   }
 
-  function setupContentEncryption(doc, roomName) {
-    const encKey = contentKeys.get(roomName)
-    if (!encKey) return
-
-    doc.on('update', async (update, origin) => {
-      if (origin === 'hocuspocus' || origin === 'load') return
-    })
-  }
-
   function joinNoteRoom(noteId, doc) {
     const workspaceId = getActiveWorkspaceId()
     if (!workspaceId) return
@@ -141,10 +127,6 @@ export function useHocuspocusSync() {
       params: {},
       awareness: new awarenessProtocol.Awareness(doc),
     })
-
-    provider.on('connection-close', () => {})
-
-    setupContentEncryption(doc, roomName)
 
     activeProviders.set(roomName, provider)
     docToRoom.set(doc, roomName)
