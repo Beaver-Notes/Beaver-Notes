@@ -11,6 +11,7 @@ import KanbanView from '@/lib/views/KanbanView.vue'
 import CalendarView from '@/lib/views/CalendarView.vue'
 import GalleryView from '@/lib/views/GalleryView.vue'
 import ListView from '@/lib/views/ListView.vue'
+import TimelineView from '@/lib/views/TimelineView.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -340,6 +341,13 @@ function deleteSchema() {
       />
       <list-view
         v-else-if="view.type === 'list'"
+        :schema="schema"
+        :rows="rows"
+        :version="version"
+        :view="view"
+      />
+      <timeline-view
+        v-else-if="view.type === 'timeline'"
         :schema="schema"
         :rows="rows"
         :version="version"

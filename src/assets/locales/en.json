@@ -679,6 +679,7 @@
    "nextMonth": "Next month",
    "noDateColumn": "Add a date column to see items on the calendar",
    "noGroupColumn": "Add a select or status column to group cards",
+   "noStartColumn": "Add a date column to see items on the timeline",
    "viewUnsupported": "This view type isn't available yet"
  },
  "importSource": {
