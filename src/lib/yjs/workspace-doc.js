@@ -1,7 +1,7 @@
 /**
  * Workspace Yjs document — single shared Y.Doc for all workspace metadata
- * (folders, labels, deleted-id tombstones, per-note meta). Note *content*
- * lives in separate per-note Y.Docs managed by useNoteYjs.
+ * (folders, labels, deleted-id tombstones, per-note meta, database schemas).
+ * Note *content* lives in separate per-note Y.Docs managed by useNoteYjs.
  *
  * This module owns the document lifecycle (load, persist, observe) and
  * sync helpers. Store hydration lives in meta-store.js.
@@ -28,7 +28,8 @@ import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
 import { unwrapNoteKey } from '@/utils/crypto/note-key';
 
-// Re-export store hydration so consumers keep a single import path
+// Re-export doc access + store hydration so consumers keep a single import path
+export { getWorkspaceDoc } from './meta-doc.js';
 export { writeStoresFromWorkspace, backfillNotePreviews } from './meta-store.js';
 
 const NOTE_META_FIELDS = [
@@ -254,7 +255,7 @@ export async function ensureMetaRoomKey(wsId) {
 
 let observerTimer = null;
 let pendingChangedNoteIds = new Set();
-let metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+let metaFlags = { folders: false, labels: false, labelColors: false, deleted: false, databases: false, deletedDatabases: false };
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
   if (observerAttached) return;
@@ -295,6 +296,16 @@ export function observeWorkspace(callback, debounceMs = 150) {
     metaFlags.labelColors = true;
     schedule();
   });
+  doc.getMap('databases').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    metaFlags.databases = true;
+    schedule();
+  });
+  doc.getMap('deletedDatabaseIds').observeDeep((_events, transaction) => {
+    if (transaction?.origin === 'seed') return;
+    metaFlags.deletedDatabases = true;
+    schedule();
+  });
   observerAttached = true;
 
   function schedule() {
@@ -304,7 +315,7 @@ export function observeWorkspace(callback, debounceMs = 150) {
       const changed = pendingChangedNoteIds;
       pendingChangedNoteIds = new Set();
       const flags = metaFlags;
-      metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+      metaFlags = { folders: false, labels: false, labelColors: false, deleted: false, databases: false, deletedDatabases: false };
       callback(changed, flags);
     }, debounceMs);
   }
@@ -448,6 +459,27 @@ export function syncDeletedNoteIds(deletedIds) {
 
 export function syncDeletedAssets(deletedAssets) {
   syncTombstoneMap('deletedAssets', deletedAssets || {});
+}
+
+// ── Database schema helpers ─────────────────────────────────────────────────
+
+export function syncDatabaseSchema(db) {
+  if (!db || !db.id) return;
+  const databasesMap = getWorkspaceDoc().getMap('databases');
+  transactWorkspace(() => {
+    databasesMap.set(db.id, objToYMap(db));
+  });
+}
+
+export function removeDatabaseSchema(id) {
+  const databasesMap = getWorkspaceDoc().getMap('databases');
+  transactWorkspace(() => {
+    databasesMap.delete(id);
+  });
+}
+
+export function syncDeletedDatabaseIds(deletedIds) {
+  syncTombstoneMap('deletedDatabaseIds', deletedIds || {});
 }
 
 /**
