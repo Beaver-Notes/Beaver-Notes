@@ -28,6 +28,7 @@ function done(save) {
   <input
     v-if="editing"
     v-model="draft"
+    autofocus
     :aria-label="props.name"
     class="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-input"
     @keydown.enter.prevent="done(true)"

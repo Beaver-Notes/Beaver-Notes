@@ -649,6 +649,13 @@
   "moreVisuals": "+{count} more visuals",
   "more": "More"
  },
+ "database": {
+  "addColumn": "Add column",
+  "rename": "Rename",
+  "hide": "Hide",
+  "delete": "Delete",
+  "newRow": "New row"
+ },
  "importSource": {
   "obsidian": "Obsidian",
   "obsidianDescription": "Import notes from an Obsidian vault.",

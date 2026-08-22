@@ -26,6 +26,7 @@ function done(save) {
     v-if="editing"
     v-model="draft"
     inputmode="decimal"
+    autofocus
     :aria-label="props.name"
     class="w-full bg-transparent px-2 py-1 text-right text-sm outline-none focus:bg-input"
     @keydown.enter.prevent="done(true)"

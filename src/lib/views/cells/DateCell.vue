@@ -25,6 +25,7 @@ function onChange(e) {
     v-if="editing"
     type="date"
     :value="day"
+    autofocus
     :aria-label="props.name"
     class="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-input"
     @change="onChange"
