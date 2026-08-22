@@ -421,23 +421,26 @@ export class SyncEngine {
               }
             }
 
-            // Refresh the Pinia note store when remote meta updates arrive.
-            // The workspace-doc observer skips origin 'sync', so applyRemote
+            // Refresh the Pinia note store after every pull batch. The
+            // workspace-doc observer skips origin 'sync', so applyRemote
             // updates the Y.Doc but never triggers writeStoresFromWorkspace.
-            const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
-            if (hasMetaUpdates) {
+            // Content-only batches (no meta) need this too — otherwise
+            // newly-arrived note content shows as "untitled" until the
+            // next cycle when meta arrives.
+            if (updates.length > 0) {
               try {
+                const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
                 const affectedIds = updates
                   .filter((u) => u.noteId !== 'meta')
                   .map((u) => u.noteId);
-                await writeStoresFromWorkspace(affectedIds.length > 0 ? new Set(affectedIds) : null, {
+                await writeStoresFromWorkspace(hasMetaUpdates && affectedIds.length === 0 ? null : new Set(affectedIds), {
                   labels: false,
                   labelColors: false,
                   folders: false,
                   deleted: false,
                 });
               } catch (err) {
-                logger.warn('[sync] store refresh after meta update failed:', err?.message);
+                logger.warn('[sync] store refresh after pull failed:', err?.message);
               }
             }
 
