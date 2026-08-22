@@ -200,8 +200,10 @@ export function evaluate(ast, ctx = {}) {
   let steps = 0
   const env = { ...ctx, vars:{}, depth:0 }
   const bump = () => { if (++steps > MAX_STEPS) throw new FormulaError('Formula too complex') }
+  // {__date} tags are a serialization convention; inside evaluation dates are dayjs objects
+  const unwrapCell = (v) => (v && typeof v === 'object' && v.__date ? dayjs(v.ms) : v)
 
-  const lookupProp = (name) => {
+  const resolveProp = (name) => {
     const p = ctx.props
     if (p instanceof Map) {
       if (p.has(name)) return p.get(name)
@@ -212,6 +214,10 @@ export function evaluate(ast, ctx = {}) {
     if (p && Object.prototype.hasOwnProperty.call(p, name)) return p[name]
     const key = p ? Object.keys(p).find((k) => k.toLowerCase() === String(name).toLowerCase()) : undefined
     return key !== undefined ? p[key] : null
+  }
+  const lookupProp = (name) => {
+    const v = resolveProp(name)
+    return v === undefined ? null : unwrapCell(v)
   }
 
   function numOrConcat(op, l, r) {
