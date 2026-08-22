@@ -6,6 +6,7 @@ const props = defineProps({
   value: { type: null, default: null },
   config: { type: Object, default: () => ({}) },
   editing: Boolean,
+  name: { type: String, default: '' },
 })
 const emit = defineEmits(['commit'])
 
@@ -25,7 +26,8 @@ function done(save) {
     v-if="editing"
     v-model="draft"
     inputmode="decimal"
-    class="w-full bg-transparent px-2 py-1 text-right text-sm outline-none focus:bg-surface"
+    :aria-label="props.name"
+    class="w-full bg-transparent px-2 py-1 text-right text-sm outline-none focus:bg-input"
     @keydown.enter.prevent="done(true)"
     @keydown.esc.prevent="done(false)"
     @blur="done(true)"

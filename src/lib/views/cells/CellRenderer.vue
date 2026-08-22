@@ -34,6 +34,7 @@ function onCellClick(e) {
     :value="value()"
     :kind="column.type"
     :editing="editing"
+    :name="column.name"
     @commit="commit"
   />
   <NumberCell
@@ -41,6 +42,7 @@ function onCellClick(e) {
     :value="value()"
     :config="column.config"
     :editing="editing"
+    :name="column.name"
     @commit="commit"
   />
   <SelectCell
@@ -54,6 +56,7 @@ function onCellClick(e) {
     v-else-if="column.type === 'date'"
     :value="value()"
     :editing="editing"
+    :name="column.name"
     @commit="commit"
   />
   <!-- label clicks are handled by the checkbox's own change; the cell handles the rest.
@@ -64,7 +67,12 @@ function onCellClick(e) {
     class="flex h-full cursor-pointer items-center px-2"
     @click="onCellClick"
   >
-    <UiCheckbox class="h-full w-full" :model-value="!!value()" @change="commit" />
+    <UiCheckbox
+      class="h-full w-full"
+      :model-value="!!value()"
+      :aria-label="column.name"
+      @change="commit"
+    />
   </div>
   <span v-else-if="READONLY.includes(column.type)" class="block truncate px-2 py-1 text-sm opacity-80">
     {{ computed != null ? String(computed) : '' }}

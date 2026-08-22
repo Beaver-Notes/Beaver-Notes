@@ -4,6 +4,7 @@ import { computed } from 'vue'
 const props = defineProps({
   value: { type: null, default: null },
   editing: Boolean,
+  name: { type: String, default: '' },
 })
 const emit = defineEmits(['commit'])
 
@@ -24,7 +25,8 @@ function onChange(e) {
     v-if="editing"
     type="date"
     :value="day"
-    class="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-surface"
+    :aria-label="props.name"
+    class="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-input"
     @change="onChange"
   />
   <span v-else class="block truncate px-2 py-1 text-sm tabular-nums">{{ day }}</span>

@@ -44,7 +44,7 @@ function addOption(name) {
   emit('options', [...options.value, opt])
   toggle(opt)
 }
-defineExpose({ addOption })
+defineExpose({ addOption, toggle })
 
 function chipStyle(id) {
   const color = options.value.find((o) => o.id === id)?.color || 'gray'

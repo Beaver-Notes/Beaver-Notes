@@ -6,6 +6,7 @@ const props = defineProps({
   value: { type: null, default: null },
   kind: { type: String, default: 'rich_text' },
   editing: Boolean,
+  name: { type: String, default: '' },
 })
 const emit = defineEmits(['commit'])
 
@@ -27,7 +28,8 @@ function done(save) {
   <input
     v-if="editing"
     v-model="draft"
-    class="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-surface"
+    :aria-label="props.name"
+    class="w-full bg-transparent px-2 py-1 text-sm outline-none focus:bg-input"
     @keydown.enter.prevent="done(true)"
     @keydown.esc.prevent="done(false)"
     @blur="done(true)"

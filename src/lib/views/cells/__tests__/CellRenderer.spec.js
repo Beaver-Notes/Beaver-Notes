@@ -101,6 +101,13 @@ describe('CellRenderer', () => {
     cell.vm.toggle(column.config.options[0])
     expect(w.emitted('update')[1][0]).toEqual({ m: null })
   })
+  it('template ref on SelectCell exposes toggle', () => {
+    const w = mount(CellRenderer, { props: {
+      column: col('s', 'select', { options: [{ id: 'o1', name: 'Todo', color: 'red' }] }), row: row({ s: null }), editing: false,
+    }})
+    const exposed = w.findComponent(SelectCell).vm.$.exposed
+    expect(typeof exposed.toggle).toBe('function')
+  })
   it('readonly columns render computed value, unknown types a dash', () => {
     const w = mount(CellRenderer, { props: {
       column: col('f', 'formula'), row: row({}), editing: false, computed: '42',
