@@ -210,43 +210,17 @@ export function useHocuspocusSync() {
               break
             }
             case 2: {
-              // sync update — apply encrypted or plain update to doc
-              for (const [roomName, room] of activeRooms) {
+              // sync update — apply update to doc.  Updates are always
+              // plaintext over WebSocket (encryption is handled by the
+              // HTTP sync engine, not the real-time relay).
+              for (const [, room] of activeRooms) {
                 if (!room.doc) continue
                 try {
-                  const key = collabKeys.get(roomName)
-                  if (key) {
-                    const aad = roomName
-                    const encryptedData = decoding.readVarUint8Array(msg)
-                    const decryptedData = await decryptUpdate(
-                      key,
-                      new Uint8Array(encryptedData),
-                      aad,
-                    )
-                    syncProtocol.readUpdate(
-                      decoding.createDecoder(decryptedData),
-                      room.doc,
-                      'hocuspocus',
-                    )
-                  } else {
-                    // No collab key for this room. Workspace rooms
-                    // (note + meta) are ALWAYS encrypted, so a missing key
-                    // means we cannot decrypt — applying the raw ciphertext
-                    // would corrupt the Y.Doc (e.g. blank notes grid).
-                    // Skip rather than corrupt. Non-workspace rooms (if any)
-                    // fall back to the previous plaintext behavior.
-                    if (roomName.startsWith('workspace:')) {
-                      console.warn(
-                        `[hocuspocus] dropping encrypted update for ${roomName}: no room key set`,
-                      )
-                      continue
-                    }
-                    syncProtocol.readUpdate(
-                      msg,
-                      room.doc,
-                      'hocuspocus',
-                    )
-                  }
+                  syncProtocol.readUpdate(
+                    msg,
+                    room.doc,
+                    'hocuspocus',
+                  )
                 } catch (err) {
                   console.warn(
                     '[hocuspocus] Failed to apply update:',
@@ -373,23 +347,16 @@ export function useHocuspocusSync() {
   }
 
   async function flushBroadcast(roomName, merged) {
+    // Send plaintext Yjs updates over WebSocket.  The Hocuspocus server
+    // is a protocol relay — it parses sync framing, applies updates to
+    // its in-memory Y.Doc, and relays to other clients.  It cannot
+    // decrypt, so encrypted payloads cause RangeError crashes and break
+    // the real-time relay.  E2E encryption is handled by the HTTP sync
+    // engine (push-batch / pull-batch) — the WebSocket path only needs
+    // authenticated transport (TLS + token auth).
     const encoder = encoding.createEncoder()
     syncProtocol.writeUpdate(encoder, merged)
-    let payload = encoding.toUint8Array(encoder)
-
-    // Encrypt if collaboration key is available
-    const key = collabKeys.get(roomName)
-    if (key) {
-      try {
-        const aad = roomName
-        payload = await encryptUpdate(key, payload, aad)
-      } catch (err) {
-        console.error('[hocuspocus] encryption failed:', err)
-        return
-      }
-    }
-
-    sendBinary(payload.buffer)
+    sendBinary(encoding.toUint8Array(encoder).buffer)
   }
 
   function broadcastUpdate(update, origin, doc) {
