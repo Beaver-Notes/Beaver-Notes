@@ -22,12 +22,16 @@ const contentKeys = new Map()
 
 const ENCRYPTED_MAP_KEYS = ['title', 'content']
 
+// observer refs per room (roomName -> observer fn)
+const contentObservers = new Map()
+
 function setupContentEncryption(doc, roomName) {
   const key = contentKeys.get(roomName)
   if (!key) return
 
   const map = doc.getMap('note')
-  map.observe(async (event) => {
+  const observer = async (event) => {
+    if (event.transaction?.origin === 'hocuspocus') return
     for (const [changedKey] of event.changes.keys) {
       const val = map.get(changedKey)
       if (ENCRYPTED_MAP_KEYS.includes(changedKey) && typeof val === 'string') {
@@ -39,7 +43,9 @@ function setupContentEncryption(doc, roomName) {
         }
       }
     }
-  })
+  }
+  contentObservers.set(roomName, observer)
+  map.observe(observer)
 }
 
 async function decryptMapValues(doc, roomName) {
@@ -189,6 +195,16 @@ export function useHocuspocusSync() {
     if (provider) {
       provider.destroy()
       activeProviders.delete(roomName)
+    }
+    const observer = contentObservers.get(roomName)
+    if (observer) {
+      for (const [doc, name] of docToRoom) {
+        if (name === roomName) {
+          doc.getMap('note').unobserve(observer)
+          break
+        }
+      }
+      contentObservers.delete(roomName)
     }
     for (const [doc, name] of docToRoom) {
       if (name === roomName) {
