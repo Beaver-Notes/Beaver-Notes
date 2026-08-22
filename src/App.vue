@@ -254,11 +254,13 @@ export default {
 
     // When onboardingCompleted flips true (first-time user finishing onboarding),
     // run the shell init in the background and start hocuspocus.
-    watch(onboardingCompleted, (val) => {
+    watch(onboardingCompleted, async (val) => {
       if (val) {
-        shell.initializeWorkspace().catch((err) => {
+        try {
+          await shell.initializeWorkspace();
+        } catch (err) {
           console.error('[app] workspace init after onboarding failed:', err);
-        });
+        }
         const hocuspocus = getHocuspocusSync();
         hocuspocus.start();
       }
