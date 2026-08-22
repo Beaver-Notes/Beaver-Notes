@@ -121,7 +121,7 @@ function sortKey(column, row) {
     const names = optionNames(column, v)
     if (!names.length) return Number.MAX_SAFE_INTEGER
     const idx = (column.config?.options || []).findIndex((o) => o.name === names[0])
-    return idx >= 0 ? idx : names[0].toLowerCase()
+    return idx >= 0 ? idx : names[0].toLowerCase() // ponytail: matched-index vs unmatched-name mix compares as strings; per-value rank keys if views need it
   }
   return v == null ? -Infinity : Number(v)
 }
