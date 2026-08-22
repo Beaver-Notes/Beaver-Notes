@@ -29,9 +29,8 @@ export interface DatabaseSchemaPlain {
   updatedAt: number;
 }
 
-// ponytail: row docs (useDatabaseYjs) don't exist yet — provisional prefix, keep in
-// sync when that module lands.
-const ROW_DOC_PREFIX = 'db-row:';
+// ponytail: canonical row-doc id prefix (useDatabaseYjs reuses this constant).
+const ROW_DOC_PREFIX = 'db:';
 
 const COLUMN_NAMES: Record<string, string> = {
   rich_text: 'Text',

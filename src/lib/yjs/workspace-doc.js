@@ -325,7 +325,14 @@ export function observeWorkspace(callback, debounceMs = 150) {
       pendingChangedNoteIds = new Set();
       const flags = metaFlags;
       metaFlags = { folders: false, labels: false, labelColors: false, deleted: false, databases: false, deletedDatabases: false };
-      for (const observer of workspaceObservers) observer(changed, flags);
+      // ponytail: no unsubscribe yet — both subscribers are app-lifetime.
+      for (const observer of workspaceObservers) {
+        try {
+          observer(changed, flags);
+        } catch (error) {
+          console.error('workspace observer failed', error);
+        }
+      }
     }, debounceMs);
   }
 }
