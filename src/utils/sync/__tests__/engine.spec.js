@@ -262,8 +262,8 @@ describe('SyncEngine pull loop', () => {
         order.push('pull');
         page++;
         return page === 1
-          ? { updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, seq: 1 }], hasMore: true }
-          : { updates: [{ noteId: 'note', update: new Uint8Array([2]), device: 'device', ts: 2, seq: 2 }], hasMore: false };
+          ? { updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, sequence: 1 }], hasMore: true }
+          : { updates: [{ noteId: 'note', update: new Uint8Array([2]), device: 'device', ts: 2, sequence: 2 }], hasMore: false };
       }),
       push: vi.fn(() => ({ updates: [], pushed: 0 })),
       seedOnce: vi.fn(() => Promise.resolve()),
@@ -289,8 +289,8 @@ describe('SyncEngine pull loop', () => {
       pull: vi.fn(async () => {
         pullCount++;
         return pullCount === 1
-          ? { updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, seq: 1 }], hasMore: true }
-          : { updates: [{ noteId: 'note', update: new Uint8Array([2]), device: 'device', ts: 2, seq: 2 }], hasMore: false };
+          ? { updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, sequence: 1 }], hasMore: true }
+          : { updates: [{ noteId: 'note', update: new Uint8Array([2]), device: 'device', ts: 2, sequence: 2 }], hasMore: false };
       }),
       push: vi.fn(() => ({ updates: [], pushed: 0 })),
       seedOnce: vi.fn(() => Promise.resolve()),
@@ -331,7 +331,7 @@ describe('SyncEngine pull loop', () => {
 
     const cloud = {
       pull: vi.fn(() => ({
-        updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, seq: 1 }],
+        updates: [{ noteId: 'note', update: new Uint8Array([1]), device: 'device', ts: 1, sequence: 1 }],
         hasMore: true,
       })),
       push: vi.fn(() => ({ updates: [], pushed: 0 })),
@@ -511,7 +511,7 @@ describe('SyncEngine notifications', () => {
 
   it('notifies when a completed cycle pulled updates', async () => {
     mockCloudTransport.pull.mockReturnValue({
-      updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, seq: 1 }],
+      updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, sequence: 1 }],
     });
 
     await engine.enqueueSync(true);
@@ -603,7 +603,7 @@ describe('SyncEngine notifications', () => {
   it('suppresses notifications when isTouchRuntime() is true', async () => {
     isTouchRuntime.mockReturnValue(true);
     mockCloudTransport.pull.mockReturnValue({
-      updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, seq: 1 }],
+      updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, sequence: 1 }],
     });
 
     await engine.enqueueSync(true);

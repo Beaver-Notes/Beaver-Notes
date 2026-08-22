@@ -63,7 +63,7 @@ export async function getCurrentStateVector(docId) {
  * Uses the stored state vector to avoid re-applying known updates.
  *
  * @param {string} docId
- * @param {{ device: string, seq?: number }} updateMetadata
+ * @param {{ device: string, sequence?: number }} updateMetadata
  * @returns {boolean} true if the update is already known
  */
 export function isUpdateKnown(docId, updateMetadata) {
@@ -73,10 +73,10 @@ export function isUpdateKnown(docId, updateMetadata) {
   const clientClock = sv[updateMetadata.device];
   if (clientClock == null) return false;
 
-  // If we have state from this client and the update's seq is at or below
+  // If we have state from this client and the update's sequence is at or below
   // what we've seen, skip it.
-  if (updateMetadata.seq != null) {
-    return updateMetadata.seq <= clientClock;
+  if (updateMetadata.sequence != null) {
+    return updateMetadata.sequence <= clientClock;
   }
   return false;
 }

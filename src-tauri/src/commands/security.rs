@@ -424,7 +424,7 @@ pub(crate) struct SyncMeta {
     pub(crate) device: String,
     pub(crate) ts: i64,
     #[serde(default)]
-    pub(crate) seq: Option<i64>,
+    pub(crate) sequence: Option<i64>,
     pub(crate) note_id: String,
 }
 
@@ -434,7 +434,7 @@ pub(crate) struct SyncMeta {
 ///
 /// The Yjs update is passed as base64-encoded raw bytes (`data`) rather than a
 /// JSON number array, so multi-MB payloads never hit a serde_json round-trip on
-/// a huge array (the previous ~950ms cost). `meta` (device/ts/seq/noteId) is
+/// a huge array (the previous ~950ms cost). `meta` (device/ts/sequence/noteId) is
 /// stored inside the encrypted envelope so it round-trips with the payload.
 #[tauri::command]
 #[specta::specta]

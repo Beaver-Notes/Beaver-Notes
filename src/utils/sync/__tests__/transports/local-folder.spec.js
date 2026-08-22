@@ -58,7 +58,7 @@ describe('LocalFolderTransport', () => {
       getSyncPath.mockResolvedValue('/mock/sync');
       const { listRemoteYjsUpdates } = await import('../../sync-yjs.js');
       listRemoteYjsUpdates.mockResolvedValue([
-        { device: 'other-device', ts: 100, seq: 0, noteId: 'note-a', update: new Uint8Array([1, 2, 3]) },
+        { device: 'other-device', ts: 100, sequence: 0, noteId: 'note-a', update: new Uint8Array([1, 2, 3]) },
       ]);
 
       const { ensureCommitsDir } = await import('../../sync-repository.js');

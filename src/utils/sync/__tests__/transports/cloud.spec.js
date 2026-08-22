@@ -185,7 +185,7 @@ describe('CloudTransport', () => {
       readFile.mockResolvedValue('encrypted-content');
       parseSyncFilename.mockImplementation((file) => {
         const match = file.match(/~~(\d+)\.yjs\.json$/) || file.match(/~~(\d+)~~(\d+)\.yjs\.json$/);
-        return { docId: 'note-a', isSnapshot: false, device: 'mock-device', ts: 200, seq: parseInt(match?.[1] || '0') };
+        return { docId: 'note-a', isSnapshot: false, device: 'mock-device', ts: 200, sequence: parseInt(match?.[1] || '0') };
       });
 
       await transport.push({});
@@ -204,7 +204,7 @@ describe('CloudTransport', () => {
         .mockResolvedValueOnce('small-content');
       parseSyncFilename.mockImplementation((file) => {
         const ts = file.includes('200') ? 200 : 201;
-        return { docId: 'note-a', isSnapshot: false, device: 'mock-device', ts, seq: 0 };
+        return { docId: 'note-a', isSnapshot: false, device: 'mock-device', ts, sequence: 0 };
       });
 
       await transport.push({});
@@ -218,7 +218,7 @@ describe('CloudTransport', () => {
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       readDir.mockResolvedValue(['note-a~~mock-device~~200~~5.yjs.json']);
       readFile.mockResolvedValue('data');
-      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'mock-device', ts: 200, seq: 5 });
+      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'mock-device', ts: 200, sequence: 5 });
       const { pushUpdates } = await import('../../remote-yjs.js');
       pushUpdates.mockResolvedValue({ accepted: 1, duplicate: 0, checkpoint: { ts: 200, sequence: 5, deviceId: 'mock-device' } });
 
@@ -273,7 +273,7 @@ describe('CloudTransport', () => {
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
 
       const { parseSyncFilename } = await import('../../sync-yjs.js');
-      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, seq: 3 });
+      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'remote-device', ts: 100, sequence: 3 });
 
       decryptBatch.mockResolvedValue([updatePayload]);
 
@@ -300,7 +300,7 @@ describe('CloudTransport', () => {
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'bad', checkpointTs: 0, checkpointSequence: 0 }] });
 
       const { parseSyncFilename } = await import('../../sync-yjs.js');
-      parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'remote-device', ts: 50, seq: 0 });
+      parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'remote-device', ts: 50, sequence: 0 });
 
       decryptJSON.mockRejectedValue(new Error('decrypt failed'));
 
@@ -364,7 +364,7 @@ describe('CloudTransport', () => {
         },
       } });
       const { parseSyncFilename } = await import('../../sync-yjs.js');
-      parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'device', ts: 1, seq: 1 });
+      parseSyncFilename.mockReturnValue({ docId: 'bad', isSnapshot: false, device: 'device', ts: 1, sequence: 1 });
 
       await expect(transport.pull({})).rejects.toMatchObject({ code: 'unlock-required' });
     });
@@ -378,7 +378,7 @@ describe('CloudTransport', () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
-      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, seq: 1 });
+      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, sequence: 1 });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': {
           updates: [{ key: 'note-a~~device-a~~1~~1.yjs.json', data: btoa(JSON.stringify({
@@ -400,7 +400,7 @@ describe('CloudTransport', () => {
       const { getRemoteState, pullUpdates } = await import('../../remote-yjs.js');
       const { parseSyncFilename } = await import('../../sync-yjs.js');
       getRemoteState.mockResolvedValue({ status: 'initialized', documents: [{ noteId: 'note-a', checkpointTs: 0, checkpointSequence: 0 }] });
-      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, seq: 1 });
+      parseSyncFilename.mockReturnValue({ docId: 'note-a', isSnapshot: false, device: 'device-a', ts: 1, sequence: 1 });
       pullUpdates.mockResolvedValue({ notes: {
         'note-a': {
           updates: [{ key: 'note-a~~device-a~~1~~1.yjs.json', data: btoa(JSON.stringify({
@@ -510,7 +510,7 @@ describe('CloudTransport', () => {
       readDir.mockResolvedValue(['note-a~~mock-device~~200~~1.yjs.json']);
       readFile.mockResolvedValue('encrypted-content');
       parseSyncFilename.mockReturnValue({
-        docId: 'note-a', isSnapshot: false, device: 'mock-device', ts: 200, seq: 1,
+        docId: 'note-a', isSnapshot: false, device: 'mock-device', ts: 200, sequence: 1,
       });
       transport._serverProbeComplete = false;
     };

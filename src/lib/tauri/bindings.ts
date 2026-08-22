@@ -124,7 +124,7 @@ export const commands = {
 	 * 
 	 *  The Yjs update is passed as base64-encoded raw bytes (`data`) rather than a
 	 *  JSON number array, so multi-MB payloads never hit a serde_json round-trip on
-	 *  a huge array (the previous ~950ms cost). `meta` (device/ts/seq/noteId) is
+	 *  a huge array (the previous ~950ms cost). `meta` (device/ts/sequence/noteId) is
 	 *  stored inside the encrypted envelope so it round-trips with the payload.
 	 */
 	syncEncryptPayload: (meta: string, data: string, aad: string) => typedError<string, AppError>(__TAURI_INVOKE("sync_encrypt_payload", { meta, data, aad })),
@@ -428,7 +428,7 @@ export type SyncDecryptedPayload = {
 export type SyncMeta = {
 	device: string,
 	ts: number,
-	seq?: number | null,
+	sequence?: number | null,
 	noteId: string,
 };
 

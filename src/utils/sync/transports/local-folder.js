@@ -1,12 +1,12 @@
 import { Transport } from './transport.js';
 import { listRemoteYjsUpdates, compactWorkspaceYjs } from '../sync-yjs.js';
-import { writeInitialSnapshots } from './seed.js';
 import { loadStateVector } from '../state-vector.js';
 import { getSyncPath } from '../path.js';
 import { ensureCommitsDir } from '../sync-repository.js';
 import { YJS_UPDATE_EXT } from '../constants.js';
 import { readDir, writeFile } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
+import { seedOnce as seedOnceCommits } from '../shared.js';
 
 /**
  * Merge per-note state vectors into a single flat map for pre-decrypt
@@ -40,7 +40,7 @@ export class LocalFolderTransport extends Transport {
     const { decryptJSON } = await import('../crypto.js');
 
     // Collect state vectors for all notes to enable pre-decrypt filtering.
-    // listRemoteYjsUpdates will skip files whose seq <= maxClock for the device.
+    // listRemoteYjsUpdates will skip files whose sequence <= maxClock for the device.
     const allStateVectors = {};
     try {
       const files = await readDir(commitsDir).catch(() => []);
@@ -73,7 +73,7 @@ export class LocalFolderTransport extends Transport {
       update: u.update,
       device: u.device,
       ts: u.ts,
-      seq: u.seq ?? 0,
+      sequence: u.sequence ?? 0,
     }));
 
     return { updates };
@@ -87,24 +87,7 @@ export class LocalFolderTransport extends Transport {
     const syncPath = await getSyncPath();
     if (!syncPath) return;
     const commitsDir = await ensureCommitsDir(syncPath);
-
-    try {
-      const files = await readDir(commitsDir).catch(() => []);
-      if (files.some((f) => f === '._seeded')) return;
-
-      const wroteMarker = await writeFile(
-        path.join(commitsDir, '._seeded'),
-        ''
-      ).then(() => true, () => false);
-      if (!wroteMarker) return;
-
-      const hasYjsFiles = files.some((f) => f.endsWith(YJS_UPDATE_EXT));
-      if (!hasYjsFiles) {
-        await writeInitialSnapshots(commitsDir);
-      }
-    } catch {
-      // best-effort
-    }
+    await seedOnceCommits(commitsDir);
   }
 
   async compact() {

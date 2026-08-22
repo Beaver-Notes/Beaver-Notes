@@ -327,23 +327,23 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
 
     const noteId = `cross-note-${Date.now()}`;
     const ts = Date.now();
-    const seq = 1;
+    const sequence = 1;
     const aad = `${noteId}-${ts}`;
 
     // Device A: REAL encryptBatch (calls mocked syncEncryptBatch).
     const [envelope] = await encryptBatch(
-      [{ noteId, device: deviceA, ts, sequence: seq, update: originalBytes }],
+      [{ noteId, device: deviceA, ts, sequence, update: originalBytes }],
       [aad]
     );
     expect(typeof envelope).toBe('string');
 
     // Device A: REAL REST push of the encrypted envelope.
-    const key = `${noteId}~~${deviceA}~~${ts}~~${seq}${YJS_UPDATE_EXT}`;
+    const key = `${noteId}~~${deviceA}~~${ts}~~${sequence}${YJS_UPDATE_EXT}`;
     const push = await pushUpdates(ctx.workspaceId, [
       {
         noteId,
         updates: [
-          { key, data: btoa(envelope), deviceId: deviceA, ts, sequence: seq },
+          { key, data: btoa(envelope), deviceId: deviceA, ts, sequence },
         ],
       },
     ]);

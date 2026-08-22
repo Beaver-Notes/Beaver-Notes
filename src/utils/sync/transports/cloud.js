@@ -23,7 +23,7 @@ import {
 import { parseSyncFilename } from '../sync-yjs.js';
 import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
 import { getSyncPath } from '../path.js';
-import { writeInitialSnapshots } from './seed.js';
+import { isNonNegativeInteger, toUpdateBytes, validateCheckpoint, checkpointMap, buildAadSuffix, seedOnce as seedOnceCommits } from '../shared.js';
 import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
 import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
@@ -88,39 +88,10 @@ function acknowledgedCheckpoints(result, noteIds) {
   return {};
 }
 
-function isNonNegativeInteger(value) {
-  return Number.isInteger(value) && value >= 0;
-}
-
 function malformedRemoteUpdate() {
   const error = new Error('Remote update payload is malformed');
   error.code = 'unlock-required';
   return error;
-}
-
-function toUpdateBytes(value) {
-  if (value instanceof Uint8Array) return new Uint8Array(value);
-  if (value instanceof ArrayBuffer) return new Uint8Array(value);
-  if (Array.isArray(value) && value.every((byte) => isNonNegativeInteger(byte) && byte <= 255)) {
-    return new Uint8Array(value);
-  }
-  return null;
-}
-
-function validateCheckpoint(checkpoint) {
-  if (checkpoint?.deviceId) {
-    return typeof checkpoint.deviceId === 'string' && checkpoint.deviceId.length > 0 &&
-      isNonNegativeInteger(checkpoint.ts) && isNonNegativeInteger(checkpoint.sequence);
-  }
-  return checkpoint && typeof checkpoint === 'object' && Object.entries(checkpoint).every(([deviceId, value]) =>
-    typeof deviceId === 'string' && deviceId.length > 0 && value &&
-    isNonNegativeInteger(value.ts) && isNonNegativeInteger(value.sequence));
-}
-
-function checkpointMap(checkpoint) {
-  return checkpoint?.deviceId
-    ? { [checkpoint.deviceId]: { ts: checkpoint.ts, sequence: checkpoint.sequence } }
-    : checkpoint;
 }
 
 function isAuthoritativelyEmpty(state) {
@@ -484,12 +455,10 @@ export class CloudTransport extends Transport {
       const parsed = parseSyncFilename(upd.key);
       if (!parsed || parsed.docId !== upd._noteId ||
         typeof parsed.device !== 'string' || parsed.device.length === 0 ||
-        !isNonNegativeInteger(parsed.ts) || !isNonNegativeInteger(parsed.seq)) {
+        !isNonNegativeInteger(parsed.ts) || !isNonNegativeInteger(parsed.sequence)) {
         throw malformedRemoteUpdate();
       }
-      const aadSuffix = parsed?.isSnapshot
-        ? `${parsed.docId}-snapshot-${parsed.ts}`
-        : `${parsed.docId}-${parsed.ts}`;
+      const aadSuffix = buildAadSuffix(parsed);
       parseResults.push({ raw, parsed, aadSuffix });
     }
 
@@ -527,7 +496,7 @@ export class CloudTransport extends Transport {
           noteId: p.noteId,
           device: p.device,
           ts: p.ts,
-          seq: p.sequence ?? p.seq,
+          sequence: p.sequence ?? p.seq,
           updateType: typeof p.update,
           updateIsArray: Array.isArray(p.update),
           updateConstructor: p.update?.constructor?.name,
@@ -567,10 +536,10 @@ export class CloudTransport extends Transport {
         logger.warn(`[sync][debug] skipping undecryptable item ${i} (noteId: ${parsed?.docId}, ts: ${parsed?.ts})`);
         continue;
       }
-      // Use the payload's seq if present; otherwise fall back to the envelope's
-      // seq from the filename key.  Older payloads may not include seq in the
+      // Use the payload's sequence if present; otherwise fall back to the envelope's
+      // sequence from the filename key.  Older payloads may not include sequence in the
       // encrypted meta, but the filename always carries it.
-      const payloadSequence = payload?.sequence ?? payload?.seq ?? parsed?.seq;
+      const payloadSequence = payload?.sequence ?? payload?.seq ?? parsed?.sequence;
       const updateBytes = toUpdateBytes(payload?.update);
       if (!payload || payload.noteId !== updates[i]._noteId || payload.device !== parsed.device ||
         !isNonNegativeInteger(payload.ts) || payload.ts !== parsed.ts ||
@@ -581,7 +550,7 @@ export class CloudTransport extends Transport {
         if (payload?.device !== parsed?.device) reasons.push(`device_mismatch:${payload?.device}!=${parsed?.device}`);
         if (!isNonNegativeInteger(payload?.ts)) reasons.push(`ts_not_int:${payload?.ts}`);
         if (payload?.ts !== parsed?.ts) reasons.push(`ts_mismatch:${payload?.ts}!=${parsed?.ts}`);
-        if (!isNonNegativeInteger(payloadSequence)) reasons.push(`seq_not_int:${payloadSequence} (orig_payload_seq=${payload?.seq}, envelope_seq=${parsed?.seq})`);
+        if (!isNonNegativeInteger(payloadSequence)) reasons.push(`seq_not_int:${payloadSequence} (orig_payload_seq=${payload?.seq}, envelope_seq=${parsed?.sequence})`);
         if (!updateBytes) reasons.push(`updateBytes_invalid: type=${typeof payload?.update} isArray=${Array.isArray(payload?.update)} constructor=${payload?.update?.constructor?.name} len=${payload?.update?.length}`);
         logger.warn('[sync][debug] payload validation FAILED at index', i, 'reasons:', reasons.join(' | '));
         throw malformedRemoteUpdate();
@@ -592,7 +561,7 @@ export class CloudTransport extends Transport {
         update: updateBytes,
         device: payload.device,
         ts: payload.ts,
-        seq: payloadSequence,
+        sequence: payloadSequence,
       });
     }
 
@@ -764,11 +733,11 @@ export class CloudTransport extends Transport {
         }
 
         noteUpdates.push({
-          key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.seq ?? 0}${YJS_UPDATE_EXT}`,
+          key: `${parsed.docId}~~${parsed.device}~~${parsed.ts}~~${parsed.sequence ?? 0}${YJS_UPDATE_EXT}`,
           data: btoa(typeof raw === 'string' ? raw : raw.toString()),
           deviceId: parsed.device,
           ts: parsed.ts,
-          sequence: parsed.seq ?? 0,
+          sequence: parsed.sequence ?? 0,
         });
         batchBytes += fileBytes;
 
@@ -802,25 +771,7 @@ export class CloudTransport extends Transport {
   async seedOnce() {
     const commitsDir = await getCommitsDir();
     if (!commitsDir) return;
-
-    try {
-      const files = await readDir(commitsDir).catch(() => []);
-      if (files.some((f) => f === '._seeded')) return;
-
-      const { writeFile: writeFs } = await import('@/lib/native/fs');
-      const { path: tauriPath } = await import('@/lib/tauri-bridge');
-      const wroteMarker = await writeFs(
-        tauriPath.join(commitsDir, '._seeded'), ''
-      ).then(() => true, () => false);
-      if (!wroteMarker) return;
-
-      const hasYjsFiles = files.some((f) => f.endsWith(YJS_UPDATE_EXT));
-      if (!hasYjsFiles) {
-        await writeInitialSnapshots(commitsDir);
-      }
-    } catch {
-      // best-effort
-    }
+    await seedOnceCommits(commitsDir);
   }
 
   /**
@@ -904,7 +855,7 @@ export class CloudTransport extends Transport {
       const encrypted = await encryptJSON({
         device: ownDeviceId,
         ts,
-        seq: 0,
+        sequence: 0,
         noteId: META_DOC_ID,
         update: wsState,
       }, `${META_DOC_ID}-${ts}`);
@@ -941,7 +892,7 @@ export class CloudTransport extends Transport {
             const encrypted = await encryptJSON({
               device: ownDeviceId,
               ts: noteTs,
-              seq: 0,
+              sequence: 0,
               noteId,
               update: state,
             }, `${noteId}-${noteTs}`);

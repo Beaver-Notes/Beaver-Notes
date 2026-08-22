@@ -6,25 +6,25 @@ import { SyncEngine } from '../engine.js';
 const remoteParams = '{"version":3,"saltHex":"42424242424242424242424242424242"}';
 const encryptedA = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 201, seq: 1, noteId: 'remote-note-a' },
+  meta: { device: 'remote-device', ts: 201, sequence: 1, noteId: 'remote-note-a' },
   iv: '899d735435b9b78e4aa12b6099315c29ca21952d902fd126',
   enc: 'Iaw+Pnuujg3krTMSb13BRomkyA==',
 });
 const encryptedB = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 202, seq: 2, noteId: 'remote-note-b' },
+  meta: { device: 'remote-device', ts: 202, sequence: 2, noteId: 'remote-note-b' },
   iv: '1d5acfefd2fd2894703a7205db4fb5f2d8796633d083e0b8',
   enc: 'ec6gIYHDL4cZKpotuYIYQoGV',
 });
 const encryptedA2 = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 203, seq: 2, noteId: 'remote-note-a' },
+  meta: { device: 'remote-device', ts: 203, sequence: 2, noteId: 'remote-note-a' },
   iv: 'ab85367ec5b629e2b4e0f0503236357a673c0a67e6b905f5',
   enc: 'Lq1ScbYUisgRvn3N8uS2vhw=',
 });
 const decryptFailureFixture = JSON.stringify({
   v: 5,
-  meta: { device: 'remote-device', ts: 201, seq: 1, noteId: 'remote-note-a' },
+  meta: { device: 'remote-device', ts: 201, sequence: 1, noteId: 'remote-note-a' },
   iv: '899d735435b9b78e4aa12b6099315c29ca21952d902fd126',
   enc: 'Iaw+Pnuujg3krTMSb13BRomkzA==',
 });

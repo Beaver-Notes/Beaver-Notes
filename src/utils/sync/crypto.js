@@ -15,7 +15,7 @@ import { ENCRYPTED_ASSET_EXT } from './constants.js';
 // it only asks the backend to encrypt/decrypt payloads with an AAD binding.
 //
 // Sync payloads carry the Yjs update as raw bytes: the JS layer sends the update
-// as base64 (`data`) alongside a small `meta` object (`{device, ts, seq,
+// as base64 (`data`) alongside a small `meta` object (`{device, ts, sequence,
 // noteId}`), and the backend encrypts the raw bytes directly. This avoids the
 // old `update: Array.from(bytes)` + JSON.stringify/serde round-trip on a huge
 // number array, which cost ~950ms per multi-MB sync file.

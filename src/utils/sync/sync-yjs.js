@@ -70,8 +70,8 @@ function unsanitizeFromFilename(str) {
 // containing dashes, which broke the old dash-delimited parser).
 const FILENAME_SEP = '~~';
 
-function yjsFileName(noteId, ts, seq) {
-  const seqPart = seq != null ? `${FILENAME_SEP}${seq}` : '';
+function yjsFileName(noteId, ts, sequence) {
+  const seqPart = sequence != null ? `${FILENAME_SEP}${sequence}` : '';
   return `${sanitizeForFilename(noteId)}${FILENAME_SEP}${deviceId}${FILENAME_SEP}${ts}${seqPart}${YJS_UPDATE_EXT}`;
 }
 
@@ -80,11 +80,11 @@ function yjsSnapshotFileName(docId, ts) {
 }
 
 /**
- * Parse a sync filename back into { docId, isSnapshot, device, ts, seq }.
+ * Parse a sync filename back into { docId, isSnapshot, device, ts, sequence }.
  *
  * Filename formats (segments separated by FILENAME_SEP = "~~"):
  *   update:        {noteId}~~{deviceId}~~{ts}.yjs.json
- *   update+seq:    {noteId}~~{deviceId}~~{ts}~~{seq}.yjs.json
+ *   update+seq:    {noteId}~~{deviceId}~~{ts}~~{sequence}.yjs.json
  *   snapshot:      {docId}~~snapshot~~{deviceId}~~{ts}.yjs.json
  *
  * Because noteId / docId / deviceId may themselves contain dashes, we use an
@@ -99,21 +99,21 @@ export function parseSyncFilename(file) {
   const parts = base.split(FILENAME_SEP);
   if (parts.length < 3) return null;
 
-  // 1. Identify (ts, seq) from the final segments. A four-segment update has
+  // 1. Identify (ts, sequence) from the final segments. A four-segment update has
   //    an explicit sequence; unlike the legacy heuristic, it may exceed 999.
-  //    Snapshot files have a marker before the device and never carry a seq.
+  //    Snapshot files have a marker before the device and never carry a sequence.
   const last = parts[parts.length - 1];
   const lastNum = Number(last);
   const secondLast = parts.length >= 2 ? parts[parts.length - 2] : null;
   const secondLastNum = secondLast != null ? Number(secondLast) : NaN;
 
-  let seq;
+  let sequence;
   let ts;
 
   if (parts.length >= 4 && parts[parts.length - 3] !== 'snapshot' &&
     Number.isInteger(lastNum) && lastNum >= 0 && Number.isFinite(secondLastNum)) {
     // Last segment is a sequence, second-to-last is the timestamp.
-    seq = lastNum;
+    sequence = lastNum;
     ts = secondLastNum;
     parts.pop();
     parts.pop();
@@ -125,7 +125,7 @@ export function parseSyncFilename(file) {
     return null;
   }
 
-  // 2. Device id is the segment right before the timestamp (or seq)
+  // 2. Device id is the segment right before the timestamp (or sequence)
   if (parts.length === 0) return null;
   const device = parts[parts.length - 1];
   parts.pop();
@@ -141,7 +141,7 @@ export function parseSyncFilename(file) {
   const docId = unsanitizeFromFilename(parts.join(FILENAME_SEP));
   if (!docId) return null;
 
-  return { docId, isSnapshot, device, ts, seq };
+  return { docId, isSnapshot, device, ts, sequence };
 }
 
 /**
@@ -157,11 +157,11 @@ function _nextWriteSeq() {
 
 export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, stateVector) {
   const ts = Date.now();
-  const seq = _nextWriteSeq();
+  const sequence = _nextWriteSeq();
   const payload = {
     device: deviceId,
     ts,
-    seq,
+    sequence,
     noteId,
     update,
   };
@@ -169,7 +169,7 @@ export async function writeYjsUpdate(commitsDir, noteId, update, encryptJSON, st
     payload.stateVector = stateVector;
   }
   const encrypted = await encryptJSON(payload, `${noteId}-${ts}`);
-  const fileName = yjsFileName(noteId, ts, seq);
+  const fileName = yjsFileName(noteId, ts, sequence);
   await writeSyncFile(path.join(commitsDir, fileName), encrypted);
 }
 
@@ -202,7 +202,7 @@ export async function writeYjsSnapshot(commitsDir, docId, state, encryptJSON, st
  * @param {Object} cursors — legacy cursor map (kept for backwards compat)
  * @param {Function} decryptJSON
  * @param {Record<string, number>} [stateVector] — optional { [deviceId]: maxClock }
- *   for pre-decrypt seq filtering.  When provided, updates with seq <= clock are
+ *   for pre-decrypt sequence filtering.  When provided, updates with sequence <= clock are
  *   skipped without reading or decrypting the file.
  */
 export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, stateVector) {
@@ -223,11 +223,11 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     // skip our own files and anything already covered by the state vector or cursor.
     if (parsed.device === deviceId) continue;
 
-    // State vector filtering: skip if seq <= maxClock for this device.
+    // State vector filtering: skip if sequence <= maxClock for this device.
     // This is the primary filter — avoids decrypting known updates.
     if (stateVector) {
       const maxClock = stateVector[parsed.device];
-      if (maxClock != null && (parsed.seq ?? 0) <= maxClock) continue;
+      if (maxClock != null && (parsed.sequence ?? 0) <= maxClock) continue;
     }
 
     // Legacy cursor filtering (kept for backwards compat with callers that
@@ -235,9 +235,9 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     const cursorKey = `yjs-${parsed.device}`;
     const seen = cursors[cursorKey];
     const seenTs = seen?.ts ?? 0;
-    const seenSeq = seen?.seq ?? 0;
+    const seenSeq = seen?.sequence ?? 0;
     if (parsed.ts < seenTs) continue;
-    if (parsed.ts === seenTs && (parsed.seq ?? 0) <= seenSeq) continue;
+    if (parsed.ts === seenTs && (parsed.sequence ?? 0) <= seenSeq) continue;
 
     let payload;
     try {
@@ -257,16 +257,16 @@ export async function listRemoteYjsUpdates(commitsDir, cursors, decryptJSON, sta
     updates.push({
       device: payload.device,
       ts: payload.ts,
-      seq: parsed.seq ?? payload.seq ?? 0,
+      sequence: parsed.sequence ?? payload.sequence ?? 0,
       noteId: payload.noteId,
       update: new Uint8Array(payload.update),
       stateVector: payload.stateVector || null,
     });
   }
 
-  // Sort by (ts, seq) so that cursor advance is monotonic per device:
-  // a file with the same ts but higher seq is always processed later.
-  return updates.sort((a, b) => a.ts - b.ts || a.seq - b.seq);
+  // Sort by (ts, sequence) so that cursor advance is monotonic per device:
+  // a file with the same ts but higher sequence is always processed later.
+  return updates.sort((a, b) => a.ts - b.ts || a.sequence - b.sequence);
 }
 
 // ─── Workspace compaction ───────────────────────────────────────────────────

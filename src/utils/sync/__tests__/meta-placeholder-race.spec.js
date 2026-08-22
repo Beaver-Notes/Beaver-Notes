@@ -46,7 +46,7 @@ vi.mock('@/utils/sync/sync-yjs.js', () => ({
     if (!key.endsWith('.yjs.json')) return null;
     const [docId, device, ts, seq] = key.slice(0, -'.yjs.json'.length).split('~~');
     if (!docId || !device) return null;
-    return { docId, isSnapshot: false, device, ts: Number(ts), seq: Number(seq ?? 0) };
+    return { docId, isSnapshot: false, device, ts: Number(ts), sequence: Number(seq ?? 0) };
   }),
 }));
 

@@ -63,7 +63,7 @@ describe('snapshot vs incremental byte-type consistency', () => {
 
     // SEED path: update passed as Array.from(state)
     const seedEnv = await encryptJSON(
-      { device: 'A', ts, seq: 0, noteId, update: Array.from(state) },
+      { device: 'A', ts, sequence: 0, noteId, update: Array.from(state) },
       `${noteId}-${ts}`
     );
     // INCREMENTAL path: update passed as Uint8Array
