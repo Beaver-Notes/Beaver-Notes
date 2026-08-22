@@ -53,12 +53,17 @@ describe('DatabaseToolbar', () => {
     expect(w.find('[data-test=sorts-badge]').text()).toBe('1')
   })
 
-  it('emits add-view / toggle-filters / toggle-sorts', async () => {
+  it('add-view menu emits add-view with the chosen view type', async () => {
     const w = mountToolbar()
     await w.find('[data-test=add-view]').trigger('click')
+    await w.find('[data-test=add-view-calendar]').trigger('click')
+    expect(w.emitted('add-view')[0][0]).toBe('calendar')
+  })
+
+  it('emits toggle-filters / toggle-sorts', async () => {
+    const w = mountToolbar()
     await w.find('[data-test=filters-btn]').trigger('click')
     await w.find('[data-test=sorts-btn]').trigger('click')
-    expect(w.emitted('add-view')).toBeTruthy()
     expect(w.emitted('toggle-filters')).toBeTruthy()
     expect(w.emitted('toggle-sorts')).toBeTruthy()
   })

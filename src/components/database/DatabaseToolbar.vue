@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useTranslations } from '@/composable/useTranslations'
 import UiPopover from '@/components/ui/Popover.vue'
+import { VIEW_TYPES, VIEW_ICONS, VIEW_NAMES } from '@/lib/database/schema'
 
 const props = defineProps({ schema: Object, view: Object })
 const emit = defineEmits(['switch-view', 'add-view', 'rename-schema', 'delete-schema', 'toggle-filters', 'toggle-sorts'])
@@ -53,15 +54,31 @@ const sortCount = computed(() => props.view?.config?.sorts?.length || 0)
         :style="{ left: underline.left + 'px', width: underline.width + 'px' }"
       />
     </div>
-    <button
-      data-test="add-view"
-      :title="t.newView || 'New view'"
-      :aria-label="t.newView || 'New view'"
-      class="ml-1 rounded p-1 text-sm opacity-50 transition-opacity duration-100 hover:bg-neutral-100 hover:opacity-100 dark:hover:bg-neutral-800"
-      @click="emit('add-view')"
-    >
-      <v-remixicon name="riAddLine" size="16" />
-    </button>
+    <ui-popover placement="bottom-end">
+      <template #trigger>
+        <button
+          data-test="add-view"
+          :title="t.newView || 'New view'"
+          :aria-label="t.newView || 'New view'"
+          class="ml-1 rounded p-1 text-sm opacity-50 transition-opacity duration-100 hover:bg-neutral-100 hover:opacity-100 dark:hover:bg-neutral-800"
+          @click.stop
+        >
+          <v-remixicon name="riAddLine" size="16" />
+        </button>
+      </template>
+      <div class="min-w-[140px]">
+        <button
+          v-for="vt in VIEW_TYPES"
+          :key="vt"
+          :data-test="`add-view-${vt}`"
+          class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-sm capitalize transition-colors duration-100 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          @click="emit('add-view', vt)"
+        >
+          <v-remixicon :name="VIEW_ICONS[vt]" size="16" />
+          <span>{{ VIEW_NAMES[vt] || vt }}</span>
+        </button>
+      </div>
+    </ui-popover>
     <div class="ml-auto flex items-center gap-1">
       <button
         data-test="filters-btn"

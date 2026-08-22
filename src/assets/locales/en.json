@@ -673,7 +673,13 @@
   "deleteConfirmTitle": "Delete this database?",
    "deleteConfirmBody": "All of its rows will be permanently deleted. This action cannot be undone.",
    "createOrLink": "Create or link a database",
-   "newDatabase": "New database"
+   "newDatabase": "New database",
+   "today": "Today",
+   "prevMonth": "Previous month",
+   "nextMonth": "Next month",
+   "noDateColumn": "Add a date column to see items on the calendar",
+   "noGroupColumn": "Add a select or status column to group cards",
+   "viewUnsupported": "This view type isn't available yet"
  },
  "importSource": {
   "obsidian": "Obsidian",

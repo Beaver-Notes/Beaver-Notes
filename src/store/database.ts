@@ -3,6 +3,7 @@ import {
   createDatabase as createDatabaseSchema,
   createColumn,
   createView as createViewSchema,
+  VIEW_NAMES,
 } from '@/lib/database/schema';
 import { defaultViewConfig } from '@/lib/database/view-engine';
 import {
@@ -50,14 +51,6 @@ const COLUMN_NAMES: Record<string, string> = {
   formula: 'Formula',
 };
 
-const VIEW_NAMES: Record<string, string> = {
-  table: 'Table',
-  kanban: 'Board',
-  calendar: 'Calendar',
-  gallery: 'Gallery',
-  list: 'List',
-  timeline: 'Timeline',
-};
 
 function normalize(raw: any): DatabaseSchemaPlain {
   const r = raw || {};

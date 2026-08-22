@@ -6,6 +6,9 @@ export const VIEW_TYPES = ['table','kanban','calendar','gallery','list','timelin
 
 export const VIEW_ICONS = { table:'riTableLine', kanban:'riLayoutColumnLine', calendar:'riCalendarLine', gallery:'riGalleryLine', list:'riListUnordered', timeline:'riBarChartHorizontalLine' }
 
+/** @type {Record<string, string>} */
+export const VIEW_NAMES = { table:'Table', kanban:'Board', calendar:'Calendar', gallery:'Gallery', list:'List', timeline:'Timeline' }
+
 export function defaultConfig(type) {
   switch (type) {
     case 'number': return { format: 'plain' }

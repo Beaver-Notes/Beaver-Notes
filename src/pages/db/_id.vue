@@ -7,6 +7,8 @@ import { useTranslations } from '@/composable/useTranslations'
 import { useDialog } from '@/lib/dialog'
 import DatabaseToolbar from '@/components/database/DatabaseToolbar.vue'
 import TableView from '@/lib/views/TableView.vue'
+import KanbanView from '@/lib/views/KanbanView.vue'
+import CalendarView from '@/lib/views/CalendarView.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,6 +38,16 @@ function onCellUpdate({ rowId, columnId, value }) {
 }
 function addRow() {
   createRow({})
+}
+// kanban "+ New" / card drop: pre-seed the group column (value is an option id or null)
+function addRowInGroup({ columnId, value }) {
+  createRow(value == null ? {} : { [columnId]: value })
+}
+// calendar day click: seed the view's date cell ({start, time_zone} like DateCell writes)
+function addRowOnDate(iso) {
+  const dateCol = view.value?.config?.dateColumnId
+  if (!dateCol) return
+  createRow({ [dateCol]: { start: iso, time_zone: null } })
 }
 
 // Filter/sort panels live here (brief); every edit writes straight through
@@ -161,7 +173,7 @@ function deleteSchema() {
         :schema="schema"
         :view="view"
         @switch-view="(id) => store.setLastView(schema.id, id)"
-        @add-view="store.createView(schema.id, 'kanban')"
+        @add-view="(type) => store.createView(schema.id, type)"
         @rename-schema="renameSchema"
         @delete-schema="deleteSchema"
         @toggle-filters="togglePanel('filters')"
@@ -292,6 +304,7 @@ function deleteSchema() {
       </div>
 
       <table-view
+        v-if="view.type === 'table'"
         :schema="schema"
         :rows="rows"
         :version="version"
@@ -299,6 +312,26 @@ function deleteSchema() {
         @cell-update="onCellUpdate"
         @add-row="addRow"
       />
+      <kanban-view
+        v-else-if="view.type === 'kanban'"
+        :schema="schema"
+        :rows="rows"
+        :version="version"
+        :view="view"
+        @cell-update="onCellUpdate"
+        @add-row-in-group="addRowInGroup"
+      />
+      <calendar-view
+        v-else-if="view.type === 'calendar'"
+        :schema="schema"
+        :rows="rows"
+        :version="version"
+        :view="view"
+        @add-row-on-date="addRowOnDate"
+      />
+      <div v-else class="flex flex-1 items-center justify-center text-sm text-neutral-500">
+        {{ t.viewUnsupported || "This view type isn't available yet" }}
+      </div>
     </template>
     <div v-else class="flex flex-1 items-center justify-center">
       <ui-spinner />

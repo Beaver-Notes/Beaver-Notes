@@ -17,7 +17,7 @@ export function defaultViewConfig(type, columns = []) {
   }
 }
 
-function cellValue(column, row) {
+export function cellValue(column, row) {
   const v = row.cells?.[column.id]
   if (column.type === 'created_time') return row.createdAt ? new Date(row.createdAt).toISOString() : null
   if (column.type === 'last_edited_time') return row.updatedAt ? new Date(row.updatedAt).toISOString() : null
