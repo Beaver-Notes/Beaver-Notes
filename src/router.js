@@ -10,6 +10,7 @@ import SettingsLabels from './pages/settings/Labels.vue';
 import SettingsSecurity from './pages/settings/Security.vue';
 import SettingsAccount from './pages/settings/Account.vue';
 import SettingsTeamAdmin from './pages/settings/TeamAdmin.vue';
+import SettingsSSO from './pages/settings/SSO.vue';
 import SettingsData from './pages/settings/Data.vue';
 import JoinNote from './pages/join/[token].vue';
 import Home from './pages/Index.vue';
@@ -30,6 +31,7 @@ const routeTitles = {
   'Settings-Security': `Security — ${APP_NAME}`,
   'Settings-Data': `Data — ${APP_NAME}`,
   'Settings-Team': `Team — ${APP_NAME}`,
+  'Settings-SSO': `SSO — ${APP_NAME}`,
   Onboarding: `Welcome — ${APP_NAME}`,
 };
 
@@ -78,6 +80,11 @@ const routes = [
         path: 'workspace',
         name: 'Settings-Team',
         component: SettingsTeamAdmin,
+      },
+      {
+        path: 'sso',
+        name: 'Settings-SSO',
+        component: SettingsSSO,
       },
       {
         path: 'shortcuts',

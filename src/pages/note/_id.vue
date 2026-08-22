@@ -84,7 +84,7 @@
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
-        contenteditable="true"
+        :contenteditable="canEdit(noteRole)"
         class="text-5xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight"
         :class="editor ? '' : 'invisible'"
         :data-placeholder="translations.editor.untitledNote"
@@ -138,7 +138,7 @@
           :awareness="awareness"
           :user-name="accountStore.profile?.username || 'Anonymous'"
           :note="note"
-          :role="roomRole"
+          :role="noteRole"
           :cursor-position="note.lastCursorPosition"
           @update="
             autoScroll();
@@ -229,6 +229,7 @@ import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
 import CommentSidebar from '@/components/note/CommentSidebar.vue';
+import { canEdit } from '@/utils/permissions';
 
 export default {
   components: {
@@ -316,7 +317,18 @@ export default {
     );
 
     const hocuspocus = getHocuspocusSync();
-    const roomRole = computed(() => hocuspocus.getRoomRole(id.value));
+    const noteRole = ref('editor');
+    watch(
+      () => sharing.collaborators.value,
+      (list) => {
+        if (!list?.length || !accountStore.profile?.id) return;
+        const self = list.find(
+          (c) => c.userId === accountStore.profile.id || c.username === accountStore.profile.username,
+        );
+        if (self?.role) noteRole.value = self.role;
+      },
+      { immediate: true },
+    );
 
     const {
       doc: ydoc,
@@ -768,7 +780,7 @@ export default {
       toggleComments,
       commentStore,
       onCommentActivated,
-      roomRole,
+      noteRole,
     };
   },
 };

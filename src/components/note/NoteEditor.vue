@@ -466,6 +466,15 @@ export default {
       }
     );
 
+    watch(
+      () => props.role,
+      (role) => {
+        if (editor.value && !editor.value.isDestroyed) {
+          editor.value.setEditable(canEdit(role), false);
+        }
+      },
+    );
+
     return {
       editor,
       computePositionConfig,

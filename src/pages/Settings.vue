@@ -184,6 +184,12 @@ const settings = computed(() => {
       path: '/settings/data',
       keywords: [t.settings.data?.toLowerCase() || 'data'],
     },
+    'Settings-SSO': {
+      name: 'SSO',
+      icon: 'riKeyLine',
+      path: '/settings/sso',
+      keywords: ['sso', 'saml', 'oidc', 'single sign-on'],
+    },
     'Settings-Labels': {
       name: t.labels?.title || 'Labels',
       icon: 'riPriceTag3Line',
