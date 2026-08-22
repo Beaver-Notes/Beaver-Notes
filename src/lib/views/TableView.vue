@@ -176,8 +176,10 @@ const t = computed(() => translations.value.database || {})
       :key="r.id"
       :data-test="`row-${r.id}`"
       role="row"
-      class="group flex border-b transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700"
+      tabindex="0"
+      class="group flex border-b transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 focus-visible:outline-none focus-visible:bg-neutral-50 dark:focus-visible:bg-neutral-800/50"
       @dblclick="emit('open-row', r.id)"
+      @keydown.enter.self.prevent="emit('open-row', r.id)"
     >
       <template v-for="(c, i) in ordered" :key="c.id">
         <div

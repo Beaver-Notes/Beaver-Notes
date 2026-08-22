@@ -209,6 +209,63 @@
             {{ translations.tray?.noRecentItems || 'No recent items' }}
           </p>
         </div>
+
+        <div class="mt-5 mb-2 flex items-center justify-between px-3 shrink-0">
+          <div
+            class="text-[11px] font-semibold uppercase tracking-widest text-neutral-400 dark:text-neutral-500 select-none"
+          >
+            {{ translations.sidebar.databases || 'Databases' }}
+          </div>
+          <button
+            v-tooltip:left="
+              expanded
+                ? (translations.sidebar.newDatabase || 'New database')
+                : undefined
+            "
+            data-testid="add-database-button"
+            :aria-label="translations.sidebar.newDatabase || 'New database'"
+            class="w-6 h-6 flex items-center justify-center rounded-lg text-neutral-400 hover:bg-neutral-200/50 hover:text-neutral-700 dark:hover:bg-neutral-700/50 dark:hover:text-neutral-200 transition-colors"
+            @click="createDatabase"
+          >
+            <v-remixicon name="riAddLine" size="14" />
+          </button>
+        </div>
+        <div v-if="databaseStore.databases.length" class="flex flex-col gap-0.5 pb-1">
+          <router-link
+            v-for="database in databaseStore.databases"
+            :key="database.id"
+            :to="{ name: 'Database', params: { id: database.id } }"
+            class="flex items-center gap-2 w-full min-w-0 px-3 py-1.5 rounded-lg transition-colors text-left group"
+            :title="database.title"
+            :class="
+              isDatabaseActive(database.id)
+                ? 'text-primary bg-primary/10'
+                : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200/50 dark:hover:bg-neutral-700/50 hover:text-neutral-900 dark:hover:text-neutral-100'
+            "
+          >
+            <v-remixicon
+              v-if="isRiIcon(database.icon)"
+              :name="database.icon"
+              size="14"
+              class="shrink-0 transition-transform duration-200 group-hover:scale-105"
+            />
+            <span
+              v-else-if="database.icon"
+              class="select-none flex-shrink-0 text-sm leading-none"
+            >
+              {{ database.icon }}
+            </span>
+            <v-remixicon
+              v-else
+              name="riLayoutGridLine"
+              size="14"
+              class="text-neutral-400 shrink-0 transition-transform duration-200 group-hover:scale-105"
+            />
+            <span class="text-sm truncate flex-1 min-w-0">
+              {{ database.title }}
+            </span>
+          </router-link>
+        </div>
       </div>
     </transition>
 
@@ -371,6 +428,7 @@ import { useRouter, useRoute } from 'vue-router';
 import { useTheme } from '@/composable/theme';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
+import { useDatabaseStore } from '@/store/database';
 import emitter from 'tiny-emitter/instance';
 import { forceSyncNow } from '@/utils/sync';
 import { bindGlobalShortcuts } from '@/utils/ui/globalShortcuts.js';
@@ -392,6 +450,8 @@ export default {
     const theme = useTheme();
     const noteStore = useNoteStore();
     const folderStore = useFolderStore();
+    const databaseStore = useDatabaseStore();
+    databaseStore.hydrate();
     const titlebarInset = ref('0px');
 
     // DOM Element pointers to calculate indicator pill transitions cleanly
@@ -473,6 +533,16 @@ export default {
 
     const isSettingsActive = computed(() => route.path.startsWith('/settings'));
 
+    const isDatabaseActive = (id) =>
+      route.name === 'Database' && route.params.id === id;
+
+    const isRiIcon = (icon) => typeof icon === 'string' && icon.startsWith('ri');
+
+    function createDatabase() {
+      const id = databaseStore.createDatabase();
+      router.push({ name: 'Database', params: { id } });
+    }
+
     // Compute active styles for a single fluid moving side indicator bar
     const pillStyle = computed(() => ({
       top: `${pillTop.value}px`,
@@ -543,7 +613,9 @@ export default {
       const items = [];
 
       for (const note of noteStore.notes) {
-        if (!note.isArchived && note.updatedAt > cutoff) {
+        // Backing notes of database rows carry inDatabase and never surface
+        // in the sidebar (T25 sets the flag; harmless until then).
+        if (!note.isArchived && !note.inDatabase && note.updatedAt > cutoff) {
           items.push({
             id: note.id,
             updatedAt: note.updatedAt,
@@ -668,6 +740,10 @@ export default {
       manualSync,
       keyBinding,
       folderStore,
+      databaseStore,
+      isDatabaseActive,
+      isRiIcon,
+      createDatabase,
       showCreateFolderModal,
       currentFolderId,
       openCreateFolderModal,

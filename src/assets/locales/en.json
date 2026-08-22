@@ -442,7 +442,9 @@
   "importFail": "Import failed!",
   "importSuccess": "Import successful!",
   "newFolder": "New Folder",
+  "newDatabase": "New database",
   "notes": "Notes",
+  "databases": "Databases",
   "notification": "Notification",
   "toggleDarkTheme": "Toggle dark theme",
   "toggleSync": "Toggle sync"
@@ -654,7 +656,19 @@
   "rename": "Rename",
   "hide": "Hide",
   "delete": "Delete",
-  "newRow": "New row"
+  "newRow": "New row",
+  "newView": "New view",
+  "options": "Options",
+  "filter": "Filter",
+  "sort": "Sort",
+  "addFilter": "Add filter",
+  "addSort": "Add sort",
+  "ascending": "Ascending",
+  "descending": "Descending",
+  "renameDatabase": "Rename database",
+  "deleteDatabase": "Delete database",
+  "deleteConfirmTitle": "Delete this database?",
+  "deleteConfirmBody": "All of its rows will be permanently deleted. This action cannot be undone."
  },
  "importSource": {
   "obsidian": "Obsidian",

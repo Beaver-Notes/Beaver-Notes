@@ -15,6 +15,7 @@ import JoinNote from './pages/join/[token].vue';
 import Home from './pages/Index.vue';
 import Note from './pages/note/_id.vue';
 import Folder from './pages/folder/_id.vue';
+import Database from './pages/db/_id.vue';
 
 const APP_NAME = 'Beaver Notes';
 
@@ -22,6 +23,7 @@ const routeTitles = {
   Home: APP_NAME,
   Note: 'Note',
   Folder: 'Folder',
+  Database: 'Database',
   Settings: `Settings — ${APP_NAME}`,
   'Settings-Appearance': `Appearance — ${APP_NAME}`,
   'Settings-Shortcuts': `Shortcuts — ${APP_NAME}`,
@@ -53,6 +55,11 @@ const routes = [
     path: '/folder/:id',
     name: 'Folder',
     component: Folder,
+  },
+  {
+    path: '/db/:id',
+    name: 'Database',
+    component: Database,
   },
   {
     path: '/settings',
