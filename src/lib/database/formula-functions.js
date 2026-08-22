@@ -95,6 +95,7 @@ export const FUNCS = {
   minute: { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.minute() ?? null },
   hour:   { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.hour() ?? null },
   day:    { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.day() ?? null },
+  date:   { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.date() ?? null },
   week:   { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.week() ?? null },
   month:  { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.month() ?? null },
   year:   { args:['date'], returns:'number', fn:(c,d)=>toDate(d)?.year() ?? null },

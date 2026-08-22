@@ -29,6 +29,9 @@ describe('formula-functions', () => {
     expect(FUNCS.dateAdd.fn(ctx, d, 1, 'month').month()).toBe(3)
     expect(typeof FUNCS.timestamp.fn(ctx, d)).toBe('number')
   })
+  it('date returns day of month', () => {
+    expect(FUNCS.date.fn(ctx, dayjs('2026-08-22'))).toBe(22)
+  })
   it('list functions', () => {
     expect(FUNCS.first.fn(ctx, [3, 1])).toBe(3)
     expect(FUNCS.join.fn(ctx, ['a', 'b'], '-')).toBe('a-b')
