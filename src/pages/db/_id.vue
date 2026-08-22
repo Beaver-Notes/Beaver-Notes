@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDatabaseStore } from '@/store/database'
 import { useDatabaseYjs } from '@/composable/useDatabaseYjs'
@@ -18,6 +18,10 @@ store.hydrate()
 const dbId = computed(() => String(route.params.id))
 const schema = computed(() => store.getById(dbId.value))
 if (!schema.value) router.replace({ name: 'Home' })
+// Deleted from another synced window while viewing → redirect instead of spinning.
+watchEffect(() => {
+  if (!schema.value) router.replace({ name: 'Home' })
+})
 
 const { rows, ready, version, createRow, updateCells } = useDatabaseYjs(dbId)
 
