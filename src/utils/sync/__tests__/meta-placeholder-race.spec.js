@@ -4,6 +4,14 @@ import { CloudTransport } from '@/utils/sync/transports/cloud.js';
 import { SyncEngine } from '@/utils/sync/engine.js';
 import { getWorkspaceDoc, destroyWorkspaceDoc, META_DOC_ID } from '@/lib/yjs/meta-doc';
 
+const mockNoteStore = { data: {}, _rebuildIndex: vi.fn() };
+const mockFolderStore = { data: {}, deletedIds: {}, _rebuildIndex: vi.fn() };
+const mockLabelStore = { data: [], colors: {} };
+
+vi.mock('@/store/note', () => ({ useNoteStore: () => mockNoteStore }));
+vi.mock('@/store/folder', () => ({ useFolderStore: () => mockFolderStore }));
+vi.mock('@/store/label', () => ({ useLabelStore: () => mockLabelStore }));
+
 vi.mock('@/store/workspace.ts', () => ({
   useWorkspaceStore: vi.fn(() => ({ activeId: 'workspace-race', workspaces: [] })),
 }));
@@ -217,6 +225,37 @@ describe('pulled meta titles are not shadowed by placeholders', () => {
     const yNotes = getWorkspaceDoc().getMap('notes');
     expect(yNotes.get('note-race')?.get('title')).toBe('From A');
     expect(yNotes.has(META_DOC_ID)).toBe(false);
+  });
+});
+
+describe('remote meta updates refresh the note store', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    destroyWorkspaceDoc();
+    getWorkspaceDoc().clientID = 100;
+    mockNoteStore.data = {};
+  });
+
+  it('writes titled entries to the Pinia note store after pulling meta', async () => {
+    const titled = buildTitledMetaUpdate('note-store-test', 'Synced Title');
+    const envelopes = [
+      {
+        key: `${META_DOC_ID}~~remote-device~~200~~1.yjs.json`,
+        data: encodeEnvelope({
+          device: 'remote-device',
+          ts: 200,
+          sequence: 1,
+          noteId: META_DOC_ID,
+          update: Array.from(titled),
+        }),
+      },
+    ];
+
+    await runEngineCycle({ envelopes });
+
+    expect(mockNoteStore.data['note-store-test']).toBeDefined();
+    expect(mockNoteStore.data['note-store-test'].title).toBe('Synced Title');
   });
 });
 

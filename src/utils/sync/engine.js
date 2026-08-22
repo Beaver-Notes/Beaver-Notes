@@ -14,7 +14,7 @@ import { backend, path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
-import { syncDeletedAssets, reconcileUnknownNotePlaceholders } from '@/lib/yjs/workspace-doc';
+import { syncDeletedAssets, reconcileUnknownNotePlaceholders, writeStoresFromWorkspace } from '@/lib/yjs/workspace-doc';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams } from './vault-key-params.js';
@@ -418,6 +418,26 @@ export class SyncEngine {
                 reconcileUnknownNotePlaceholders(updates.map((u) => u.noteId));
               } catch (err) {
                 console.warn('[sync] placeholder reconciliation failed:', err?.message);
+              }
+            }
+
+            // Refresh the Pinia note store when remote meta updates arrive.
+            // The workspace-doc observer skips origin 'sync', so applyRemote
+            // updates the Y.Doc but never triggers writeStoresFromWorkspace.
+            const hasMetaUpdates = updates.some((u) => u.noteId === 'meta');
+            if (hasMetaUpdates) {
+              try {
+                const affectedIds = updates
+                  .filter((u) => u.noteId !== 'meta')
+                  .map((u) => u.noteId);
+                await writeStoresFromWorkspace(affectedIds.length > 0 ? new Set(affectedIds) : null, {
+                  labels: false,
+                  labelColors: false,
+                  folders: false,
+                  deleted: false,
+                });
+              } catch (err) {
+                logger.warn('[sync] store refresh after meta update failed:', err?.message);
               }
             }
 
