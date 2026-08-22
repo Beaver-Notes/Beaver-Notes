@@ -25,7 +25,7 @@ import {
   buildImportedSearchIndex,
   secureImportedAssets,
 } from '@/utils/onboarding/import-finalize.js';
-import { setupEncryption, hasRemoteVaultKeyParams, adoptVaultKey } from '@/utils/crypto/encryption.js';
+import { setupEncryption, hasRemoteVaultKeyParams, adoptVaultKey, isKeyLoaded } from '@/utils/crypto/encryption.js';
 import { getOnboardingSyncTransport } from '@/utils/onboarding/sync-policy.js';
 import { setSyncPath } from '@/utils/sync/path.js';
 import { forceSyncNow } from '@/utils/sync';
@@ -414,11 +414,17 @@ export function useOnboardingFlow({
       await setSetting('syncTransport', transport);
       if (transport === 'remote') await setSyncPath('');
       await detectVaultJoin();
-      // Trigger seed to upload local state to cloud (fire-and-forget)
-      try {
-        const { useAccountAuth } = await import('@/composable/useAccountAuth');
-        useAccountAuth().triggerSeed().catch(() => {});
-      } catch {}
+      // Seed only when a vault key is already unlocked (e.g. re-running
+      // onboarding). On first run the passphrase step comes later; seeding now
+      // would encrypt under the throwaway auto-created key and orphan every
+      // uploaded artifact. The post-onboarding sync seeds under the real key.
+      if (isKeyLoaded()) {
+        // Trigger seed to upload local state to cloud (fire-and-forget)
+        try {
+          const { useAccountAuth } = await import('@/composable/useAccountAuth');
+          useAccountAuth().triggerSeed().catch(() => {});
+        } catch {}
+      }
     }
     goToNextStep();
   }

@@ -19,6 +19,7 @@ vi.mock('@/composable/useOnboardingAppearance', () => ({
 vi.mock('@/lib/settings', () => ({
   DEFAULT_UI_FONT_STACK: "'Inter'",
   getSetting: vi.fn(async () => null),
+  getSettingSync: vi.fn(() => null),
   invalidateSettingMirrors: vi.fn(),
   setSetting: vi.fn(async () => {}),
 }));
@@ -49,12 +50,20 @@ vi.mock('@/utils/onboarding/index.js', () => ({
   runOnboardingMigration: vi.fn(async () => {}),
   runOnboardingMigrationFromPath: vi.fn(async () => {}),
   ENTRANCE_DELAYS: { logo: 120, text: 580, cta: 1020 },
+  CURTAIN_DURATIONS: { in: 420, out: 320 },
 }));
 
+const isKeyLoadedMock = vi.fn(() => false);
 vi.mock('@/utils/crypto/encryption.js', () => ({
   setupEncryption: vi.fn(async () => ({ ok: true })),
   hasRemoteVaultKeyParams: vi.fn(async () => false),
   adoptVaultKey: vi.fn(async () => ({ ok: true })),
+  isKeyLoaded: (...a) => isKeyLoadedMock(...a),
+}));
+
+const triggerSeedMock = vi.fn(() => Promise.resolve());
+vi.mock('@/composable/useAccountAuth', () => ({
+  useAccountAuth: () => ({ triggerSeed: triggerSeedMock }),
 }));
 
 vi.mock('@/utils/onboarding/sync-policy.js', () => ({
@@ -102,6 +111,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
     listenPayload: vi.fn(async () => () => {}),
     listen: vi.fn(),
   },
+  addCloseHandler: vi.fn(),
   path: { join: (...p) => p.join('/') },
 }));
 
@@ -129,6 +139,38 @@ vi.mock('@/lib/account-storage', () => ({
 }));
 
 import { useOnboardingFlow } from '../useOnboardingFlow.js';
+
+describe('useOnboardingFlow.completeAccountStep', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    isKeyLoadedMock.mockImplementation(() => false);
+    triggerSeedMock.mockImplementation(() => Promise.resolve());
+  });
+
+  const makeFlow = () =>
+    useOnboardingFlow({
+      router: { replace: vi.fn(async () => {}) },
+      clipboard: {},
+      runImportSource: vi.fn(async () => {}),
+    });
+
+  it('does not seed before the vault key exists (fresh onboarding)', async () => {
+    const flow = makeFlow();
+
+    await flow.completeAccountStep();
+
+    expect(triggerSeedMock).not.toHaveBeenCalled();
+  });
+
+  it('still seeds when the vault key is already loaded', async () => {
+    isKeyLoadedMock.mockImplementation(() => true);
+    const flow = makeFlow();
+
+    await flow.completeAccountStep();
+
+    expect(triggerSeedMock).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('useOnboardingFlow.completeAndOpenWorkspace', () => {
   beforeEach(() => {
