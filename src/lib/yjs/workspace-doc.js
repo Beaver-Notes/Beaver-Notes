@@ -256,57 +256,66 @@ export async function ensureMetaRoomKey(wsId) {
 let observerTimer = null;
 let pendingChangedNoteIds = new Set();
 let metaFlags = { folders: false, labels: false, labelColors: false, deleted: false, databases: false, deletedDatabases: false };
+// Multiple consumers can subscribe (app shell hydration + per-feature stores).
+// Only the Y.Doc observers are singletons; callbacks are fanned out below.
+// The shared debounced timer uses whichever debounceMs was registered first
+// (every current caller uses the default).
+const workspaceObservers = new Set();
+
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
-  if (observerAttached) return;
-  doc.getMap('folders').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.folders = true;
-    schedule();
-  });
-  doc.getMap('notes').observeDeep((events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    for (const event of events) {
-      if (event.path?.length === 1) {
-        pendingChangedNoteIds.add(event.path[0]);
-      } else if (event.target === doc.getMap('notes')) {
-        for (const key of event.keys?.keys() ?? []) {
-          pendingChangedNoteIds.add(key);
+  if (!observerAttached) {
+    doc.getMap('folders').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      metaFlags.folders = true;
+      schedule();
+    });
+    doc.getMap('notes').observeDeep((events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      for (const event of events) {
+        if (event.path?.length === 1) {
+          pendingChangedNoteIds.add(event.path[0]);
+        } else if (event.target === doc.getMap('notes')) {
+          for (const key of event.keys?.keys() ?? []) {
+            pendingChangedNoteIds.add(key);
+          }
         }
       }
-    }
-    schedule();
-  });
-  doc.getMap('deletedFolderIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.deleted = true;
-    schedule();
-  });
-  doc.getMap('deletedNoteIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    schedule();
-  });
-  doc.getArray('labels').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.labels = true;
-    schedule();
-  });
-  doc.getMap('labelColors').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.labelColors = true;
-    schedule();
-  });
-  doc.getMap('databases').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.databases = true;
-    schedule();
-  });
-  doc.getMap('deletedDatabaseIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.deletedDatabases = true;
-    schedule();
-  });
-  observerAttached = true;
+      schedule();
+    });
+    doc.getMap('deletedFolderIds').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      metaFlags.deleted = true;
+      schedule();
+    });
+    doc.getMap('deletedNoteIds').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      schedule();
+    });
+    doc.getArray('labels').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      metaFlags.labels = true;
+      schedule();
+    });
+    doc.getMap('labelColors').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      metaFlags.labelColors = true;
+      schedule();
+    });
+    doc.getMap('databases').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      metaFlags.databases = true;
+      schedule();
+    });
+    doc.getMap('deletedDatabaseIds').observeDeep((_events, transaction) => {
+      if (transaction?.origin === 'seed') return;
+      metaFlags.deletedDatabases = true;
+      schedule();
+    });
+    observerAttached = true;
+  }
+
+  workspaceObservers.add(callback);
 
   function schedule() {
     if (observerTimer) clearTimeout(observerTimer);
@@ -316,7 +325,7 @@ export function observeWorkspace(callback, debounceMs = 150) {
       pendingChangedNoteIds = new Set();
       const flags = metaFlags;
       metaFlags = { folders: false, labels: false, labelColors: false, deleted: false, databases: false, deletedDatabases: false };
-      callback(changed, flags);
+      for (const observer of workspaceObservers) observer(changed, flags);
     }, debounceMs);
   }
 }

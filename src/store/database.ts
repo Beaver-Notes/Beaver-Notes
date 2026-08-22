@@ -64,6 +64,7 @@ function normalize(raw: any): DatabaseSchemaPlain {
   const r = raw || {};
   return {
     deletedColumnIds: {},
+    lastViewId: null,
     ...r,
     columns: Array.isArray(r.columns) ? r.columns : [],
     views: Array.isArray(r.views) ? r.views : [],
