@@ -1,4 +1,3 @@
-import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
 import * as awarenessProtocol from 'y-protocols/awareness'
 import { useAccountStore } from '@/store/account'
@@ -148,19 +147,6 @@ export function useHocuspocusSync() {
     return workspaceStore.activeId
   }
 
-  function handleStatelessMessage(jsonStr) {
-    try {
-      const msg = JSON.parse(jsonStr)
-      if (msg.type === 'notification') {
-        import('@/utils/sync/engine').then(({ forceSyncNow }) => {
-          forceSyncNow().catch(() => {})
-        }).catch(() => {})
-      }
-    } catch {
-      // ignore parse errors
-    }
-  }
-
   function joinNoteRoom(noteId, doc) {
     const workspaceId = getActiveWorkspaceId()
     if (!workspaceId) return
@@ -245,6 +231,15 @@ export function useHocuspocusSync() {
     for (const [, provider] of activeProviders) {
       provider.disconnect()
     }
+    for (const [roomName, observer] of contentObservers) {
+      for (const [doc, name] of docToRoom) {
+        if (name === roomName) {
+          doc.getMap('note').unobserve(observer)
+          break
+        }
+      }
+    }
+    contentObservers.clear()
     activeProviders.clear()
     docToRoom.clear()
     collabKeys.clear()
@@ -282,7 +277,8 @@ export function useHocuspocusSync() {
     joinNoteRoom(noteId, doc)
   }
 
-  function getRoomRole(noteId) {
+  // TODO: role-based access control needs the server to send role info in the auth message
+  function getRoomRole(_noteId) {
     return 'editor'
   }
 
