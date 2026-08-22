@@ -31,7 +31,7 @@ import { localAssetName } from '../crypto.js';
 import { loadServerCheckpoint, saveServerCheckpoint } from '../state-vector.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
-import { mergeIntoMap, syncNoteMeta } from '@/lib/yjs/workspace-doc';
+import { mergeIntoMap, reconcileUnknownNotePlaceholders } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import * as Y from 'yjs';
 import { getSnapshot, getSnapshots, getUpdates } from '@/lib/native/yjs.js';
@@ -389,39 +389,20 @@ export class CloudTransport extends Transport {
       }
     }
 
-    // Persist note metadata to the workspace Y.Doc `notes` map so that
-    // writeStoresFromWorkspace() can hydrate the Pinia stores and the UI
-    // displays notes instead of an empty state.
-    const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
-    const yNotes = getWorkspaceDoc().getMap('notes');
+    // Collect every snapshot's noteId (the shared meta doc included) and let
+    // the workspace doc create placeholder meta entries for ids it does not
+    // know yet. Reconciling AFTER all snapshots are applied means notes whose
+    // titled meta entries arrived with the pulled state keep their real
+    // titles, and 'meta' itself can never materialize as a ghost note card.
+    const bootstrapNoteIds = [];
     for (let i = 0; i < decrypted.length; i++) {
-      const item = decrypted[i];
-      if (!item?.update) continue;
-      try {
-        const noteId = downloadedItems[i]._noteId;
-        // Only inject placeholder meta if the note is NOT already in the
-        // workspace doc. If it already exists (from a prior seed, Hocuspocus
-        // sync, or local edits), preserve the real title/preview rather
-        // than overwriting with empty strings.
-        if (!yNotes.has(noteId)) {
-          syncNoteMeta({
-            id: noteId,
-            title: '',
-            folderId: '',
-            labels: [],
-            isArchived: false,
-            isLocked: false,
-            isBookmarked: false,
-            isFullWidth: false,
-            createdAt: 0,
-            updatedAt: 0,
-            preview: '',
-            cardPreview: {},
-          });
-        }
-      } catch (err) {
-        console.warn(`[sync] bootstrap: syncNoteMeta failed for ${downloadedItems[i]?._noteId}:`, err?.message);
-      }
+      if (!decrypted[i]?.update) continue;
+      bootstrapNoteIds.push(downloadedItems[i]._noteId);
+    }
+    try {
+      reconcileUnknownNotePlaceholders(bootstrapNoteIds);
+    } catch (err) {
+      console.warn('[sync] bootstrap: placeholder reconciliation failed:', err?.message);
     }
     return applied > 0;
   }
@@ -479,15 +460,18 @@ export class CloudTransport extends Transport {
     logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
     const updates = [];
     let hasMore = false;
+    // Hold the server's nextCheckpoint per note until the page is safely
+    // decoded — saving immediately after the HTTP response would poison the
+    // stored checkpoint when decrypt/validation later throws for this page
+    // (all subsequent pulls would then legitimately come back empty).
+    const pendingCheckpoints = new Map();
     for (const { noteId } of notes) {
       const page = result.notes?.[noteId] || { updates: [], hasMore: false };
       if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
       for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
       hasMore ||= page.hasMore === true;
-      // Save the server's nextCheckpoint for this note so the next pull only
-      // requests updates newer than what we just received.
       if (page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
-        saveServerCheckpoint(noteId, page.nextCheckpoint);
+        pendingCheckpoints.set(noteId, page.nextCheckpoint);
       }
     }
 
@@ -612,38 +596,11 @@ export class CloudTransport extends Transport {
       });
     }
 
-    // Persist note metadata to the workspace Y.Doc `notes` map for any note
-    // that arrived via this pull but is NOT yet present locally. This mirrors
-    // the placeholder-meta injection performed during bootstrap so a freshly
-    // pulled note (e.g. created on another device while this one was offline)
-    // also appears as a card even without a live Hocuspocus connection. Notes
-    // already in the workspace doc keep their real title/preview.
-    const yNotes = getWorkspaceDoc().getMap('notes');
-    const seenIds = new Set();
-    for (const upd of decodedUpdates) {
-      const noteId = upd?.noteId;
-      if (!noteId || seenIds.has(noteId)) continue;
-      seenIds.add(noteId);
-      if (!yNotes.has(noteId)) {
-        try {
-          syncNoteMeta({
-            id: noteId,
-            title: '',
-            folderId: '',
-            labels: [],
-            isArchived: false,
-            isLocked: false,
-            isBookmarked: false,
-            isFullWidth: false,
-            createdAt: upd.ts || Date.now(),
-            updatedAt: upd.ts || Date.now(),
-            preview: '',
-            cardPreview: null,
-          });
-        } catch (metaErr) {
-          console.warn(`[sync] cloud pull: meta injection failed for ${noteId}:`, metaErr?.message);
-        }
-      }
+    // Every update of this pull decoded and validated — only now persist the
+    // server's checkpoints so the next pull requests updates newer than what
+    // we actually applied. Any throw above leaves the stored state untouched.
+    for (const [noteId, checkpoint] of pendingCheckpoints) {
+      saveServerCheckpoint(noteId, checkpoint);
     }
 
     return { updates: decodedUpdates, hasMore };

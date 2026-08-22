@@ -14,7 +14,7 @@ import { backend, path } from '@/lib/tauri-bridge';
 import { emit } from '@tauri-apps/api/event';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
-import { syncDeletedAssets } from '@/lib/yjs/workspace-doc';
+import { syncDeletedAssets, reconcileUnknownNotePlaceholders } from '@/lib/yjs/workspace-doc';
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams } from './vault-key-params.js';
@@ -407,6 +407,18 @@ export class SyncEngine {
             }
             if (updates.length > 0) {
               try { emit('sync:progress', { phase: 'pull', processed: updates.length, total: updates.length }); } catch {}
+            }
+
+            // Reconcile placeholder meta AFTER the batch's remote updates were
+            // applied: notes whose titled meta entries just arrived are already
+            // in the workspace doc and keep their titles — only ids still
+            // unknown get an untitled placeholder. Must never fail the cycle.
+            if (updates.length > 0) {
+              try {
+                reconcileUnknownNotePlaceholders(updates.map((u) => u.noteId));
+              } catch (err) {
+                console.warn('[sync] placeholder reconciliation failed:', err?.message);
+              }
             }
 
             const allSucceeded = succeeded.every(Boolean);

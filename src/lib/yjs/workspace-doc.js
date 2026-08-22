@@ -449,3 +449,35 @@ export function syncDeletedNoteIds(deletedIds) {
 export function syncDeletedAssets(deletedAssets) {
   syncTombstoneMap('deletedAssets', deletedAssets || {});
 }
+
+/**
+ * Create untitled placeholder meta entries for note ids that arrived via a
+ * remote pull/bootstrap but are not yet present in the workspace doc's
+ * `notes` map. Ids that already exist (e.g. because applyRemote merged the
+ * sender's titled meta entries first) are skipped so real titles are never
+ * shadowed by a fresher empty placeholder, and META_DOC_ID is always filtered
+ * so the shared meta doc can never materialize as a ghost note card.
+ */
+export function reconcileUnknownNotePlaceholders(noteIds) {
+  const doc = getWorkspaceDoc();
+  const yNotes = doc.getMap('notes');
+  const pending = [...new Set(noteIds)].filter(
+    (id) => id && id !== META_DOC_ID && !yNotes.has(id)
+  );
+  for (const id of pending) {
+    syncNoteMeta({
+      id,
+      title: '',
+      folderId: '',
+      labels: [],
+      isArchived: false,
+      isLocked: false,
+      isBookmarked: false,
+      isFullWidth: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      preview: '',
+      cardPreview: {},
+    });
+  }
+}
