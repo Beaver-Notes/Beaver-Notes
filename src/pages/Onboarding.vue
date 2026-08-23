@@ -420,6 +420,69 @@
                         />
                       </div>
                     </ui-card>
+
+                    <div
+                      class="flex flex-col items-center gap-1 text-center mt-5 mb-1"
+                    >
+                      <h3
+                        class="font-semibold text-sm text-neutral-800 dark:text-neutral-200"
+                      >
+                        {{
+                          translations.database?.onboardingImportTitle ||
+                          'Databases'
+                        }}
+                      </h3>
+                      <p
+                        class="text-sm text-neutral-600 dark:text-neutral-400 max-w-sm"
+                      >
+                        {{
+                          translations.database?.onboardingImportDescription ||
+                          'Turn a Notion CSV export or an Obsidian vault into a database.'
+                        }}
+                      </p>
+                    </div>
+
+                    <database-import-card @import="handleDatabaseImport" />
+
+                    <ui-card v-if="dbImportResult" class="bg-input mt-2">
+                      <div class="flex flex-col gap-1 p-4">
+                        <p
+                          class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500 mb-1"
+                        >
+                          Import summary
+                        </p>
+                        <p
+                          class="text-sm text-neutral-600 dark:text-neutral-400"
+                        >
+                          Imported {{ dbImportResult.rows }} rows across
+                          {{ dbImportResult.columns }} columns into
+                          "{{ dbImportResult.title }}".
+                        </p>
+                      </div>
+                    </ui-card>
+
+                    <ui-card v-if="dbIssuesText" class="bg-input">
+                      <div class="flex flex-col gap-3 p-4">
+                        <div class="flex items-center justify-between gap-3">
+                          <p
+                            class="text-xs font-bold uppercase tracking-widest text-neutral-500 dark:text-neutral-500"
+                          >
+                            {{
+                              translations.database?.onboardingIssues ||
+                              'Issues'
+                            }}
+                          </p>
+                          <ui-button variant="secondary" @click="copyDbImportIssues"
+                            >Copy to clipboard</ui-button
+                          >
+                        </div>
+                        <div
+                          class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300"
+                        >
+                          {{ dbIssuesText }}
+                        </div>
+                      </div>
+                    </ui-card>
                   </template>
 
                   <template v-else-if="importPhase === 'confirm'">
@@ -1330,6 +1393,7 @@ import { useSounds } from '@/composable/useSounds';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsAccount } from '@/composable/useSettingsAccount';
 import { useOnboardingFlow } from '@/composable/useOnboardingFlow';
+import DatabaseImportCard from '@/components/onboarding/DatabaseImportCard.vue';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { CURTAIN_DURATIONS } from '@/utils/onboarding/index.js';
 
@@ -1337,6 +1401,7 @@ const { hold: CURTAIN_HOLD, open: CURTAIN_OPEN } = CURTAIN_DURATIONS;
 
 export default {
   name: 'AppOnboarding',
+  components: { DatabaseImportCard },
 
   setup() {
     const router = useRouter();
@@ -1444,6 +1509,42 @@ export default {
       flow.handleLegacyPasswordSkip();
     }
 
+    // ── Database import (Notion CSV / Obsidian vault → database) ────────
+    const dbImportResult = ref(null);
+    const dbIssuesText = ref('');
+
+    async function handleDatabaseImport(payload) {
+      flow.state.error = '';
+      try {
+        const { persistDatabaseImport } = await import(
+          '@/components/onboarding/databaseImport'
+        );
+        const { useDatabaseStore } = await import('@/store/database');
+        const dbId = await persistDatabaseImport(
+          payload,
+          useDatabaseStore()
+        );
+        dbImportResult.value = {
+          dbId,
+          title: payload.title,
+          rows: payload.rows.length,
+          columns: payload.schema.columns.length,
+        };
+        dbIssuesText.value = (payload.issues || []).join('\n');
+      } catch (e) {
+        flow.state.error = e?.message || String(e);
+      }
+    }
+
+    async function copyDbImportIssues() {
+      if (!dbIssuesText.value) return;
+      try {
+        await clipboard.writeText(dbIssuesText.value);
+      } catch (error) {
+        flow.state.error = error?.message || String(error);
+      }
+    }
+
     // ── Coarse key for the top-level content div: stays 'wizard' across
     // every step inside the persistent frame so it never remounts — only
     // its inner Transition (keyed by step + importPhase) slides.
@@ -1488,7 +1589,7 @@ export default {
       if (s === 'import') {
         const phase = flow.importPhase.value;
         if (phase === 'pick') {
-          return [
+          const buttons = [
             {
               key: 'skip',
               label: 'Skip for now',
@@ -1496,6 +1597,16 @@ export default {
               onClick: flow.skipImport,
             },
           ];
+          if (dbImportResult.value) {
+            buttons.push({
+              key: 'continue',
+              label: 'Continue',
+              icon: 'riArrowRightLine',
+              variant: 'primary',
+              onClick: flow.goToNextStep,
+            });
+          }
+          return buttons;
         }
         if (phase === 'confirm') {
           if (flow.showLegacyLockedPrompt.value) {
@@ -1692,6 +1803,10 @@ export default {
       legacyPasswordValue,
       submitLegacyPassword,
       skipLegacyPassword,
+      dbImportResult,
+      dbIssuesText,
+      handleDatabaseImport,
+      copyDbImportIssues,
       strengthPercent,
       strengthLabel,
       strengthBarClass,

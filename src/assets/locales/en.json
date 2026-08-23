@@ -691,6 +691,13 @@
    "couldNotGenerate": "Couldn't generate a formula. Try rephrasing.",
    "preview": "Preview",
    "positionAt": "position",
+   "onboardingImportTitle": "Databases",
+   "onboardingImportDescription": "Turn a Notion CSV export or an Obsidian vault into a database.",
+   "onboardingImportNotion": "Notion CSV",
+   "onboardingImportNotionDesc": "Select a Notion CSV export. Columns are detected automatically.",
+   "onboardingImportObsidian": "Obsidian vault",
+   "onboardingImportObsidianDesc": "Select your vault folder. Each note becomes a row.",
+   "onboardingIssues": "Issues",
    "cancel": "Cancel"
  },
  "importSource": {
