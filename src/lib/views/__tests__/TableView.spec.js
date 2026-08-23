@@ -10,7 +10,7 @@ const db = vi.hoisted(() => ({
 }))
 vi.mock('@/store/database', () => ({ useDatabaseStore: () => db }))
 
-import TableView from '../TableView.vue'
+import TableView, { visibleWindow } from '../TableView.vue'
 
 const schema = {
   id: 'db',
@@ -153,5 +153,79 @@ describe('TableView', () => {
     s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'uid'] } }
     const w = mountView({ schema: s, rows })
     expect(w.findAll('[data-test^=row-]').map((r) => r.find('[data-test$=-uid]').text())).toEqual(['1', '2'])
+  })
+})
+
+describe('visibleWindow (virtualization math)', () => {
+  it('returns all rows when content fits the viewport', () => {
+    expect(visibleWindow(0, 1000, 10)).toEqual({ start: 0, end: 10 })
+    expect(visibleWindow(120, 600, 5)).toEqual({ start: 0, end: 5 })
+  })
+
+  it('applies overscan 8 around the viewport at 40px rows', () => {
+    expect(visibleWindow(800, 400, 500)).toEqual({ start: Math.floor(800 / 40) - 8, end: Math.ceil(1200 / 40) + 8 })
+  })
+
+  it('clamps to valid row bounds', () => {
+    const w = visibleWindow(100000, 400, 50)
+    expect(w.start).toBeGreaterThanOrEqual(0)
+    expect(w.end).toBe(50)
+    expect(visibleWindow(-50, 400, 3)).toEqual({ start: 0, end: 3 })
+    expect(visibleWindow(0, 600, 0)).toEqual({ start: 0, end: 0 })
+  })
+})
+
+describe('TableView virtualization', () => {
+  const manyRows = Array.from({ length: 500 }, (_, i) => ({
+    id: `r${i + 1}`,
+    cells: { t: [{ type: 'text', text: `Row ${i + 1}` }] },
+    createdAt: i,
+    updatedAt: i,
+  }))
+
+  it('renders a bounded slice for large datasets with roles intact', () => {
+    const w = mountView({ rows: manyRows })
+    const rendered = w.findAll('[data-test^=row-]')
+    expect(rendered.length).toBeGreaterThan(0)
+    expect(rendered.length).toBeLessThanOrEqual(40)
+    expect(rendered.every((r) => r.attributes('role') === 'row')).toBe(true)
+  })
+
+  it('renders every row when the table fits the viewport', () => {
+    const few = manyRows.slice(0, 5)
+    const w = mountView({ rows: few })
+    expect(w.findAll('[data-test^=row-]').length).toBe(5)
+  })
+
+  it('scroll events move the rendered slice', async () => {
+    const w = mountView({ rows: manyRows })
+    const scroller = w.find('[role="table"]')
+    scroller.element.scrollTop = 800
+    await scroller.trigger('scroll')
+    const ids = new Set(w.findAll('[data-test^=row-]').map((r) => r.attributes('data-test')))
+    // start = floor(800/40)-8 = 12 → first row r13; end = ceil((800+600)/40)+8 = 43
+    expect(ids.has('row-r13')).toBe(true)
+    expect(ids.has('row-r43')).toBe(true)
+    expect(ids.has('row-r1')).toBe(false)
+    expect(ids.has('row-r44')).toBe(false)
+  })
+
+  it('wrapCells view renders all rows unwindowed', () => {
+    const view = { ...schema.views[0], config: { ...schema.views[0].config, wrapCells: true } }
+    const w = mountView({ rows: manyRows.slice(0, 60), view })
+    expect(w.findAll('[data-test^=row-]').length).toBe(60)
+  })
+
+  it('clears computed cache on version bump so unique_id stays correct after inserts', async () => {
+    const s = {
+      ...schema,
+      columns: [...schema.columns, { id: 'uid', name: '#', type: 'unique_id', config: {} }],
+    }
+    s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'uid'] } }
+    const w = mountView({ schema: s })
+    expect(w.find('[data-test=row-r1] [data-test$=-uid]').text()).toBe('1')
+    const inserted = [{ id: 'rN', cells: {}, createdAt: 9, updatedAt: 9 }, ...rows]
+    await w.setProps({ rows: inserted, version: 1 })
+    expect(w.find('[data-test=row-r1] [data-test$=-uid]').text()).toBe('2')
   })
 })

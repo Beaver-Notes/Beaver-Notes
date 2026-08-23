@@ -1,5 +1,17 @@
+<script>
+// Windowing constants + pure slice math (unit-tested in __tests__/TableView.spec.js).
+export const ROW_HEIGHT = 40
+export const OVERSCAN = 8
+
+export function visibleWindow(scrollTop, viewportHeight, rowCount) {
+  const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN)
+  const end = Math.min(rowCount, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN)
+  return { start, end }
+}
+</script>
+
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CellRenderer from './cells/CellRenderer.vue'
 import { runView } from '../database/view-engine'
 import { createComputeCache } from '../database/compute-row'
@@ -32,6 +44,9 @@ const viewRows = computed(() => {
 
 const COMPUTED_TYPES = ['formula', 'rollup', 'created_time', 'last_edited_time', 'created_by', 'last_edited_by', 'unique_id']
 const computeCache = createComputeCache()
+// Any committed write bumps version; clear so cross-row results (unique_id
+// positions, rollups) recompute — brief v1: correctness over cleverness.
+watch(() => props.version, () => computeCache.clear())
 const computedRows = computed(() => {
   void props.version
   if (!props.schema.columns.some((c) => COMPUTED_TYPES.includes(c.type))) return null
@@ -89,10 +104,43 @@ function removeColumn(column) {
 }
 
 const t = computed(() => translations.value.database || {})
+
+// Windowed rendering: fixed 40px rows, slice from scrollTop with overscan.
+// Wrapped-cell views keep auto heights, so they render unwindowed.
+const scroller = ref(null)
+const scrollTop = ref(0)
+const DEFAULT_VIEWPORT = 600
+const viewportH = ref(DEFAULT_VIEWPORT)
+function measure() {
+  viewportH.value = scroller.value?.clientHeight || DEFAULT_VIEWPORT
+}
+function onScroll(e) {
+  scrollTop.value = e.target.scrollTop
+}
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+})
+onBeforeUnmount(() => window.removeEventListener('resize', measure))
+
+const wrapsCells = computed(() => !!props.view?.config?.wrapCells)
+const win = computed(() =>
+  wrapsCells.value
+    ? { start: 0, end: viewRows.value.length }
+    : visibleWindow(scrollTop.value, viewportH.value, viewRows.value.length),
+)
+const visibleRows = computed(() => viewRows.value.slice(win.value.start, win.value.end))
+const gapTop = computed(() => win.value.start * ROW_HEIGHT)
+const gapBottom = computed(() => (viewRows.value.length - win.value.end) * ROW_HEIGHT)
 </script>
 
 <template>
-  <div class="relative min-h-0 flex-1 overflow-auto" role="table">
+  <div
+    ref="scroller"
+    class="relative min-h-0 flex-1 overflow-auto"
+    role="table"
+    @scroll.passive="onScroll"
+  >
     <div
       role="row"
       class="sticky top-0 z-10 flex items-stretch border-b bg-white transition-colors duration-100 dark:bg-neutral-900 border-neutral-200 dark:border-neutral-700"
@@ -171,12 +219,14 @@ const t = computed(() => translations.value.database || {})
       </button>
     </div>
 
+    <div aria-hidden="true" :style="{ height: gapTop + 'px' }"></div>
     <div
-      v-for="r in viewRows"
+      v-for="r in visibleRows"
       :key="r.id"
       :data-test="`row-${r.id}`"
       role="row"
       tabindex="0"
+      :class="wrapsCells ? '' : 'h-10 shrink-0 overflow-hidden'"
       class="group flex border-b transition-colors duration-100 hover:bg-neutral-50 dark:hover:bg-neutral-800/50 border-neutral-200 dark:border-neutral-700 focus-visible:outline-none focus-visible:bg-neutral-50 dark:focus-visible:bg-neutral-800/50"
       @dblclick="emit('open-row', r.id)"
       @keydown.enter.self.prevent="emit('open-row', r.id)"
@@ -201,6 +251,7 @@ const t = computed(() => translations.value.database || {})
         </div>
       </template>
     </div>
+    <div aria-hidden="true" :style="{ height: gapBottom + 'px' }"></div>
 
     <button
       data-test="add-row"

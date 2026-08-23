@@ -66,13 +66,19 @@ export function computeRowCells(schema, row, context = {}) {
   return out
 }
 
+export const COMPUTE_CACHE_MAX = 2000
+
 export function createComputeCache() {
   const cache = new Map()
   return {
     get(schema, row, context) {
-      const key = `${schema.id}:${row.id}:${row.updatedAt}`
-      if (!cache.has(key)) cache.set(key, computeRowCells(schema, row, context))
-      return cache.get(key)
+      const key = `${schema.id}:${row.id}`
+      const hit = cache.get(key)
+      if (hit && hit.updatedAt === row.updatedAt && hit.schemaUpdatedAt === schema.updatedAt) return hit.result
+      const result = computeRowCells(schema, row, context)
+      if (cache.size >= COMPUTE_CACHE_MAX) cache.delete(cache.keys().next().value)
+      cache.set(key, { updatedAt: row.updatedAt, schemaUpdatedAt: schema.updatedAt, result })
+      return result
     },
     clear(dbId) {
       if (!dbId) return cache.clear()

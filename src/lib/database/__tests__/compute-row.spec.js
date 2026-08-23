@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createDatabase, createColumn } from '../schema'
-import { computeRowCells, createComputeCache } from '../compute-row'
+import { computeRowCells, createComputeCache, COMPUTE_CACHE_MAX } from '../compute-row'
 
 function fixture() {
   const schema = createDatabase()
@@ -99,5 +99,29 @@ describe('createComputeCache', () => {
     expect(cache.get(a.schema, a.row)).not.toBe(aOut)
     cache.clear()
     expect(cache.get(b.schema, b.row)).not.toBe(bOut)
+  })
+
+  it('invalidates when the schema changes even if row.updatedAt did not', () => {
+    const f = fixture()
+    const cache = createComputeCache()
+    expect(cache.get(f.schema, f.row)[f.total.id]).toEqual({ value: 10 })
+    const s2 = JSON.parse(JSON.stringify(f.schema))
+    s2.updatedAt += 1
+    const t2 = s2.columns.find((c) => c.id === f.total.id)
+    t2.config.expression = 'prop("Price") * prop("Qty") + 1'
+    // same row object, same updatedAt — only schemaUpdatedAt moved
+    expect(cache.get(s2, f.row)[f.total.id]).toEqual({ value: 11 })
+  })
+
+  it('evicts entries beyond the size cap', () => {
+    const f = fixture()
+    const cheap = createDatabase()
+    cheap.columns.push(createColumn('created_time', 'C'))
+    const cache = createComputeCache()
+    const first = cache.get(f.schema, f.row)
+    for (let i = 0; i < COMPUTE_CACHE_MAX + 1; i++) {
+      cache.get(cheap, { id: `x${i}`, createdAt: 0, updatedAt: i, cells: {} })
+    }
+    expect(cache.get(f.schema, f.row)).not.toBe(first)
   })
 })
