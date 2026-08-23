@@ -781,6 +781,7 @@ export default {
       commentStore,
       onCommentActivated,
       noteRole,
+      canEdit,
     };
   },
 };
