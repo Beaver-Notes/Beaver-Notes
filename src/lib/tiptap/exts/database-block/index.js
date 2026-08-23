@@ -51,3 +51,5 @@ export const DatabaseBlock = Node.create({
     };
   },
 });
+
+export default DatabaseBlock;
