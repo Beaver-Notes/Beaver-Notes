@@ -680,7 +680,18 @@
    "noDateColumn": "Add a date column to see items on the calendar",
    "noGroupColumn": "Add a select or status column to group cards",
    "noStartColumn": "Add a date column to see items on the timeline",
-   "viewUnsupported": "This view type isn't available yet"
+   "viewUnsupported": "This view type isn't available yet",
+   "formulaTitle": "Edit formula",
+   "modeDescribe": "Describe",
+   "modeExpression": "Expression",
+   "describePlaceholder": "Describe what this formula should calculate…",
+   "generate": "Generate formula",
+   "retry": "Retry",
+   "insertIntoExpression": "Insert into expression",
+   "couldNotGenerate": "Couldn't generate a formula. Try rephrasing.",
+   "preview": "Preview",
+   "positionAt": "position",
+   "cancel": "Cancel"
  },
  "importSource": {
   "obsidian": "Obsidian",
