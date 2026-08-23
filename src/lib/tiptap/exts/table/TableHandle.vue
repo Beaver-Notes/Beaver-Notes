@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="state?.show"
-    class="fixed inset-0 z-0 pointer-events-none"
+    class="fixed inset-0 z-30 pointer-events-none"
   >
     <div
       v-if="showRowHandle"

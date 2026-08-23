@@ -87,6 +87,10 @@ export interface NoteState {
 
 const _skipUndo = { value: false };
 
+export function setSkipUndo(value: boolean): void {
+  _skipUndo.value = value;
+}
+
 const contentSignature: Map<string, object> = new Map();
 const indexSignature: Map<string, string> = new Map();
 

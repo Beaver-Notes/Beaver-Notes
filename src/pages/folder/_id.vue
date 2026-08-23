@@ -242,11 +242,13 @@ import { matchNoteIdsByQuery } from '@/utils/note/search-matches.js';
 import { resolveMoveModalParams } from '@/utils/ui/move-modal-params.js';
 import { useNoteMove } from '@/composable/useNoteMove';
 import { useSelectionBar } from '@/composable/useSelectionBar';
+import EmptyState from '@/components/app/EmptyState.vue';
 
 export default {
   components: {
     HomeNoteMasonry,
     HomeSearch,
+    EmptyState,
     HomeFolderCard,
     FolderTree,
     Actions,

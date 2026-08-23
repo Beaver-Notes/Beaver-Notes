@@ -1,6 +1,6 @@
 <template>
   <div
-    class="bg-white dark:bg-neutral-900 rounded-xl shadow-xl border p-1.5 max-w-[18rem] min-w-[8rem]"
+    class="border p-1.5 max-w-[18rem] min-w-[8rem] rounded-xl shadow-md bg-[var(--float-surface)] dark:bg-[var(--float-surface-dark)] border-[var(--float-border)] dark:border-[var(--float-border-dark)] backdrop-blur-xl"
   >
     <ui-list class="overflow-y-auto no-scrollbar max-h-80">
       <ui-list-item

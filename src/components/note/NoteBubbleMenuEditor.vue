@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="editor"
-    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
+    class="border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden bg-[var(--float-surface)] dark:bg-[var(--float-surface-dark)] border-[var(--float-border)] dark:border-[var(--float-border-dark)] backdrop-blur-xl"
   >
     <div class="flex items-center justify-start w-max h-full gap-1">
       <ui-popover>

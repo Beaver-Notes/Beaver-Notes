@@ -380,6 +380,7 @@ import { useSounds } from '@/composable/useSounds';
 import WorkspaceSwitcher from './WorkspaceSwitcher.vue';
 import FolderCustomizeModal from '../home/FolderCustomizeModal.vue';
 import { useSyncProgressStore } from '@/store/sync-progress';
+import { useSidebar } from '@/composable/useSidebar';
 
 export default {
   components: { WorkspaceSwitcher, FolderCustomizeModal },
@@ -455,13 +456,7 @@ export default {
       calculatePillPositions();
     });
 
-    const expanded = ref(localStorage.getItem('sidebarExpanded') !== 'false');
-
-    function toggleExpanded() {
-      expanded.value = !expanded.value;
-      localStorage.setItem('sidebarExpanded', String(expanded.value));
-      nextTick(() => calculatePillPositions());
-    }
+    const { expanded, toggleExpanded } = useSidebar();
 
     // Fixed path structural matches for nested routes (`/settings/labels` won't drop parent highlight)
     const isAllNotesActive = computed(

@@ -3,18 +3,18 @@ import { ref } from 'vue';
 
 const MAX_STACK = 50;
 
-interface BulkDeleteItem {
+export interface BulkDeleteItem {
   type: 'note' | 'folder';
   data: Record<string, unknown>;
 }
 
-interface NoteRef {
+export interface NoteRef {
   id: string;
   prev?: boolean;
   prevFolderId?: string | null;
 }
 
-interface FolderRef {
+export interface FolderRef {
   id: string;
   prev?: boolean;
   prevParentId?: string | null;
@@ -74,17 +74,30 @@ export const useUndoStore = defineStore('undo', () => {
 
     switch (action.type) {
       case 'bulk-delete': {
-        for (const item of action.items!) {
-          if (item.type === 'note') {
-            item.data.isLocked = false;
-            await noteStore.add(item.data);
-          } else if (item.type === 'folder') {
-            try {
-              await folderStore.add(item.data);
-            } catch (error) {
-              console.warn('[undo] failed to restore folder', item.data.id, error);
+        startBatch();
+        try {
+          for (const item of action.items!) {
+            if (item.type === 'note') {
+              item.data.isLocked = false;
+              await noteStore.add(item.data);
+            } else if (item.type === 'folder') {
+              try {
+                await folderStore.add(item.data);
+              } catch (error) {
+                console.warn('[undo] failed to restore folder', item.data.id, error);
+              }
             }
           }
+
+          for (const { id, prevFolderId } of action.notes ?? []) {
+            await noteStore.update(id, { folderId: prevFolderId });
+          }
+
+          for (const { id, prevParentId } of action.folders ?? []) {
+            await folderStore.update(id, { parentId: prevParentId });
+          }
+        } finally {
+          cancelBatch();
         }
         break;
       }

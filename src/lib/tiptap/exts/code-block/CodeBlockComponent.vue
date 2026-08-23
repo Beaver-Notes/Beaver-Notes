@@ -1,7 +1,7 @@
 <template>
   <node-view-wrapper class="relative">
     <div
-      class="absolute right-2 top-2 z-10 flex items-center gap-1 border bg-neutral-50 dark:bg-neutral-900 rounded-lg px-2 py-1 print:hidden"
+      class="absolute right-2 top-2 z-10 flex items-center gap-1 border rounded-lg px-2 py-1 print:hidden bg-[var(--float-surface)] dark:bg-[var(--float-surface-dark)] border-[var(--float-border)] dark:border-[var(--float-border-dark)] backdrop-blur-xl"
     >
       <ui-select
         v-model="selectedLanguage"
@@ -258,8 +258,8 @@ pre code {
     padding: 0.125rem 0.25rem;
     @apply text-sm;
     width: auto;
-    flex: 1;
-    min-width: 0;
+    min-width: 5rem;
+    white-space: nowrap;
     min-height: 24px;
   }
 

@@ -328,14 +328,16 @@ export function useNotesBrowser({
       cancelText: translations.value.dialog.cancel,
       onConfirm: async () => {
         undoStack.startBatch();
-        for (const item of items) {
-          const { type, id } = parseItemId(item);
-          if (type === 'note') {
-            await noteStore.delete(id);
-          } else if (type === 'folder') {
-            await folderStore.delete(id);
-          }
-        }
+        await Promise.all(
+          items.map(async (item) => {
+            const { type, id } = parseItemId(item);
+            if (type === 'note') {
+              await noteStore.delete(id);
+            } else if (type === 'folder') {
+              await folderStore.delete(id, { deleteContents: true });
+            }
+          })
+        );
         undoStack.commitBatch();
         clearSelection();
       },
