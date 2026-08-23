@@ -9,10 +9,19 @@ import * as Y from 'yjs';
 export const META_DOC_ID = 'meta';
 
 let wsDoc = null;
+let _onDestroy = null;
 
 export function getWorkspaceDoc() {
   if (!wsDoc) wsDoc = new Y.Doc();
   return wsDoc;
+}
+
+/**
+ * Register a callback to run when the workspace doc is destroyed.
+ * Used by workspace-doc.js to reset observer/persist flags.
+ */
+export function onWorkspaceDocDestroy(cb) {
+  _onDestroy = cb;
 }
 
 /**
@@ -24,5 +33,6 @@ export function destroyWorkspaceDoc() {
   if (wsDoc) {
     wsDoc.destroy();
     wsDoc = null;
+    if (_onDestroy) { _onDestroy(); _onDestroy = null; }
   }
 }

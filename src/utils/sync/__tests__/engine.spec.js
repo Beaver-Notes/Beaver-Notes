@@ -37,6 +37,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
 
 vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: vi.fn(() => ({ getMap: vi.fn(() => ({ get: vi.fn(), keys: vi.fn(() => []) })) })),
+  onWorkspaceDocDestroy: vi.fn(),
 }));
 
 vi.mock('@/lib/yjs/helpers.js', () => ({

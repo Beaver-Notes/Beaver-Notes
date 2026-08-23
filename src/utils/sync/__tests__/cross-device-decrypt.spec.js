@@ -195,6 +195,7 @@ vi.mock('@/utils/sync/path.js', () => ({
 
 vi.mock('@/lib/yjs/meta-doc.js', () => ({
   getWorkspaceDoc: () => new Y.Doc(),
+  onWorkspaceDocDestroy: vi.fn(),
 }));
 
 // ─── Probe backend reachability ───

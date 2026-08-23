@@ -16,7 +16,7 @@ vi.mock('@/store/folder', () => ({ useFolderStore: () => folderStoreMock }));
 vi.mock('@/store/label', () => ({ useLabelStore: () => labelStoreMock }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => noteStoreMock }));
 vi.mock('@/store/note/index', () => ({ saveNote: vi.fn() }));
-vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: () => docHolder.doc, onWorkspaceDocDestroy: vi.fn() }));
 
 import { writeStoresFromWorkspace } from '@/lib/yjs/meta-store.js';
 

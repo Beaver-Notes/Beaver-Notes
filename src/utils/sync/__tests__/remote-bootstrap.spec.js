@@ -192,7 +192,7 @@ vi.mock('@/lib/tauri-bridge', () => ({
   },
   path: { join: (...parts) => parts.join('/') },
 }));
-vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()) }));
+vi.mock('@/lib/yjs/meta-doc.js', () => ({ getWorkspaceDoc: vi.fn(() => new Y.Doc()), onWorkspaceDocDestroy: vi.fn() }));
 vi.mock('@/lib/yjs/helpers.js', () => ({ yMapToObj: vi.fn(() => ({})) }));
 vi.mock('@/lib/yjs/workspace-doc', () => ({ syncDeletedAssets: vi.fn() }));
 vi.mock('@/lib/yjs/shared.js', () => ({ applyRemote: vi.fn(), getActiveDoc: vi.fn(() => null) }));

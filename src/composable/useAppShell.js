@@ -564,17 +564,30 @@ export function useAppShell(onboardingCompleted = true) {
         }
       }
       if (useAccountStore().isAuthenticated) {
-        // Fetch profile/subscription so _remoteAllowed has plan info for sync
-        import('@/lib/api/account').then(({ getAccount }) => {
-          getAccount({ baseUrl: accountStore.serverUrl }).then((data) => {
-            if (data) {
-              accountStore.setProfile(data.profile);
-              accountStore.setSubscription(data.subscription);
-              accountStore.setDevices(data.devices || []);
-            }
-          }).catch(() => {});
-        }).catch(() => {});
+        // Fetch profile/subscription so _remoteAllowed has plan info for sync.
+        // Await so initAppSync() runs with full auth state.
+        try {
+          const { getAccount } = await import('@/lib/api/account');
+          const data = await getAccount({ baseUrl: accountStore.serverUrl });
+          if (data) {
+            accountStore.setProfile(data.profile);
+            accountStore.setSubscription(data.subscription);
+            accountStore.setDevices(data.devices || []);
+          }
+        } catch {
+          // non-critical — sync will retry on next cycle
+        }
         await useWorkspaceStore().retrieve();
+
+        // Join meta WebSocket room now that activeId is known. loadWorkspaceDoc()
+        // ran earlier but workspaceStore.activeId was null at that point.
+        const { getWsSync } = await import('@/lib/sync/ws-sync');
+        const { ensureMetaRoomKey } = await import('@/lib/yjs/workspace-doc');
+        const wsId = useWorkspaceStore().activeId;
+        if (wsId) {
+          await ensureMetaRoomKey(wsId).catch(() => {});
+          getWsSync().joinMetaRoom(wsId);
+        }
       }
     } catch (err) {
       console.warn('[app] pre-sync auth/workspace hydrate failed:', err);

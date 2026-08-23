@@ -3,7 +3,7 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import { useAccountStore } from '@/store/account'
 import { useWorkspaceStore } from '@/store/workspace'
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc'
-import { registerActiveDoc, unregisterActiveDoc } from '@/lib/yjs/shared'
+import { unregisterActiveDoc } from '@/lib/yjs/shared'
 import {
   importCollabKey,
   isValidCollabKey,
@@ -174,7 +174,6 @@ export function useWsSync() {
 
     activeProviders.set(roomName, provider)
     docToRoom.set(doc, roomName)
-    registerActiveDoc(noteId, doc)
   }
 
   function leaveNoteRoom(noteId) {

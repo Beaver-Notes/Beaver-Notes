@@ -21,7 +21,7 @@ import {
   objToYMap,
   toUint8Array,
 } from '@/lib/yjs/helpers.js';
-import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
+import { getWorkspaceDoc, META_DOC_ID, onWorkspaceDocDestroy } from './meta-doc.js';
 import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
@@ -49,6 +49,14 @@ const NOTE_META_FIELDS = [
 let observerAttached = false;
 let persistHandlerAttached = false;
 let snapshotWritten = false;
+
+// Reset module-level flags when the doc singleton is destroyed (workspace
+// switch, account switch) so observers re-attach on the next doc creation.
+onWorkspaceDocDestroy(() => {
+  observerAttached = false;
+  persistHandlerAttached = false;
+  snapshotWritten = false;
+});
 
 // Debounced, merged persistence for the workspace doc. A burst of meta edits
 // (bulk drag, multi-rename, bulk label) fires one Y.Doc update event per

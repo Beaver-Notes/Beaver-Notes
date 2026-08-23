@@ -83,6 +83,24 @@
         <span>{{ translations.note?.settingUpOnDevice || 'Setting up on this device…' }}</span>
       </div>
       <div
+        v-if="syncingContent"
+        class="flex items-center gap-2 mb-4 text-sm text-neutral-500 dark:text-neutral-400"
+      >
+        <span>{{ translations.note?.syncingContent || 'Syncing content…' }}</span>
+      </div>
+      <div
+        v-if="yjsError"
+        class="flex flex-col items-center gap-3 mb-4 p-4 rounded-lg bg-red-50 dark:bg-red-900/20 text-sm text-red-600 dark:text-red-400"
+      >
+        <span>{{ yjsError }}</span>
+        <button
+          class="px-3 py-1 rounded bg-red-100 dark:bg-red-800 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-700 transition"
+          @click="yjsError = null; yjsLoad(id, note?.content, note?.title || '').catch(e => { yjsError = e?.message || 'Retry failed' })"
+        >
+          {{ translations.common?.retry || 'Retry' }}
+        </button>
+      </div>
+      <div
         v-if="!isLocked"
         ref="titleDiv"
         data-testid="note-title-input"
@@ -344,6 +362,23 @@ export default {
       observeTitle: yjsObserveTitle,
     } = useNoteYjs();
 
+    // Show "syncing" state when yjs is ready but the doc has no content yet
+    // (content arrives via sync after metadata). Prevents blank editor flash.
+    const syncingContent = ref(false);
+    const yjsError = ref(null);
+    watch(ydoc, (doc) => {
+      if (!doc) { syncingContent.value = false; return; }
+      const check = () => {
+        const frag = doc.getXmlFragment('content');
+        syncingContent.value = yjsReady.value && frag.length === 0;
+      };
+      check();
+      doc.on('update', check);
+      // Re-check after a short delay for WS sync to arrive
+      const timer = setTimeout(check, 2000);
+      return () => { doc.off('update', check); clearTimeout(timer); };
+    }, { immediate: true });
+
     const awareness = ydoc.value ? new Awareness(ydoc.value) : null;
     const accountStore = useAccountStore();
     const presence = usePresence(
@@ -566,10 +601,15 @@ export default {
           localStorage.setItem('lastNoteEdit', noteId);
         }
 
-        const seedContent = currentNote?.content;
-        const seedTitle = currentNote?.title || '';
+        // Read content at call time — the decrypt watcher may have updated the
+        // store since this watcher triggered, so don't capture a stale ref.
+        const currentForLoad = noteStore.getById(noteId);
+        const seedContent = currentForLoad?.content;
+        const seedTitle = currentForLoad?.title || '';
+        yjsError.value = null;
         yjsLoad(noteId, seedContent, seedTitle).catch((err) => {
           console.error('[yjs] Failed to load note:', err);
+          yjsError.value = err?.message || 'Failed to load note';
         });
       },
       { immediate: true },
@@ -787,6 +827,8 @@ export default {
       onCommentActivated,
       noteRole,
       canEdit,
+      syncingContent,
+      yjsError,
     };
   },
 };
