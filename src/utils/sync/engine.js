@@ -18,7 +18,7 @@ import { syncDeletedAssets, reconcileUnknownNotePlaceholders, writeStoresFromWor
 import { speed } from '@/utils/speed.js';
 import { loadSecureBlob } from '@/utils/crypto/safeStorageBlob.js';
 import { fetchCloudKeyParams } from './vault-key-params.js';
-import { reconcileSyncKeyParams, syncKeyReady } from '@/lib/native/security.js';
+import { reconcileSyncKeyParams } from '@/lib/native/security.js';
 import * as Y from 'yjs';
 import { getCurrentStateVector, saveStateVector } from './state-vector.js';
 import { getActiveDoc } from '@/lib/yjs/shared.js';
@@ -112,6 +112,7 @@ export class SyncEngine {
 
   enqueueSync(force = false, pullOnly = false) {
     if (this.syncing) {
+      console.warn('[sync] enqueueSync: already syncing, queuing', { force, pullOnly });
       this.pending = true;
       if (force || this._forceFlush) this._pendingForce = true;
       if (pullOnly) this._pullOnlyMode = true;
@@ -144,10 +145,9 @@ export class SyncEngine {
    * Start the pull-only periodic timer. Fires every PULL_ONLY_INTERVAL_MS
    * to pull remote changes from other devices. Only pulls — does not push.
    *
-   * Cloud-only sync relies entirely on WebSocket notifications from
-   * Hocuspocus for real-time pull triggers — no polling timer needed.
-   * The timer is only started for folder sync which has no notification
-   * mechanism.
+   * Cloud-only sync relies on WebSocket connection events for real-time
+   * pull triggers — the timer is only started for folder sync which has
+   * no notification mechanism.
    */
   startPullTimer() {
     if (this._pullTimer !== null) return;
@@ -223,10 +223,11 @@ export class SyncEngine {
     // visibility change / foreground wake / force. `syncing` was already set
     // synchronously so concurrent enqueueSync callers still coalesce.
     const { getSettingSync } = await import('@/lib/settings');
-    const { isEncryptionEnabled } = await import('@/utils/crypto/encryption.js');
     const { bufToBase64 } = await import('@/utils/crypto/codec.js');
     const onboardingCompleted = getSettingSync('onboardingCompleted');
+    console.warn('[sync] _runCycle entry', { force: _force, onboardingCompleted });
     if (!onboardingCompleted) {
+      console.warn('[sync] SKIP: onboarding not completed');
       logger.info('[sync] onboarding not completed → skip cycle');
       t?.end();
       this._resolveSkip();
@@ -234,7 +235,9 @@ export class SyncEngine {
     }
     const syncPath = await getSyncPath();
     const activeTransportNames = this.getActiveTransports();
+    console.warn('[sync] config', { syncPath: syncPath || '(none)', transports: activeTransportNames });
     if (!syncPath && activeTransportNames.includes('local')) {
+      console.warn('[sync] SKIP: no syncPath + local transport');
       logger.info('[sync] no syncPath + local transport → skip cycle');
       t?.end();
       this._resolveSkip();
@@ -263,21 +266,27 @@ export class SyncEngine {
 
       logger.info('[sync] cycle config', { syncPath: syncPath || '(none)', transports: activeTransportNames, hasLocal });
 
-      // Check encryption key readiness before attempting any sync operations.
-      // If encryption is enabled but the key hasn't been unlocked yet, all
-      // decrypt/encrypt calls would fail with KEY_LOCKED, producing noisy
-      // errors and deferred pulls. Skip the cycle gracefully instead.
-      if (activeTransportNames.includes('cloud')) {
-        const keyReady = await syncKeyReady().catch(() => false);
-        const encEnabled = isEncryptionEnabled();
-        logger.info('[sync][debug] syncKeyReady:', keyReady, 'isEncryptionEnabled:', encEnabled);
-        if (!keyReady && encEnabled) {
-          logger.info('[sync] encryption enabled but key not ready — deferring cycle');
-          try { emit('sync:status', { status: 'unlock-required' }); } catch {}
-          notifySyncLocked();
-          outcome = { ok: true };
-          return;
-        }
+      // Resolve sync readiness once per cycle — auth, plan, encryption key,
+      // workspace. Replaces the scattered syncKeyReady + isEncryptionEnabled +
+      // _remoteAllowed checks that previously ran independently and could
+      // disagree with each other.
+      const { getSyncReadiness } = await import('./readiness.js');
+      const readiness = await getSyncReadiness();
+      console.warn('[sync] readiness result', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
+      logger.info('[sync] readiness', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
+
+      // Inject readiness into cloud transport so _remoteAllowed() and
+      // _ensureWorkspace() use the same snapshot as the engine.
+      if (this.transports.cloud?.setReadiness) {
+        this.transports.cloud.setReadiness(readiness);
+      }
+
+      if (!readiness.keyReady) {
+        logger.info('[sync] encryption key not ready — deferring cycle');
+        try { emit('sync:status', { status: 'unlock-required' }); } catch {}
+        notifySyncLocked();
+        outcome = { ok: true };
+        return;
       }
 
       // Vault key params: reconcile on EVERY cycle so a joining device adopts
@@ -289,15 +298,13 @@ export class SyncEngine {
         try {
           syncPassphrase = await loadSecureBlob('encryptionPassphraseBlob');
         } catch (e) {
-          logger.warn('[sync][debug] loadSecureBlob(encryptionPassphraseBlob) failed:', e?.message || e);
+          logger.warn('[sync] loadSecureBlob(encryptionPassphraseBlob) failed:', e?.message || e);
           syncPassphrase = null;
         }
-        let fetchedRemote = false;
         try {
-          const fetched = await fetchCloudKeyParams();
-          fetchedRemote = !!fetched;
+          await fetchCloudKeyParams();
         } catch (e) {
-          logger.warn('[sync][debug] fetchCloudKeyParams failed:', e?.message || e);
+          logger.warn('[sync] fetchCloudKeyParams failed:', e?.message || e);
         }
         try {
           await reconcileSyncKeyParams(syncPassphrase || undefined);
@@ -339,6 +346,7 @@ export class SyncEngine {
       // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
       let cloudBlocked = false;
       if (shouldPull) {
+        console.warn('[sync] PULL phase starting');
         try { emit('sync:progress', { phase: 'pull', processed: 0, total: 0 }); } catch {}
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
@@ -350,7 +358,7 @@ export class SyncEngine {
             try {
               pullResult = await transport.pull();
             } catch (e) {
-              logger.warn(`[sync][debug] ${name} pull error:`, e?.code, e?.message, e);
+              logger.warn(`[sync] ${name} pull error:`, e?.code, e?.message);
               if (e?.code === 'unlock-required') {
                 logger.warn('[sync] pull deferred — encryption is locked or not configured');
                 try { emit('sync:status', { status: 'unlock-required' }); } catch {}
@@ -501,6 +509,7 @@ export class SyncEngine {
       }
 
       if (shouldPush) {
+        console.warn('[sync] PUSH phase starting');
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
             logger.info('[sync] cloud push skipped — pull deferred due to unlock-required');
@@ -546,11 +555,13 @@ export class SyncEngine {
       }
 
       outcome = { ok: true };
+      console.warn('[sync] cycle COMPLETE', { gotUpdates, pushedAny });
       try { emit('sync:status', { status: 'complete' }); } catch {}
       unlockNotified = false;
       if (gotUpdates || pushedAny) notifySyncCompleted();
       logger.info('[sync] cycle complete ok');
     } catch (err) {
+      console.error('[sync] cycle FAILED:', err?.message, err?.code);
       logger.error('[sync] Sync failed:', err);
       logger.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
@@ -587,7 +598,10 @@ export class SyncEngine {
 }
 
 export function forceSyncNow() {
-  if (!engine) return Promise.resolve();
+  if (!engine) {
+    console.warn('[sync] forceSyncNow: engine not initialized — silently returning');
+    return Promise.resolve();
+  }
   return engine.forceSyncNow();
 }
 

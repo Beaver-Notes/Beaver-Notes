@@ -8,12 +8,6 @@ import { SYNC_TRANSPORT, normalizeSyncTransport } from '@/lib/api/types';
 import { LocalFolderTransport } from './transports/local-folder.js';
 import { CloudTransport } from './transports/cloud.js';
 
-function passphraseProvider() {
-  return import('@/utils/crypto/safeStorageBlob.js').then((m) =>
-    m.loadSecureBlob('encryptionPassphraseBlob')
-  ).catch(() => null);
-}
-
 /**
  * Build and start the app sync engine. Autosync is always on: the engine is
  * initialized unconditionally so callers (Settings "Sync now", transport
@@ -27,19 +21,8 @@ export async function initAppSync() {
 
   initSyncEngine({
     transports: {
-      local: new LocalFolderTransport({ passphraseProvider }),
-      cloud: new CloudTransport({
-        passphraseProvider,
-        getTransportSetting: () => getSettingSync('syncTransport'),
-        getAccountState: () => {
-          const accountStore = useAccountStore();
-          return {
-            isAuth: accountStore.isAuthenticated,
-            plan: accountStore.plan,
-            subscription: accountStore.activeOrg?.subscription ?? accountStore.subscription,
-          };
-        },
-      }),
+      local: new LocalFolderTransport(),
+      cloud: new CloudTransport(),
     },
     storage: useStorage(),
     getActiveTransports: () => {

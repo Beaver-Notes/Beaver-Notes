@@ -242,11 +242,8 @@ describe('remote bootstrap integration contract', () => {
     const { reconcileSyncKeyParams } = await import('@/lib/native/security.js');
     applyRemote.mockImplementation((noteId, update) => applied.push([noteId, Array.from(update)]));
 
-    const cloud = new CloudTransport({
-      passphraseProvider: () => 'correct-passphrase',
-      getTransportSetting: () => 'remote',
-      getAccountState: () => ({ isAuth: true, plan: 'pro' }),
-    });
+    const cloud = new CloudTransport();
+    cloud.setReadiness({ syncAllowed: true, workspaceId: 'remote-workspace' });
     cloud.syncAssets = vi.fn(async () => {});
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
@@ -309,7 +306,8 @@ describe('remote bootstrap integration contract', () => {
     loadSecureBlob.mockResolvedValue('wrong-passphrase');
     fakeServer.pullResponses['remote-note-a:null'].updates[0].data = btoa(decryptFailureFixture);
     fakeServer.pullResponses['remote-note-b:null'].updates[0].data = btoa(decryptFailureFixture);
-    const cloud = new CloudTransport({ passphraseProvider: () => 'wrong-passphrase', getTransportSetting: () => 'remote', getAccountState: () => ({ isAuth: true, plan: 'pro' }) });
+    const cloud = new CloudTransport();
+    cloud.setReadiness({ syncAllowed: true, workspaceId: 'remote-workspace' });
     const engine = new SyncEngine({ transports: { cloud }, storage, getActiveTransports: () => ['cloud'] });
 
     // Decrypt mismatch is a hard error (DECRYPT_FAILED), not a deferral: the

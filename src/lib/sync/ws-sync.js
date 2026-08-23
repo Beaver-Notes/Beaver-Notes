@@ -153,10 +153,12 @@ export function useWsSync() {
       awareness: new awarenessProtocol.Awareness(doc),
     })
 
-    // Re-attach notification listener on each reconnection (provider.ws is reassigned)
+    // On connection/reconnection: re-attach notification listener and
+    // trigger a pull to catch up on anything missed while disconnected.
     provider.on('status', ({ status }) => {
       if (status === 'connected') {
         attachNotificationListener(provider)
+        forceSyncNow().catch(() => {})
       }
     })
     // Attach immediately if already connecting
@@ -198,10 +200,12 @@ export function useWsSync() {
       awareness: new awarenessProtocol.Awareness(doc),
     })
 
-    // Re-attach notification listener on each reconnection
+    // On connection/reconnection: re-attach notification listener and
+    // trigger a pull to catch up on anything missed while disconnected.
     provider.on('status', ({ status }) => {
       if (status === 'connected') {
         attachNotificationListener(provider)
+        forceSyncNow().catch(() => {})
       }
     })
     attachNotificationListener(provider)

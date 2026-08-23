@@ -1,5 +1,4 @@
 import { Transport } from './transport.js';
-import { normalizeSyncTransport } from '@/lib/api/types.js';
 import {
   pushUpdates as remotePushUpdates,
   pullUpdates as remotePullUpdates,
@@ -9,7 +8,6 @@ import {
   getSnapshotUrls,
   getSnapshotDownloadUrls,
 } from '../remote-yjs.js';
-import { createWorkspace } from '@/lib/api/workspaces.js';
 import {
   listRemoteAssets,
   uploadAsset,
@@ -23,7 +21,7 @@ import {
 import { parseSyncFilename } from '../sync-yjs.js';
 import { getSyncDeviceId, getCommitsDir } from '../sync-repository.js';
 import { getSyncPath } from '../path.js';
-import { isNonNegativeInteger, toUpdateBytes, validateCheckpoint, checkpointMap, buildAadSuffix, seedOnce as seedOnceCommits } from '../shared.js';
+import { isNonNegativeInteger, toUpdateBytes, buildAadSuffix, seedOnce as seedOnceCommits } from '../shared.js';
 import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
 import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
@@ -34,7 +32,7 @@ import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { mergeIntoMap, reconcileUnknownNotePlaceholders } from '@/lib/yjs/workspace-doc';
 import { useWorkspaceStore } from '@/store/workspace.ts';
 import * as Y from 'yjs';
-import { getSnapshot, getSnapshots, getUpdates } from '@/lib/native/yjs.js';
+import { getSnapshot, getUpdates } from '@/lib/native/yjs.js';
 import { toUint8Array, applyUpdatesToDoc } from '@/lib/yjs/helpers.js';
 import { META_DOC_ID } from '@/lib/yjs/meta-doc.js';
 import { logger } from '@/utils/logger';
@@ -114,64 +112,32 @@ function malformedRemoteState() {
 }
 
 export class CloudTransport extends Transport {
-  constructor({ passphraseProvider, getTransportSetting, getAccountState }) {
+  constructor() {
     super();
-    this.passphraseProvider = passphraseProvider;
-    this.getTransportSetting = getTransportSetting;
-    this.getAccountState = getAccountState;
     this._lastPushedAt = 0;
     this._cloudBuffer = [];
     this._serverProbeComplete = false;
     this._failedDownloads = new Map();
     this._seedPromise = null;
+    /** @type {{ syncAllowed: boolean, workspaceId: string|null }|null} */
+    this._readiness = null;
   }
+
+  /**
+   * Inject the cycle-level readiness snapshot from `getSyncReadiness()`.
+   * Called by the engine once per cycle so every cloud operation reads from
+   * the same authoritative state instead of re-querying Pinia.
+   */
+  setReadiness(r) { this._readiness = r; }
 
   getCloudBuffer() {
     return this._cloudBuffer;
   }
 
   async _ensureWorkspace() {
+    if (this._readiness?.workspaceId) return this._readiness.workspaceId;
     const workspaceStore = useWorkspaceStore();
-    if (workspaceStore.activeId) return workspaceStore.activeId;
-    // Check cached value to avoid re-fetching every cycle
-    if (this._cachedWorkspaceId) return this._cachedWorkspaceId;
-    try {
-      const { useAccountStore } = await import('@/store/account');
-      const accountStore = useAccountStore();
-      if (!accountStore.isAuthenticated) return null;
-      const { getApiClient } = await import('@/lib/api/client');
-      const client = getApiClient({ baseUrl: accountStore.serverUrl });
-      const raw = await client.get('/workspaces');
-      const list = raw?.workspaces ?? [];
-      if (list.length > 0) {
-        workspaceStore.workspaces = list.map((w) => ({
-          id: w.id,
-          name: w.name,
-          role: w.role,
-          ownerId: w.ownerId,
-          storageUsedBytes: w.storageUsedBytes,
-          createdAt: w.createdAt,
-        }));
-        workspaceStore.activeId = workspaceStore.activeId || list[0].id;
-        this._cachedWorkspaceId = list[0].id;
-      } else {
-        // No workspaces — auto-create one
-        logger.info('[sync] cloud: no workspaces found, creating default workspace');
-        try {
-          const created = await createWorkspace('Default');
-          if (created?.id) {
-            workspaceStore.activeId = created.id;
-            this._cachedWorkspaceId = created.id;
-            logger.info('[sync] cloud: created workspace', created.id);
-          }
-        } catch (createErr) {
-          console.warn('[sync] cloud: failed to create workspace:', createErr?.message);
-        }
-      }
-    } catch (err) {
-      console.warn('[sync] cloud: direct workspace fetch failed:', err?.status, err?.message);
-    }
-    return workspaceStore.activeId || this._cachedWorkspaceId;
+    return workspaceStore.activeId || null;
   }
 
   async _bootstrapFromSnapshots(state) {
@@ -297,7 +263,7 @@ export class CloudTransport extends Transport {
       return suffixes;
     };
 
-    const decrypted = new Array(downloadedItems.length).fill(null);
+    const decrypted = Array.from({ length: downloadedItems.length }, () => null);
     const suffixesByItem = downloadedItems.map(candidateSuffixesFor);
     const maxCandidates = suffixesByItem.reduce((m, s) => Math.max(m, s.length), 0);
 
@@ -379,7 +345,10 @@ export class CloudTransport extends Transport {
   }
 
   async pull() {
-    if (!this._remoteAllowed()) return { updates: [] };
+    if (!this._remoteAllowed()) {
+      console.warn('[sync] cloud pull BLOCKED: _remoteAllowed=false, readiness:', JSON.stringify(this._readiness));
+      return { updates: [] };
+    }
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) {
@@ -431,11 +400,11 @@ export class CloudTransport extends Transport {
         noteId: d.noteId,
         checkpoint: loadServerCheckpoint(d.noteId) || {},
       }));
-    logger.info('[sync][debug] pull requesting', notes.length, 'notes from server');
+    logger.info('[sync] pull requesting', notes.length, 'notes from server');
     const result = await remotePullUpdates(workspaceId, notes);
     const resultNoteIds = result?.notes ? Object.keys(result.notes) : [];
     const totalUpdates = resultNoteIds.reduce((sum, nid) => sum + (result.notes[nid]?.updates?.length || 0), 0);
-    logger.info('[sync][debug] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
+    logger.info('[sync] pull result:', resultNoteIds.length, 'notes,', totalUpdates, 'total updates');
     const updates = [];
     let hasMore = false;
     // Hold the server's nextCheckpoint per note until the page is safely
@@ -477,7 +446,7 @@ export class CloudTransport extends Transport {
         parseResults.map((r) => r.aadSuffix)
       );
       const nullCount = decryptedPayloads.filter((p) => !p).length;
-      logger.info(`[sync][debug] decryptBatch returned ${decryptedPayloads.length} items, ${nullCount} null`);
+      logger.info(`[sync] decryptBatch: ${decryptedPayloads.length} items, ${nullCount} null`);
 
       // When SOME items fail batch decryption (e.g. encrypted with a collab
       // key instead of the sync key), retry those individually.  Items that
@@ -489,26 +458,10 @@ export class CloudTransport extends Transport {
           try {
             decryptedPayloads[i] = await decryptJSON(parseResults[i].raw, parseResults[i].aadSuffix);
           } catch (individualErr) {
-            logger.warn(`[sync][debug] item ${i} individual decrypt also failed — skipping:`, individualErr?.code, individualErr?.message);
             if (individualErr?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
             decryptedPayloads[i] = null;
           }
         }
-      }
-
-      if (decryptedPayloads[0]) {
-        const p = decryptedPayloads[0];
-        logger.warn('[sync][debug] first decrypted payload shape:', JSON.stringify({
-          keys: Object.keys(p),
-          noteId: p.noteId,
-          device: p.device,
-          ts: p.ts,
-          sequence: p.sequence ?? p.seq,
-          updateType: typeof p.update,
-          updateIsArray: Array.isArray(p.update),
-          updateConstructor: p.update?.constructor?.name,
-          updateLength: Array.isArray(p.update) ? p.update.length : (p.update instanceof Uint8Array ? p.update.byteLength : undefined),
-        }));
       }
     } catch (batchErr) {
       if (batchErr?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
@@ -518,7 +471,6 @@ export class CloudTransport extends Transport {
         try {
           decryptedPayloads.push(await decryptJSON(r.raw, r.aadSuffix));
         } catch (caughtError) {
-          logger.warn('[sync][debug] individual decryptJSON failed:', caughtError?.code, caughtError?.message);
           if (caughtError?.code === 'DECRYPT_FAILED') sawDecryptFailed = true;
           decryptedPayloads.push(null);
         }
@@ -540,7 +492,6 @@ export class CloudTransport extends Transport {
       const { parsed } = parseResults[i];
       const payload = decryptedPayloads[i];
       if (!payload) {
-        logger.warn(`[sync][debug] skipping undecryptable item ${i} (noteId: ${parsed?.docId}, ts: ${parsed?.ts})`);
         continue;
       }
       // Use the payload's sequence if present; otherwise fall back to the envelope's
@@ -551,15 +502,6 @@ export class CloudTransport extends Transport {
       if (!payload || payload.noteId !== updates[i]._noteId || payload.device !== parsed.device ||
         !isNonNegativeInteger(payload.ts) || payload.ts !== parsed.ts ||
         !isNonNegativeInteger(payloadSequence) || !updateBytes) {
-        const reasons = [];
-        if (!payload) reasons.push('null_payload');
-        if (payload?.noteId !== updates[i]?._noteId) reasons.push(`noteId_mismatch:${payload?.noteId}!=${updates[i]?._noteId}`);
-        if (payload?.device !== parsed?.device) reasons.push(`device_mismatch:${payload?.device}!=${parsed?.device}`);
-        if (!isNonNegativeInteger(payload?.ts)) reasons.push(`ts_not_int:${payload?.ts}`);
-        if (payload?.ts !== parsed?.ts) reasons.push(`ts_mismatch:${payload?.ts}!=${parsed?.ts}`);
-        if (!isNonNegativeInteger(payloadSequence)) reasons.push(`seq_not_int:${payloadSequence} (orig_payload_seq=${payload?.seq}, envelope_seq=${parsed?.sequence})`);
-        if (!updateBytes) reasons.push(`updateBytes_invalid: type=${typeof payload?.update} isArray=${Array.isArray(payload?.update)} constructor=${payload?.update?.constructor?.name} len=${payload?.update?.length}`);
-        logger.warn('[sync][debug] payload validation FAILED at index', i, 'reasons:', reasons.join(' | '));
         throw malformedRemoteUpdate();
       }
 
@@ -584,6 +526,7 @@ export class CloudTransport extends Transport {
 
   async push(opts = {}) {
     if (!this._remoteAllowed()) {
+      console.warn('[sync] cloud push BLOCKED: _remoteAllowed=false, readiness:', JSON.stringify(this._readiness));
       logger.info('[sync] cloud push: _remoteAllowed=false');
       return { updates: [], pushed: 0 };
     }
@@ -1404,19 +1347,7 @@ export class CloudTransport extends Transport {
   }
 
   _remoteAllowed() {
-    const t = this.getTransportSetting();
-    const want = normalizeSyncTransport(t) === 'remote';
-    if (!want) {
-      logger.info('[sync] _remoteAllowed: transport setting is', JSON.stringify(t), '— not remote');
-      return false;
-    }
-    const state = this.getAccountState();
-    logger.info('[sync] _remoteAllowed: isAuth=', state.isAuth, 'plan=', state.plan);
-    if (!state.isAuth) return false;
-    const subPlan = state.subscription?.plan ?? state.plan;
-    if (subPlan && subPlan !== 'free') return true;
-    logger.info('[sync] _remoteAllowed: cloud sync not available for plan', subPlan);
-    return false;
+    return this._readiness?.syncAllowed ?? false;
   }
 
   _throttled() {

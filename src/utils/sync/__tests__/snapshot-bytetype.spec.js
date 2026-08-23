@@ -1,4 +1,4 @@
-import { describe, test, expect, vi, beforeAll } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import * as Y from 'yjs';
 
 // Mirror the Rust sync crypto contract with WebCrypto AES-GCM.

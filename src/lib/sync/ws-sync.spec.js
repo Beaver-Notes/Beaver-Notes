@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 // Mock dependencies
 vi.mock('@/store/account', () => ({
@@ -47,7 +47,7 @@ vi.mock('y-websocket', () => {
   return { WebsocketProvider: MockWebsocketProvider }
 })
 
-import { useWsSync, getWsSync } from './ws-sync.js'
+import { getWsSync } from './ws-sync.js'
 
 describe('ws-sync', () => {
   it('creates a singleton instance', () => {

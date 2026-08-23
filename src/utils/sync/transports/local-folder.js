@@ -4,8 +4,7 @@ import { loadStateVector } from '../state-vector.js';
 import { getSyncPath } from '../path.js';
 import { ensureCommitsDir } from '../sync-repository.js';
 import { YJS_UPDATE_EXT } from '../constants.js';
-import { readDir, writeFile } from '@/lib/native/fs';
-import { path } from '@/lib/tauri-bridge';
+import { readDir } from '@/lib/native/fs';
 import { seedOnce as seedOnceCommits } from '../shared.js';
 
 /**
@@ -27,9 +26,8 @@ function mergeAllStateVectors(allStateVectors) {
 }
 
 export class LocalFolderTransport extends Transport {
-  constructor({ passphraseProvider }) {
+  constructor() {
     super();
-    this.passphraseProvider = passphraseProvider;
   }
 
   async pull() {

@@ -117,6 +117,13 @@ vi.mock('@/utils/crypto/safeStorageBlob.js', () => ({
   loadSecureBlob: vi.fn(async () => null),
 }));
 
+vi.mock('@/utils/sync/readiness.js', () => ({
+  getSyncReadiness: vi.fn(async () => ({
+    isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
+    syncAllowed: true, keyReady: true, workspaceId: 'workspace-race',
+  })),
+}));
+
 const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
 
 function buildTitledMetaUpdate(noteId, title) {
@@ -325,9 +332,8 @@ describe('server checkpoint is not poisoned by an undecodable page', () => {
     // Simulate: pull returns content updates for note 'abc' but no meta.
     // Before fix: writeStoresFromWorkspace was never called → store stale.
     // After fix: store refreshes with affected note IDs.
-    const { default: engineModule } = await import('@/utils/sync/engine.js');
-    const { writeStoresFromWorkspace } = await import('@/lib/yjs/workspace-doc.js');
-    const { reconcileUnknownNotePlaceholders } = await import('@/lib/yjs/workspace-doc.js');
+    await import('@/utils/sync/engine.js');
+    await import('@/lib/yjs/workspace-doc.js');
 
     // The engine pull loop calls writeStoresFromWorkspace when hasMetaUpdates
     // is true. We verify it ALSO calls it for content-only batches by

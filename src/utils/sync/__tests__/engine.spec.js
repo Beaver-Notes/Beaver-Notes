@@ -45,6 +45,8 @@ vi.mock('@/lib/yjs/helpers.js', () => ({
 
 vi.mock('@/lib/yjs/workspace-doc', () => ({
   syncDeletedAssets: vi.fn(),
+  reconcileUnknownNotePlaceholders: vi.fn(),
+  writeStoresFromWorkspace: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@/lib/native/fs', () => ({
@@ -78,8 +80,16 @@ vi.mock('../vault-key-params.js', () => ({
   publishCloudKeyParams: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock('@/utils/crypto/encryption.js', () => ({
-  isEncryptionEnabled: vi.fn(() => false),
+vi.mock('../readiness.js', () => ({
+  getSyncReadiness: vi.fn(() => Promise.resolve({
+    isAuth: true,
+    plan: 'team',
+    transport: 'remote',
+    wantsCloud: true,
+    syncAllowed: true,
+    keyReady: true,
+    workspaceId: 'test-ws',
+  })),
 }));
 
 describe('SyncEngine mutex', () => {
@@ -104,6 +114,7 @@ describe('SyncEngine mutex', () => {
       compact: vi.fn(() => Promise.resolve()),
       syncAssets: vi.fn(() => Promise.resolve()),
       getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
     };
 
     engine = new SyncEngine({
@@ -270,6 +281,7 @@ describe('SyncEngine pull loop', () => {
       compact: vi.fn(() => Promise.resolve()),
       syncAssets: vi.fn(() => Promise.resolve()),
       getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
     };
     const local = { pull: vi.fn(() => ({ updates: [] })), push: vi.fn(() => ({ updates: [], pushed: 0 })), seedOnce: vi.fn(() => Promise.resolve()), compact: vi.fn(() => Promise.resolve()) };
     const current = new SyncEngine({
@@ -297,6 +309,7 @@ describe('SyncEngine pull loop', () => {
       compact: vi.fn(() => Promise.resolve()),
       syncAssets: vi.fn(() => Promise.resolve()),
       getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
     };
     const local = { pull: vi.fn(() => ({ updates: [] })), push: vi.fn(() => ({ updates: [], pushed: 0 })), seedOnce: vi.fn(() => Promise.resolve()), compact: vi.fn(() => Promise.resolve()) };
     const current = new SyncEngine({
@@ -339,6 +352,7 @@ describe('SyncEngine pull loop', () => {
       compact: vi.fn(() => Promise.resolve()),
       syncAssets: vi.fn(() => Promise.resolve()),
       getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
     };
     const storage = { get: vi.fn(() => ({})), set: vi.fn() };
     const current = new SyncEngine({
@@ -420,6 +434,7 @@ describe('SyncEngine flush', () => {
       compact: vi.fn(() => Promise.resolve()),
       syncAssets: vi.fn(() => Promise.resolve()),
       getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
     };
   });
 
@@ -471,7 +486,6 @@ describe('SyncEngine notifications', () => {
   let notify;
   let isTouchRuntime;
   let syncKeyReady;
-  let isEncryptionEnabled;
   let mockLocalTransport;
   let mockCloudTransport;
 
@@ -481,10 +495,8 @@ describe('SyncEngine notifications', () => {
     ({ backend } = await import('@/lib/tauri-bridge'));
     isTouchRuntime = backend.isTouchRuntime;
     ({ syncKeyReady } = await import('@/lib/native/security.js'));
-    ({ isEncryptionEnabled } = await import('@/utils/crypto/encryption.js'));
     isTouchRuntime.mockReturnValue(false);
     syncKeyReady.mockResolvedValue(true);
-    isEncryptionEnabled.mockReturnValue(false);
 
     mockLocalTransport = {
       pull: vi.fn(() => ({ updates: [] })),
@@ -500,6 +512,7 @@ describe('SyncEngine notifications', () => {
       compact: vi.fn(() => Promise.resolve()),
       syncAssets: vi.fn(() => Promise.resolve()),
       getCloudBuffer: vi.fn(() => []),
+      setReadiness: vi.fn(),
     };
 
     engine = new SyncEngine({
@@ -567,8 +580,11 @@ describe('SyncEngine notifications', () => {
 
   it('notifies once for repeated locked cycles and again after a successful cycle', async () => {
     const lockBody = 'Sync is encrypted but locked on this device. Unlock it in Settings to resume sync.';
-    syncKeyReady.mockResolvedValue(false);
-    isEncryptionEnabled.mockReturnValue(true);
+    const { getSyncReadiness } = await import('../readiness.js');
+    getSyncReadiness.mockResolvedValue({
+      isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
+      syncAllowed: true, keyReady: false, workspaceId: 'test-ws',
+    });
 
     engine = new SyncEngine({
       transports: { cloud: mockCloudTransport },
@@ -587,12 +603,18 @@ describe('SyncEngine notifications', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(notify).not.toHaveBeenCalled();
 
-    syncKeyReady.mockResolvedValue(true);
+    getSyncReadiness.mockResolvedValue({
+      isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
+      syncAllowed: true, keyReady: true, workspaceId: 'test-ws',
+    });
     await engine.enqueueSync(true);
     await new Promise((r) => setTimeout(r, 10));
 
     notify.mockClear();
-    syncKeyReady.mockResolvedValue(false);
+    getSyncReadiness.mockResolvedValue({
+      isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
+      syncAllowed: true, keyReady: false, workspaceId: 'test-ws',
+    });
     await engine.enqueueSync(true);
     await vi.waitFor(() => {
       expect(notify).toHaveBeenCalledWith({ title: 'Beaver Notes', body: lockBody });
@@ -602,6 +624,11 @@ describe('SyncEngine notifications', () => {
 
   it('suppresses notifications when isTouchRuntime() is true', async () => {
     isTouchRuntime.mockReturnValue(true);
+    const { getSyncReadiness } = await import('../readiness.js');
+    getSyncReadiness.mockResolvedValue({
+      isAuth: true, plan: 'team', transport: 'remote', wantsCloud: true,
+      syncAllowed: true, keyReady: true, workspaceId: 'test-ws',
+    });
     mockCloudTransport.pull.mockReturnValue({
       updates: [{ noteId: 'a', update: new Uint8Array([1]), device: 'd', ts: 1, sequence: 1 }],
     });

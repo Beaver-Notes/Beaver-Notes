@@ -92,11 +92,8 @@ describe('CloudTransport', () => {
     vi.clearAllMocks();
     localStorage.clear();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true })));
-    transport = new CloudTransport({
-      passphraseProvider: vi.fn(() => 'mock-pass'),
-      getTransportSetting: () => 'remote',
-      getAccountState: defaultAccountState,
-    });
+    transport = new CloudTransport();
+    transport.setReadiness({ syncAllowed: true, workspaceId: 'workspace-1' });
   });
 
   afterEach(() => {
@@ -129,48 +126,17 @@ describe('CloudTransport', () => {
   });
 
   describe('push authorization', () => {
-    it('no-op when setting is FOLDER', async () => {
-      const localTransport = new CloudTransport({
-        passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'folder',
-        getAccountState: defaultAccountState,
-      });
+    it('no-op when sync not allowed', async () => {
+      const localTransport = new CloudTransport();
+      localTransport.setReadiness({ syncAllowed: false, workspaceId: 'workspace-1' });
       const result = await localTransport.push({});
       expect(result.pushed).toBe(0);
     });
 
-    it('no-op when not authenticated', async () => {
-      const unAuthTransport = new CloudTransport({
-        passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'remote',
-        getAccountState: () => ({ isAuth: false, plan: 'starter' }),
-      });
+    it('no-op when no workspace', async () => {
+      const unAuthTransport = new CloudTransport();
+      unAuthTransport.setReadiness({ syncAllowed: true, workspaceId: null });
       const result = await unAuthTransport.push({});
-      expect(result.pushed).toBe(0);
-    });
-
-    it('no-op when plan is free', async () => {
-      const freeTransport = new CloudTransport({
-        passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'remote',
-        getAccountState: () => ({ isAuth: true, plan: 'free' }),
-      });
-      const result = await freeTransport.push({});
-      expect(result.pushed).toBe(0);
-    });
-
-    it('re-checks _remoteAllowed each call', async () => {
-      let plan = 'starter';
-      const downgradableTransport = new CloudTransport({
-        passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'remote',
-        getAccountState: () => ({ isAuth: true, plan }),
-      });
-      const { readDir } = await import('@/lib/native/fs');
-      readDir.mockResolvedValue([]);
-      await downgradableTransport.push({});
-      plan = 'free';
-      const result = await downgradableTransport.push({ force: true });
       expect(result.pushed).toBe(0);
     });
   });
@@ -244,11 +210,8 @@ describe('CloudTransport', () => {
     });
 
     it('no-op when remote not allowed', async () => {
-      const localTransport = new CloudTransport({
-        passphraseProvider: vi.fn(),
-        getTransportSetting: () => 'folder',
-        getAccountState: () => ({ isAuth: true, plan: 'starter' }),
-      });
+      const localTransport = new CloudTransport();
+      localTransport.setReadiness({ syncAllowed: false, workspaceId: 'workspace-1' });
       const result = await localTransport.pull({});
       expect(result.updates).toEqual([]);
     });
@@ -461,7 +424,7 @@ describe('CloudTransport', () => {
         checkpoints: { first: { deviceId: 'mock-device', ts: 10, sequence: 1 } },
       });
 
-      const result = await transport.push({ force: true });
+      await transport.push({ force: true });
 
       expect(transport.getCloudBuffer()).toHaveLength(1);
       expect(transport.getCloudBuffer()[0].noteId).toBe('second');

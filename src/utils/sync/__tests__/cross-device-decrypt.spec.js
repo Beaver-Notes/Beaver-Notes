@@ -208,9 +208,7 @@ try {
 const d = reachable ? describe : describe.skip;
 
 d('cross-device decrypt through the real sync path (live backend)', () => {
-  let account;
   const deviceA = 'device-A-cross';
-  const deviceB = 'device-B-cross';
   const report = { seeded: null, publishKeyParams: null, fetchKeyParams: null };
 
   beforeAll(async () => {
@@ -255,7 +253,7 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
     // Pre-place the key-params file that device A will publish.
     ctx.fsFiles.set('/sync/BeaverNotesSync/keyParams.json', btoa(ctx.keyParams));
 
-    account = await (await import('@/lib/api/account.js')).getAccount({ baseUrl: API });
+    await (await import('@/lib/api/account.js')).getAccount({ baseUrl: API });
   }, 120000);
 
   test('vault key-params are reconciled across devices via the backend', async (t) => {
@@ -316,7 +314,7 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
     const { pushUpdates, pullUpdates } = await import('@/utils/sync/remote-yjs.js');
     const { parseSyncFilename } = await import('@/utils/sync/sync-yjs.js');
     const { YJS_UPDATE_EXT } = await import('@/utils/sync/constants.js');
-    const { bufToBase64 } = await import('@/utils/crypto/codec.js');
+    await import('@/utils/crypto/codec.js');
 
     // Build a real Yjs note update on device A.
     const doc = new Y.Doc();
@@ -383,6 +381,7 @@ d('cross-device decrypt through the real sync path (live backend)', () => {
 
   test('report', () => {
     // Surface what was proven / skipped for the human-readable summary.
+    // oxlint-disable-next-line no-console -- deliberate human-readable summary
     console.log('[cross-device] keyParams reconcile:', JSON.stringify(report));
     expect(true).toBe(true);
   });

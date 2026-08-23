@@ -23,11 +23,9 @@ import { writeInitialSnapshots } from '@/utils/sync/transports/seed'
 import { CloudTransport } from '@/utils/sync/transports/cloud'
 
 function makeTransport() {
-  return new CloudTransport({
-    passphraseProvider: async () => 'pw',
-    getTransportSetting: async () => null,
-    getAccountState: async () => ({}),
-  })
+  const t = new CloudTransport()
+  t.setReadiness({ syncAllowed: true, workspaceId: 'ws-1' })
+  return t
 }
 
 describe('CloudTransport.seedOnce', () => {
