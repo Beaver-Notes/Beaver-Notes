@@ -14,7 +14,7 @@ import {
   toUint8Array,
   ensureSchema,
 } from '@/lib/yjs/helpers.js';
-import { getHocuspocusSync, setRoomKey } from '@/lib/sync/hocuspocus-sync.js';
+import { getWsSync, setRoomKey } from '@/lib/sync/ws-sync.js';
 import { useNoteSharing } from './useNoteSharing.js';
 import { useWorkspaceStore } from '@/store/workspace';
 import { speed } from '@/utils/speed.js';
@@ -228,7 +228,7 @@ export function useNoteYjs() {
         // non-critical
       }
       unregisterActiveDoc(currentNoteId);
-      getHocuspocusSync().leaveNoteRoom(currentNoteId);
+      getWsSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
     }
 
@@ -265,12 +265,12 @@ export function useNoteYjs() {
     }
 
     newDoc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync' || origin === 'hocuspocus') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
       pendingUpdates.push(update);
       scheduleFlush();
     });
 
-      const hocuspocus = getHocuspocusSync();
+      const wsSync = getWsSync();
       try {
         const workspaceStore = useWorkspaceStore();
         const sharing = useNoteSharing();
@@ -288,7 +288,7 @@ export function useNoteYjs() {
     currentDoc = newDoc;
     registerActiveDoc(noteId, newDoc);
 
-    hocuspocus.joinNoteRoom(noteId, newDoc);
+    wsSync.joinNoteRoom(noteId, newDoc);
 
     doc.value = newDoc;
     ready.value = true;
@@ -344,7 +344,7 @@ export function useNoteYjs() {
         // non-critical
       }
       unregisterActiveDoc(currentNoteId);
-      getHocuspocusSync().leaveNoteRoom(currentNoteId);
+      getWsSync().leaveNoteRoom(currentNoteId);
       currentDoc.destroy();
     }
   });

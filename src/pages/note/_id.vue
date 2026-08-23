@@ -53,7 +53,9 @@
         'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
         ...(note?.isFullWidth
           ? { 'padding-left': '5rem', 'padding-right': '5rem' }
-          : {}),
+          : sidebarExpanded
+            ? { 'padding-left': 'var(--drag-handle-gutter)' }
+            : {}),
       }"
     >
       <template v-if="editor && !isLocked">
@@ -201,6 +203,7 @@ import { useRouter, onBeforeRouteLeave, useRoute } from 'vue-router';
 import { useNoteStore } from '@/store/note';
 import { useLabelStore } from '@/store/label';
 import { useUiState } from '@/composable/useUiState';
+import { useSidebar } from '@/composable/useSidebar';
 import { useStore } from '@/store';
 import { addCloseHandler, path } from '@/lib/tauri-bridge';
 import { useNotePersistence } from '@/utils/note/persistence';
@@ -224,7 +227,7 @@ import { useTranslations } from '@/composable/useTranslations';
 import { useNoteYjs } from '@/composable/useNoteYjs';
 import { useNoteHistory } from '@/composable/useNoteHistory';
 import { useNoteSharing } from '@/composable/useNoteSharing';
-import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { getWsSync } from '@/lib/sync/ws-sync';
 import { Awareness } from 'y-protocols/awareness';
 import { usePresence } from '@/composable/usePresence';
 import { useCommentStore } from '@/store/comment';
@@ -245,6 +248,7 @@ export default {
   inheritAttrs: false,
   setup() {
     const uiState = useUiState();
+    const { expanded: sidebarExpanded } = useSidebar();
     const route = useRoute();
     const store = useStore();
     const router = useRouter();
@@ -316,7 +320,7 @@ export default {
       { immediate: true },
     );
 
-    const hocuspocus = getHocuspocusSync();
+    const wsSync = getWsSync();
     const noteRole = ref('editor');
     watch(
       () => sharing.collaborators.value,
@@ -757,6 +761,7 @@ export default {
       note,
       translations,
       uiState,
+      sidebarExpanded,
       unlockAppEncryption,
       appEncryptedLocked,
       editor,

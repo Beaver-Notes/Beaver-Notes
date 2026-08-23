@@ -161,7 +161,7 @@ import UndoBanner from './components/app/UndoBanner.vue';
 import AppEncryptionGate from './components/app/AppEncryptionGate.vue';
 import RecordingPill from './components/note/RecordingPill.vue';
 import { useAppShell } from './composable/useAppShell';
-import { getHocuspocusSync } from '@/lib/sync/hocuspocus-sync';
+import { getWsSync } from '@/lib/sync/ws-sync';
 import { useAccountStore } from './store/account';
 import { useCloudWorkspaces } from './composable/useCloudWorkspaces';
 import { useDevicePasswordSetup } from './composable/useDevicePasswordSetup';
@@ -241,7 +241,7 @@ export default {
     });
 
     // When onboarding completes and we leave the Onboarding route, flip the
-    // reactive flag. This triggers the watcher below which starts init + hocuspocus.
+    // reactive flag. This triggers the watcher below which starts init + ws-sync.
     watch(
       () => route.name,
       (name) => {
@@ -253,7 +253,7 @@ export default {
     );
 
     // When onboardingCompleted flips true (first-time user finishing onboarding),
-    // run the shell init in the background and start hocuspocus.
+    // run the shell init in the background and start ws-sync.
     watch(onboardingCompleted, async (val) => {
       if (val) {
         try {
@@ -261,8 +261,8 @@ export default {
         } catch (err) {
           console.error('[app] workspace init after onboarding failed:', err);
         }
-        const hocuspocus = getHocuspocusSync();
-        hocuspocus.start();
+        const wsSync = getWsSync();
+        wsSync.start();
       }
     });
 
@@ -275,16 +275,16 @@ export default {
 
     onMounted(() => {
       if (onboardingCompleted.value) {
-        const hocuspocus = getHocuspocusSync();
-        hocuspocus.start();
+        const wsSync = getWsSync();
+        wsSync.start();
       }
       maybePromptDevicePassword();
     });
 
     onBeforeUnmount(() => {
       if (onboardingCompleted.value) {
-        const hocuspocus = getHocuspocusSync();
-        hocuspocus.stop();
+        const wsSync = getWsSync();
+        wsSync.stop();
       }
     });
 

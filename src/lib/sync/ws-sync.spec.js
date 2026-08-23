@@ -47,17 +47,17 @@ vi.mock('y-websocket', () => {
   return { WebsocketProvider: MockWebsocketProvider }
 })
 
-import { useHocuspocusSync, getHocuspocusSync } from './hocuspocus-sync.js'
+import { useWsSync, getWsSync } from './ws-sync.js'
 
-describe('hocuspocus-sync', () => {
+describe('ws-sync', () => {
   it('creates a singleton instance', () => {
-    const a = getHocuspocusSync()
-    const b = getHocuspocusSync()
+    const a = getWsSync()
+    const b = getWsSync()
     expect(a).toBe(b)
   })
 
   it('exports expected API methods', () => {
-    const sync = getHocuspocusSync()
+    const sync = getWsSync()
     expect(typeof sync.start).toBe('function')
     expect(typeof sync.stop).toBe('function')
     expect(typeof sync.connect).toBe('function')

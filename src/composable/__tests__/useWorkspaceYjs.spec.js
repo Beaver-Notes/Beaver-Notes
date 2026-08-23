@@ -24,8 +24,8 @@ vi.mock('@/lib/yjs/helpers.js', () => ({
   objToYMap: vi.fn(),
   toUint8Array: vi.fn(),
 }));
-vi.mock('@/lib/sync/hocuspocus-sync.js', () => ({
-  getHocuspocusSync: () => ({ joinMetaRoom: vi.fn() }),
+vi.mock('@/lib/sync/ws-sync.js', () => ({
+  getWsSync: () => ({ joinMetaRoom: vi.fn() }),
 }));
 vi.mock('@/store/workspace', () => ({ useWorkspaceStore: () => ({ activeId: null }) }));
 

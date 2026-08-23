@@ -22,7 +22,7 @@ import {
   toUint8Array,
 } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc, META_DOC_ID } from './meta-doc.js';
-import { getHocuspocusSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/hocuspocus-sync';
+import { getWsSync, setRoomKey, buildMetaRoomName } from '@/lib/sync/ws-sync';
 import { useWorkspaceStore } from '@/store/workspace';
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces';
 import { loadOrCreateIdentity } from '@/utils/crypto/identity';
@@ -141,7 +141,7 @@ export async function loadWorkspaceDoc() {
 
   if (!persistHandlerAttached) {
     doc.on('update', (update, origin) => {
-      if (origin === 'load' || origin === 'sync' || origin === 'hocuspocus') return;
+      if (origin === 'load' || origin === 'sync' || origin === 'ws-relay') return;
       pendingMetaUpdates.push(update);
       scheduleMetaFlush();
     });
@@ -202,7 +202,7 @@ export async function loadWorkspaceDoc() {
 
   registerActiveDoc(META_DOC_ID, doc);
 
-  const hocuspocus = getHocuspocusSync();
+  const wsSync = getWsSync();
   const workspaceStore = useWorkspaceStore();
   const wsId = workspaceStore.activeId;
   if (wsId) {
@@ -214,7 +214,7 @@ export async function loadWorkspaceDoc() {
     await ensureMetaRoomKey(wsId).catch((err) => {
       console.warn('[meta-yjs] could not derive workspace meta key:', err?.message || err);
     });
-    hocuspocus.joinMetaRoom(wsId);
+    wsSync.joinMetaRoom(wsId);
   }
 
   return doc;

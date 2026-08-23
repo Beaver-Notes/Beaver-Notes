@@ -1,11 +1,11 @@
 import { test, expect, vi } from 'vitest';
 
-// Mock the account store module used inside hocuspocus-sync
+// Mock the account store module used inside ws-sync
 vi.mock('@/store/account', () => ({
   useAccountStore: () => ({ token: 'sess-tok', status: 'authenticated' }),
 }));
 
-const { getWebSocketUrl } = await import('@/lib/sync/hocuspocus-sync.js');
+const { getWebSocketUrl } = await import('@/lib/sync/ws-sync.js');
 
 test('getWebSocketUrl returns base URL without token (token passed via params)', () => {
   import.meta.env.VITE_BEAVER_SYNC_WS_URL = 'ws://localhost:8080';
