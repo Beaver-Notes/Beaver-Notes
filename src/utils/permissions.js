@@ -17,7 +17,7 @@ export function canEdit(role) {
 }
 
 export function canView(role) {
-  return role in ROLE_HIERARCHY
+  return (ROLE_HIERARCHY[role] ?? 0) > 0
 }
 
 export function canDeleteNote(role) {

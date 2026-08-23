@@ -34,6 +34,7 @@ describe('canView', () => {
   it('is true for any known role and false for unknown', () => {
     for (const role of ['viewer', 'editor', 'owner']) expect(canView(role)).toBe(true)
     expect(canView('admin')).toBe(false)
+    expect(canView('toString')).toBe(false)
     expect(canView(undefined)).toBe(false)
   })
 })
