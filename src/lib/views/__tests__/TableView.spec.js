@@ -217,6 +217,28 @@ describe('TableView', () => {
     const w = mountView({ schema: s, rows: linkedRows })
     await vi.waitFor(() => expect(w.text()).toContain('5'))
   })
+
+  it('select cells edit through a picker: multi adds, Empty clears', async () => {
+    const s = {
+      ...schema,
+      columns: [
+        ...schema.columns,
+        { id: 'sel', name: 'Tags', type: 'multi_select', config: { options: [{ id: 'o1', name: 'A', color: 'blue' }, { id: 'o2', name: 'B', color: 'red' }] } },
+      ],
+    }
+    s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'sel'] } }
+    const w = mountView({ schema: s })
+
+    await w.find('[data-test=cell-r1-sel]').trigger('click')
+    await w.find('[data-test=pick-o1]').trigger('click')
+    expect(w.emitted('cell-update').at(-1)[0]).toEqual({ rowId: 'r1', columnId: 'sel', value: ['o1'] })
+
+    await w.find('[data-test=pick-o2]').trigger('click')
+    expect(w.emitted('cell-update').at(-1)[0]).toEqual({ rowId: 'r1', columnId: 'sel', value: ['o2'] })
+
+    await w.find('[data-test=clear-selection]').trigger('click')
+    expect(w.emitted('cell-update').at(-1)[0]).toEqual({ rowId: 'r1', columnId: 'sel', value: null })
+  })
 })
 
 describe('visibleWindow (virtualization math)', () => {

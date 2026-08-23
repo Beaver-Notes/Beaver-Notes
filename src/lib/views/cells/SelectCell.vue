@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { nanoid } from 'nanoid'
+import UiPopover from '@/components/ui/Popover.vue'
 
 const props = defineProps({
   column: { type: Object, required: true },
@@ -50,17 +51,53 @@ function chipStyle(id) {
   const color = options.value.find((o) => o.id === id)?.color || 'gray'
   return CHIP_STYLES[color] || CHIP_STYLES.gray
 }
+
+function clear() {
+  emit('commit', null)
+}
 </script>
 
 <template>
-  <div class="flex flex-wrap items-center gap-1 px-2 py-1">
-    <span
-      v-for="id in selected"
-      :key="id"
-      class="max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium"
-      :class="chipStyle(id)"
-    >
-      {{ options.find((o) => o.id === id)?.name || '?' }}
-    </span>
-  </div>
+  <ui-popover
+    placement="bottom-start"
+    :model-value="editing && options.length > 0"
+  >
+    <template #trigger>
+      <div class="flex h-full flex-wrap items-center gap-1 px-2 py-1">
+        <span
+          v-for="id in selected"
+          :key="id"
+          class="max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium"
+          :class="chipStyle(id)"
+        >
+          {{ options.find((o) => o.id === id)?.name || '?' }}
+        </span>
+      </div>
+    </template>
+    <!-- Edit picker: chips toggle membership (multi) or replace (single); Empty clears.
+         Committing clears the cell's editing state, which closes the popover. -->
+    <div data-test="select-picker" class="flex max-h-56 min-w-[160px] flex-col gap-1 overflow-auto">
+      <button
+        v-for="opt in options"
+        :key="opt.id"
+        :data-test="`pick-${opt.id}`"
+        type="button"
+        class="max-w-full truncate rounded-full px-2 py-0.5 text-left text-xs font-medium transition-opacity duration-100"
+        :class="[chipStyle(opt.id), selected.includes(opt.id) ? '' : 'opacity-70 hover:opacity-100']"
+        @mousedown.prevent
+        @click.stop="toggle(opt)"
+      >
+        {{ opt.name }}
+      </button>
+      <button
+        data-test="clear-selection"
+        type="button"
+        class="text-left text-xs opacity-60 transition-opacity duration-100 hover:opacity-100"
+        @mousedown.prevent
+        @click.stop="clear"
+      >
+        Empty
+      </button>
+    </div>
+  </ui-popover>
 </template>
