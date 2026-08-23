@@ -87,13 +87,14 @@ export function getWebSocketUrl() {
   if (configured) {
     return configured.replace(/\/+$/, '')
   }
-  // In Tauri, window.location.host is the Vite dev server (5173), not the
-  // WS relay port.  Fall back to the API host on the default WS port.
+  // In production, the WS relay is behind the same domain as the API.
+  // Caddy routes /ws/* to ws-relay. Derive WS URL from API URL.
   const apiBase =
     import.meta.env.VITE_BEAVER_SYNC_API_URL || 'http://localhost:4000'
   try {
     const u = new URL(apiBase)
-    return `ws://${u.hostname}:8080`
+    const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProto}//${u.host}`
   } catch {
     return 'ws://localhost:8080'
   }
