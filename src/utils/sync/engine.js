@@ -112,7 +112,6 @@ export class SyncEngine {
 
   enqueueSync(force = false, pullOnly = false) {
     if (this.syncing) {
-      console.warn('[sync] enqueueSync: already syncing, queuing', { force, pullOnly });
       this.pending = true;
       if (force || this._forceFlush) this._pendingForce = true;
       if (pullOnly) this._pullOnlyMode = true;
@@ -225,9 +224,7 @@ export class SyncEngine {
     const { getSettingSync } = await import('@/lib/settings');
     const { bufToBase64 } = await import('@/utils/crypto/codec.js');
     const onboardingCompleted = getSettingSync('onboardingCompleted');
-    console.warn('[sync] _runCycle entry', { force: _force, onboardingCompleted });
     if (!onboardingCompleted) {
-      console.warn('[sync] SKIP: onboarding not completed');
       logger.info('[sync] onboarding not completed → skip cycle');
       t?.end();
       this._resolveSkip();
@@ -235,9 +232,7 @@ export class SyncEngine {
     }
     const syncPath = await getSyncPath();
     const activeTransportNames = this.getActiveTransports();
-    console.warn('[sync] config', { syncPath: syncPath || '(none)', transports: activeTransportNames });
     if (!syncPath && activeTransportNames.includes('local')) {
-      console.warn('[sync] SKIP: no syncPath + local transport');
       logger.info('[sync] no syncPath + local transport → skip cycle');
       t?.end();
       this._resolveSkip();
@@ -272,7 +267,6 @@ export class SyncEngine {
       // disagree with each other.
       const { getSyncReadiness } = await import('./readiness.js');
       const readiness = await getSyncReadiness();
-      console.warn('[sync] readiness result', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
       logger.info('[sync] readiness', { isAuth: readiness.isAuth, plan: readiness.plan, syncAllowed: readiness.syncAllowed, keyReady: readiness.keyReady, wsId: readiness.workspaceId });
 
       // Inject readiness into cloud transport so _remoteAllowed() and
@@ -346,7 +340,6 @@ export class SyncEngine {
       // Idle cycles with nothing to push skip the pull to avoid unnecessary network traffic.
       let cloudBlocked = false;
       if (shouldPull) {
-        console.warn('[sync] PULL phase starting');
         try { emit('sync:progress', { phase: 'pull', processed: 0, total: 0 }); } catch {}
         for (const name of activeTransportNames) {
           const transport = this.transports[name];
@@ -509,7 +502,6 @@ export class SyncEngine {
       }
 
       if (shouldPush) {
-        console.warn('[sync] PUSH phase starting');
         for (const name of activeTransportNames) {
           if (cloudBlocked && name === 'cloud') {
             logger.info('[sync] cloud push skipped — pull deferred due to unlock-required');
@@ -555,13 +547,11 @@ export class SyncEngine {
       }
 
       outcome = { ok: true };
-      console.warn('[sync] cycle COMPLETE', { gotUpdates, pushedAny });
       try { emit('sync:status', { status: 'complete' }); } catch {}
       unlockNotified = false;
       if (gotUpdates || pushedAny) notifySyncCompleted();
       logger.info('[sync] cycle complete ok');
     } catch (err) {
-      console.error('[sync] cycle FAILED:', err?.message, err?.code);
       logger.error('[sync] Sync failed:', err);
       logger.error('[sync] failed at:', err?.stack?.split('\n')[1]?.trim());
       try { emit('sync:error', { message: err?.message || 'Sync failed' }); } catch {}
@@ -598,10 +588,7 @@ export class SyncEngine {
 }
 
 export function forceSyncNow() {
-  if (!engine) {
-    console.warn('[sync] forceSyncNow: engine not initialized — silently returning');
-    return Promise.resolve();
-  }
+  if (!engine) return Promise.resolve();
   return engine.forceSyncNow();
 }
 

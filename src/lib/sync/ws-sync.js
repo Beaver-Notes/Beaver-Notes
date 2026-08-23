@@ -87,8 +87,16 @@ export function getWebSocketUrl() {
   if (configured) {
     return configured.replace(/\/+$/, '')
   }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${protocol}//${window.location.host}`
+  // In Tauri, window.location.host is the Vite dev server (5173), not the
+  // WS relay port.  Fall back to the API host on the default WS port.
+  const apiBase =
+    import.meta.env.VITE_BEAVER_SYNC_API_URL || 'http://localhost:4000'
+  try {
+    const u = new URL(apiBase)
+    return `ws://${u.hostname}:8080`
+  } catch {
+    return 'ws://localhost:8080'
+  }
 }
 
 function getAuthToken() {

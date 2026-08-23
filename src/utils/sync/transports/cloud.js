@@ -527,17 +527,10 @@ export class CloudTransport extends Transport {
       saveServerCheckpoint(noteId, checkpoint);
     }
 
-    // Recovery: if the pull returned 0 updates but we had stored checkpoints
-    // for any of the requested notes, those checkpoints are stale (e.g. from
-    // a previous session).  Clear them so the next pull fetches everything.
-    // This is a safety net — the server should send stale=true first.
-    if (decodedUpdates.length === 0) {
-      for (const { noteId } of notes) {
-        if (loadServerCheckpoint(noteId)) {
-          clearServerCheckpoint(noteId);
-        }
-      }
-    }
+    // NOTE: We intentionally do NOT clear checkpoints when decodedUpdates
+    // is 0.  0 updates means we're caught up — the checkpoint is correct.
+    // Stale checkpoints are handled server-side via the `stale` flag
+    // (checked above at line 420).
 
     return { updates: decodedUpdates, hasMore };
   }
