@@ -3,7 +3,7 @@ import customParseFormat from 'dayjs/plugin/customParseFormat'
 import { nanoid } from 'nanoid'
 import { createColumn, createView } from '../../lib/database/schema'
 import { defaultViewConfig } from '../../lib/database/view-engine'
-import { OPTION_PALETTE } from './notionCsv'
+import { makeOptions } from './notionCsv'
 
 dayjs.extend(customParseFormat)
 
@@ -84,9 +84,7 @@ export function parseObsidianVault(files) {
   const colByName = { Name: titleCol }
   for (const key of keys) {
     const col = createColumn(types[key], key)
-    if (types[key] === 'multi_select') {
-      col.config.options = [...new Set(valuesOf(key))].map((name, i) => ({ id: nanoid(10), name, color: OPTION_PALETTE[i % OPTION_PALETTE.length] }))
-    }
+    if (types[key] === 'multi_select') col.config.options = makeOptions(valuesOf(key))
     columns.push(col)
     colByName[key] = col
   }
@@ -98,9 +96,18 @@ export function parseObsidianVault(files) {
     colByName.Links = links
   }
 
-  const idByTitle = Object.fromEntries(docs.map((d) => [d.title, nanoid(10)]))
+  const rowIds = docs.map(() => nanoid(10))
+  const idByTitle = {}
+  let dupTitles = 0
+  const seenTitles = new Set()
+  docs.forEach((d, i) => {
+    if (seenTitles.has(d.title)) dupTitles++
+    seenTitles.add(d.title)
+    if (!(d.title in idByTitle)) idByTitle[d.title] = rowIds[i]
+  })
+  if (dupTitles) issues.push(`${dupTitles} note${dupTitles > 1 ? 's' : ''} share a filename with another note; links resolve to the first match`)
 
-  const rows = docs.map((d) => {
+  const rows = docs.map((d, i) => {
     const cells = { [titleCol.id]: d.title }
     for (const key of keys) {
       const raw = d.fm[key]
@@ -120,7 +127,7 @@ export function parseObsidianVault(files) {
       const links = [...d.body.matchAll(new RegExp(WIKILINK_RE.source, 'g'))].map((m2) => m2[1].trim())
       if (links.length) cells[colByName.Links.id] = links.map((t) => idByTitle[t] ?? t)
     }
-    return { id: idByTitle[d.title], cells }
+    return { id: rowIds[i], cells }
   })
 
   const folders = [...new Set((files ?? []).flatMap((f) => (f.name?.includes('/') ? [f.name.split('/').slice(0, -1).join('/')] : [])))]
@@ -145,11 +152,10 @@ export function parseObsidianDatabaseJson(jsonText) {
     if (!mapped) issues.push(`Column "${c.name}" has unsupported type "${c.type}"; imported as rich_text`)
     const col = createColumn(mapped ?? 'rich_text', c.name ?? '')
     if (Array.isArray(c.options)) {
-      col.config.options = c.options.filter((o) => o && o.name != null).map((o, i) => ({
-        id: nanoid(10),
-        name: String(o.name),
-        color: o.color || OPTION_PALETTE[i % OPTION_PALETTE.length],
-      }))
+      // preserve provided colors; fill gaps from the palette
+      const opts = makeOptions(c.options.filter((o) => o && o.name != null).map((o) => String(o.name)))
+      c.options.forEach((o, i) => { if (o?.color && opts[i]) opts[i].color = o.color })
+      col.config.options = opts
     }
     return col
   })
