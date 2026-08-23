@@ -28,7 +28,7 @@ import { YJS_UPDATE_EXT, ASSET_TYPES } from '../constants.js';
 import { readDir, readFile, readFileBinaryBytes, writeFile as writeFs, ensureDir, pathExists, downloadUrl } from '@/lib/native/fs';
 import { path } from '@/lib/tauri-bridge';
 import { localAssetName } from '../crypto.js';
-import { loadServerCheckpoint, saveServerCheckpoint } from '../state-vector.js';
+import { loadServerCheckpoint, saveServerCheckpoint, clearServerCheckpoint } from '../state-vector.js';
 import { yMapToObj } from '@/lib/yjs/helpers.js';
 import { getWorkspaceDoc } from '@/lib/yjs/meta-doc.js';
 import { mergeIntoMap, reconcileUnknownNotePlaceholders } from '@/lib/yjs/workspace-doc';
@@ -410,6 +410,13 @@ export class CloudTransport extends Transport {
       bootstrapped = await this._bootstrapFromSnapshots(state);
       if (bootstrapped) {
         logger.info('[sync] bootstrap complete — re-fetching remote state');
+        // Clear stale checkpoints for all notes so pull fetches fresh data.
+        // The snapshot is authoritative; stale checkpoints from a previous
+        // session would cause pull to return 0 updates even though the local
+        // workspace doc was just reset.
+        for (const d of state.documents || []) {
+          if (d.noteId) clearServerCheckpoint(d.noteId);
+        }
         state = await getRemoteState(workspaceId);
       }
     } catch (err) {

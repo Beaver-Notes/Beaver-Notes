@@ -7,11 +7,10 @@ vi.mock('@/store/account', () => ({
 
 const { getWebSocketUrl } = await import('@/lib/sync/hocuspocus-sync.js');
 
-test('uses VITE_BEAVER_SYNC_WS_URL on root path with token', () => {
+test('getWebSocketUrl returns base URL without token (token passed via params)', () => {
   import.meta.env.VITE_BEAVER_SYNC_WS_URL = 'ws://localhost:8080';
   import.meta.env.VITE_HOCUSPOCUS_URL = undefined;
   const url = getWebSocketUrl();
-  expect(url.startsWith('ws://localhost:8080/')).toBe(true);
-  expect(url).toContain('token=sess-tok');
-  expect(url).not.toContain('/hocuspocus');
+  expect(url).toBe('ws://localhost:8080');
+  expect(url).not.toContain('token');
 });

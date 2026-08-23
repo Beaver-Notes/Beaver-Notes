@@ -142,3 +142,16 @@ export function saveServerCheckpoint(noteId, checkpoint) {
     // storage full or unavailable — non-critical
   }
 }
+
+/**
+ * Clear the stored server checkpoint for a note.
+ * Used after bootstrap to force a full re-pull.
+ * @param {string} noteId
+ */
+export function clearServerCheckpoint(noteId) {
+  try {
+    localStorage.removeItem(`${CHECKPOINT_STORAGE_KEY}:${noteId}`);
+  } catch {
+    // non-critical
+  }
+}

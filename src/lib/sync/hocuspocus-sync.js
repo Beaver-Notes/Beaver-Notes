@@ -88,20 +88,18 @@ export async function setRoomKey(roomName, hexKey) {
 }
 
 export function getWebSocketUrl() {
-  const accountStore = useAccountStore()
   const configured =
     import.meta.env.VITE_BEAVER_SYNC_WS_URL ||
     import.meta.env.VITE_HOCUSPOCUS_URL
-  let base
   if (configured) {
-    base = configured.replace(/\/+$/, '')
-  } else {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    base = `${protocol}//${window.location.host}`
+    return configured.replace(/\/+$/, '')
   }
-  const token = accountStore.token
-  const query = token ? `?token=${encodeURIComponent(token)}` : ''
-  return query ? `${base}/${query}` : base
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}`
+}
+
+function getAuthToken() {
+  return useAccountStore().token || ''
 }
 
 function isAuthenticated() {
@@ -157,9 +155,10 @@ export function useHocuspocusSync() {
     setupContentEncryption(doc, roomName)
 
     const wsUrl = getWebSocketUrl()
+    const token = getAuthToken()
     const provider = new WebsocketProvider(wsUrl, roomName, doc, {
       connect: true,
-      params: {},
+      params: token ? { token } : {},
       awareness: new awarenessProtocol.Awareness(doc),
     })
 
@@ -207,9 +206,10 @@ export function useHocuspocusSync() {
 
     const doc = getWorkspaceDoc()
     const wsUrl = getWebSocketUrl()
+    const token = getAuthToken()
     const provider = new WebsocketProvider(wsUrl, roomName, doc, {
       connect: true,
-      params: {},
+      params: token ? { token } : {},
       awareness: new awarenessProtocol.Awareness(doc),
     })
 
