@@ -1,5 +1,5 @@
-const IMAGE_SOURCE_PREFIXES = ['assets://', 'blob:', 'data:'];
-const MEDIA_SOURCE_PREFIXES = ['assets://', 'blob:'];
+const IMAGE_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:', 'data:'];
+const MEDIA_SOURCE_PREFIXES = ['assets://', 'file-assets://', 'blob:'];
 
 function normalizeSourceValue(value) {
   return String(value || '').trim();

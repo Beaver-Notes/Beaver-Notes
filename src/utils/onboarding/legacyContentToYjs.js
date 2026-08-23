@@ -10,6 +10,53 @@ import { ensureSchema, getDeviceId } from '@/lib/yjs/helpers.js';
 
 const CHUNK_SIZE = 20;
 
+const ASSET_NODE_TYPES = new Set(['image', 'Audio', 'Video', 'fileEmbed']);
+
+/**
+ * Walk a ProseMirror JSON tree and normalize broken asset paths from legacy
+ * v4 versions that stored full filesystem paths or relative paths without
+ * the protocol prefix.
+ */
+function normalizeAssetPaths(node, noteId) {
+  if (!node || typeof node !== 'object') return;
+
+  if (ASSET_NODE_TYPES.has(node.type) && node.attrs?.src) {
+    const src = node.attrs.src;
+
+    // Already correct protocol — leave as-is
+    if (src.startsWith('assets://') || src.startsWith('file-assets://')) {
+      return;
+    }
+
+    let fileName = src;
+
+    // Full filesystem path: /Users/.../notes-assets/{noteId}/{file}
+    // or /Users/.../file-assets/{noteId}/{file}
+    const fsMatch = src.match(/(?:notes-assets|file-assets)\/([^/]+\/)?([^/]+)$/);
+    if (fsMatch) {
+      // fsMatch[1] = "noteId/" (if present), fsMatch[2] = filename
+      fileName = fsMatch[2];
+    } else {
+      // Relative path like "file-assets/noteId/file" or "notes-assets/file"
+      // Strip leading directory prefix to get the filename
+      const relMatch = src.match(/^(?:notes-assets|file-assets)(?:\/[^/]+)*\/([^/]+)$/);
+      if (relMatch) {
+        fileName = relMatch[1];
+      }
+    }
+
+    node.attrs = { ...node.attrs, src: `assets://${noteId}/${fileName}` };
+    return;
+  }
+
+  // Recurse into child content
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) {
+      normalizeAssetPaths(child, noteId);
+    }
+  }
+}
+
 function yieldToUi() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -104,6 +151,8 @@ export async function convertLegacyNotesToYjs(
             content = JSON.parse(plaintext);
           }
         }
+
+        normalizeAssetPaths(content, note.id);
 
         const update = await convertLegacyNoteToUpdate(schema, content);
         if (update) {

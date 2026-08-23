@@ -132,6 +132,11 @@ async function persistWorkspace(update) {
 // ── Load / observe ───────────────────────────────────────────────────────────
 
 export async function loadWorkspaceDoc() {
+  // Flush any buffered meta updates (e.g. from seedWorkspaceDocFromData)
+  // BEFORE reading from SQLite, so the freshly seeded state is persisted
+  // and won't be lost when re-loading.
+  await flushPendingMetaUpdates();
+
   const doc = getWorkspaceDoc();
 
   if (!persistHandlerAttached) {
