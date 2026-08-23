@@ -2,6 +2,7 @@ import { onMounted, ref } from 'vue';
 import { useAccountStore } from '@/store/account';
 import { setSetting } from '@/lib/settings';
 import { useAccountAuth } from '@/composable/useAccountAuth';
+import { updateUsername as apiUpdateUsername, getAccountExport } from '@/lib/api/account';
 
 export function useSettingsAccount({ dialog, translations }) {
   const accountStore = useAccountStore();
@@ -19,8 +20,16 @@ export function useSettingsAccount({ dialog, translations }) {
   const draftServerUrl = ref(accountStore.serverUrl);
   const deletingAccount = ref(false);
   const deletePassword = ref('');
+  const editingUsername = ref(false);
+  const draftUsername = ref('');
+  const sessions = ref([]);
+  const loadingSessions = ref(false);
 
   const defaultServerUrl = 'https://api.beavernotes.com';
+
+  function activeBaseUrl() {
+    return accountStore.serverUrl;
+  }
 
   function clearError() {
     accountStore.setError('');
@@ -308,6 +317,65 @@ export function useSettingsAccount({ dialog, translations }) {
     }
   }
 
+  function startEditUsername() {
+    draftUsername.value = accountStore.profile?.username || '';
+    editingUsername.value = true;
+  }
+
+  function cancelEditUsername() {
+    editingUsername.value = false;
+    draftUsername.value = '';
+  }
+
+  async function saveUsername() {
+    const name = draftUsername.value.trim();
+    if (!name) return;
+    clearError();
+    try {
+      await apiUpdateUsername(name, { baseUrl: activeBaseUrl() });
+      accountStore.setProfile({ ...accountStore.profile, username: name });
+      editingUsername.value = false;
+    } catch (err) {
+      accountStore.setError(err?.message || 'Failed to update username');
+    }
+  }
+
+  async function loadSessions() {
+    loadingSessions.value = true;
+    try {
+      sessions.value = await auth.listActiveSessions();
+    } catch {
+      sessions.value = [];
+    } finally {
+      loadingSessions.value = false;
+    }
+  }
+
+  async function revokeSession(id) {
+    try {
+      await auth.revokeActiveSession(id);
+      await loadSessions();
+    } catch {
+      // error already on the store
+    }
+  }
+
+  async function exportAccountData() {
+    clearError();
+    try {
+      const data = await getAccountExport({ baseUrl: activeBaseUrl() });
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `beaver-account-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      accountStore.setError(err?.message || 'Failed to export account data');
+    }
+  }
+
   onMounted(() => {
     // hydrate is called by the composable's onMounted; ensure the latest
     // profile is fetched when the settings page is opened.
@@ -348,5 +416,15 @@ export function useSettingsAccount({ dialog, translations }) {
     confirmDeleteAccount,
     clearError,
     triggerSeed: auth.triggerSeed,
+    editingUsername,
+    draftUsername,
+    startEditUsername,
+    cancelEditUsername,
+    saveUsername,
+    sessions,
+    loadingSessions,
+    loadSessions,
+    revokeSession,
+    exportAccountData,
   };
 }

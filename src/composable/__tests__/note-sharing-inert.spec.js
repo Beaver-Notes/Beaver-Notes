@@ -58,7 +58,7 @@ const NOTE_KEY = 'ab'.repeat(32);
 describe('personal notes keep ML-KEM fan-out inert', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorage.removeItem('collaborationEnabled');
+    localStorage.setItem('collaborationEnabled', 'false');
   });
 
   it('returns null immediately without any collaboration API traffic when the setting is unset', async () => {

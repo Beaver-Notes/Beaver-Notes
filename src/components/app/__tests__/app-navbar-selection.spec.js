@@ -52,6 +52,19 @@ vi.mock('vue-router', () => ({
 }));
 vi.mock('@/lib/dialog', () => ({ useDialog: () => ({ confirm: vi.fn(), alert: vi.fn() }) }));
 vi.mock('@/store/note', () => ({ useNoteStore: () => ({ delete: vi.fn() }) }));
+vi.mock('@/store/account', () => ({
+  useAccountStore: () => ({
+    isAuthenticated: false,
+    serverUrl: '',
+    profile: null,
+  }),
+}));
+vi.mock('@/store/workspace', () => ({
+  useWorkspaceStore: () => ({
+    workspaces: [],
+    activeId: null,
+  }),
+}));
 vi.mock('tiny-emitter/instance', () => ({ default: { on: vi.fn(), off: vi.fn() } }));
 vi.mock('@/utils/ui/globalShortcuts.js', () => ({ bindGlobalShortcuts: vi.fn() }));
 

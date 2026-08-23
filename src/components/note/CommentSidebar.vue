@@ -85,6 +85,12 @@
                 >
                   {{ translationsComments.resolve || 'Resolve' }}
                 </button>
+                <button
+                  class="text-xs text-neutral-500 hover:text-red-600 dark:hover:text-red-400"
+                  @click="deleteComment(thread.comments[0]?.id)"
+                >
+                  {{ translationsComments.delete || 'Delete' }}
+                </button>
               </div>
 
               <div class="mt-3 ml-8">
@@ -306,6 +312,17 @@ export default {
       }
     }
 
+    async function deleteComment(commentId) {
+      if (!commentId) return;
+      try {
+        await commentStore.removeComment(commentId, {
+          baseUrl: accountStore.serverUrl,
+        });
+      } catch (err) {
+        console.error('[comment] Failed to delete comment:', err);
+      }
+    }
+
     watch(
       () => props.noteId,
       (id) => {
@@ -332,6 +349,7 @@ export default {
       submitPendingComment,
       submitReply,
       toggleResolve,
+      deleteComment,
     };
   },
 };

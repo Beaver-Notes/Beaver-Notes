@@ -227,6 +227,58 @@
           </ui-button>
         </div>
 
+        <!-- Username -->
+        <div
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <div v-if="!editingUsername" class="flex items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+                {{ translations.account?.username || 'Username' }}
+              </p>
+              <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                {{ accountStore.profile?.username || 'Not set' }}
+              </p>
+            </div>
+            <ui-button variant="secondary" @click="startEditUsername">
+              {{ translations.settings?.changePassword || 'Change' }}
+            </ui-button>
+          </div>
+          <div v-else class="flex flex-col gap-2">
+            <ui-input
+              v-model="draftUsername"
+              class="w-full"
+              placeholder="Username"
+              @keyup.enter="saveUsername"
+            />
+            <div class="flex gap-2 justify-end">
+              <ui-button variant="secondary" @click="cancelEditUsername">
+                {{ translations.dialog?.cancel || 'Cancel' }}
+              </ui-button>
+              <ui-button
+                variant="primary"
+                :loading="accountStore.busy"
+                @click="saveUsername"
+              >
+                {{ translations.settings?.enable || 'Save' }}
+              </ui-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Account created -->
+        <div
+          v-if="accountStore.profile?.createdAt"
+          class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
+        >
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            {{ translations.account?.memberSince || 'Member since' }}
+          </p>
+          <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+            {{ new Date(accountStore.profile.createdAt).toLocaleDateString() }}
+          </p>
+        </div>
+
         <!-- Seeding Progress -->
         <div
           v-if="accountStore.seedStatus === 'seeding'"
@@ -414,6 +466,60 @@
     </section>
 
     <section v-if="accountStore.isAuthenticated" class="space-y-2">
+      <div class="flex items-center justify-between">
+        <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+          {{ translations.account?.activeSessions || 'Active sessions' }}
+        </p>
+        <ui-button variant="secondary" size="sm" @click="loadSessions">
+          <v-remixicon name="riRefreshLine" size="14" class="mr-1" />
+          {{ translations.settings?.syncNow || 'Refresh' }}
+        </ui-button>
+      </div>
+      <div
+        class="space-y-1 bg-neutral-50 dark:bg-neutral-800 rounded-xl border"
+      >
+        <div v-if="loadingSessions" class="px-4 py-6 text-center">
+          <div class="animate-spin inline-block">
+            <v-remixicon name="riLoader4Line" class="text-neutral-400" size="20" />
+          </div>
+        </div>
+        <div v-else-if="!sessions.length" class="px-4 py-3.5">
+          <p class="text-xs text-neutral-500 dark:text-neutral-400">
+            {{ translations.account?.noSessions || 'No active sessions' }}
+          </p>
+        </div>
+        <div
+          v-for="session in sessions"
+          :key="session.id"
+          class="flex items-center gap-3 px-4 py-3.5"
+        >
+          <div
+            class="shrink-0 w-9 h-9 rounded-lg bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center"
+          >
+            <v-remixicon :name="session.deviceInfo?.platform === 'mobile' ? 'riSmartphoneLine' : 'riComputerLine'" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+              {{ session.deviceInfo?.label || session.userAgent || 'Unknown session' }}
+            </p>
+            <p class="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400 truncate">
+              {{ session.createdAt ? new Date(session.createdAt).toLocaleString() : '' }}
+              <span v-if="session.expiresAt"> · expires {{ new Date(session.expiresAt).toLocaleDateString() }}</span>
+            </p>
+          </div>
+          <ui-button
+            icon
+            variant="danger"
+            size="sm"
+            @click="revokeSession(session.id)"
+          >
+            <v-remixicon name="riDeleteBin6Line" />
+          </ui-button>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="accountStore.isAuthenticated" class="space-y-2">
       <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         {{ translations.account?.security || 'Security' }}
       </p>
@@ -509,6 +615,23 @@
       <div
         class="flex flex-col gap-3 rounded-xl border border-red-200 bg-red-50/80 dark:border-red-900/70 dark:bg-red-950/30 px-4 py-3.5"
       >
+        <div class="flex items-center justify-between gap-3">
+          <div class="space-y-0.5">
+            <p class="text-sm font-medium text-red-900 dark:text-red-100">
+              {{ translations.account?.exportData || 'Export account data' }}
+            </p>
+            <p class="text-xs leading-relaxed text-red-700 dark:text-red-300">
+              {{ translations.account?.exportDataBody || 'Download a copy of your account information.' }}
+            </p>
+          </div>
+          <ui-button variant="secondary" @click="exportAccountData">
+            <v-remixicon name="riDownloadLine" class="mr-1" />
+            {{ translations.account?.exportData || 'Export' }}
+          </ui-button>
+        </div>
+
+        <div class="border-t border-red-200 dark:border-red-800" />
+
         <div class="space-y-0.5">
           <p class="text-sm font-medium text-red-900 dark:text-red-100">
             {{ translations.account?.deleteAccount || 'Delete Beaver Account' }}

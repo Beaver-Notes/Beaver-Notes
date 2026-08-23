@@ -129,7 +129,7 @@ const settingDefs = {
   },
   collaborationEnabled: {
     legacyKey: 'collaborationEnabled',
-    defaultValue: false,
+    defaultValue: true,
     parse: (value) => value === true || value === 'true',
   },
   syncPath: {
