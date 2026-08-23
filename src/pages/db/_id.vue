@@ -112,6 +112,11 @@ const OPS_BY_TYPE = {
   last_edited_time: DATE_OPS,
 }
 
+// Computed columns (formula/rollup/auto values) silently match nothing in
+// filters/sorts — keep them out of the column dropdowns.
+const COMPUTED_TYPES = ['formula', 'rollup', 'created_time', 'last_edited_time', 'created_by', 'last_edited_by', 'unique_id']
+const plainColumns = computed(() => schema.value?.columns.filter((c) => !COMPUTED_TYPES.includes(c.type)) || [])
+
 function opsFor(columnId) {
   const column = schema.value.columns.find((c) => c.id === columnId)
   return OPS_BY_TYPE[column?.type] || TEXT_OPS
@@ -130,7 +135,7 @@ function setConjunction(conj) {
   patchConfig({ filters: { conjunction: conj, list: filtersList.value } })
 }
 function addFilter() {
-  const first = schema.value.columns[0]
+  const first = plainColumns.value[0]
   if (!first) return
   setFilters([...filtersList.value, { columnId: first.id, operator: opsFor(first.id)[0], value: '' }])
 }
@@ -145,7 +150,7 @@ function removeSort(index) {
   setSorts(sortsList.value.filter((_, i) => i !== index))
 }
 function addSort() {
-  const first = schema.value.columns[0]
+  const first = plainColumns.value[0]
   if (!first) return
   setSorts([...sortsList.value, { columnId: first.id, direction: 'asc' }])
 }
@@ -238,7 +243,7 @@ function deleteSchema() {
             class="max-w-[160px] rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             @change="setFilter(i, { columnId: $event.target.value, operator: opsFor($event.target.value)[0] })"
           >
-            <option v-for="c in schema.columns" :key="c.id" :value="c.id">{{ c.name }}</option>
+            <option v-for="c in plainColumns" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
           <select
             :aria-label="(t.filter || 'Filter') + ' condition'"
@@ -298,7 +303,7 @@ function deleteSchema() {
             class="max-w-[200px] rounded-lg border border-neutral-200 bg-white px-2 py-1.5 text-sm text-neutral-700 outline-none dark:border-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
             @change="setSort(i, { columnId: $event.target.value })"
           >
-            <option v-for="c in schema.columns" :key="c.id" :value="c.id">{{ c.name }}</option>
+            <option v-for="c in plainColumns" :key="c.id" :value="c.id">{{ c.name }}</option>
           </select>
           <button
             class="flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm opacity-70 transition-colors duration-100 hover:bg-neutral-100 hover:opacity-100 dark:hover:bg-neutral-800"

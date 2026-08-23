@@ -38,6 +38,7 @@ const mountOpts = {
     stubs: {
       'v-remixicon': { template: '<i />' },
       UiPopover: { template: '<div><slot name="trigger" /><slot /></div>' },
+      UiModal: { template: '<div><slot name="header" /><slot /><slot name="actions" /></div>' },
     },
   },
 }
@@ -123,16 +124,46 @@ describe('TableView', () => {
     expect(db.updateColumn).toHaveBeenCalledWith('db', 't', { name: 'Full name' })
   })
 
-  it('+ adds a rich_text column', async () => {
+  it('+ opens a type picker and adds the chosen type', async () => {
     const w = mountView()
     await w.find('[data-test=add-column]').trigger('click')
+    await w.find('[data-test=add-column-rich_text]').trigger('click')
     expect(db.addColumn).toHaveBeenCalledWith('db', { type: 'rich_text' })
+
+    await w.find('[data-test=add-column]').trigger('click')
+    await w.find('[data-test=add-column-number]').trigger('click')
+    expect(db.addColumn).toHaveBeenCalledWith('db', { type: 'number' })
+  })
+
+  it('picker offers the creatable types including formula', () => {
+    const w = mountView()
+    for (const type of ['rich_text', 'number', 'select', 'multi_select', 'status', 'date', 'checkbox', 'url', 'email', 'phone_number', 'files', 'formula', 'relation']) {
+      expect(w.find(`[data-test=add-column-${type}]`).exists()).toBe(true)
+    }
   })
 
   it('dblclick emits open-row with the row id', async () => {
     const w = mountView()
     await w.find('[data-test=row-r1]').trigger('dblclick')
     expect(w.emitted('open-row')[0][0]).toBe('r1')
+  })
+
+  it('formula column header menu opens the editor and saves its expression', async () => {
+    const s = {
+      ...schema,
+      columns: [...schema.columns, { id: 'fx', name: 'Calc', type: 'formula', config: { expression: 'prop("Pts")' } }],
+    }
+    s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'fx'] } }
+    const w = mountView({ schema: s })
+    await w.find('[data-test=menu-formula-fx]').trigger('click')
+    const input = w.find('[data-test=expression-input]')
+    expect(input.exists()).toBe(true)
+    expect(input.element.value).toBe('prop("Pts")')
+    await input.setValue('prop("Pts") * 2')
+    await w.find('[data-test=save]').trigger('click')
+    expect(db.updateColumn).toHaveBeenCalledWith('db', 'fx', {
+      config: { expression: 'prop("Pts") * 2' },
+    })
   })
 
   it('renders computed values for readonly columns', () => {

@@ -13,6 +13,7 @@ export function visibleWindow(scrollTop, viewportHeight, rowCount) {
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import CellRenderer from './cells/CellRenderer.vue'
+import FormulaEditor from '@/components/database/FormulaEditor.vue'
 import { runView } from '../database/view-engine'
 import { createComputeCache } from '../database/compute-row'
 import { useDatabaseStore } from '@/store/database'
@@ -43,6 +44,24 @@ const viewRows = computed(() => {
 })
 
 const COMPUTED_TYPES = ['formula', 'rollup', 'created_time', 'last_edited_time', 'created_by', 'last_edited_by', 'unique_id']
+// Sensible creatable types for the "+" picker (computed types are created
+// through their own editors, people/rollup need relation wiring first).
+const CREATABLE_TYPES = ['rich_text', 'number', 'select', 'multi_select', 'status', 'date', 'checkbox', 'url', 'email', 'phone_number', 'files', 'formula', 'relation']
+const TYPE_LABELS = {
+  rich_text: 'Text',
+  number: 'Number',
+  select: 'Select',
+  multi_select: 'Multi-select',
+  status: 'Status',
+  date: 'Date',
+  checkbox: 'Checkbox',
+  url: 'URL',
+  email: 'Email',
+  phone_number: 'Phone',
+  files: 'Files',
+  formula: 'Formula',
+  relation: 'Relation',
+}
 const computeCache = createComputeCache()
 // Any committed write bumps version; clear so cross-row results (unique_id
 // positions, rollups) recompute — brief v1: correctness over cleverness.
@@ -101,6 +120,27 @@ function hideColumn(column) {
 function removeColumn(column) {
   db.removeColumn(props.schema.id, column.id)
   closeMenu()
+}
+
+const addMenuOpen = ref(false)
+function addColumnOfType(type) {
+  db.addColumn(props.schema.id, { type })
+  addMenuOpen.value = false
+}
+
+// One entry point for editing formulas: a formula column's header menu.
+const formulaColumn = ref(null)
+function editFormula(column) {
+  openMenu.value = null
+  formulaColumn.value = column
+}
+function saveFormula(expression) {
+  const col = formulaColumn.value
+  if (col) db.updateColumn(props.schema.id, col.id, { config: { ...col.config, expression } })
+  closeFormula()
+}
+function closeFormula() {
+  formulaColumn.value = null
 }
 
 const t = computed(() => translations.value.database || {})
@@ -187,6 +227,15 @@ const gapBottom = computed(() => (viewRows.value.length - win.value.end) * ROW_H
                   <span>{{ t.rename || 'Rename' }}</span>
                 </button>
                 <button
+                  v-if="c.type === 'formula'"
+                  :data-test="`menu-formula-${c.id}`"
+                  class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-sm transition-colors duration-100 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  @click="editFormula(c)"
+                >
+                  <v-remixicon name="riFunctionLine" />
+                  <span>{{ t.editFormula || 'Edit formula' }}</span>
+                </button>
+                <button
                   :data-test="`menu-hide-${c.id}`"
                   class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-sm transition-colors duration-100 hover:bg-neutral-100 dark:hover:bg-neutral-800"
                   @click="hideColumn(c)"
@@ -208,15 +257,34 @@ const gapBottom = computed(() => (viewRows.value.length - win.value.end) * ROW_H
           </ui-popover>
         </div>
       </template>
-      <button
-        data-test="add-column"
-        :title="t.addColumn || 'Add column'"
-        :aria-label="t.addColumn || 'Add column'"
-        class="w-[120px] shrink-0 opacity-50 transition-opacity duration-100 hover:opacity-100"
-        @click="db.addColumn(schema.id, { type: 'rich_text' })"
+      <ui-popover
+        placement="bottom-start"
+        :model-value="addMenuOpen"
+        @update:model-value="(v) => (addMenuOpen = v)"
       >
-        <v-remixicon name="riAddLine" class="mx-auto" />
-      </button>
+        <template #trigger>
+          <button
+            data-test="add-column"
+            :title="t.addColumn || 'Add column'"
+            :aria-label="t.addColumn || 'Add column'"
+            class="w-[120px] shrink-0 opacity-50 transition-opacity duration-100 hover:opacity-100"
+            @click.stop
+          >
+            <v-remixicon name="riAddLine" class="mx-auto" />
+          </button>
+        </template>
+        <div class="min-w-[160px]">
+          <button
+            v-for="type in CREATABLE_TYPES"
+            :key="type"
+            :data-test="`add-column-${type}`"
+            class="flex w-full items-center gap-2 rounded-lg p-1.5 text-left text-sm transition-colors duration-100 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            @click="addColumnOfType(type)"
+          >
+            <span>{{ TYPE_LABELS[type] }}</span>
+          </button>
+        </div>
+      </ui-popover>
     </div>
 
     <div aria-hidden="true" :style="{ height: gapTop + 'px' }"></div>
@@ -261,5 +329,14 @@ const gapBottom = computed(() => (viewRows.value.length - win.value.end) * ROW_H
       <v-remixicon name="riAddLine" />
       <span>{{ t.newRow || 'New row' }}</span>
     </button>
+
+    <formula-editor
+      v-if="formulaColumn"
+      :column="formulaColumn"
+      :schema="schema"
+      :rows="viewRows"
+      @save="saveFormula"
+      @cancel="closeFormula"
+    />
   </div>
 </template>
