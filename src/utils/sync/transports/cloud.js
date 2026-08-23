@@ -414,11 +414,16 @@ export class CloudTransport extends Transport {
       if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
       for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
       hasMore ||= page.hasMore === true;
-      // Only advance the checkpoint when the server actually returned
-      // updates.  When 0 rows match, loadUpdatesAfter echoes back the
-      // input checkpoint — saving it would lock us into a loop where
-      // stale checkpoints silently filter out all future data.
-      if (page.updates.length > 0 && page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
+      // Server signals stale=true when the client's checkpoint is outdated
+      // (e.g. from a previous session) but the server has newer data.
+      // Clear the checkpoint so the next pull fetches everything.
+      if (page.stale) {
+        clearServerCheckpoint(noteId);
+      } else if (page.updates.length > 0 && page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
+        // Only advance the checkpoint when the server actually returned
+        // updates.  When 0 rows match, returning an empty checkpoint
+        // prevents the feedback loop where stale checkpoints poison
+        // all future pulls.
         pendingCheckpoints.set(noteId, page.nextCheckpoint);
       }
     }
@@ -524,12 +529,12 @@ export class CloudTransport extends Transport {
 
     // Recovery: if the pull returned 0 updates but we had stored checkpoints
     // for any of the requested notes, those checkpoints are stale (e.g. from
-    // a previous session). Clear them so the next pull fetches everything.
+    // a previous session).  Clear them so the next pull fetches everything.
+    // This is a safety net — the server should send stale=true first.
     if (decodedUpdates.length === 0) {
       for (const { noteId } of notes) {
         if (loadServerCheckpoint(noteId)) {
           clearServerCheckpoint(noteId);
-          logger.info(`[sync] cloud pull: cleared stale checkpoint for ${noteId}`);
         }
       }
     }
