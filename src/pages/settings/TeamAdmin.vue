@@ -164,16 +164,105 @@
           </ul>
         </div>
       </section>
+
+      <!-- SSO -->
+      <section class="space-y-2">
+        <div class="flex items-center justify-between">
+          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">Single Sign-On (SSO)</p>
+          <button
+            v-if="flags.audit"
+            class="text-xs text-primary dark:text-primary-light hover:underline"
+            @click="sso.showForm = !sso.showForm"
+          >
+            {{ sso.showForm ? 'Cancel' : '+ Add SSO' }}
+          </button>
+        </div>
+
+        <div v-if="!flags.audit" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6">
+          <p class="text-sm text-neutral-500 dark:text-neutral-400">
+            SSO requires the Enterprise plan.
+          </p>
+        </div>
+
+        <template v-else>
+          <div v-if="sso.loading" class="text-xs text-neutral-500 py-4">Loading…</div>
+
+          <div v-else-if="sso.configs.length === 0 && !sso.showForm" class="space-y-1 bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-6">
+            <p class="text-sm text-neutral-500 dark:text-neutral-400">
+              No SSO configurations yet. Add one to enable single sign-on for your workspace members.
+            </p>
+          </div>
+
+          <div v-for="cfg in sso.configs" :key="cfg.id" class="bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-3.5">
+            <div class="flex items-center justify-between">
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-neutral-800 dark:text-neutral-200">{{ cfg.slug }}</span>
+                  <span class="text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded bg-neutral-200 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300">{{ cfg.protocol }}</span>
+                </div>
+                <p class="text-xs text-neutral-500 dark:text-neutral-400">
+                  Login URL: {{ sso.loginUrl(cfg) }}
+                </p>
+                <p v-if="cfg.allowedEmailDomains" class="text-xs text-neutral-500 dark:text-neutral-400">
+                  Allowed domains: {{ cfg.allowedEmailDomains }}
+                </p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.editConfig(cfg)">Edit</button>
+                <button class="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400" @click="sso.removeConfig(cfg)">Delete</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Create / Edit form -->
+          <div v-if="sso.showForm" class="bg-neutral-50 dark:bg-neutral-900 rounded-xl border px-4 py-4 space-y-4">
+            <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+              {{ sso.editingId ? 'Edit' : 'New' }} SSO Configuration
+            </p>
+            <div class="grid grid-cols-2 gap-4">
+              <ui-select v-model="sso.form.protocol" label="Protocol">
+                <option value="saml">SAML 2.0</option>
+                <option value="oidc">OpenID Connect</option>
+              </ui-select>
+              <ui-input v-model="sso.form.slug" label="Slug" placeholder="my-company" />
+            </div>
+            <ui-input v-model="sso.form.allowedEmailDomains" label="Allowed email domains (comma-separated)" placeholder="example.com, company.org" />
+
+            <template v-if="sso.form.protocol === 'saml'">
+              <ui-input v-model="sso.form.idpEntityId" label="IdP Entity ID" placeholder="https://idp.example.com/metadata" />
+              <ui-input v-model="sso.form.idpSsoUrl" label="IdP SSO URL" placeholder="https://idp.example.com/sso/saml" />
+              <ui-input v-model="sso.form.idpCert" label="IdP Certificate (PEM)" type="textarea" :rows="4" placeholder="-----BEGIN CERTIFICATE-----\n…\n-----END CERTIFICATE-----" />
+              <ui-input v-model="sso.form.spCert" label="SP Certificate (PEM, optional)" type="textarea" :rows="4" placeholder="Leave empty to auto-generate" />
+              <ui-input v-model="sso.form.spPrivateKey" label="SP Private Key (PEM, optional)" type="textarea" :rows="4" placeholder="Leave empty to auto-generate" />
+            </template>
+
+            <template v-if="sso.form.protocol === 'oidc'">
+              <ui-input v-model="sso.form.oidcIssuer" label="OIDC Issuer URL" placeholder="https://accounts.example.com" />
+              <ui-input v-model="sso.form.oidcClientId" label="Client ID" />
+              <ui-input v-model="sso.form.oidcClientSecret" label="Client Secret" type="password" />
+            </template>
+
+            <div class="flex items-center gap-3">
+              <button class="ui-button py-2 text-sm px-4 rounded-lg" :disabled="sso.saving" @click="sso.saveConfig">
+                {{ sso.saving ? 'Saving…' : (sso.editingId ? 'Update' : 'Create') }}
+              </button>
+              <button class="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200" @click="sso.cancelForm">Cancel</button>
+              <p v-if="sso.formError" class="text-xs text-red-500">{{ sso.formError }}</p>
+            </div>
+          </div>
+        </template>
+      </section>
     </template>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useAccountStore } from '@/store/account';
 import { useWorkspaceStore } from '@/store/workspace';
 import { useTeamAdmin } from '@/composable/useTeamAdmin';
 import { getPlans } from '@/lib/api/plans';
+import { listSsoConfigs, createSsoConfig, updateSsoConfig, deleteSsoConfig } from '@/lib/api/sso';
 
 export default {
   setup() {
@@ -194,6 +283,111 @@ export default {
     const plansLoaded = ref(false);
 
     const admin = useTeamAdmin(() => workspaceId.value);
+
+    // SSO state
+    const sso = reactive({
+      configs: [],
+      loading: false,
+      showForm: false,
+      editingId: null,
+      saving: false,
+      formError: '',
+      form: {
+        protocol: 'saml',
+        slug: '',
+        idpEntityId: '',
+        idpSsoUrl: '',
+        idpCert: '',
+        spCert: '',
+        spPrivateKey: '',
+        oidcIssuer: '',
+        oidcClientId: '',
+        oidcClientSecret: '',
+        allowedEmailDomains: '',
+      },
+    });
+
+    function resetSsoForm() {
+      sso.showForm = false;
+      sso.editingId = null;
+      sso.formError = '';
+      Object.assign(sso.form, {
+        protocol: 'saml', slug: '', idpEntityId: '', idpSsoUrl: '', idpCert: '',
+        spCert: '', spPrivateKey: '', oidcIssuer: '', oidcClientId: '', oidcClientSecret: '',
+        allowedEmailDomains: '',
+      });
+    }
+
+    async function loadSsoConfigs() {
+      if (!workspaceId.value) return;
+      sso.loading = true;
+      try {
+        sso.configs = await listSsoConfigs(workspaceId.value, { baseUrl: accountStore.serverUrl });
+      } catch (err) {
+        console.error('[sso] load failed:', err);
+      } finally {
+        sso.loading = false;
+      }
+    }
+
+    function ssoLoginUrl(cfg) {
+      const host = accountStore.serverUrl || window.location.origin;
+      return `${host}/auth/sso/${cfg.slug}/login`;
+    }
+
+    function ssoEditConfig(cfg) {
+      sso.editingId = cfg.id;
+      Object.assign(sso.form, {
+        protocol: cfg.protocol,
+        slug: cfg.slug,
+        idpEntityId: cfg.idpEntityId || '',
+        idpSsoUrl: cfg.idpSsoUrl || '',
+        idpCert: cfg.idpCert ? '(exists — leave blank to keep)' : '',
+        spCert: '',
+        spPrivateKey: '',
+        oidcIssuer: cfg.oidcIssuer || '',
+        oidcClientId: cfg.oidcClientId || '',
+        oidcClientSecret: '',
+        allowedEmailDomains: cfg.allowedEmailDomains || '',
+      });
+      sso.showForm = true;
+    }
+
+    async function ssoSaveConfig() {
+      sso.formError = '';
+      if (!sso.form.slug) {
+        sso.formError = 'Slug is required.';
+        return;
+      }
+      sso.saving = true;
+      try {
+        const payload = { ...sso.form };
+        Object.keys(payload).forEach((k) => {
+          if (payload[k] === '' || payload[k] === null) delete payload[k];
+        });
+        if (sso.editingId) {
+          await updateSsoConfig(workspaceId.value, sso.editingId, payload, { baseUrl: accountStore.serverUrl });
+        } else {
+          await createSsoConfig(workspaceId.value, payload, { baseUrl: accountStore.serverUrl });
+        }
+        resetSsoForm();
+        await loadSsoConfigs();
+      } catch (err) {
+        sso.formError = err?.message || 'Failed to save SSO config.';
+      } finally {
+        sso.saving = false;
+      }
+    }
+
+    async function ssoRemoveConfig(cfg) {
+      if (!confirm(`Delete SSO config "${cfg.slug}"? Members will lose SSO login access.`)) return;
+      try {
+        await deleteSsoConfig(workspaceId.value, cfg.id, { baseUrl: accountStore.serverUrl });
+        await loadSsoConfigs();
+      } catch (err) {
+        console.error('[sso] delete failed:', err);
+      }
+    }
 
     const inviteInput = ref('');
     const inviteRole = ref('editor');
@@ -284,11 +478,17 @@ export default {
       if (flags.value.dashboard) {
         await refreshAdmin();
       }
+      if (flags.value.audit) {
+        await loadSsoConfigs();
+      }
     });
 
     watch(workspaceId, () => {
       if (flags.value.dashboard) {
         refreshAdmin();
+      }
+      if (flags.value.audit) {
+        loadSsoConfigs();
       }
     });
 
@@ -316,6 +516,20 @@ export default {
       handleRevoke,
       handleLoadDevices,
       handleLoadAudit,
+      sso: {
+        configs: computed(() => sso.configs),
+        loading: computed(() => sso.loading),
+        showForm: computed({ get: () => sso.showForm, set: (v) => { sso.showForm = v; } }),
+        editingId: computed(() => sso.editingId),
+        saving: computed(() => sso.saving),
+        formError: computed(() => sso.formError),
+        form: sso.form,
+        loginUrl: ssoLoginUrl,
+        editConfig: ssoEditConfig,
+        saveConfig: ssoSaveConfig,
+        removeConfig: ssoRemoveConfig,
+        cancelForm: resetSsoForm,
+      },
     };
   },
 };
