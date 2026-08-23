@@ -1,4 +1,8 @@
-import { getClient } from './client';
+import { getApiClient } from './client';
+
+function getClient(baseUrl) {
+  return getApiClient(baseUrl ? { baseUrl } : undefined);
+}
 
 export async function listSsoConfigs(workspaceId, { baseUrl, signal } = {}) {
   const client = getClient(baseUrl);
