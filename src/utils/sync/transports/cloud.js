@@ -345,10 +345,7 @@ export class CloudTransport extends Transport {
   }
 
   async pull() {
-    if (!this._remoteAllowed()) {
-      console.warn('[sync] cloud pull BLOCKED: _remoteAllowed=false, readiness:', JSON.stringify(this._readiness));
-      return { updates: [] };
-    }
+    if (!this._remoteAllowed()) return { updates: [] };
 
     const workspaceId = await this._ensureWorkspace();
     if (!workspaceId) {
@@ -417,7 +414,11 @@ export class CloudTransport extends Transport {
       if (!Array.isArray(page.updates)) throw malformedRemoteUpdate();
       for (const update of page.updates || []) updates.push({ ...update, _noteId: noteId });
       hasMore ||= page.hasMore === true;
-      if (page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
+      // Only advance the checkpoint when the server actually returned
+      // updates.  When 0 rows match, loadUpdatesAfter echoes back the
+      // input checkpoint — saving it would lock us into a loop where
+      // stale checkpoints silently filter out all future data.
+      if (page.updates.length > 0 && page.nextCheckpoint && Object.keys(page.nextCheckpoint).length > 0) {
         pendingCheckpoints.set(noteId, page.nextCheckpoint);
       }
     }
@@ -521,12 +522,23 @@ export class CloudTransport extends Transport {
       saveServerCheckpoint(noteId, checkpoint);
     }
 
+    // Recovery: if the pull returned 0 updates but we had stored checkpoints
+    // for any of the requested notes, those checkpoints are stale (e.g. from
+    // a previous session). Clear them so the next pull fetches everything.
+    if (decodedUpdates.length === 0) {
+      for (const { noteId } of notes) {
+        if (loadServerCheckpoint(noteId)) {
+          clearServerCheckpoint(noteId);
+          logger.info(`[sync] cloud pull: cleared stale checkpoint for ${noteId}`);
+        }
+      }
+    }
+
     return { updates: decodedUpdates, hasMore };
   }
 
   async push(opts = {}) {
     if (!this._remoteAllowed()) {
-      console.warn('[sync] cloud push BLOCKED: _remoteAllowed=false, readiness:', JSON.stringify(this._readiness));
       logger.info('[sync] cloud push: _remoteAllowed=false');
       return { updates: [], pushed: 0 };
     }
