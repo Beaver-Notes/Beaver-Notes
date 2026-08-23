@@ -73,7 +73,7 @@ describe('computeRowCells', () => {
     const seen = []
     const out = computeRowCells(f.schema, f.row, { getRows: (dbId) => { seen.push(dbId); return [orow] } })
     expect(seen).toContain(other.id)
-    expect(out[rollup.id]).toEqual({ value: null }) // T21 computeRollup stub
+    expect(out[rollup.id]).toEqual({ value: 7 })
   })
 })
 

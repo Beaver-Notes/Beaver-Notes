@@ -1,9 +1,7 @@
 // src/lib/database/compute-row.js
 import dayjs from 'dayjs'
 import { evaluateExpression } from './formula-evaluator'
-
-// T21 stub until rollup-engine lands; swap for `import { computeRollup } from './rollup-engine'`.
-const computeRollup = (_values, _config) => null
+import { computeRollup } from './rollup-engine'
 
 const AUTO_TYPES = ['created_time', 'last_edited_time', 'unique_id']
 
