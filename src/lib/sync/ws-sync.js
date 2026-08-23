@@ -11,9 +11,53 @@ import {
 import { clearUnwrappedKeyCache, unwrapNoteKey } from '@/utils/crypto/note-key'
 import { loadOrCreateIdentity } from '@/utils/crypto/identity'
 import { getWorkspaceKey, getCachedWorkspaceKey } from '@/lib/api/workspaces'
+import { forceSyncNow } from '@/utils/sync/engine'
 
 // Collaboration keys per room (roomName -> CryptoKey)
 const collabKeys = new Map()
+
+// Text notification listeners per provider — tracked for cleanup
+const notificationListeners = new WeakMap()
+
+/**
+ * y-websocket's WebsocketProvider only handles binary messages (types 0-3).
+ * The ws-relay server sends JSON text notifications via sendText() to signal
+ * new data. Intercept these text messages on the raw WebSocket and trigger
+ * a pull cycle so the client picks up the new updates.
+ *
+ * Re-attaches on reconnection since provider.ws is reassigned.
+ */
+function createNotificationHandler() {
+  return (event) => {
+    if (typeof event.data !== 'string') return
+    try {
+      const msg = JSON.parse(event.data)
+      if (msg.type === 'notification') {
+        console.warn('[ws-sync] notification from server, triggering sync')
+        forceSyncNow().catch(() => {})
+      }
+    } catch {
+      // Not JSON — ignore
+    }
+  }
+}
+
+function attachNotificationListener(provider) {
+  detachNotificationListener(provider)
+  const handler = createNotificationHandler()
+  if (provider.ws) {
+    provider.ws.addEventListener('message', handler)
+  }
+  notificationListeners.set(provider, handler)
+}
+
+function detachNotificationListener(provider) {
+  const handler = notificationListeners.get(provider)
+  if (handler && provider.ws) {
+    provider.ws.removeEventListener('message', handler)
+  }
+  notificationListeners.delete(provider)
+}
 
 function buildRoomName(workspaceId, noteId) {
   return `workspace:${workspaceId}:note:${noteId}`
@@ -109,6 +153,15 @@ export function useWsSync() {
       awareness: new awarenessProtocol.Awareness(doc),
     })
 
+    // Re-attach notification listener on each reconnection (provider.ws is reassigned)
+    provider.on('status', ({ status }) => {
+      if (status === 'connected') {
+        attachNotificationListener(provider)
+      }
+    })
+    // Attach immediately if already connecting
+    attachNotificationListener(provider)
+
     activeProviders.set(roomName, provider)
     docToRoom.set(doc, roomName)
     registerActiveDoc(noteId, doc)
@@ -119,6 +172,7 @@ export function useWsSync() {
     const roomName = buildRoomName(workspaceId, noteId)
     const provider = activeProviders.get(roomName)
     if (provider) {
+      detachNotificationListener(provider)
       provider.destroy()
       activeProviders.delete(roomName)
     }
@@ -144,6 +198,14 @@ export function useWsSync() {
       awareness: new awarenessProtocol.Awareness(doc),
     })
 
+    // Re-attach notification listener on each reconnection
+    provider.on('status', ({ status }) => {
+      if (status === 'connected') {
+        attachNotificationListener(provider)
+      }
+    })
+    attachNotificationListener(provider)
+
     activeProviders.set(roomName, provider)
     docToRoom.set(doc, roomName)
 
@@ -160,6 +222,7 @@ export function useWsSync() {
 
   function disconnect() {
     for (const [, provider] of activeProviders) {
+      detachNotificationListener(provider)
       provider.disconnect()
     }
     activeProviders.clear()
@@ -176,6 +239,7 @@ export function useWsSync() {
   function handleWorkspaceSwitch(workspaceId) {
     for (const [roomName, provider] of activeProviders) {
       if (roomName.startsWith('workspace:')) {
+        detachNotificationListener(provider)
         provider.destroy()
         activeProviders.delete(roomName)
       }
