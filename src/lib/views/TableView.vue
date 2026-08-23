@@ -318,7 +318,6 @@ const gapBottom = computed(() => (viewRows.value.length - win.value.end) * ROW_H
             :title="t.addColumn || 'Add column'"
             :aria-label="t.addColumn || 'Add column'"
             class="w-[120px] shrink-0 opacity-50 transition-opacity duration-100 hover:opacity-100"
-            @click.stop
           >
             <v-remixicon name="riAddLine" class="mx-auto" />
           </button>

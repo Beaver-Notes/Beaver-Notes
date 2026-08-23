@@ -159,6 +159,25 @@ describe('TableView', () => {
     }
   })
 
+  it('opens the add-column picker on trigger click (real Popover)', async () => {
+    const w = mount(TableView, {
+      props: { schema, rows, version: 0, view: schema.views[0] },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          'v-remixicon': { template: '<i />' },
+          UiModal: { template: '<div><slot name="header" /><slot /><slot name="actions" /></div>' },
+        },
+      },
+    })
+    await w.find('[data-test=add-column]').trigger('click')
+    const visible = [...document.querySelectorAll('.ui-popover__content')]
+      .filter((el) => el.style.display !== 'none')
+    expect(visible).toHaveLength(1)
+    expect(visible[0].querySelector('[data-test=add-column-rich_text]')).toBeTruthy()
+    w.unmount()
+  })
+
   it('dblclick emits open-row with the row id', async () => {
     const w = mountView()
     await w.find('[data-test=row-r1]').trigger('dblclick')

@@ -60,9 +60,8 @@ const sortCount = computed(() => props.view?.config?.sorts?.length || 0)
           data-test="add-view"
           :title="t.newView || 'New view'"
           :aria-label="t.newView || 'New view'"
-          class="ml-1 rounded p-1 text-sm opacity-50 transition-opacity duration-100 hover:bg-neutral-100 hover:opacity-100 dark:hover:bg-neutral-800"
-          @click.stop
-        >
+            class="ml-1 rounded p-1 text-sm opacity-50 transition-opacity duration-100 hover:bg-neutral-100 hover:opacity-100 dark:hover:bg-neutral-800"
+          >
           <v-remixicon name="riAddLine" size="16" />
         </button>
       </template>
@@ -112,7 +111,6 @@ const sortCount = computed(() => props.view?.config?.sorts?.length || 0)
             data-test="db-menu-btn"
             :aria-label="t.options || 'Options'"
             class="rounded p-1 opacity-60 transition-colors duration-100 hover:bg-neutral-100 hover:opacity-100 dark:hover:bg-neutral-800"
-            @click.stop
           >
             <v-remixicon name="riMore2Fill" size="16" />
           </button>
