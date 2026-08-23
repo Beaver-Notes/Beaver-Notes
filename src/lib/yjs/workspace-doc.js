@@ -326,7 +326,6 @@ export function observeWorkspace(callback, debounceMs = 150) {
       pendingChangedNoteIds = new Set();
       const flags = metaFlags;
       metaFlags = { folders: false, labels: false, labelColors: false, deleted: false, databases: false, deletedDatabases: false };
-      // ponytail: no unsubscribe yet — both subscribers are app-lifetime.
       for (const observer of workspaceObservers) {
         try {
           observer(changed, flags);
@@ -336,6 +335,10 @@ export function observeWorkspace(callback, debounceMs = 150) {
       }
     }, debounceMs);
   }
+
+  // Existing app-lifetime callers ignore this; subscribers that unmount
+  // (public-api.subscribe) must remove themselves or leak here forever.
+  return () => workspaceObservers.delete(callback);
 }
 
 // ── Transaction helper ───────────────────────────────────────────────────────

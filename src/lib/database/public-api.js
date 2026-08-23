@@ -181,7 +181,7 @@ export function subscribe(dbId, cb, role) {
     })
   }
 
-  observeWorkspace((_changed, flags) => {
+  const unobserveMeta = observeWorkspace((_changed, flags) => {
     if (flags?.databases || flags?.deletedDatabases) schedule()
   })
 
@@ -207,6 +207,7 @@ export function subscribe(dbId, cb, role) {
   return () => {
     closed = true
     cancelAnimationFrame(rafId)
+    unobserveMeta()
     if (observedRows) observedRows.unobserveDeep(schedule)
     if (ownDoc) ownDoc.destroy()
   }

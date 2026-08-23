@@ -9,7 +9,7 @@ vi.mock('@/lib/yjs/workspace-doc', () => ({
   syncDatabaseSchema: vi.fn(),
   removeDatabaseSchema: vi.fn(),
   syncDeletedDatabaseIds: vi.fn(),
-  observeWorkspace: vi.fn(),
+  observeWorkspace: vi.fn(() => vi.fn()),
 }))
 
 // In-memory stand-in for the row-doc persistence layer: openRowDoc always
@@ -244,6 +244,22 @@ describe('subscribe', () => {
     const { doc } = await openRowDoc.mock.results.at(-1).value
     unsub()
     expect(doc.isDestroyed).toBe(true)
+  })
+
+  it('unsubscribe removes its workspace observer (no leak)', async () => {
+    const { observeWorkspace } = await import('@/lib/yjs/workspace-doc')
+    const { id } = await seedDb()
+    const cb = vi.fn()
+    const before = observeWorkspace.mock.calls.length
+    const unsub = api.subscribe(id, cb, 'viewer')
+    expect(observeWorkspace.mock.calls.length).toBe(before + 1)
+    unsub()
+
+    // The registered meta callback must be a no-op after unsubscribe.
+    const wsCb = observeWorkspace.mock.calls[before][0]
+    wsCb(new Set(), { databases: true })
+    await frame()
+    expect(cb).not.toHaveBeenCalled()
   })
 })
 
