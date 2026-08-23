@@ -315,6 +315,8 @@ export default {
           : null;
 
       notes.forEach((note) => {
+        // Database row backing notes (Delta 3) surface only inside their database.
+        if (note.inDatabase) return;
         let { title, isArchived, isBookmarked, labels, folderId } = note;
 
         if (folderId !== currentFolderId.value) {

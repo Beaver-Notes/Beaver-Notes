@@ -256,6 +256,8 @@ export default {
 
       for (let i = 0; i < notes.length; i++) {
         const note = notes[i];
+        // Database row backing notes (Delta 3) surface only inside their database.
+        if (note.inDatabase) continue;
         const { title, isArchived, isBookmarked, labels, folderId } = note;
 
         const labelFilter = state.activeLabel
