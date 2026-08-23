@@ -11,7 +11,7 @@ export function visibleWindow(scrollTop, viewportHeight, rowCount) {
 </script>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import CellRenderer from './cells/CellRenderer.vue'
 import FormulaEditor from '@/components/database/FormulaEditor.vue'
 import { runView } from '../database/view-engine'
@@ -43,6 +43,55 @@ const viewRows = computed(() => {
   return runView(props.schema, props.view, props.rows).rows
 })
 
+// Cross-database rollups: compute-row asks getRows(dbId) for the relation's
+// target database. Own rows come straight from props; other databases load
+// lazily once per host session (empty until loaded, then results recompute).
+// ponytail: loaded once per dbId per mount — cross-db edits refresh on remount.
+const relatedRows = shallowRef(new Map())
+const loadingDbIds = new Set()
+function getRows(dbId) {
+  if (dbId === props.schema.id) return props.rows
+  return relatedRows.value.get(dbId) || []
+}
+async function loadRelatedRows(dbId) {
+  if (loadingDbIds.has(dbId)) return
+  loadingDbIds.add(dbId)
+  try {
+    const { openRowDoc } = await import('@/composable/useDatabaseYjs')
+    const { doc, rows } = await openRowDoc(dbId)
+    try {
+      const snapshot = rows.toArray().map((m) => ({
+        id: m.get('id'),
+        cells: m.get('cells')?.toJSON() ?? {},
+        createdAt: m.get('createdAt'),
+        updatedAt: m.get('updatedAt'),
+      }))
+      const next = new Map(relatedRows.value)
+      next.set(dbId, snapshot)
+      relatedRows.value = next
+    } finally {
+      doc.destroy()
+    }
+  } catch (err) {
+    console.warn('[table-view] could not load rows of related database:', dbId, err)
+  } finally {
+    loadingDbIds.delete(dbId)
+  }
+}
+watch(
+  () => [props.version, props.schema?.columns],
+  () => {
+    for (const c of props.schema?.columns || []) {
+      if (c.type !== 'rollup' || !c.config?.relationPropertyId) continue
+      const rel = props.schema.columns.find((x) => x.id === c.config.relationPropertyId)
+      const dbId = rel?.config?.databaseId
+      if (dbId && dbId !== props.schema.id && !relatedRows.value.has(dbId)) loadRelatedRows(dbId)
+    }
+  },
+  { immediate: true }
+)
+watch(relatedRows, () => computeCache.clear())
+
 const COMPUTED_TYPES = ['formula', 'rollup', 'created_time', 'last_edited_time', 'created_by', 'last_edited_by', 'unique_id']
 // Sensible creatable types for the "+" picker (computed types are created
 // through their own editors, people/rollup need relation wiring first).
@@ -68,9 +117,10 @@ const computeCache = createComputeCache()
 watch(() => props.version, () => computeCache.clear())
 const computedRows = computed(() => {
   void props.version
+  void relatedRows.value
   if (!props.schema.columns.some((c) => COMPUTED_TYPES.includes(c.type))) return null
   const m = new Map()
-  for (const r of viewRows.value) m.set(r.id, computeCache.get(props.schema, r, { getRows: () => props.rows }))
+  for (const r of viewRows.value) m.set(r.id, computeCache.get(props.schema, r, { getRows }))
   return m
 })
 function computedFor(row, column) {

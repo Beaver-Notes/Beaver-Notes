@@ -9,6 +9,23 @@ const db = vi.hoisted(() => ({
   updateView: vi.fn(),
 }))
 vi.mock('@/store/database', () => ({ useDatabaseStore: () => db }))
+vi.mock('@/composable/useDatabaseYjs', async () => {
+  const Y = await vi.importActual('yjs')
+  return {
+    openRowDoc: vi.fn(async () => {
+      const doc = new Y.Doc()
+      const m = new Y.Map()
+      m.set('id', 'x1')
+      m.set('createdAt', 1)
+      m.set('updatedAt', 1)
+      const cells = new Y.Map()
+      cells.set('pts', 5)
+      m.set('cells', cells)
+      doc.getArray('rows').push([m])
+      return { doc, rows: doc.getArray('rows') }
+    }),
+  }
+})
 
 import TableView, { visibleWindow } from '../TableView.vue'
 
@@ -184,6 +201,21 @@ describe('TableView', () => {
     s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'uid'] } }
     const w = mountView({ schema: s, rows })
     expect(w.findAll('[data-test^=row-]').map((r) => r.find('[data-test$=-uid]').text())).toEqual(['1', '2'])
+  })
+
+  it('rollups over a related database fetch that database\'s rows', async () => {
+    const s = {
+      ...schema,
+      columns: [
+        ...schema.columns,
+        { id: 'rel', name: 'Linked', type: 'relation', config: { databaseId: 'other-db' } },
+        { id: 'roll', name: 'Sum', type: 'rollup', config: { relationPropertyId: 'rel', rollupPropertyId: 'pts', function: 'sum' } },
+      ],
+    }
+    s.views[0] = { ...schema.views[0], config: { visibleColumns: ['t', 'n', 'rel', 'roll'] } }
+    const linkedRows = [{ id: 'r1', cells: { t: [], rel: ['x1'] }, createdAt: 1, updatedAt: 1 }]
+    const w = mountView({ schema: s, rows: linkedRows })
+    await vi.waitFor(() => expect(w.text()).toContain('5'))
   })
 })
 
