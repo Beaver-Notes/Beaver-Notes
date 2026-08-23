@@ -75,6 +75,8 @@ export interface NoteData {
   preview?: string;
   searchText?: string;
   cardPreview?: CardPreview;
+  /** Backing page of a database row (Delta 3); hidden from sidebar lists. */
+  inDatabase?: boolean;
 }
 
 export interface NoteState {

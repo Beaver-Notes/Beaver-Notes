@@ -698,7 +698,12 @@
    "onboardingImportObsidian": "Obsidian vault",
    "onboardingImportObsidianDesc": "Select your vault folder. Each note becomes a row.",
    "onboardingIssues": "Issues",
-   "cancel": "Cancel"
+   "cancel": "Cancel",
+   "openPage": "Open page",
+   "deleteRow": "Delete row",
+   "untitled": "Untitled",
+   "deleteRowConfirmTitle": "Delete this row?",
+   "deleteRowConfirmBody": "The row and its backing page will be permanently deleted."
  },
  "importSource": {
   "obsidian": "Obsidian",

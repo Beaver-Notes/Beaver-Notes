@@ -249,12 +249,24 @@ export function useDatabaseYjs(dbId) {
     if (idx >= 0) currentDoc.transact(() => rows.value.delete(idx, 1));
   }
 
+  // Materialized backing-page id lives on the row next to `cells`
+  // (cells are column-keyed and must never collide with it).
+  function setRowNoteId(rowId, noteId) {
+    const row = findRow(rowId);
+    if (!row || !currentDoc) return;
+    currentDoc.transact(() => {
+      row.set('noteId', noteId);
+      row.set('updatedAt', Date.now());
+    });
+  }
+
   function getRow(rowId) {
     const row = findRow(rowId);
     if (!row) return null;
     return {
       id: row.get('id'),
       cells: row.get('cells')?.toJSON() ?? {},
+      noteId: row.get('noteId') ?? null,
       createdAt: row.get('createdAt'),
       updatedAt: row.get('updatedAt'),
     };
@@ -287,5 +299,14 @@ export function useDatabaseYjs(dbId) {
     }
   });
 
-  return { rows, ready, version, createRow, updateCells, deleteRow, getRow };
+  return {
+    rows,
+    ready,
+    version,
+    createRow,
+    updateCells,
+    deleteRow,
+    setRowNoteId,
+    getRow,
+  };
 }

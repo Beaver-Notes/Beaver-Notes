@@ -3,9 +3,11 @@ import { computed, ref, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDatabaseStore } from '@/store/database'
 import { useDatabaseYjs } from '@/composable/useDatabaseYjs'
+import { useRowNotes } from '@/composable/useRowNotes'
 import { useTranslations } from '@/composable/useTranslations'
 import { useDialog } from '@/lib/dialog'
 import DatabaseToolbar from '@/components/database/DatabaseToolbar.vue'
+import RowDetail from '@/components/database/RowDetail.vue'
 import TableView from '@/lib/views/TableView.vue'
 import KanbanView from '@/lib/views/KanbanView.vue'
 import CalendarView from '@/lib/views/CalendarView.vue'
@@ -28,7 +30,16 @@ watchEffect(() => {
   if (!schema.value) router.replace({ name: 'Home' })
 })
 
-const { rows, ready, version, createRow, updateCells } = useDatabaseYjs(dbId)
+const yjsApi = useDatabaseYjs(dbId)
+const { rows, ready, version, createRow, updateCells } = yjsApi
+const {
+  detailRow,
+  openRow,
+  closeRow,
+  openRowPage,
+  removeRow,
+  onDetailUpdate,
+} = useRowNotes(schema, yjsApi)
 
 const view = computed(
   () =>
@@ -314,6 +325,7 @@ function deleteSchema() {
         :view="view"
         @cell-update="onCellUpdate"
         @add-row="addRow"
+        @open-row="openRow"
       />
       <kanban-view
         v-else-if="view.type === 'kanban'"
@@ -323,6 +335,7 @@ function deleteSchema() {
         :view="view"
         @cell-update="onCellUpdate"
         @add-row-in-group="addRowInGroup"
+        @open-row="openRow"
       />
       <calendar-view
         v-else-if="view.type === 'calendar'"
@@ -331,6 +344,7 @@ function deleteSchema() {
         :version="version"
         :view="view"
         @add-row-on-date="addRowOnDate"
+        @open-row="openRow"
       />
       <gallery-view
         v-else-if="view.type === 'gallery'"
@@ -338,6 +352,7 @@ function deleteSchema() {
         :rows="rows"
         :version="version"
         :view="view"
+        @open-row="openRow"
       />
       <list-view
         v-else-if="view.type === 'list'"
@@ -345,6 +360,7 @@ function deleteSchema() {
         :rows="rows"
         :version="version"
         :view="view"
+        @open-row="openRow"
       />
       <timeline-view
         v-else-if="view.type === 'timeline'"
@@ -352,6 +368,7 @@ function deleteSchema() {
         :rows="rows"
         :version="version"
         :view="view"
+        @open-row="openRow"
       />
       <div v-else class="flex flex-1 items-center justify-center text-sm text-neutral-500">
         {{ t.viewUnsupported || "This view type isn't available yet" }}
@@ -360,5 +377,16 @@ function deleteSchema() {
     <div v-else class="flex flex-1 items-center justify-center">
       <ui-spinner />
     </div>
+
+    <row-detail
+      v-if="schema"
+      :schema="schema"
+      :row="detailRow"
+      :open="detailRow != null"
+      @close="closeRow"
+      @update="onDetailUpdate"
+      @open-page="openRowPage"
+      @delete-row="removeRow"
+    />
   </div>
 </template>

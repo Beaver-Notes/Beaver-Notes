@@ -82,6 +82,18 @@ describe('useDatabaseYjs', () => {
     expect(compactUpdates).toHaveBeenCalledWith('db:db2', expect.anything());
   });
 
+  it('stores a materialized noteId on the row next to cells, not inside them', async () => {
+    const api = useDatabaseYjs('db4');
+    await flushPromises();
+    const id = api.createRow({ c1: 'x' });
+    expect(api.getRow(id).noteId).toBe(null);
+    api.setRowNoteId(id, 'note9');
+    const row = api.getRow(id);
+    expect(row.noteId).toBe('note9');
+    expect(row.cells.c1).toBe('x');
+    expect(row.cells.noteId).toBeUndefined();
+  });
+
   it('replays persisted updates on load', async () => {
     const doc = new Y.Doc();
     doc.getArray('rows').push([new Y.Map(Object.entries({ id: 'r9' }))]);

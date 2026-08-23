@@ -44,25 +44,43 @@
     <div v-else class="flex justify-center py-6">
       <ui-spinner />
     </div>
+
+    <row-detail
+      v-if="schema"
+      :schema="schema"
+      :row="detailRow"
+      :open="detailRow != null"
+      @close="closeRow"
+      @update="onDetailUpdate"
+      @open-page="openRowPage"
+      @delete-row="removeRow"
+    />
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { useRouter } from 'vue-router';
 import { useDatabaseStore } from '@/store/database';
 import { useDatabaseYjs } from '@/composable/useDatabaseYjs';
+import { useRowNotes } from '@/composable/useRowNotes';
 import TableView from '@/lib/views/TableView.vue';
+import RowDetail from '@/components/database/RowDetail.vue';
 
 const props = defineProps({ dbId: { type: String, required: true } });
-const router = useRouter();
 const store = useDatabaseStore();
 store.hydrate();
 
 const schema = computed(() => store.getById(props.dbId));
-const { rows, ready, version, createRow, updateCells } = useDatabaseYjs(
-  props.dbId
-);
+const dbApi = useDatabaseYjs(props.dbId);
+const { rows, ready, version } = dbApi;
+const {
+  detailRow,
+  openRow,
+  closeRow,
+  openRowPage,
+  removeRow,
+  onDetailUpdate,
+} = useRowNotes(schema, dbApi);
 
 // Linked views single-source-of-truth: same rule as /db/:id.
 const view = computed(
@@ -72,12 +90,9 @@ const view = computed(
 );
 
 function onCellUpdate({ rowId, columnId, value }) {
-  updateCells(rowId, { [columnId]: value });
+  dbApi.updateCells(rowId, { [columnId]: value });
 }
 function addRow() {
-  createRow({});
-}
-function openRow() {
-  router.push({ name: 'Database', params: { id: props.dbId } });
+  dbApi.createRow({});
 }
 </script>
