@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as Y from 'yjs'
 import { setActivePinia, createPinia } from 'pinia'
 
 vi.mock('@/lib/yjs/workspace-doc', () => ({
@@ -8,6 +9,31 @@ vi.mock('@/lib/yjs/workspace-doc', () => ({
   observeWorkspace: vi.fn(),
 }))
 
+// openRowDoc serves a per-dbId in-memory doc so deleteDatabase can read rows.
+const rowDocs = vi.hoisted(() => new Map())
+vi.mock('@/composable/useDatabaseYjs', async () => {
+  const Y = await vi.importActual('yjs')
+  return {
+    openRowDoc: vi.fn(async (dbId) => {
+      let doc = rowDocs.get(dbId)
+      if (!doc) {
+        doc = new Y.Doc()
+        rowDocs.set(dbId, doc)
+      }
+      return { doc, rows: doc.getArray('rows') }
+    }),
+  }
+})
+
+function seedRow(doc, id, noteId) {
+  const row = new Y.Map()
+  row.set('id', id)
+  row.set('createdAt', Date.now())
+  row.set('updatedAt', Date.now())
+  if (noteId) row.set('noteId', noteId)
+  doc.getArray('rows').push([row])
+}
+
 let useDatabaseStore
 beforeEach(async () => {
   vi.clearAllMocks()
@@ -16,7 +42,7 @@ beforeEach(async () => {
 })
 
 describe('database store', () => {
-  it('creates, updates, deletes with tombstone', () => {
+  it('creates, updates, deletes with tombstone', async () => {
     const store = useDatabaseStore()
     const id = store.createDatabase({ title: 'Projects' })
     expect(store.data[id].title).toBe('Projects')
@@ -25,7 +51,7 @@ describe('database store', () => {
     store.updateSchema(id, { title: 'Renamed' })
     expect(store.data[id].title).toBe('Renamed')
 
-    store.deleteDatabase(id)
+    await store.deleteDatabase(id)
     expect(store.data[id]).toBeUndefined()
     expect(store.deletedIds[id]).toBeTypeOf('number')
   })
@@ -60,5 +86,41 @@ describe('database store', () => {
     store.deleteView(id, kanban.id)
     store.deleteView(id, schema.views[0].id) // would leave zero
     expect(store.data[id].views).toHaveLength(1)
+  })
+
+  it('deleteDatabase cascades materialized backing notes', async () => {
+    const { useNoteStore } = await import('@/store/note')
+    const noteStore = useNoteStore()
+    const now = Date.now()
+    const base = {
+      content: { type: 'doc', content: [] },
+      labels: [],
+      createdAt: now,
+      updatedAt: now,
+      isBookmarked: false,
+      isArchived: false,
+      isLocked: false,
+      isFullWidth: false,
+      folderId: null,
+    }
+    noteStore.$patch({
+      data: {
+        note1: { ...base, id: 'note1', title: 'Backed' },
+        keep: { ...base, id: 'keep', title: 'Unrelated' },
+      },
+    })
+
+    const store = useDatabaseStore()
+    const id = store.createDatabase({ title: 'Doomed' })
+    const { doc } = await (await import('@/composable/useDatabaseYjs')).openRowDoc(id)
+    seedRow(doc, 'r1', 'note1')
+    seedRow(doc, 'r2', null)
+    seedRow(doc, 'r3', 'missing-note')
+
+    await store.deleteDatabase(id)
+
+    expect(noteStore.getById('note1')).toBeUndefined()
+    expect(noteStore.getById('keep')).toBeTruthy()
+    expect(store.deletedIds[id]).toBeTypeOf('number')
   })
 })

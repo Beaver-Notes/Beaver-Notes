@@ -120,8 +120,29 @@ export const useDatabaseStore = defineStore('database', {
       syncDatabaseSchema(schema);
     },
 
-    deleteDatabase(dbId: string) {
-      if (!this.data[dbId]) return;
+    // Async because rows live in a Y.Doc that must be read (openRowDoc) before
+    // purging, so materialized backing notes can be cascade-deleted.
+    async deleteDatabase(dbId: string) {
+      const schema = this.data[dbId];
+      if (!schema) return;
+      try {
+        const { openRowDoc } = await import('@/composable/useDatabaseYjs');
+        const { doc, rows } = await openRowDoc(dbId);
+        const noteIds = rows
+          .toArray()
+          .map((r) => r.get('noteId'))
+          .filter((id): id is string => typeof id === 'string');
+        doc.destroy();
+        if (noteIds.length) {
+          const { useNoteStore } = await import('@/store/note');
+          const noteStore = useNoteStore();
+          for (const id of noteIds) {
+            if (noteStore.getById(id)) await noteStore.delete(id);
+          }
+        }
+      } catch (error) {
+        console.warn('[database] could not cascade-delete backing notes for', dbId, error);
+      }
       removeDatabaseSchema(dbId);
       deleteUpdates(`${ROW_DOC_PREFIX}${dbId}`).catch((error) => {
         console.warn('[database] failed to purge row updates for', dbId, error);
