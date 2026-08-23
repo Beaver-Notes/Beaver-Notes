@@ -33,10 +33,22 @@ export function useRowNotes(schema, db) {
     openRowId.value = null;
   }
 
+  // One materialization per row at a time: a second click while `add()` is
+  // still awaiting must not mint a duplicate backing note.
+  const pendingOpens = new Set();
+
   async function openRowPage(rowId) {
-    const row = db.getRow(rowId);
-    if (!row) return closeRow();
+    if (pendingOpens.has(rowId)) return;
+    pendingOpens.add(rowId);
     try {
+      let row = db.getRow(rowId);
+      if (!row) return closeRow();
+      // Stale id (note deleted directly or orphaned by sync): clear it so a
+      // fresh page is materialized instead of navigating to a dead id forever.
+      if (row.noteId && !noteStore.getById(row.noteId)) {
+        db.setRowNoteId(rowId, null);
+        row = db.getRow(rowId);
+      }
       const noteId = await ensureBackingNote({
         row,
         title: rowTitleText(unref(schema), row),
@@ -52,6 +64,8 @@ export function useRowNotes(schema, db) {
       router.push(`/note/${noteId}`);
     } catch (err) {
       console.warn('[database] could not materialize backing note:', err);
+    } finally {
+      pendingOpens.delete(rowId);
     }
   }
 
@@ -65,10 +79,15 @@ export function useRowNotes(schema, db) {
       okVariant: 'danger',
       onConfirm: async () => {
         // Deleting a row cascades to its backing note when one was materialized.
-        const noteId = backingNoteIdOf(db.getRow(rowId));
-        db.deleteRow(rowId);
-        if (noteId && noteStore.getById(noteId)) await noteStore.delete(noteId);
-        closeRow();
+        try {
+          const noteId = backingNoteIdOf(db.getRow(rowId));
+          db.deleteRow(rowId);
+          if (noteId && noteStore.getById(noteId)) await noteStore.delete(noteId);
+        } catch (err) {
+          console.error('[database] could not cascade-delete backing note:', err);
+        } finally {
+          closeRow();
+        }
       },
     });
   }
