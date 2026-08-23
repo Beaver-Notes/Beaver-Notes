@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { generateFromDescription } from '../formula-fallback'
+import { evaluateExpression } from '../formula-evaluator'
 
 const cols = [
   { id: 'due', name: 'Due', type: 'date' },
@@ -16,7 +17,7 @@ describe('rule engine', () => {
   })
   it('overdue highlight styles title red', () => {
     const r = generateFromDescription('highlight overdue rows in red', cols)
-    expect(r.formula).toBe(`if(dateBefore(prop("Due"), today()), style("Overdue", "red"), "")`)
+    expect(r.formula).toBe(`if(prop("Due") < today(), style("Overdue", "red"), "")`)
   })
   it('status to number mapping', () => {
     const r = generateFromDescription('score Status where Done is 3 and Doing is 1', cols)
@@ -32,5 +33,23 @@ describe('rule engine', () => {
   })
   it('no match returns explicit error', () => {
     expect(generateFromDescription('make something wild', cols)).toEqual({ error: 'could-not-generate' })
+  })
+  it('every emitted formula evaluates without throwing (sparse props)', () => {
+    const fixtures = [
+      'days until Due',
+      'highlight overdue rows in red',
+      'score Status where Done is 3 and Doing is 1',
+      '% of Complete checked',
+      'combine First and Last',
+    ]
+    for (const text of fixtures) {
+      const { formula } = generateFromDescription(text, cols)
+      expect(formula).toBeTruthy()
+      const result = evaluateExpression(formula, { props: {} })
+      expect(result).toBeDefined()
+    }
+    // overdue with missing date prop falls through if-else to ""
+    const overdue = generateFromDescription('highlight overdue rows in red', cols).formula
+    expect(evaluateExpression(overdue, { props: { Due: null } })).toBe('')
   })
 })

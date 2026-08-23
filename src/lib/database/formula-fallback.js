@@ -35,7 +35,7 @@ const rules = [
     build(_text, columns) {
       const col = columns.find((c) => c.type === 'date')
       if (!col) return null
-      return `if(dateBefore(prop(${JSON.stringify(col.name)}), today()), style("Overdue", "red"), "")`
+      return `if(prop(${JSON.stringify(col.name)}) < today(), style("Overdue", "red"), "")`
     },
   },
   // "<verb> <select col> where X is n and Y is m"

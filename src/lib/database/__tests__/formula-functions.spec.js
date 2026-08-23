@@ -26,6 +26,8 @@ describe('formula-functions', () => {
     expect(FUNCS.year.fn(ctx, d)).toBe(2026)
     expect(FUNCS.month.fn(ctx, d)).toBe(2)
     expect(FUNCS.dateBetween.fn(ctx, dayjs('2026-01-10'), dayjs('2026-01-01'), 'days')).toBe(9)
+    expect(FUNCS.dateBetween.fn(ctx, null, dayjs('2026-01-01'))).toBeNull()
+    expect(FUNCS.dateBetween.fn(ctx, dayjs('2026-01-10'), null)).toBeNull()
     expect(FUNCS.dateAdd.fn(ctx, d, 1, 'month').month()).toBe(3)
     expect(typeof FUNCS.timestamp.fn(ctx, d)).toBe('number')
   })
