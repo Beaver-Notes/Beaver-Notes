@@ -86,6 +86,19 @@ describe('parseObsidianVault', () => {
     expect(a.cells[links.id].sort()).toEqual([idByTitle.Gamma, idByTitle.Beta].sort())
   })
 
+  it('keeps duplicate-basename notes as separate rows and flags the collision', () => {
+    const dupes = [
+      { name: 'notes/A.md', content: '---\nrating: 1\n---\nfirst' },
+      { name: 'archive/A.md', content: '---\nrating: 2\n---\nsecond' }
+    ]
+    const { rows, schema, issues } = parseObsidianVault(dupes)
+    expect(rows).toHaveLength(2)
+    expect(new Set(rows.map((r) => r.id)).size).toBe(2)
+    const title = schema.columns.find((c) => c.type === 'title')
+    expect(rows.map((r) => r.cells[title.id])).toEqual(['A', 'A'])
+    expect(issues.some((i) => i.toLowerCase().includes('share a filename'))).toBe(true)
+  })
+
   it('ignores non-markdown files and suggests folder grouping via issues', () => {
     const { issues } = parseObsidianVault([...files, { name: 'notes.txt', content: 'x' }])
     expect(issues.some((i) => i.includes('.txt') || i.toLowerCase().includes('skipped'))).toBe(true)
