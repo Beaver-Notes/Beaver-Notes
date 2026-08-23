@@ -1,7 +1,7 @@
 <template>
   <div
     v-if="editor"
-    class="border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden bg-[var(--float-surface)] dark:bg-[var(--float-surface-dark)] border-[var(--float-border)] dark:border-[var(--float-border-dark)] backdrop-blur-xl"
+    class="bg-white dark:bg-neutral-900 border overflow-x-auto z-20 w-fit mx-auto p-1.5 rounded-xl shadow-md no-print no-scrollbar mobile:hidden"
   >
     <div class="flex items-center justify-start w-max h-full gap-1">
       <ui-popover>
@@ -20,9 +20,7 @@
         </template>
 
         <div>
-          <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[160px] max-h-80"
-          >
+          <ui-list class="overflow-y-auto no-scrollbar min-w-[160px] max-h-80">
             <ui-list-item
               v-for="item in menuOptions"
               :key="item.label"
@@ -132,9 +130,7 @@
         </template>
 
         <div>
-          <ui-list
-            class="overflow-y-auto no-scrollbar min-w-[140px] max-h-80"
-          >
+          <ui-list class="overflow-y-auto no-scrollbar min-w-[140px] max-h-80">
             <ui-list-item
               v-for="item in alignmentOptions"
               :key="item.label"
@@ -410,13 +406,15 @@ export default {
       const query = linkInputValue.value.substring(1).toLowerCase();
       if (!query) return [];
       const candidates =
-        noteStore.notes.length > 200 ? noteStore.notes.slice(0, 200) : noteStore.notes;
+        noteStore.notes.length > 200
+          ? noteStore.notes.slice(0, 200)
+          : noteStore.notes;
       return candidates
         .filter(
           (n) =>
             n.id !== route.params.id &&
             (n.title.toLowerCase().includes(query) ||
-              n.id.toLowerCase().includes(query))
+              n.id.toLowerCase().includes(query)),
         )
         .slice(0, 6);
     });
@@ -426,7 +424,7 @@ export default {
       if (!query) return null;
       return (
         noteStore.notes.find(
-          (n) => n.title.toLowerCase() === query.toLowerCase()
+          (n) => n.title.toLowerCase() === query.toLowerCase(),
         ) || noteStore.notes.find((n) => n.id === query)
       );
     }
@@ -488,7 +486,8 @@ export default {
     watch(linkInputValue, (val) => {
       if (val.startsWith('@')) selectedLinkIndex.value = 0;
     });
-    const t = (key) => translations.value.toolbar?.[key] || translations.value.menu?.[key];
+    const t = (key) =>
+      translations.value.toolbar?.[key] || translations.value.menu?.[key];
     const blockTypes = [
       {
         id: 'paragraph',
@@ -569,10 +568,10 @@ export default {
       const active = blockTypes.find((type) =>
         type.level
           ? editor.isActive(type.id, { level: type.level })
-          : editor.isActive(type.id)
+          : editor.isActive(type.id),
       );
 
-      return active ? active.label : (t('text') || 'Text');
+      return active ? active.label : t('text') || 'Text';
     });
 
     const menuOptions = computed(() => {
@@ -589,10 +588,10 @@ export default {
       if (!editor) return t('left') || 'Left';
 
       const active = alignmentTypes.find((type) =>
-        editor.isActive({ textAlign: type.id })
+        editor.isActive({ textAlign: type.id }),
       );
 
-      return active ? active.label : (t('left') || 'Left');
+      return active ? active.label : t('left') || 'Left';
     });
 
     const currentAlignmentIcon = computed(() => {
@@ -600,7 +599,7 @@ export default {
       if (!editor) return 'riAlignLeft';
 
       const active = alignmentTypes.find((type) =>
-        editor.isActive({ textAlign: type.id })
+        editor.isActive({ textAlign: type.id }),
       );
 
       return active ? active.icon : 'riAlignLeft';
