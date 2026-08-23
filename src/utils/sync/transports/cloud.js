@@ -625,6 +625,11 @@ export class CloudTransport extends Transport {
       logger.info('[sync] cloud push (cloud-only) totalPushed:', totalPushed);
       this._lastPushedAt = Date.now();
 
+      // Record version history commits for pushed notes (fire-and-forget)
+      if (totalPushed > 0) {
+        this._recordCommits(new Set(notesMap.keys())).catch(() => {});
+      }
+
       // Remove acknowledged items from the in-memory buffer
       const checkpoints = acknowledgedCheckpoints(result, [...notesMap.keys()]);
       const acknowledged = new Set();
@@ -724,6 +729,11 @@ export class CloudTransport extends Transport {
 
     logger.info('[sync] cloud push totalPushed:', totalPushed);
     this._lastPushedAt = Date.now();
+
+    // Record version history commits for pushed notes (fire-and-forget)
+    if (totalPushed > 0 && batchNotes.length > 0) {
+      this._recordCommits(new Set(batchNotes.map((n) => n.noteId))).catch(() => {});
+    }
 
     return { updates: [], pushed: totalPushed };
   }
@@ -1353,6 +1363,35 @@ export class CloudTransport extends Transport {
 
     if (deletedAssetsDirty) {
       mergeIntoMap('deletedAssets', deletedAssets);
+    }
+  }
+
+  /**
+   * After a successful push, create version history commits for the
+   * pushed notes. Fire-and-forget — failures are logged but don't
+   * block the sync cycle.
+   */
+  async _recordCommits(noteIds) {
+    if (!noteIds?.size) return;
+    try {
+      const { captureNoteSnapshot } = await import('../commit-snapshot.js');
+      const { createCommit } = await import('@/lib/api/history.js');
+
+      for (const noteId of noteIds) {
+        // Skip meta doc — only record note commits
+        if (noteId === 'meta') continue;
+        try {
+          const snapshot = await captureNoteSnapshot(noteId);
+          if (snapshot) {
+            await createCommit(noteId, snapshot);
+          }
+        } catch (err) {
+          // Non-fatal — history is best-effort
+          logger.warn('[sync] commit record failed for', noteId, err?.message);
+        }
+      }
+    } catch (err) {
+      logger.warn('[sync] commit recording skipped:', err?.message);
     }
   }
 
