@@ -13,6 +13,7 @@ export function useSelectionBar() {
   let clearFn = null;
   let deleteFn = null;
   let moveFn = null;
+  let customizeFn = null;
 
   const noteStore = useNoteStore();
   const folderStore = useFolderStore();
@@ -75,11 +76,14 @@ export function useSelectionBar() {
     return lockedCount < notes.length / 2;
   });
 
+  const showCustomize = computed(() => selectedFolders.value.length === 1 && selectedNotes.value.length === 0);
+
   function syncSelection(items, handlers = {}) {
     selectedKeys.value = items;
     if (handlers.onClear) clearFn = handlers.onClear;
     if (handlers.onDelete) deleteFn = handlers.onDelete;
     if (handlers.onMove) moveFn = handlers.onMove;
+    if (handlers.onCustomize) customizeFn = handlers.onCustomize;
   }
 
   function clearSelection() {
@@ -95,6 +99,14 @@ export function useSelectionBar() {
   function moveSelection() {
     if (!moveFn) return false;
     moveFn();
+    return true;
+  }
+
+  function customizeSelection() {
+    if (!customizeFn) return false;
+    const id = selectedFolders.value[0]?.id;
+    if (!id) return false;
+    customizeFn(id);
     return true;
   }
 
@@ -168,10 +180,12 @@ export function useSelectionBar() {
     shouldArchive,
     shouldBookmark,
     shouldLock,
+    showCustomize,
     syncSelection,
     clearSelection,
     deleteSelection,
     moveSelection,
+    customizeSelection,
     toggleArchive,
     toggleLock,
     toggleBookmark,

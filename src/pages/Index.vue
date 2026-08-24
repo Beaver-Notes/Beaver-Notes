@@ -156,6 +156,7 @@
       @move="bulkMove"
       @clear="clearSelection"
     />
+    <folder-customize-modal v-model="showCustomizeModal" :folder="customizeFolder" @saved="clearSelection" />
   </div>
 </template>
 
@@ -176,6 +177,7 @@ import HomeFolderCard from '../components/home/HomeFolderCard.vue';
 import { useFolderStore } from '../store/folder';
 import HomeSearch from '../components/home/HomeSearch.vue';
 import FolderTree from '../components/home/FolderTree.vue';
+import FolderCustomizeModal from '../components/home/FolderCustomizeModal.vue';
 import Actions from '../components/home/Actions.vue';
 import { useNotesBrowser } from '@/composable/useNotesBrowser';
 import EmptyState from '../components/app/EmptyState.vue';
@@ -187,6 +189,7 @@ export default {
     HomeSearch,
     HomeFolderCard,
     FolderTree,
+    FolderCustomizeModal,
     Actions,
     EmptyState,
   },
@@ -373,6 +376,12 @@ export default {
     const noteMove = useNoteMove(showMoveModal);
 
     const selectionBar = useSelectionBar();
+    const showCustomizeModal = ref(false);
+    const customizeFolder = ref(null);
+    function openCustomizeFor(id) {
+      customizeFolder.value = folderStore.getById(id) || null;
+      if (customizeFolder.value) showCustomizeModal.value = true;
+    }
     watch(
       () => pageController.selectedItems.value,
       (items) => {
@@ -380,6 +389,7 @@ export default {
           onClear: pageController.clearSelection,
           onDelete: pageController.bulkDelete,
           onMove: pageController.bulkMove,
+          onCustomize: openCustomizeFor,
         });
       },
       { immediate: true }
@@ -393,6 +403,9 @@ export default {
       translations,
       folders,
       highlightedFolderIds,
+      showCustomizeModal,
+      customizeFolder,
+      openCustomizeFor,
       ...noteMove,
       resolveMoveModalParams,
       ...pageController,

@@ -85,14 +85,27 @@
           </div>
         </div>
 
-        <!-- ... menu (opens the customize modal) -->
-        <button
-          class="size-6 flex items-center justify-center text-white/60 hover:text-white transition-colors shrink-0 mobile:hidden"
-          aria-label="More"
-          @click.stop="openCustomizeModal"
-        >
-          <v-remixicon name="riMoreFill" class="size-4" />
-        </button>
+        <!-- Desktop: ... -> popover -->
+        <div class="relative shrink-0 hidden sm:block">
+          <button
+            class="size-6 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+            aria-label="More"
+            @click.stop="showMenu = !showMenu"
+          >
+            <v-remixicon name="riMoreFill" class="size-4" />
+          </button>
+          <div
+            v-if="showMenu"
+            data-selection-keep
+            class="absolute right-0 bottom-7 z-30 w-44 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 shadow-lg py-1 overflow-hidden"
+            @click.stop
+          >
+            <button class="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2" @click="onMenuCustomize"><v-remixicon name="riPaletteLine" class="size-4" />{{ translations.card?.customize || 'Customize' }}</button>
+            <button class="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2" @click="onMenuArchive"><v-remixicon :name="folder.isArchived ? 'riInboxUnarchiveLine' : 'riArchiveLine'" class="size-4" />{{ folder.isArchived ? (translations.card?.unarchive || 'Unarchive') : (translations.card?.archive || 'Archive') }}</button>
+            <button class="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-700 flex items-center gap-2" @click="onMenuMove"><v-remixicon name="riFolderTransferLine" class="size-4" />{{ translations.card?.moveToFolder || 'Move' }}</button>
+            <button class="w-full text-left px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 flex items-center gap-2" @click="onMenuDelete"><v-remixicon name="riDeleteBin6Line" class="size-4" />{{ translations.card?.delete || 'Delete' }}</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -101,15 +114,26 @@
       :folder="folder"
       @saved="onCustomizeSaved"
     />
+    <folder-tree
+      v-if="showMoveModal"
+      v-model="showMoveModal"
+      :folders="folder ? [folder] : []"
+      mode="folder"
+      overlay-class="z-[60]"
+      @moved="showMoveModal = false"
+    />
   </div>
 </template>
 
 <script setup>
 import { useTranslations } from '@/composable/useTranslations';
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useNoteStore } from '@/store/note';
+import { useFolderStore } from '@/store/folder';
+import { useDialog } from '@/lib/dialog';
 import { useRouter } from 'vue-router';
 import FolderCustomizeModal from './FolderCustomizeModal.vue';
+import FolderTree from './FolderTree.vue';
 import { DEFAULT_FOLDER_COLOR } from '@/lib/folder-styles';
 
 const props = defineProps({
@@ -119,8 +143,12 @@ const props = defineProps({
 });
 
 const noteStore = useNoteStore();
+const folderStore = useFolderStore();
+const dialog = useDialog();
 const router = useRouter();
 const showCustomizeModal = ref(false);
+const showMenu = ref(false);
+const showMoveModal = ref(false);
 
 function handleCardClick(event, folderId) {
   if (event.metaKey || event.ctrlKey || event.shiftKey) return;
@@ -135,6 +163,21 @@ function openCustomizeModal() {
 function onCustomizeSaved() {
   showCustomizeModal.value = false;
 }
+function onMenuCustomize() { showMenu.value = false; showCustomizeModal.value = true; }
+function onMenuArchive() { showMenu.value = false; props.folder.isArchived ? folderStore.unarchive(props.folder.id) : folderStore.archive(props.folder.id); }
+function onMenuMove() { showMenu.value = false; showMoveModal.value = true; }
+function onMenuDelete() {
+  showMenu.value = false;
+  dialog.confirm({
+    title: translations.value?.card?.confirmPromptFolder || 'Delete folder?',
+    body: translations.value?.card?.deleteAction || 'This cannot be undone',
+    icon: 'riDeleteBin6Line', okVariant: 'danger',
+    onConfirm: async () => { await folderStore.delete(props.folder.id, { deleteContents: true }); },
+  });
+}
+function onClickOutside() { showMenu.value = false; }
+onMounted(() => window.addEventListener('click', onClickOutside));
+onBeforeUnmount(() => window.removeEventListener('click', onClickOutside));
 
 function hexToRgb(hex) {
   const normalized = hex.replace('#', '').trim();

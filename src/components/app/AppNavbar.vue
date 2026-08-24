@@ -69,56 +69,15 @@
           </span>
           <div class="flex items-center">
             <button
-              v-tooltip:right="
-                selectionBar.shouldLock
-                  ? translations.card.lock || 'Lock'
-                  : translations.card.unlock || 'Unlock'
-              "
-              :aria-label="
-                selectionBar.shouldLock
-                  ? translations.card.lock || 'Lock'
-                  : translations.card.unlock || 'Unlock'
-              "
-              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-amber-600 transition-colors duration-200 disabled:opacity-40 disabled:pointer-events-none"
-              :disabled="!selectionBar.hasSelectedNotes"
-              @click="selectionBar.toggleLock()"
+              v-if="selectionBar.showCustomize"
+              v-tooltip:right="translations.card?.customize || 'Customize'"
+              :aria-label="translations.card?.customize || 'Customize'"
+              class="flex h-12 w-12 items-center justify-center rounded-full text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-200"
+              @click="selectionBar.customizeSelection()"
             >
-              <v-remixicon
-                :name="
-                  selectionBar.shouldLock ? 'riLockLine' : 'riLockUnlockLine'
-                "
-                size="20"
-              />
+              <v-remixicon name="riPaletteLine" size="20" />
             </button>
-            <button
-              v-tooltip:right="
-                selectionBar.shouldBookmark
-                  ? translations.card.bookmark || 'Bookmark'
-                  : translations.card.removeBookmark || 'Unbookmark'
-              "
-              :aria-label="
-                selectionBar.shouldBookmark
-                  ? translations.card.bookmark || 'Bookmark'
-                  : translations.card.removeBookmark || 'Unbookmark'
-              "
-              class="flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-200 disabled:opacity-40 disabled:pointer-events-none"
-              :class="
-                selectionBar.shouldBookmark
-                  ? 'text-neutral-400 hover:text-amber-500'
-                  : 'text-amber-500'
-              "
-              :disabled="!selectionBar.hasSelectedNotes"
-              @click="selectionBar.toggleBookmark()"
-            >
-              <v-remixicon
-                :name="
-                  selectionBar.shouldBookmark
-                    ? 'riBookmarkLine'
-                    : 'riBookmarkFill'
-                "
-                size="20"
-              />
-            </button>
+
             <button
               v-tooltip:right="
                 selectionBar.shouldArchive

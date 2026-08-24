@@ -1,5 +1,5 @@
 <template>
-  <ui-modal :model-value="state.show" content-class="max-w-md" persist>
+  <ui-modal :model-value="state.show" content-class="max-w-md" overlay-class="z-[70]" persist>
     <!-- Alert -->
     <template v-if="state.type === 'alert'">
       <div class="text-left mb-6 mobile:text-center">

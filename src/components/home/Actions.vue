@@ -3,7 +3,7 @@
     <div
       v-if="selectedItems.size > 0"
       data-selection-keep
-      class="mobile:hidden sm:pl-16 fixed inset-x-0 z-40 transition-[opacity,transform] duration-300 ease-out mx-2 bottom-4"
+      class="mobile:hidden fixed inset-x-0 z-40 transition-[opacity,transform] duration-300 ease-out mx-2 bottom-4 sm:pl-16"
     >
       <div
         class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-3/4 p-2 mx-auto"
@@ -72,6 +72,7 @@
 import { computed } from 'vue';
 import { useNoteStore } from '@/store/note';
 import { useFolderStore } from '@/store/folder';
+import { useUndoStore } from '@/store/undo';
 import { useTranslations } from '@/composable/useTranslations';
 import { parseItemId } from '@/utils/helpers/index.js';
 
@@ -136,29 +137,23 @@ const shouldBookmark = computed(() => {
 
 async function handleToggleArchive() {
   const archive = shouldArchive.value;
-
-  // Archive/unarchive selected folders
+  const undo = useUndoStore();
+  undo.startBatch();
   for (const folder of selectedFolders.value) {
-    if (archive && !folder.isArchived) {
-      await folderStore.archive(folder.id);
-    } else if (!archive && folder.isArchived) {
-      await folderStore.unarchive(folder.id);
-    }
+    if (archive && !folder.isArchived) await folderStore.archive(folder.id);
+    else if (!archive && folder.isArchived) await folderStore.unarchive(folder.id);
   }
-
-  // Archive/unarchive selected notes
-  for (const note of selectedNotes.value) {
-    await noteStore.update(note.id, { isArchived: archive });
-  }
-
+  for (const note of selectedNotes.value) await noteStore.update(note.id, { isArchived: archive });
+  undo.commitBatch();
   emit('clear');
 }
 
 async function handleToggleBookmark() {
   const bookmark = shouldBookmark.value;
-  for (const note of selectedNotes.value) {
-    await noteStore.update(note.id, { isBookmarked: bookmark });
-  }
+  const undo = useUndoStore();
+  undo.startBatch();
+  for (const note of selectedNotes.value) await noteStore.update(note.id, { isBookmarked: bookmark });
+  undo.commitBatch();
   emit('clear');
 }
 </script>

@@ -7,7 +7,8 @@
       <transition name="modal" mode="out-in">
         <div
           v-if="show"
-          class="modal-ui__content-container fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/20 p-0 md:p-5 mobile:items-end"
+          class="modal-ui__content-container fixed inset-0 flex items-center justify-center overflow-y-auto bg-black/20 p-0 md:p-5 mobile:items-end"
+          :class="overlayClass"
           :style="{ 'backdrop-filter': blur && 'blur(2px)' }"
           @click.self="closeModal"
         >
@@ -65,6 +66,10 @@ export default {
     contentClass: {
       type: String,
       default: 'max-w-lg',
+    },
+    overlayClass: {
+      type: String,
+      default: 'z-50',
     },
     customContent: Boolean,
     persist: Boolean,

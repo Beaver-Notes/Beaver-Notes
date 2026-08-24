@@ -1,5 +1,5 @@
 <template>
-  <ui-modal v-model="show" content-class="max-w-md" persist>
+  <ui-modal v-model="show" content-class="max-w-md" :overlay-class="overlayClass" persist>
     <template #header>
       <h3 class="text-lg font-semibold">
         {{ moveLabel }}
@@ -63,12 +63,15 @@
       </div>
 
       <!-- Action buttons -->
-      <div class="mt-8 flex space-x-2 rtl:space-x-0">
-        <ui-button class="w-6/12 rtl:ml-2" @click="closeModal">
+      <div class="mt-8 flex gap-2 mobile:flex-col-reverse mobile:gap-3">
+        <ui-button
+          class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3 rtl:ml-2 mobile:rtl:ml-0"
+          @click="closeModal"
+        >
           {{ translations.dialog.cancel }}
         </ui-button>
         <ui-button
-          class="w-6/12"
+          class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           :disabled="
             isMoving ||
             (props.mode === 'folder' &&
@@ -95,6 +98,7 @@ const props = defineProps({
   notes: { type: Array, default: () => [] },
   folders: { type: Array, default: () => [] },
   modelValue: { type: Boolean, default: false },
+  overlayClass: { type: String, default: 'z-50' },
   mode: {
     type: String,
     default: 'note',
