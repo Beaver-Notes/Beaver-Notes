@@ -1,6 +1,7 @@
 <template>
   <div
-    class="fixed inset-x-0 z-40 mx-2 transition-all duration-300 ease-[var(--ease-standard)] bottom-4 md:pl-16"
+    class="fixed inset-x-0 z-40 flex justify-center px-2 transition-all duration-300 ease-[var(--ease-standard)] md:pl-16"
+    :style="{ bottom: 'var(--app-keyboard-inset-bottom, 1rem)' }"
   >
     <div
       class="relative bg-white dark:bg-neutral-900 border rounded-xl shadow-lg overflow-hidden w-full sm:w-fit sm:mx-auto"
