@@ -152,7 +152,7 @@ img.ProseMirror-selectednode {
 
     li {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.5rem;
       padding-left: 0 !important;
 
@@ -161,6 +161,12 @@ img.ProseMirror-selectednode {
         user-select: none;
         display: flex;
         align-items: center;
+        padding-top: 0.3em;
+      }
+
+      > div {
+        flex: 1 1 auto;
+        min-width: 0;
       }
 
       input[type='checkbox'] {
@@ -204,11 +210,25 @@ img.ProseMirror-selectednode {
     }
   }
   .search-result {
-    @apply bg-primary bg-opacity-20;
+    @apply bg-primary bg-opacity-20 underline decoration-primary/40 underline-offset-2;
+    text-decoration-thickness: 1.5px;
+    border-radius: 2px;
+    transition: background-color 150ms var(--ease-standard);
 
     &-current {
-      @apply bg-secondary bg-opacity-50;
+      @apply bg-secondary bg-opacity-60 decoration-secondary/60;
+      animation: search-pop 340ms var(--ease-spring, cubic-bezier(0.175, 0.885, 0.32, 1.275));
+      box-shadow: 0 0 0 2px hsl(var(--twc-secondary) / 0.18);
     }
+  }
+  @keyframes search-pop {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 hsl(var(--twc-secondary) / 0); }
+    35% { transform: scale(1.14); box-shadow: 0 2px 10px hsl(var(--twc-secondary) / 0.22), 0 0 0 3px hsl(var(--twc-secondary) / 0.2); }
+    60% { transform: scale(0.98); }
+    100% { transform: scale(1); box-shadow: 0 0 0 2px hsl(var(--twc-secondary) / 0.18); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .search-result-current { animation: none; }
   }
   .inline-code {
     @apply p-0.5 px-1;

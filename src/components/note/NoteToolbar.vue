@@ -163,6 +163,10 @@
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('headings'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -201,6 +205,10 @@
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('fontSize'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -279,6 +287,10 @@
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('color'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -351,6 +363,10 @@
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('lists'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -377,6 +393,10 @@
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('image'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -402,6 +422,10 @@
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('file'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -427,6 +451,10 @@
               'tb-panel flex items-center gap-1.5 px-2 whitespace-nowrap h-full',
               panelClass('video'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -452,6 +480,10 @@
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('audio'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -490,6 +522,10 @@
               'tb-panel flex items-center gap-0.5 px-2 whitespace-nowrap h-full',
               panelClass('paragraph'),
             ]"
+            @pointerdown="onSwipeStart"
+            @pointerup="onSwipeEnd"
+            @touchstart.passive="onSwipeStart"
+            @touchend="onSwipeEnd"
           >
             <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
               <v-remixicon name="riArrowLeftLine" />
@@ -827,6 +863,32 @@ export default {
       return 'panel-hidden';
     }
 
+    let swipeX = 0;
+    let swipeY = 0;
+    let swipeEdge = false;
+    function onSwipeStart(e) {
+      const t = e.touches ? e.touches[0] : e;
+      if (!t) return;
+      swipeX = t.clientX;
+      swipeY = t.clientY;
+      // only edge swipe (first 32px) should dismiss — avoids stealing horizontal scroll
+      const target = e.currentTarget;
+      if (target && target.getBoundingClientRect) {
+        swipeEdge = swipeX - target.getBoundingClientRect().left < 32;
+      } else {
+        swipeEdge = true;
+      }
+    }
+    function onSwipeEnd(e) {
+      const t = (e.changedTouches && e.changedTouches[0]) || e;
+      if (!t || activePanel.value === 'main' || !swipeEdge) return;
+      const dx = t.clientX - swipeX;
+      const dy = t.clientY - swipeY;
+      if (container.value) container.value.scrollLeft = 0;
+      if (dx > 64 && Math.abs(dx) > Math.abs(dy) * 1.6) closeSub();
+      swipeEdge = false;
+    }
+
     // ── Scroll-edge fade indicators ───────────────────────────────
     const scrolledLeft = ref(true);
     const scrolledRight = ref(false);
@@ -890,6 +952,8 @@ export default {
       tbChip,
       scrolledLeft,
       scrolledRight,
+      onSwipeStart,
+      onSwipeEnd,
       triggerFileInput,
       triggerAudioInput,
       triggerVideoInput,
