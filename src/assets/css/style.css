@@ -238,7 +238,12 @@ option {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root {
+/* Hide cloud-sync UI until Beaver Sync is ready */
+.beaver-sync-ready {
+  display: none !important;
+}
+
+:root {
     --motion-fast: 1ms;
     --motion-base: 1ms;
     --motion-slow: 1ms;

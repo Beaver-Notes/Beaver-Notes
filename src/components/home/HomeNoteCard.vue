@@ -488,6 +488,13 @@ function mediaIcon(tone) {
   contain: layout paint style;
 }
 
+/* Preview — editor-faithful tokens
+   Source A: src/assets/css/editor.css — ProseMirror pre/code border bg-neutral-50/dark:neutral-900 rounded-lg,
+             blockquote dark:border-neutral-700, tableWrapper border-neutral-200/dark:neutral-700 th bg-neutral-100,
+             rounded .75rem (--float-radius), bn-image-node
+   Source B: src/lib/tiptap/exts/callouts/* — p-1 border-l-4 border-*-300 pl-4 bg-*-500 bg-opacity-10 (+dark variants)
+             code-block uses --selected-font-code, table uses theme colors above
+*/
 .note-card-preview-stack {
   display: flex;
   min-height: 100%;
@@ -525,19 +532,6 @@ function mediaIcon(tone) {
 
 .dark .note-card-preview-block {
   color: var(--text-dark);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .note-card,
-  .note-card__action {
-    transition-duration: 0.01ms;
-  }
-
-  .note-card:hover,
-  .note-card:active,
-  .note-card__action:active {
-    transform: none;
-  }
 }
 
 .note-card-preview-block.is-image,
@@ -592,64 +586,60 @@ function mediaIcon(tone) {
   background: currentColor;
 }
 
-.note-card-preview-block.is-quote,
-.note-card-preview-block.is-callout {
-  border-left: 4px solid theme('colors.zinc.300');
+.note-card-preview-block.is-quote {
+  border-left: 3px solid theme('colors.neutral.300');
   margin: 0.5em 0;
   padding: 0.25rem 0.25rem 0.25rem 0.9rem;
   color: theme('colors.neutral.700');
 }
 
-.dark .note-card-preview-block.is-quote,
-.dark .note-card-preview-block.is-callout {
+.dark .note-card-preview-block.is-quote {
   border-left-color: theme('colors.neutral.600');
   color: var(--text-dark);
 }
 
+/* Callouts — faithful to src/lib/tiptap/exts/callouts/* cssClass */
+.note-card-preview-block.is-callout {
+  border-left-width: 4px;
+  border-left-style: solid;
+  margin: 0.5em 0;
+  padding: 0.25rem 0.5rem 0.25rem 0.9rem;
+  border-radius: 0 0.35rem 0.35rem 0;
+}
+
 .note-card-preview-block.is-callout.tone-blue {
-  border-left-color: theme('colors.blue.500');
-  background: theme('colors.blue.500 / 0.08');
-}
-
-.note-card-preview-block.is-callout.tone-green {
-  border-left-color: theme('colors.green.500');
-  background: theme('colors.green.500 / 0.08');
-}
-
-.note-card-preview-block.is-callout.tone-red {
-  border-left-color: theme('colors.red.500');
-  background: theme('colors.red.500 / 0.08');
+  @apply border-blue-300 bg-blue-500/10;
 }
 
 .note-card-preview-block.is-callout.tone-yellow {
-  border-left-color: theme('colors.yellow.500');
-  background: theme('colors.yellow.500 / 0.12');
+  @apply border-yellow-300 bg-yellow-500/10;
+}
+
+.note-card-preview-block.is-callout.tone-red {
+  @apply border-red-300 bg-red-500/10;
 }
 
 .note-card-preview-block.is-callout.tone-purple {
-  border-left-color: theme('colors.purple.500');
-  background: theme('colors.purple.500 / 0.1');
+  @apply border-purple-300 bg-purple-500/10;
+}
+
+.note-card-preview-block.is-callout.tone-green {
+  @apply border-green-700 dark:border-green-500 bg-green-900/10 dark:bg-green-400/10;
 }
 
 .note-card-preview-block.is-callout.tone-black {
-  border-left-color: theme('colors.neutral.600');
-  background: theme('colors.zinc.700 / 0.09');
+  @apply border-gray-700 dark:border-gray-500 bg-gray-900/10 dark:bg-gray-400/10;
 }
 
+/* Code — faithful to .ProseMirror pre/.inline-code in editor.css */
 .note-card-preview-block.is-code {
   margin: 0.55em 0;
-  border-radius: 0.5rem;
-  background: theme('colors.black / 0.05');
-  color: theme('colors.zinc.700');
+  @apply border bg-neutral-50 dark:bg-neutral-900 rounded-lg dark:text-neutral-200;
+  color: theme('colors.neutral.700');
   padding: 0.5rem 0.75rem;
   font-family: var(--selected-font-code), 'Source Code Pro', monospace;
   font-size: 0.82rem;
   line-height: 1.45;
-}
-
-.dark .note-card-preview-block.is-code {
-  background: theme('colors.neutral.600 / 0.3');
-  color: theme('colors.zinc.200');
 }
 
 .note-card-preview-block.is-media {
@@ -663,7 +653,7 @@ function mediaIcon(tone) {
   --preview-media-icon-surface: theme('colors.white / 0.58');
   border: 1px solid
     color-mix(in srgb, var(--preview-media-accent) 18%, transparent);
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
   background: linear-gradient(
     135deg,
     var(--preview-media-surface),
@@ -781,15 +771,15 @@ function mediaIcon(tone) {
   display: block;
   width: 100%;
   max-height: 82px;
-  border: 1px solid theme('colors.zinc.200 / 0.9');
-  border-radius: 0.5rem;
+  border: 1px solid theme('colors.neutral.200 / 0.9');
+  border-radius: 0.75rem;
   object-fit: cover;
-  background: theme('colors.zinc.100');
+  background: theme('colors.neutral.100');
 }
 
 .dark .note-card-preview-image {
-  border-color: theme('colors.zinc.700 / 0.9');
-  background: theme('colors.zinc.900');
+  border-color: theme('colors.neutral.700 / 0.9');
+  background: theme('colors.neutral.900');
 }
 
 .note-card-preview-table-wrap {
@@ -803,7 +793,7 @@ function mediaIcon(tone) {
   border-collapse: separate;
   border-spacing: 0;
   overflow: hidden;
-  background: theme('colors.zinc.50 / 0.95');
+  @apply bg-white dark:bg-neutral-900;
 }
 
 .dark .note-card-preview-table {
@@ -816,10 +806,10 @@ function mediaIcon(tone) {
 
 .note-card-preview-table-cell {
   overflow: hidden;
-  border: 1px solid theme('colors.zinc.200 / 0.9');
+  border: 1px solid theme('colors.neutral.200');
   background: transparent;
   padding: 0.42rem 0.48rem;
-  color: theme('colors.zinc.700');
+  color: theme('colors.neutral.700');
   font-size: 0.76rem;
   line-height: 1.35;
   text-overflow: ellipsis;
@@ -829,17 +819,17 @@ function mediaIcon(tone) {
 }
 
 .note-card-preview-table-cell:is(th) {
-  background: theme('colors.zinc.700 / 0.08');
+  background: theme('colors.neutral.100');
   font-weight: 600;
 }
 
 .dark .note-card-preview-table-cell {
-  border-color: theme('colors.neutral.600 / 0.85');
+  border-color: theme('colors.neutral.700');
   color: theme('colors.zinc.200');
 }
 
 .dark .note-card-preview-table-cell:is(th) {
-  background: theme('colors.neutral.600 / 0.28');
+  background: rgb(82 82 82 / 0.3);
 }
 
 .note-card-preview-check {
@@ -905,5 +895,18 @@ function mediaIcon(tone) {
 
 .dark .note-card-preview-empty {
   color: theme('colors.zinc.500');
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .note-card,
+  .note-card__action {
+    transition-duration: 0.01ms;
+  }
+
+  .note-card:hover,
+  .note-card:active,
+  .note-card__action:active {
+    transform: none;
+  }
 }
 </style>
