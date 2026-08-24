@@ -183,38 +183,6 @@ const BUILTIN_ITEMS = [
     group: 'media',
     defaultVisible: false,
   },
-  {
-    id: 'divider4',
-    label: 'Divider',
-    icon: null,
-    group: 'divider',
-    isDivider: true,
-  },
-  { id: 'share',
-    translationKey: 'share', label: 'Share', icon: 'riShare2Line', group: 'actions' },
-  {
-    id: 'delete',
-    translationKey: 'deleteNote',
-    label: 'Delete Note',
-    icon: 'riDeleteBin6Line',
-    group: 'actions',
-    defaultVisible: false,
-  },
-  {
-    id: 'readerMode',
-    translationKey: 'readerMode',
-    label: 'Reader Mode',
-    icon: 'riArticleLine',
-    group: 'actions',
-    defaultVisible: false,
-  },
-  {
-    id: 'headingsTree',
-    translationKey: 'headingsTree',
-    label: 'Headings Tree',
-    icon: 'riSearchLine',
-    group: 'actions',
-  },
 ];
 
 BUILTIN_ITEMS.forEach((item) => toolbarRegistry.register(item));

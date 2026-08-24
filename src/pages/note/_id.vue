@@ -46,16 +46,11 @@
     </template>
 
     <div
-      class="editor note-editor-page self-center w-full min-w-0 mobile:px-4 px-12 lg:px-0 mobile:pt-0 pt-20"
+      class="editor note-editor-page self-center w-full px-4 mobile:pt-0 pt-10"
       :class="{ 'mobile-search-open': showSearch }"
       :style="{
         '--selected-width': note?.isFullWidth ? '100%' : '54rem',
         'padding-bottom': isLocked ? 0 : 'var(--app-note-page-padding)',
-        ...(note?.isFullWidth
-          ? { 'padding-left': '5rem', 'padding-right': '5rem' }
-          : sidebarExpanded
-            ? { 'padding-left': 'var(--drag-handle-gutter)' }
-            : {}),
       }"
     >
       <template v-if="editor && !isLocked">
@@ -105,7 +100,7 @@
         ref="titleDiv"
         data-testid="note-title-input"
         :contenteditable="canEdit(noteRole)"
-        class="text-5xl mobile:text-3xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight shrink-0 min-w-0"
+        class="text-4xl outline-none block font-bold bg-transparent w-full mb-6 cursor-text title-placeholder leading-tight"
         :class="editor ? '' : 'invisible'"
         :data-placeholder="translations.editor.untitledNote"
         @input="handleTitleInput"
@@ -148,7 +143,7 @@
         </router-link>
       </div>
 
-      <div v-if="!isLocked" class="relative editor-skeleton-wrapper min-w-0">
+      <div v-if="!isLocked" class="relative editor-skeleton-wrapper">
         <note-editor
           v-if="yjsReady"
           :id="$route.params.id"
@@ -841,26 +836,21 @@ export default {
 }
 
 .title-placeholder {
+  field-sizing: content;
   max-height: 8em;
-  min-height: 1.6em;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  min-height: 1.2em;
 }
 
 .editor {
   max-width: var(--selected-width);
-  min-width: 0;
-  width: 100%;
 }
 
 .editor-skeleton-wrapper {
-  position: relative;
-  min-height: calc(100dvh - 16rem);
+  min-height: 240px;
 }
 
 .editor-skeleton {
   position: absolute;
   inset: 0;
-  pointer-events: none;
 }
 </style>
