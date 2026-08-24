@@ -146,14 +146,14 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     }
   }
 
-  function handleDrop(event, targetFolderId) {
+  async function handleDrop(event, targetFolderId) {
     event.preventDefault();
 
     try {
       const dragData = JSON.parse(
         event.dataTransfer.getData('application/json')
       );
-      const didMove = movePayloadToFolder(dragData, targetFolderId);
+      const didMove = await movePayloadToFolder(dragData, targetFolderId);
       if (didMove) {
         clearSelection?.();
       }
@@ -164,29 +164,32 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     handleDragEnd();
   }
 
-  function movePayloadToFolder(payload, targetFolderId) {
+  async function movePayloadToFolder(payload, targetFolderId) {
     if (!payload || targetFolderId === undefined) return false;
-
+    const { useUndoStore } = await import('@/store/undo');
+    const undo = useUndoStore();
     if (payload.type === 'notes' || payload.type === 'note') {
       const noteIds = payload.ids || [payload.id];
-      noteIds.forEach((noteId) => {
-        noteStore.update(noteId, { folderId: targetFolderId });
-      });
+      undo.startBatch();
+      try {
+        await noteStore.moveToFolder(noteIds, targetFolderId);
+      } finally {
+        undo.commitBatch();
+      }
       return true;
     }
-
     if (payload.type === 'folders' || payload.type === 'folder') {
       const folderIds = payload.ids || [payload.id];
-      folderIds.forEach((folderId) => {
-        if (
-          !folderStore.wouldCreateCircularReference(folderId, targetFolderId)
-        ) {
-          folderStore.update(folderId, { parentId: targetFolderId });
-        }
-      });
+      const valid = folderIds.filter((fid) => !folderStore.wouldCreateCircularReference(fid, targetFolderId));
+      if (!valid.length) return false;
+      undo.startBatch();
+      try {
+        for (const fid of valid) await folderStore.update(fid, { parentId: targetFolderId });
+      } finally {
+        undo.commitBatch();
+      }
       return true;
     }
-
     return false;
   }
 
@@ -273,7 +276,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     dragOverFolderId.value = folderId;
   }
 
-  function finishTouchDrag() {
+  async function finishTouchDrag() {
     const payload = touchDragPayload.value;
     const targetFolderId = dragOverFolderId.value;
 
@@ -281,7 +284,7 @@ export function useDragAndDrop({ selectedItems, clearSelection }) {
     touchDragPayload.value = null;
 
     if (payload && targetFolderId) {
-      movePayloadToFolder(payload, targetFolderId);
+      await movePayloadToFolder(payload, targetFolderId);
     }
 
     handleDragEnd();

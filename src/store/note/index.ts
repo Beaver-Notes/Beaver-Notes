@@ -332,6 +332,10 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     } as NoteData;
 
     this.data[id] = hydrateNote(newNote);
+    if (this.deletedIds[id]) {
+      delete this.deletedIds[id];
+      syncDeletedNoteIds(this.deletedIds);
+    }
     incrementFolderCount(this.data[id].folderId);
     await saveNote(id, this.data[id]);
     // Content lives in Yjs — write it at creation so the editor finds it

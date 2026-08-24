@@ -99,13 +99,13 @@ export default {
 .undo-banner-enter-active,
 .undo-banner-leave-active {
   transition:
-    opacity 0.2s var(--ease-standard),
-    transform 0.2s var(--ease-standard);
+    opacity 0.16s ease-out,
+    transform 0.16s ease-out;
 }
 .undo-banner-enter-from,
 .undo-banner-leave-to {
   opacity: 0;
-  transform: translateY(1rem);
+  transform: translateY(8px);
 }
 @media (prefers-reduced-motion: reduce) {
   .undo-banner-enter-active,

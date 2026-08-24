@@ -330,8 +330,15 @@ export function useNotesBrowser({
         undoStack.startBatch();
         for (const item of items) {
           const { type, id } = parseItemId(item);
-          if (type === 'note') await noteStore.delete(id);
-          else if (type === 'folder') await folderStore.delete(id, { deleteContents: true });
+          try {
+            if (type === 'note') {
+              if (noteStore.getById(id)) await noteStore.delete(id);
+            } else if (type === 'folder') {
+              if (folderStore.getById(id)) await folderStore.delete(id, { deleteContents: true });
+            }
+          } catch (e) {
+            console.warn('[bulkDelete] skip', type, id, e);
+          }
         }
         undoStack.commitBatch();
         clearSelection();
@@ -345,26 +352,8 @@ export function useNotesBrowser({
     }
   }
 
-  function handleMoved(result) {
-    const targetFolderId = result.folderId;
-
-    undoStack.startBatch();
-    for (const item of selectedItems.value) {
-      const { type, id } = parseItemId(item);
-      if (type === 'note') {
-        const note = noteStore.getById(id);
-        if (note) {
-          noteStore.moveToFolder([id], targetFolderId);
-        }
-      } else if (type === 'folder') {
-        const folder = folderStore.data[id];
-        if (folder && !folderStore.wouldCreateCircularReference(id, targetFolderId)) {
-          folderStore.update(id, { parentId: targetFolderId });
-        }
-      }
-    }
-    undoStack.commitBatch();
-
+  function handleMoved() {
+    // FolderTree already performed the batched move + undo push; just clear selection
     clearSelection();
     showMoveModal.value = false;
   }

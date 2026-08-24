@@ -74,7 +74,7 @@
           class="w-6/12 mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
           :disabled="
             isMoving ||
-            (props.mode === 'folder' &&
+            ((props.mode === 'folder' || props.mode === 'mixed') &&
               disabledTargetIds.has(selectedId || undefined))
           "
           :variant="'primary'"
@@ -102,7 +102,7 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'note',
-    validator: (val) => ['note', 'folder'].includes(val),
+    validator: (val) => ['note', 'folder', 'mixed'].includes(val),
   },
 });
 
@@ -144,7 +144,7 @@ const commonFolderParentId = computed(() => {
 });
 
 const disabledTargetIds = computed(() => {
-  if (props.mode !== 'folder' || props.folders.length === 0) return new Set();
+  if ((props.mode !== 'folder' && props.mode !== 'mixed') || props.folders.length === 0) return new Set();
   const all = Array.isArray(folderStore.validFolders)
     ? folderStore.validFolders
     : [];
@@ -169,16 +169,15 @@ watch(
   (value) => {
     show.value = value;
     if (!value) return;
-    selectedId.value =
-      props.mode === 'note'
-        ? commonNoteFolderId.value
-        : commonFolderParentId.value;
+    if (props.mode === 'note') selectedId.value = commonNoteFolderId.value;
+    else if (props.mode === 'folder') selectedId.value = commonFolderParentId.value;
+    else selectedId.value = null;
   }
 );
 
 function onSelect(id) {
   // block selecting invalid targets when moving folders
-  if (props.mode === 'folder' && id != null && disabledTargetIds.value.has(id))
+  if ((props.mode === 'folder' || props.mode === 'mixed') && id != null && disabledTargetIds.value.has(id))
     return;
   selectedId.value = id ?? null;
 }
@@ -189,7 +188,7 @@ function closeModal() {
 }
 
 const moveLabel = computed(() => {
-  const n = props.mode === 'note' ? props.notes.length : props.folders.length;
+  const n = props.mode === 'mixed' ? props.notes.length + props.folders.length : props.mode === 'note' ? props.notes.length : props.folders.length;
   return n === 1
     ? translations.value.folderTree.moveToFolder
     : translations.value.folderTree.moveItemsToFolder.replace('{count}', n);
@@ -207,29 +206,36 @@ const folderCountLabel = computed(() =>
     : translations.value.folderTree?.folderPlural || 'folders'
 );
 
-async function handleMove() {
-  if (isMoving.value) return;
-  isMoving.value = true;
-  try {
-    if (props.mode === 'folder' && props.folders.length) {
-      await Promise.all(
-        props.folders.map((folder) =>
-          folderStore.move(folder.id, selectedId.value ?? null)
-        )
-      );
+  async function handleMove() {
+    if (isMoving.value) return;
+    isMoving.value = true;
+    const targetId = selectedId.value ?? null;
+    try {
+      const { useUndoStore } = await import('@/store/undo');
+      const undo = useUndoStore();
+      undo.startBatch();
+      try {
+        if (props.folders.length) {
+          for (const f of props.folders) {
+            if (!folderStore.wouldCreateCircularReference(f.id, targetId)) {
+              await folderStore.move(f.id, targetId);
+            }
+          }
+        }
+        if (props.notes.length) {
+          const ids = props.notes.map((n) => n.id).filter(Boolean);
+          if (ids.length) await noteStore.moveToFolder(ids, targetId);
+        }
+      } finally {
+        undo.commitBatch();
+      }
+      emit('moved', { folderId: targetId, notes: [...props.notes], folders: [...props.folders] });
+    } catch (error) {
+      console.error('Move failed:', error);
+    } finally {
+      isMoving.value = false;
+      show.value = false;
+      emit('update:modelValue', false);
     }
-
-    if (props.mode === 'note' && props.notes.length) {
-      const ids = props.notes.map((n) => n.id);
-      await noteStore.moveToFolder(ids, selectedId.value ?? null);
-    }
-    emit('moved', { folderId: selectedId.value ?? null });
-  } catch (error) {
-    console.error('Move failed:', error);
-  } finally {
-    isMoving.value = false;
-    show.value = false;
-    emit('update:modelValue', false);
   }
-}
 </script>

@@ -242,13 +242,13 @@ const { translations } = useTranslations();
 }
 
 .folder-card.is-drag-over .folder-card__body {
-  transform: rotateX(-25deg);
+  transform: scale(1.02);
 }
 .folder-card.is-drag-over .folder-card__sheet--front {
-  transform: translateY(-6px) rotate(3deg) !important;
+  transform: translateY(-2px) !important;
 }
 .folder-card.is-drag-over .folder-card__sheet--rear {
-  transform: translateY(-8px) !important;
+  transform: translateY(-1px) !important;
 }
 @media (hover: hover) and (pointer: fine) {
   .folder-emoji:hover {

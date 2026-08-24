@@ -226,6 +226,11 @@ export const useFolderStore = defineStore('folder', {
         this.data[id] = newFolder;
         indexAdd(this._index, newFolder);
 
+        if (this.deletedIds[id]) {
+          delete this.deletedIds[id];
+          syncDeletedFolderIds(this.deletedIds);
+        }
+
         syncFolder(newFolder);
 
         return this.data[id];

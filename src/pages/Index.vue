@@ -146,7 +146,7 @@
       <folder-tree
         v-model="showMoveModal"
         v-bind="resolveMoveModalParams(moveTarget, selectedNotes, selectedFolders, moveMode)"
-        @moved="moveTarget ? handleSingleMoved : handleMoved"
+        @moved="handleMoved"
       />
     </div>
 
