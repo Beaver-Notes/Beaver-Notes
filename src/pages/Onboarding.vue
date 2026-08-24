@@ -1657,7 +1657,7 @@ export default {
       return { level: 4, label: 'Strong', percent: 100 };
     }
 
-    const strength = computed(() => assessStrength(flow.encryptionPassword));
+    const strength = computed(() => assessStrength(flow.encryptionPassword.value));
     const strengthPercent = computed(() => strength.value.percent);
     const strengthLabel = computed(() => strength.value.label);
     const strengthBarClass = computed(() => {
