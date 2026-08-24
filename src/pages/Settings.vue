@@ -164,6 +164,9 @@ const settings = computed(() => {
         'accent color',
         'theme',
         'interface',
+        'reduced motion',
+        'animation',
+        'accessibility',
       ],
     },
     'Settings-Security': {

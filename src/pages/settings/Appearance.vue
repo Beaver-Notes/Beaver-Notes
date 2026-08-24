@@ -168,6 +168,18 @@
       </settings-row>
 
       <settings-row
+        control-id="appearance-reduced-motion"
+        :label="translations.appearance.reducedMotion || 'Reduced motion'"
+        description="Minimize animations and transitions."
+      >
+        <ui-switch
+          id="appearance-reduced-motion"
+          v-model="reducedMotion"
+          @change="toggleReducedMotion"
+        />
+      </settings-row>
+
+      <settings-row
         v-if="isDesktopRuntime && !isMacOS"
         control-id="appearance-menubar"
         :label="translations.appearance.menuBarVisibility || 'Menu bar'"
@@ -232,7 +244,7 @@ import { useAppStore } from '@/store/app';
 import lightImg from '@/assets/images/light.png';
 import darkImg from '@/assets/images/dark.png';
 import systemImg from '@/assets/images/system.png';
-import { getSystemFonts, setMenuVisibility } from '@/lib/native/app';
+import { getSystemFonts, setMenuVisibility, setReducedMotion } from '@/lib/native/app';
 import { isMacOSRuntime } from '@/lib/tauri/runtime';
 import { backend } from '@/lib/tauri-bridge';
 import {
@@ -324,6 +336,13 @@ export default {
       },
     });
 
+    const reducedMotion = computed({
+      get: () => getSettingSync('reducedMotion'),
+      set: (val) => {
+        void setSetting('reducedMotion', val);
+      },
+    });
+
     const defaultFonts = [
       {
         label: 'Default',
@@ -378,6 +397,13 @@ export default {
 
     const toggleVisibilityOfMenubar = async () => {
       await setMenuVisibility(!getSettingSync('visibilityMenubar'));
+    };
+
+    const toggleReducedMotion = async (val) => {
+      const enabled = typeof val === 'boolean' ? val : !getSettingSync('reducedMotion');
+      // class drives CSS `prefers-reduced-motion` polyfill in style.css (src/assets/css/style.css:280)
+      document.documentElement.classList.toggle('prefers-reduced-motion', enabled);
+      void setReducedMotion(enabled).catch(() => {});
     };
 
     const toggleDirectionPreference = () => {
@@ -501,6 +527,8 @@ export default {
       ClearFontChecked,
       visibilityMenubar,
       toggleVisibilityOfMenubar,
+      reducedMotion,
+      toggleReducedMotion,
       isMacOS,
       isDesktopRuntime,
       toggleDirectionPreference,
