@@ -274,12 +274,13 @@
           <button
             v-keep-focus
             v-tooltip.group="translations.menu.highlight"
-            class="hover:bg-neutral-100 dark:hover:bg-neutral-800 h-8 w-8 rounded-lg transition-colors flex items-center justify-center"
+            class="h-8 w-8 rounded-lg transition-colors flex items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            :style="currentHighlightHex ? { backgroundColor: currentHighlightHex + '33' } : null"
           >
             <v-remixicon
               name="riFontColor"
               class="size-6"
-              :style="{ color: currentTextColor }"
+              :style="{ color: currentTextColor || undefined }"
             />
           </button>
         </template>

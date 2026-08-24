@@ -443,6 +443,13 @@ export function useNoteMenu(props) {
       : null
   );
 
+  const currentHighlightHex = computed(() => {
+    const c = currentHighlightClass.value;
+    if (!c) return null;
+    const m = c.match(/#[0-9A-Fa-f]{6}/);
+    return m ? m[0] : null;
+  });
+
   function setHighlightColor(color) {
     if (props.editor.isActive('highlight', { color })) {
       props.editor.commands.unsetHighlight();
@@ -669,6 +676,7 @@ export function useNoteMenu(props) {
     toggleRecording,
     currentTextColor,
     currentHighlightClass,
+    currentHighlightHex,
     drawActions,
     fmtMap,
     highlighterColors,

@@ -63,6 +63,7 @@
               :visible-inline-format-items="visibleInlineFormatItems"
               :is-item-visible="isItemVisible"
               :current-text-color="currentTextColor"
+              :current-highlight-hex="currentHighlightHex"
               :tb-btn="tbBtn"
               :open-sub="openSub"
             />

@@ -12,16 +12,17 @@
     <v-remixicon :name="fmtMap[item.fmt]?.icon" />
   </button>
 
-  <!-- Color / highlight entry button -->
+  <!-- Color / highlight entry button — shows both text color (icon) and highlight (bg) -->
   <button
     v-if="isItemVisible('color')"
     v-keep-focus
     v-tooltip.group="translations.menu.highlight"
     :aria-label="translations.menu.highlight"
     :class="tbBtn(editor.isActive('textStyle') || editor.isActive('highlight'))"
+    :style="currentHighlightHex ? { backgroundColor: currentHighlightHex + '33' } : null"
     @click="openSub('color')"
   >
-    <v-remixicon name="riFontColor" :style="{ color: currentTextColor }" />
+    <v-remixicon name="riFontColor" :style="{ color: currentTextColor || undefined }" />
   </button>
 </template>
 
@@ -34,6 +35,7 @@ export default {
     visibleInlineFormatItems: { type: Array, required: true },
     isItemVisible: { type: Function, required: true },
     currentTextColor: { type: String, default: '' },
+    currentHighlightHex: { type: String, default: null },
     tbBtn: { type: Function, required: true },
     openSub: { type: Function, required: true },
   },
