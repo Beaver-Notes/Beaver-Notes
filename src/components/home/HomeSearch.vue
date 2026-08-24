@@ -65,20 +65,18 @@
       >
         All
       </button>
-      <span
+      <button
         v-else
-        class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-sm font-medium bg-primary/10 text-primary shrink-0"
+        class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-sm font-medium bg-primary/10 text-primary shrink-0 hover:opacity-80 transition-opacity"
         :style="selectedEntry?.color ? { color: selectedEntry.color, backgroundColor: selectedEntry.color + '1a' } : {}"
+        aria-label="Clear label filter"
+        @click="toggleLabel(label)"
       >
         #{{ label }}
-        <button
-          aria-label="Clear label filter"
-          class="inline-flex items-center justify-center size-5 -mr-0.5"
-          @click="toggleLabel(label)"
-        >
+        <span class="inline-flex items-center justify-center size-5 -mr-0.5 pointer-events-none">
           <v-remixicon name="riCloseLine" size="14" />
-        </button>
-      </span>
+        </span>
+      </button>
       <!-- subtle divider to scrollable line -->
       <span class="hidden sm:block w-px h-5 bg-neutral-200 dark:bg-neutral-700 shrink-0" aria-hidden="true"></span>
     </div>
