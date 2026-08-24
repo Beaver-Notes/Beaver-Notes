@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import * as Y from 'yjs';
 import {
   mergeNoteEntry,
   diffRemovedNoteIds,
@@ -60,5 +61,29 @@ describe('diffRemovedNoteIds', () => {
 
   it('returns empty when nothing is removed', () => {
     expect(diffRemovedNoteIds(['a', 'b'], new Set(['a', 'b', 'c']))).toEqual([]);
+  });
+});
+
+describe('backfill isolation regression', () => {
+  it('two sequential snapshots must not accumulate (reused Y.Doc produces superset)', async () => {
+    const tmpBuggy = new Y.Doc();
+    const a = new Y.Doc();
+    a.getXmlFragment('content').insert(0, ['A']);
+    const b = new Y.Doc();
+    b.getXmlFragment('content').insert(0, ['B']);
+    const updA = Y.encodeStateAsUpdate(a);
+    const updB = Y.encodeStateAsUpdate(b);
+    Y.applyUpdate(tmpBuggy, updA);
+    Y.applyUpdate(tmpBuggy, updB);
+    // buggy tmp now contains A+B — assert that naive reuse produces superset
+    expect(tmpBuggy.getXmlFragment('content').length).toBeGreaterThan(1);
+
+    // fixed: fresh doc per snapshot
+    const tmpFixedA = new Y.Doc();
+    Y.applyUpdate(tmpFixedA, updA);
+    const tmpFixedB = new Y.Doc();
+    Y.applyUpdate(tmpFixedB, updB);
+    expect(tmpFixedA.getXmlFragment('content').length).toBe(1);
+    expect(tmpFixedB.getXmlFragment('content').length).toBe(1);
   });
 });

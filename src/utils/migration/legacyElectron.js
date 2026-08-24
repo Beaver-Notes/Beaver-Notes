@@ -22,6 +22,7 @@ import {
 } from '@/utils/crypto/constants.js';
 import { bufToHex, hexToBuf, base64ToBuf } from '@/utils/crypto/codec.js';
 import { encryptContent } from '@/utils/crypto/encryption.js';
+import { buildNotePreview, EMPTY_CARD_PREVIEW } from '@/utils/note/cardPreview.js';
 
 // Legacy per-note encryption functions kept only for migration.
 const LEGACY_CRYPTOJS_PREFIX = 'U2FsdGVk';
@@ -250,6 +251,20 @@ export async function migrateLegacyLockedNotes(dir, password) {
       note.content = await encryptContent(JSON.parse(plaintext));
       note.isLocked = true;
       note.updatedAt = Date.now();
+      // Ensure cardPreview/preview/searchText are seeded for legacy import:
+      // locked notes are hidden -> EMPTY_CARD_PREVIEW and empty preview/search.
+      // Idempotency: EMPTY (blocks: []) is upgradeable to hidden preview.
+      if (!note.cardPreview?.blocks?.length) {
+        const { cardPreview, preview } = buildNotePreview({
+          content: null,
+          preview: note.preview,
+          searchText: note.searchText,
+          hidden: true,
+        });
+        note.cardPreview = cardPreview || EMPTY_CARD_PREVIEW;
+        note.preview = preview || '';
+        note.searchText = '';
+      }
       migrated += 1;
 
       // Persist note metadata to the workspace Y.Doc `notes` map so the

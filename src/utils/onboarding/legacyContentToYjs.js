@@ -7,6 +7,9 @@
 import * as Y from 'yjs';
 import { appendBatch } from '@/lib/native/yjs.js';
 import { ensureSchema, getDeviceId } from '@/lib/yjs/helpers.js';
+import { buildNotePreview } from '@/utils/note/cardPreview.js';
+import { extractTextFromContent } from '@/utils/note/serializer.js';
+import { isAppEncryptedEnvelope } from '@/utils/crypto/encryption.js';
 
 const CHUNK_SIZE = 20;
 
@@ -178,4 +181,62 @@ export async function convertLegacyNotesToYjs(
   }
 
   return { converted, skipped, failures };
+}
+
+/**
+ * Ensure each note in a legacy notes map carries cardPreview/preview/searchText
+ * before it is passed to seedWorkspaceDocFromData. Mutates the map in place.
+ * Locked/encrypted notes get an empty preview (hidden).
+ *
+ * @param {Record<string, object>} notesMap id -> note meta (content may be ProseMirror JSON)
+ * @returns {Record<string, object>} same map
+ */
+export function ensureLegacyNotesPreview(notesMap) {
+  if (!notesMap || typeof notesMap !== 'object') return notesMap;
+  for (const note of Object.values(notesMap)) {
+    if (!note || typeof note !== 'object') continue;
+    // Idempotency: non-empty preview is final, but EMPTY (blocks: []) is upgradeable.
+    if (note.cardPreview?.blocks?.length > 0) continue;
+    const content = note.content;
+    // ae:3 / ae:6 envelopes are app-encrypted and must be hidden even when
+    // isLocked is not set or the legacy string-prefix heuristic misses them.
+    // Use the canonical helper when available, with an inline fallback so the
+    // function stays correct even if the helper is mocked or unavailable.
+    let isAeEnvelope = false;
+    try {
+      isAeEnvelope = isAppEncryptedEnvelope(content) || content?.ae === 3 || content?.ae === 6;
+    } catch {
+      isAeEnvelope = content?.ae === 3 || content?.ae === 6;
+    }
+    const hasLegacyCipher =
+      typeof content?.content?.[0] === 'string' &&
+      (content.content[0].startsWith('U2FsdGVk') || content.content[0].startsWith('{'));
+    const isLocked = note.isLocked === true || isAeEnvelope || hasLegacyCipher;
+    // For app-encrypted envelopes content is not plaintext JSON for preview;
+    // buildNotePreview with hidden:true will produce EMPTY_CARD_PREVIEW.
+    let contentForPreview = note.content;
+    // If content is an encrypted envelope (ae:3/ae:6) or legacy cipher string,
+    // don't use it as structured content — fall back to preview/searchText text.
+    if (isLocked) contentForPreview = null;
+    else if (contentForPreview && typeof contentForPreview === 'object' && contentForPreview.type !== 'doc') {
+      // Non-ProseMirror envelope — treat as missing structured content.
+      contentForPreview = null;
+    }
+    const { cardPreview, preview } = buildNotePreview({
+      content: contentForPreview,
+      preview: note.preview,
+      searchText: note.searchText,
+      hidden: isLocked,
+    });
+    note.cardPreview = cardPreview;
+    if (preview !== undefined) note.preview = preview;
+    if (!isLocked) {
+      const searchText = extractTextFromContent(contentForPreview) || note.searchText || preview || '';
+      if (searchText) note.searchText = searchText;
+    } else {
+      note.preview = '';
+      note.searchText = '';
+    }
+  }
+  return notesMap;
 }

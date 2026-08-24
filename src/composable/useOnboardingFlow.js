@@ -312,10 +312,9 @@ export function useOnboardingFlow({
     ),
   );
 
-  // Paid accounts use cloud sync directly and do not need a folder selection.
+  // Sync step hidden for beta — Beaver Sync not ready yet.
   const activeFlow = computed(() => {
     const flow = ['welcome', 'account', 'password', 'import', 'customize', 'finish'];
-    if (!accountStore.canUseCloudSync) flow.splice(2, 0, 'sync');
     return flow;
   });
 
@@ -611,6 +610,14 @@ export function useOnboardingFlow({
       );
 
       // Seed the workspace doc directly from parsed data (no KV reads).
+      // Ensure legacy notes carry cardPreview/preview/searchText before seed
+      // so hydration avoids snapshot fallback.
+      try {
+        const { ensureLegacyNotesPreview } = await import('@/utils/onboarding/legacyContentToYjs.js');
+        if (legacyData?.notes) ensureLegacyNotesPreview(legacyData.notes);
+      } catch (e) {
+        console.warn('[onboarding] preview enrich failed:', e);
+      }
       state.migrationStatus = 'Migrating workspace…';
       const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
       const seedResult = await seedWorkspaceDocFromData(

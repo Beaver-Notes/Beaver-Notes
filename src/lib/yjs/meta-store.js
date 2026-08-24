@@ -139,30 +139,44 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   // Batch-load Yjs snapshots for notes that have no in-memory content source
   // (single round-trip instead of one IPC call per note).
   if (pendingPreviews.length > 0) {
-    const tmp = new Y.Doc();
+    let snapshots;
     try {
-      const snapshots = await getSnapshots(pendingPreviews);
-      const { syncNoteMeta } = await import('./workspace-doc.js');
-      for (const id of pendingPreviews) {
-        const snapshot = snapshots?.[id];
-        if (!snapshot || snapshot.length === 0) continue;
-        Y.applyUpdate(tmp, toUint8Array(snapshot));
-        const content = await yXmlFragmentToProsemirrorJSON(
-          tmp.getXmlFragment('content')
-        );
-        const merged = noteStore.data[id];
-        if (!merged) continue;
-        const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
-        merged.cardPreview = cardPreview;
-        if (!merged.preview) merged.preview = preview;
-        // Persist the built preview so the next launch reads it from the
-        // workspace doc instead of loading + converting the content again.
-        syncNoteMeta(merged);
-      }
+      snapshots = await getSnapshots(pendingPreviews);
     } catch (err) {
       console.warn('[meta-yjs] batch preview load failed', err);
-    } finally {
-      tmp.destroy();
+    }
+    if (snapshots) {
+      let syncNoteMeta;
+      try {
+        ({ syncNoteMeta } = await import('./workspace-doc.js'));
+      } catch (err) {
+        console.warn('[meta-yjs] batch preview load failed', err);
+      }
+      if (syncNoteMeta) {
+        for (const id of pendingPreviews) {
+          const snapshot = snapshots?.[id];
+          if (!snapshot || snapshot.length === 0) continue;
+          const tmp = new Y.Doc();
+          try {
+            Y.applyUpdate(tmp, toUint8Array(snapshot));
+            const content = await yXmlFragmentToProsemirrorJSON(
+              tmp.getXmlFragment('content')
+            );
+            const merged = noteStore.data[id];
+            if (!merged) continue;
+            const { cardPreview, preview } = buildNotePreviewFromContent(merged, content);
+            merged.cardPreview = cardPreview;
+            if (!merged.preview) merged.preview = preview;
+            // Persist the built preview so the next launch reads it from the
+            // workspace doc instead of loading + converting the content again.
+            syncNoteMeta(merged);
+          } catch (err) {
+            console.warn('[meta-yjs] preview load failed for', id, err);
+          } finally {
+            tmp.destroy();
+          }
+        }
+      }
     }
   }
   noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
@@ -207,6 +221,9 @@ export async function seedWorkspaceDocFromData(
     'isFullWidth',
     'createdAt',
     'updatedAt',
+    'cardPreview',
+    'preview',
+    'searchText',
   ];
 
   let seededNotes = 0;
@@ -277,33 +294,37 @@ export async function backfillNotePreviews() {
     return;
   }
 
-  const tmp = new Y.Doc();
+  let syncNoteMeta;
   try {
-    const { syncNoteMeta } = await import('./workspace-doc.js');
-    for (const [id, snapshot] of Object.entries(snapshots)) {
-      const note = noteStore.data[id];
-      if (!note || !snapshot || snapshot.length === 0) continue;
-      try {
-        Y.applyUpdate(tmp, toUint8Array(snapshot));
-        const content = await yXmlFragmentToProsemirrorJSON(
-          tmp.getXmlFragment('content')
-        );
-        if (!content || !content.content?.length) continue;
+    ({ syncNoteMeta } = await import('./workspace-doc.js'));
+  } catch (e) {
+    console.warn('[meta-yjs] workspace-doc import failed', e);
+    return;
+  }
+  for (const [id, snapshot] of Object.entries(snapshots)) {
+    const note = noteStore.data[id];
+    if (!note || !snapshot || snapshot.length === 0) continue;
+    const tmp = new Y.Doc();
+    try {
+      Y.applyUpdate(tmp, toUint8Array(snapshot));
+      const content = await yXmlFragmentToProsemirrorJSON(
+        tmp.getXmlFragment('content')
+      );
+      if (!content || !content.content?.length) continue;
 
-        const previewText = extractTextFromContent(content);
-        const { cardPreview, preview } = buildNotePreview({
-          content,
-          preview: previewText,
-        });
-        note.cardPreview = cardPreview;
-        note.preview = preview;
-        await saveNote(id, note);
-        syncNoteMeta(note);
-      } catch (err) {
-        console.warn('[meta-yjs] preview backfill failed for', id, err);
-      }
+      const previewText = extractTextFromContent(content);
+      const { cardPreview, preview } = buildNotePreview({
+        content,
+        preview: previewText,
+      });
+      note.cardPreview = cardPreview;
+      note.preview = preview;
+      await saveNote(id, note);
+      syncNoteMeta(note);
+    } catch (err) {
+      console.warn('[meta-yjs] preview backfill failed for', id, err);
+    } finally {
+      tmp.destroy();
     }
-  } finally {
-    tmp.destroy();
   }
 }
