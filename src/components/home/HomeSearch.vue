@@ -60,21 +60,20 @@
     <div class="flex items-center gap-2 shrink-0">
       <button
         v-if="!label"
-        class="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium ring-1 ring-inset bg-primary/10 text-primary shrink-0"
-        :style="{ '--tw-ring-color': 'var(--color-primary)' }"
+        class="inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-medium bg-primary/10 text-primary shrink-0"
         @click="toggleLabel('')"
       >
         All
       </button>
       <span
         v-else
-        class="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-sm font-medium ring-1 ring-inset bg-primary/10 text-primary shrink-0"
-        :style="selectedEntry?.color ? { color: selectedEntry.color, backgroundColor: selectedEntry.color + '1a', '--tw-ring-color': selectedEntry.color } : { '--tw-ring-color': 'var(--color-primary)' }"
+        class="inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-lg text-sm font-medium bg-primary/10 text-primary shrink-0"
+        :style="selectedEntry?.color ? { color: selectedEntry.color, backgroundColor: selectedEntry.color + '1a' } : {}"
       >
         #{{ label }}
         <button
           aria-label="Clear label filter"
-          class="inline-flex items-center justify-center size-5 rounded-full hover:bg-black/10 dark:hover:bg-white/15 -mr-0.5"
+          class="inline-flex items-center justify-center size-5 -mr-0.5"
           @click="toggleLabel(label)"
         >
           <v-remixicon name="riCloseLine" size="14" />
@@ -86,7 +85,7 @@
 
     <!-- Right: scrollable remaining labels — selected hidden from main line -->
     <div
-      class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5 min-w-0"
+      class="flex-1 flex items-center gap-1.5 overflow-x-auto scrollbar-none py-1 px-1 -mx-1 min-w-0 scroll-pb-1"
       ref="scrollEl"
     >
       <TransitionGroup
@@ -98,7 +97,7 @@
           v-for="(entry, i) in filteredLabels"
           :key="entry.name"
           :data-label="entry.name"
-          class="flex-shrink-0 inline-block px-1.5 py-0.5 rounded-lg text-sm font-medium transition-[opacity,box-shadow] bg-primary/10 text-primary opacity-60 hover:opacity-100 label-chip"
+          class="flex-shrink-0 inline-block px-2 py-1 rounded-lg text-sm font-medium transition-[opacity,box-shadow,transform] bg-primary/10 text-primary opacity-60 hover:opacity-100 label-chip relative hover:z-10"
           :class="[
             i === activeSuggestionIndex ? 'opacity-100 ring-1 ring-inset' : '',
           ]"
@@ -291,7 +290,7 @@ export default {
 }
 @media (hover: hover) and (pointer: fine) {
   .label-chip:hover {
-    transform: scale(1.08);
+    transform: scale(1.04);
   }
 }
 </style>
