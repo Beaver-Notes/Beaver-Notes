@@ -296,7 +296,7 @@
         <button
           :aria-label="translations.menu.share"
           class="flex h-10 w-10 items-center justify-center rounded-xl text-neutral-600 transition-colors hover:bg-black/5 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-white/10 dark:hover:text-white"
-          @click="showShareDialog = true"
+          @click="showShareModal = true"
         >
           <v-remixicon name="riShare2Line" />
         </button>
@@ -328,44 +328,7 @@
     </div>
   </div>
 
-  <!-- Share modal (mobile only)  -->
-  <ui-modal v-model="showShareDialog" content-class="max-w-sm">
-    <template #header>
-      <h3 class="text-lg font-semibold">
-        {{ translations.menu.share || 'Share' }}
-      </h3>
-    </template>
-
-    <ui-list class="p-2">
-      <ui-list-item
-        v-if="isAuthenticated"
-        tag="button"
-        class="gap-3 text-left"
-        @click="showShareModal = true"
-      >
-        <v-remixicon name="riUserSharedLine" />
-        <span class="min-w-0 flex-1">
-          <span class="block text-sm font-medium">{{
-            translations.share?.collaborate || 'Collaborate'
-          }}</span>
-        </span>
-      </ui-list-item>
-      <ui-list-item
-        v-for="s in shareActions"
-        :key="s.name"
-        tag="button"
-        class="gap-3 text-left"
-        @click="s.handler"
-      >
-        <v-remixicon :name="s.icon" />
-        <span class="min-w-0 flex-1">
-          <span class="block text-sm font-medium">{{ s.title }}</span>
-        </span>
-      </ui-list-item>
-    </ui-list>
-  </ui-modal>
-
-  <share-modal v-model="showShareModal" :note-id="id" />
+  <share-modal v-model="showShareModal" :note-id="id" :share-actions="shareActions" />
   <history-panel
     v-if="showHistory"
     :note-id="id"
@@ -411,7 +374,6 @@ export default {
     const noteStore = useNoteStore();
     const accountStore = useAccountStore();
     const shellRef = ref(null);
-    const showShareDialog = ref(false);
     const showShareModal = ref(false);
     const isStuck = ref(false);
     const { copyState, copyToClipboard } = useClipboard();
@@ -526,7 +488,6 @@ export default {
       copyNoteContent,
       lockNote,
       syncStickyState,
-      showShareDialog,
       showShareModal,
       isAuthenticated,
       showCollaboration,

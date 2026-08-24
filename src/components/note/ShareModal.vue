@@ -5,10 +5,9 @@
     @close="$emit('update:modelValue', false)"
   >
     <template #header>
-      <div class="flex items-center gap-2">
-        <v-remixicon name="riShareLine" size="20" />
-        <span class="font-semibold">Share note</span>
-      </div>
+      <h3 class="text-lg font-semibold">
+        Share note
+      </h3>
     </template>
 
     <template #actions>
@@ -20,18 +19,10 @@
     </template>
 
     <div class="space-y-5">
-      <div
-        v-if="sharing.key"
-        class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary dark:bg-primary/20"
-      >
-        <v-remixicon name="riCheckLine" size="12" />
-        Collaboration enabled
-      </div>
-
-      <!-- Section 1 — Collaborate -->
-      <section class="space-y-3">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-          Collaborate
+      <!-- People & Links -->
+      <section v-if="isAuthenticated" class="space-y-3">
+        <h3 class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+          {{ translations.share?.collaborate || 'Collaborate' }}
         </h3>
 
         <div class="flex flex-col gap-2 sm:flex-row">
@@ -103,17 +94,11 @@
           v-else
           class="py-3 text-center text-sm text-neutral-500 dark:text-neutral-400"
         >
-          No collaborators yet. Invite someone to start collaborating.
+          {{ translations.share?.noCollaborators || 'No collaborators yet. Invite someone to start collaborating.' }}
         </p>
-      </section>
 
-      <!-- Section 2 — Invite link -->
-      <section class="space-y-3 border-t border-neutral-200 pt-4 dark:border-neutral-700">
-        <h3 class="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-          Invite link
-        </h3>
-
-        <div class="flex flex-col gap-2 sm:flex-row">
+        <!-- Invite link creator (inline) -->
+        <div class="flex gap-2">
           <ui-select
             v-model="linkRole"
             :options="LINK_ROLE_OPTIONS"
@@ -164,12 +149,6 @@
                 size="16"
               />
             </button>
-            <span
-              v-if="copyState === 1 && copiedToken === link.token"
-              class="text-xs font-medium text-primary"
-            >
-              Copied
-            </span>
             <button
               class="shrink-0 p-1.5 text-neutral-400 transition-colors hover:text-red-500 dark:hover:text-red-400"
               title="Revoke link"
@@ -180,14 +159,42 @@
           </ui-list-item>
         </ui-list>
       </section>
+
+      <!-- Export grid (mobile) -->
+      <section v-if="isMobile && shareActions.length" class="space-y-3">
+        <h3 class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
+          Export
+        </h3>
+        <div class="grid grid-cols-3 gap-2 overflow-y-auto no-scrollbar max-h-[50vh]">
+          <button
+            v-for="s in shareActions"
+            :key="s.name"
+            class="flex flex-col items-center justify-center gap-2 p-3 rounded-xl border bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-700 active:bg-neutral-100 dark:active:bg-neutral-600 transition-colors"
+            @click="$emit('update:modelValue', false); s.handler();"
+          >
+            <div class="flex items-center justify-center w-12 h-12">
+              <v-remixicon
+                :name="s.icon"
+                class="text-2xl text-neutral-700 dark:text-neutral-300"
+              />
+            </div>
+            <span class="text-xs leading-tight text-center text-neutral-600 dark:text-neutral-400 truncate w-full">
+              {{ s.title }}
+            </span>
+          </button>
+        </div>
+      </section>
     </div>
   </ui-modal>
 </template>
 
 <script>
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useNoteSharing } from '@/composable/useNoteSharing';
 import { useClipboard } from '@/composable/clipboard';
+import { useAccountStore } from '@/store/account';
+import { useTranslations } from '@/composable/useTranslations';
+import { backend } from '@/lib/tauri-bridge';
 
 const INVITE_ROLE_OPTIONS = [
   { value: 'editor', text: 'Editor' },
@@ -210,10 +217,15 @@ export default {
   props: {
     modelValue: { type: Boolean, default: false },
     noteId: { type: String, required: true },
+    shareActions: { type: Array, default: () => [] },
   },
   emits: ['update:modelValue'],
   setup(props) {
     const sharing = useNoteSharing();
+    const accountStore = useAccountStore();
+    const { translations } = useTranslations();
+    const isAuthenticated = computed(() => accountStore.isAuthenticated);
+    const isMobile = backend.isMobileRuntime();
     const inviteInput = ref('');
     const inviteRole = ref('editor');
     const inviting = ref(false);
@@ -307,6 +319,9 @@ export default {
 
     return {
       sharing,
+      translations,
+      isAuthenticated,
+      isMobile,
       INVITE_ROLE_OPTIONS,
       LINK_ROLE_OPTIONS,
       EXPIRY_OPTIONS,
