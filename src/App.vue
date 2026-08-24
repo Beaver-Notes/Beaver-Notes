@@ -3,10 +3,6 @@
     v-show="showSafeAreaOverlay"
     class="safe-area-overlay safe-area-overlay--top"
   />
-  <div
-    v-show="showSafeAreaOverlay"
-    class="safe-area-overlay safe-area-overlay--bottom"
-  />
   <app-command-prompt />
   <div
     id="pill-dock"

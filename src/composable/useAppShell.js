@@ -125,7 +125,7 @@ export function useAppShell(onboardingCompleted = true) {
   );
   const showMobileNavbar = computed(
     () =>
-      showSidebar.value &&
+      route.name !== ONBOARDING_ROUTE_NAME &&
       route.name !== 'Note' &&
       (!isPhoneRuntime.value || !keyboardVisible.value)
   );
