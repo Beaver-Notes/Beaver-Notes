@@ -183,7 +183,7 @@
                           class="w-full border-2 mb-1 rounded-lg"
                         />
                         <p
-                          class="capitalize text-center text-sm text-neutral-800 dark:text-neutral-200"
+                          class="text-sm font-semibold text-neutral-600 dark:text-neutral-300"
                         >
                           {{ themeLabels[item.name] || item.label }}
                         </p>

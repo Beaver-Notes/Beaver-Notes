@@ -280,6 +280,7 @@
         </div>
 
         <!-- Seeding Progress -->
+        <div class="beaver-sync-ready">
         <div
           v-if="accountStore.seedStatus === 'seeding'"
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
@@ -349,6 +350,7 @@
             </p>
           </div>
         </div>
+        </div>
 
         <div
           class="border-t border-neutral-200 dark:border-neutral-700 flex flex-row items-center gap-3 px-4 py-3.5"
@@ -400,6 +402,7 @@
           </div>
         </div>
 
+        <div class="beaver-sync-ready">
         <div
           v-if="!accountStore.isPaidPlan"
           class="border-t border-neutral-200 dark:border-neutral-700 px-4 py-3.5"
@@ -418,6 +421,7 @@
               'Upgrade to Basic or higher to sync notes across devices through Beaver Sync. Your current folder sync keeps working in the meantime.'
             }}
           </p>
+        </div>
         </div>
       </div>
     </section>
@@ -554,7 +558,7 @@
       </div>
     </section>
 
-    <section class="space-y-2">
+    <section class="space-y-2 beaver-sync-ready">
       <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
         {{ translations.account?.server || 'Server' }}
       </p>

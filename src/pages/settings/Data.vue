@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-8 mb-14 w-full max-w-xl">
+    <div class="beaver-sync-ready">
     <section>
       <p class="mb-2">{{ translations.settings.syncPath || 'Sync folder' }}</p>
       <div
@@ -142,6 +143,7 @@
         </transition>
       </div>
     </section>
+    </div>
 
     <section>
       <p class="mb-2">Export</p>

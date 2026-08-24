@@ -17,7 +17,7 @@
             height="100"
             class="w-full border mb-1 rounded-lg"
           />
-          <p class="capitalize text-center text-sm">
+          <p class="text-sm font-semibold text-neutral-600 dark:text-neutral-300">
             {{ translations.appearance[item.name] || item.name }}
           </p>
         </button>
