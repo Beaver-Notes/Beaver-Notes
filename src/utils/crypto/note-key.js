@@ -56,7 +56,7 @@ export async function unwrapNoteKey(privateKeyHex, envelopeStr) {
  * Try each envelope with the local private key; return the first that unwraps
  * to a valid note key. Caches the result against `noteId`.
  */
-export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, log = console) {
+export async function recoverNoteKeyFromEnvelopes(envelopes, identity, noteId, _log = console) {
   for (const env of envelopes || []) {
     const wrappedKey = env?.wrappedKey ?? env;
     if (!wrappedKey) continue;

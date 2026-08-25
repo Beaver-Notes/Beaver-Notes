@@ -85,7 +85,6 @@ vi.mock('../state-vector.js', () => ({
 }));
 
 describe('CloudTransport', () => {
-  const defaultAccountState = () => ({ isAuth: true, plan: 'starter' });
   let transport;
 
   beforeEach(() => {

@@ -33,7 +33,7 @@ describe('cardPreview structural', () => {
   it('caps at 5/240', () => {
     // 100-char paragraphs truncate to 96 but hit 240-char budget after ~3 blocks
     // so total caps before block count — assert both limits hold
-    const content = { type:'doc', content: Array(10).fill(0).map((_,i)=>({type:'paragraph', content:[{type:'text', text:'x'.repeat(100)}]}))}
+    const content = { type:'doc', content: Array(10).fill(0).map(()=>({type:'paragraph', content:[{type:'text', text:'x'.repeat(100)}]}))}
     const p = buildCardPreview(content)
     expect(p.blocks.length).toBeLessThanOrEqual(5)
     const total = p.blocks.reduce((s,b)=> s + (b.text? b.text.length:0), 0)

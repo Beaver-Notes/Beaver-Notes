@@ -164,7 +164,7 @@ function onCustomizeSaved() {
   showCustomizeModal.value = false;
 }
 function onMenuCustomize() { showMenu.value = false; showCustomizeModal.value = true; }
-function onMenuArchive() { showMenu.value = false; props.folder.isArchived ? folderStore.unarchive(props.folder.id) : folderStore.archive(props.folder.id); }
+function onMenuArchive() { showMenu.value = false; if (props.folder.isArchived) folderStore.unarchive(props.folder.id); else folderStore.archive(props.folder.id); }
 function onMenuMove() { showMenu.value = false; showMoveModal.value = true; }
 function onMenuDelete() {
   showMenu.value = false;

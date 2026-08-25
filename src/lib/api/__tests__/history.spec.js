@@ -13,7 +13,7 @@ vi.mock('@/utils/sync/sync-repository', () => ({
 
 vi.mock('@/utils/sync/crypto', () => ({
   encryptJSON: vi.fn(async (payload) => {
-    const { update, ...meta } = payload;
+    const { update } = payload;
     return { v: 3, nonce: 'test-nonce', cipher: btoa(String.fromCharCode(...update)) };
   }),
   decryptJSON: vi.fn(async (raw) => {

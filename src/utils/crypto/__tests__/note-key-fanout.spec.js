@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   provisionNoteKey,
-  wrapNoteKeyForRecipient,
   unwrapNoteKey,
 } from '@/utils/crypto/note-key';
 import { generateIdentity } from '@/utils/crypto/identity';
