@@ -164,7 +164,7 @@
         :label="translations.appearance.clearFont || 'High contrast text'"
         description="Sharper text color, easier to read on OLED screens."
       >
-        <ui-switch id="appearance-clear-font" v-model="ClearFontChecked" @change="toggleClearFont" />
+        <ui-switch id="appearance-clear-font" v-model="ClearFontChecked" />
       </settings-row>
 
       <settings-row
@@ -296,10 +296,9 @@ export default {
       set: (value) => {
         void setSetting('selectedDarkText', value ? '#CCCCCC' : 'white');
         document.documentElement.style.setProperty(
-          'selected-dark-text',
+          '--selected-dark-text',
           value ? '#CCCCCC' : 'white'
         );
-        window.location.reload();
       },
     });
 

@@ -459,10 +459,11 @@ export function useSettingsData({
             appDirectory ? path.join(appDirectory, 'app-crypto') : '',
           ].filter(Boolean);
 
+          const { backend } = await import('@/lib/tauri-bridge');
           await Promise.allSettled([
               ...cleanupPaths.map((targetPath) => removePath(targetPath)),
-              storage?.clear?.('data'),
-              storage?.clear?.('settings'),
+              backend.invoke('storage:clear', { name: 'data' }),
+              backend.invoke('storage:clear', { name: 'settings' }),
               clearSecureBlob('encryptionPassphraseBlob'),
               clearAssetPassphrase(),
               setSyncPath(''),
@@ -471,6 +472,13 @@ export function useSettingsData({
           localStorage.clear();
           sessionStorage.clear();
 
+          // In dev, app.restart() makes `cargo tauri dev` exit and kills
+          // the beforeDevCommand vite helper. Use a window reload instead
+          // so vite stays alive and stores rehydrate from cleared DBs.
+          if (import.meta.env.DEV) {
+            window.location.reload();
+            return;
+          }
           await relaunchApp();
         } catch (error) {
           console.error('Error nuking app in debug mode:', error);

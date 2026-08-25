@@ -57,16 +57,22 @@ async function findReachableHost() {
 }
 
 let child = null;
+let shuttingDown = false;
 
 function shutdown(code = 0) {
+  shuttingDown = true;
   if (child?.pid) {
     child.kill('SIGTERM');
   }
   process.exit(code);
 }
 
-['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((signal) => {
+['SIGINT', 'SIGTERM'].forEach((signal) => {
   process.on(signal, () => shutdown(0));
+});
+// SIGHUP (terminal close / tab reload) must not kill vite — keep helper alive
+process.on('SIGHUP', () => {
+  console.log('[tauri-dev-server] ignoring SIGHUP, keeping vite alive');
 });
 
 const reachableHost = await findReachableHost();
@@ -80,21 +86,33 @@ if (reachableHost) {
   await new Promise(() => {});
 }
 
-child = spawn(viteBin, ['--config', 'vite.config.js'], {
-  cwd: rootDir,
-  stdio: 'inherit',
-  env: process.env,
-  shell: isWindows,
-});
+function startVite() {
+  child = spawn(viteBin, ['--config', 'vite.config.js'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env,
+    shell: isWindows,
+  });
 
-child.on('exit', (code, signal) => {
-  if (signal) {
-    process.exit(1);
-  }
-  process.exit(code ?? 0);
-});
+  child.on('exit', (code, signal) => {
+    if (shuttingDown) {
+      process.exit(code ?? 0);
+      return;
+    }
+    if (signal) {
+      console.warn(`[tauri-dev-server] vite exited on ${signal}, restarting in 1s…`);
+    } else {
+      console.warn(`[tauri-dev-server] vite exited with ${code}, restarting in 1s…`);
+    }
+    setTimeout(startVite, 1000);
+  });
 
-child.on('error', (error) => {
-  console.error(error);
-  process.exit(1);
-});
+  child.on('error', (error) => {
+    console.error(error);
+    if (shuttingDown) process.exit(1);
+    console.warn('[tauri-dev-server] vite error, restarting in 1s…');
+    setTimeout(startVite, 1000);
+  });
+}
+
+startVite();

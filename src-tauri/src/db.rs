@@ -130,8 +130,11 @@ pub(crate) fn db_delete(pool: &DbPool, key: &str) -> Result<(), AppError> {
 
 pub(crate) fn db_clear(pool: &DbPool) -> Result<(), AppError> {
     let conn = pool.get().map_err(|e| AppError::Other(e.to_string()))?;
+    // KV + Yjs tables (data.db and settings.db both have these; nuke must wipe all)
     conn.execute("DELETE FROM kv", [])
         .map_err(|e| AppError::Other(e.to_string()))?;
+    let _ = conn.execute("DELETE FROM note_content", []);
+    let _ = conn.execute("DELETE FROM yjs_snapshots", []);
     Ok(())
 }
 
