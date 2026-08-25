@@ -18,8 +18,8 @@ use y_octo::Doc;
 
 use crate::shared::*;
 
-fn kv_summary(pool: &crate::db::DbPool) -> Result<Value, AppError> {
-  let rows = crate::db::db_all(pool)?;
+fn kv_summary(pool: &crate::db::DbPool, enc_key: Option<[u8; 32]>) -> Result<Value, AppError> {
+  let rows = crate::db::db_all(pool, enc_key)?;
   let mut notes = 0usize;
   let mut folders = 0usize;
   let mut labels: Vec<String> = Vec::new();
@@ -211,6 +211,7 @@ pub(crate) fn debug_dump_state(
     .ok()
     .filter(|s| s.active)
     .and_then(|_| current_app_key(&state).ok().flatten());
+  let kv_key = kv_encryption_key(&state).ok().flatten();
 
   let mut settings_flags = BTreeMap::<String, Value>::new();
   for flag in [
@@ -220,13 +221,13 @@ pub(crate) fn debug_dump_state(
     "preview_backfill_done",
     "yjs_migrated",
   ] {
-    if let Ok(Some(raw)) = crate::db::db_get(&settings_pool, flag) {
+    if let Ok(Some(raw)) = crate::db::db_get(&settings_pool, flag, kv_key) {
       settings_flags.insert(flag.to_string(), json!(raw));
     }
   }
 
   Ok(json!({
-    "dataStore": kv_summary(&data_pool)?,
+    "dataStore": kv_summary(&data_pool, kv_key)?,
     "workspaceDoc": workspace_doc_summary(&data_pool, app_key)?,
     "yjs": yjs_table_summary(&data_pool)?,
     "settingsFlags": settings_flags,

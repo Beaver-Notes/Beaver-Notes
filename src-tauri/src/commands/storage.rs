@@ -139,7 +139,7 @@ fn load_store_root_inner(
     app_key: &Option<[u8; 32]>,
     key_id: &str,
 ) -> Result<Value, AppError> {
-    let flat = crate::db::db_all(pool)?;
+    let flat = crate::db::db_all(pool, *app_key)?;
 
     if name != DATA_STORE {
         return Ok(nested_store_value(flat));
@@ -204,7 +204,7 @@ fn load_store_root_inner(
                 );
             }
         }
-        crate::db::db_replace_all(pool, encrypted)?;
+        crate::db::db_replace_all(pool, encrypted, *app_key)?;
     }
 
     Ok(nested_store_value(plain))
@@ -289,7 +289,7 @@ pub(crate) fn reencrypt_legacy_store_rows(
     key_id: String,
 ) -> Result<usize, AppError> {
     let mut count = 0;
-    for (row_key, value) in crate::db::db_all(&pool)? {
+    for (row_key, value) in crate::db::db_all(&pool, Some(key))? {
         if !row_key.starts_with("notes.") && !row_key.starts_with("folders.") {
             continue;
         }
@@ -297,7 +297,7 @@ pub(crate) fn reencrypt_legacy_store_rows(
             continue;
         }
         let encrypted = encrypt_store_row_with_key(&row_key, value, &key, &key_id)?;
-        crate::db::db_set(&pool, &row_key, &serde_json::to_string(&encrypted)?)?;
+        crate::db::db_set(&pool, &row_key, &serde_json::to_string(&encrypted)?, Some(key))?;
         count += 1;
     }
     Ok(count)
@@ -317,7 +317,7 @@ fn storage_get_value(
     }
 
     if let Some(flat_key) = flat_db_key(&segments) {
-        let raw = crate::db::db_get(&pool, &flat_key)?;
+        let raw = crate::db::db_get(&pool, &flat_key, app_key)?;
         let value = raw
             .and_then(|r| serde_json::from_str::<Value>(&r).ok())
             .map(|v| {
@@ -359,7 +359,7 @@ fn storage_set_value(
             value
         };
         let serialized = serde_json::to_string(&payload)?;
-        crate::db::db_set(&pool, &flat_key, &serialized)?;
+        crate::db::db_set(&pool, &flat_key, &serialized, app_key)?;
         return Ok(());
     }
 
@@ -380,7 +380,7 @@ fn storage_set_value(
         }
         flattened = encrypted;
     }
-    crate::db::db_replace_all(&pool, flattened)?;
+    crate::db::db_replace_all(&pool, flattened, app_key)?;
     Ok(())
 }
 
@@ -418,7 +418,7 @@ fn storage_delete_value(
         }
         flattened = encrypted;
     }
-    crate::db::db_replace_all(&pool, flattened)?;
+    crate::db::db_replace_all(&pool, flattened, app_key)?;
     Ok(())
 }
 
@@ -451,7 +451,7 @@ fn storage_replace_value(
     key_id: String,
 ) -> Result<(), AppError> {
     let incoming = flatten_store_value(data);
-    let existing = crate::db::db_all(&pool)?;
+    let existing = crate::db::db_all(&pool, app_key)?;
 
     let mut upserts = Map::new();
     let mut delete_keys: Vec<String> = Vec::new();
@@ -497,7 +497,7 @@ fn storage_replace_value(
     }
 
     if !upserts.is_empty() || !delete_keys.is_empty() {
-        crate::db::db_apply_diff(&pool, &upserts, &delete_keys)?;
+        crate::db::db_apply_diff(&pool, &upserts, &delete_keys, app_key)?;
     }
     Ok(())
 }
@@ -779,7 +779,7 @@ mod tests {
         plain.insert("labels".to_string(), json!(["alpha"]));
         plain.insert("labelColors".to_string(), json!({"alpha": "#112233"}));
 
-        crate::db::db_replace_all(&pool, plain).expect("seed plaintext");
+        crate::db::db_replace_all(&pool, plain, None).expect("seed plaintext");
 
         let app_key = current_app_key(&state).expect("app key");
         let key_id = state
@@ -802,7 +802,7 @@ mod tests {
             Some("Secret title")
         );
 
-        let raw = crate::db::db_all(&pool).expect("raw store");
+        let raw = crate::db::db_all(&pool, app_key).expect("raw store");
         let encrypted_note = raw
             .get("notes.note-1")
             .and_then(Value::as_object)
@@ -852,7 +852,7 @@ mod tests {
             "folders.f1".to_string(),
             json!({"id": "f1", "name": "Private"}),
         );
-        crate::db::db_replace_all(&pool, plain).expect("seed");
+        crate::db::db_replace_all(&pool, plain, None).expect("seed");
 
         let key = [9u8; 32];
         let key_id = "kid3";
@@ -861,7 +861,7 @@ mod tests {
             .expect("reencrypt");
         assert_eq!(count, 2);
 
-        let raw = crate::db::db_all(&pool).expect("raw");
+        let raw = crate::db::db_all(&pool, Some(key)).expect("raw");
         for row_key in ["notes.note-1", "folders.f1"] {
             let row = raw.get(row_key).expect("row");
             assert_eq!(

@@ -758,6 +758,20 @@ pub(crate) fn current_app_key(state: &AppState) -> Result<Option<[u8; 32]>, AppE
         .app_data_key)
 }
 
+/// Resolve the key for kv-layer at-rest encryption. `Ok(None)` only when
+/// encryption is not configured (pre-onboarding) — plaintext is the correct
+/// mode then. When encryption is configured but the session is still locked,
+/// returns `EncryptionLocked` so callers fail closed instead of writing
+/// plaintext among encrypted rows or reading ciphertext as garbage.
+pub(crate) fn kv_encryption_key(state: &AppState) -> Result<Option<[u8; 32]>, AppError> {
+    let s = state.crypto.session.read().map_err(AppError::from)?;
+    match (s.active, s.app_data_key) {
+        (false, _) => Ok(None),
+        (true, Some(key)) => Ok(Some(key)),
+        (true, None) => Err(AppError::EncryptionLocked),
+    }
+}
+
 /// Generate a random hex key ID (16 hex chars = 8 bytes).
 pub(crate) fn generate_key_id() -> String {
     let mut buf = [0u8; 8];

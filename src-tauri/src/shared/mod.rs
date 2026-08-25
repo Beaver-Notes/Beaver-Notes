@@ -787,7 +787,8 @@ pub(crate) fn read_active_workspace_from_json(
 
 pub(crate) fn get_settings_value(app: &AppHandle, state: &AppState, key: &str) -> Option<Value> {
     let pool = settings_pool(app, state).ok()?;
-    let raw = crate::db::db_get(&pool, key).ok()??;
+    let enc_key = kv_encryption_key(state).ok().flatten();
+    let raw = crate::db::db_get(&pool, key, enc_key).ok()??;
     serde_json::from_str(&raw).ok()
 }
 

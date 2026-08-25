@@ -25,6 +25,7 @@ pub(crate) async fn search_extract_index_data(
 ) -> Result<Vec<SearchEntry>, AppError> {
     let pool = data_pool(&app, &state)?;
     let app_key = current_app_key(state.inner())?;
+    let kv_key = kv_encryption_key(state.inner())?;
     let key_id = state
         .inner()
         .crypto
@@ -35,7 +36,7 @@ pub(crate) async fn search_extract_index_data(
         .clone();
 
     tokio::task::spawn_blocking(move || {
-        let flat = crate::db::db_all(&pool)?;
+        let flat = crate::db::db_all(&pool, kv_key)?;
         let mut entries = Vec::new();
 
         for (row_key, raw_value) in &flat {

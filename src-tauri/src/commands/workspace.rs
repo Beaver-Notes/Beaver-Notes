@@ -59,11 +59,12 @@ pub(crate) fn workspace_create(
     let settings_path = ws_dir.join("settings.db");
     let new_settings_pool = crate::db::open_pool(&settings_path)?;
 
-    // Optionally copy all settings from the current workspace
+    // Locked vault → rows unreadable; skip silently like the other best-efforts.
     if copy_settings.unwrap_or(false) {
         if let Ok(current_pool) = settings_pool(&app, &state) {
-            if let Ok(all_settings) = crate::db::db_all(&current_pool) {
-                let _ = crate::db::db_replace_all(&new_settings_pool, all_settings);
+            let kv_key = kv_encryption_key(&state).ok().flatten();
+            if let Ok(all_settings) = crate::db::db_all(&current_pool, kv_key) {
+                let _ = crate::db::db_replace_all(&new_settings_pool, all_settings, kv_key);
             }
         }
     }

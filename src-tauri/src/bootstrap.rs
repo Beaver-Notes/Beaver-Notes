@@ -101,7 +101,8 @@ pub(crate) fn focus_main_window(app: &AppHandle) {
 #[cfg(desktop)]
 fn load_window_state(app: &AppHandle, state: &AppState) -> Option<WindowStateSnapshot> {
     let pool = settings_pool(app, state).ok()?;
-    let raw = crate::db::db_get(&pool, WINDOW_STATE_KEY).ok()??;
+    let enc_key = kv_encryption_key(state).ok().flatten();
+    let raw = crate::db::db_get(&pool, WINDOW_STATE_KEY, enc_key).ok()??;
     serde_json::from_str(&raw).ok()
 }
 
@@ -122,8 +123,9 @@ fn save_window_state(app: &AppHandle, state: &AppState) -> Result<(), AppError> 
     };
 
     let pool = settings_pool(app, state)?;
+    let enc_key = kv_encryption_key(state).ok().flatten();
     let serialized = serde_json::to_string(&json!(snapshot))?;
-    crate::db::db_set(&pool, WINDOW_STATE_KEY, &serialized)?;
+    crate::db::db_set(&pool, WINDOW_STATE_KEY, &serialized, enc_key)?;
     Ok(())
 }
 
@@ -215,7 +217,8 @@ fn import_json_file_into_pool(
     );
     for (key, value) in map {
         if !crate::db::db_has(pool, key)? {
-            crate::db::db_set(pool, key, &serde_json::to_string(value)?)?;
+            // Legacy import runs pre-vault: source data is plaintext anyway.
+            crate::db::db_set(pool, key, &serde_json::to_string(value)?, None)?;
         }
     }
 
@@ -223,7 +226,7 @@ fn import_json_file_into_pool(
     // Legacy notes/folders collections are no longer written as KV rows — the
     // frontend converts them straight to Yjs — so only top-level scalar keys
     // (labels, labelColors, deletedIds, …) appear here.
-    match crate::db::db_all(pool) {
+    match crate::db::db_all(pool, None) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
             let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
@@ -418,7 +421,7 @@ fn run_migration_core(
     // Final KV summary before the marker is written. The data store is
     // intentionally empty of legacy note/folder rows — the frontend converts
     // them to Yjs instead of the app reading them back from KV.
-    match crate::db::db_all(&data_pool) {
+    match crate::db::db_all(&data_pool, None) {
         Ok(rows) => {
             let notes = rows.keys().filter(|k| k.starts_with("notes.")).count();
             let folders = rows.keys().filter(|k| k.starts_with("folders.")).count();
@@ -940,7 +943,7 @@ mod tests {
 
             let imported = import_json_file_into_pool(&fixture, &pool).expect("import");
             assert!(imported);
-            let rows = crate::db::db_all(&pool).expect("rows");
+            let rows = crate::db::db_all(&pool, None).expect("rows");
             assert!(rows.keys().all(|k| !k.starts_with("notes.") && !k.starts_with("folders.")));
             assert!(rows.contains_key("labels"));
             let _ = fs::remove_dir_all(&root);
