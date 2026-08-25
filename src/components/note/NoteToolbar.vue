@@ -169,7 +169,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -211,7 +216,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -293,7 +303,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -369,7 +384,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -399,7 +419,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -428,7 +453,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -457,7 +487,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -486,7 +521,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -528,7 +568,12 @@
             @touchstart.passive="onSwipeStart"
             @touchend="onSwipeEnd"
           >
-            <button v-keep-focus class="tb-back" aria-label="Back" @click="closeSub()">
+            <button
+              v-keep-focus
+              class="tb-back"
+              aria-label="Back"
+              @click="closeSub()"
+            >
               <v-remixicon name="riArrowLeftLine" />
             </button>
             <span class="tb-divider" />
@@ -583,12 +628,12 @@
 
         <!-- Left fade edge — hidden when fully scrolled left -->
         <div
-          class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-800 to-transparent rounded-l-[18px] transition-opacity duration-150"
+          class="pointer-events-none absolute left-0 inset-y-0 w-8 bg-gradient-to-r from-white dark:from-neutral-900 to-transparent rounded-2xl transition-opacity duration-150"
           :class="scrolledLeft ? 'opacity-0' : 'opacity-100'"
         />
         <!-- Right fade edge — hidden when fully scrolled right -->
         <div
-          class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-800 to-transparent rounded-r-[18px] transition-opacity duration-150"
+          class="pointer-events-none absolute right-0 inset-y-0 w-8 bg-gradient-to-l from-white dark:from-neutral-900 to-transparent rounded-2xl transition-opacity duration-150"
           :class="scrolledRight ? 'opacity-0' : 'opacity-100'"
         />
       </div>
@@ -608,7 +653,15 @@
 </template>
 
 <script>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import {
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  shallowRef,
+} from 'vue';
 import ToolbarCustomizer from './ToolbarCustomizer.vue';
 import MobileBlockPicker from './MobileBlockPicker.vue';
 import ToolbarFormatting from './toolbar/ToolbarFormatting.vue';
@@ -623,7 +676,13 @@ import copyImage from '@/utils/assets/storage.js';
 import { saveFile } from '@/utils/assets/storage.js';
 
 export default {
-  components: { ToolbarCustomizer, MobileBlockPicker, ToolbarFormatting, ToolbarInsert, ToolbarOverflow },
+  components: {
+    ToolbarCustomizer,
+    MobileBlockPicker,
+    ToolbarFormatting,
+    ToolbarInsert,
+    ToolbarOverflow,
+  },
   props: {
     editor: { type: Object, default: () => ({}) },
     id: { type: String, default: '' },
@@ -638,7 +697,6 @@ export default {
 
     const showMobileBlockPicker = ref(false);
     const isMobile = backend.isMobileRuntime();
-
     const toolbarInsertRef = ref(null);
 
     // ── Link input state ────────────────────────────────────────────
@@ -647,31 +705,43 @@ export default {
     const linkPopoverOpen = ref(false);
     const noteStore = useNoteStore();
 
+    // Only recompute the candidate pool when the notes list itself changes,
+    // not on every keystroke — filtering below is the cheap part.
+    const linkCandidates = computed(() => {
+      const notes = noteStore.notes;
+      const currentId = route.params.id;
+      const pool = notes.length > 200 ? notes.slice(0, 200) : notes;
+      return currentId ? pool.filter((n) => n.id !== currentId) : pool;
+    });
+
     const linkSuggestions = computed(() => {
-      if (!linkInputValue.value.startsWith('@')) return [];
-      const query = linkInputValue.value.substring(1).toLowerCase();
+      const raw = linkInputValue.value;
+      if (raw.charCodeAt(0) !== 64 /* '@' */) return [];
+      const query = raw.slice(1).trim().toLowerCase();
       if (!query) return [];
-      const candidates = noteStore.notes.length > 200
-        ? noteStore.notes.slice(0, 200)
-        : noteStore.notes;
-      return candidates
-        .filter(
-          (n) =>
-            n.id !== route.params.id &&
-            (n.title.toLowerCase().includes(query) ||
-              n.id.toLowerCase().includes(query))
-        )
-        .slice(0, 6);
+      const out = [];
+      const pool = linkCandidates.value;
+      for (let i = 0; i < pool.length && out.length < 6; i++) {
+        const n = pool[i];
+        if (
+          n.title.toLowerCase().includes(query) ||
+          n.id.toLowerCase().includes(query)
+        ) {
+          out.push(n);
+        }
+      }
+      return out;
     });
 
     function resolveNoteFromQuery(value) {
-      const query = value.substring(1).trim();
+      const query = value.slice(1).trim();
       if (!query) return null;
-      return (
-        noteStore.notes.find(
-          (n) => n.title.toLowerCase() === query.toLowerCase()
-        ) || noteStore.notes.find((n) => n.id === query)
-      );
+      const lower = query.toLowerCase();
+      const notes = noteStore.notes;
+      for (let i = 0; i < notes.length; i++) {
+        if (notes[i].title.toLowerCase() === lower) return notes[i];
+      }
+      return notes.find((n) => n.id === query) || null;
     }
 
     function saveLinkInput() {
@@ -680,11 +750,9 @@ export default {
 
       const chain = props.editor.chain().focus();
 
-      if (value.startsWith('@')) {
+      if (value.charCodeAt(0) === 64) {
         const note = resolveNoteFromQuery(value);
-        if (note) {
-          chain.insertLinkNote(note.id).run();
-        }
+        if (note) chain.insertLinkNote(note.id).run();
       } else {
         chain.setLink({ href: value }).run();
       }
@@ -707,20 +775,16 @@ export default {
     }
 
     function onLinkPopoverShow() {
-      // Reset input state when popover opens
       linkInputValue.value = '';
       selectedLinkIndex.value = 0;
       nextTick(() => toolbarInsertRef.value?.linkInputRef?.focus());
     }
 
     function onLinkInputKeydown(event) {
-      if (
-        !linkInputValue.value.startsWith('@') ||
-        linkSuggestions.value.length === 0
-      )
-        return;
-
-      const len = linkSuggestions.value.length;
+      if (linkInputValue.value.charCodeAt(0) !== 64) return;
+      const suggestions = linkSuggestions.value;
+      const len = suggestions.length;
+      if (len === 0) return;
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
@@ -730,13 +794,13 @@ export default {
         selectedLinkIndex.value = (selectedLinkIndex.value + 1) % len;
       } else if (event.key === 'Enter') {
         event.preventDefault();
-        const note = linkSuggestions.value[selectedLinkIndex.value];
+        const note = suggestions[selectedLinkIndex.value];
         if (note) selectLinkNote(note.id);
       }
     }
 
     watch(linkInputValue, (val) => {
-      if (val.startsWith('@')) selectedLinkIndex.value = 0;
+      if (val.charCodeAt(0) === 64) selectedLinkIndex.value = 0;
     });
 
     function getCursorPos() {
@@ -744,12 +808,13 @@ export default {
     }
 
     function insertAtPos(pos, nodeType, attrs) {
-      props.editor.commands.setTextSelection(pos);
-      props.editor.commands.focus();
-      const node = props.editor.state.schema.nodes[nodeType]?.create(attrs);
+      const editor = props.editor;
+      editor.commands.setTextSelection(pos);
+      editor.commands.focus();
+      const node = editor.state.schema.nodes[nodeType]?.create(attrs);
       if (!node) return;
-      const tr = props.editor.state.tr.replaceSelectionWith(node);
-      if (tr) props.editor.view.dispatch(tr);
+      const tr = editor.state.tr.replaceSelectionWith(node);
+      if (tr) editor.view.dispatch(tr);
     }
 
     async function triggerFileInput() {
@@ -761,7 +826,7 @@ export default {
         if (canceled || filePaths.length === 0) return;
         for (const filePath of filePaths) {
           const { fileName, relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'fileEmbed', { src: `${relativePath}`, fileName });
+          insertAtPos(pos, 'fileEmbed', { src: relativePath, fileName });
         }
       } catch (error) {
         console.error('triggerFileInput failed:', error);
@@ -778,14 +843,22 @@ export default {
             : [
                 {
                   name: 'Audio',
-                  extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac', 'wma'],
+                  extensions: [
+                    'mp3',
+                    'wav',
+                    'ogg',
+                    'm4a',
+                    'flac',
+                    'aac',
+                    'wma',
+                  ],
                 },
               ],
         });
         if (canceled || filePaths.length === 0) return;
         for (const filePath of filePaths) {
           const { fileName, relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'Audio', { src: `${relativePath}`, fileName });
+          insertAtPos(pos, 'Audio', { src: relativePath, fileName });
         }
       } catch (error) {
         console.error('triggerAudioInput failed:', error);
@@ -809,7 +882,7 @@ export default {
         if (canceled || filePaths.length === 0) return;
         for (const filePath of filePaths) {
           const { relativePath } = await saveFile(filePath, props.id);
-          insertAtPos(pos, 'Video', { src: `${relativePath}` });
+          insertAtPos(pos, 'Video', { src: relativePath });
         }
       } catch (error) {
         console.error('triggerVideoInput failed:', error);
@@ -826,8 +899,11 @@ export default {
         });
         if (canceled || filePaths.length === 0) return;
         const { fileName } = await copyImage(filePaths[0], route.params.id);
-        const imgPath = `assets://${route.params.id}/${fileName}`;
-        props.editor.chain().focus().setImage({ src: imgPath }).run();
+        props.editor
+          .chain()
+          .focus()
+          .setImage({ src: `assets://${route.params.id}/${fileName}` })
+          .run();
       } catch (error) {
         console.error('triggerImageInput failed:', error);
       }
@@ -835,13 +911,13 @@ export default {
 
     // ── Sub-panel morph ───────────────────────────────────────────
     const activePanel = ref('main');
-    const prevPanel = ref(null);
+    const prevPanel = shallowRef(null);
+    let exitTimer = null;
 
     function openSub(name) {
       if (activePanel.value === name) return;
       prevPanel.value = activePanel.value;
       activePanel.value = name;
-      // scroll track back to start whenever a sub-panel opens
       nextTick(() => {
         if (container.value) container.value.scrollLeft = 0;
       });
@@ -850,7 +926,8 @@ export default {
     function closeSub() {
       prevPanel.value = activePanel.value;
       activePanel.value = 'main';
-      setTimeout(() => {
+      clearTimeout(exitTimer);
+      exitTimer = setTimeout(() => {
         prevPanel.value = null;
       }, 220);
       nextTick(() => {
@@ -864,25 +941,26 @@ export default {
       return 'panel-hidden';
     }
 
+    // ── Swipe-to-dismiss (edge swipe only) ─────────────────────────
     let swipeX = 0;
     let swipeY = 0;
     let swipeEdge = false;
+
     function onSwipeStart(e) {
       const t = e.touches ? e.touches[0] : e;
       if (!t) return;
       swipeX = t.clientX;
       swipeY = t.clientY;
-      // only edge swipe (first 32px) should dismiss — avoids stealing horizontal scroll
       const target = e.currentTarget;
-      if (target && target.getBoundingClientRect) {
-        swipeEdge = swipeX - target.getBoundingClientRect().left < 32;
-      } else {
-        swipeEdge = true;
-      }
+      swipeEdge = target?.getBoundingClientRect
+        ? swipeX - target.getBoundingClientRect().left < 32
+        : true;
     }
+
     function onSwipeEnd(e) {
+      if (activePanel.value === 'main' || !swipeEdge) return;
       const t = (e.changedTouches && e.changedTouches[0]) || e;
-      if (!t || activePanel.value === 'main' || !swipeEdge) return;
+      if (!t) return;
       const dx = t.clientX - swipeX;
       const dy = t.clientY - swipeY;
       if (container.value) container.value.scrollLeft = 0;
@@ -890,57 +968,79 @@ export default {
       swipeEdge = false;
     }
 
-    // ── Scroll-edge fade indicators ───────────────────────────────
+    // ── Scroll-edge fade indicators ────────────────────────────────
+    // rAF-throttled + ResizeObserver-driven so we never recompute more
+    // than once per frame, and we catch width changes (sub-panel swaps,
+    // overflow items appearing) without manually calling this everywhere.
     const scrolledLeft = ref(true);
     const scrolledRight = ref(false);
 
+    let rafId = null;
     function updateScrollEdges() {
       const el = container.value;
       if (!el) return;
-      scrolledLeft.value = el.scrollLeft <= 2;
-      scrolledRight.value =
-        el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+      const left = el.scrollLeft <= 2;
+      const right = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+      // avoid triggering reactivity/render when nothing actually changed
+      if (scrolledLeft.value !== left) scrolledLeft.value = left;
+      if (scrolledRight.value !== right) scrolledRight.value = right;
     }
+
+    function scheduleUpdateScrollEdges() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updateScrollEdges();
+      });
+    }
+
+    let resizeObserver = null;
 
     onMounted(() => {
       nextTick(() => {
         const el = container.value;
         if (!el) return;
-        el.addEventListener('scroll', updateScrollEdges, { passive: true });
+        el.addEventListener('scroll', scheduleUpdateScrollEdges, {
+          passive: true,
+        });
+        resizeObserver = new ResizeObserver(scheduleUpdateScrollEdges);
+        resizeObserver.observe(el);
         updateScrollEdges();
       });
     });
 
     onUnmounted(() => {
-      container.value?.removeEventListener('scroll', updateScrollEdges);
+      container.value?.removeEventListener('scroll', scheduleUpdateScrollEdges);
+      resizeObserver?.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      clearTimeout(exitTimer);
     });
 
-    // ── Class helpers (keeps template tidy) ───────────────────────
+    // ── Class helpers (static parts hoisted out of the function body) ──
+    const TB_BTN_BASE =
+      'shrink-0 w-11 h-11 rounded-xl border-0 bg-transparent cursor-pointer ' +
+      'flex items-center justify-center ' +
+      'text-neutral-500 dark:text-neutral-400 ' +
+      'hover:bg-black/[0.06] dark:hover:bg-white/[0.08] ' +
+      'hover:text-neutral-800 dark:hover:text-white ' +
+      'active:scale-[0.88] active:bg-black/[0.08] dark:active:bg-white/[0.10] ' +
+      'transition-[transform,background-color] duration-150 select-none touch-manipulation';
+
+    const TB_CHIP_BASE =
+      'shrink-0 h-[38px] px-3 rounded-xl border-0 bg-transparent cursor-pointer ' +
+      'text-[13px] font-medium flex items-center ' +
+      'text-neutral-500 dark:text-neutral-400 ' +
+      'hover:bg-black/[0.06] dark:hover:bg-white/[0.08] ' +
+      'hover:text-neutral-800 dark:hover:text-white ' +
+      'active:scale-[0.93] active:bg-black/[0.08] ' +
+      'transition-[transform,background-color] duration-150 select-none touch-manipulation';
+
     function tbBtn(active = false) {
-      return [
-        // 44 px tap target per HIG / Material guidelines
-        'shrink-0 w-11 h-11 rounded-xl border-0 bg-transparent cursor-pointer',
-        'flex items-center justify-center',
-        'text-neutral-500 dark:text-neutral-400',
-        'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
-        'hover:text-neutral-800 dark:hover:text-white',
-        'active:scale-[0.88] active:bg-black/[0.08] dark:active:bg-white/[0.10]',
-        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
-        active ? 'is-active' : '',
-      ];
+      return active ? TB_BTN_BASE + ' is-active' : TB_BTN_BASE;
     }
 
     function tbChip(active = false) {
-      return [
-        'shrink-0 h-[38px] px-3 rounded-xl border-0 bg-transparent cursor-pointer',
-        'text-[13px] font-medium flex items-center',
-        'text-neutral-500 dark:text-neutral-400',
-        'hover:bg-black/[0.06] dark:hover:bg-white/[0.08]',
-        'hover:text-neutral-800 dark:hover:text-white',
-        'active:scale-[0.93] active:bg-black/[0.08]',
-        'transition-[transform,background-color] duration-150 select-none touch-manipulation',
-        active ? 'is-active' : '',
-      ];
+      return active ? TB_CHIP_BASE + ' is-active' : TB_CHIP_BASE;
     }
 
     return {
@@ -993,7 +1093,8 @@ export default {
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
-  transition: opacity 200ms var(--ease-standard),
+  transition:
+    opacity 200ms var(--ease-standard),
     transform 200ms var(--ease-standard);
   will-change: opacity, transform;
   -webkit-overflow-scrolling: touch;
@@ -1013,7 +1114,8 @@ export default {
 .panel-exit {
   @apply absolute inset-0 opacity-0 pointer-events-none;
   transform: translateX(-16px);
-  transition: opacity 160ms var(--ease-standard),
+  transition:
+    opacity 160ms var(--ease-standard),
     transform 160ms var(--ease-standard);
 }
 

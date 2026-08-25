@@ -171,9 +171,9 @@ describe('useSettingsData.importData', () => {
       expect(result).toBe(true);
       expect(verifyPassphraseMock).toHaveBeenCalledWith('workspace-passphrase');
       expect(storage.set).toHaveBeenCalledWith('notes', EXPORT_OBJECT.notes);
-      expect(localStorage.getItem('lockStatus')).toBe(
-        JSON.stringify(EXPORT_OBJECT.lockStatus)
-      );
+      // Lock state lives in Yjs per-note isLocked — no localStorage mirror
+      expect(localStorage.getItem('lockStatus')).toBeNull();
+      expect(localStorage.getItem('isLocked')).toBeNull();
     });
 
     it('does not merge when the workspace passphrase is wrong and shows a distinct error', async () => {

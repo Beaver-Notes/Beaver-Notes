@@ -267,7 +267,7 @@ export async function ensureMetaRoomKey(wsId) {
 
 let observerTimer = null;
 let pendingChangedNoteIds = new Set();
-let metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+let metaFlags = { folders: false, labels: false, labelColors: false };
 export function observeWorkspace(callback, debounceMs = 150) {
   const doc = getWorkspaceDoc();
   if (observerAttached) return;
@@ -289,15 +289,6 @@ export function observeWorkspace(callback, debounceMs = 150) {
     }
     schedule();
   });
-  doc.getMap('deletedFolderIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    metaFlags.deleted = true;
-    schedule();
-  });
-  doc.getMap('deletedNoteIds').observeDeep((_events, transaction) => {
-    if (transaction?.origin === 'seed') return;
-    schedule();
-  });
   doc.getArray('labels').observeDeep((_events, transaction) => {
     if (transaction?.origin === 'seed') return;
     metaFlags.labels = true;
@@ -317,7 +308,7 @@ export function observeWorkspace(callback, debounceMs = 150) {
       const changed = pendingChangedNoteIds;
       pendingChangedNoteIds = new Set();
       const flags = metaFlags;
-      metaFlags = { folders: false, labels: false, labelColors: false, deleted: false };
+      metaFlags = { folders: false, labels: false, labelColors: false };
       callback(changed, flags);
     }, debounceMs);
   }
@@ -388,10 +379,6 @@ function syncTombstoneMap(mapName, desired) {
   });
 }
 
-export function syncDeletedFolderIds(deletedIds) {
-  syncTombstoneMap('deletedFolderIds', deletedIds || {});
-}
-
 export function syncLabel(name) {
   if (typeof name !== 'string' || !name) return;
   const arr = getWorkspaceDoc().getArray('labels');
@@ -453,10 +440,6 @@ export function removeNoteMeta(id) {
   transactWorkspace(() => {
     notesMap.delete(id);
   });
-}
-
-export function syncDeletedNoteIds(deletedIds) {
-  syncTombstoneMap('deletedNoteIds', deletedIds || {});
 }
 
 export function syncDeletedAssets(deletedAssets) {

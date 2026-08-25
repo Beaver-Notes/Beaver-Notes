@@ -42,10 +42,7 @@ export { setSkipUndo } from './note/index';
 export const useNoteStore = defineStore('note', {
   state: (): NoteState => ({
     data: {},
-    lockStatus: {},
-    isLocked: {},
     syncInProgress: false,
-    deletedIds: {},
   }),
 
   getters: {

@@ -221,9 +221,7 @@ export default {
     const folders = computed(() => {
       const isArchiveView = route.query.archived === 'true';
 
-      let rootFolders = folderStore.rootFolders.filter(
-        (f) => !folderStore.deletedIds[f.id]
-      );
+      let rootFolders = [...folderStore.rootFolders];
 
       // Filter by archive status:
       // In archive view, show only archived folders

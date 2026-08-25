@@ -285,7 +285,7 @@ export default {
 
       let childFolders = folderStore.folders.filter(
         (f) =>
-          f.parentId === currentFolderId.value && !folderStore.deletedIds[f.id],
+          f.parentId === currentFolderId.value,
       );
 
       // Filter by archive status:
@@ -433,7 +433,7 @@ export default {
       if (!currentFolderId.value) return [];
       return folderStore
         .getByParent(currentFolderId.value)
-        .filter((f) => f?.id && !folderStore.deletedIds[f.id])
+        .filter((f) => f?.id)
         .sort((a, b) => a.name.localeCompare(b.name));
     });
 

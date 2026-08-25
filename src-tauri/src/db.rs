@@ -13,7 +13,7 @@ pub(crate) type DbPool = Pool<SqliteConnectionManager>;
 
 /// Schema version — increment when tables/indexes change.
 /// Must stay in sync with `SCHEMA_VERSION` in the migration function below.
-const SCHEMA_VERSION: i64 = 1;
+pub(crate) const SCHEMA_VERSION: i64 = 1;
 
 /// DDL for every schema version. Each entry runs all statements from version N
 /// to N+1. Add new migrations here and bump `SCHEMA_VERSION` above.

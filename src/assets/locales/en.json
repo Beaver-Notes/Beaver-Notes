@@ -323,6 +323,7 @@
   "inputPassword": "Input password",
   "installNow": "Install Now",
   "invalidData": "Invalid data",
+  "importReplaceWarning": "Importing this backup will REPLACE all notes, folders, labels and settings on this device. This cannot be undone. Content stays encrypted at rest — after importing you may be prompted for the vault passphrase that was active when the backup was created.",
   "invalidPassword": "Invalid password",
   "later": "Later",
   "markdownArchive": "Markdown Archive",

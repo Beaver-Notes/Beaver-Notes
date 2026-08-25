@@ -32,6 +32,9 @@ pub fn generate_bindings() {
                 specta::_fn_datatype!(crate::commands::app::helper_get_path)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::helper_is_dark_theme)(&mut types),
                 specta::_fn_datatype!(crate::commands::app::show_edit_context_menu)(&mut types),
+                // ── Backup ──────────────────────────────────────────────────────
+                specta::_fn_datatype!(crate::commands::backup::backup_export)(&mut types),
+                specta::_fn_datatype!(crate::commands::backup::backup_import)(&mut types),
                 // ── External files ───────────────────────────────────────────────
                 specta::_fn_datatype!(crate::commands::external::open_file_external)(&mut types),
                 // ── Filesystem ───────────────────────────────────────────────────

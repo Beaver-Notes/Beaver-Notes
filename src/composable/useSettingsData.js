@@ -5,13 +5,13 @@ import { setSyncPath, getSyncPath } from '@/utils/sync/path.js';
 
 import { openDialog, showMessage } from '@/lib/native/dialog';
 import { getAppDirectory, relaunchApp, setSpellcheck } from '@/lib/native/app';
+import { exportBackup, importBackup } from '@/lib/native/backup';
+import { errorMessage } from '@/lib/tauri/errors';
 import { path } from '@/lib/tauri-bridge';
 import {
   copyPath,
-  ensureDir,
   readJson,
   removePath,
-  writeJson,
 } from '@/lib/native/fs';
 import { useAppStore } from '@/store/app';
 import { useI18nStore } from '@/store/i18n';
@@ -169,28 +169,22 @@ export function useSettingsData({
 
   async function exportData() {
     try {
-      const appDirectory = await getEffectiveAppDirectory();
       const { canceled, filePaths } = await openDialog({
         title: translations.value.settings.exportData,
         properties: ['openDirectory'],
         useScopedStorage: true,
       });
 
-      if (canceled) return;
-
-      let data = await storage.store();
-      data.lockedNotes = JSON.parse(localStorage.getItem('lockedNotes'));
+      if (canceled || !filePaths?.length) return;
 
       const { default: dayjs } = await import('@/lib/dayjs');
       const folderName = dayjs().format('[Beaver Notes] YYYY-MM-DD');
       const folderPath = path.join(filePaths[0], folderName);
 
-      await ensureDir(folderPath);
-      await writeJson(path.join(folderPath, 'data.json'), { data });
-      await copyPath(
-        path.join(appDirectory, 'assets'),
-        path.join(folderPath, 'assets')
-      );
+      // Full-state archive: clean copies of data.db + settings.db + assets
+      // (see src-tauri/src/commands/backup.rs). Content lives in Yjs docs
+      // inside the DB, so this captures everything.
+      await exportBackup(folderPath);
 
       if (!folderPath.includes('gvfs')) {
         showDialogAlert(
@@ -199,16 +193,33 @@ export function useSettingsData({
       }
     } catch (error) {
       console.error(error);
+      showAlert(errorMessage(error));
     }
   }
 
   async function mergeImportedData(data) {
     try {
+      // Legacy backups stored lock state in separate top-level maps
+      // (lockStatus: id->'locked', isLocked: id->true). Single source of
+      // truth is now per-note `isLocked` in the Yjs workspace doc, so fold
+      // those maps into notes and never persist them as separate keys.
+      const lockedIds = new Set([
+        ...Object.entries(data.lockStatus ?? {})
+          .filter(([, v]) => v === 'locked')
+          .map(([k]) => k),
+        ...Object.entries(data.isLocked ?? {})
+          .filter(([, v]) => v === true)
+          .map(([k]) => k),
+      ]);
+      if (lockedIds.size && data.notes) {
+        for (const id of lockedIds) {
+          if (data.notes[id]) data.notes[id].isLocked = true;
+        }
+      }
+
       const keys = [
         { key: 'notes', dfData: {} },
         { key: 'labels', dfData: [] },
-        { key: 'lockStatus', dfData: {} },
-        { key: 'isLocked', dfData: {} },
         { key: 'folders', dfData: {} },
       ];
 
@@ -222,6 +233,17 @@ export function useSettingsData({
 
         await storage.set(key, mergedData);
         await folderStore.retrieve();
+      }
+
+      // Also sync isLocked into Yjs meta so legacy imports become visible
+      // even though KV `notes` is no longer read (meta doc is the source).
+      if (data.notes) {
+        try {
+          const { syncNoteMeta } = await import('@/lib/yjs/workspace-doc.js');
+          for (const note of Object.values(data.notes)) {
+            if (note?.id) syncNoteMeta(note);
+          }
+        } catch {}
       }
     } catch (error) {
       console.error(error);
@@ -240,24 +262,55 @@ export function useSettingsData({
         useScopedStorage: true,
       });
 
-      if (canceled) return;
+      if (canceled || !dirPath) return;
 
-      let { data } = await readJson(path.join(dirPath, 'data.json'));
-      if (!data) {
+      // Backup folder formats:
+      //   data.json present → legacy folder backup (see below).
+      //   no data.json → full-state archive created by exportData: replace
+      //     both databases + assets wholesale, then relaunch so every store
+      //     rehydrates from the restored files.
+      let legacy;
+      try {
+        legacy = await readJson(path.join(dirPath, 'data.json'));
+      } catch {
+        legacy = null;
+      }
+      if (legacy && !legacy.data) {
         showAlert(translations.value.settings.invalidData);
         return;
       }
 
+      if (!legacy) {
+        dialog.confirm({
+          title: translations.value.settings.importData,
+          body:
+            translations.value.settings.importReplaceWarning ||
+            'Importing this backup will REPLACE all data on this device.',
+          okText: translations.value.settings.import,
+          cancelText: translations.value.dialog?.cancel || 'Cancel',
+          okVariant: 'danger',
+          onConfirm: async () => {
+            try {
+              await importBackup(dirPath);
+              await relaunchApp();
+              return true;
+            } catch (error) {
+              console.error(error);
+              showAlert(errorMessage(error));
+              return false;
+            }
+          },
+        });
+        return;
+      }
+
+      let { data } = legacy;
+
       const finishImport = async (result) => {
         await mergeImportedData(result);
 
-        if (result.lockStatus !== null && result.lockStatus !== undefined) {
-          localStorage.setItem('lockStatus', JSON.stringify(result.lockStatus));
-        }
-
-        if (result.isLocked !== null && result.isLocked !== undefined) {
-          localStorage.setItem('isLocked', JSON.stringify(result.isLocked));
-        }
+        // Lock state is per-note `isLocked` in the Yjs workspace doc
+        // (`NOTE_META_FIELDS` in workspace-doc.js) — no localStorage mirror.
 
         await ensureKeyReadyForWrite();
         await copyPath(

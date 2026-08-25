@@ -11,11 +11,9 @@
     </template>
 
     <template #actions>
-      <div class="flex justify-end pb-2">
-        <ui-button variant="primary" @click="$emit('update:modelValue', false)">
-          Done
-        </ui-button>
-      </div>
+      <ui-button variant="primary" class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3" @click="$emit('update:modelValue', false)">
+        Done
+      </ui-button>
     </template>
 
     <div class="space-y-5">

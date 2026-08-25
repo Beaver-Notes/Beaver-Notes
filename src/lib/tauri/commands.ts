@@ -104,6 +104,8 @@ const commandAliases = {
   'import:evernote': 'import_evernote',
   'import:apple-notes': 'import_apple_notes',
   'show-edit-context-menu': 'show_edit_context_menu',
+  'backup:export': 'backup_export',
+  'backup:import': 'backup_import',
   'spotsearch:enableIndexing': 'enable_indexing',
   'spotsearch:indexItems': 'index_items',
   'spotsearch:deleteItems': 'delete_items',

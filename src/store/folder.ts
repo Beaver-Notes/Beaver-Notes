@@ -6,10 +6,7 @@ import type { BulkDeleteItem, NoteRef, FolderRef } from './undo';
 import {
   syncFolder,
   removeFolder,
-  syncDeletedFolderIds,
 } from '@/lib/yjs/workspace-doc';
-
-import { collectExpiredIds } from '@/utils/helpers/index.js';
 
 interface FolderData {
   id: string;
@@ -27,7 +24,6 @@ interface FolderData {
 
 interface FolderState {
   data: Record<string, FolderData>;
-  deletedIds: Record<string, number>;
   _childrenIndex: Map<string | null, Set<string>> | null;
 }
 
@@ -66,7 +62,6 @@ function indexMove(index: Map<string | null, Set<string>>, folder: FolderData, o
 export const useFolderStore = defineStore('folder', {
   state: (): FolderState => ({
     data: {},
-    deletedIds: {},
     // _childrenIndex holds the children index (Map). Null until first access.
     // We store it as plain state so actions can mutate it directly;
     // Vue won't deeply observe the Map internals.
@@ -165,17 +160,14 @@ export const useFolderStore = defineStore('folder', {
     },
 
     validFolders: (state) =>
-      Object.values(state.data).filter(
-        (folder) => folder.id && !state.deletedIds[folder.id]
-      ),
+      Object.values(state.data).filter((folder) => folder.id),
 
     archivedFolders: (state) =>
       Object.values(state.data).filter(
-        (folder) =>
-          folder.id && !state.deletedIds[folder.id] && folder.isArchived
+        (folder) => folder.id && folder.isArchived
       ),
 
-    exists: (state) => (id: string) => !!state.data[id] && !state.deletedIds[id],
+    exists: (state) => (id: string) => !!state.data[id],
   },
 
   actions: {
@@ -225,11 +217,6 @@ export const useFolderStore = defineStore('folder', {
 
         this.data[id] = newFolder;
         indexAdd(this._index, newFolder);
-
-        if (this.deletedIds[id]) {
-          delete this.deletedIds[id];
-          syncDeletedFolderIds(this.deletedIds);
-        }
 
         syncFolder(newFolder);
 
@@ -347,11 +334,9 @@ export const useFolderStore = defineStore('folder', {
       }
 
       indexRemove(this._index, folderToDelete);
-      this.deletedIds[id] = Date.now();
       delete this.data[id];
 
       removeFolder(id);
-      syncDeletedFolderIds(this.deletedIds);
 
       return { targetFolderId, affectedFolders: childIds };
     },
@@ -453,11 +438,9 @@ export const useFolderStore = defineStore('folder', {
       return false;
     },
 
-    cleanupDeletedIds(days = 30): string[] {
-      const toDelete = collectExpiredIds(this.deletedIds, days);
-      for (const id of toDelete) delete this.deletedIds[id];
-      syncDeletedFolderIds(this.deletedIds);
-      return toDelete;
+    // deletedIds tombstones removed — Yjs folder delete is the tombstone.
+    cleanupDeletedIds(_days = 30): string[] {
+      return [];
     },
 
     async createFolderPath(

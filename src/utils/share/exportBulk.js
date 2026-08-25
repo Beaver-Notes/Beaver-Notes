@@ -1,6 +1,7 @@
 import dayjs from '@/lib/dayjs';
-import { useStorage } from '@/lib/storage';
 import { useFolderStore } from '@/store/folder';
+import { useNoteStore } from '@/store/note';
+import { readNoteContents } from '@/lib/yjs/meta-store.js';
 import { path } from '@/lib/tauri-bridge';
 import { getAppDirectory } from '@/lib/native/app';
 import { readData } from '@/lib/native/fs';
@@ -378,17 +379,18 @@ export function buildFolderTree(folders) {
   return tree;
 }
 
-export async function exportAllMarkdown(onProgress) {
-  const storage = useStorage();
+async function loadExportableNotes() {
+  const noteStore = useNoteStore();
   const folderStore = useFolderStore();
-  const allNotes = await storage.store();
-  const notesArray = Array.isArray(allNotes)
-    ? allNotes
-    : Object.values(allNotes.notes || {});
-  const folders = folderStore?.data || {};
+  const notesArray = Object.values(noteStore.data || {});
+  const contents = await readNoteContents(notesArray.map((note) => note.id));
+  return { notesArray, contents, folders: folderStore?.data || {} };
+}
 
+export async function exportAllMarkdown(onProgress) {
   const rootDir = await chooseRootExportDir('Select export folder');
   if (!rootDir) return null;
+  const { notesArray, contents, folders } = await loadExportableNotes();
 
   const outputRoot = await createDatedExportRoot(rootDir, 'Markdown-Export');
   const total = notesArray.length;
@@ -404,7 +406,10 @@ export async function exportAllMarkdown(onProgress) {
 
       const safeName = sanitizeFileName(note.title || 'Untitled');
       const frontmatter = buildFrontmatter(note, folderPath);
-      const mdBody = tiptapToMarkdown(note.content, { noteId: note.id });
+      const mdBody = tiptapToMarkdown(
+        contents[note.id] ?? note.content,
+        { noteId: note.id }
+      );
       const content = frontmatter ? `${frontmatter}\n${mdBody}` : mdBody;
       await writeTextExportFile(
         path.join(folderDir, `${safeName}.md`),
@@ -425,16 +430,9 @@ export async function exportAllMarkdown(onProgress) {
 }
 
 export async function exportAllHTML(onProgress) {
-  const storage = useStorage();
-  const folderStore = useFolderStore();
-  const allNotes = await storage.store();
-  const notesArray = Array.isArray(allNotes)
-    ? allNotes
-    : Object.values(allNotes.notes || {});
-  const folders = folderStore?.data || {};
-
   const rootDir = await chooseRootExportDir('Select export folder');
   if (!rootDir) return null;
+  const { notesArray, contents, folders } = await loadExportableNotes();
 
   const outputRoot = await createDatedExportRoot(rootDir, 'HTML-Export');
   const total = notesArray.length;
@@ -449,7 +447,10 @@ export async function exportAllHTML(onProgress) {
       await ensureExportFolder(folderDir);
 
       const safeName = sanitizeFileName(note.title || 'Untitled');
-      const htmlBody = tiptapToHtml(note.content, { noteId: note.id });
+      const htmlBody = tiptapToHtml(
+        contents[note.id] ?? note.content,
+        { noteId: note.id }
+      );
       const title = escapeHtml(note.title || 'Untitled');
       const html = `<!DOCTYPE html>
 <html lang="en">

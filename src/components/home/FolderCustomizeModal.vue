@@ -11,25 +11,21 @@
     </template>
 
     <template #actions>
-      <div
-        class="flex justify-end gap-2 pb-2 pt-3 border-t border-neutral-200 dark:border-neutral-700 mobile:flex-col-reverse mobile:gap-3"
+      <ui-button
+        class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+        @click="$emit('update:modelValue', false)"
       >
-        <ui-button
-          class="mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
-          @click="$emit('update:modelValue', false)"
-        >
-          {{ translations.dialog?.cancel || 'Cancel' }}
-        </ui-button>
-        <ui-button
-          variant="primary"
-          class="mobile:w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
-          :disabled="!name.trim()"
-          :loading="saving"
-          @click="save"
-        >
-          {{ isEdit ? (translations.dialog?.done || 'Done') : (translations.card?.create || 'Create') }}
-        </ui-button>
-      </div>
+        {{ translations.dialog?.cancel || 'Cancel' }}
+      </ui-button>
+      <ui-button
+        variant="primary"
+        class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+        :disabled="!name.trim()"
+        :loading="saving"
+        @click="save"
+      >
+        {{ isEdit ? (translations.dialog?.done || 'Done') : (translations.card?.create || 'Create') }}
+      </ui-button>
     </template>
 
     <div class="space-y-4">

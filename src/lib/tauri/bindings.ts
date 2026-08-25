@@ -27,6 +27,18 @@ export const commands = {
 	helperGetPath: (name: string) => typedError<string, AppError>(__TAURI_INVOKE("helper_get_path", { name })),
 	helperIsDarkTheme: () => typedError<boolean, AppError>(__TAURI_INVOKE("helper_is_dark_theme")),
 	showEditContextMenu: (x: number | null, y: number | null) => typedError<null, AppError>(__TAURI_INVOKE("show_edit_context_menu", { x, y })),
+	/**
+	 *  Export a full-state backup folder: clean copies of both workspace databases
+	 *  plus the global assets directory. Layout:
+	 *    `<dir>/data.db`, `<dir>/settings.db`, `<dir>/assets/`
+	 */
+	backupExport: (dir: string) => typedError<null, AppError>(__TAURI_INVOKE("backup_export", { dir })),
+	/**
+	 *  Import a full-state backup folder created by `backup_export`: replaces every
+	 *  row of both live workspace databases and swaps the assets directory.
+	 *  The caller must relaunch the app afterwards so all cached state rehydrates.
+	 */
+	backupImport: (dir: string) => typedError<null, AppError>(__TAURI_INVOKE("backup_import", { dir })),
 	openFileExternal: (src: string) => typedError<string, AppError>(__TAURI_INVOKE("open_file_external", { src })),
 	fsCopy: (path: string, dest: string) => typedError<null, AppError>(__TAURI_INVOKE("fs_copy", { path, dest })),
 	fsOutputJson: (path: string, data: RawJson) => typedError<null, AppError>(__TAURI_INVOKE("fs_output_json", { path, data })),

@@ -21,6 +21,7 @@ export function useImport({
   isMacOS,
 }) {
   const importState = shallowReactive({
+    beaverBackup: createProgressState(),
     obsidian: createProgressState(),
     notion: createProgressState(),
     bear: createProgressState(),
@@ -210,6 +211,20 @@ export function useImport({
   const importSourceGroups = computed(() => {
     const groups = [
       {
+        label: 'Restore',
+        items: [
+          {
+            key: 'beaverBackup',
+            title: 'Beaver Notes Backup',
+            icon: 'riArchiveLine',
+            group: 'Restore',
+            description:
+              'Restore notes, folders, labels and settings from a backup created by Beaver Notes. This replaces everything currently on this device.',
+            buttonLabel: 'Select Backup Folder',
+          },
+        ],
+      },
+      {
         label: 'Markdown-based',
         items: [
           {
@@ -276,7 +291,9 @@ export function useImport({
     ];
 
     if (isMacOS.value) {
-      groups[1].items.push({
+      groups
+        .find((group) => group.label === 'Direct import')
+        .items.push({
         key: 'appleNotes',
         title: 'Apple Notes',
         icon: 'riAppleFill',

@@ -136,6 +136,8 @@ pub fn run() {
             commands::app::migration_write_legacy_data,
             commands::app::migration_read_legacy_preferences,
             commands::app::show_notification,
+            commands::backup::backup_export,
+            commands::backup::backup_import,
             commands::app::set_spellcheck,
             commands::app::set_zoom,
             commands::app::get_zoom,

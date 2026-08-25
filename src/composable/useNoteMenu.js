@@ -6,13 +6,13 @@ import { useUiState } from '@/composable/useUiState';
 import { useNoteStore } from '@/store/note';
 import { useEditorImage } from '@/utils/assets/editor-image';
 import { useDialog } from '@/lib/dialog';
-import { useStorage } from '@/lib/storage';
 import { useTranslations } from '@/composable/useTranslations';
 import { useToolbarConfig } from '@/composable/useToolbarConfig';
 import { backend, path } from '@/lib/tauri-bridge';
 import { exportHTML } from '@/utils/share/HTML';
 import { exportMD } from '@/utils/share/MD';
 import { exportBEA } from '@/utils/share/BEA';
+import { readNoteContents } from '@/lib/yjs/meta-store.js';
 import { exportPDF } from '@/utils/share/PDF';
 import {
   getTempSharePath,
@@ -139,12 +139,7 @@ export function useNoteMenu(props) {
   }
 
   async function shareBEA() {
-    const storage = useStorage();
-    const allNotes = await storage.store();
-    const notesArray = Array.isArray(allNotes)
-      ? allNotes
-      : Object.values(allNotes.notes || {});
-    const noteToExport = notesArray.find((n) => n.id === props.id);
+    const noteToExport = noteStore.data[props.id];
     if (!noteToExport) return;
 
     const appDirectory = await getAppDirectory();
@@ -165,17 +160,17 @@ export function useNoteMenu(props) {
       notesAssets: await encodeAssets(
         path.join(appDirectory, 'assets', props.id)
       ),
-      fileAssets: await encodeAssets(
-        path.join(appDirectory, 'assets', props.id)
-      ),
+      fileAssets: {},
     };
+    // Content lives in per-note Yjs docs; fall back to any in-memory copy.
+    const contents = await readNoteContents([props.id]);
 
     const exportedData = {
       data: {
         id: props.id,
         title: noteToExport.title,
-        content: noteToExport.content,
-        lockedNotes: JSON.parse(localStorage.getItem('lockedNotes')) || {},
+        content: contents[props.id] ?? noteToExport.content,
+        isLocked: !!noteToExport.isLocked,
         assets,
         labels: noteToExport.labels || [],
       },

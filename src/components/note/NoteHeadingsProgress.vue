@@ -47,14 +47,14 @@
           @mouseenter="onEnter"
           @mouseleave="onLeave"
         >
-          <div class="p-2 border-b dark:border-neutral-700">
-            <input
-              v-model="search"
-              type="text"
-              :placeholder="translations.noteActions?.searchHeadings || 'Search headings…'"
-              class="w-full rounded-lg border border-neutral-300 dark:border-neutral-600 bg-transparent px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-primary placeholder:text-neutral-400"
-            />
-          </div>
+          <ui-input
+            v-model="search"
+            type="text"
+            :placeholder="
+              translations.noteActions?.searchHeadings || 'Search headings…'
+            "
+            class="w-full rounded-lg p-2 text-sm"
+          />
           <div class="p-2 max-h-80 overflow-y-auto space-y-1 no-scrollbar">
             <button
               v-for="item in filteredHeadings"
@@ -175,7 +175,7 @@ export default {
           el: node,
           text: node.innerText.slice(0, 120),
           level: Number(node.tagName[1]),
-        })
+        }),
       );
       cache();
       update();
@@ -252,10 +252,10 @@ export default {
       if (!pill) return;
       const rail = railRef.value;
       const target = Math.round(
-        pill.offsetTop + pill.offsetHeight / 2 - rail.clientHeight / 2
+        pill.offsetTop + pill.offsetHeight / 2 - rail.clientHeight / 2,
       );
       animateTo(
-        Math.max(0, Math.min(target, rail.scrollHeight - rail.clientHeight))
+        Math.max(0, Math.min(target, rail.scrollHeight - rail.clientHeight)),
       );
     }
 
@@ -365,7 +365,7 @@ export default {
         requestAnimationFrame(build);
         setupEditorListener();
       },
-      { immediate: true }
+      { immediate: true },
     );
 
     onMounted(() => {

@@ -147,122 +147,156 @@
 
     <section>
       <p class="mb-2">Export</p>
-      <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
-        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
-          <div class="space-y-0.5">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              Export as Markdown
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Export all notes as .md files with YAML frontmatter. Compatible
-              with Obsidian, Bear, and most Markdown editors.
-            </p>
-          </div>
-          <div class="mt-auto space-y-2 pt-2">
-            <ui-button
-              class="w-full"
-              :loading="exportMdState.running"
-              :disabled="exportMdState.running"
-              @click="exportAllMarkdownHandler"
-            >
-              Export Markdown
-            </ui-button>
-            <p
-              v-if="exportMdState.running && exportMdState.total"
-              class="text-xs text-neutral-500 dark:text-neutral-400"
-            >
-              Exporting {{ exportMdState.done }} of {{ exportMdState.total }}…
-            </p>
-            <template v-else-if="exportMdState.result">
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Exported {{ exportMdState.result.exported }} notes<span
-                  v-if="exportMdState.result.skipped.length"
-                >
-                  . {{ exportMdState.result.skipped.length }} skipped.</span
-                ><span v-else>.</span>
-              </p>
-              <details
-                v-if="exportMdState.result.skipped.length"
-                class="text-xs text-neutral-500 dark:text-neutral-400"
-              >
-                <summary class="cursor-pointer select-none">
-                  Show skipped ({{ exportMdState.result.skipped.length }})
-                </summary>
-                <ul class="mt-2 space-y-1 pl-4">
-                  <li
-                    v-for="item in exportMdState.result.skipped"
-                    :key="`md-${item.title}`"
-                  >
-                    {{ item.title }}
-                  </li>
-                </ul>
-              </details>
-            </template>
-          </div>
-        </ui-card>
+      <ui-card padding="p-4" class="flex flex-col gap-4">
+        <div class="space-y-1">
+          <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
+            Export your data
+          </p>
+          <p
+            class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+          >
+            Back up everything as a Beaver Notes archive, or convert all notes
+            to Markdown or HTML files.
+          </p>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <ui-button class="w-full" @click="openExportModal()">
+            Export
+          </ui-button>
+        </div>
+      </ui-card>
 
-        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
-          <div class="space-y-0.5">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
+      <ui-modal v-model="showExportModal" content-class="max-w-md" title="Export" icon="riFileDownloadLine">
+
+        <p
+          class="mb-4 text-neutral-600 leading-relaxed dark:text-neutral-200"
+        >
+          Back up everything as a Beaver Notes archive, or convert all notes to
+          Markdown or HTML files.
+        </p>
+
+        <div class="space-y-1">
+          <div v-for="option in exportOptions" :key="option.key">
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors"
+              :class="
+                selectedExportKey === option.key
+                  ? 'bg-primary/10 ring-1 ring-inset ring-primary'
+                  : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
+              "
+              @click="selectedExportKey = option.key"
             >
-              Export as HTML
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Export all notes as .html files preserving folder structure. Open
-              any file in a browser.
-            </p>
-          </div>
-          <div class="mt-auto space-y-2 pt-2">
-            <ui-button
-              class="w-full"
-              :loading="exportHtmlState.running"
-              :disabled="exportHtmlState.running"
-              @click="exportAllHTMLHandler"
-            >
-              Export HTML
-            </ui-button>
-            <p
-              v-if="exportHtmlState.running && exportHtmlState.total"
-              class="text-xs text-neutral-500 dark:text-neutral-400"
-            >
-              Exporting {{ exportHtmlState.done }} of
-              {{ exportHtmlState.total }}…
-            </p>
-            <template v-else-if="exportHtmlState.result">
-              <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                Exported {{ exportHtmlState.result.exported }} notes<span
-                  v-if="exportHtmlState.result.skipped.length"
-                >
-                  . {{ exportHtmlState.result.skipped.length }} skipped.</span
-                ><span v-else>.</span>
-              </p>
-              <details
-                v-if="exportHtmlState.result.skipped.length"
-                class="text-xs text-neutral-500 dark:text-neutral-400"
+              <span
+                class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+                :class="
+                  selectedExportKey === option.key
+                    ? 'bg-primary/15 text-primary'
+                    : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                "
               >
-                <summary class="cursor-pointer select-none">
-                  Show skipped ({{ exportHtmlState.result.skipped.length }})
-                </summary>
-                <ul class="mt-2 space-y-1 pl-4">
-                  <li
-                    v-for="item in exportHtmlState.result.skipped"
-                    :key="`html-${item.title}`"
+                <v-remixicon :name="option.icon" size="18" />
+              </span>
+              <span
+                class="min-w-0 flex-1 text-sm font-medium"
+                :class="
+                  selectedExportKey === option.key
+                    ? 'text-primary'
+                    : 'text-neutral-800 dark:text-neutral-200'
+                "
+              >
+                {{ option.title }}
+              </span>
+            </button>
+
+            <div
+              v-if="selectedExportKey === option.key"
+              class="space-y-3 px-3 pb-2 pt-1"
+            >
+              <p
+                class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
+              >
+                {{ option.description }}
+              </p>
+
+              <template v-if="option.key === 'backup'">
+                <p
+                  v-if="backupExportState.running"
+                  class="text-xs text-neutral-500 dark:text-neutral-400"
+                >
+                  Creating backup…
+                </p>
+              </template>
+
+              <template v-else>
+                <div
+                  v-if="bulkExportState(option.key).running"
+                  class="space-y-1 text-xs text-neutral-500 dark:text-neutral-400"
+                >
+                  <p v-if="bulkExportState(option.key).total">
+                    Exporting {{ bulkExportState(option.key).done }} of
+                    {{ bulkExportState(option.key).total }}…
+                  </p>
+                </div>
+                <div
+                  v-else-if="bulkExportState(option.key).result"
+                  class="space-y-2 border-t border-neutral-200 pt-2 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400"
+                >
+                  <p>
+                    Exported {{ bulkExportState(option.key).result.exported }}
+                    notes<span
+                      v-if="bulkExportState(option.key).result.skipped.length"
+                    >
+                      .
+                      {{
+                        bulkExportState(option.key).result.skipped.length
+                      }}
+                      skipped.</span
+                    ><span v-else>.</span>
+                  </p>
+                  <details
+                    v-if="bulkExportState(option.key).result.skipped.length"
                   >
-                    {{ item.title }}
-                  </li>
-                </ul>
-              </details>
-            </template>
+                    <summary class="cursor-pointer select-none">
+                      Show skipped ({{
+                        bulkExportState(option.key).result.skipped.length
+                      }})
+                    </summary>
+                    <ul class="mt-2 space-y-1 pl-4">
+                      <li
+                        v-for="item in bulkExportState(option.key).result
+                          .skipped"
+                        :key="`${option.key}-${item.title}`"
+                      >
+                        {{ item.title }}
+                      </li>
+                    </ul>
+                  </details>
+                </div>
+              </template>
+            </div>
           </div>
-        </ui-card>
-      </div>
+        </div>
+
+        <template #actions>
+          <ui-button
+            class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+            :disabled="isExportRunning(selectedExportKey)"
+            @click="showExportModal = false"
+          >
+            Cancel
+          </ui-button>
+          <ui-button
+            class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+            variant="primary"
+            :loading="isExportRunning(selectedExportKey)"
+            :disabled="isExportRunning(selectedExportKey)"
+            @click="runSelectedExport(selectedExportKey)"
+          >
+            {{ activeExportOption?.buttonLabel }}
+          </ui-button>
+        </template>
+      </ui-modal>
     </section>
 
     <section>
@@ -270,216 +304,179 @@
       <ui-card padding="p-4" class="flex flex-col gap-4">
         <div class="space-y-1">
           <p class="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-            Import notes
+            Import your data
           </p>
           <p
             class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
           >
-            Import data from Obsidian, Notion, Bear, Simplenote, Word documents,
-            Markdown folders, Evernote, and Apple Notes on macOS.
+            Restore a Beaver Notes backup, or bring notes in from Obsidian,
+            Notion, Bear, Simplenote, Word documents, Markdown folders,
+            Evernote, and Apple Notes on macOS.
           </p>
         </div>
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <ui-button class="w-full" @click="openImportModal()">
+          <ui-button class="w-full" @click="openImportModal('beaverBackup')">
             Import
           </ui-button>
         </div>
       </ui-card>
 
-      <ui-modal v-model="showImportModal" content-class="max-w-3xl">
-        <template #header>
-          <div>
-            <h3 class="text-lg font-semibold text-neutral-900 dark:text-white">
-              Import Notes
-            </h3>
-            <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-              Choose a source, review the instructions, then run the import.
-            </p>
-          </div>
-        </template>
+      <ui-modal v-model="showImportModal" content-class="max-w-md" title="Import" icon="riFileUploadLine">
 
-        <div
-          class="grid grid-cols-1 border-t border-neutral-100 md:grid-cols-[13rem_minmax(0,1fr)] dark:border-neutral-800"
+        <p
+          class="mb-4 text-neutral-600 leading-relaxed dark:text-neutral-200"
         >
-          <aside class="p-4 md:p-5">
-            <div class="space-y-0.5">
+          Restore a Beaver Notes backup, or bring notes in from other apps.
+        </p>
+
+        <div class="max-h-[24rem] space-y-1 overflow-y-auto">
+          <template v-for="group in importSourceGroups" :key="group.label">
+            <p
+              class="px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500"
+            >
+              {{ group.label }}
+            </p>
+            <div v-for="source in group.items" :key="source.key">
               <button
-                v-for="source in importSources"
-                :key="source.key"
                 type="button"
-                class="w-full rounded-lg px-2.5 py-2 text-left text-sm transition-colors"
+                class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors"
                 :class="
                   selectedImportSource === source.key
-                    ? 'bg-primary/10 font-medium text-primary'
-                    : 'text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-neutral-300 dark:hover:bg-neutral-800 dark:hover:text-white'
+                    ? 'bg-primary/10 ring-1 ring-inset ring-primary'
+                    : 'hover:bg-neutral-100 dark:hover:bg-neutral-800'
                 "
-                @click="selectImportSource(source.key)"
+                @click="selectedImportSource = source.key"
               >
-                <span class="flex items-center gap-2">
-                  <v-remixicon :name="source.icon" size="16" />
-                  <span>{{ source.title }}</span>
+                <span
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+                  :class="
+                    selectedImportSource === source.key
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-neutral-100 text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400'
+                  "
+                >
+                  <v-remixicon :name="source.icon" size="18" />
+                </span>
+                <span
+                  class="min-w-0 flex-1 truncate text-sm font-medium"
+                  :class="
+                    selectedImportSource === source.key
+                      ? 'text-primary'
+                      : 'text-neutral-800 dark:text-neutral-200'
+                  "
+                >
+                  {{ source.title }}
                 </span>
               </button>
-            </div>
-          </aside>
 
-          <div
-            v-if="activeImportSource"
-            class="min-w-0 p-4 md:flex md:min-h-[20rem] md:flex-col md:p-5"
-          >
-            <div class="flex flex-1 flex-col gap-4">
-              <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                  <v-remixicon
-                    :name="activeImportSource.icon"
-                    size="18"
-                    class="text-neutral-500 dark:text-neutral-400"
-                  />
-                  <p
-                    class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-                  >
-                    {{ activeImportSource.title }}
-                  </p>
-                </div>
+              <div
+                v-if="selectedImportSource === source.key"
+                class="space-y-3 px-3 pb-2 pt-1"
+              >
                 <p
                   class="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
                 >
-                  {{ activeImportSource.description }}
+                  {{ source.description }}
                 </p>
-              </div>
 
-              <div v-if="selectedImportSource === 'evernote'" class="space-y-1">
-                <label
-                  class="text-xs font-medium text-neutral-700 dark:text-neutral-300"
-                >
-                  Notebook name
-                </label>
-                <ui-input
-                  v-model="importState.evernote.notebookName"
-                  placeholder="Notebook name (optional)"
-                  class="w-full"
-                />
-              </div>
-
-              <div class="mt-auto space-y-3">
-                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <p
-                    v-if="activeImportState.running && activeImportState.total"
-                    class="text-xs text-neutral-500 dark:text-neutral-400"
+                <div v-if="source.key === 'evernote'" class="space-y-1">
+                  <label
+                    class="text-xs font-medium text-neutral-700 dark:text-neutral-300"
                   >
-                    Importing {{ activeImportState.done }} of
-                    {{ activeImportState.total }}…
-                  </p>
-                  <ui-button
-                    class="sm:ml-auto sm:w-auto"
-                    :loading="activeImportState.running"
-                    :disabled="activeImportState.running"
-                    @click="startSelectedImport"
-                  >
-                    {{ activeImportSource.buttonLabel }}
-                  </ui-button>
+                    Notebook name
+                  </label>
+                  <ui-input
+                    v-model="importState.evernote.notebookName"
+                    placeholder="Notebook name (optional)"
+                    class="w-full"
+                  />
                 </div>
 
-                <div
-                  v-if="activeImportState.result"
-                  class="space-y-3 border-t border-neutral-200 pt-3 dark:border-neutral-700"
+                <p
+                  v-if="
+                    importState[source.key].running &&
+                    importState[source.key].total
+                  "
+                  class="text-xs text-neutral-500 dark:text-neutral-400"
                 >
-                  <p class="text-xs text-neutral-500 dark:text-neutral-400">
-                    Imported {{ activeImportState.result.imported }} notes
-                    across {{ activeImportState.result.folders }} folders.
+                  Importing {{ importState[source.key].done }} of
+                  {{ importState[source.key].total }}…
+                </p>
+
+                <div
+                  v-else-if="importState[source.key].result"
+                  class="space-y-2 border-t border-neutral-200 pt-2 text-xs text-neutral-500 dark:border-neutral-700 dark:text-neutral-400"
+                >
+                  <p>
+                    Imported {{ importState[source.key].result.imported }} notes
+                    across {{ importState[source.key].result.folders }} folders.
                   </p>
                   <details
-                    v-if="activeImportState.result.errors.length"
-                    class="space-y-2 text-xs text-neutral-500 dark:text-neutral-400"
+                    v-if="importState[source.key].result.errors.length"
+                    class="space-y-2"
                   >
                     <summary class="cursor-pointer select-none">
-                      Show issues ({{ activeImportState.result.errors.length }})
+                      Show issues ({{
+                        importState[source.key].result.errors.length
+                      }})
                     </summary>
                     <ui-button
-                      class="w-full sm:w-auto"
+                      class="w-full"
                       variant="secondary"
-                      @click="copyImportIssues(selectedImportSource)"
+                      @click="copyImportIssues(source.key)"
                     >
                       Copy to clipboard
                     </ui-button>
                     <div
-                      class="max-h-56 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap dark:bg-neutral-950"
+                      class="max-h-40 overflow-auto rounded-lg bg-neutral-100 p-3 font-mono text-[11px] whitespace-pre-wrap dark:bg-neutral-950"
                     >
-                      {{ activeImportIssuesText }}
+                      {{ getImportIssuesText(source.key) }}
                     </div>
                   </details>
                 </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
+
+        <template #actions>
+          <ui-button
+            class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+            :disabled="activeImportState?.running"
+            @click="showImportModal = false"
+          >
+            Cancel
+          </ui-button>
+          <ui-button
+            class="w-full mobile:!min-h-[48px] mobile:!h-auto mobile:!py-3"
+            :variant="
+              selectedImportSource === 'beaverBackup' ? 'danger' : 'primary'
+            "
+            :loading="activeImportState?.running"
+            :disabled="activeImportState?.running"
+            @click="runSelectedImport(selectedImportSource)"
+          >
+            {{ activeImportSource?.buttonLabel }}
+          </ui-button>
+        </template>
       </ui-modal>
     </section>
 
-    <section>
-      <p class="mb-2">
-        {{ translations.settings.data || 'Data' }}
+    <div class="flex items-center gap-1.5 px-1 text-neutral-500">
+      <v-remixicon name="riQuestionLine" size="14" />
+      <p class="text-xs">
+        <span v-tooltip:right="translations.settings.encryptionMessage">
+          {{
+            translations.settings.aboutDataEncryption ||
+            'About data encryption'
+          }}
+        </span>
       </p>
-      <div class="grid grid-cols-1 items-stretch gap-3 sm:grid-cols-2">
-        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
-          <div class="space-y-0.5">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.settings.exportData || 'Export data' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Save a full backup of all notes, folders, and labels as a dated
-              archive.
-            </p>
-          </div>
-          <div class="mt-auto space-y-2 pt-2">
-            <ui-button class="w-full" @click="exportData(defaultPath)">{{
-              translations.settings.exportData || 'Export'
-            }}</ui-button>
-          </div>
-        </ui-card>
-
-        <ui-card padding="p-4" class="flex h-full flex-col gap-3">
-          <div class="space-y-0.5">
-            <p
-              class="text-sm font-medium text-neutral-800 dark:text-neutral-200"
-            >
-              {{ translations.settings.importData || 'Import data' }}
-            </p>
-            <p
-              class="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400"
-            >
-              Restore notes from a previously exported Beaver Notes backup
-              archive.
-            </p>
-          </div>
-          <div class="mt-auto pt-2">
-            <ui-button class="w-full" @click="importData(defaultPath)">{{
-              translations.settings.importData || 'Import'
-            }}</ui-button>
-          </div>
-        </ui-card>
-      </div>
-
-      <div class="flex items-center gap-1.5 px-1 text-neutral-500">
-        <v-remixicon name="riQuestionLine" size="14" />
-        <p class="text-xs">
-          <span v-tooltip:right="translations.settings.encryptionMessage">
-            {{
-              translations.settings.aboutDataEncryption ||
-              'About data encryption'
-            }}
-          </span>
-        </p>
-      </div>
-    </section>
+    </div>
   </div>
 </template>
 <script>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, reactive, onMounted } from 'vue';
 import { useDialog } from '@/lib/dialog';
 import { useTranslations } from '@/composable/useTranslations';
 import { useSettingsData } from '@/composable/useSettingsData';
@@ -543,7 +540,6 @@ export default {
 
     const {
       state,
-      defaultPath,
       chooseDefaultPath,
       clearPath,
       exportData,
@@ -573,21 +569,19 @@ export default {
     });
 
     const {
-      activeImportIssuesText,
-      activeImportSource,
-      activeImportState,
       copyImportIssues,
       exportAllHTMLHandler,
       exportAllMarkdownHandler,
       exportHtmlState,
       exportMdState,
+      getImportIssuesText,
+      importSourceGroups,
       importSources,
       importState,
       openImportModal,
-      selectImportSource,
+      runImportSource,
       selectedImportSource,
       showImportModal,
-      startSelectedImport,
     } = useImportExport({
       clipboard,
       folderStore,
@@ -597,10 +591,96 @@ export default {
       translations,
     });
 
+    const exportOptions = [
+      {
+        key: 'backup',
+        title: 'Beaver Notes Backup',
+        icon: 'riArchiveLine',
+        description:
+          'Full backup of all notes, folders, labels, and settings as a dated archive folder. Use this to move devices or keep backups.',
+        buttonLabel: 'Create Backup',
+      },
+      {
+        key: 'markdown',
+        title: 'Markdown',
+        icon: 'riMarkdownLine',
+        description:
+          'Export all notes as .md files with YAML frontmatter. Compatible with Obsidian, Bear, and most Markdown editors.',
+        buttonLabel: 'Export Markdown',
+      },
+      {
+        key: 'html',
+        title: 'HTML',
+        icon: 'riGlobalLine',
+        description:
+          'Export all notes as .html files preserving folder structure. Open any file in a browser.',
+        buttonLabel: 'Export HTML',
+      },
+    ];
+
+    const showExportModal = ref(false);
+    const selectedExportKey = ref('backup');
+    const backupExportState = reactive({ running: false });
+
+    const activeExportOption = computed(
+      () =>
+        exportOptions.find((option) => option.key === selectedExportKey.value) ||
+        null
+    );
+    const activeImportSource = computed(
+      () =>
+        importSources.value.find(
+          (source) => source.key === selectedImportSource.value
+        ) || null
+    );
+    const activeImportState = computed(
+      () => importState[selectedImportSource.value] || null
+    );
+
+    function bulkExportState(key) {
+      return key === 'markdown' ? exportMdState : exportHtmlState;
+    }
+
+    function isExportRunning(key) {
+      return key === 'backup'
+        ? backupExportState.running
+        : bulkExportState(key).running;
+    }
+
+    function openExportModal(key = selectedExportKey.value) {
+      if (exportOptions.some((option) => option.key === key)) {
+        selectedExportKey.value = key;
+      }
+      showExportModal.value = true;
+    }
+
+    async function runSelectedExport(key) {
+      if (isExportRunning(key)) return;
+      if (key === 'backup') {
+        backupExportState.running = true;
+        try {
+          await exportData();
+        } finally {
+          backupExportState.running = false;
+        }
+        return;
+      }
+      await (key === 'markdown'
+        ? exportAllMarkdownHandler()
+        : exportAllHTMLHandler());
+    }
+
+    async function runSelectedImport(key) {
+      if (key === 'beaverBackup') {
+        await importData();
+        return;
+      }
+      await runImportSource(key);
+    }
+
     return {
       translations,
       state,
-      defaultPath,
       chooseDefaultPath,
       clearPath,
       syncProgressStore,
@@ -608,21 +688,25 @@ export default {
       SYNC_TRANSPORT,
       exportData,
       importData,
-      activeImportIssuesText,
+      exportOptions,
+      showExportModal,
+      selectedExportKey,
+      backupExportState,
+      bulkExportState,
+      isExportRunning,
+      openExportModal,
+      runSelectedExport,
+      runSelectedImport,
+      activeExportOption,
       activeImportSource,
       activeImportState,
+      importSourceGroups,
+      getImportIssuesText,
       copyImportIssues,
-      exportAllHTMLHandler,
-      exportAllMarkdownHandler,
-      exportHtmlState,
-      exportMdState,
-      importSources,
       importState,
       openImportModal,
-      selectImportSource,
       selectedImportSource,
       showImportModal,
-      startSelectedImport,
       lastSyncAt,
       syncState,
       lastSyncLabel,

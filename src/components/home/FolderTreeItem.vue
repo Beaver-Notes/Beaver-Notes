@@ -90,7 +90,7 @@ const isExpanded = ref(true);
 const children = computed(() =>
   folderStore
     .getByParent(props.folder.id)
-    .filter((f) => !folderStore.deletedIds[f.id])
+
 );
 
 const isSelected = computed(() => props.selectedId === props.folder.id);

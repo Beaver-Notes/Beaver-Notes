@@ -44,8 +44,6 @@ export const OpType = Object.freeze({
   NOTES: 'notes',
   FOLDERS: 'folders',
   LABELS: 'labels',
-  DELETED_IDS: 'deletedIds',
-  DELETED_FOLDER_IDS: 'deletedFolderIds',
   LABEL_COLORS: 'labelColors',
   DELETED_ASSETS: 'deletedAssets',
 });

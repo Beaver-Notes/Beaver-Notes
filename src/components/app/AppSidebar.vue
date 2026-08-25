@@ -550,7 +550,6 @@ export default {
 
       for (const folder of folderStore.folders) {
         if (
-          !folderStore.deletedIds[folder.id] &&
           !folder.isArchived &&
           folder.updatedAt > cutoff
         ) {

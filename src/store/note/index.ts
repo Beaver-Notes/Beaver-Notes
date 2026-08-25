@@ -24,7 +24,6 @@ import {
   getSearchIndexJSON,
   loadSearchIndex,
 } from '@/utils/note/search.js';
-import { collectExpiredIds } from '@/utils/helpers/index.js';
 import {
   rebuildLinkIndexForNote,
   removeNoteFromLinkIndex,
@@ -35,7 +34,6 @@ import {
 import {
   syncNoteMeta,
   removeNoteMeta,
-  syncDeletedNoteIds,
   transactWorkspace,
 } from '@/lib/yjs/workspace-doc';
 
@@ -79,9 +77,6 @@ export interface NoteData {
 
 export interface NoteState {
   data: Record<string, NoteData>;
-  deletedIds: Record<string, number>;
-  lockStatus: Record<string, unknown>;
-  isLocked: Record<string, unknown>;
   syncInProgress: boolean;
 }
 
@@ -213,13 +208,11 @@ export function searchNotes(state: NoteState) {
 
 export interface NoteStoreThis {
   data: Record<string, NoteData>;
-  deletedIds: Record<string, number>;
   searchNotes?(query: string): NoteData[];
   patchLocal(id: string, data?: Record<string, any>): NoteData | null;
   persist(id: string): Promise<NoteData | null>;
   persistMeta(id: string): Promise<NoteData | null>;
   delete(id: string): Promise<string>;
-  cleanupDeletedIds(days?: number): Promise<string[]>;
   addMany?(notes: NoteData[]): Promise<void>;
 }
 
@@ -332,10 +325,6 @@ export async function add(this: NoteStoreThis, note: Partial<NoteData> & Record<
     } as NoteData;
 
     this.data[id] = hydrateNote(newNote);
-    if (this.deletedIds[id]) {
-      delete this.deletedIds[id];
-      syncDeletedNoteIds(this.deletedIds);
-    }
     incrementFolderCount(this.data[id].folderId);
     await saveNote(id, this.data[id]);
     // Content lives in Yjs — write it at creation so the editor finds it
@@ -519,11 +508,6 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     const lastEditedNote = localStorage.getItem('lastNoteEdit');
     if (lastEditedNote === id) localStorage.removeItem('lastNoteEdit');
 
-    this.deletedIds = this.deletedIds || {};
-    if (!this.deletedIds[id]) {
-      this.deletedIds[id] = Date.now();
-    }
-
     const folderId = this.data[id]?.folderId;
     delete this.data[id];
     if (folderId !== undefined) decrementFolderCount(folderId);
@@ -531,7 +515,7 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     indexSignature.delete(id);
     removeNoteFromLinkIndex(id);
 
-    // Clean up Yjs document updates
+    // Content lives in per-note Yjs docs — wipe it; Yjs delete is the tombstone
     deleteUpdates(id).catch((error) => {
       console.warn('[note] failed to delete Yjs updates for', id, error);
     });
@@ -541,9 +525,6 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
     deleteNoteFromSpotlight(id);
 
     removeNoteMeta(id);
-    syncDeletedNoteIds(this.deletedIds);
-
-    this.cleanupDeletedIds(30);
 
     // Best-effort cleanup of asset files on disk
     try {
@@ -576,16 +557,10 @@ export async function deleteNote(this: NoteStoreThis, id: string): Promise<strin
   }
 }
 
-export async function cleanupDeletedIds(this: NoteStoreThis, days = 30): Promise<string[]> {
-  const toDelete = collectExpiredIds(this.deletedIds, days);
-
-  for (const id of toDelete) {
-    delete this.deletedIds[id];
-  }
-
-  syncDeletedNoteIds(this.deletedIds);
-
-  return toDelete;
+// deletedIds tombstones removed — Yjs note delete + yjs_delete is the tombstone.
+// Kept as no-op for compat with any external caller that still invokes it.
+export async function cleanupDeletedIds(this: NoteStoreThis, _days = 30): Promise<string[]> {
+  return [];
 }
 
 // ─── Folder operations ───────────────────────────────────────────────────────

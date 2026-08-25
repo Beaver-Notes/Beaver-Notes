@@ -40,6 +40,43 @@ async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
 }
 
 /**
+ * Batch-load note CONTENT as ProseMirror JSON from per-note Yjs snapshots
+ * (the only place content lives post-migration). Missing/locked/failed notes
+ * are simply absent from the result so callers can fall back to whatever
+ * in-memory copy they have.
+ *
+ * @param {string[]} noteIds
+ * @returns {Promise<Record<string, object>>} id -> ProseMirror JSON doc
+ */
+export async function readNoteContents(noteIds) {
+  const contents = {};
+  if (!Array.isArray(noteIds) || noteIds.length === 0) return contents;
+  let snapshots;
+  try {
+    snapshots = await getSnapshots(noteIds);
+  } catch (err) {
+    console.warn('[meta-yjs] snapshot batch failed', err);
+    return contents;
+  }
+  for (const id of noteIds) {
+    const snapshot = snapshots?.[id];
+    if (!snapshot || snapshot.length === 0) continue;
+    const tmp = new Y.Doc();
+    try {
+      Y.applyUpdate(tmp, toUint8Array(snapshot));
+      contents[id] = await yXmlFragmentToProsemirrorJSON(
+        tmp.getXmlFragment('content')
+      );
+    } catch (err) {
+      console.warn('[meta-yjs] content load failed for', id, err);
+    } finally {
+      tmp.destroy();
+    }
+  }
+  return contents;
+}
+
+/**
  * Push workspace-doc changes into the Pinia stores (one-way: doc -> store).
  * Idempotent — re-applying the same state is a no-op for consumers.
  *
@@ -50,7 +87,7 @@ async function yXmlFragmentToProsemirrorJSON(xmlFragment) {
  *   changed in this batch. When provided, only those notes are re-merged and
  *   removed ids are evicted — the store map is not rebuilt wholesale. When
  *   omitted, all notes are re-merged (initial hydration).
- * @param {{folders?: boolean, labels?: boolean, labelColors?: boolean, deleted?: boolean}|undefined} [metaChanges]
+ * @param {{folders?: boolean, labels?: boolean, labelColors?: boolean}|undefined} [metaChanges]
  *   flags for which non-note collections changed in this batch (from
  *   `observeWorkspace`). When provided, folders/labels are only rebuilt when
  *   their flag is set; when omitted (initial hydration) everything is rebuilt.
@@ -69,7 +106,7 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
   const changedIds = changedNoteIds instanceof Set ? changedNoteIds : null;
 
   const isInitialHydration = !metaChanges;
-  let foldersNeedRebuild = isInitialHydration || metaChanges.folders || metaChanges.deleted;
+  let foldersNeedRebuild = isInitialHydration || metaChanges.folders;
   let labelsNeedRebuild = isInitialHydration || metaChanges.labels || metaChanges.labelColors;
 
   // ── Folders / Labels ───────────────────────────────────────────────────────
@@ -84,7 +121,6 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
       folders[id] = yMapToObj(yFolder);
     }
     folderStore.data = folders;
-    folderStore.deletedIds = yMapToObj(doc.getMap('deletedFolderIds'));
     folderStore._rebuildIndex();
   }
 
@@ -179,20 +215,20 @@ export async function writeStoresFromWorkspace(changedNoteIds, metaChanges) {
       }
     }
   }
-  noteStore.deletedIds = yMapToObj(doc.getMap('deletedNoteIds'));
 }
 
 /**
  * Import-time: seed the workspace Y.Doc directly from parsed legacy data
- * (no KV reads). Writes note meta, folders, the labels array, label colors,
- * and deleted-id tombstones in a single `'seed'` transaction.
+ * (no KV reads). Writes note meta, folders, the labels array and label colors
+ * in a single `'seed'` transaction. Deleted-id tombstones are no longer used
+ * — deletion is the Yjs map delete + per-note doc wipe (yjs_delete).
  *
  * @param {Record<string, object>} notes  id -> note meta (content excluded)
  * @param {Record<string, object>} folders id -> folder
  * @param {string[]} labels
  * @param {Record<string, string>} labelColors
- * @param {Record<string, number>} deletedIds
- * @param {Record<string, number>} deletedFolderIds
+ * @param {Record<string, number>} [deletedIds] ignored, kept for compat
+ * @param {Record<string, number>} [deletedFolderIds] ignored, kept for compat
  */
 export async function seedWorkspaceDocFromData(
   notes,
@@ -207,8 +243,6 @@ export async function seedWorkspaceDocFromData(
   const yFolders = doc.getMap('folders');
   const yLabels = doc.getArray('labels');
   const yLabelColors = doc.getMap('labelColors');
-  const yDeletedNotes = doc.getMap('deletedNoteIds');
-  const yDeletedFolders = doc.getMap('deletedFolderIds');
 
   const SEED_META_FIELDS = [
     'id',
@@ -255,12 +289,8 @@ export async function seedWorkspaceDocFromData(
     for (const [k, v] of Object.entries(labelColors || {})) {
       if (!yLabelColors.has(k)) yLabelColors.set(k, v);
     }
-    for (const [id, ts] of Object.entries(deletedIds || {})) {
-      yDeletedNotes.set(id, ts);
-    }
-    for (const [id, ts] of Object.entries(deletedFolderIds || {})) {
-      yDeletedFolders.set(id, ts);
-    }
+    void deletedIds;
+    void deletedFolderIds;
   }, 'seed');
 
   return { seededNotes, seededFolders, seededLabels };

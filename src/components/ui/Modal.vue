@@ -31,15 +31,33 @@
             <div
               class="mx-auto mt-2 hidden h-1 w-9 rounded-full bg-neutral-400/60 mobile:block"
             ></div>
-            <div>
-              <div class="flex items-center justify-between gap-3">
-                <span class="content-header w-full">
-                  <slot name="header"></slot>
-                </span>
-              </div>
+            <div v-if="$slots.header || title" class="mb-4">
+              <slot name="header">
+                <div class="flex flex-row items-center gap-4">
+                  <div
+                    v-if="icon"
+                    class="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
+                    :class="iconVariant === 'danger'
+                      ? 'bg-red-100 dark:bg-red-900/30'
+                      : 'bg-neutral-100 dark:bg-neutral-700'"
+                  >
+                    <v-remixicon
+                      :name="icon"
+                      size="24"
+                      :class="iconVariant === 'danger' ? 'text-red-500' : 'text-neutral-600 dark:text-neutral-300'"
+                    />
+                  </div>
+                  <h3 class="font-semibold text-lg">{{ title }}</h3>
+                </div>
+              </slot>
             </div>
             <div>
               <slot></slot>
+            </div>
+            <div
+              v-if="$slots.actions"
+              class="flex gap-3 mobile:flex-col-reverse pt-4 mt-4 border-t border-neutral-200 dark:border-neutral-700"
+            >
               <slot name="actions"></slot>
             </div>
           </ui-card>
@@ -75,6 +93,9 @@ export default {
     persist: Boolean,
     blur: Boolean,
     disabledTeleport: Boolean,
+    title: { type: String, default: '' },
+    icon: { type: String, default: '' },
+    iconVariant: { type: String, default: '' },
   },
   emits: ['close', 'update:modelValue'],
   setup(props, { emit }) {
