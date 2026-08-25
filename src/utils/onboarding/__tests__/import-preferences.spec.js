@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+const DEFAULT_UI_FONT_STACK = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif";
 const setSetting = vi.fn(async () => {});
 const getSettingSync = vi.fn(() => 'folder');
-vi.mock('@/lib/settings', () => ({ setSetting, getSettingSync }));
+vi.mock('@/lib/settings', () => ({ setSetting, getSettingSync, DEFAULT_UI_FONT_STACK }));
 
 const readLegacyPreferences = vi.fn();
 vi.mock('@/lib/native/app.js', () => ({ readLegacyPreferences }));
@@ -27,7 +28,7 @@ describe('importLegacyPreferences', () => {
 
   it('writes only whitelisted preference keys', async () => {
     const count = await importLegacyPreferences('/legacy');
-    expect(setSetting).toHaveBeenCalledWith('selectedFont', 'Arimo');
+    expect(setSetting).toHaveBeenCalledWith('selectedFont', DEFAULT_UI_FONT_STACK);
     expect(setSetting).toHaveBeenCalledWith('colorScheme', 'light');
     expect(setSetting).toHaveBeenCalledWith('theme', 'dark');
     expect(setSetting).toHaveBeenCalledWith('zoomLevel', '1.25');
@@ -61,7 +62,7 @@ describe('importLegacyPreferences', () => {
     const count = await importLegacyPreferences('/legacy');
     expect(setSyncPath).not.toHaveBeenCalled();
     expect(setSetting).not.toHaveBeenCalledWith('syncPath', expect.anything());
-    expect(setSetting).toHaveBeenCalledWith('selectedFont', 'Arimo');
+    expect(setSetting).toHaveBeenCalledWith('selectedFont', DEFAULT_UI_FONT_STACK);
     expect(count).toBe(1);
   });
 });

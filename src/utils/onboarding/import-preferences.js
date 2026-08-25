@@ -3,7 +3,7 @@
  * the new settings store. Only keys that exist in the new app's settings
  * schema are written; everything else is ignored.
  */
-import { setSetting, getSettingSync } from '@/lib/settings';
+import { setSetting, getSettingSync, DEFAULT_UI_FONT_STACK } from '@/lib/settings';
 import { readLegacyPreferences } from '@/lib/native/app';
 import { SYNC_TRANSPORT } from '@/lib/api/types';
 
@@ -58,8 +58,10 @@ export async function importLegacyPreferences(dir) {
       continue;
     }
 
+    // Arimo was the legacy default but is no longer shipped — map to system default
+    const importValue = newKey === 'selectedFont' && value === 'Arimo' ? DEFAULT_UI_FONT_STACK : value;
     try {
-      await setSetting(newKey, value);
+      await setSetting(newKey, importValue);
       written++;
     } catch (err) {
       console.warn(`[onboarding] failed to import preference ${legacyKey}:`, err?.message || err);
