@@ -1,6 +1,6 @@
 export const FOLDER_ICON_COLORS = [
   '#6366f1', // Indigo (default)
-  '#ffba00', // Amber
+  '#fbbf24', // Amber rgb(251,191,36)
   '#c27aff', // Purple
   '#fb64b6', // Pink
   '#fb2c36', // Red

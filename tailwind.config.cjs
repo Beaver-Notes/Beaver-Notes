@@ -34,6 +34,10 @@ module.exports = {
       prefix: 'eio-',
     }),
     createThemes({
+      amber: {
+        primary: colors.amber['400'],
+        secondary: colors.amber['300'],
+      },
       light: {
         primary: colors.amber['400'],
         secondary: colors.amber['300'],

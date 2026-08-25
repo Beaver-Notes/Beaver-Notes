@@ -18,7 +18,7 @@ const settingDefs = {
   },
   colorScheme: {
     legacyKey: 'color-scheme',
-    defaultValue: 'light',
+    defaultValue: 'amber',
     parse: String,
   },
   zoomLevel: { legacyKey: 'zoomLevel', defaultValue: '1.0', parse: String },

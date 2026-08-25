@@ -273,17 +273,19 @@ export default {
 
     const theme = useTheme();
 
+    const rawAccent = getSettingSync('colorScheme');
     const state = shallowReactive({
       defaultPath: '',
       password: '',
       withPassword: false,
       lastUpdated: null,
-      accentColor: getSettingSync('colorScheme'),
+      accentColor: rawAccent === 'light' ? 'amber' : rawAccent,
       zoomLevel: formatZoomLevel(getStoredZoomLevel()),
       directionPreference: getSettingSync('directionPreference'),
       selectedFont: getSettingSync('selectedFont'),
       selectedCodeFont: getSettingSync('selectedCodeFont'),
     });
+    if (rawAccent === 'light') void setSetting('colorScheme', 'amber');
 
     let defaultPath = '';
 
@@ -302,7 +304,7 @@ export default {
     });
 
     const THEME_COLOR_CLASSES = [
-      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light', 'dark',
+      'red', 'amber', 'green', 'blue', 'purple', 'pink', 'neutral', 'light',
     ];
 
     const accentColors = [

@@ -41,23 +41,33 @@
         <p class="text-[11px] font-semibold text-neutral-500 mb-2">
           {{ translations.card?.colors || 'Colors' }}
         </p>
-        <div class="grid grid-cols-7 gap-2">
+        <div class="flex flex-wrap gap-2.5">
           <button
             v-for="color in FOLDER_ICON_COLORS"
             :key="color"
-            class="p-1.5 rounded-xl transition-colors"
-            :class="{
-              'ring-2 ring-primary ring-inset bg-neutral-100 dark:bg-neutral-900': isColorSelected(color),
-              'hover:bg-neutral-100 dark:hover:bg-neutral-800': !isColorSelected(color),
-            }"
+            type="button"
+            class="w-8 h-8 rounded-full shrink-0 ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 transition focus:outline-none"
+            :class="isColorSelected(color) ? 'ring-2 ring-primary' : 'ring-1 ring-black/10 dark:ring-white/10 hover:ring-black/20'"
+            :style="{ backgroundColor: color }"
+            :aria-label="color"
+            :aria-pressed="isColorSelected(color)"
             @click="selectedColor = color"
+          />
+          <label
+            class="relative w-8 h-8 rounded-full shrink-0 flex items-center justify-center ring-offset-2 ring-offset-white dark:ring-offset-neutral-900 overflow-hidden cursor-pointer"
+            :class="isCustomSelected ? 'ring-2 ring-primary' : 'ring-1 ring-black/10 dark:ring-white/10 hover:ring-black/20'"
+            style="background: conic-gradient(from 0deg, #ef4444, #fbbf24, #84cc16, #06b6d4, #3b82f6, #8b5cf6, #ec4899, #ef4444)"
+            aria-label="Custom color"
           >
-            <v-remixicon
-              name="riFolder5Fill"
-              class="w-6 h-6 mx-auto"
-              :style="{ color }"
+            <v-remixicon v-if="!isCustomSelected" name="riPaletteLine" size="14" class="text-white drop-shadow pointer-events-none relative z-10" />
+            <input
+              type="color"
+              class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              :value="selectedColor || DEFAULT_FOLDER_COLOR"
+              @input="onCustomPick($event)"
+              tabindex="-1"
             />
-          </button>
+          </label>
         </div>
       </div>
 
@@ -114,6 +124,16 @@ watch(
 
 function isColorSelected(color) {
   return selectedColor.value === color || (!selectedColor.value && color === DEFAULT_FOLDER_COLOR);
+}
+
+const isCustomSelected = computed(() => {
+  if (!selectedColor.value) return false;
+  return !FOLDER_ICON_COLORS.includes(selectedColor.value);
+});
+
+function onCustomPick(e) {
+  const v = e.target.value;
+  if (v) selectedColor.value = v;
 }
 
 async function save() {
