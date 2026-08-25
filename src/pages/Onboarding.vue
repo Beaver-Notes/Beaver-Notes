@@ -44,11 +44,11 @@
           <div
             class="flex flex-col items-center gap-6 text-center max-w-md w-full mx-auto"
           >
-            <img
-              :src="logoUrl"
-              alt="Beaver Notes"
-              class="w-24 h-24 object-contain ob-logo"
+            <ui-beaver-character
+              class="w-48 h-auto ob-logo"
               :class="{ 'ob-logo--in': logoIn }"
+              :state="['searching', 'cursorTrack']"
+              :auto="false"
             />
 
             <div
@@ -1238,10 +1238,10 @@
             class="flex flex-col items-center gap-5 text-center max-w-md w-full mx-auto ob-finish"
             :class="{ 'ob-finish--in': finishIn }"
           >
-            <img
-              :src="logoUrl"
-              alt="Beaver Notes"
-              class="w-24 h-24 object-contain drop-shadow-xl"
+            <ui-beaver-character
+              class="w-48 h-auto"
+              :state="['greeting']"
+              :auto="false"
             />
             <div class="flex flex-col items-center gap-2">
               <h1
@@ -1882,6 +1882,12 @@ export default {
 .ob-finish--in {
   opacity: 1;
   transform: none;
+}
+
+.ob-squirkle {
+  background: #FAE5B8;
+  border-radius: 28%;
+  overflow: hidden;
 }
 
 /* ── Wizard step slide ──
