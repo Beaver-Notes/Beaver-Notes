@@ -55,10 +55,18 @@ async function mountPill() {
   // static import caches the recorder module, so reading it afterwards returns
   // the exact same singleton the pill subscribed to.
   vi.resetModules();
+  if (!document.getElementById('pill-dock')) {
+    const dock = document.createElement('div');
+    dock.id = 'pill-dock';
+    document.body.appendChild(dock);
+  }
   const { default: Pill } = await import('../RecordingPill.vue');
+  const { default: UiPill } = await import('@/components/ui/Pill.vue');
   const { useAudioRecorder } = await import('@/composable/useAudioRecorder');
   const wrapper = mount(Pill, {
-    global: { stubs: { 'v-remixicon': true } },
+    // <ui-pill> is registered app-wide; tests must mount the real thing so
+    // the teleported surface carries its actual classes.
+    global: { stubs: { 'v-remixicon': true }, components: { 'ui-pill': UiPill } },
   });
   return { wrapper, rec: useAudioRecorder() };
 }
@@ -101,23 +109,25 @@ describe('RecordingPill insertion ownership', () => {
   });
 
   it('uses the compact pill surface and 36px controls', async () => {
-    const { wrapper, rec } = await mountPill();
+    const { rec } = await mountPill();
 
     await rec.start('n1', 0);
     await nextTick();
 
-    // role="region" is the outer fixed wrapper; the inner surface is the pill.
-    const pill = wrapper.find('[role="region"] > div');
-    expect(pill.classes()).toContain('rounded-full');
-    expect(pill.classes()).toContain('border');
-    expect(pill.classes()).toContain('shadow-xl');
+    // The pill teleports to #pill-dock, so query the document. Its surface
+    // element carries role="region" (rounded-full/border/shadow-xl on UiPill).
+    const pill = document.querySelector('#pill-dock [role="region"]');
+    expect(pill).toBeTruthy();
+    expect(pill.className).toContain('rounded-full');
+    expect(pill.className).toContain('border');
+    expect(pill.className).toContain('shadow-xl');
 
     // First button is the tap-to-note title; pause + stop are the 36px
     // circular controls.
-    const buttons = wrapper.findAll('button');
+    const buttons = [...document.querySelectorAll('#pill-dock button')];
     expect(buttons).toHaveLength(3);
     for (const b of buttons.slice(1)) {
-      expect(b.classes()).toContain('size-9');
+      expect(b.className).toContain('size-9');
     }
 
     await rec.stop();

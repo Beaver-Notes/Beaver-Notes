@@ -146,7 +146,7 @@ describe('seedWorkspaceDocFromData (frontend-led import)', () => {
     docHolder.doc = new Y.Doc();
   });
 
-  it('seeds note meta, folders, labels, colors, and deleted tombstones', async () => {
+  it('seeds note meta, folders, labels, and colors; ignores tombstone args (retired)', async () => {
     const { seedWorkspaceDocFromData } = await import('@/lib/yjs/meta-store.js');
     const notes = {
       'note-1': { id: 'note-1', title: 'One', folderId: 'f1', labels: ['alpha'], createdAt: 1, updatedAt: 2 },
@@ -168,8 +168,10 @@ describe('seedWorkspaceDocFromData (frontend-led import)', () => {
     expect(doc.getMap('folders').get('f1').get('name')).toBe('Folder');
     expect(doc.getArray('labels').toArray()).toEqual(['alpha']);
     expect(doc.getMap('labelColors').get('alpha')).toBe('#112233');
-    expect(doc.getMap('deletedNoteIds').get('dead-1')).toBe(123);
-    expect(doc.getMap('deletedFolderIds').get('dead-f1')).toBe(456);
+    // Deleted-id tombstones were retired (9679e529): the args are accepted for
+    // compat but nothing is written to the doc.
+    expect(doc.getMap('deletedNoteIds').size).toBe(0);
+    expect(doc.getMap('deletedFolderIds').size).toBe(0);
   });
 
   it('overwrites stale note entries from a prior broken seed (valid ids win)', async () => {

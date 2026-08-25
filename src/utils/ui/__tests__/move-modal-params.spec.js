@@ -12,12 +12,20 @@ describe('resolveMoveModalParams', () => {
     });
   });
 
-  it('returns the bulk selection when no moveTarget is set', () => {
+  it('returns mixed mode when both notes and folders are selected', () => {
     const selectedNotes = [{ id: 'a' }];
     const selectedFolders = [{ id: 'f' }];
     expect(resolveMoveModalParams(null, selectedNotes, selectedFolders, 'folder')).toEqual({
       notes: selectedNotes,
       folders: selectedFolders,
+      mode: 'mixed',
+    });
+  });
+
+  it('passes moveMode through for single-kind selections', () => {
+    expect(resolveMoveModalParams(null, [{ id: 'a' }], [], 'folder')).toEqual({
+      notes: [{ id: 'a' }],
+      folders: [],
       mode: 'folder',
     });
   });

@@ -45,8 +45,10 @@ import HomeFolderCard from '../HomeFolderCard.vue';
 
 const folder = { id: 'f1', name: 'Work', color: '#6366f1', icon: '', isArchived: false, parentId: null };
 
-describe('HomeFolderCard mobile', () => {
-  it('exposes Delete inside the folder customize modal', async () => {
+describe('HomeFolderCard', () => {
+  // Since 8d230b11 the customize modal is thin (name/color/emoji); Delete
+  // moved to the card's ... menu and the selection rail.
+  it('opens a customize modal without Delete, and deletes via the ... menu', async () => {
     const wrapper = mount(HomeFolderCard, {
       props: { folder },
       global: {
@@ -63,9 +65,15 @@ describe('HomeFolderCard mobile', () => {
     });
 
     await wrapper.find('[data-testid="customize-folder-button"]').trigger('click');
+    const deleteInModal = wrapper
+      .findAll('button')
+      .find((b) => b.text().toLowerCase().includes('delete'));
+    expect(deleteInModal).toBeFalsy();
+
+    // Desktop ... menu carries the destructive action.
+    await wrapper.find('[aria-label="More"]').trigger('click');
     const deleteBtn = wrapper.findAll('button').find((b) => b.text().toLowerCase().includes('delete'));
     expect(deleteBtn).toBeTruthy();
-
     await deleteBtn.trigger('click');
     expect(folderStoreMock.delete).toHaveBeenCalledWith('f1', { deleteContents: true });
   });

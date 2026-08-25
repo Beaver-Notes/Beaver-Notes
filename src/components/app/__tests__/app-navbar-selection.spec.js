@@ -81,15 +81,16 @@ describe('AppNavbar selection actions', () => {
     expect(selectionBarMock.deleteSelection).toHaveBeenCalled();
   });
 
-  it('keeps Lock/Bookmark rendered but disabled when only folders are selected', async () => {
+  it('folders-only selection still offers Move/Delete/Close (Lock/Bookmark removed from rail)', () => {
     const wrapper = mount(AppNavbar, {
       global: { stubs: ['v-remixicon', 'ui-button'] },
     });
-    const lockBtn = wrapper.findAll('button').find((b) => b.attributes('aria-label') === 'Lock');
-    const bookmarkBtn = wrapper.findAll('button').find((b) => b.attributes('aria-label') === 'Bookmark');
-    expect(lockBtn).toBeTruthy();
-    expect(bookmarkBtn).toBeTruthy();
-    expect(lockBtn.attributes('disabled')).toBeDefined();
-    expect(bookmarkBtn.attributes('disabled')).toBeDefined();
+    const labels = wrapper.findAll('button').map((b) => b.attributes('aria-label'));
+    expect(labels).toContain('Move');
+    expect(labels).toContain('Delete');
+    expect(labels).toContain('Close');
+    // Lock/Bookmark are note-only actions and no longer render in the rail.
+    expect(labels).not.toContain('Lock');
+    expect(labels).not.toContain('Bookmark');
   });
 });

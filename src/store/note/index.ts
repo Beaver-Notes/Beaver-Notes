@@ -457,6 +457,7 @@ export async function persist(this: NoteStoreThis, id: string): Promise<NoteData
         content: note.content,
         preview: note.preview,
         searchText: note.searchText,
+        hidden: false,
       });
       note.preview = preview;
       note.cardPreview = cardPreview as CardPreview;

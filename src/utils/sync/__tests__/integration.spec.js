@@ -177,7 +177,28 @@ d('sync + collab integration (two sessions, one process, live backend)', () => {
     expect(inAccount).toBe(true);
   }, 30000);
 
-  test('Hocuspocus WS authenticates with token on root path (Goal 3)', async () => {
+  test('Hocuspocus WS authenticates with token on root path (Goal 3)', async (ctx) => {
+    // Mirror the /health guard: skip when no collab server is listening
+    // (the handshake opens even with a junk token; a dead port only errors).
+    const probe = await new Promise((resolve) => {
+      const s = new WSImpl(`${WS}/?token=probe`);
+      const t = setTimeout(() => {
+        s.removeAllListeners();
+        s.close();
+        resolve(false);
+      }, 3000);
+      s.on('open', () => {
+        clearTimeout(t);
+        s.close();
+        resolve(true);
+      });
+      s.on('error', () => {
+        clearTimeout(t);
+        resolve(false);
+      });
+    });
+    if (!probe) return ctx.skip();
+
     const url = `${WS}/?token=${encodeURIComponent(userA.token)}`;
     const sock = new WSImpl(url);
     const authed = await new Promise((resolve) => {

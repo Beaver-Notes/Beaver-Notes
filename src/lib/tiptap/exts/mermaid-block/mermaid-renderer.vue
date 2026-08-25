@@ -39,17 +39,15 @@ import { renderMermaidSVG } from 'beautiful-mermaid';
 import { useTheme } from '@/composable/theme';
 import { useTranslations } from '@/composable/useTranslations';
 
+// beautiful-mermaid renders exactly these types; everything else gets the
+// plaintext "unsupported" badge instead of a library exception.
 const SUPPORTED_TYPES = new Set([
   'flowchart',
   'state',
   'sequence',
   'class',
   'er',
-  'xychart',
-  'pie',
-  'mindmap',
-  'timeline',
-  'quadrant'
+  'xychart'
 ]);
 
 // Extension point: add new diagram types here as support lands. Types present

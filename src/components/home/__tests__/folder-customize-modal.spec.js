@@ -35,9 +35,14 @@ function mountModal(props) {
 }
 
 describe('FolderCustomizeModal', () => {
-  it('shows a Delete action only in edit mode', () => {
+  // Delete lives in the card's ... menu / selection rail since 8d230b11 —
+  // this modal is customize-only (name, color, emoji).
+  it('shows Done in edit mode and never a Delete action', () => {
     const wrapper = mountModal({ modelValue: true, folder: { id: 'f1', name: 'Work' } });
-    expect(wrapper.findAll('button').some((b) => b.text().toLowerCase().includes('delete'))).toBe(true);
+    const texts = wrapper.findAll('button').map((b) => b.text().toLowerCase());
+    expect(texts.some((t) => t.includes('delete'))).toBe(false);
+    expect(texts.some((t) => t.includes('done'))).toBe(true);
+    expect(texts.some((t) => t.includes('cancel'))).toBe(true);
   });
 
   it('hides Delete and shows Create in create mode', () => {
