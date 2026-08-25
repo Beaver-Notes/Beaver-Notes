@@ -31,26 +31,19 @@
           </p>
         </div>
 
-        <!-- Update Status Button / Managed Message -->
-        <div class="flex items-center gap-3">
-          <template v-if="state.managed && state.managedSource !== 'appStore'">
-            <span class="text-xs text-neutral-500 dark:text-neutral-400 max-w-40 text-right">
-              {{ state.updateStatus }}
-            </span>
-          </template>
-          <template v-else-if="!state.managed">
-            <ui-button
-              class="flex items-center justify-center w-10 h-10 transition-all duration-300"
-              :disabled="state.isProcessing"
-              @click="handleUpdateAction"
-            >
-              <v-remixicon
-                :name="getUpdateIcon()"
-                :class="getIconClass()"
-                class="text-lg"
-              />
-            </ui-button>
-          </template>
+        <!-- Update Status Button (hidden when updates are externally managed) -->
+        <div v-if="!state.managed" class="flex items-center gap-3">
+          <ui-button
+            class="flex items-center justify-center w-10 h-10 transition-all duration-300"
+            :disabled="state.isProcessing"
+            @click="handleUpdateAction"
+          >
+            <v-remixicon
+              :name="getUpdateIcon()"
+              :class="getIconClass()"
+              class="text-lg"
+            />
+          </ui-button>
         </div>
       </div>
     </div>
@@ -117,7 +110,6 @@ import {
   checkForUpdates as runUpdateCheck,
   downloadUpdate as runUpdateDownload,
   getAutoUpdateStatus,
-  getInstallationSource,
   installUpdate,
   isUpdateManaged,
   toggleAutoUpdate as setAutoUpdateEnabled,
@@ -145,13 +137,6 @@ export default {
       },
     ];
 
-    const MANAGED_MESSAGES = {
-      scoop: 'Updates are managed by Scoop. Run scoop update beaver-notes to update.',
-      brew: 'Updates are managed by Homebrew. Run brew upgrade beaver-notes to update.',
-      linuxPackage: 'Updates are managed by your package manager. Use it to update Beaver Notes.',
-      appStore: 'Updates are managed by your app store. Check for updates there.',
-    };
-
     const state = shallowReactive({
       version: '0.0.0',
       autoUpdateEnabled: true,
@@ -160,7 +145,6 @@ export default {
       updateProgress: null,
       updateStatusType: 'idle',
       managed: false,
-      managedSource: null,
     });
 
     const checkForUpdates = async () => {
@@ -258,15 +242,9 @@ export default {
       const bridge = backend;
       if (bridge) {
         try {
-          const managed = await isUpdateManaged();
-          state.managed = managed;
-          const source = await getInstallationSource();
-          state.managedSource = source;
-          if (managed) {
-            state.updateStatus = MANAGED_MESSAGES[source] || 'Updates are managed externally.';
-            state.updateStatusType = 'managed';
-          } else {
-            Object.assign(state, await getAppInfo());
+          Object.assign(state, await getAppInfo());
+          state.managed = await isUpdateManaged();
+          if (!state.managed) {
             state.autoUpdateEnabled = await getAutoUpdateStatus();
           }
         } catch (e) {

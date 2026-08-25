@@ -359,7 +359,7 @@ export type IndexSnapshot = {
 	signaturesJson: string,
 };
 
-export type InstallationSource = "standalone" | "scoop" | "brew" | "linuxPackage" | "appStore";
+export type InstallationSource = "standalone" | "scoop" | "brew" | "linux" | "appStore";
 
 export type LegacyMigrationResult = {
 	legacyDir: string | null,

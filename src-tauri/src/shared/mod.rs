@@ -357,7 +357,7 @@ pub(crate) enum InstallationSource {
     Standalone,
     Scoop,
     Brew,
-    LinuxPackage,
+    Linux,
     AppStore,
 }
 
@@ -394,7 +394,7 @@ pub(crate) fn current_installation_source() -> InstallationSource {
 
     #[cfg(not(any(mobile, target_os = "macos", target_os = "windows")))]
     {
-        InstallationSource::LinuxPackage
+        InstallationSource::Linux
     }
 }
 

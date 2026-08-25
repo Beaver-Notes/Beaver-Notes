@@ -19,7 +19,7 @@ fn managed_err(msg: &str) -> String {
     let name = match source() {
         InstallationSource::Scoop => "Scoop",
         InstallationSource::Brew => "Homebrew",
-        InstallationSource::LinuxPackage => "your package manager",
+        InstallationSource::Linux => "your package manager",
         InstallationSource::AppStore => "your app store",
         InstallationSource::Standalone => "",
     };
